@@ -93,8 +93,12 @@ $menuItems = [
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
 <aside class="sidebar" id="sidebar">
-    <div class="sidebar-brand" style="justify-content:center;padding:1.25rem 1rem;">
-        <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Ferreira &amp; Sá" style="width:90px;height:90px;border-radius:14px;object-fit:cover;" onerror="this.outerHTML='<h2 style=color:#fff>F&amp;S Hub</h2>'">
+    <div class="sidebar-brand">
+        <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">
+        <div class="sidebar-brand-text">
+            <h2>Ferreira &amp; Sá</h2>
+            <small>Hub</small>
+        </div>
     </div>
 
     <nav class="sidebar-nav">
