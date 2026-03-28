@@ -123,7 +123,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div style="text-align:center;padding:1.5rem .5rem;color:var(--text-muted);font-size:.78rem;">Nenhum lead</div>
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
-                <div class="lead-card" onclick="window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+                <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" onclick="if(!window._dragging)window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'"
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?>
@@ -164,5 +164,68 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endforeach; ?>
 </div>
 
+<style>
+.lead-card[draggable="true"] { cursor:grab; }
+.lead-card[draggable="true"]:active { cursor:grabbing; }
+.lead-card.dragging { opacity:.4; transform:rotate(2deg); }
+.kanban-body.drag-over { background:rgba(215,171,144,.15); border:2px dashed var(--rose); border-radius:var(--radius); }
+</style>
+
+<script>
+(function() {
+    var draggedId = null;
+    window._dragging = false;
+    var csrfToken = '<?= generate_csrf_token() ?>';
+    var apiUrl = '<?= module_url("pipeline", "api.php") ?>';
+
+    // Drag start
+    document.querySelectorAll('.lead-card[draggable]').forEach(function(card) {
+        card.addEventListener('dragstart', function(e) {
+            draggedId = this.dataset.leadId;
+            window._dragging = true;
+            this.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', draggedId);
+        });
+
+        card.addEventListener('dragend', function() {
+            this.classList.remove('dragging');
+            setTimeout(function() { window._dragging = false; }, 100);
+            document.querySelectorAll('.kanban-body').forEach(function(b) { b.classList.remove('drag-over'); });
+        });
+    });
+
+    // Drop zones
+    document.querySelectorAll('.kanban-body').forEach(function(body) {
+        body.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            this.classList.add('drag-over');
+        });
+
+        body.addEventListener('dragleave', function() {
+            this.classList.remove('drag-over');
+        });
+
+        body.addEventListener('drop', function(e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            var toStage = this.dataset.stage;
+            if (!draggedId || !toStage) return;
+
+            // Enviar via form hidden
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = apiUrl;
+            form.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
+                '<input type="hidden" name="action" value="move">' +
+                '<input type="hidden" name="lead_id" value="' + draggedId + '">' +
+                '<input type="hidden" name="to_stage" value="' + toStage + '">';
+            document.body.appendChild(form);
+            form.submit();
+        });
+    });
+})();
+</script>
+
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
-<!-- deploy 1774722743 -->
