@@ -142,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="text" name="nome" required value="<?= e($_POST['nome'] ?? '') ?>">
 
             <label>CPF <span class="obrigat">*</span></label>
-            <input type="text" name="cpf" placeholder="Apenas números" required value="<?= e($_POST['cpf'] ?? '') ?>">
+            <input type="text" name="cpf" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14">
 
             <label>Data de Nascimento</label>
             <input type="date" name="nascimento" value="<?= e($_POST['nascimento'] ?? '') ?>">
@@ -166,13 +166,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="section-title">Contato e Endereço</div>
 
             <label>Celular (WhatsApp) <span class="obrigat">*</span></label>
-            <input type="text" name="celular" required value="<?= e($_POST['celular'] ?? '') ?>">
+            <input type="text" name="celular" placeholder="(00) 00000-0000" required value="<?= e($_POST['celular'] ?? '') ?>" maxlength="15">
 
             <label>E-mail <span class="obrigat">*</span></label>
             <input type="email" name="email" required value="<?= e($_POST['email'] ?? '') ?>">
 
             <label>CEP <span class="obrigat">*</span></label>
-            <input type="text" name="cep" required value="<?= e($_POST['cep'] ?? '') ?>">
+            <input type="text" name="cep" placeholder="00000-000" required value="<?= e($_POST['cep'] ?? '') ?>" maxlength="9">
 
             <label>Endereço Completo (Rua, número, Bairro e Cidade) <span class="obrigat">*</span></label>
             <textarea name="endereco" required><?= e($_POST['endereco'] ?? '') ?></textarea>
@@ -251,6 +251,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <button type="submit">ENVIAR DADOS</button>
         </form>
+
+        <script>
+        function mask(el, pattern) {
+            var v = el.value.replace(/\D/g, '');
+            var r = '';
+            var vi = 0;
+            for (var i = 0; i < pattern.length && vi < v.length; i++) {
+                if (pattern[i] === '9') {
+                    r += v[vi]; vi++;
+                } else {
+                    r += pattern[i];
+                }
+            }
+            el.value = r;
+        }
+
+        // CPF: 000.000.000-00
+        document.querySelector('input[name="cpf"]').addEventListener('input', function() {
+            mask(this, '999.999.999-99');
+        });
+
+        // Celular: (00) 00000-0000
+        document.querySelector('input[name="celular"]').addEventListener('input', function() {
+            var v = this.value.replace(/\D/g, '');
+            if (v.length <= 10) {
+                mask(this, '(99) 9999-9999');
+            } else {
+                mask(this, '(99) 99999-9999');
+            }
+        });
+
+        // CEP: 00000-000
+        document.querySelector('input[name="cep"]').addEventListener('input', function() {
+            mask(this, '99999-999');
+        });
+
+        // RG: formata com pontos (00.000.000-0)
+        document.querySelector('input[name="rg"]').addEventListener('input', function() {
+            var v = this.value.replace(/\D/g, '');
+            if (v.length <= 9) {
+                mask(this, '99.999.999-9');
+            }
+        });
+        </script>
         <?php endif; ?>
     </div>
 </body>
