@@ -1,0 +1,11 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home7/ferre3151357/public_html/conecta/
+    - /bin/cp -R core $DEPLOYPATH
+    - /bin/cp -R assets $DEPLOYPATH
+    - /bin/cp -R templates $DEPLOYPATH
+    - /bin/cp -R auth $DEPLOYPATH
+    - /bin/cp -R modules $DEPLOYPATH
+    - /bin/cp -f .htaccess $DEPLOYPATH
+    - /bin/cp -f schema.sql $DEPLOYPATH
