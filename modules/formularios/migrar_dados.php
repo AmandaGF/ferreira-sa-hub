@@ -80,14 +80,9 @@ try {
         'mysql:host=localhost;dbname=ferre3151357_gastos_pensao;charset=utf8mb4',
         'ferre3151357_pensao_user',
         'Ar192114@',
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true]
     );
 
-    // Descobrir nome da tabela
-    $tables = $gasPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-    echo "Tabelas: " . implode(', ', $tables) . "\n";
-
-    // Usar tabela pensao_respostas
     $tableName = 'pensao_respostas';
 
     if ($tableName) {
