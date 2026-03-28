@@ -138,6 +138,27 @@ $links = array(
     array('Plataformas (Login)', 'JusBrasil', 'https://www.jusbrasil.com.br/iniciar-pesquisa/', 'amandaguedesferreira@gmail.com', 'Fs282123@', 'Pesquisa jurídica', 'internal', 1, 1),
     array('Plataformas (Login)', 'Fire Buscas', 'https://facebusca.com/app', 'FES2026', 'Fs212823@', 'Plataforma de buscas', 'internal', 1, 2),
     array('Plataformas (Login)', 'E-mail de Andamentos Processuais', '', 'andamentosfes@gmail.com', 'Andamentos2023@', 'Login no Webmail para acompanhar andamentos', 'internal', 1, 3),
+
+    // ══════════════════════════════════════════════
+    // 14. INFORMAÇÕES DO ESCRITÓRIO
+    // ══════════════════════════════════════════════
+    array('Informações do Escritório', 'Dados da Empresa', '', '', '', "Ferreira & Sá Advocacia\nCNPJ: 51.294.223/0001-40\nRS OAB: 005.987/2023", 'internal', 1, 0),
+
+    array('Informações do Escritório', 'Advogados', '', '', '', "Luiz Eduardo de Sá Silva Marcelino - OAB/RJ 248.755 e OAB/SP 523.473\nAmanda Guedes Ferreira - OAB/RJ 163.260", 'internal', 1, 1),
+
+    array('Informações do Escritório', 'Sede - Resende/RJ', '', '', '', "Av. Albino de Almeida, nº 119 - Salas 201 e 202\nCampos Elíseos - Resende - RJ\nCEP: 27542-070", 'internal', 1, 2),
+
+    array('Informações do Escritório', 'Filial - São Paulo/SP', '', '', '', "Av. Paulista, 1636, Sala 1105/543\nPaulista Corporate - Cerqueira César\nSão Paulo - SP, CEP: 01310-200", 'internal', 0, 3),
+
+    array('Informações do Escritório', 'Filial - Barra Mansa/RJ', '', '', '', "Rua Dr. Aldrovando de Oliveira, nº 138\nAno Bom - Barra Mansa - RJ", 'internal', 0, 4),
+
+    array('Informações do Escritório', 'Emergência - Barra da Tijuca/RJ', '', '', '', "Av. das Américas, 4200 - Bloco 01 - Sala 305\nBarra da Tijuca, Rio de Janeiro - RJ\nCEP: 22640-907", 'internal', 0, 5),
+
+    array('Informações do Escritório', 'Agendamento - Volta Redonda/RJ', '', '', '', "Rua 535, nº 325 - Nossa Senhora das Graças\nVolta Redonda - RJ\n(Mediante agendamento - Dra. Amanda)", 'internal', 0, 6),
+
+    array('Informações do Escritório', 'Telefones', '', '', '', "(24) 9.9205-0096\n(11) 2110-5438\n(24) 9.8142-9356\n(21) 9.9862-6615", 'internal', 1, 7),
+
+    array('Informações do Escritório', 'Dados Bancários para Transferência', '', '', '', "Agência: 0001\nConta Corrente: 5224012-7\nInstituição: 403 - Cora SCD\nNome: Ferreira e Sá Advocacia\nCNPJ: 51.294.223/0001-40", 'internal', 1, 8),
 );
 
 $stmt = $pdo->prepare(
