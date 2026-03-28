@@ -17,7 +17,7 @@ $menuItems = [
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
     [
-        'label' => 'Portal',
+        'label' => 'Portal de Links',
         'icon'  => '🔗',
         'href'  => url('modules/portal/'),
         'id'    => 'portal',
