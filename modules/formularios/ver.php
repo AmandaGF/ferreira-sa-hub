@@ -31,6 +31,9 @@ $typeLabels = array(
     'gastos_pensao' => 'Levantamento de Gastos — Pensão Alimentícia',
     'cadastro_cliente' => 'Cadastro de Cliente',
     'calculadora_lead' => 'Lead da Calculadora',
+    'divorcio' => 'Divórcio',
+    'alimentos' => 'Alimentos',
+    'responsabilidade_civil' => 'Responsabilidade Civil',
 );
 
 // ═══════════════════════════════════════════════════════

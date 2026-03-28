@@ -17,16 +17,26 @@ $activeType = $_GET['type'] ?? ($types[0] ?? '');
 $filterStatus = $_GET['status'] ?? '';
 $search = trim($_GET['q'] ?? '');
 
-// Labels dos tipos
+// Labels dos tipos com ícones e cores
 $typeLabels = array(
-    'convivencia' => 'Convivência',
-    'gastos_pensao' => 'Gastos Pensão',
-    'cadastro_cliente' => 'Cadastro de Clientes',
-    'calculadora_lead' => 'Leads Calculadora',
-    'divorcio' => 'Divórcio',
-    'alimentos' => 'Alimentos',
-    'responsabilidade_civil' => 'Resp. Civil',
+    'cadastro_cliente' => array('label' => 'Cadastro de Clientes', 'icon' => '👤', 'color' => '#052228'),
+    'calculadora_lead' => array('label' => 'Leads Calculadora', 'icon' => '🧮', 'color' => '#d97706'),
+    'convivencia' => array('label' => 'Convivência', 'icon' => '👨‍👩‍👧', 'color' => '#059669'),
+    'gastos_pensao' => array('label' => 'Gastos Pensão', 'icon' => '💰', 'color' => '#6a3c2c'),
+    'divorcio' => array('label' => 'Divórcio', 'icon' => '📋', 'color' => '#dc2626'),
+    'alimentos' => array('label' => 'Alimentos', 'icon' => '⚖️', 'color' => '#7c3aed'),
+    'responsabilidade_civil' => array('label' => 'Resp. Civil', 'icon' => '🏛️', 'color' => '#0284c7'),
 );
+
+function getTypeLabel($type, $typeLabels) {
+    return isset($typeLabels[$type]) ? $typeLabels[$type]['label'] : $type;
+}
+function getTypeIcon($type, $typeLabels) {
+    return isset($typeLabels[$type]) ? $typeLabels[$type]['icon'] : '📄';
+}
+function getTypeColor($type, $typeLabels) {
+    return isset($typeLabels[$type]) ? $typeLabels[$type]['color'] : '#6b7280';
+}
 
 $statusLabels = array('novo' => 'Novo', 'em_analise' => 'Em análise', 'processado' => 'Processado', 'arquivado' => 'Arquivado');
 $statusBadge = array('novo' => 'warning', 'em_analise' => 'info', 'processado' => 'success', 'arquivado' => 'gestao');
@@ -69,15 +79,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.type-tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:1.5rem; overflow-x:auto; }
-.type-tab { padding:.6rem 1.25rem; font-size:.82rem; font-weight:600; color:var(--text-muted); cursor:pointer;
-    border-bottom:2px solid transparent; margin-bottom:-2px; transition:all var(--transition);
-    background:none; border-top:none; border-left:none; border-right:none; white-space:nowrap;
-    text-decoration:none; display:flex; align-items:center; gap:.4rem; }
-.type-tab:hover { color:var(--petrol-500); }
-.type-tab.active { color:var(--petrol-900); border-bottom-color:var(--rose); }
-.type-tab .tab-count { font-size:.68rem; background:var(--bg); padding:.1rem .4rem; border-radius:100px; }
-.type-tab.active .tab-count { background:var(--rose-light); color:var(--brown); }
+.type-tabs { display:flex; gap:.6rem; margin-bottom:1.5rem; overflow-x:auto; padding-bottom:.5rem; flex-wrap:wrap; }
+.type-tab {
+    padding:.65rem 1.1rem; font-size:.82rem; font-weight:600; cursor:pointer;
+    transition:all var(--transition); white-space:nowrap; text-decoration:none;
+    display:flex; align-items:center; gap:.5rem;
+    border-radius:var(--radius); border:2px solid var(--border);
+    background:var(--bg-card); color:var(--text-muted);
+}
+.type-tab:hover { transform:translateY(-1px); box-shadow:var(--shadow-sm); }
+.type-tab.active { color:#fff; border-color:transparent; box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.type-tab .tab-icon { font-size:1.1rem; }
+.type-tab .tab-count {
+    font-size:.7rem; font-weight:800; padding:.1rem .5rem; border-radius:100px;
+    background:rgba(255,255,255,.2); color:inherit;
+}
+.type-tab:not(.active) .tab-count { background:var(--bg); color:var(--text-muted); }
 </style>
 
 <!-- KPIs -->
@@ -102,9 +119,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Abas por tipo -->
 <div class="type-tabs">
-    <?php foreach ($types as $t): ?>
-        <a href="?type=<?= urlencode($t) ?>" class="type-tab <?= $activeType === $t ? 'active' : '' ?>">
-            <?= isset($typeLabels[$t]) ? $typeLabels[$t] : e($t) ?>
+    <?php foreach ($types as $t):
+        $color = getTypeColor($t, $typeLabels);
+        $isActive = ($activeType === $t);
+        $style = $isActive ? "background:{$color};color:#fff;border-color:{$color};" : "";
+    ?>
+        <a href="?type=<?= urlencode($t) ?>" class="type-tab <?= $isActive ? 'active' : '' ?>" style="<?= $style ?>">
+            <span class="tab-icon"><?= getTypeIcon($t, $typeLabels) ?></span>
+            <?= getTypeLabel($t, $typeLabels) ?>
             <span class="tab-count"><?= $kpiByType[$t] ?? 0 ?></span>
         </a>
     <?php endforeach; ?>
