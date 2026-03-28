@@ -117,6 +117,14 @@ $cidadeHoje = ($cidade ?: 'Resende') . '/' . ($uf ?: 'RJ') . ', ' . $hoje;
         <?php endif; ?>
     </div>
     <span style="font-size:.78rem;opacity:.7;"><?= e($pageTitle) ?> — <?= e($nome) ?></span>
+    <form method="POST" action="<?= module_url('documentos', 'zapsign.php') ?>" style="display:inline;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="tipo" value="<?= e($tipo) ?>">
+        <input type="hidden" name="client_id" value="<?= $clientId ?>">
+        <button type="submit" style="background:#7c3aed;color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;">
+            ✍️ Enviar para assinatura (ZapSign)
+        </button>
+    </form>
 </div>
 
 <div class="page">
