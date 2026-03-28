@@ -76,6 +76,16 @@ switch ($action) {
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
+    case 'delete':
+        if ($formId) {
+            $pdo->prepare('DELETE FROM form_submissions WHERE id = ?')->execute(array($formId));
+            audit_log('form_deleted', 'form', $formId);
+            flash_set('success', 'Formulário apagado.');
+        }
+        $redirectType = $_POST['redirect_type'] ?? '';
+        redirect(module_url('formularios', $redirectType ? '?type=' . urlencode($redirectType) : ''));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('formularios'));

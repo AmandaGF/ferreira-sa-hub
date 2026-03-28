@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Ver Formulário Submetido
+ * Ferreira & Sá Hub — Ver Formulário (melhorado)
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -16,69 +16,270 @@ $stmt = $pdo->prepare(
      LEFT JOIN clients c ON c.id = fs.linked_client_id
      WHERE fs.id = ?'
 );
-$stmt->execute([$id]);
+$stmt->execute(array($id));
 $form = $stmt->fetch();
 
 if (!$form) { flash_set('error', 'Formulário não encontrado.'); redirect(module_url('formularios')); }
 
 $pageTitle = 'Formulário ' . $form['protocol'];
-
-// Decodificar JSON
 $payload = json_decode($form['payload_json'], true);
+if (!is_array($payload)) $payload = array();
 
-$statusLabels = ['novo' => 'Novo', 'em_analise' => 'Em análise', 'processado' => 'Processado', 'arquivado' => 'Arquivado'];
+// Labels dos tipos
+$typeLabels = array(
+    'convivencia' => 'Regulamentação de Convivência',
+    'gastos_pensao' => 'Levantamento de Gastos — Pensão Alimentícia',
+    'cadastro_cliente' => 'Cadastro de Cliente',
+    'calculadora_lead' => 'Lead da Calculadora',
+);
+
+// ═══════════════════════════════════════════════════════
+// Mapeamento de nomes dos campos para português
+// ═══════════════════════════════════════════════════════
+$fieldLabels = array(
+    // Convivência
+    'client_name' => 'Nome do cliente',
+    'client_phone' => 'Telefone / WhatsApp',
+    'client_email' => 'E-mail',
+    'relationship' => 'Relação com a criança',
+    'children' => 'Filhos',
+    'pickup_frequency' => 'Frequência de convivência',
+    'pickup_frequency_other' => 'Outra frequência (detalhe)',
+    'weekend_model' => 'Modelo de fim de semana',
+    'weekend_model_time' => 'Horário (fim de semana)',
+    'weekend_model_time_start' => 'Horário início',
+    'weekend_model_time_end' => 'Horário fim',
+    'overnight' => 'Pernoite',
+    'overnight_reason' => 'Motivo de não pernoitar',
+    'overnight_reason_detail' => 'Detalhe do motivo',
+    'pickup_time' => 'Horário de busca',
+    'return_time' => 'Horário de retorno',
+    'bday_child' => 'Aniversário da criança',
+    'bday_child_detail' => 'Detalhe aniversário criança',
+    'bday_mom' => 'Dia das Mães',
+    'bday_mom_detail' => 'Detalhe Dia das Mães',
+    'bday_dad' => 'Dia dos Pais',
+    'bday_dad_detail' => 'Detalhe Dia dos Pais',
+    'holidays' => 'Feriados',
+    'holidays_detail' => 'Detalhe feriados',
+    'vac_mid' => 'Férias de meio de ano',
+    'vac_mid_detail' => 'Detalhe férias meio de ano',
+    'vac_end' => 'Férias de fim de ano',
+    'vac_end_detail' => 'Detalhe férias fim de ano',
+    'xmas' => 'Natal e Ano Novo',
+    'xmas_detail' => 'Detalhe Natal/Ano Novo',
+    'carnival' => 'Carnaval',
+    'carnival_detail' => 'Detalhe Carnaval',
+    'easter' => 'Páscoa',
+    'easter_detail' => 'Detalhe Páscoa',
+    'travel' => 'Viagens',
+    'travel_detail' => 'Detalhe viagens',
+    'extra_notes' => 'Observações adicionais',
+
+    // Gastos Pensão
+    'nome_responsavel' => 'Nome do responsável',
+    'cpf_responsavel' => 'CPF do responsável',
+    'whatsapp' => 'WhatsApp',
+    'nome_filho_referente' => 'Nome do filho (referência)',
+    'tea_status' => 'Criança com TEA?',
+    'faz_tratamento_especifico' => 'Faz tratamento específico?',
+    'detalhe_tratamento' => 'Detalhe do tratamento',
+    'qtd_filhos' => 'Quantidade de filhos',
+    'gastos_iguais_todos' => 'Gastos iguais para todos os filhos?',
+    'fonte_renda' => 'Fonte de renda',
+    'obs_renda' => 'Observações sobre renda',
+    'renda_mensal_cents' => 'Renda mensal (centavos)',
+    'quem_paga' => 'Quem paga',
+    'renda_obrigado_cents' => 'Renda do obrigado (centavos)',
+    'moradores' => 'Moradores da residência',
+    'total_moradia_rateada_cents' => 'Total Moradia (rateado)',
+    'total_alimentacao_cents' => 'Total Alimentação',
+    'total_saude_cents' => 'Total Saúde',
+    'total_educacao_cents' => 'Total Educação',
+    'total_transporte_cents' => 'Total Transporte',
+    'total_vestuario_cents' => 'Total Vestuário',
+    'total_lazer_cents' => 'Total Lazer',
+    'total_tecnologia_cents' => 'Total Tecnologia',
+    'total_cuidados_cents' => 'Total Cuidados',
+    'total_outros_cents' => 'Total Outros',
+    'total_geral_cents' => 'TOTAL GERAL',
+    'protocolo' => 'Protocolo',
+    'status_peticao' => 'Status da petição',
+
+    // Cadastro Cliente
+    'nome' => 'Nome completo',
+    'cpf' => 'CPF',
+    'nascimento' => 'Data de nascimento',
+    'profissao' => 'Profissão',
+    'estado_civil' => 'Estado civil',
+    'rg' => 'RG',
+    'celular' => 'Celular (WhatsApp)',
+    'email' => 'E-mail',
+    'cep' => 'CEP',
+    'endereco' => 'Endereço completo',
+    'pix' => 'Chave PIX',
+    'conta_bancaria' => 'Conta para depósito',
+    'imposto_renda' => 'Declara Imposto de Renda?',
+    'clt' => 'Carteira assinada?',
+    'filhos' => 'Possui filhos?',
+    'nome_filhos' => 'Nome(s) dos filhos',
+    'tipo_atendimento' => 'Preferência de atendimento',
+    'autoriza_contato' => 'Autoriza contato?',
+    'fam_saude' => 'Tratamento de saúde?',
+    'fam_escola' => 'Escola pública ou particular?',
+    'fam_pensao_atual' => 'Paga pensão? Qual valor?',
+    'fam_trabalho_genitor' => 'Outro genitor trabalha?',
+    'fam_contato_genitor' => 'WhatsApp do outro genitor',
+    'fam_endereco_genitor' => 'Endereço do outro genitor',
+
+    // Leads Calculadora
+    'porcentagem' => 'Porcentagem calculada',
+    'situacao' => 'Situação',
+    'ano_referencia' => 'Ano de referência',
+    'idade_filhos' => 'Idade dos filhos',
+    'atendido' => 'Já foi atendido?',
+);
+
+// Valores legíveis para campos com códigos
+$valueLabels = array(
+    'quinzenal_fds' => 'Fins de semana quinzenais',
+    'todo_fds' => 'Todos os fins de semana',
+    'somente_semana' => 'Somente durante a semana',
+    'videochamadas' => 'Apenas videochamadas',
+    'sex_aula_seg_escola' => 'Sexta após aula → Segunda na escola',
+    'sex_aula_dom' => 'Sexta após aula → Domingo (horário definido)',
+    'sab_dom' => 'Sábado de manhã → Domingo à noite',
+    'sab_seg_escola' => 'Sábado de manhã → Segunda antes da escola',
+    'alternado' => 'Alternado entre os genitores',
+    'sempre_comigo' => 'Sempre comigo',
+    'sempre_outro' => 'Sempre com o outro genitor',
+    'parte_do_dia' => 'Parte do dia com cada um',
+    'com_a_mae' => 'Com a mãe',
+    'com_o_pai' => 'Com o pai',
+    'indiferente' => 'Indiferente',
+    'livre' => 'Livre combinação',
+    'dividido' => 'Dividido entre os dois',
+    'pares_mae_impares_pai' => 'Anos pares com a mãe, ímpares com o pai',
+    'pares_pai_impares_mae' => 'Anos pares com o pai, ímpares com a mãe',
+    'com_pai' => 'Com o pai',
+    'com_mae' => 'Com a mãe',
+    'AGUARDANDO_INICIO_OPERACIONAL' => 'Aguardando início operacional',
+    'AGUARDANDO_DOCUMENTOS' => 'Aguardando documentos',
+    'EM_ELABORACAO' => 'Em elaboração',
+    'DISTRIBUIDA' => 'Distribuída',
+);
+
+$statusFormLabels = array('novo' => 'Novo', 'em_analise' => 'Em análise', 'processado' => 'Processado', 'arquivado' => 'Arquivado');
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
-$clients = $pdo->query("SELECT id, name FROM clients ORDER BY name LIMIT 100")->fetchAll();
+$clients = $pdo->query("SELECT id, name FROM clients ORDER BY name LIMIT 200")->fetchAll();
+
+function getLabel($key, $labels) {
+    if (isset($labels[$key])) return $labels[$key];
+    // Transformar snake_case em texto legível
+    $text = str_replace(array('_', '-'), ' ', $key);
+    return ucfirst($text);
+}
+
+function getValue($val, $valueLabels) {
+    if (is_bool($val)) return $val ? 'Sim' : 'Não';
+    if ($val === true || $val === 'true') return 'Sim';
+    if ($val === false || $val === 'false') return 'Não';
+    if (is_array($val)) {
+        $parts = array();
+        foreach ($val as $k => $v) {
+            if (is_array($v)) {
+                $parts[] = json_encode($v, JSON_UNESCAPED_UNICODE);
+            } else {
+                $parts[] = is_numeric($k) ? getValue($v, $valueLabels) : getLabel($k, array()) . ': ' . getValue($v, $valueLabels);
+            }
+        }
+        return implode("\n", $parts);
+    }
+    if (is_string($val) && isset($valueLabels[$val])) return $valueLabels[$val];
+    return (string)$val;
+}
+
+function isCentsField($key) {
+    return strpos($key, '_cents') !== false;
+}
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.payload-grid { display:grid; grid-template-columns:1fr; gap:.5rem; }
-.payload-item { padding:.6rem .85rem; background:var(--bg); border-radius:var(--radius); }
-.payload-item label { font-size:.68rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:700; display:block; }
-.payload-item span { font-size:.88rem; color:var(--text); word-break:break-word; }
+.form-detail-grid { display:grid; grid-template-columns:1fr; gap:0; }
+.field-row { display:grid; grid-template-columns:250px 1fr; border-bottom:1px solid var(--border); }
+.field-row:last-child { border-bottom:none; }
+.field-label { padding:.6rem 1rem; background:var(--bg); font-size:.78rem; font-weight:700; color:var(--petrol-900); text-transform:uppercase; letter-spacing:.3px; display:flex; align-items:center; }
+.field-value { padding:.6rem 1rem; font-size:.88rem; color:var(--text); white-space:pre-wrap; word-break:break-word; display:flex; align-items:center; }
+.field-value.empty { color:var(--text-muted); font-style:italic; }
+.field-value.money { font-weight:700; color:var(--success); }
+.field-value.total { font-weight:800; font-size:1rem; color:var(--petrol-900); background:var(--rose-light); }
+
+@media print {
+    .sidebar, .topbar, .btn-sidebar-toggle, .sidebar-overlay, .no-print { display:none !important; }
+    .main-content { margin-left:0 !important; }
+    .card { box-shadow:none !important; border:1px solid #ddd; }
+    .page-content { padding:0 !important; }
+    .field-row { break-inside:avoid; }
+    .print-header { display:block !important; text-align:center; margin-bottom:1.5rem; }
+    .print-header h1 { font-size:1.2rem; color:#052228; }
+    .print-header p { font-size:.82rem; color:#666; }
+}
+
+@media (max-width:768px) {
+    .field-row { grid-template-columns:1fr; }
+    .field-label { padding:.4rem .75rem .1rem; font-size:.7rem; }
+    .field-value { padding:.1rem .75rem .5rem; }
+}
 </style>
 
-<a href="<?= module_url('formularios') ?>" class="btn btn-outline btn-sm mb-2">← Voltar</a>
+<!-- Header de impressão (visível só no print) -->
+<div class="print-header" style="display:none;">
+    <h1>Ferreira &amp; Sá Advocacia</h1>
+    <p><?= isset($typeLabels[$form['form_type']]) ? $typeLabels[$form['form_type']] : e($form['form_type']) ?> — Protocolo: <?= e($form['protocol']) ?></p>
+    <p>Data: <?= data_hora_br($form['created_at']) ?></p>
+</div>
 
-<!-- Cabeçalho -->
-<div class="card mb-2">
-    <div class="card-header">
-        <div>
-            <h3><?= e($form['protocol']) ?></h3>
-            <span class="text-sm text-muted"><?= e($form['form_type']) ?> · <?= data_hora_br($form['created_at']) ?></span>
-        </div>
-        <?php if ($form['client_phone']): ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $form['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
-        <?php endif; ?>
-    </div>
-    <div class="card-body">
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;">
-            <div><label style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;">Nome</label><br><?= e($form['client_name'] ?: '—') ?></div>
-            <div><label style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;">Telefone</label><br><?= e($form['client_phone'] ?: '—') ?></div>
-            <div><label style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;">E-mail</label><br><?= e($form['client_email'] ?: '—') ?></div>
-            <div><label style="font-size:.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;">IP</label><br><span class="text-sm"><?= e($form['ip_address'] ?: '—') ?></span></div>
+<div class="no-print">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;">
+        <a href="<?= module_url('formularios', '?type=' . urlencode($form['form_type'])) ?>" class="btn btn-outline btn-sm">← Voltar</a>
+        <div class="flex gap-1">
+            <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Imprimir</button>
+            <?php if ($form['client_phone']): ?>
+                <a href="https://wa.me/55<?= preg_replace('/\D/', '', $form['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+            <?php endif; ?>
         </div>
     </div>
 </div>
 
-<!-- Ações -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
-    <!-- Status -->
-    <div class="card">
-        <div class="card-header"><h3>Status & Responsável</h3></div>
-        <div class="card-body">
+<!-- Info do formulário -->
+<div class="card mb-2 no-print">
+    <div class="card-header">
+        <div>
+            <h3><?= e($form['protocol']) ?></h3>
+            <span class="text-sm text-muted">
+                <?= isset($typeLabels[$form['form_type']]) ? $typeLabels[$form['form_type']] : e($form['form_type']) ?>
+                · <?= data_hora_br($form['created_at']) ?>
+            </span>
+        </div>
+        <span class="badge badge-<?= array('novo'=>'warning','em_analise'=>'info','processado'=>'success','arquivado'=>'gestao')[$form['status']] ?? 'gestao' ?>">
+            <?= $statusFormLabels[$form['status']] ?? $form['status'] ?>
+        </span>
+    </div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+            <!-- Status + Responsável -->
             <form method="POST" action="<?= module_url('formularios', 'api.php') ?>" style="display:flex;gap:.5rem;flex-wrap:wrap;">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
-                <select name="status" class="form-select" style="flex:1;">
-                    <?php foreach ($statusLabels as $k => $v): ?>
+                <select name="status" class="form-select" style="flex:1;font-size:.82rem;">
+                    <?php foreach ($statusFormLabels as $k => $v): ?>
                         <option value="<?= $k ?>" <?= $form['status'] === $k ? 'selected' : '' ?>><?= $v ?></option>
                     <?php endforeach; ?>
                 </select>
-                <select name="assigned_to" class="form-select" style="flex:1;">
+                <select name="assigned_to" class="form-select" style="flex:1;font-size:.82rem;">
                     <option value="">Sem responsável</option>
                     <?php foreach ($users as $u): ?>
                         <option value="<?= $u['id'] ?>" <?= (int)$form['assigned_to'] === (int)$u['id'] ? 'selected' : '' ?>><?= e($u['name']) ?></option>
@@ -86,66 +287,72 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </select>
                 <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
             </form>
-        </div>
-    </div>
 
-    <!-- Vincular cliente -->
-    <div class="card">
-        <div class="card-header"><h3>Vincular ao CRM</h3></div>
-        <div class="card-body">
-            <?php if ($form['linked_client_id']): ?>
-                <p class="text-sm">Vinculado a: <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $form['linked_client_id']) ?>" class="font-bold"><?= e($form['linked_client_name']) ?></a></p>
-            <?php else: ?>
+            <!-- Vincular cliente -->
+            <?php if (!$form['linked_client_id']): ?>
                 <form method="POST" action="<?= module_url('formularios', 'api.php') ?>" style="display:flex;gap:.5rem;">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="link_client">
-                    <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
-                    <select name="client_id" class="form-select" style="flex:1;">
-                        <option value="">— Selecionar cliente —</option>
-                        <?php foreach ($clients as $c): ?>
-                            <option value="<?= $c['id'] ?>"><?= e($c['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <button type="submit" class="btn btn-outline btn-sm">Vincular</button>
-                </form>
-                <form method="POST" action="<?= module_url('formularios', 'api.php') ?>" style="margin-top:.5rem;">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="create_client_from_form">
                     <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
                     <button type="submit" class="btn btn-success btn-sm">+ Criar cliente com estes dados</button>
                 </form>
+            <?php else: ?>
+                <span class="text-sm">Vinculado a: <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $form['linked_client_id']) ?>" class="font-bold"><?= e($form['linked_client_name']) ?></a></span>
             <?php endif; ?>
         </div>
     </div>
 </div>
 
-<!-- Respostas do formulário -->
+<!-- Respostas do formulário — TODOS os campos com nomes claros -->
 <div class="card">
-    <div class="card-header"><h3>Respostas</h3></div>
-    <div class="card-body">
-        <?php if ($payload && is_array($payload)): ?>
-            <div class="payload-grid">
-                <?php foreach ($payload as $key => $value): ?>
-                    <div class="payload-item">
-                        <label><?= e(str_replace('_', ' ', $key)) ?></label>
-                        <span><?php
-                            if (is_array($value)) {
-                                echo e(json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-                            } else {
-                                echo nl2br(e((string)$value));
-                            }
-                        ?></span>
-                    </div>
-                <?php endforeach; ?>
+    <div class="card-header">
+        <h3>Respostas</h3>
+    </div>
+    <div class="form-detail-grid">
+        <?php
+        // Campos fixos primeiro
+        $fixedFields = array(
+            'client_name' => $form['client_name'],
+            'client_phone' => $form['client_phone'],
+            'client_email' => $form['client_email'],
+        );
+
+        foreach ($fixedFields as $key => $val): ?>
+            <div class="field-row">
+                <div class="field-label"><?= getLabel($key, $fieldLabels) ?></div>
+                <div class="field-value <?= empty($val) ? 'empty' : '' ?>"><?= empty($val) ? '(não preenchido)' : e($val) ?></div>
             </div>
-        <?php else: ?>
-            <pre style="font-size:.82rem;white-space:pre-wrap;word-break:break-word;"><?= e($form['payload_json']) ?></pre>
-        <?php endif; ?>
+        <?php endforeach; ?>
+
+        <?php
+        // Campos do JSON ignorando os que já mostramos
+        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json');
+        foreach ($payload as $key => $val):
+            if (in_array($key, $skipKeys)) continue;
+            $label = getLabel($key, $fieldLabels);
+            $displayVal = getValue($val, $valueLabels);
+            $isEmpty = ($displayVal === '' || $displayVal === null);
+            $isMoney = isCentsField($key);
+            $isTotal = ($key === 'total_geral_cents');
+        ?>
+            <div class="field-row">
+                <div class="field-label"><?= e($label) ?></div>
+                <div class="field-value <?= $isEmpty ? 'empty' : '' ?> <?= $isMoney ? 'money' : '' ?> <?= $isTotal ? 'total' : '' ?>">
+                    <?php if ($isEmpty): ?>
+                        (não preenchido)
+                    <?php elseif ($isMoney && is_numeric($displayVal)): ?>
+                        R$ <?= number_format((int)$displayVal / 100, 2, ',', '.') ?>
+                    <?php else: ?>
+                        <?= nl2br(e($displayVal)) ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
     </div>
 </div>
 
 <!-- Notas -->
-<div class="card mt-2">
+<div class="card mt-2 no-print">
     <div class="card-header"><h3>Notas internas</h3></div>
     <div class="card-body">
         <form method="POST" action="<?= module_url('formularios', 'api.php') ?>">
@@ -154,6 +361,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
             <textarea name="notes" class="form-textarea" rows="3" placeholder="Anotações sobre este formulário..."><?= e($form['notes'] ?? '') ?></textarea>
             <button type="submit" class="btn btn-outline btn-sm mt-1">Salvar notas</button>
+        </form>
+    </div>
+</div>
+
+<!-- Apagar -->
+<div class="card mt-2 no-print" style="border-color:var(--danger);">
+    <div class="card-body" style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="text-sm text-muted">Apagar este formulário permanentemente</span>
+        <form method="POST" action="<?= module_url('formularios', 'api.php') ?>">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="delete">
+            <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
+            <input type="hidden" name="redirect_type" value="<?= e($form['form_type']) ?>">
+            <button type="submit" class="btn btn-danger btn-sm" data-confirm="Tem certeza que deseja APAGAR este formulário? Esta ação não pode ser desfeita.">🗑️ Apagar</button>
         </form>
     </div>
 </div>
