@@ -88,7 +88,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="acao-grid">
                     <?php foreach ($tiposAcao as $key => $label): ?>
                     <label class="acao-option" id="acao-<?= $key ?>" onclick="selectAcao('<?= $key ?>')">
-                        <input type="radio" name="tipo_acao" value="<?= $key ?>">
+                        <input type="radio" name="tipo_acao" value="<?= $key ?>" style="width:auto;padding:0;">
                         <span><?= e($label) ?></span>
                     </label>
                     <?php endforeach; ?>
@@ -98,17 +98,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div id="outorganteSection" style="margin-top:1rem;display:none;">
                     <p class="form-label" style="font-size:.82rem;margin-bottom:.5rem;">Outorgante:</p>
                     <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_proprio').checked=true;">
-                            <input type="radio" name="outorgante" value="proprio" id="outorgante_proprio" checked>
-                            <span>👤 Em nome próprio (cliente)</span>
+                        <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:.5rem;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.82rem;">
+                            <input type="radio" name="outorgante" value="proprio" checked style="width:auto;">
+                            👤 Em nome próprio (cliente)
                         </label>
-                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_menor').checked=true;">
-                            <input type="radio" name="outorgante" value="menor" id="outorgante_menor">
-                            <span>👶 Em nome do(s) menor(es)</span>
+                        <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:.5rem;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.82rem;">
+                            <input type="radio" name="outorgante" value="menor" style="width:auto;">
+                            👶 Em nome do(s) menor(es)
                         </label>
-                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_defesa').checked=true;">
-                            <input type="radio" name="outorgante" value="defesa" id="outorgante_defesa">
-                            <span>🛡️ Defesa (pai/mãe - execução)</span>
+                        <label style="flex:1;min-width:200px;display:flex;align-items:center;gap:.5rem;padding:.6rem .85rem;border:1.5px solid var(--border);border-radius:var(--radius);cursor:pointer;font-size:.82rem;">
+                            <input type="radio" name="outorgante" value="defesa" style="width:auto;">
+                            🛡️ Defesa (pai/mãe - execução)
                         </label>
                     </div>
                 </div>
