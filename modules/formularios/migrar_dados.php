@@ -87,17 +87,8 @@ try {
     $tables = $gasPdo->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
     echo "Tabelas: " . implode(', ', $tables) . "\n";
 
-    // Tentar a tabela mais provável
-    $tableName = null;
-    foreach ($tables as $t) {
-        if (strpos($t, 'resposta') !== false || strpos($t, 'pensao') !== false || strpos($t, 'gasto') !== false) {
-            $tableName = $t;
-            break;
-        }
-    }
-    if (!$tableName && !empty($tables)) {
-        $tableName = $tables[0]; // Primeira tabela
-    }
+    // Usar tabela pensao_respostas
+    $tableName = 'pensao_respostas';
 
     if ($tableName) {
         echo "Usando tabela: $tableName\n";
