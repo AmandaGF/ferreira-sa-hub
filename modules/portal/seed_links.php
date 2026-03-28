@@ -6,11 +6,15 @@
  * Depois APAGUE este arquivo!
  */
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 require_once __DIR__ . '/../../core/middleware.php';
 require_role('admin');
 
 $pdo = db();
 $userId = current_user_id();
+echo '<pre style="font-family:sans-serif;">';
 
 // Limpar links antigos
 $pdo->exec('DELETE FROM portal_links');
@@ -143,13 +147,17 @@ $stmt = $pdo->prepare(
 
 $imported = 0;
 
-foreach ($links as $l) {
-    $passEnc = !empty($l[4]) ? encrypt_value($l[4]) : null;
-    $stmt->execute(array(
-        $l[0], $l[1], $l[2] ? $l[2] : null, $l[3] ? $l[3] : null,
-        $passEnc, $l[5] ? $l[5] : null, $l[6], $l[7], $l[8], $userId
-    ));
-    $imported++;
+foreach ($links as $idx => $l) {
+    try {
+        $passEnc = !empty($l[4]) ? encrypt_value($l[4]) : null;
+        $stmt->execute(array(
+            $l[0], $l[1], $l[2] ? $l[2] : null, $l[3] ? $l[3] : null,
+            $passEnc, $l[5] ? $l[5] : null, $l[6], $l[7], $l[8], $userId
+        ));
+        $imported++;
+    } catch (Exception $ex) {
+        echo 'ERRO no link #' . $idx . ' (' . $l[1] . '): ' . $ex->getMessage() . "\n";
+    }
 }
 
 echo '<h2 style="font-family:sans-serif;color:green">&#10003; ' . $imported . ' links importados com sucesso!</h2>';
