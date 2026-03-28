@@ -25,14 +25,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (is_login_locked($email)) {
         $error = 'Muitas tentativas. Aguarde ' . LOGIN_LOCKOUT_MINUTES . ' minutos.';
     } else {
-        $user = authenticate($email, $password);
+        // Verificar se conta existe mas está pendente
+        $checkStmt = db()->prepare('SELECT is_active FROM users WHERE email = ?');
+        $checkStmt->execute(array($email));
+        $checkUser = $checkStmt->fetch();
 
-        if ($user) {
-            login_user($user);
-            flash_set('success', 'Bem-vindo(a), ' . $user['name'] . '!');
-            redirect(url('modules/dashboard/'));
+        if ($checkUser && !$checkUser['is_active']) {
+            $error = 'Sua conta está aguardando aprovação do administrador.';
         } else {
-            $error = 'E-mail ou senha incorretos.';
+            $user = authenticate($email, $password);
+
+            if ($user) {
+                login_user($user);
+                flash_set('success', 'Bem-vindo(a), ' . $user['name'] . '!');
+                redirect(url('modules/dashboard/'));
+            } else {
+                $error = 'E-mail ou senha incorretos.';
+            }
         }
     }
 }
@@ -234,6 +243,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 <button type="submit" class="btn-login">Entrar</button>
             </form>
+
+            <div style="text-align:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+                <a href="<?= url('auth/registro.php') ?>" style="color:#d7ab90;font-size:.85rem;font-weight:600;text-decoration:none;">
+                    Não tem conta? Criar conta →
+                </a>
+            </div>
         </div>
 
         <div class="login-footer">

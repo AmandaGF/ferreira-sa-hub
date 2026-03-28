@@ -60,6 +60,33 @@ switch ($action) {
         flash_set('success', 'Senha redefinida com sucesso.');
         break;
 
+    case 'approve':
+        $role = $_POST['role'] ?? 'colaborador';
+        $validRoles = array('admin', 'gestao', 'colaborador');
+        if (!in_array($role, $validRoles)) $role = 'colaborador';
+
+        if ($userId) {
+            $pdo->prepare('UPDATE users SET is_active = 1, role = ? WHERE id = ?')
+                ->execute(array($role, $userId));
+            audit_log('user_approved', 'user', $userId, "role: $role");
+            flash_set('success', 'Usuário aprovado como ' . role_label($role) . '!');
+        }
+        break;
+
+    case 'reject':
+        if ($userId && $userId !== current_user_id()) {
+            // Verificar se é pendente (is_active = 0)
+            $stmt = $pdo->prepare('SELECT is_active FROM users WHERE id = ?');
+            $stmt->execute(array($userId));
+            $u = $stmt->fetch();
+            if ($u && !$u['is_active']) {
+                $pdo->prepare('DELETE FROM users WHERE id = ?')->execute(array($userId));
+                audit_log('user_rejected', 'user', $userId);
+                flash_set('success', 'Solicitação recusada e excluída.');
+            }
+        }
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
 }
