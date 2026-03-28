@@ -1,0 +1,18 @@
+# Arquivos do sistema
+desktop.ini
+Thumbs.db
+.DS_Store
+
+# Arquivos temporários
+*.zip
+*.rar
+*.log
+
+# Arquivos de instalação/debug (não devem ir pro servidor)
+instalar.php
+debug.php
+seed_links.php
+
+# IDE
+.vscode/
+.idea/
