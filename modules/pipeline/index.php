@@ -123,7 +123,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div style="text-align:center;padding:1.5rem .5rem;color:var(--text-muted);font-size:.78rem;">Nenhum lead</div>
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
-                <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" onclick="if(!window._dragging)window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'"
+                <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" onclick="if(!window._dragging)window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?>
