@@ -69,6 +69,18 @@ $meses = array('','janeiro','fevereiro','março','abril','maio','junho','julho',
 $hoje = date('d') . ' de ' . $meses[(int)date('m')] . ' de ' . date('Y');
 $cidadeHoje = ($cidade ?: 'Resende') . '/' . ($uf ?: 'RJ') . ', ' . $hoje;
 
+// Campos variáveis do documento
+$advNome = '';
+$advOab = '';
+$advUfOab = 'RJ';
+$advEndereco = '';
+$tipoServico = '';
+$valorHonorarios = '';
+$valorExtenso = '';
+$formaPagamento = '';
+$vencimento1a = '';
+$numParcelas = '';
+
 // Se for POST = campos foram editados
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome = $_POST['nome'] ?? $nome;
@@ -82,6 +94,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $childName = $_POST['child_name'] ?? $childName;
     $childBirth = $_POST['child_birth'] ?? $childBirth;
     $cidadeHoje = $_POST['cidade_hoje'] ?? $cidadeHoje;
+    $advNome = $_POST['adv_nome'] ?? '';
+    $advOab = $_POST['adv_oab'] ?? '';
+    $advUfOab = $_POST['adv_uf_oab'] ?? 'RJ';
+    $advEndereco = $_POST['adv_endereco'] ?? '';
+    $tipoServico = $_POST['tipo_servico'] ?? '';
+    $valorHonorarios = $_POST['valor_honorarios'] ?? '';
+    $valorExtenso = $_POST['valor_extenso'] ?? '';
+    $formaPagamento = $_POST['forma_pagamento'] ?? '';
+    $vencimento1a = $_POST['vencimento_1a'] ?? '';
+    $numParcelas = $_POST['num_parcelas'] ?? '';
 }
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
@@ -198,6 +220,88 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'procuracao' || $tipo === 'procuracao_menor'): ?>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:2px solid #052228;">
+            <h3 style="font-size:.9rem;color:#052228;">⚖️ Dados do advogado</h3>
+            <div class="row" style="margin-top:.5rem;">
+                <div><label>Nome do advogado(a)</label><input name="adv_nome" value="<?= e($advNome) ?>" placeholder="Nome completo"></div>
+                <div>
+                    <label>OAB nº</label>
+                    <div style="display:flex;gap:.35rem;">
+                        <input name="adv_oab" value="<?= e($advOab) ?>" placeholder="Número" style="flex:1;">
+                        <input name="adv_uf_oab" value="<?= e($advUfOab) ?>" placeholder="UF" style="width:55px;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Endereço do escritório</label>
+                <input name="adv_endereco" value="<?= e($advEndereco) ?>" placeholder="Endereço profissional">
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($tipo === 'contrato'): ?>
+        <div style="margin-top:1rem;padding-top:1rem;border-top:2px solid #059669;">
+            <h3 style="font-size:.9rem;color:#059669;">📝 Dados do contrato</h3>
+            <div style="margin-bottom:.75rem;margin-top:.5rem;">
+                <label>Tipo do serviço</label>
+                <select name="tipo_servico" style="width:100%;padding:.5rem .75rem;font-family:inherit;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <option value="">— Selecionar —</option>
+                    <option value="Ação de Divórcio">Ação de Divórcio</option>
+                    <option value="Ação de Alimentos">Ação de Alimentos</option>
+                    <option value="Ação de Guarda">Ação de Guarda</option>
+                    <option value="Regulamentação de Convivência">Regulamentação de Convivência</option>
+                    <option value="Ação de Pensão Alimentícia">Ação de Pensão Alimentícia</option>
+                    <option value="Inventário">Inventário</option>
+                    <option value="Ação de Responsabilidade Civil">Ação de Responsabilidade Civil</option>
+                    <option value="Consultoria Jurídica">Consultoria Jurídica</option>
+                    <option value="outro">Outro (especificar abaixo)</option>
+                </select>
+            </div>
+            <div class="row">
+                <div><label>Valor dos honorários (R$)</label><input name="valor_honorarios" value="<?= e($valorHonorarios) ?>" placeholder="Ex: 3.000,00"></div>
+                <div><label>Valor por extenso</label><input name="valor_extenso" value="<?= e($valorExtenso) ?>" placeholder="Ex: três mil reais"></div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>Forma de pagamento</label>
+                    <select name="forma_pagamento" style="width:100%;padding:.5rem .75rem;font-family:inherit;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                        <option value="">— Selecionar —</option>
+                        <option value="À vista, via PIX">À vista, via PIX</option>
+                        <option value="À vista, em dinheiro">À vista, em dinheiro</option>
+                        <option value="Parcelado em cartão de crédito">Parcelado em cartão de crédito</option>
+                        <option value="Parcelado via boleto">Parcelado via boleto</option>
+                        <option value="Parcelado via PIX">Parcelado via PIX</option>
+                        <option value="Entrada + parcelas">Entrada + parcelas</option>
+                    </select>
+                </div>
+                <div><label>Nº de parcelas</label><input name="num_parcelas" value="<?= e($numParcelas) ?>" placeholder="Ex: 3"></div>
+            </div>
+            <div class="row">
+                <div><label>Vencimento da 1ª parcela</label><input type="date" name="vencimento_1a" value="<?= e($vencimento1a) ?>"></div>
+                <div></div>
+            </div>
+        </div>
+
+        <div style="margin-top:1rem;padding-top:1rem;border-top:2px solid #052228;">
+            <h3 style="font-size:.9rem;color:#052228;">⚖️ Dados do escritório</h3>
+            <div class="row" style="margin-top:.5rem;">
+                <div><label>Nome do advogado responsável</label><input name="adv_nome" value="<?= e($advNome) ?>" placeholder="Nome completo"></div>
+                <div>
+                    <label>OAB nº</label>
+                    <div style="display:flex;gap:.35rem;">
+                        <input name="adv_oab" value="<?= e($advOab) ?>" placeholder="Número" style="flex:1;">
+                        <input name="adv_uf_oab" value="<?= e($advUfOab) ?>" placeholder="UF" style="width:55px;">
+                    </div>
+                </div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Endereço do escritório</label>
+                <input name="adv_endereco" value="<?= e($advEndereco) ?>" placeholder="Endereço profissional">
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -237,7 +341,7 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 
         <p>Pelo presente instrumento particular de procuração, eu, <strong><?= $f($nome) ?></strong>, <?= $f($profissao) ?>, <?= $f($estadoCivil) ?>, portador(a) do RG nº <strong><?= $f($rg) ?></strong> e inscrito(a) no CPF sob nº <strong><?= $f($cpf, '___.___.___-__') ?></strong>, residente e domiciliado(a) à <strong><?= $f($enderecoCompleto) ?></strong>, telefone <strong><?= $f($phone) ?></strong>, e-mail <strong><?= $f($email) ?></strong>,</p>
 
-        <p>nomeio e constituo como meu(minha) bastante procurador(a) o(a) advogado(a) <strong>_________________________________</strong>, inscrito(a) na OAB/___ sob nº <strong>________</strong>, com escritório profissional situado à <strong>_________________________________</strong>,</p>
+        <p>nomeio e constituo como meu(minha) bastante procurador(a) o(a) advogado(a) <strong><?= $f($advNome) ?></strong>, inscrito(a) na OAB/<?= $f($advUfOab, '__') ?> sob nº <strong><?= $f($advOab, '________') ?></strong>, com escritório profissional situado à <strong><?= $f($advEndereco) ?></strong>,</p>
 
         <p>a quem confiro amplos poderes da cláusula <em>"ad judicia et extra"</em>, para, em meu nome, representar-me em juízo ou fora dele, podendo propor ações de qualquer natureza, contestar, recorrer, reconvir, transigir, desistir, dar e receber quitação, firmar compromissos, substabelecer com ou sem reserva de poderes, e praticar todos os demais atos necessários ao bom e fiel cumprimento do presente mandato.</p>
 
@@ -259,7 +363,7 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 
         <p>Pelo presente instrumento particular de procuração, o(a) menor <strong><?= $f($childName) ?></strong><?= $childBirthFormatted ? ', nascido(a) em <strong>' . e($childBirthFormatted) . '</strong>' : '' ?>, neste ato representado(a) por seu(sua) genitor(a) <strong><?= $f($nome) ?></strong>, <?= $f($profissao) ?>, <?= $f($estadoCivil) ?>, portador(a) do RG nº <strong><?= $f($rg) ?></strong> e inscrito(a) no CPF sob nº <strong><?= $f($cpf, '___.___.___-__') ?></strong>, residente e domiciliado(a) à <strong><?= $f($enderecoCompleto) ?></strong>, telefone <strong><?= $f($phone) ?></strong>, e-mail <strong><?= $f($email) ?></strong>,</p>
 
-        <p>nomeia e constitui como seu(sua) bastante procurador(a) o(a) advogado(a) <strong>_________________________________</strong>, inscrito(a) na OAB/___ sob nº <strong>________</strong>, com escritório profissional situado à <strong>_________________________________</strong>,</p>
+        <p>nomeia e constitui como seu(sua) bastante procurador(a) o(a) advogado(a) <strong><?= $f($advNome) ?></strong>, inscrito(a) na OAB/<?= $f($advUfOab, '__') ?> sob nº <strong><?= $f($advOab, '________') ?></strong>, com escritório profissional situado à <strong><?= $f($advEndereco) ?></strong>,</p>
 
         <p>a quem confere amplos poderes da cláusula <em>"ad judicia et extra"</em>, para, em nome do(a) menor acima qualificado(a), representá-lo(a) em juízo ou fora dele, especialmente para propor <strong>AÇÃO DE ALIMENTOS</strong> e demais medidas judiciais cabíveis, podendo contestar, recorrer, reconvir, transigir, desistir, dar e receber quitação, firmar compromissos, substabelecer com ou sem reserva de poderes, e praticar todos os demais atos necessários ao bom e fiel cumprimento do presente mandato.</p>
 
@@ -275,13 +379,13 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 
         <p class="no-indent"><strong>CONTRATANTE:</strong> <strong><?= $f($nome) ?></strong>, <?= $f($profissao) ?>, <?= $f($estadoCivil) ?>, portador(a) do RG nº <strong><?= $f($rg) ?></strong>, inscrito(a) no CPF sob nº <strong><?= $f($cpf, '___.___.___-__') ?></strong>, residente e domiciliado(a) à <strong><?= $f($enderecoCompleto) ?></strong>, telefone <strong><?= $f($phone) ?></strong>, e-mail <strong><?= $f($email) ?></strong>.</p>
 
-        <p class="no-indent"><strong>CONTRATADA:</strong> <strong>FERREIRA &amp; SÁ ADVOCACIA ESPECIALIZADA</strong>, inscrita no CNPJ sob nº <strong>__.___.___/____-__</strong>, com sede à <strong>_________________________________</strong>, neste ato representada por seu(sua) sócio(a)-administrador(a).</p>
+        <p class="no-indent"><strong>CONTRATADA:</strong> <strong>FERREIRA &amp; SÁ ADVOCACIA ESPECIALIZADA</strong>, inscrita no CNPJ sob nº <strong>__.___.___/____-__</strong>, com sede à <strong><?= $f($advEndereco) ?></strong>, neste ato representada por <strong><?= $f($advNome) ?></strong>, inscrito(a) na OAB/<?= $f($advUfOab, '__') ?> sob nº <strong><?= $f($advOab, '________') ?></strong>.</p>
 
         <p class="no-indent" style="margin-top:1.5rem;"><strong>CLÁUSULA 1ª — DO OBJETO</strong></p>
-        <p>O presente contrato tem por objeto a prestação de serviços advocatícios pela CONTRATADA em favor do(a) CONTRATANTE, para <strong>_________________________________</strong>.</p>
+        <p>O presente contrato tem por objeto a prestação de serviços advocatícios pela CONTRATADA em favor do(a) CONTRATANTE, para <strong><?= $f($tipoServico) ?></strong>.</p>
 
         <p class="no-indent"><strong>CLÁUSULA 2ª — DOS HONORÁRIOS</strong></p>
-        <p>Pelos serviços prestados, o(a) CONTRATANTE pagará à CONTRATADA o valor de <strong>R$ _________</strong> (___________________), a ser pago da seguinte forma: <strong>_________________________________</strong>.</p>
+        <p>Pelos serviços prestados, o(a) CONTRATANTE pagará à CONTRATADA o valor de <strong>R$ <?= $f($valorHonorarios, '_________') ?></strong> (<?= $f($valorExtenso, '___________________') ?>)<?php if ($formaPagamento): ?>, a ser pago da seguinte forma: <strong><?= e($formaPagamento) ?></strong><?php if ($numParcelas): ?> em <strong><?= e($numParcelas) ?> parcela(s)</strong><?php endif; ?><?php if ($vencimento1a): ?>, com vencimento da primeira parcela em <strong><?= data_br($vencimento1a) ?></strong><?php endif; ?><?php else: ?>, a ser pago da seguinte forma: <strong>_________________________________</strong><?php endif; ?>.</p>
 
         <p class="no-indent"><strong>CLÁUSULA 3ª — DAS DESPESAS</strong></p>
         <p>As despesas processuais, tais como custas, emolumentos, taxas, perícias e demais encargos, correrão por conta do(a) CONTRATANTE, sendo pagas diretamente ou mediante reembolso à CONTRATADA.</p>
