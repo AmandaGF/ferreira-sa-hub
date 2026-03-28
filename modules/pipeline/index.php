@@ -61,7 +61,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .page-content { max-width:none !important; padding:.75rem !important; overflow-x:auto; }
 .kanban-header { padding:.75rem 1rem; border-radius:var(--radius) var(--radius) 0 0; color:#fff; font-weight:700; font-size:.82rem; display:flex; align-items:center; justify-content:space-between; }
 .kanban-header .count { background:rgba(255,255,255,.25); padding:.1rem .5rem; border-radius:100px; font-size:.72rem; }
-.kanban-body { flex:1; background:var(--bg); border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.5rem; display:flex; flex-direction:column; gap:.5rem; min-height:100px; }
+.kanban-body { flex:1; background:var(--bg); border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.5rem; display:flex; flex-direction:column; gap:.5rem; min-height:80px; }
 
 .lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.85rem; box-shadow:var(--shadow-sm); border:1px solid var(--border); cursor:pointer; transition:all var(--transition); }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
@@ -111,7 +111,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Kanban -->
-<div style="display:grid;grid-template-columns:repeat(7,minmax(150px,1fr));gap:.5rem;min-height:400px;">
+<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;min-height:400px;">
     <?php foreach ($stages as $stageKey => $stage): ?>
     <div style="display:flex;flex-direction:column;min-width:0;">
         <div class="kanban-header" style="background:<?= $stage['color'] ?>;">
