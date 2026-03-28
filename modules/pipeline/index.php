@@ -63,16 +63,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .kanban-header .count { background:rgba(255,255,255,.25); padding:.1rem .5rem; border-radius:100px; font-size:.72rem; }
 .kanban-body { flex:1; background:var(--bg); border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.5rem; display:flex; flex-direction:column; gap:.5rem; min-height:80px; }
 
-.lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.85rem; box-shadow:var(--shadow-sm); border:1px solid var(--border); cursor:pointer; transition:all var(--transition); }
+.lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:pointer; transition:all var(--transition); overflow:hidden; }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.lead-card[data-stage="novo"] { border-left-color:#6366f1; background:#f5f3ff; }
+.lead-card[data-stage="contato_inicial"] { border-left-color:#0ea5e9; background:#f0f9ff; }
+.lead-card[data-stage="agendado"] { border-left-color:#f59e0b; background:#fffbeb; }
+.lead-card[data-stage="proposta"] { border-left-color:#d97706; background:#fff7ed; }
+.lead-card[data-stage="elaboracao"] { border-left-color:#8b5cf6; background:#faf5ff; }
+.lead-card[data-stage="contrato"] { border-left-color:#059669; background:#ecfdf5; }
+.lead-card[data-stage="perdido"] { border-left-color:#dc2626; background:#fef2f2; }
 .lead-name { font-weight:700; font-size:.88rem; color:var(--petrol-900); margin-bottom:.25rem; }
 .lead-meta { font-size:.72rem; color:var(--text-muted); display:flex; flex-direction:column; gap:.15rem; }
 .lead-meta .phone { color:var(--success); }
-.lead-days { font-size:.65rem; background:var(--bg); padding:.15rem .4rem; border-radius:6px; display:inline-block; margin-top:.35rem; }
+.lead-days { font-size:.65rem; background:rgba(0,0,0,.05); padding:.15rem .4rem; border-radius:6px; display:inline-block; margin-top:.35rem; }
 .lead-assigned { font-size:.68rem; color:var(--rose-dark); font-weight:600; margin-top:.25rem; }
 .lead-value { font-size:.75rem; font-weight:700; color:var(--petrol-500); }
 .lead-actions { display:flex; gap:.25rem; margin-top:.5rem; flex-wrap:wrap; }
-.lead-actions select { font-size:.7rem; padding:.2rem .35rem; border:1px solid var(--border); border-radius:6px; background:var(--bg-card); cursor:pointer; }
+.lead-actions select { font-size:.68rem; padding:.2rem .25rem; border:1px solid var(--border); border-radius:6px; background:var(--bg-card); cursor:pointer; max-width:100%; width:100%; }
 .lead-actions button { font-size:.65rem; padding:.2rem .4rem; background:var(--petrol-100); border:none; border-radius:6px; cursor:pointer; color:var(--petrol-500); font-weight:600; }
 .lead-actions button:hover { background:var(--petrol-900); color:#fff; }
 
@@ -123,7 +130,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div style="text-align:center;padding:1.5rem .5rem;color:var(--text-muted);font-size:.78rem;">Nenhum lead</div>
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
-                <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" onclick="if(!window._dragging)window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+                <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" data-stage="<?= $stageKey ?>" onclick="if(!window._dragging)window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?>
