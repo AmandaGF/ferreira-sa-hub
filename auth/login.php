@@ -242,6 +242,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <button type="submit" class="btn-login">Entrar</button>
+
+                <div style="text-align:right;margin-top:.75rem;">
+                    <a href="<?= url('auth/esqueci_senha.php') ?>" style="color:#6b7280;font-size:.78rem;text-decoration:none;">
+                        Esqueci minha senha
+                    </a>
+                </div>
             </form>
 
             <div style="text-align:center;margin-top:1.25rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
