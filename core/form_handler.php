@@ -117,14 +117,17 @@ function process_form_submission($formType, $clientData, $payloadJson)
             elseif ($formType === 'divorcio') $caseType = 'Divórcio';
             elseif ($formType === 'alimentos') $caseType = 'Alimentos';
 
+            // Cadastro = já fez contato (dados coletados). Outros formulários = novo lead.
+            $initialStage = ($formType === 'cadastro_cliente') ? 'contato_inicial' : 'novo';
+
             $pdo->prepare(
-                "INSERT INTO pipeline_leads (name, phone, email, source, stage, case_type, client_id, created_at) VALUES (?, ?, ?, ?, 'novo', ?, ?, NOW())"
-            )->execute(array($name, $phone, $email, $leadSource, $caseType ?: null, $clientId));
+                "INSERT INTO pipeline_leads (name, phone, email, source, stage, case_type, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
+            )->execute(array($name, $phone, $email, $leadSource, $initialStage, $caseType ?: null, $clientId));
             $leadId = (int)$pdo->lastInsertId();
 
             // Registrar histórico
-            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'novo', NOW())")
-                ->execute(array($leadId));
+            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, ?, NOW())")
+                ->execute(array($leadId, $initialStage));
         }
     }
 
