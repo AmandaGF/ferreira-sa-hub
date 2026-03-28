@@ -91,7 +91,7 @@ $cidadeData = ($cidade ? $cidade : 'Rio de Janeiro') . ', ' . $hoje;
 // Campos do contrato
 $valorHonorarios = ''; $valorExtenso = ''; $valorParcela = ''; $numParcelas = '';
 $formaPagamento = ''; $diaVencimento = ''; $mesInicio = ''; $cidadeForo = ''; $estadoForo = '';
-$dataContrato = '';
+$dataContrato = ''; $tipoCobranca = 'fixo'; $percentualRisco = '30'; $baseRisco = 'do proveito econômico obtido';
 
 // POST = editor submetido
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -114,6 +114,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cidadeForo = $_POST['cidade_foro'] ?? '';
     $estadoForo = $_POST['estado_foro'] ?? '';
     $dataContrato = $_POST['data_contrato'] ?? '';
+    $tipoCobranca = $_POST['tipo_cobranca'] ?? 'fixo';
+    $percentualRisco = $_POST['percentual_risco'] ?? '30';
+    $baseRisco = $_POST['base_risco'] ?? 'do proveito econômico obtido';
     if ($acaoTexto === '' && isset($_POST['acao_custom'])) $acaoTexto = strtoupper($_POST['acao_custom']);
 }
 
@@ -218,36 +221,88 @@ $logoUrl = url('assets/img/logo.png');
         <?php if ($tipo === 'contrato'): ?>
         <div class="section">
             <h4>📝 Dados financeiros do contrato</h4>
-            <div class="row">
-                <div><label>Valor total (R$)</label><input name="valor_honorarios" placeholder="7.182,00"></div>
-                <div><label>Valor por extenso</label><input name="valor_extenso" placeholder="sete mil, cento e oitenta e dois reais"></div>
-            </div>
-            <div class="row">
-                <div><label>Nº de parcelas</label><input name="num_parcelas" placeholder="18"></div>
-                <div><label>Valor da parcela (R$)</label><input name="valor_parcela" placeholder="399,00"></div>
-            </div>
-            <div class="row">
-                <div>
-                    <label>Forma de pagamento</label>
-                    <select name="forma_pagamento">
-                        <option value="BOLETO BANCÁRIO">Boleto Bancário</option>
-                        <option value="PIX">PIX</option>
-                        <option value="CARTÃO DE CRÉDITO">Cartão de Crédito</option>
-                        <option value="TRANSFERÊNCIA BANCÁRIA">Transferência</option>
-                    </select>
+
+            <!-- Tipo: fixo ou risco -->
+            <div style="margin-bottom:.75rem;">
+                <label>Tipo de cobrança</label>
+                <div style="display:flex;gap:.5rem;">
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="lbl_fixo">
+                        <input type="radio" name="tipo_cobranca" value="fixo" checked onchange="toggleRisco()"> 💰 Honorários fixos
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="lbl_risco">
+                        <input type="radio" name="tipo_cobranca" value="risco" onchange="toggleRisco()"> 🎯 Contrato de risco
+                    </label>
                 </div>
-                <div><label>Dia do vencimento</label><input name="dia_vencimento" placeholder="20"></div>
             </div>
-            <div class="row">
-                <div><label>Mês de início</label><input name="mes_inicio" placeholder="Abril/2026"></div>
-                <div></div>
+
+            <!-- Honorários fixos -->
+            <div id="campos_fixo">
+                <div class="row">
+                    <div><label>Valor total (R$)</label><input name="valor_honorarios" id="valorTotal" placeholder="R$ 7.182,00" oninput="mascaraReal(this)"></div>
+                    <div><label>Valor por extenso</label><input name="valor_extenso" placeholder="sete mil, cento e oitenta e dois reais"></div>
+                </div>
+                <div class="row">
+                    <div><label>Nº de parcelas</label><input name="num_parcelas" id="numParcelas" placeholder="18" type="number" min="1" oninput="calcParcela()"></div>
+                    <div><label>Valor da parcela (R$)</label><input name="valor_parcela" id="valorParcela" placeholder="R$ 399,00" oninput="mascaraReal(this)"></div>
+                </div>
+                <div class="row">
+                    <div>
+                        <label>Forma de pagamento</label>
+                        <select name="forma_pagamento">
+                            <option value="BOLETO BANCÁRIO">Boleto Bancário</option>
+                            <option value="PIX">PIX</option>
+                            <option value="CARTÃO DE CRÉDITO">Cartão de Crédito</option>
+                            <option value="TRANSFERÊNCIA BANCÁRIA">Transferência</option>
+                        </select>
+                    </div>
+                    <div><label>Dia do vencimento</label><input name="dia_vencimento" placeholder="20" type="number" min="1" max="31"></div>
+                </div>
+                <div class="row">
+                    <div><label>Mês de início</label><input name="mes_inicio" placeholder="Abril/2026"></div>
+                    <div></div>
+                </div>
             </div>
-            <div class="row">
+
+            <!-- Contrato de risco -->
+            <div id="campos_risco" style="display:none;">
+                <div class="row">
+                    <div><label>Percentual de êxito (%)</label><input name="percentual_risco" value="30" type="number" min="1" max="100"></div>
+                    <div><label>Base de cálculo</label><input name="base_risco" value="do proveito econômico obtido" placeholder="do proveito econômico obtido"></div>
+                </div>
+                <p style="font-size:.75rem;color:#6b7280;margin-top:.25rem;">O escritório receberá o percentual acima sobre o valor efetivamente obtido/recuperado.</p>
+            </div>
+
+            <div class="row" style="margin-top:.75rem;">
                 <div><label>Cidade do foro</label><input name="cidade_foro" value="<?= e($cidade) ?>" placeholder="Resende"></div>
                 <div><label>Estado do foro</label><input name="estado_foro" value="<?= e($uf) ?>" placeholder="RJ"></div>
             </div>
             <div><label>Data do contrato</label><input name="data_contrato" value="<?= e($cidadeData) ?>"></div>
         </div>
+
+        <script>
+        function mascaraReal(el) {
+            var v = el.value.replace(/\D/g, '');
+            if (!v) { el.value = ''; return; }
+            v = (parseInt(v) / 100).toFixed(2);
+            v = v.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+            el.value = 'R$ ' + v;
+        }
+
+        function calcParcela() {
+            var total = document.getElementById('valorTotal').value.replace(/[^\d,]/g, '').replace(',', '.');
+            var n = parseInt(document.getElementById('numParcelas').value) || 0;
+            if (total && n > 0) {
+                var parcela = (parseFloat(total) / n).toFixed(2).replace('.', ',');
+                document.getElementById('valorParcela').value = 'R$ ' + parcela;
+            }
+        }
+
+        function toggleRisco() {
+            var isRisco = document.querySelector('input[name="tipo_cobranca"]:checked').value === 'risco';
+            document.getElementById('campos_fixo').style.display = isRisco ? 'none' : 'block';
+            document.getElementById('campos_risco').style.display = isRisco ? 'block' : 'none';
+        }
+        </script>
         <?php endif; ?>
 
         <button type="submit" class="btn-gen">Gerar Documento →</button>
@@ -284,6 +339,9 @@ $logoUrl = url('assets/img/logo.png');
         'forma_pagamento' => $formaPagamento, 'dia_vencimento' => $diaVencimento,
         'mes_inicio' => $mesInicio, 'cidade_foro' => $cidadeForo, 'estado_foro' => $estadoForo,
         'data_contrato' => $dataContrato,
+        'tipo_cobranca' => $tipoCobranca,
+        'percentual_risco' => $percentualRisco,
+        'base_risco' => $baseRisco,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);

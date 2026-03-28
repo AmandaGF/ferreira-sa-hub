@@ -103,17 +103,29 @@ function template_contrato($d) {
     // 3. VALOR E PAGAMENTO
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:800;color:#052228;">3. VALOR E PAGAMENTO</p>';
 
-    $valorTotal = $d['valor_honorarios'] ?: '_________';
-    $valorExtenso = $d['valor_extenso'] ?: '___________________';
-    $parcelas = $d['num_parcelas'] ?: '___';
-    $valorParcela = $d['valor_parcela'] ?: '_________';
-    $formaPgto = $d['forma_pagamento'] ?: 'BOLETO BANCÁRIO';
-    $diaVenc = $d['dia_vencimento'] ?: '___';
-    $mesInicio = $d['mes_inicio'] ?: '___________';
+    $isRisco = (isset($d['tipo_cobranca']) && $d['tipo_cobranca'] === 'risco');
 
-    $html .= '<p style="font-size:12px;"><strong>HONORÁRIOS ADVOCATÍCIOS:</strong> a(o) <strong>CONTRATANTE</strong> se compromete a pagar para a <strong>CONTRATADA</strong> o valor total de <strong>R$ ' . f($valorTotal) . '</strong>, em <strong>' . f($parcelas) . ' parcelas</strong> mensais e consecutivas de <strong>R$ ' . f($valorParcela) . '</strong> cada, via <strong>' . f($formaPgto) . '</strong>, cujo vencimento será <strong>todo dia ' . f($diaVenc) . ' de cada mês</strong>, com início no mês <strong>' . f($mesInicio) . '</strong>. O atraso no pagamento de qualquer das parcelas gerará à <strong>CONTRATADA</strong> o direito de renunciar os poderes outorgados, mediante aviso prévio.</p>';
+    if ($isRisco) {
+        $percentual = $d['percentual_risco'] ?: '30';
+        $base = $d['base_risco'] ?: 'do proveito econômico obtido';
 
-    $html .= '<p style="font-size:12px;">Caso seja necessária a propositura de execução ou cumprimento de sentença para a cobrança da pensão alimentícia em atraso, fica desde já acordado que o escritório de advocacia contratado realizará o procedimento sem custo adicional para a parte <strong>CONTRATANTE</strong>. Em caso de êxito, ou seja, no efetivo recebimento dos valores devidos, o escritório fará jus a um honorário de êxito correspondente a 25% do montante recuperado, caracterizando-se como uma ação de risco.</p>';
+        $html .= '<p style="font-size:12px;"><strong>HONORÁRIOS ADVOCATÍCIOS (CONTRATO DE RISCO):</strong> a(o) <strong>CONTRATANTE</strong> e a <strong>CONTRATADA</strong> acordam que os honorários serão fixados em <strong>' . f($percentual) . '% (' . f($percentual) . ' por cento) ' . f($base) . '</strong> em favor do(a) CONTRATANTE, seja por decisão judicial, acordo ou qualquer outra forma de resolução do litígio.</p>';
+
+        $html .= '<p style="font-size:12px;">Caso não haja êxito na demanda, nenhum valor será devido a título de honorários advocatícios, caracterizando-se como uma <strong>ação de risco</strong>. As despesas processuais (custas, emolumentos, perícias) correrão por conta do(a) CONTRATANTE.</p>';
+
+    } else {
+        $valorTotal = $d['valor_honorarios'] ?: '_________';
+        $valorExtenso = $d['valor_extenso'] ?: '___________________';
+        $parcelas = $d['num_parcelas'] ?: '___';
+        $valorParcela = $d['valor_parcela'] ?: '_________';
+        $formaPgto = $d['forma_pagamento'] ?: 'BOLETO BANCÁRIO';
+        $diaVenc = $d['dia_vencimento'] ?: '___';
+        $mesInicio = $d['mes_inicio'] ?: '___________';
+
+        $html .= '<p style="font-size:12px;"><strong>HONORÁRIOS ADVOCATÍCIOS:</strong> a(o) <strong>CONTRATANTE</strong> se compromete a pagar para a <strong>CONTRATADA</strong> o valor total de <strong>' . f($valorTotal) . '</strong>, em <strong>' . f($parcelas) . ' parcelas</strong> mensais e consecutivas de <strong>' . f($valorParcela) . '</strong> cada, via <strong>' . f($formaPgto) . '</strong>, cujo vencimento será <strong>todo dia ' . f($diaVenc) . ' de cada mês</strong>, com início no mês <strong>' . f($mesInicio) . '</strong>. O atraso no pagamento de qualquer das parcelas gerará à <strong>CONTRATADA</strong> o direito de renunciar os poderes outorgados, mediante aviso prévio.</p>';
+
+        $html .= '<p style="font-size:12px;">Caso seja necessária a propositura de execução ou cumprimento de sentença para a cobrança da pensão alimentícia em atraso, fica desde já acordado que o escritório de advocacia contratado realizará o procedimento sem custo adicional para a parte <strong>CONTRATANTE</strong>. Em caso de êxito, ou seja, no efetivo recebimento dos valores devidos, o escritório fará jus a um honorário de êxito correspondente a 25% do montante recuperado, caracterizando-se como uma ação de risco.</p>';
+    }
 
     $html .= '<p style="font-size:12px;font-weight:700;text-align:center;margin:1rem 0;">⚠ Chave pix: ' . $esc['pix'] . ' – NÃO EFETUE TRANSFERÊNCIAS PARA OUTRA CHAVE!</p>';
 
