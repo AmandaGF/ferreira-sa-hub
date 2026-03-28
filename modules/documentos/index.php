@@ -14,10 +14,11 @@ $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY
 
 // Tipos de documento
 $docTypes = array(
-    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228'),
-    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669'),
-    'hipossuficiencia' => array('label' => 'Declaração de Hipossuficiência', 'icon' => '📄', 'color' => '#d97706'),
-    'isencao_ir' => array('label' => 'Declaração de Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c'),
+    'procuracao' => array('label' => 'Procuração (nome próprio)', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Cliente como outorgante'),
+    'procuracao_menor' => array('label' => 'Procuração (menor)', 'icon' => '👶', 'color' => '#0b2f36', 'desc' => 'Criança como outorgante, representada pelo genitor'),
+    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Contrato de prestação de serviços'),
+    'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Declaração para gratuidade'),
+    'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'Isenção de Imposto de Renda'),
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -49,6 +50,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <input type="radio" name="tipo" value="<?= $key ?>" required style="display:none;">
                     <div class="doc-icon"><?= $doc['icon'] ?></div>
                     <div class="doc-label"><?= $doc['label'] ?></div>
+                    <?php if (isset($doc['desc'])): ?><div class="doc-desc"><?= $doc['desc'] ?></div><?php endif; ?>
                 </label>
                 <?php endforeach; ?>
             </div>
