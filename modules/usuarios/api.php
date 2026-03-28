@@ -7,12 +7,18 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_role('admin');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    flash_set('error', 'Método inválido.');
     redirect(module_url('usuarios'));
 }
 
 if (!validate_csrf()) {
-    flash_set('error', 'Token de segurança inválido.');
+    flash_set('error', 'Token de segurança inválido. Tente novamente.');
     redirect(module_url('usuarios'));
+}
+
+// Garantir que temos o role_label disponível
+if (!function_exists('role_label')) {
+    require_once APP_ROOT . '/core/functions.php';
 }
 
 $action = $_POST['action'] ?? '';
