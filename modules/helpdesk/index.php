@@ -19,10 +19,19 @@ $search         = trim($_GET['q'] ?? '');
 $where = [];
 $params = [];
 
-if ($isColaborador) {
-    $where[] = "(t.requester_id = ? OR ta.user_id = ?)";
-    $params[] = $userId;
-    $params[] = $userId;
+// Admin vê tudo. Outros veem: seus chamados + chamados do seu setor
+if (!has_role('admin')) {
+    $userSetor = current_user()['setor'] ?? '';
+    if ($userSetor) {
+        $where[] = "(t.requester_id = ? OR ta.user_id = ? OR t.department = ?)";
+        $params[] = $userId;
+        $params[] = $userId;
+        $params[] = $userSetor;
+    } else {
+        $where[] = "(t.requester_id = ? OR ta.user_id = ?)";
+        $params[] = $userId;
+        $params[] = $userId;
+    }
 }
 if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
 if ($filterPriority) { $where[] = "t.priority = ?"; $params[] = $filterPriority; }

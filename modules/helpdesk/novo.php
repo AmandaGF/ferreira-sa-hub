@@ -32,12 +32,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Auto-urgente para Prazo e Audiência
     if (in_array($category, ['Prazo', 'Audiência'])) $priority = 'urgente';
 
+    $department = clean_str($_POST['department'] ?? '', 60);
+
     if (empty($errors)) {
         $pdo->prepare(
-            'INSERT INTO tickets (title, description, category, priority, status, requester_id, client_name, client_contact, case_number, due_date)
-             VALUES (?,?,?,?,?,?,?,?,?,?)'
+            'INSERT INTO tickets (title, description, category, department, priority, status, requester_id, client_name, client_contact, case_number, due_date)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?)'
         )->execute([
-            $title, $description ?: null, $category ?: null, $priority, 'aberto',
+            $title, $description ?: null, $category ?: null, $department ?: null, $priority, 'aberto',
             current_user_id(), $clientName ?: null, $clientContact ?: null,
             $caseNumber ?: null, $dueDate
         ]);
@@ -99,6 +101,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <option value="urgente">Urgente</option>
                         <option value="baixa">Baixa</option>
                     </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Setor</label>
+                    <select name="department" class="form-select">
+                        <option value="">— Selecionar —</option>
+                        <option value="Operacional">Operacional</option>
+                        <option value="Comercial">Comercial</option>
+                        <option value="Financeiro">Financeiro</option>
+                        <option value="Administrativo">Administrativo</option>
+                        <option value="Marketing">Marketing</option>
+                    </select>
+                    <span class="form-hint">Quem precisa ver este chamado</span>
                 </div>
             </div>
 
