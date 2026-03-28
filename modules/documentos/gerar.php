@@ -317,12 +317,7 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
             <a href="https://wa.me/55<?= preg_replace('/\D/', '', $phone) ?>" target="_blank" class="btn-zap">💬 WhatsApp</a>
         <?php endif; ?>
     </div>
-    <form method="POST" action="<?= module_url('documentos', 'zapsign.php') ?>" style="display:inline;">
-        <?= csrf_input() ?>
-        <input type="hidden" name="tipo" value="<?= e($tipo) ?>">
-        <input type="hidden" name="client_id" value="<?= $clientId ?>">
-        <button type="submit" class="btn-sign">✍️ Enviar p/ ZapSign</button>
-    </form>
+    <span style="font-size:.78rem;opacity:.7;"><?= e($pageTitle) ?></span>
 </div>
 
 <div class="page">
