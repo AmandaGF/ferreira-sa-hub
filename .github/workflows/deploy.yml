@@ -8,26 +8,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ftp.ferreiraesa.com.br
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASS }}
-          local-dir: ./
-          server-dir: /public_html/conecta/
-          dangerous-clean-slate: false
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.github*
-            **/.github*/**
-            **/instalar.php
-            **/debug.php
-            **/seed_links.php
-            **/*.zip
-            **/*.rar
-            **/desktop.ini
-            **/conecta.rar
+      - name: Trigger deploy on TurboCloud
+        run: |
+          echo "Triggering deploy..."
+          RESPONSE=$(curl -s -L --max-time 120 "https://ferreiraesa.com.br/conecta/deploy2.php?key=fsa-hub-deploy-2026")
+          echo "$RESPONSE"
+          if echo "$RESPONSE" | grep -q "DEPLOY CONCLUIDO"; then
+            echo "Deploy successful!"
+          else
+            echo "Deploy may have failed - check output above"
+            exit 1
+          fi
