@@ -78,17 +78,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .login-brand-logo {
-            width: 60px;
-            height: 60px;
-            background: #d7ab90;
+            width: 80px;
+            height: 80px;
             border-radius: 16px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: 800;
-            color: #052228;
             margin-bottom: .75rem;
+            object-fit: cover;
         }
 
         .login-brand h1 {
@@ -210,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-container">
         <div class="login-brand">
-            <div class="login-brand-logo">F&S</div>
+            <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" class="login-brand-logo">
             <h1>Ferreira &amp; Sá</h1>
             <p>Hub</p>
         </div>
