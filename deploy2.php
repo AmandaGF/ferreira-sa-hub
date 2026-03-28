@@ -16,10 +16,33 @@ echo "   OK\n\n";
 echo "2. Baixando ZIP com cURL...\n";
 $ghToken = defined('GITHUB_TOKEN') ? GITHUB_TOKEN : '';
 if ($ghToken) {
-    $url = 'https://api.github.com/repos/AmandaGF/ferreira-sa-hub/zipball/main';
+    // Passo 1: pegar URL de redirect da API
+    $apiUrl = 'https://api.github.com/repos/AmandaGF/ferreira-sa-hub/zipball/main';
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $apiUrl);
+    curl_setopt($ch, CURLOPT_NOBODY, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
+    curl_setopt($ch, CURLOPT_HEADER, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'FES-Deploy');
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: token ' . $ghToken));
+    $headers = curl_exec($ch);
+    curl_close($ch);
+    // Extrair Location do redirect
+    $url = '';
+    foreach (explode("\n", $headers) as $line) {
+        if (strpos(strtolower($line), 'location:') === 0) {
+            $url = trim(substr($line, 9));
+            break;
+        }
+    }
+    if (!$url) { die("ERRO: nao conseguiu URL de redirect da API\n$headers\n"); }
+    echo "   Redirect OK\n";
 } else {
     $url = 'https://github.com/AmandaGF/ferreira-sa-hub/archive/refs/heads/main.zip';
 }
+// Passo 2: baixar ZIP da URL final (sem auth necessario)
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -28,9 +51,6 @@ curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 curl_setopt($ch, CURLOPT_FRESH_CONNECT, true);
 curl_setopt($ch, CURLOPT_USERAGENT, 'FES-Deploy');
-if ($ghToken) {
-    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: token ' . $ghToken));
-}
 $data = curl_exec($ch);
 $err = curl_error($ch);
 curl_close($ch);
