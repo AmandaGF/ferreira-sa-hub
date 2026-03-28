@@ -30,6 +30,17 @@ function process_form_submission($formType, $clientData, $payloadJson)
     $phone = isset($clientData['phone']) ? clean_str($clientData['phone'], 40) : null;
     $email = isset($clientData['email']) ? clean_str($clientData['email'], 190) : null;
 
+    // Dados extras para preencher o CRM completo
+    $cpf = isset($clientData['cpf']) ? clean_str($clientData['cpf'], 14) : null;
+    $rg = isset($clientData['rg']) ? clean_str($clientData['rg'], 20) : null;
+    $birthDate = isset($clientData['birth_date']) ? $clientData['birth_date'] : null;
+    $profession = isset($clientData['profession']) ? clean_str($clientData['profession'], 100) : null;
+    $maritalStatus = isset($clientData['marital_status']) ? clean_str($clientData['marital_status'], 30) : null;
+    $addressStreet = isset($clientData['address_street']) ? clean_str($clientData['address_street'], 255) : null;
+    $addressCity = isset($clientData['address_city']) ? clean_str($clientData['address_city'], 100) : null;
+    $addressState = isset($clientData['address_state']) ? clean_str($clientData['address_state'], 2) : null;
+    $addressZip = isset($clientData['address_zip']) ? clean_str($clientData['address_zip'], 10) : null;
+
     // 1. Salvar em form_submissions
     $stmt = $pdo->prepare(
         "INSERT INTO form_submissions (form_type, protocol, client_name, client_email, client_phone, status, payload_json, ip_address, user_agent, created_at)
@@ -67,9 +78,13 @@ function process_form_submission($formType, $clientData, $payloadJson)
             if ($formType === 'calculadora_lead' || $formType === 'calculadora') $source = 'calculadora';
 
             $pdo->prepare(
-                "INSERT INTO clients (name, phone, email, source, notes, created_at) VALUES (?, ?, ?, ?, ?, NOW())"
+                "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, address_street, address_city, address_state, address_zip, source, notes, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
             )->execute(array(
-                $name, $phone, $email, $source,
+                $name, $cpf, $rg, $birthDate ?: null,
+                $phone, $email, $profession, $maritalStatus,
+                $addressStreet, $addressCity, $addressState, $addressZip,
+                $source,
                 'Auto-cadastrado via formulário: ' . $formType
             ));
             $clientId = (int)$pdo->lastInsertId();

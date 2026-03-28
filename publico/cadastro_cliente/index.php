@@ -57,7 +57,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $result = process_form_submission(
             'cadastro_cliente',
-            array('name' => $nome, 'phone' => $celular, 'email' => $email),
+            array(
+                'name' => $nome,
+                'phone' => $celular,
+                'email' => $email,
+                'cpf' => $cpf,
+                'rg' => $rg,
+                'birth_date' => $nascimento ?: null,
+                'profession' => $profissao,
+                'marital_status' => $estado_civil,
+                'address_street' => $endereco,
+                'address_zip' => $cep,
+            ),
             json_encode($payload, JSON_UNESCAPED_UNICODE)
         );
 
