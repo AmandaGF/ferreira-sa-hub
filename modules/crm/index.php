@@ -63,9 +63,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card">
     <div class="card-header">
         <h3>Clientes</h3>
-        <form method="GET" style="display:flex;gap:.5rem;">
-            <input type="text" name="q" class="form-input" style="width:250px;padding:.45rem .75rem;font-size:.82rem;"
+        <form method="GET" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <input type="text" name="q" class="form-input" style="width:200px;padding:.45rem .75rem;font-size:.82rem;"
                    placeholder="Buscar nome, CPF, telefone..." value="<?= e($_GET['q'] ?? '') ?>">
+            <select name="status" class="form-select" style="font-size:.82rem;padding:.45rem;">
+                <option value="">Todos os status</option>
+                <option value="ativo" <?= ($_GET['status'] ?? '') === 'ativo' ? 'selected' : '' ?>>✅ Ativo</option>
+                <option value="contrato_assinado" <?= ($_GET['status'] ?? '') === 'contrato_assinado' ? 'selected' : '' ?>>📝 Contrato Assinado</option>
+                <option value="cancelou" <?= ($_GET['status'] ?? '') === 'cancelou' ? 'selected' : '' ?>>❌ Cancelou</option>
+                <option value="parou_responder" <?= ($_GET['status'] ?? '') === 'parou_responder' ? 'selected' : '' ?>>⏳ Parou de Responder</option>
+                <option value="demitido" <?= ($_GET['status'] ?? '') === 'demitido' ? 'selected' : '' ?>>🚫 Demitimos</option>
+            </select>
             <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
         </form>
     </div>
@@ -75,13 +83,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $page = max(1, (int)($_GET['page'] ?? 1));
     $perPage = 20;
 
-    $where = '';
-    $params = [];
+    $filterStatus = $_GET['status'] ?? '';
+    $where = array();
+    $params = array();
     if ($search) {
-        $where = "WHERE c.name LIKE ? OR c.cpf LIKE ? OR c.phone LIKE ? OR c.email LIKE ?";
+        $where[] = "(c.name LIKE ? OR c.cpf LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)";
         $like = '%' . $search . '%';
-        $params = [$like, $like, $like, $like];
+        $params = array($like, $like, $like, $like);
     }
+    if ($filterStatus) {
+        $where[] = "c.client_status = ?";
+        $params[] = $filterStatus;
+    }
+    $where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
     $countStmt = $pdo->prepare("SELECT COUNT(*) FROM clients c $where");
     $countStmt->execute($params);
@@ -105,7 +119,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <tr>
                     <th>Nome</th>
                     <th>Telefone</th>
-                    <th>E-mail</th>
+                    <th>Status</th>
                     <th>Casos ativos</th>
                     <th>Último contato</th>
                     <th>Cadastro</th>
@@ -114,7 +128,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </thead>
             <tbody>
                 <?php if (empty($clients)): ?>
-                    <tr><td colspan="7" class="text-center text-muted" style="padding:2rem;">
+                    <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">
                         <?= $search ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado ainda.' ?>
                     </td></tr>
                 <?php else: ?>
@@ -132,7 +146,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 </a>
                             <?php else: ?>—<?php endif; ?>
                         </td>
-                        <td class="text-sm"><?= e($c['email'] ?: '—') ?></td>
+                        <td>
+                            <?php
+                            $st = isset($c['client_status']) ? $c['client_status'] : 'ativo';
+                            $stMap = array('ativo'=>array('✅','success'), 'contrato_assinado'=>array('📝','info'), 'cancelou'=>array('❌','danger'), 'parou_responder'=>array('⏳','warning'), 'demitido'=>array('🚫','danger'));
+                            $stI = isset($stMap[$st]) ? $stMap[$st] : $stMap['ativo'];
+                            ?>
+                            <span class="badge badge-<?= $stI[1] ?>"><?= $stI[0] ?></span>
+                        </td>
                         <td>
                             <?php if ($c['active_cases'] > 0): ?>
                                 <span class="badge badge-info"><?= $c['active_cases'] ?> ativo<?= $c['active_cases'] > 1 ? 's' : '' ?></span>

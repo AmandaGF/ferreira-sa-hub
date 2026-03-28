@@ -77,9 +77,32 @@ $contactIcons = [
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
+<?php
+$clientStatusLabels = array(
+    'ativo' => array('label' => 'Ativo', 'badge' => 'success', 'icon' => '✅'),
+    'contrato_assinado' => array('label' => 'Contrato Assinado', 'badge' => 'info', 'icon' => '📝'),
+    'cancelou' => array('label' => 'Cancelou', 'badge' => 'danger', 'icon' => '❌'),
+    'parou_responder' => array('label' => 'Parou de Responder', 'badge' => 'warning', 'icon' => '⏳'),
+    'demitido' => array('label' => 'Demitimos', 'badge' => 'danger', 'icon' => '🚫'),
+);
+$currentStatus = isset($client['client_status']) ? $client['client_status'] : 'ativo';
+$statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$currentStatus] : $clientStatusLabels['ativo'];
+?>
+
 <style>
 .client-header { display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap; margin-bottom:1.5rem; }
 .client-name { font-size:1.3rem; font-weight:800; color:var(--petrol-900); }
+.status-actions { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.75rem; }
+.status-btn { font-size:.72rem; padding:.35rem .65rem; border-radius:8px; border:1.5px solid var(--border); background:var(--bg-card); cursor:pointer; font-weight:600; font-family:var(--font); transition:all var(--transition); display:inline-flex; align-items:center; gap:.3rem; }
+.status-btn:hover { transform:translateY(-1px); box-shadow:var(--shadow-sm); }
+.status-btn.danger { border-color:#fecaca; color:var(--danger); }
+.status-btn.danger:hover { background:var(--danger-bg); }
+.status-btn.success { border-color:#a7f3d0; color:var(--success); }
+.status-btn.success:hover { background:var(--success-bg); }
+.status-btn.warning { border-color:#fde68a; color:var(--warning); }
+.status-btn.warning:hover { background:var(--warning-bg); }
+.status-btn.info { border-color:#bae6fd; color:var(--info); }
+.status-btn.info:hover { background:var(--info-bg); }
 .client-meta { font-size:.82rem; color:var(--text-muted); margin-top:.15rem; }
 .client-actions { display:flex; gap:.5rem; }
 .tabs { display:flex; gap:0; border-bottom:2px solid var(--border); margin-bottom:1.5rem; }
@@ -103,12 +126,46 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="client-header">
     <div>
         <a href="<?= module_url('crm') ?>" class="text-sm text-muted" style="display:inline-block;margin-bottom:.25rem;">← Voltar ao CRM</a>
-        <div class="client-name"><?= e($client['name']) ?></div>
+        <div class="client-name">
+            <?= e($client['name']) ?>
+            <span class="badge badge-<?= $statusInfo['badge'] ?>" style="font-size:.65rem;vertical-align:middle;margin-left:.5rem;">
+                <?= $statusInfo['icon'] ?> <?= $statusInfo['label'] ?>
+            </span>
+        </div>
         <div class="client-meta">
             <?php if ($client['cpf']): ?>CPF: <?= e($client['cpf']) ?> · <?php endif; ?>
             Cadastrado em <?= data_br($client['created_at']) ?>
             · Origem: <?= e($client['source'] ?? '—') ?>
         </div>
+
+        <?php if (!$isReadOnly): ?>
+        <div class="status-actions">
+            <?php foreach ($clientStatusLabels as $stKey => $stInfo): ?>
+                <?php if ($stKey !== $currentStatus): ?>
+                    <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="update_client_status">
+                        <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
+                        <input type="hidden" name="client_status" value="<?= $stKey ?>">
+                        <button type="submit" class="status-btn <?= $stInfo['badge'] ?>"
+                            <?= $stKey === 'demitido' || $stKey === 'cancelou' ? 'data-confirm="Tem certeza? Essa ação marca o cliente como ' . $stInfo['label'] . '."' : '' ?>>
+                            <?= $stInfo['icon'] ?> <?= $stInfo['label'] ?>
+                        </button>
+                    </form>
+                <?php endif; ?>
+            <?php endforeach; ?>
+
+            <!-- Excluir -->
+            <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="delete_client">
+                <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
+                <button type="submit" class="status-btn danger" data-confirm="EXCLUIR este cliente permanentemente? Todos os dados, casos e contatos serão apagados.">
+                    🗑️ Excluir cadastro
+                </button>
+            </form>
+        </div>
+        <?php endif; ?>
     </div>
     <div class="client-actions">
         <?php if ($client['phone']): ?>
@@ -116,6 +173,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         <?php if (!$isReadOnly): ?>
             <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>
+            <a href="<?= module_url('documentos', '?client_id=' . $client['id']) ?>" class="btn btn-outline btn-sm">📜 Documentos</a>
         <?php endif; ?>
     </div>
 </div>

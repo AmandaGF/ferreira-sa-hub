@@ -68,10 +68,58 @@ switch ($action) {
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
+    case 'update_client_status':
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $newStatus = $_POST['client_status'] ?? '';
+        $validStatuses = array('ativo', 'contrato_assinado', 'cancelou', 'parou_responder', 'demitido');
+
+        if ($clientId && in_array($newStatus, $validStatuses)) {
+            $pdo->prepare('UPDATE clients SET client_status = ?, updated_at = NOW() WHERE id = ?')
+                ->execute(array($newStatus, $clientId));
+
+            audit_log('client_status_changed', 'client', $clientId, $newStatus);
+
+            // Se CONTRATO ASSINADO → criar caso no Operacional
+            if ($newStatus === 'contrato_assinado') {
+                // Buscar dados do cliente
+                $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
+                $stmt->execute(array($clientId));
+                $cl = $stmt->fetch();
+
+                if ($cl) {
+                    // Verificar se já tem caso ativo
+                    $existCase = $pdo->prepare("SELECT id FROM cases WHERE client_id = ? AND status NOT IN ('concluido','arquivado') LIMIT 1");
+                    $existCase->execute(array($clientId));
+
+                    if (!$existCase->fetch()) {
+                        // Criar caso
+                        $pdo->prepare(
+                            "INSERT INTO cases (client_id, title, case_type, status, priority, opened_at, notes)
+                             VALUES (?, ?, 'outro', 'aguardando_docs', 'normal', CURDATE(), ?)"
+                        )->execute(array(
+                            $clientId,
+                            'Novo caso — ' . $cl['name'],
+                            'Contrato assinado em ' . date('d/m/Y') . '. Aguardando documentação.'
+                        ));
+                        $caseId = (int)$pdo->lastInsertId();
+                        audit_log('case_auto_created', 'case', $caseId, 'Contrato assinado - client: ' . $clientId);
+
+                        flash_set('success', 'Status atualizado para "Contrato Assinado" e caso criado no Operacional (#' . $caseId . ')!');
+                        redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
+                    }
+                }
+            }
+
+            $statusLabels = array('ativo'=>'Ativo', 'contrato_assinado'=>'Contrato Assinado', 'cancelou'=>'Cancelou', 'parou_responder'=>'Parou de Responder', 'demitido'=>'Demitimos');
+            flash_set('success', 'Status alterado para "' . ($statusLabels[$newStatus] ?? $newStatus) . '".');
+        }
+        redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
+        break;
+
     case 'delete_client':
         $clientId = (int)($_POST['client_id'] ?? 0);
         if ($clientId) {
-            $pdo->prepare('DELETE FROM clients WHERE id = ?')->execute([$clientId]);
+            $pdo->prepare('DELETE FROM clients WHERE id = ?')->execute(array($clientId));
             audit_log('client_deleted', 'client', $clientId);
             flash_set('success', 'Cliente excluído.');
         }
