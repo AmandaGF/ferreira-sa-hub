@@ -151,7 +151,7 @@ foreach ($links as $idx => $l) {
     try {
         $passEnc = !empty($l[4]) ? encrypt_value($l[4]) : null;
         $stmt->execute(array(
-            $l[0], $l[1], $l[2] ? $l[2] : null, $l[3] ? $l[3] : null,
+            $l[0], $l[1], $l[2] ? $l[2] : '', $l[3] ? $l[3] : null,
             $passEnc, $l[5] ? $l[5] : null, $l[6], $l[7], $l[8], $userId
         ));
         $imported++;
