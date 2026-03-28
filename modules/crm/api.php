@@ -119,9 +119,21 @@ switch ($action) {
     case 'delete_client':
         $clientId = (int)($_POST['client_id'] ?? 0);
         if ($clientId) {
+            // Apagar leads do pipeline vinculados
+            $pdo->prepare('DELETE FROM pipeline_history WHERE lead_id IN (SELECT id FROM pipeline_leads WHERE client_id = ?)')->execute(array($clientId));
+            $pdo->prepare('DELETE FROM pipeline_leads WHERE client_id = ?')->execute(array($clientId));
+            // Apagar contatos
+            $pdo->prepare('DELETE FROM contacts WHERE client_id = ?')->execute(array($clientId));
+            // Apagar tarefas dos casos
+            $pdo->prepare('DELETE FROM case_tasks WHERE case_id IN (SELECT id FROM cases WHERE client_id = ?)')->execute(array($clientId));
+            // Apagar casos
+            $pdo->prepare('DELETE FROM cases WHERE client_id = ?')->execute(array($clientId));
+            // Desvincular formulários (não apagar, só desvincular)
+            $pdo->prepare('UPDATE form_submissions SET linked_client_id = NULL WHERE linked_client_id = ?')->execute(array($clientId));
+            // Apagar cliente
             $pdo->prepare('DELETE FROM clients WHERE id = ?')->execute(array($clientId));
             audit_log('client_deleted', 'client', $clientId);
-            flash_set('success', 'Cliente excluído.');
+            flash_set('success', 'Cliente e dados relacionados excluídos.');
         }
         redirect(module_url('crm'));
         break;
