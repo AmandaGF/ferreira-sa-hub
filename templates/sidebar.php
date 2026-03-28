@@ -94,7 +94,7 @@ $menuItems = [
 
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
-        <img src="<?= url('assets/img/logo.png') ?>" alt="Logo" onerror="this.style.display='none'">
+        <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" style="width:42px;height:42px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">
         <div class="sidebar-brand-text">
             <h2>Ferreira &amp; Sá</h2>
             <small>Hub</small>
