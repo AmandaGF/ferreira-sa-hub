@@ -18,7 +18,7 @@ switch ($action) {
         $toStage = $_POST['to_stage'] ?? '';
         $notes = clean_str($_POST['notes'] ?? '', 500);
 
-        $validStages = ['novo','contato_inicial','agendado','proposta','contrato','perdido'];
+        $validStages = ['novo','contato_inicial','agendado','proposta','elaboracao','contrato','perdido'];
         if (!$leadId || !in_array($toStage, $validStages)) {
             flash_set('error', 'Dados inválidos.');
             redirect(module_url('pipeline'));

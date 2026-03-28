@@ -29,7 +29,8 @@ $history = $history->fetchAll();
 $stageLabels = [
     'novo' => '🆕 Novo', 'contato_inicial' => '📞 Contato Inicial',
     'agendado' => '📅 Agendado', 'proposta' => '📄 Proposta',
-    'contrato' => '✅ Contrato', 'perdido' => '❌ Perdido',
+    'elaboracao' => '📝 Elaboração Contrato', 'contrato' => '✅ Contrato Assinado',
+    'perdido' => '❌ Perdido',
 ];
 
 $sourceLabels = [

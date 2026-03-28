@@ -117,8 +117,8 @@ function process_form_submission($formType, $clientData, $payloadJson)
             elseif ($formType === 'divorcio') $caseType = 'Divórcio';
             elseif ($formType === 'alimentos') $caseType = 'Alimentos';
 
-            // Cadastro = já fez contato (dados coletados). Outros formulários = novo lead.
-            $initialStage = ($formType === 'cadastro_cliente') ? 'contato_inicial' : 'novo';
+            // Cadastro = elaboração do contrato. Outros formulários = novo lead.
+            $initialStage = ($formType === 'cadastro_cliente') ? 'elaboracao' : 'novo';
 
             $pdo->prepare(
                 "INSERT INTO pipeline_leads (name, phone, email, source, stage, case_type, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"

@@ -15,7 +15,8 @@ $stages = [
     'contato_inicial' => ['label' => 'Contato Inicial', 'color' => '#0ea5e9', 'icon' => '📞'],
     'agendado'        => ['label' => 'Agendado',        'color' => '#f59e0b', 'icon' => '📅'],
     'proposta'        => ['label' => 'Proposta',        'color' => '#d97706', 'icon' => '📄'],
-    'contrato'        => ['label' => 'Contrato',        'color' => '#059669', 'icon' => '✅'],
+    'elaboracao'      => ['label' => 'Elaboração Contrato', 'color' => '#8b5cf6', 'icon' => '📝'],
+    'contrato'        => ['label' => 'Contrato Assinado',   'color' => '#059669', 'icon' => '✅'],
     'perdido'         => ['label' => 'Perdido',         'color' => '#dc2626', 'icon' => '❌'],
 ];
 
