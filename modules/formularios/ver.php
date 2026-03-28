@@ -37,44 +37,54 @@ $typeLabels = array(
 // Mapeamento de nomes dos campos para português
 // ═══════════════════════════════════════════════════════
 $fieldLabels = array(
-    // Convivência
+    // Convivência — Identificação
     'client_name' => 'Nome do cliente',
     'client_phone' => 'Telefone / WhatsApp',
     'client_email' => 'E-mail',
-    'relationship' => 'Relação com a criança',
+    'relationship_role' => 'Relação com a criança (Mãe/Pai/Responsável)',
     'children' => 'Filhos',
+
+    // Convivência — Visitas
     'pickup_frequency' => 'Frequência de convivência',
-    'pickup_frequency_other' => 'Outra frequência (detalhe)',
+    'pickup_frequency_other' => 'Outra forma de convivência (detalhe)',
     'weekend_model' => 'Modelo de fim de semana',
-    'weekend_model_time' => 'Horário (fim de semana)',
-    'weekend_model_time_start' => 'Horário início',
-    'weekend_model_time_end' => 'Horário fim',
-    'overnight' => 'Pernoite',
-    'overnight_reason' => 'Motivo de não pernoitar',
-    'overnight_reason_detail' => 'Detalhe do motivo',
-    'pickup_time' => 'Horário de busca',
-    'return_time' => 'Horário de retorno',
+    'weekend_sunday_time' => 'Horário do domingo',
+    'wk_sat_pick_time' => 'Horário de busca no sábado',
+    'wk_sun_drop_time' => 'Horário de entrega no domingo',
+    'wk_sat_pick_time_2' => 'Horário de busca no sábado (modelo 2)',
+    'overnight' => 'Pernoite (dormir na casa)',
+    'overnight_quick_reason' => 'Motivo rápido de não pernoitar',
+    'overnight_reason' => 'Motivo detalhado de não pernoitar',
+
+    // Convivência — Início/Retorno
+    'convivio_inicio' => 'Início da convivência',
+    'convivio_retorno' => 'Retorno da convivência',
+    'exchange_place' => 'Local de troca (busca/entrega)',
+
+    // Convivência — Datas especiais
     'bday_child' => 'Aniversário da criança',
-    'bday_child_detail' => 'Detalhe aniversário criança',
+    'bday_child_other' => 'Aniversário da criança (outro — detalhe)',
     'bday_mom' => 'Dia das Mães',
-    'bday_mom_detail' => 'Detalhe Dia das Mães',
+    'bday_mom_other' => 'Dia das Mães (outro — detalhe)',
     'bday_dad' => 'Dia dos Pais',
-    'bday_dad_detail' => 'Detalhe Dia dos Pais',
+    'bday_dad_other' => 'Dia dos Pais (outro — detalhe)',
     'holidays' => 'Feriados',
-    'holidays_detail' => 'Detalhe feriados',
+    'holidays_other' => 'Feriados (outro — detalhe)',
+
+    // Convivência — Férias
     'vac_mid' => 'Férias de meio de ano',
-    'vac_mid_detail' => 'Detalhe férias meio de ano',
+    'vac_mid_other' => 'Férias meio de ano (outro — detalhe)',
     'vac_end' => 'Férias de fim de ano',
-    'vac_end_detail' => 'Detalhe férias fim de ano',
-    'xmas' => 'Natal e Ano Novo',
-    'xmas_detail' => 'Detalhe Natal/Ano Novo',
-    'carnival' => 'Carnaval',
-    'carnival_detail' => 'Detalhe Carnaval',
-    'easter' => 'Páscoa',
-    'easter_detail' => 'Detalhe Páscoa',
-    'travel' => 'Viagens',
-    'travel_detail' => 'Detalhe viagens',
-    'extra_notes' => 'Observações adicionais',
+    'vac_end_other' => 'Férias fim de ano (outro — detalhe)',
+
+    // Convivência — Natal/Ano Novo
+    'xmas' => 'Natal',
+    'xmas_other' => 'Natal (outro — detalhe)',
+    'newyear' => 'Ano Novo',
+    'newyear_other' => 'Ano Novo (outro — detalhe)',
+
+    // Convivência — Observações
+    'open_notes' => 'Observações adicionais do cliente',
 
     // Gastos Pensão
     'nome_responsavel' => 'Nome do responsável',
@@ -180,11 +190,29 @@ function getLabel($key, $labels) {
     return ucfirst($text);
 }
 
-function getValue($val, $valueLabels) {
+function getValue($val, $valueLabels, $key = '') {
     if (is_bool($val)) return $val ? 'Sim' : 'Não';
     if ($val === true || $val === 'true') return 'Sim';
     if ($val === false || $val === 'false') return 'Não';
     if (is_array($val)) {
+        // Caso especial: filhos (array de objetos com name, dob, age)
+        if ($key === 'children') {
+            $parts = array();
+            foreach ($val as $i => $child) {
+                if (is_array($child)) {
+                    $nome = isset($child['name']) ? $child['name'] : '?';
+                    $nasc = isset($child['dob']) ? $child['dob'] : '';
+                    $idade = isset($child['age']) ? $child['age'] : '';
+                    $line = ($i + 1) . '. ' . $nome;
+                    if ($nasc) $line .= ' — Nasc: ' . $nasc;
+                    if ($idade) $line .= ' (' . $idade . ')';
+                    $parts[] = $line;
+                } else {
+                    $parts[] = (string)$child;
+                }
+            }
+            return implode("\n", $parts);
+        }
         $parts = array();
         foreach ($val as $k => $v) {
             if (is_array($v)) {
@@ -195,6 +223,8 @@ function getValue($val, $valueLabels) {
         }
         return implode("\n", $parts);
     }
+    if ($val === 'sim' || $val === 'yes') return 'Sim';
+    if ($val === 'nao' || $val === 'no') return 'Não';
     if (is_string($val) && isset($valueLabels[$val])) return $valueLabels[$val];
     return (string)$val;
 }
@@ -330,7 +360,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         foreach ($payload as $key => $val):
             if (in_array($key, $skipKeys)) continue;
             $label = getLabel($key, $fieldLabels);
-            $displayVal = getValue($val, $valueLabels);
+            $displayVal = getValue($val, $valueLabels, $key);
             $isEmpty = ($displayVal === '' || $displayVal === null);
             $isMoney = isCentsField($key);
             $isTotal = ($key === 'total_geral_cents');
