@@ -16,10 +16,10 @@ $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY
 
 // Tipos de documento
 $docTypes = array(
-    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Escolha o tipo de ação ao lado'),
-    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Prestação de serviços advocatícios'),
-    'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Declaração para gratuidade de justiça'),
-    'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'Isenção de Imposto de Renda'),
+    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Escolha o tipo de ação e outorgante'),
+    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Com todas as cláusulas do escritório'),
+    'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Art. 98 CPC + Lei 1.060/50'),
+    'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'IN RFB 1548/2015 + Lei 7.115/83'),
 );
 
 // Tipos de ação (para procuração e contrato)
@@ -97,14 +97,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <!-- Procuração: nome próprio ou menor -->
                 <div id="outorganteSection" style="margin-top:1rem;display:none;">
                     <p class="form-label" style="font-size:.82rem;margin-bottom:.5rem;">Outorgante:</p>
-                    <div style="display:flex;gap:.5rem;">
-                        <label class="acao-option" style="flex:1;" onclick="document.getElementById('outorgante_proprio').checked=true;">
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_proprio').checked=true;">
                             <input type="radio" name="outorgante" value="proprio" id="outorgante_proprio" checked>
-                            <span>👤 Em nome próprio</span>
+                            <span>👤 Em nome próprio (cliente)</span>
                         </label>
-                        <label class="acao-option" style="flex:1;" onclick="document.getElementById('outorgante_menor').checked=true;">
+                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_menor').checked=true;">
                             <input type="radio" name="outorgante" value="menor" id="outorgante_menor">
-                            <span>👶 Em nome do menor (pensão)</span>
+                            <span>👶 Em nome do(s) menor(es)</span>
+                        </label>
+                        <label class="acao-option" style="flex:1;min-width:200px;" onclick="document.getElementById('outorgante_defesa').checked=true;">
+                            <input type="radio" name="outorgante" value="defesa" id="outorgante_defesa">
+                            <span>🛡️ Defesa (pai/mãe - execução)</span>
                         </label>
                     </div>
                 </div>
