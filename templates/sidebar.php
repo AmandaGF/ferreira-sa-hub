@@ -58,6 +58,13 @@ $menuItems = [
 
     ['section' => 'Dados'],
     [
+        'label' => 'Documentos',
+        'icon'  => '📜',
+        'href'  => url('modules/documentos/'),
+        'id'    => 'documentos',
+        'roles' => ['admin', 'gestao'],
+    ],
+    [
         'label' => 'Formulários',
         'icon'  => '📋',
         'href'  => url('modules/formularios/'),
