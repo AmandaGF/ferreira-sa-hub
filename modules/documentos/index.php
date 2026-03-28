@@ -9,70 +9,128 @@ require_min_role('gestao');
 $pageTitle = 'Documentos';
 $pdo = db();
 
-// Buscar clientes para o seletor
+// Cliente pré-selecionado (vindo do CRM)
+$preClientId = (int)($_GET['client_id'] ?? 0);
+
 $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY name ASC")->fetchAll();
 
 // Tipos de documento
 $docTypes = array(
-    'procuracao' => array('label' => 'Procuração (nome próprio)', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Cliente como outorgante'),
-    'procuracao_menor' => array('label' => 'Procuração (menor)', 'icon' => '👶', 'color' => '#0b2f36', 'desc' => 'Criança como outorgante, representada pelo genitor'),
-    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Contrato de prestação de serviços'),
-    'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Declaração para gratuidade'),
+    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Escolha o tipo de ação ao lado'),
+    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Prestação de serviços advocatícios'),
+    'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Declaração para gratuidade de justiça'),
     'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'Isenção de Imposto de Renda'),
+);
+
+// Tipos de ação (para procuração e contrato)
+$tiposAcao = array(
+    'alimentos' => 'Processo de Fixação ou Execução de Pensão Alimentícia',
+    'divorcio' => 'Ação de Divórcio',
+    'guarda_convivencia' => 'Ação de Guarda e/ou Regulamentação de Convivência',
+    'familia' => 'Demanda de Direito de Família',
+    'consumidor' => 'Ação de Direito do Consumidor',
+    'indenizacao' => 'Ação de Indenização por Danos Morais e/ou Materiais',
+    'trabalhista' => 'Reclamação Trabalhista',
+    'inventario' => 'Inventário e Partilha de Bens',
+    'outro' => 'Outro (especificar no editor)',
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.doc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; margin-bottom:2rem; }
+.doc-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.75rem; margin-bottom:1.5rem; }
 .doc-card {
     background:var(--bg-card); border-radius:var(--radius-lg); border:2px solid var(--border);
-    padding:1.5rem; cursor:pointer; transition:all var(--transition); text-align:center;
+    padding:1.25rem; cursor:pointer; transition:all var(--transition); text-align:center;
 }
 .doc-card:hover { transform:translateY(-2px); box-shadow:var(--shadow-md); }
 .doc-card.selected { border-color:var(--rose); box-shadow:0 0 0 3px rgba(215,171,144,.3); }
-.doc-icon { font-size:2.5rem; margin-bottom:.75rem; }
-.doc-label { font-size:1rem; font-weight:700; color:var(--petrol-900); }
-.doc-desc { font-size:.78rem; color:var(--text-muted); margin-top:.25rem; }
+.doc-icon { font-size:2rem; margin-bottom:.5rem; }
+.doc-label { font-size:.88rem; font-weight:700; color:var(--petrol-900); }
+.doc-desc { font-size:.72rem; color:var(--text-muted); margin-top:.2rem; }
+
+.acao-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(250px, 1fr)); gap:.5rem; margin-top:.75rem; }
+.acao-option {
+    display:flex; align-items:center; gap:.5rem; padding:.6rem .85rem;
+    border:1.5px solid var(--border); border-radius:var(--radius); cursor:pointer;
+    font-size:.82rem; transition:all var(--transition); background:var(--bg-card);
+}
+.acao-option:hover { border-color:var(--petrol-300); }
+.acao-option.selected { border-color:var(--petrol-900); background:var(--petrol-100); font-weight:600; }
+.acao-option input { display:none; }
+
+.section-box { display:none; margin-bottom:1.5rem; }
+.section-box.visible { display:block; }
 </style>
 
-<div class="card mb-2">
+<div class="card">
     <div class="card-header"><h3>Gerar Documento</h3></div>
     <div class="card-body">
         <form method="GET" action="<?= module_url('documentos', 'gerar.php') ?>" id="docForm">
 
-            <!-- 1. Escolher tipo -->
-            <p class="form-label" style="font-size:.9rem;margin-bottom:.75rem;">1. Escolha o tipo de documento:</p>
+            <!-- 1. Tipo de documento -->
+            <p class="form-label" style="font-size:.88rem;margin-bottom:.75rem;">1. Tipo de documento</p>
             <div class="doc-grid">
                 <?php foreach ($docTypes as $key => $doc): ?>
-                <label class="doc-card" onclick="selectDoc('<?= $key ?>')">
+                <label class="doc-card" id="doc-<?= $key ?>" onclick="selectDoc('<?= $key ?>')">
                     <input type="radio" name="tipo" value="<?= $key ?>" required style="display:none;">
                     <div class="doc-icon"><?= $doc['icon'] ?></div>
                     <div class="doc-label"><?= $doc['label'] ?></div>
-                    <?php if (isset($doc['desc'])): ?><div class="doc-desc"><?= $doc['desc'] ?></div><?php endif; ?>
+                    <div class="doc-desc"><?= $doc['desc'] ?></div>
                 </label>
                 <?php endforeach; ?>
             </div>
 
-            <!-- 2. Escolher cliente -->
-            <p class="form-label" style="font-size:.9rem;margin-bottom:.5rem;">2. Selecione o cliente:</p>
-            <div class="form-row" style="margin-bottom:1.5rem;">
-                <div class="form-group">
-                    <select name="client_id" class="form-select" required id="clientSelect">
-                        <option value="">— Selecionar cliente —</option>
-                        <?php foreach ($clients as $c): ?>
-                            <option value="<?= $c['id'] ?>"><?= e($c['name']) ?><?= $c['cpf'] ? ' — CPF: ' . e($c['cpf']) : '' ?></option>
-                        <?php endforeach; ?>
-                    </select>
+            <!-- 2. Tipo de ação (aparece para procuração e contrato) -->
+            <div class="section-box" id="acaoSection">
+                <p class="form-label" style="font-size:.88rem;margin-bottom:.5rem;">2. Tipo de ação</p>
+                <div class="acao-grid">
+                    <?php foreach ($tiposAcao as $key => $label): ?>
+                    <label class="acao-option" id="acao-<?= $key ?>" onclick="selectAcao('<?= $key ?>')">
+                        <input type="radio" name="tipo_acao" value="<?= $key ?>">
+                        <span><?= e($label) ?></span>
+                    </label>
+                    <?php endforeach; ?>
                 </div>
-                <div class="form-group">
-                    <input type="text" id="searchClient" class="form-input" placeholder="Buscar cliente..." oninput="filterClients(this.value)">
+
+                <!-- Procuração: nome próprio ou menor -->
+                <div id="outorganteSection" style="margin-top:1rem;display:none;">
+                    <p class="form-label" style="font-size:.82rem;margin-bottom:.5rem;">Outorgante:</p>
+                    <div style="display:flex;gap:.5rem;">
+                        <label class="acao-option" style="flex:1;" onclick="document.getElementById('outorgante_proprio').checked=true;">
+                            <input type="radio" name="outorgante" value="proprio" id="outorgante_proprio" checked>
+                            <span>👤 Em nome próprio</span>
+                        </label>
+                        <label class="acao-option" style="flex:1;" onclick="document.getElementById('outorgante_menor').checked=true;">
+                            <input type="radio" name="outorgante" value="menor" id="outorgante_menor">
+                            <span>👶 Em nome do menor (pensão)</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 
-            <!-- 3. Gerar -->
-            <button type="submit" class="btn btn-primary btn-lg" style="width:100%;">
+            <!-- 3. Cliente -->
+            <div class="section-box visible">
+                <p class="form-label" style="font-size:.88rem;margin-bottom:.5rem;margin-top:1rem;">
+                    <span id="stepNum">2</span>. Selecione o cliente
+                </p>
+                <div class="form-row">
+                    <div class="form-group" style="margin:0;">
+                        <select name="client_id" class="form-select" required id="clientSelect">
+                            <option value="">— Selecionar cliente —</option>
+                            <?php foreach ($clients as $c): ?>
+                                <option value="<?= $c['id'] ?>" <?= $preClientId === (int)$c['id'] ? 'selected' : '' ?>><?= e($c['name']) ?><?= $c['cpf'] ? ' — ' . e($c['cpf']) : '' ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <input type="text" id="searchClient" class="form-input" placeholder="Buscar cliente..." oninput="filterClients(this.value)">
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width:100%;margin-top:1.5rem;">
                 Gerar Documento →
             </button>
         </form>
@@ -82,11 +140,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <script>
 function selectDoc(tipo) {
     document.querySelectorAll('.doc-card').forEach(function(c) { c.classList.remove('selected'); });
-    var radio = document.querySelector('input[name="tipo"][value="' + tipo + '"]');
-    if (radio) {
-        radio.checked = true;
-        radio.closest('.doc-card').classList.add('selected');
+    var card = document.getElementById('doc-' + tipo);
+    if (card) card.classList.add('selected');
+    var radio = card.querySelector('input');
+    if (radio) radio.checked = true;
+
+    var acaoSection = document.getElementById('acaoSection');
+    var outorganteSection = document.getElementById('outorganteSection');
+    var stepNum = document.getElementById('stepNum');
+
+    if (tipo === 'procuracao' || tipo === 'contrato') {
+        acaoSection.classList.add('visible');
+        stepNum.textContent = '3';
+        if (tipo === 'procuracao') {
+            outorganteSection.style.display = 'block';
+        } else {
+            outorganteSection.style.display = 'none';
+        }
+    } else {
+        acaoSection.classList.remove('visible');
+        outorganteSection.style.display = 'none';
+        stepNum.textContent = '2';
     }
+}
+
+function selectAcao(key) {
+    document.querySelectorAll('.acao-option').forEach(function(o) { o.classList.remove('selected'); });
+    var opt = document.getElementById('acao-' + key);
+    if (opt) { opt.classList.add('selected'); opt.querySelector('input').checked = true; }
 }
 
 function filterClients(q) {
@@ -95,8 +176,7 @@ function filterClients(q) {
     for (var i = 0; i < select.options.length; i++) {
         var opt = select.options[i];
         if (i === 0) continue;
-        var text = opt.textContent.toLowerCase();
-        opt.style.display = (!q || text.indexOf(q) !== -1) ? '' : 'none';
+        opt.style.display = (!q || opt.textContent.toLowerCase().indexOf(q) !== -1) ? '' : 'none';
     }
 }
 </script>
