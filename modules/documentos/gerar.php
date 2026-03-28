@@ -176,25 +176,27 @@ $logoUrl = url('assets/img/logo.png');
     <h3>✏️ Revise os dados antes de gerar</h3>
     <form method="POST">
         <div class="row">
-            <div><label>Nome completo</label><input name="nome" value="<?= e($nome) ?>"></div>
-            <div><label>CPF</label><input name="cpf" value="<?= e($cpf) ?>" placeholder="000.000.000-00"></div>
+            <div><label>Nome completo</label><input name="nome" value="<?= e($nome) ?>" placeholder="Preencha o nome..." style="<?= $nome ? '' : 'border-color:#d97706;' ?>"></div>
+            <div><label>CPF</label><input name="cpf" value="<?= e($cpf) ?>" placeholder="Preencha o CPF..." style="<?= $cpf ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
 
         <?php if (!$isDefesa): ?>
         <div style="margin-bottom:.75rem;">
             <label>Endereço completo</label>
-            <input name="endereco_completo" value="<?= e($enderecoCompleto) ?>">
+            <input name="endereco_completo" value="<?= e($enderecoCompleto) ?>" placeholder="Preencha o endereço..." style="<?= $enderecoCompleto ? '' : 'border-color:#d97706;' ?>">
         </div>
         <div class="row">
-            <div><label>E-mail</label><input name="email" value="<?= e($email) ?>"></div>
-            <div><label>Telefone</label><input name="phone" value="<?= e($phone) ?>"></div>
+            <div><label>E-mail</label><input name="email" value="<?= e($email) ?>" placeholder="Preencha o e-mail..." style="<?= $email ? '' : 'border-color:#d97706;' ?>"></div>
+            <div><label>Telefone</label><input name="phone" value="<?= e($phone) ?>" placeholder="Preencha o telefone..." style="<?= $phone ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
         <?php endif; ?>
 
         <div class="row">
-            <div><label>Profissão</label><input name="profissao" value="<?= e($profissao) ?>"></div>
-            <div><label>Estado civil</label><input name="estado_civil" value="<?= e($estadoCivil) ?>"></div>
+            <div><label>Profissão</label><input name="profissao" value="<?= e($profissao) ?>" placeholder="Preencha..." style="<?= $profissao ? '' : 'border-color:#d97706;' ?>"></div>
+            <div><label>Estado civil</label><input name="estado_civil" value="<?= e($estadoCivil) ?>" placeholder="Preencha..." style="<?= $estadoCivil ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
+
+        <p style="font-size:.7rem;color:#d97706;margin-bottom:.75rem;">⚠ Campos com borda laranja precisam ser preenchidos</p>
 
         <div style="margin-bottom:.75rem;">
             <label>Local e data</label>
@@ -238,12 +240,12 @@ $logoUrl = url('assets/img/logo.png');
             <!-- Honorários fixos -->
             <div id="campos_fixo">
                 <div class="row">
-                    <div><label>Valor total (R$)</label><input name="valor_honorarios" id="valorTotal" placeholder="R$ 7.182,00" oninput="mascaraReal(this)"></div>
-                    <div><label>Valor por extenso</label><input name="valor_extenso" placeholder="sete mil, cento e oitenta e dois reais"></div>
+                    <div><label>Valor total (R$)</label><input name="valor_honorarios" id="valorTotal" placeholder="Digite o valor..." oninput="mascaraReal(this)" style="font-size:.95rem;font-weight:600;"></div>
+                    <div><label>Valor por extenso <span style="color:#059669;font-size:.6rem;">(auto)</span></label><input name="valor_extenso" id="valorExtenso" placeholder="Gerado ao digitar o valor..." style="color:#059669;" readonly></div>
                 </div>
                 <div class="row">
-                    <div><label>Nº de parcelas</label><input name="num_parcelas" id="numParcelas" placeholder="18" type="number" min="1" oninput="calcParcela()"></div>
-                    <div><label>Valor da parcela (R$)</label><input name="valor_parcela" id="valorParcela" placeholder="R$ 399,00" oninput="mascaraReal(this)"></div>
+                    <div><label>Nº de parcelas</label><input name="num_parcelas" id="numParcelas" placeholder="Preencha..." type="number" min="1" oninput="calcParcela()"></div>
+                    <div><label>Valor parcela <span style="color:#059669;font-size:.6rem;">(auto)</span></label><input name="valor_parcela" id="valorParcela" placeholder="Calculado automaticamente..." style="color:#059669;" readonly></div>
                 </div>
                 <div class="row">
                     <div>
@@ -255,10 +257,10 @@ $logoUrl = url('assets/img/logo.png');
                             <option value="TRANSFERÊNCIA BANCÁRIA">Transferência</option>
                         </select>
                     </div>
-                    <div><label>Dia do vencimento</label><input name="dia_vencimento" placeholder="20" type="number" min="1" max="31"></div>
+                    <div><label>Dia do vencimento</label><input name="dia_vencimento" placeholder="Preencha..." type="number" min="1" max="31"></div>
                 </div>
                 <div class="row">
-                    <div><label>Mês de início</label><input name="mes_inicio" placeholder="Abril/2026"></div>
+                    <div><label>Mês de início</label><input name="mes_inicio" placeholder="Preencha (ex: Abril/2026)"></div>
                     <div></div>
                 </div>
             </div>
@@ -286,15 +288,86 @@ $logoUrl = url('assets/img/logo.png');
             v = (parseInt(v) / 100).toFixed(2);
             v = v.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
             el.value = 'R$ ' + v;
+            if (el.id === 'valorTotal') { calcParcela(); gerarExtenso(); }
         }
 
         function calcParcela() {
-            var total = document.getElementById('valorTotal').value.replace(/[^\d,]/g, '').replace(',', '.');
+            var totalStr = document.getElementById('valorTotal').value.replace(/[R$\s.]/g, '').replace(',', '.');
             var n = parseInt(document.getElementById('numParcelas').value) || 0;
-            if (total && n > 0) {
-                var parcela = (parseFloat(total) / n).toFixed(2).replace('.', ',');
-                document.getElementById('valorParcela').value = 'R$ ' + parcela;
+            if (totalStr && n > 0) {
+                var total = parseFloat(totalStr);
+                var parcela = (total / n).toFixed(2);
+                var parcelaFmt = parcela.replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+                document.getElementById('valorParcela').value = 'R$ ' + parcelaFmt;
             }
+            gerarExtenso();
+        }
+
+        function gerarExtenso() {
+            var totalStr = document.getElementById('valorTotal').value.replace(/[R$\s.]/g, '').replace(',', '.');
+            var total = parseFloat(totalStr) || 0;
+            if (total > 0) {
+                document.getElementById('valorExtenso').value = valorPorExtenso(total);
+            }
+        }
+
+        function valorPorExtenso(valor) {
+            var inteiro = Math.floor(valor);
+            var centavos = Math.round((valor - inteiro) * 100);
+
+            var un = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove'];
+            var d1 = ['dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+            var d2 = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+            var c = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+
+            function extenso1a999(n) {
+                if (n === 0) return '';
+                if (n === 100) return 'cem';
+                var partes = [];
+                var centena = Math.floor(n / 100);
+                var resto = n % 100;
+                var dezena = Math.floor(resto / 10);
+                var unidade = resto % 10;
+                if (centena > 0) partes.push(c[centena]);
+                if (resto >= 10 && resto <= 19) {
+                    partes.push(d1[resto - 10]);
+                } else {
+                    if (dezena > 0) partes.push(d2[dezena]);
+                    if (unidade > 0) partes.push(un[unidade]);
+                }
+                return partes.join(' e ');
+            }
+
+            if (inteiro === 0 && centavos === 0) return 'zero reais';
+
+            var partes = [];
+
+            var milhoes = Math.floor(inteiro / 1000000);
+            var milhares = Math.floor((inteiro % 1000000) / 1000);
+            var unidades = inteiro % 1000;
+
+            if (milhoes > 0) {
+                partes.push(extenso1a999(milhoes) + (milhoes === 1 ? ' milhão' : ' milhões'));
+            }
+            if (milhares > 0) {
+                partes.push(extenso1a999(milhares) + ' mil');
+            }
+            if (unidades > 0) {
+                partes.push(extenso1a999(unidades));
+            }
+
+            var resultado = '';
+            if (partes.length === 1) resultado = partes[0];
+            else if (partes.length === 2) resultado = partes[0] + (unidades > 0 && unidades < 100 ? ' e ' : ', ') + partes[1];
+            else resultado = partes[0] + ', ' + partes[1] + ' e ' + partes[2];
+
+            resultado += inteiro === 1 ? ' real' : ' reais';
+
+            if (centavos > 0) {
+                resultado += ' e ' + extenso1a999(centavos) + (centavos === 1 ? ' centavo' : ' centavos');
+            }
+
+            return resultado;
         }
 
         function toggleRisco() {
