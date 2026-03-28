@@ -58,9 +58,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pipeline-stats { display:flex; gap:1rem; margin-bottom:1.5rem; flex-wrap:wrap; }
 .pipeline-stats .stat-card { flex:1; min-width:160px; }
 
-.page-content { max-width:none !important; }
-.kanban { display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; gap:.75rem; overflow-x:auto; padding-bottom:1rem; min-height:500px; }
-.kanban-col { min-width:200px; width:200px; flex-shrink:0 !important; display:flex; flex-direction:column; }
+.page-content { max-width:none !important; padding:.75rem !important; }
+.kanban-col { flex:1 1 0; min-width:0; display:flex; flex-direction:column; }
 .kanban-header { padding:.75rem 1rem; border-radius:var(--radius) var(--radius) 0 0; color:#fff; font-weight:700; font-size:.82rem; display:flex; align-items:center; justify-content:space-between; }
 .kanban-header .count { background:rgba(255,255,255,.25); padding:.1rem .5rem; border-radius:100px; font-size:.72rem; }
 .kanban-body { flex:1; background:var(--bg); border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.5rem; display:flex; flex-direction:column; gap:.5rem; min-height:100px; }
@@ -79,9 +78,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-actions button:hover { background:var(--petrol-900); color:#fff; }
 
 @media (max-width:768px) {
-    .kanban { flex-direction:column; }
-    .kanban-col { min-width:100%; width:100%; }
+    .kanban { grid-template-columns:1fr !important; }
 }
+.kanban-header { font-size:.72rem; }
+.lead-name { font-size:.82rem; }
+.lead-meta { font-size:.68rem; }
+.lead-days { font-size:.6rem; }
 </style>
 
 <!-- KPIs -->
@@ -113,7 +115,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Kanban -->
-<div class="kanban" style="display:flex;flex-direction:row;gap:.75rem;overflow-x:auto;padding-bottom:1rem;min-height:500px;">
+<div class="kanban" style="display:grid;grid-template-columns:repeat(7, 1fr);gap:.5rem;min-height:500px;">
     <?php foreach ($stages as $stageKey => $stage): ?>
     <div class="kanban-col">
         <div class="kanban-header" style="background:<?= $stage['color'] ?>;">
