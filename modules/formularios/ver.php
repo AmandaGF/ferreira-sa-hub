@@ -151,6 +151,54 @@ $fieldLabels = array(
     'ano_referencia' => 'Ano de referência',
     'idade_filhos' => 'Idade dos filhos',
     'atendido' => 'Já foi atendido?',
+    'data_envio' => 'Data de envio',
+
+    // Gastos Pensão — campos extras da tabela MySQL
+    'id' => 'ID do registro',
+    'protocolo' => 'Protocolo',
+    'created_at' => 'Data de criação',
+    'ip' => 'IP',
+    'user_agent' => 'Navegador',
+    'nome_responsavel' => 'Nome do responsável',
+    'cpf_responsavel' => 'CPF do responsável',
+    'whatsapp' => 'WhatsApp',
+    'nome_filho_referente' => 'Nome do filho (referência)',
+    'tea_status' => 'Criança com TEA (autismo)?',
+    'faz_tratamento_especifico' => 'Faz tratamento específico?',
+    'detalhe_tratamento' => 'Detalhe do tratamento',
+    'qtd_filhos' => 'Quantidade de filhos',
+    'gastos_iguais_todos' => 'Gastos iguais para todos os filhos?',
+    'fonte_renda' => 'Fonte de renda',
+    'obs_renda' => 'Observações sobre renda',
+    'renda_mensal_cents' => 'Renda mensal',
+    'quem_paga' => 'Quem paga as despesas',
+    'renda_obrigado_cents' => 'Renda do obrigado a pagar',
+    'moradores' => 'Nº de moradores da residência',
+    'total_moradia_rateada_cents' => 'Total Moradia (rateado)',
+    'total_alimentacao_cents' => 'Total Alimentação',
+    'total_saude_cents' => 'Total Saúde',
+    'total_educacao_cents' => 'Total Educação',
+    'total_transporte_cents' => 'Total Transporte',
+    'total_vestuario_cents' => 'Total Vestuário',
+    'total_lazer_cents' => 'Total Lazer',
+    'total_tecnologia_cents' => 'Total Tecnologia',
+    'total_cuidados_cents' => 'Total Cuidados',
+    'total_outros_cents' => 'Total Outros gastos',
+    'total_geral_cents' => 'TOTAL GERAL DE GASTOS',
+    'status_peticao' => 'Status da petição',
+    'payload_json' => 'Dados completos (JSON)',
+
+    // Cadastro Cliente — campos extras
+    'conta_bancaria' => 'Conta para depósito',
+    'pix' => 'Chave PIX',
+    'tipo_atendimento' => 'Preferência de atendimento',
+    'autoriza_contato' => 'Autoriza contato?',
+    'fam_saude' => 'Filho faz tratamento de saúde?',
+    'fam_escola' => 'Escola pública ou particular?',
+    'fam_pensao_atual' => 'Outro genitor paga pensão? Valor?',
+    'fam_trabalho_genitor' => 'Outro genitor trabalha? Empresa/Cargo?',
+    'fam_contato_genitor' => 'WhatsApp do outro genitor',
+    'fam_endereco_genitor' => 'Endereço do outro genitor',
 );
 
 // Valores legíveis para campos com códigos
@@ -226,9 +274,10 @@ function getValue($val, $valueLabels, $key = '') {
         }
         return implode("\n", $parts);
     }
-    if ($val === 'sim' || $val === 'yes') return 'Sim';
-    if ($val === 'nao' || $val === 'no') return 'Não';
+    if ($val === 'sim' || $val === 'yes' || $val === true || $val === 1) return 'Sim';
+    if ($val === 'nao' || $val === 'no' || $val === false || $val === 0) return 'Não';
     if (is_string($val) && isset($valueLabels[$val])) return $valueLabels[$val];
+    if (is_numeric($val) && $val === 0) return '0';
     return (string)$val;
 }
 
@@ -359,7 +408,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <?php
         // Campos do JSON ignorando os que já mostramos
-        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json');
+        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds');
         foreach ($payload as $key => $val):
             if (in_array($key, $skipKeys)) continue;
             $label = getLabel($key, $fieldLabels);
