@@ -6,7 +6,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'Portal de Links';
+$pageTitle = 'PORTAL DE LINKS';
 $pdo = db();
 $isAdmin = has_role('admin');
 
