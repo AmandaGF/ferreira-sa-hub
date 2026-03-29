@@ -87,13 +87,17 @@ switch ($action) {
             $u = $stmt->fetch();
             if ($u && !$u['is_active']) {
                 audit_log('user_rejected', 'user', $userId);
-                // Limpar referências antes de deletar
+                // Corrigir FK se necessario e limpar referencias
+                $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
                 $pdo->prepare('UPDATE audit_log SET user_id = NULL WHERE user_id = ?')->execute(array($userId));
                 $pdo->prepare('UPDATE tickets SET requester_id = NULL WHERE requester_id = ?')->execute(array($userId));
                 $pdo->prepare('UPDATE pipeline_leads SET assigned_to = NULL WHERE assigned_to = ?')->execute(array($userId));
                 $pdo->prepare('UPDATE portal_links SET created_by = NULL WHERE created_by = ?')->execute(array($userId));
+                $pdo->prepare('UPDATE cases SET responsible_user_id = NULL WHERE responsible_user_id = ?')->execute(array($userId));
+                $pdo->prepare('DELETE FROM ticket_messages WHERE user_id = ?')->execute(array($userId));
                 $pdo->prepare('DELETE FROM ticket_assignees WHERE user_id = ?')->execute(array($userId));
                 $pdo->prepare('DELETE FROM users WHERE id = ?')->execute(array($userId));
+                $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
                 flash_set('success', 'Solicitação recusada e excluída.');
             }
         }
