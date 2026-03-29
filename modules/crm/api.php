@@ -150,7 +150,12 @@ switch ($action) {
             audit_log('client_deleted', 'client', $clientId);
             flash_set('success', 'Cliente e dados relacionados excluídos.');
         }
-        redirect(module_url('crm'));
+        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+        if (strpos($referer, 'clientes') !== false) {
+            redirect(module_url('clientes'));
+        } else {
+            redirect(module_url('crm'));
+        }
         break;
 
     default:

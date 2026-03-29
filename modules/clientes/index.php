@@ -181,7 +181,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <th>Origem</th>
                     <th>Status</th>
                     <th>Processos</th>
-                    <th>Cadastro</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
@@ -219,8 +219,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <span style="color:var(--text-muted);font-size:.75rem;">Nenhum</span>
                         <?php endif; ?>
                     </td>
-                    <td style="font-size:.75rem;color:var(--text-muted);">
-                        <?= $c['created_at'] ? date('d/m/Y', strtotime($c['created_at'])) : '—' ?>
+                    <td style="text-align:center;">
+                        <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
+                            <?= csrf_input() ?>
+                            <input type="hidden" name="action" value="delete_client">
+                            <input type="hidden" name="client_id" value="<?= $c['id'] ?>">
+                            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:.2rem .4rem;color:var(--danger);border-color:var(--danger);" data-confirm="Tem certeza que deseja EXCLUIR definitivamente o contato '<?= e(addslashes($c['name'])) ?>'? Esta ação não pode ser desfeita." title="Excluir">🗑️</button>
+                        </form>
                     </td>
                 </tr>
                 <?php endforeach; ?>
