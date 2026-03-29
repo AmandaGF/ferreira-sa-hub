@@ -54,9 +54,14 @@ function process_form_submission($formType, $clientData, $payloadJson)
     ));
     $submissionId = (int)$pdo->lastInsertId();
 
-    // 2. Auto-cadastrar no CRM (se tiver nome)
+    // 2. Auto-cadastrar no CRM + Pipeline SOMENTE para cadastro_cliente
+    //    Outros formulários: só salvam a submissão, não entram no CRM/Pipeline
     $clientId = null;
-    if ($name) {
+    $leadId = null;
+
+    $entersCrm = ($formType === 'cadastro_cliente');
+
+    if ($name && $entersCrm) {
         // Verificar se já existe pelo telefone ou e-mail
         $existingClient = null;
         if ($phone) {
@@ -73,10 +78,6 @@ function process_form_submission($formType, $clientData, $payloadJson)
         if ($existingClient) {
             $clientId = (int)$existingClient['id'];
         } else {
-            // Criar novo cliente
-            $source = 'landing';
-            if ($formType === 'calculadora_lead' || $formType === 'calculadora') $source = 'calculadora';
-
             $pdo->prepare(
                 "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, address_street, address_city, address_state, address_zip, source, notes, created_at)
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
@@ -84,7 +85,7 @@ function process_form_submission($formType, $clientData, $payloadJson)
                 $name, $cpf, $rg, $birthDate ?: null,
                 $phone, $email, $profession, $maritalStatus,
                 $addressStreet, $addressCity, $addressState, $addressZip,
-                $source,
+                'landing',
                 'Auto-cadastrado via formulário: ' . $formType
             ));
             $clientId = (int)$pdo->lastInsertId();
@@ -93,41 +94,23 @@ function process_form_submission($formType, $clientData, $payloadJson)
         // Vincular formulário ao cliente
         $pdo->prepare("UPDATE form_submissions SET linked_client_id = ? WHERE id = ?")
             ->execute(array($clientId, $submissionId));
-    }
 
-    // 3. Auto-criar lead no Pipeline (se não existir)
-    $leadId = null;
-    if ($name) {
+        // 3. Auto-criar lead no Pipeline (estágio: elaboração)
         $existingLead = null;
         if ($phone) {
-            $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato','perdido') LIMIT 1");
+            $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato','finalizado','perdido') LIMIT 1");
             $check->execute(array($phone));
             $existingLead = $check->fetch();
         }
 
         if (!$existingLead) {
-            $leadSource = 'landing';
-            if ($formType === 'calculadora_lead' || $formType === 'calculadora') $leadSource = 'calculadora';
-            elseif ($formType === 'convivencia') $leadSource = 'landing';
-            elseif ($formType === 'gastos_pensao') $leadSource = 'landing';
-
-            $caseType = '';
-            if ($formType === 'convivencia') $caseType = 'Convivência';
-            elseif ($formType === 'gastos_pensao') $caseType = 'Pensão Alimentícia';
-            elseif ($formType === 'divorcio') $caseType = 'Divórcio';
-            elseif ($formType === 'alimentos') $caseType = 'Alimentos';
-
-            // Cadastro = elaboração do contrato. Outros formulários = novo lead.
-            $initialStage = ($formType === 'cadastro_cliente') ? 'elaboracao' : 'novo';
-
             $pdo->prepare(
-                "INSERT INTO pipeline_leads (name, phone, email, source, stage, case_type, client_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
-            )->execute(array($name, $phone, $email, $leadSource, $initialStage, $caseType ?: null, $clientId));
+                "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'elaboracao', ?, NOW())"
+            )->execute(array($name, $phone, $email, $clientId));
             $leadId = (int)$pdo->lastInsertId();
 
-            // Registrar histórico
-            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, ?, NOW())")
-                ->execute(array($leadId, $initialStage));
+            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'elaboracao', NOW())")
+                ->execute(array($leadId));
         }
     }
 
