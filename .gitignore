@@ -11,7 +11,6 @@ Thumbs.db
 # Arquivos de instalação/debug (não devem ir pro servidor)
 instalar.php
 debug.php
-seed_links.php
 
 # IDE
 .vscode/

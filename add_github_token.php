@@ -83,6 +83,32 @@ if ($action === 'fix_deploy') {
     exit;
 }
 
+// Gerar ENCRYPT_KEY
+if ($action === 'gen_key') {
+    $cfgPath = __DIR__ . '/core/config.php';
+    $cfg = file_get_contents($cfgPath);
+    $newKey = bin2hex(random_bytes(32));
+    $cfg = preg_replace("/define\('ENCRYPT_KEY',\s*'[^']*'\)/", "define('ENCRYPT_KEY', '$newKey')", $cfg);
+    file_put_contents($cfgPath, $cfg);
+    echo "ENCRYPT_KEY gerada: " . substr($newKey, 0, 10) . "...\n";
+    echo "Agora rode o seed_links.php\n";
+    exit;
+}
+
+// Corrigir banco
+if ($action === 'fix_db') {
+    $u = isset($_GET['u']) ? $_GET['u'] : '';
+    $p = isset($_GET['p']) ? $_GET['p'] : '';
+    if (!$u || !$p) { die("Use: &u=USUARIO&p=SENHA\n"); }
+    $cfgPath = __DIR__ . '/core/config.php';
+    $cfg = file_get_contents($cfgPath);
+    $cfg = preg_replace("/define\('DB_USER',\s*'[^']*'\)/", "define('DB_USER', '$u')", $cfg);
+    $cfg = preg_replace("/define\('DB_PASS',\s*'[^']*'\)/", "define('DB_PASS', '$p')", $cfg);
+    file_put_contents($cfgPath, $cfg);
+    echo "DB corrigido! USER=$u\n";
+    exit;
+}
+
 // Acao padrao: adicionar token
 $token = isset($_GET['t']) ? trim($_GET['t']) : '';
 if (empty($token)) {
