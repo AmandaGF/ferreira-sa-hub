@@ -7,6 +7,10 @@ AddDefaultCharset UTF-8
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
+    # Forçar sem www
+    RewriteCond %{HTTP_HOST} ^www\.(.+)$ [NC]
+    RewriteRule ^(.*)$ https://%1/conecta/$1 [R=301,L]
+
     # Bloquear acesso direto a arquivos do core
     RewriteRule ^core/ - [F,L]
 
