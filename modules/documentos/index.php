@@ -16,11 +16,25 @@ $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY
 
 // Tipos de documento
 $docTypes = array(
-    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Escolha o tipo de ação e outorgante'),
-    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Com todas as cláusulas do escritório'),
+    'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Ad Judicia Et Extra — tipo de ação e outorgante'),
+    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Fixo ou risco, com todas as cláusulas'),
+    'substabelecimento' => array('label' => 'Substabelecimento', 'icon' => '🔄', 'color' => '#6366f1', 'desc' => 'Com ou sem reserva de poderes'),
     'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Art. 98 CPC + Lei 1.060/50'),
     'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'IN RFB 1548/2015 + Lei 7.115/83'),
+    'residencia' => array('label' => 'Decl. de Residência', 'icon' => '🏠', 'color' => '#0d9488', 'desc' => 'Comprovação de endereço — Lei 7.115/83'),
+    'acordo' => array('label' => 'Termo de Acordo', 'icon' => '🤝', 'color' => '#8b5cf6', 'desc' => 'Acordo extrajudicial entre as partes'),
 );
+
+// Histórico de documentos gerados
+$docHistory = array();
+try {
+    $histSql = "SELECT dh.*, c.name as client_name, u.name as user_name
+                FROM document_history dh
+                LEFT JOIN clients c ON c.id = dh.client_id
+                LEFT JOIN users u ON u.id = dh.generated_by
+                ORDER BY dh.created_at DESC LIMIT 30";
+    $docHistory = $pdo->query($histSql)->fetchAll();
+} catch (Exception $e) { /* tabela pode não existir */ }
 
 // Tipos de ação (para procuração e contrato)
 $tiposAcao = array(
@@ -141,6 +155,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- Histórico de documentos gerados -->
+<?php if (!empty($docHistory)): ?>
+<div class="card" style="margin-top:1.5rem;">
+    <div class="card-header"><h3>Documentos Gerados Recentemente</h3></div>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Documento</th>
+                    <th>Cliente</th>
+                    <th>Gerado por</th>
+                    <th>Data</th>
+                    <th style="width:80px;">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($docHistory as $dh): ?>
+                <tr>
+                    <td>
+                        <span class="font-bold" style="color:var(--petrol-900);"><?= e($dh['doc_label']) ?></span>
+                        <?php if ($dh['tipo_acao']): ?>
+                            <br><span class="text-sm text-muted"><?= e($dh['tipo_acao']) ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="text-sm"><?= e($dh['client_name'] ?: '—') ?></td>
+                    <td class="text-sm"><?= e($dh['user_name'] ? explode(' ', $dh['user_name'])[0] : '—') ?></td>
+                    <td class="text-sm text-muted"><?= data_hora_br($dh['created_at']) ?></td>
+                    <td>
+                        <?php
+                        $regenParams = array('tipo' => $dh['doc_type'], 'client_id' => $dh['client_id']);
+                        if ($dh['tipo_acao']) $regenParams['tipo_acao'] = $dh['tipo_acao'];
+                        ?>
+                        <a href="<?= module_url('documentos', 'gerar.php?' . http_build_query($regenParams)) ?>" class="btn btn-outline btn-sm" title="Gerar novamente">🔄</a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
 function selectDoc(tipo) {
     document.querySelectorAll('.doc-card').forEach(function(c) { c.classList.remove('selected'); });
@@ -153,7 +209,7 @@ function selectDoc(tipo) {
     var outorganteSection = document.getElementById('outorganteSection');
     var stepNum = document.getElementById('stepNum');
 
-    if (tipo === 'procuracao' || tipo === 'contrato') {
+    if (tipo === 'procuracao' || tipo === 'contrato' || tipo === 'substabelecimento') {
         acaoSection.classList.add('visible');
         stepNum.textContent = '3';
         if (tipo === 'procuracao') {

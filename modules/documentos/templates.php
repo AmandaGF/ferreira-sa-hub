@@ -224,3 +224,118 @@ function template_isencao_ir($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════
+// SUBSTABELECIMENTO
+// ═══════════════════════════════════════════════════════
+function template_substabelecimento($d) {
+    $esc = escritorioData();
+    $acaoTexto = $d['acao_texto'] ?: '________________________________';
+    $comReserva = !isset($d['sem_reserva']) || !$d['sem_reserva'];
+
+    $html = '<div class="doc-title">SUBSTABELECIMENTO ' . ($comReserva ? 'COM' : 'SEM') . ' RESERVA DE PODERES</div>';
+
+    $html .= '<p>Pelo presente instrumento particular, <strong>' . f($d['nome']) . '</strong>, CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>, na qualidade de outorgante nos autos de <strong>' . $acaoTexto . '</strong>, por intermédio de seus procuradores constituídos, <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ ' . $esc['cnpj'] . ', Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', representada por <strong>' . $esc['adv1_nome'] . '</strong>, OAB/RJ ' . $esc['adv1_oab'] . ' e <strong>' . $esc['adv2_nome'] . '</strong>, OAB/RJ ' . $esc['adv2_oab'] . ', vem, respeitosamente,</p>';
+
+    $html .= '<p><strong>SUBSTABELECER ' . ($comReserva ? 'COM RESERVA' : 'SEM RESERVA') . ' DE PODERES</strong>, nos termos do artigo 667, §2º do Código Civil, todos os poderes que lhe foram conferidos na procuração outorgada para representação nos autos supramencionados, ao(à) advogado(a):</p>';
+
+    $html .= '<p style="text-indent:0;background:#f8f9fa;padding:1rem;border-radius:8px;border-left:4px solid #052228;">';
+    $html .= '<strong>Nome:</strong> ' . f('', '________________________________') . '<br>';
+    $html .= '<strong>OAB:</strong> ' . f('', '____________') . '<br>';
+    $html .= '<strong>E-mail:</strong> ' . f('', '________________________________') . '<br>';
+    $html .= '<strong>Endereço profissional:</strong> ' . f('', '________________________________');
+    $html .= '</p>';
+
+    $html .= '<p>O(A) substabelecido(a) fica autorizado(a) a praticar todos os atos necessários ao bom e fiel cumprimento do mandato, incluindo os poderes especiais da cláusula <em>ad judicia et extra</em>, ' . ($comReserva ? 'mantendo-se íntegros os poderes dos substabelecentes.' : 'ficando os substabelecentes desonerados de qualquer responsabilidade.') . '</p>';
+
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:3rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════
+// DECLARAÇÃO DE RESIDÊNCIA
+// ═══════════════════════════════════════════════════════
+function template_residencia($d) {
+    $html = '<div class="doc-title">DECLARAÇÃO DE RESIDÊNCIA</div>';
+
+    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . f($d['estado_civil']) . ', ' . f($d['profissao']) . ', portador(a) do CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . (isset($d['rg']) && $d['rg'] ? ', RG n. ' . f($d['rg']) : '') . ', <strong>DECLARO</strong>, para os devidos fins de direito e sob as penas da Lei (artigo 2º da Lei 7.115/83), que <strong>RESIDO</strong> no seguinte endereço:</p>';
+
+    $html .= '<div style="background:#f8f9fa;padding:1.25rem;border-radius:10px;border-left:4px solid #0d9488;margin:1.5rem 0;font-size:13px;">';
+    $html .= '<strong>' . f($d['endereco']) . '</strong>';
+    $html .= '</div>';
+
+    $html .= '<p>Declaro ainda que as informações acima são verdadeiras e que estou ciente de que a falsidade desta declaração configura crime previsto no artigo 299 do Código Penal Brasileiro, e que a presente declaração poderá ser utilizada como comprovante de residência nos termos da legislação vigente.</p>';
+
+    $html .= '<p>Por ser expressão da verdade, firmo a presente declaração.</p>';
+
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+    $html .= '<div class="assinatura"><div class="linha"></div><div class="nome-ass">' . f($d['nome']) . '</div>';
+    $html .= '<div style="font-size:10px;color:#6b7280;">CPF: ' . f($d['cpf'], '___.___.___-__') . '</div></div>';
+
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════
+// TERMO DE ACORDO EXTRAJUDICIAL
+// ═══════════════════════════════════════════════════════
+function template_acordo($d) {
+    $esc = escritorioData();
+
+    $html = '<div class="doc-title">TERMO DE ACORDO EXTRAJUDICIAL</div>';
+
+    $html .= '<p>Pelo presente instrumento particular, as partes abaixo qualificadas:</p>';
+
+    $html .= '<div style="background:#f0f9ff;padding:1rem;border-radius:10px;border-left:4px solid #052228;margin:.75rem 0;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.15rem .6rem;border-radius:5px;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 1</div><br>';
+    $html .= '<strong>' . f($d['nome']) . '</strong>, ' . f($d['estado_civil']) . ', ' . f($d['profissao']) . ', CPF n. ' . f($d['cpf'], '___.___.___-__') . ', residente em ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.';
+    $html .= '</div>';
+
+    $html .= '<div style="background:#fdf2f8;padding:1rem;border-radius:10px;border-left:4px solid #d7ab90;margin:.75rem 0;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.15rem .6rem;border-radius:5px;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 2</div><br>';
+    $html .= '<strong>' . f('', '________________________________') . '</strong>, ________________, ________________, CPF n. ___.___.___-__, residente em ________________________________.';
+    $html .= '</div>';
+
+    $html .= '<p>Resolvem, de comum acordo, firmar o presente <strong>TERMO DE ACORDO EXTRAJUDICIAL</strong>, que se regerá pelas seguintes cláusulas e condições:</p>';
+
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:800;color:#052228;margin-top:1.5rem;">CLÁUSULA 1ª — DO OBJETO</p>';
+    $html .= '<p>O presente acordo tem por objeto ________________________________________________________________________________________________________________________________.</p>';
+
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:800;color:#052228;margin-top:1.25rem;">CLÁUSULA 2ª — DAS CONDIÇÕES</p>';
+    $html .= '<p>As partes acordam que: ________________________________________________________________________________________________________________________________.</p>';
+
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:800;color:#052228;margin-top:1.25rem;">CLÁUSULA 3ª — DO PRAZO</p>';
+    $html .= '<p>O presente acordo terá vigência a partir da data de sua assinatura, pelo prazo de ________________, podendo ser renovado mediante termo aditivo.</p>';
+
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:800;color:#052228;margin-top:1.25rem;">CLÁUSULA 4ª — DO INADIMPLEMENTO</p>';
+    $html .= '<p>O descumprimento de qualquer das cláusulas deste acordo importará em multa de 20% (vinte por cento) sobre o valor do acordo, além de juros de mora de 1% (um por cento) ao mês e correção monetária, sem prejuízo da execução judicial do título extrajudicial, nos termos do artigo 784, III do Código de Processo Civil.</p>';
+
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:800;color:#052228;margin-top:1.25rem;">CLÁUSULA 5ª — DO FORO</p>';
+    $html .= '<p>As partes elegem o foro da Comarca de ' . f(isset($d['cidade']) ? $d['cidade'] : 'Resende') . ' – ' . f(isset($d['uf']) ? $d['uf'] : 'RJ') . ' para dirimir quaisquer controvérsias oriundas do presente instrumento.</p>';
+
+    $html .= '<p>E, por estarem assim justas e acordadas, as partes assinam o presente instrumento em 02 (duas) vias de igual teor e forma, na presença de 02 (duas) testemunhas.</p>';
+
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . f($d['nome']) . '</div><div style="font-size:10px;color:#6b7280;">PARTE 1</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">________________________________</div><div style="font-size:10px;color:#6b7280;">PARTE 2</div></div>';
+    $html .= '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">TESTEMUNHA 1</div><div style="font-size:10px;color:#6b7280;">CPF: ___.___.___-__</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">TESTEMUNHA 2</div><div style="font-size:10px;color:#6b7280;">CPF: ___.___.___-__</div></div>';
+    $html .= '</div>';
+
+    $html .= '<div style="margin-top:2rem;padding-top:1rem;border-top:2px solid #d7ab90;text-align:center;">';
+    $html .= '<p style="font-size:11px;color:#6b7280;text-indent:0;">Elaborado e acompanhado por:</p>';
+    $html .= '<p style="font-size:12px;font-weight:700;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong> — OAB/RJ ' . $esc['oab_sociedade'] . '</p>';
+    $html .= '</div>';
+
+    return $html;
+}

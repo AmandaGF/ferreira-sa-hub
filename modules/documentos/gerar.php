@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'hipossuficiencia', 'isencao_ir');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -27,8 +27,11 @@ if (!$client) { flash_set('error', 'Cliente não encontrado.'); redirect(module_
 $typeLabels = array(
     'procuracao' => 'Procuração Ad Judicia Et Extra',
     'contrato' => 'Contrato de Honorários Advocatícios',
+    'substabelecimento' => 'Substabelecimento',
     'hipossuficiencia' => 'Declaração de Hipossuficiência',
     'isencao_ir' => 'Declaração de Isenção de IR',
+    'residencia' => 'Declaração de Residência',
+    'acordo' => 'Termo de Acordo Extrajudicial',
 );
 
 $acaoLabels = array(
@@ -124,6 +127,24 @@ $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
 $logoUrl = url('assets/img/logo.png');
+
+// Salvar no histórico quando gera o documento final
+if (!$showEditor) {
+    try {
+        $params = $_POST;
+        unset($params['csrf_token']);
+        $pdo->prepare(
+            "INSERT INTO document_history (client_id, doc_type, doc_label, tipo_acao, generated_by, params_json) VALUES (?,?,?,?,?,?)"
+        )->execute(array(
+            $clientId,
+            $tipo,
+            isset($typeLabels[$tipo]) ? $typeLabels[$tipo] : $tipo,
+            $tipoAcao ?: null,
+            function_exists('current_user_id') ? current_user_id() : null,
+            json_encode($params, JSON_UNESCAPED_UNICODE)
+        ));
+    } catch (Exception $e) { /* tabela pode não existir ainda */ }
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -209,6 +230,20 @@ $logoUrl = url('assets/img/logo.png');
             <div style="margin-bottom:.75rem;">
                 <label>Nome(s) da(s) criança(s) — separar por " E " se mais de um</label>
                 <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: STHEFANY VITÓRIA E MAITÊ SOPHIA">
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($tipo === 'substabelecimento'): ?>
+        <div class="section">
+            <h4>🔄 Tipo de substabelecimento</h4>
+            <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
+                <label style="flex:1;display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="sem_reserva" value="" checked style="width:auto;"> Com reserva de poderes
+                </label>
+                <label style="flex:1;display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="sem_reserva" value="1" style="width:auto;"> Sem reserva de poderes
+                </label>
             </div>
         </div>
         <?php endif; ?>
@@ -419,8 +454,11 @@ $logoUrl = url('assets/img/logo.png');
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
     elseif ($tipo === 'contrato') echo template_contrato($d);
+    elseif ($tipo === 'substabelecimento') echo template_substabelecimento($d);
     elseif ($tipo === 'hipossuficiencia') echo template_hipossuficiencia($d);
     elseif ($tipo === 'isencao_ir') echo template_isencao_ir($d);
+    elseif ($tipo === 'residencia') echo template_residencia($d);
+    elseif ($tipo === 'acordo') echo template_acordo($d);
     ?>
     </div>
 
