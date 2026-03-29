@@ -36,7 +36,34 @@ if (isset($_GET['action']) && $_GET['action'] === 'gen_key') {
     echo "Agora rode o seed_links.php para recriar os links do Portal.\n";
 }
 
+// Atualizar deploy2.php do servidor com versao do repo
+if (isset($_GET['action']) && $_GET['action'] === 'fix_deploy') {
+    $cfg = file_get_contents($cfgPath);
+    // Baixar deploy2.php do GitHub
+    $rawUrl = 'https://raw.githubusercontent.com/AmandaGF/ferreira-sa-hub/main/deploy2.php';
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $rawUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'FES-Deploy');
+    // Usar token se repo privado
+    if (defined('GITHUB_TOKEN') && GITHUB_TOKEN) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array('Authorization: token ' . GITHUB_TOKEN));
+    }
+    $code = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($code && strlen($code) > 100 && strpos($code, '<?php') === 0) {
+        file_put_contents(__DIR__ . '/deploy2.php', $code);
+        echo "\ndeploy2.php ATUALIZADO (" . strlen($code) . " bytes)\n";
+    } else {
+        echo "\nERRO ao baixar deploy2.php: " . ($err ? $err : "resposta invalida") . "\n";
+    }
+}
+
 if (!$user && !$pass && !isset($_GET['action'])) {
     echo "\nPara corrigir banco: ?key=fsa-hub-deploy-2026&u=USUARIO&p=SENHA\n";
     echo "Para gerar ENCRYPT_KEY: ?key=fsa-hub-deploy-2026&action=gen_key\n";
+    echo "Para atualizar deploy2: ?key=fsa-hub-deploy-2026&action=fix_deploy\n";
 }
