@@ -1,15 +1,15 @@
 <?php
 /**
- * Ferreira & Sá Hub — Serviços Administrativos (Extrajudiciais)
- * Demandas sem processo judicial: inventário extrajudicial, divórcio em cartório,
- * escrituras, contratos, consultorias, etc.
- * Cada serviço recebe número interno: ADM-2026-001
+ * Ferreira & Sá Hub — Extrajudicial
+ * Demandas que não geram processo judicial: inventário extrajudicial,
+ * divórcio em cartório, escrituras, contratos, consultorias, etc.
+ * Cada serviço recebe número interno: EXT-2026-001
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'Serviços Administrativos';
+$pageTitle = 'Extrajudicial';
 $pdo = db();
 $isColaborador = has_role('colaborador');
 
@@ -32,7 +32,7 @@ $statusBadge = array(
 $priorityBadge = array('urgente' => 'danger', 'alta' => 'warning', 'normal' => 'gestao', 'baixa' => 'colaborador');
 
 // Query — serviços administrativos = cases SEM número de processo judicial
-$where = array("(cs.case_number IS NULL OR cs.case_number = '')");
+$where = array("cs.category = 'extrajudicial'");
 $params = array();
 
 if ($isColaborador) { $where[] = "cs.responsible_user_id = ?"; $params[] = current_user_id(); }
@@ -56,10 +56,10 @@ $stmt->execute($params);
 $servicos = $stmt->fetchAll();
 
 // KPIs
-$totalServicos = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NULL OR case_number = ''")->fetchColumn();
-$ativosS = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE (case_number IS NULL OR case_number = '') AND status NOT IN ('concluido','arquivado')")->fetchColumn();
+$totalServicos = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE category = 'extrajudicial'")->fetchColumn();
+$ativosS = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE (category = 'extrajudicial') AND status NOT IN ('concluido','arquivado')")->fetchColumn();
 
-$tipos = $pdo->query("SELECT DISTINCT case_type FROM cases WHERE (case_number IS NULL OR case_number = '') AND case_type IS NOT NULL AND case_type != '' ORDER BY case_type")->fetchAll(PDO::FETCH_COLUMN);
+$tipos = $pdo->query("SELECT DISTINCT case_type FROM cases WHERE (category = 'extrajudicial') AND case_type IS NOT NULL AND case_type != '' ORDER BY case_type")->fetchAll(PDO::FETCH_COLUMN);
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';

@@ -57,6 +57,15 @@ $menuItems = [
         'id'    => 'clientes',
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
+
+    ['section' => 'Demandas'],
+    [
+        'label' => 'Pré-Processual',
+        'icon'  => '📂',
+        'href'  => url('modules/pre_processual/'),
+        'id'    => 'pre_processual',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
     [
         'label' => 'Processos',
         'icon'  => '⚖️',
@@ -65,7 +74,7 @@ $menuItems = [
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
     [
-        'label' => 'Serviços Adm.',
+        'label' => 'Extrajudicial',
         'icon'  => '📋',
         'href'  => url('modules/servicos/'),
         'id'    => 'servicos',
