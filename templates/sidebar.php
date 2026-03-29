@@ -59,9 +59,16 @@ $menuItems = [
     ],
     [
         'label' => 'Processos',
-        'icon'  => '📁',
+        'icon'  => '⚖️',
         'href'  => url('modules/processos/'),
         'id'    => 'processos',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+    [
+        'label' => 'Serviços Adm.',
+        'icon'  => '📋',
+        'href'  => url('modules/servicos/'),
+        'id'    => 'servicos',
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
 
