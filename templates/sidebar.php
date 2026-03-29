@@ -35,6 +35,13 @@ $menuItems = [
 
     ['section' => 'Comercial'],
     [
+        'label' => 'CRM',
+        'icon'  => '🎯',
+        'href'  => url('modules/crm/'),
+        'id'    => 'crm',
+        'roles' => ['admin', 'gestao'],
+    ],
+    [
         'label' => 'Pipeline',
         'icon'  => '📈',
         'href'  => url('modules/pipeline/'),
@@ -46,8 +53,8 @@ $menuItems = [
     [
         'label' => 'Clientes',
         'icon'  => '👥',
-        'href'  => url('modules/crm/'),
-        'id'    => 'crm',
+        'href'  => url('modules/clientes/'),
+        'id'    => 'clientes',
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
     [
