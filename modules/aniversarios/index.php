@@ -231,7 +231,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <?php if (!$isSent): ?>
                         <?php if ($a['phone']): ?>
-                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $a['phone']) ?>?text=<?= urlencode($msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário, ' . explode(' ', $a['name'])[0] . '!') ?>" target="_blank" class="btn btn-sm" style="font-size:.65rem;padding:.2rem .4rem;background:#25D366;color:#fff;border:none;">📱</a>
+                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $a['phone']) ?>?text=<?= urlencode($msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário, ' . explode(' ', $a['name'])[0] . '!') ?>" target="_blank" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;" title="Enviar parabéns via WhatsApp">WhatsApp</a>
                         <?php endif; ?>
                         <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&marcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;" title="Marcar como enviado">✓</a>
                     <?php else: ?>
