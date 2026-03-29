@@ -33,14 +33,7 @@ $menuItems = [
         'roles' => ['admin', 'gestao', 'colaborador'],
     ],
 
-    ['section' => 'Gestão'],
-    [
-        'label' => 'CRM',
-        'icon'  => '👥',
-        'href'  => url('modules/crm/'),
-        'id'    => 'crm',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    ['section' => 'Comercial'],
     [
         'label' => 'Pipeline',
         'icon'  => '📈',
@@ -48,6 +41,24 @@ $menuItems = [
         'id'    => 'pipeline',
         'roles' => ['admin', 'gestao'],
     ],
+
+    ['section' => 'Cadastros'],
+    [
+        'label' => 'Clientes',
+        'icon'  => '👥',
+        'href'  => url('modules/crm/'),
+        'id'    => 'crm',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+    [
+        'label' => 'Processos',
+        'icon'  => '📁',
+        'href'  => url('modules/processos/'),
+        'id'    => 'processos',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+
+    ['section' => 'Execução'],
     [
         'label' => 'Operacional',
         'icon'  => '⚙️',

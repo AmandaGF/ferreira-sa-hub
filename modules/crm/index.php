@@ -7,7 +7,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!has_min_role('colaborador')) { redirect(url('modules/dashboard/')); }
 
-$pageTitle = 'CRM';
+$pageTitle = 'Clientes';
 $pdo = db();
 $isReadOnly = has_role('colaborador');
 
@@ -56,8 +56,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div></div>
     <?php if (!$isReadOnly): ?>
         <div style="display:flex;gap:.5rem;">
-            <a href="<?= module_url('crm', 'importar.php') ?>" class="btn btn-outline btn-sm">📥 Importar Contatos</a>
-            <a href="<?= module_url('crm', 'importar_processos.php') ?>" class="btn btn-outline btn-sm">📥 Importar Processos</a>
+            <a href="<?= module_url('crm', 'importar.php') ?>" class="btn btn-outline btn-sm">📥 Importar CSV</a>
             <a href="<?= module_url('crm', 'cliente_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Cliente</a>
         </div>
     <?php endif; ?>
