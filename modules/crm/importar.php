@@ -102,6 +102,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
         $fileType = 'csv';
 
         $content = file_get_contents($file['tmp_name']);
+        // Remover BOM UTF-8 (ï»¿)
+        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            $content = substr($content, 3);
+        }
         $encoding = mb_detect_encoding($content, array('UTF-8', 'ISO-8859-1', 'Windows-1252'), true);
         if ($encoding && $encoding !== 'UTF-8') {
             $content = mb_convert_encoding($content, 'UTF-8', $encoding);
@@ -117,12 +121,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
 
         $fieldMap = array(
             'nome' => 'name', 'name' => 'name', 'nome completo' => 'name', 'cliente' => 'name',
+            'nome / razão social' => 'name', 'nome / razao social' => 'name', 'nome/razão social' => 'name', 'razão social' => 'name', 'razao social' => 'name',
             'cpf' => 'cpf', 'cpf/cnpj' => 'cpf', 'documento' => 'cpf',
             'rg' => 'rg',
             'telefone' => 'phone', 'phone' => 'phone', 'celular' => 'phone', 'tel' => 'phone', 'whatsapp' => 'phone',
             'email' => 'email', 'e-mail' => 'email',
             'nascimento' => 'birth_date', 'data de nascimento' => 'birth_date', 'data_nascimento' => 'birth_date',
-            'profissao' => 'profession', 'profissão' => 'profession',
+            'profissao' => 'profession', 'profissão' => 'profession', 'profissão/nome fantasia' => 'profession', 'profissao/nome fantasia' => 'profession',
+            'grupos' => 'notes', 'classificações' => 'source', 'classificacoes' => 'source', 'tipo' => 'notes',
             'estado civil' => 'marital_status', 'estado_civil' => 'marital_status',
             'endereco' => 'address_street', 'endereço' => 'address_street', 'rua' => 'address_street', 'logradouro' => 'address_street',
             'cidade' => 'address_city', 'municipio' => 'address_city',
