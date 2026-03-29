@@ -111,6 +111,19 @@ switch ($action) {
             }
 
             $statusLabels = array('ativo'=>'Ativo', 'contrato_assinado'=>'Contrato Assinado', 'cancelou'=>'Cancelou', 'parou_responder'=>'Parou de Responder', 'demitido'=>'Demitimos');
+
+            // Notificações por status
+            $cliStmt = $pdo->prepare('SELECT name FROM clients WHERE id = ?');
+            $cliStmt->execute(array($clientId));
+            $cliRow = $cliStmt->fetch();
+            $cliName = $cliRow ? $cliRow['name'] : 'Cliente';
+
+            if ($newStatus === 'contrato_assinado') {
+                notify_gestao('Contrato assinado!', $cliName . ' teve contrato assinado.', 'sucesso', url('modules/crm/cliente_ver.php?id=' . $clientId), '✅');
+            } elseif ($newStatus === 'cancelou') {
+                notify_gestao('Cliente cancelou', $cliName . ' cancelou o serviço.', 'alerta', url('modules/crm/cliente_ver.php?id=' . $clientId), '⚠️');
+            }
+
             flash_set('success', 'Status alterado para "' . ($statusLabels[$newStatus] ?? $newStatus) . '".');
         }
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));

@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initAlerts();
     initModals();
     initConfirmActions();
+    initNotifications();
 });
 
 /* ─── Sidebar Toggle (mobile) ────────────────────────── */
@@ -85,6 +86,28 @@ function initConfirmActions() {
                 e.stopImmediatePropagation();
             }
         });
+    });
+}
+
+/* ─── Notificações dropdown ─────────────────────────── */
+function initNotifications() {
+    var bell = document.getElementById('notifBell');
+    var dropdown = document.getElementById('notifDropdown');
+    if (!bell || !dropdown) return;
+
+    bell.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdown.classList.toggle('open');
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!dropdown.contains(e.target) && e.target !== bell) {
+            dropdown.classList.remove('open');
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') dropdown.classList.remove('open');
     });
 }
 

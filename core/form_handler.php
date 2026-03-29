@@ -131,6 +131,25 @@ function process_form_submission($formType, $clientData, $payloadJson)
         }
     }
 
+    // Notificar gestão sobre novo formulário
+    $tipoLabel = $formType;
+    $tipoLabels = array(
+        'cadastro_cliente' => 'Cadastro de Cliente',
+        'convivencia' => 'Convivência',
+        'gastos_pensao' => 'Gastos Pensão',
+        'calculadora' => 'Calculadora',
+        'divorcio' => 'Divórcio',
+        'alimentos' => 'Alimentos',
+    );
+    if (isset($tipoLabels[$formType])) $tipoLabel = $tipoLabels[$formType];
+    notify_gestao(
+        'Novo formulário recebido',
+        ($name ? $name : 'Cliente') . ' preencheu ' . $tipoLabel . '. Protocolo: ' . $protocol,
+        'pendencia',
+        url('modules/formularios/ver.php?id=' . $submissionId),
+        '📋'
+    );
+
     return array(
         'submission_id' => $submissionId,
         'client_id' => $clientId,

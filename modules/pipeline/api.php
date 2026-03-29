@@ -52,6 +52,19 @@ switch ($action) {
             ->execute([$leadId, $fromStage, $toStage, current_user_id(), $notes ?: null]);
 
         audit_log('lead_moved', 'lead', $leadId, "$fromStage -> $toStage");
+
+        // Notificações por evento
+        $leadName = $pdo->prepare('SELECT name FROM pipeline_leads WHERE id = ?');
+        $leadName->execute(array($leadId));
+        $leadRow = $leadName->fetch();
+        $lName = $leadRow ? $leadRow['name'] : 'Lead';
+
+        if ($toStage === 'contrato') {
+            notify_gestao('Contrato assinado!', $lName . ' avançou para Contrato Assinado.', 'sucesso', url('modules/pipeline/'), '✅');
+        } elseif ($toStage === 'perdido') {
+            notify_gestao('Lead perdido', $lName . ' foi marcado como perdido.', 'alerta', url('modules/pipeline/'), '❌');
+        }
+
         flash_set('success', 'Lead movido para ' . $toStage . '.');
         redirect(module_url('pipeline'));
         break;
@@ -110,6 +123,7 @@ switch ($action) {
         }
 
         audit_log('lead_converted', 'lead', $leadId, "client_id: $clientId");
+        notify_gestao('Lead convertido em cliente', $lead['name'] . ' foi convertido e registrado no CRM.', 'sucesso', url('modules/crm/cliente_ver.php?id=' . $clientId), '🎉');
         flash_set('success', 'Cliente criado no CRM! Lead convertido.');
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;

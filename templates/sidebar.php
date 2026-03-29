@@ -81,6 +81,13 @@ $menuItems = [
 
     ['section' => 'Comunicação'],
     [
+        'label' => 'Notificações',
+        'icon'  => '🔔',
+        'href'  => url('modules/notificacoes/'),
+        'id'    => 'notificacoes',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+    [
         'label' => 'Datas Especiais',
         'icon'  => '🎂',
         'href'  => url('modules/aniversarios/'),

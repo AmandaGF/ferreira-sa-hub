@@ -182,3 +182,79 @@ function paginate(int $total, int $perPage = 20, int $currentPage = 1): array
         'offset'      => $offset,
     ];
 }
+
+// ─── Notificações ──────────────────────────────────────
+
+/**
+ * Enviar notificação para um usuário
+ */
+function notify(int $userId, string $title, string $message = '', string $type = 'info', string $link = '', string $icon = ''): void
+{
+    try {
+        db()->prepare(
+            'INSERT INTO notifications (user_id, type, title, message, link, icon) VALUES (?, ?, ?, ?, ?, ?)'
+        )->execute(array($userId, $type, $title, $message ? $message : null, $link ? $link : null, $icon ? $icon : null));
+    } catch (Exception $e) {
+        // Silenciar se tabela não existir ainda
+    }
+}
+
+/**
+ * Enviar notificação para todos os admins
+ */
+function notify_admins(string $title, string $message = '', string $type = 'info', string $link = '', string $icon = ''): void
+{
+    try {
+        $admins = db()->query("SELECT id FROM users WHERE role = 'admin' AND is_active = 1")->fetchAll();
+        foreach ($admins as $a) {
+            notify((int)$a['id'], $title, $message, $type, $link, $icon);
+        }
+    } catch (Exception $e) {}
+}
+
+/**
+ * Enviar notificação para todos os gestores (admin + gestao)
+ */
+function notify_gestao(string $title, string $message = '', string $type = 'info', string $link = '', string $icon = ''): void
+{
+    try {
+        $users = db()->query("SELECT id FROM users WHERE role IN ('admin','gestao') AND is_active = 1")->fetchAll();
+        foreach ($users as $u) {
+            notify((int)$u['id'], $title, $message, $type, $link, $icon);
+        }
+    } catch (Exception $e) {}
+}
+
+/**
+ * Contar notificações não lidas do usuário logado
+ */
+function count_unread_notifications(): int
+{
+    $userId = $_SESSION['user']['id'] ?? 0;
+    if (!$userId) return 0;
+    try {
+        $stmt = db()->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = ? AND is_read = 0');
+        $stmt->execute(array($userId));
+        return (int)$stmt->fetchColumn();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+/**
+ * Buscar últimas notificações do usuário logado
+ */
+function get_notifications(int $limit = 10): array
+{
+    $userId = $_SESSION['user']['id'] ?? 0;
+    if (!$userId) return array();
+    try {
+        $stmt = db()->prepare(
+            'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ' . $limit
+        );
+        $stmt->execute(array($userId));
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        return array();
+    }
+}

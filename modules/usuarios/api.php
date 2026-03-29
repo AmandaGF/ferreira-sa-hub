@@ -75,6 +75,8 @@ switch ($action) {
             $pdo->prepare('UPDATE users SET is_active = 1, role = ? WHERE id = ?')
                 ->execute(array($role, $userId));
             audit_log('user_approved', 'user', $userId, "role: $role");
+            // Notificar o usuário aprovado
+            notify($userId, 'Conta aprovada!', 'Sua conta foi aprovada como ' . role_label($role) . '. Bem-vindo(a)!', 'sucesso', url('modules/dashboard/'), '🎉');
             flash_set('success', 'Usuário aprovado como ' . role_label($role) . '!');
         }
         break;
