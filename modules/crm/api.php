@@ -63,8 +63,9 @@ switch ($action) {
         )->execute([$clientId, $title, $caseType, $caseNumber ?: null, $court ?: null, $priority, $responsibleId, $deadline, $notes ?: null]);
 
         $newId = (int)$pdo->lastInsertId();
+        generate_case_checklist($newId, $caseType);
         audit_log('case_created', 'case', $newId);
-        flash_set('success', 'Caso criado.');
+        flash_set('success', 'Caso criado com checklist automático.');
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
@@ -102,6 +103,7 @@ switch ($action) {
                             'Contrato assinado em ' . date('d/m/Y') . '. Aguardando documentação.'
                         ));
                         $caseId = (int)$pdo->lastInsertId();
+                        generate_case_checklist($caseId, 'outro');
                         audit_log('case_auto_created', 'case', $caseId, 'Contrato assinado - client: ' . $clientId);
 
                         flash_set('success', 'Status atualizado para "Contrato Assinado" e caso criado no Operacional (#' . $caseId . ')!');

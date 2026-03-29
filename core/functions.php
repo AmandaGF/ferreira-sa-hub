@@ -258,3 +258,182 @@ function get_notifications(int $limit = 10): array
         return array();
     }
 }
+
+// ─── Checklist automático por tipo de ação ─────────────
+
+/**
+ * Retorna o checklist padrão de documentos para cada tipo de ação
+ */
+function get_checklist_template(string $caseType): array
+{
+    $caseType = mb_strtolower(trim($caseType));
+
+    // Documentos básicos (todos os tipos)
+    $basicos = array(
+        'Documento de identidade (RG/CNH)',
+        'CPF',
+        'Comprovante de residência atualizado',
+    );
+
+    $templates = array(
+        'alimentos' => array(
+            'Certidão de nascimento do(s) menor(es)',
+            'Comprovante de renda do alimentante',
+            'Comprovante de renda do alimentado (se houver)',
+            'Comprovante de despesas do(s) menor(es)',
+            'Declaração de IR (se houver)',
+            'Certidão de casamento ou união estável (se aplicável)',
+            'Fotos/prints de comprovação de paternidade (se necessário)',
+        ),
+        'pensao' => array(
+            'Certidão de nascimento do(s) menor(es)',
+            'Comprovante de renda do alimentante',
+            'Comprovante de renda do alimentado (se houver)',
+            'Comprovante de despesas do(s) menor(es)',
+            'Declaração de IR (se houver)',
+            'Certidão de casamento ou união estável (se aplicável)',
+        ),
+        'divorcio' => array(
+            'Certidão de casamento atualizada',
+            'Pacto antenupcial (se houver)',
+            'Certidão de nascimento dos filhos (se houver)',
+            'Relação de bens a partilhar',
+            'Escritura/matrícula de imóveis',
+            'Documentos de veículos (CRLV)',
+            'Extratos bancários e investimentos',
+            'Declaração de IR dos cônjuges',
+            'Acordo sobre guarda/convivência (se consensual)',
+        ),
+        'guarda' => array(
+            'Certidão de nascimento do(s) menor(es)',
+            'Comprovante de matrícula escolar',
+            'Laudo médico/psicológico (se houver)',
+            'Relatório escolar (se relevante)',
+            'Comprovante de residência',
+            'Fotos e provas do convívio familiar',
+        ),
+        'convivencia' => array(
+            'Certidão de nascimento do(s) menor(es)',
+            'Comprovante de matrícula escolar',
+            'Laudo médico/psicológico (se houver)',
+            'Comprovante de residência de ambos os genitores',
+        ),
+        'inventario' => array(
+            'Certidão de óbito',
+            'Certidão de casamento do(a) falecido(a)',
+            'Certidão de nascimento dos herdeiros',
+            'Testamento (se houver)',
+            'Matrícula atualizada dos imóveis',
+            'CRLV dos veículos',
+            'Extratos bancários na data do óbito',
+            'Declaração de IR do(a) falecido(a)',
+            'Certidão negativa de débitos (CND)',
+            'Guia ITD/ITCMD',
+            'Procuração dos herdeiros',
+        ),
+        'familia' => array(
+            'Certidão de nascimento/casamento',
+            'Comprovante de renda',
+            'Documentos pessoais de todos os envolvidos',
+            'Provas documentais pertinentes',
+        ),
+        'consumidor' => array(
+            'Nota fiscal / comprovante de compra',
+            'Contrato de prestação de serviço',
+            'Prints de conversas (WhatsApp, e-mail)',
+            'Fotos do produto/serviço defeituoso',
+            'Protocolo de reclamação (SAC/Procon)',
+            'Comprovante de pagamento',
+        ),
+        'indenizacao' => array(
+            'Boletim de ocorrência (se aplicável)',
+            'Laudos médicos / exames',
+            'Fotos e provas do dano',
+            'Comprovantes de despesas decorrentes',
+            'Prints de conversas relevantes',
+            'Testemunhas (nomes e contatos)',
+        ),
+        'trabalhista' => array(
+            'CTPS (Carteira de Trabalho)',
+            'Contrato de trabalho',
+            'Últimos 3 holerites/contracheques',
+            'Termo de rescisão (TRCT)',
+            'Guias do FGTS',
+            'Extrato do FGTS',
+            'Aviso prévio',
+            'Comprovante de horas extras (se houver)',
+            'Atestados médicos (se houver)',
+        ),
+        'fraude bancaria' => array(
+            'Boletim de ocorrência',
+            'Extratos bancários com transações fraudulentas',
+            'Prints das transações não reconhecidas',
+            'Protocolo de contestação no banco',
+            'Resposta do banco à contestação',
+            'Comprovante de abertura de conta',
+        ),
+        'imobiliario' => array(
+            'Matrícula atualizada do imóvel',
+            'Contrato de compra e venda',
+            'Escritura pública',
+            'IPTU',
+            'Certidão negativa de ônus reais',
+            'Planta do imóvel / habite-se',
+            'Contrato de locação (se aplicável)',
+        ),
+        'usucapiao' => array(
+            'Matrícula do imóvel (ou certidão negativa)',
+            'Comprovantes de posse (contas, IPTU, correspondências)',
+            'Planta e memorial descritivo',
+            'ART do engenheiro/arquiteto',
+            'Declaração de confrontantes',
+            'Fotos do imóvel',
+            'Certidão do registro de imóveis',
+        ),
+    );
+
+    // Encontrar template que corresponde
+    $checklist = $basicos;
+    foreach ($templates as $key => $items) {
+        if (strpos($caseType, $key) !== false) {
+            $checklist = array_merge($basicos, $items);
+            break;
+        }
+    }
+
+    // Se não encontrou nenhum template específico, adicionar itens genéricos
+    if (count($checklist) <= count($basicos)) {
+        $checklist[] = 'Procuração';
+        $checklist[] = 'Documentos comprobatórios do caso';
+        $checklist[] = 'Contrato de honorários assinado';
+    }
+
+    // Sempre adicionar no final
+    $checklist[] = 'Procuração assinada';
+    $checklist[] = 'Contrato de honorários assinado';
+
+    return array_unique($checklist);
+}
+
+/**
+ * Gerar checklist de tarefas para um caso recém-criado
+ */
+function generate_case_checklist(int $caseId, string $caseType): int
+{
+    $items = get_checklist_template($caseType);
+    $pdo = db();
+    $count = 0;
+
+    $stmt = $pdo->prepare(
+        'INSERT INTO case_tasks (case_id, title, status, sort_order, created_at) VALUES (?, ?, ?, ?, NOW())'
+    );
+
+    foreach ($items as $order => $title) {
+        try {
+            $stmt->execute(array($caseId, $title, 'pendente', $order));
+            $count++;
+        } catch (Exception $e) {}
+    }
+
+    return $count;
+}

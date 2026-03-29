@@ -122,6 +122,14 @@ switch ($action) {
             ]);
         }
 
+        // Gerar checklist automático para o caso
+        if ($lead['case_type']) {
+            $lastCaseId = (int)$pdo->lastInsertId();
+            if ($lastCaseId) {
+                generate_case_checklist($lastCaseId, $lead['case_type']);
+            }
+        }
+
         audit_log('lead_converted', 'lead', $leadId, "client_id: $clientId");
         notify_gestao('Lead convertido em cliente', $lead['name'] . ' foi convertido e registrado no CRM.', 'sucesso', url('modules/crm/cliente_ver.php?id=' . $clientId), '🎉');
         flash_set('success', 'Cliente criado no CRM! Lead convertido.');

@@ -38,6 +38,7 @@ switch ($action) {
         )->execute(array($clientId, $title, $caseType, $category, $priority, $responsibleId ? $responsibleId : null, $internalNumber));
 
         $caseId = (int)$pdo->lastInsertId();
+        generate_case_checklist($caseId, $caseType);
         $label = ($category === 'extrajudicial') ? 'Extrajudicial' : 'Pré-Processual';
         audit_log('case_created', 'case', $caseId, "$label: $internalNumber");
 

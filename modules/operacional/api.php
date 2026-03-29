@@ -16,17 +16,46 @@ switch ($action) {
     case 'update_status':
         if (!has_min_role('gestao') && !has_role('colaborador')) { break; }
         $caseId = (int)($_POST['case_id'] ?? 0);
-        $status = $_POST['status'] ?? '';
-        $validStatuses = ['aguardando_docs','em_elaboracao','aguardando_prazo','distribuido','em_andamento','concluido','arquivado','suspenso'];
+        $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
+        $validStatuses = array('aguardando_docs','em_elaboracao','aguardando_prazo','distribuido','em_andamento','concluido','arquivado','suspenso');
 
         if ($caseId && in_array($status, $validStatuses)) {
-            $closedAt = in_array($status, ['concluido','arquivado']) ? date('Y-m-d') : null;
+            // RB-01: Bloqueio — não avança para Revisão ou Concluído sem checklist completo
+            if (in_array($status, array('distribuido', 'concluido'))) {
+                $pendentes = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE case_id = ? AND status = 'pendente'");
+                $pendentes->execute(array($caseId));
+                $numPendentes = (int)$pendentes->fetchColumn();
+
+                $totalTasks = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE case_id = ?");
+                $totalTasks->execute(array($caseId));
+                $numTotal = (int)$totalTasks->fetchColumn();
+
+                if ($numTotal > 0 && $numPendentes > 0) {
+                    $label = $status === 'distribuido' ? 'Revisão' : 'Concluído';
+                    flash_set('error', "Não é possível mover para \"$label\": há $numPendentes tarefa(s) pendente(s) no checklist.");
+                    redirect(isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : module_url('operacional'));
+                    exit;
+                }
+            }
+
+            $closedAt = in_array($status, array('concluido','arquivado')) ? date('Y-m-d') : null;
             $pdo->prepare('UPDATE cases SET status=?, closed_at=?, updated_at=NOW() WHERE id=?')
-                ->execute([$status, $closedAt, $caseId]);
+                ->execute(array($status, $closedAt, $caseId));
             audit_log('case_status', 'case', $caseId, $status);
+
+            // Notificar quando pronto para revisão
+            if ($status === 'distribuido') {
+                notify_gestao('Caso pronto para revisão', 'Caso #' . $caseId . ' está pronto para revisão.', 'pendencia', url('modules/operacional/caso_ver.php?id=' . $caseId), '🔍');
+            }
+
             flash_set('success', 'Status atualizado.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : module_url('operacional');
+        if (strpos($referer, 'caso_ver') !== false) {
+            redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        } else {
+            redirect(module_url('operacional'));
+        }
         break;
 
     case 'update_case_info':
