@@ -152,6 +152,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
             'cep' => 'address_zip',
             'endereços / cep' => 'address_zip', 'enderecos / cep' => 'address_zip',
             'observações' => 'notes', 'observacoes' => 'notes',
+            'sexo' => 'gender',
+            'possui filhos?' => 'has_children', 'possui filhos' => 'has_children',
+            'nome do(a) filho(a)' => 'children_names', 'nome dos filhos' => 'children_names', 'filhos' => 'children_names',
+            'dados pix' => 'pix_key', 'pix' => 'pix_key', 'chave pix' => 'pix_key',
             'observacao' => 'notes', 'observação' => 'notes', 'notas' => 'notes', 'obs' => 'notes',
             'origem' => 'source', 'fonte' => 'source',
         );
@@ -251,6 +255,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                             }
                         }
                         if (empty($cur['notes']) && !empty($row['notes'])) { $updates[] = 'notes = ?'; $params[] = $row['notes']; }
+                        if (empty($cur['gender']) && !empty($row['gender'])) { $updates[] = 'gender = ?'; $params[] = $row['gender']; }
+                        if ($cur['has_children'] === null && isset($row['has_children']) && $row['has_children']) {
+                            $hc = mb_strtolower(trim($row['has_children']));
+                            $hcVal = null;
+                            if ($hc === 'sim' || $hc === 's' || $hc === '1') $hcVal = 1;
+                            elseif ($hc === 'não' || $hc === 'nao' || $hc === 'n' || $hc === '0') $hcVal = 0;
+                            if ($hcVal !== null) { $updates[] = 'has_children = ?'; $params[] = $hcVal; }
+                        }
+                        if (empty($cur['children_names']) && !empty($row['children_names'])) { $updates[] = 'children_names = ?'; $params[] = $row['children_names']; }
+                        if (empty($cur['pix_key']) && !empty($row['pix_key'])) { $updates[] = 'pix_key = ?'; $params[] = $row['pix_key']; }
+                        if (empty($cur['marital_status']) && !empty($row['marital_status'])) { $updates[] = 'marital_status = ?'; $params[] = $row['marital_status']; }
 
                         if (!empty($updates)) {
                             $params[] = $existingId;
@@ -307,10 +322,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                 if (isset($row['address_neighborhood']) && $row['address_neighborhood']) $streetParts[] = $row['address_neighborhood'];
                 $fullStreet = !empty($streetParts) ? implode(', ', $streetParts) : null;
 
+                // Processar campos extras
+                $gender = isset($row['gender']) && $row['gender'] ? $row['gender'] : null;
+                $hasChildren = null;
+                if (isset($row['has_children']) && $row['has_children']) {
+                    $hc = mb_strtolower(trim($row['has_children']));
+                    if ($hc === 'sim' || $hc === 's' || $hc === '1') $hasChildren = 1;
+                    elseif ($hc === 'não' || $hc === 'nao' || $hc === 'n' || $hc === '0') $hasChildren = 0;
+                }
+                $childrenNames = isset($row['children_names']) && $row['children_names'] ? $row['children_names'] : null;
+                $pixKey = isset($row['pix_key']) && $row['pix_key'] ? $row['pix_key'] : null;
+
                 $pdo->prepare(
                     "INSERT INTO clients (name, cpf, rg, phone, email, birth_date, profession, marital_status,
+                     gender, has_children, children_names, pix_key,
                      address_street, address_city, address_state, address_zip, source, notes, client_status, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
                 )->execute(array(
                     $row['name'],
                     isset($row['cpf']) ? $row['cpf'] : null,
@@ -320,6 +347,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                     $birthDate,
                     isset($row['profession']) ? $row['profession'] : null,
                     isset($row['marital_status']) ? $row['marital_status'] : null,
+                    $gender,
+                    $hasChildren,
+                    $childrenNames,
+                    $pixKey,
                     $fullStreet,
                     isset($row['address_city']) ? $row['address_city'] : null,
                     isset($row['address_state']) ? $row['address_state'] : null,
@@ -448,7 +479,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="mapping-info">
             <strong>Colunas mapeadas:</strong>
             <?php
-            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','address_street'=>'Logradouro','address_number'=>'Nº','address_neighborhood'=>'Bairro','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','grupos'=>'Grupos','classificacoes'=>'Classificações','tipo'=>'Tipo','source'=>'Origem','notes'=>'Obs');
+            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','gender'=>'Sexo','has_children'=>'Filhos?','children_names'=>'Filhos','pix_key'=>'PIX','address_street'=>'Logradouro','address_number'=>'Nº','address_neighborhood'=>'Bairro','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','grupos'=>'Grupos','classificacoes'=>'Classificações','tipo'=>'Tipo','source'=>'Origem','notes'=>'Obs');
             foreach ($allFields as $k => $v):
                 if (isset($preview['mapped'][$k])): ?>
                     <span class="mapped">✓ <?= $v ?></span>
