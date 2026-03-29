@@ -66,6 +66,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <form method="GET" style="display:flex;gap:.5rem;flex-wrap:wrap;">
             <input type="text" name="q" class="form-input" style="width:200px;padding:.45rem .75rem;font-size:.82rem;"
                    placeholder="Buscar nome, CPF, telefone..." value="<?= e($_GET['q'] ?? '') ?>">
+            <select name="periodo" class="form-select" style="font-size:.82rem;padding:.45rem;">
+                <option value="ultimo_mes" <?= ($_GET['periodo'] ?? 'ultimo_mes') === 'ultimo_mes' ? 'selected' : '' ?>>Último mês</option>
+                <option value="3meses" <?= ($_GET['periodo'] ?? '') === '3meses' ? 'selected' : '' ?>>Últimos 3 meses</option>
+                <option value="todos" <?= ($_GET['periodo'] ?? '') === 'todos' ? 'selected' : '' ?>>Todos</option>
+            </select>
             <select name="status" class="form-select" style="font-size:.82rem;padding:.45rem;">
                 <option value="">Todos os status</option>
                 <option value="ativo" <?= ($_GET['status'] ?? '') === 'ativo' ? 'selected' : '' ?>>✅ Ativo</option>
@@ -84,8 +89,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $perPage = 20;
 
     $filterStatus = $_GET['status'] ?? '';
+    $filterPeriodo = $_GET['periodo'] ?? 'ultimo_mes';
     $where = array();
     $params = array();
+    $joins = '';
+
     if ($search) {
         $where[] = "(c.name LIKE ? OR c.cpf LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)";
         $like = '%' . $search . '%';
@@ -95,9 +103,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
         $where[] = "c.client_status = ?";
         $params[] = $filterStatus;
     }
+    // Filtro de período — padrão: último mês
+    if ($filterPeriodo === 'ultimo_mes') {
+        $joins = 'LEFT JOIN form_submissions fs ON fs.linked_client_id = c.id';
+        $where[] = "(c.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) OR fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH))";
+    } elseif ($filterPeriodo === '3meses') {
+        $joins = 'LEFT JOIN form_submissions fs ON fs.linked_client_id = c.id';
+        $where[] = "(c.created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH) OR fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH))";
+    }
     $where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM clients c $where");
+    $countStmt = $pdo->prepare("SELECT COUNT(DISTINCT c.id) FROM clients c $joins $where");
     $countStmt->execute($params);
     $total = (int)$countStmt->fetchColumn();
     $pag = paginate($total, $perPage, $page);
@@ -105,7 +121,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $sql = "SELECT c.*,
             (SELECT COUNT(*) FROM cases WHERE client_id = c.id AND status NOT IN ('concluido','arquivado')) as active_cases,
             (SELECT MAX(contacted_at) FROM contacts WHERE client_id = c.id) as last_contact
-            FROM clients c $where
+            FROM clients c $joins $where
+            GROUP BY c.id
             ORDER BY c.created_at DESC
             LIMIT {$pag['per_page']} OFFSET {$pag['offset']}";
     $stmt = $pdo->prepare($sql);
@@ -175,14 +192,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <?php if ($pag['total_pages'] > 1): ?>
     <div class="pagination">
-        <?php for ($i = 1; $i <= $pag['total_pages']; $i++): ?>
-            <?php $qs = http_build_query(array_merge($_GET, ['page' => $i])); ?>
-            <?php if ($i === $pag['current']): ?>
-                <span class="active"><?= $i ?></span>
+        <?php if ($pag['current'] > 1): ?>
+            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $pag['current'] - 1])) ?>">«</a>
+        <?php endif; ?>
+        <?php
+        $tp = $pag['total_pages'];
+        $cp = $pag['current'];
+        $pages = array(1);
+        for ($i = max(2, $cp - 2); $i <= min($tp - 1, $cp + 2); $i++) { $pages[] = $i; }
+        if ($tp > 1) $pages[] = $tp;
+        $pages = array_unique($pages);
+        sort($pages);
+        $prev = 0;
+        foreach ($pages as $p):
+            if ($prev && $p - $prev > 1): ?><span style="color:var(--text-muted);">...</span><?php endif;
+            $qs = http_build_query(array_merge($_GET, ['page' => $p]));
+            if ($p === $cp): ?>
+                <span class="active"><?= $p ?></span>
             <?php else: ?>
-                <a href="?<?= $qs ?>"><?= $i ?></a>
-            <?php endif; ?>
-        <?php endfor; ?>
+                <a href="?<?= $qs ?>"><?= $p ?></a>
+            <?php endif;
+            $prev = $p;
+        endforeach; ?>
+        <?php if ($pag['current'] < $tp): ?>
+            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $pag['current'] + 1])) ?>">»</a>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 </div>
