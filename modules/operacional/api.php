@@ -6,8 +6,17 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+// Também detectar se veio do fetch/XHR sem header especial
+if (!$isAjax && isset($_SERVER['HTTP_ACCEPT']) && strpos($_SERVER['HTTP_ACCEPT'], 'application/json') !== false) {
+    $isAjax = true;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional')); }
-if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('operacional')); }
+if (!validate_csrf()) {
+    if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Token inválido')); exit; }
+    flash_set('error', 'Token inválido.'); redirect(module_url('operacional'));
+}
 
 $action = $_POST['action'] ?? '';
 $pdo = db();
@@ -32,7 +41,9 @@ switch ($action) {
 
                 if ($numTotal > 0 && $numPendentes > 0) {
                     $label = $status === 'distribuido' ? 'Revisão' : 'Concluído';
-                    flash_set('error', "Não é possível mover para \"$label\": há $numPendentes tarefa(s) pendente(s) no checklist.");
+                    $msg = "Não é possível mover para \"$label\": há $numPendentes tarefa(s) pendente(s) no checklist.";
+                    if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => $msg)); exit; }
+                    flash_set('error', $msg);
                     redirect(isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : module_url('operacional'));
                     exit;
                 }
@@ -48,6 +59,7 @@ switch ($action) {
                 notify_gestao('Caso pronto para revisão', 'Caso #' . $caseId . ' está pronto para revisão.', 'pendencia', url('modules/operacional/caso_ver.php?id=' . $caseId), '🔍');
             }
 
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
             flash_set('success', 'Status atualizado.');
         }
         $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : module_url('operacional');
