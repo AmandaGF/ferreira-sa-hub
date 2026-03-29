@@ -251,7 +251,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <script>
 var msgData = <?= json_encode(array_map(function($t) {
     return array(
-        'id' => $t['id'], 'category' => $t['category'],
+        'id' => (int)$t['id'], 'category' => $t['category'],
         'title' => $t['title'], 'body' => $t['body'],
         'for_whatsapp' => $t['for_whatsapp'], 'for_email' => $t['for_email'],
         'sort_order' => $t['sort_order'],
