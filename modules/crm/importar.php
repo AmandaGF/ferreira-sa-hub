@@ -188,18 +188,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
         } elseif ($action === 'importar') {
             $imported = 0;
             $skipped = 0;
+            $updated = 0;
+            $updateExisting = isset($_POST['update_existing']) && $_POST['update_existing'] === '1';
 
             foreach ($rows as $row) {
-                if (!empty($row['phone'])) {
-                    $phone = preg_replace('/\D/', '', $row['phone']);
-                    $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?");
-                    $stmt->execute(array('%' . $phone));
-                    if ($stmt->fetch()) { $skipped++; continue; }
+                // Verificar duplicata por CPF, telefone ou email
+                $existingId = null;
+
+                if (!empty($row['cpf'])) {
+                    $cpfClean = preg_replace('/\D/', '', $row['cpf']);
+                    if (strlen($cpfClean) === 11) {
+                        $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ?");
+                        $stmt->execute(array($cpfClean));
+                        $found = $stmt->fetch();
+                        if ($found) $existingId = (int)$found['id'];
+                    }
                 }
-                if (!empty($row['email'])) {
+                if (!$existingId && !empty($row['phone'])) {
+                    $phone = preg_replace('/\D/', '', $row['phone']);
+                    if (strlen($phone) >= 10) {
+                        $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ?");
+                        $stmt->execute(array('%' . $phone));
+                        $found = $stmt->fetch();
+                        if ($found) $existingId = (int)$found['id'];
+                    }
+                }
+                if (!$existingId && !empty($row['email'])) {
                     $stmt = $pdo->prepare("SELECT id FROM clients WHERE email = ?");
                     $stmt->execute(array($row['email']));
-                    if ($stmt->fetch()) { $skipped++; continue; }
+                    $found = $stmt->fetch();
+                    if ($found) $existingId = (int)$found['id'];
+                }
+
+                if ($existingId) {
+                    if ($updateExisting) {
+                        // Atualizar apenas campos que estão vazios no cadastro atual
+                        $current = $pdo->prepare("SELECT * FROM clients WHERE id = ?");
+                        $current->execute(array($existingId));
+                        $cur = $current->fetch();
+
+                        $updates = array();
+                        $params = array();
+
+                        if (empty($cur['cpf']) && !empty($row['cpf'])) { $updates[] = 'cpf = ?'; $params[] = $row['cpf']; }
+                        if (empty($cur['phone']) && !empty($row['phone'])) { $updates[] = 'phone = ?'; $params[] = $row['phone']; }
+                        if (empty($cur['email']) && !empty($row['email'])) { $updates[] = 'email = ?'; $params[] = $row['email']; }
+                        if (empty($cur['profession']) && !empty($row['profession'])) { $updates[] = 'profession = ?'; $params[] = $row['profession']; }
+                        if (empty($cur['address_street'])) {
+                            $streetParts = array();
+                            if (!empty($row['address_street'])) $streetParts[] = $row['address_street'];
+                            if (!empty($row['address_number'])) $streetParts[] = 'nº ' . $row['address_number'];
+                            if (!empty($row['address_neighborhood'])) $streetParts[] = $row['address_neighborhood'];
+                            if (!empty($streetParts)) { $updates[] = 'address_street = ?'; $params[] = implode(', ', $streetParts); }
+                        }
+                        if (empty($cur['address_city']) && !empty($row['address_city'])) { $updates[] = 'address_city = ?'; $params[] = $row['address_city']; }
+                        if (empty($cur['address_state']) && !empty($row['address_state'])) { $updates[] = 'address_state = ?'; $params[] = $row['address_state']; }
+                        if (empty($cur['address_zip']) && !empty($row['address_zip'])) { $updates[] = 'address_zip = ?'; $params[] = $row['address_zip']; }
+                        if (empty($cur['birth_date']) && !empty($row['birth_date'])) {
+                            $bd = $row['birth_date'];
+                            if (preg_match('/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/', $bd, $m)) {
+                                $updates[] = 'birth_date = ?'; $params[] = $m[3] . '-' . $m[2] . '-' . $m[1];
+                            }
+                        }
+                        if (empty($cur['notes']) && !empty($row['notes'])) { $updates[] = 'notes = ?'; $params[] = $row['notes']; }
+
+                        if (!empty($updates)) {
+                            $params[] = $existingId;
+                            $pdo->prepare("UPDATE clients SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE id = ?")->execute($params);
+                            $updated++;
+                        } else {
+                            $skipped++;
+                        }
+                    } else {
+                        $skipped++;
+                    }
+                    continue;
                 }
 
                 $birthDate = null;
@@ -268,9 +331,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                 $imported++;
             }
 
-            $result = array('imported' => $imported, 'skipped' => $skipped, 'total' => count($rows));
-            audit_log('clients_imported', 'client', null, "CSV: importados=$imported, duplicados=$skipped");
-            notify_admins('Importação via CSV', "$imported contatos importados ($skipped duplicados).", 'sucesso', url('modules/clientes/'), '📥');
+            $result = array('imported' => $imported, 'skipped' => $skipped, 'updated' => $updated, 'total' => count($rows));
+            audit_log('clients_imported', 'client', null, "CSV: importados=$imported, atualizados=$updated, duplicados=$skipped");
+            notify_admins('Importação via CSV', "$imported importados, $updated atualizados, $skipped ignorados.", 'sucesso', url('modules/clientes/'), '📥');
         }
     } else {
         flash_set('error', 'Formato não suportado. Use CSV ou PDF.');
@@ -325,6 +388,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h3>Importação concluída!</h3>
         <div class="result-stats">
             <div class="result-stat"><div class="val" style="color:var(--success);"><?= $result['imported'] ?></div><div class="lbl">Importados</div></div>
+            <?php if (isset($result['updated']) && $result['updated'] > 0): ?>
+            <div class="result-stat"><div class="val" style="color:var(--info);"><?= $result['updated'] ?></div><div class="lbl">Atualizados</div></div>
+            <?php endif; ?>
             <div class="result-stat"><div class="val" style="color:var(--warning);"><?= $result['skipped'] ?></div><div class="lbl">Duplicados ignorados</div></div>
             <div class="result-stat"><div class="val"><?= $result['total'] ?></div><div class="lbl">Total no arquivo</div></div>
         </div>
@@ -417,8 +483,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="margin-top:1.5rem;text-align:center;">
             <form method="POST" enctype="multipart/form-data" style="display:inline;">
                 <?= csrf_input() ?>
-                <input type="file" name="import_file" accept=".csv,.txt" required style="margin-bottom:.75rem;">
+                <input type="file" name="import_file" accept=".csv,.txt,.xls,.xlsx" required style="margin-bottom:.75rem;">
                 <input type="hidden" name="action" value="importar">
+                <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;margin:.75rem 0;cursor:pointer;">
+                    <input type="checkbox" name="update_existing" value="1">
+                    Atualizar dados de contatos já existentes (complementar campos vazios)
+                </label>
                 <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:.75rem;">Selecione o mesmo arquivo para confirmar.</p>
                 <a href="<?= module_url('crm', 'importar.php') ?>" class="btn btn-outline">Cancelar</a>
                 <button type="submit" class="btn btn-primary" style="margin-left:.5rem;">Confirmar Importação</button>
