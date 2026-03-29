@@ -92,7 +92,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $filterPeriodo = $_GET['periodo'] ?? 'ultimo_mes';
     $where = array();
     $params = array();
-    $joins = '';
+
+    // CRM = somente clientes com formulário preenchido (form_submissions)
+    $joins = 'INNER JOIN form_submissions fs ON fs.linked_client_id = c.id AND fs.status != \'arquivado\'';
 
     if ($search) {
         $where[] = "(c.name LIKE ? OR c.cpf LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)";
@@ -103,13 +105,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         $where[] = "c.client_status = ?";
         $params[] = $filterStatus;
     }
-    // Filtro de período — padrão: último mês
+    // Filtro de período
     if ($filterPeriodo === 'ultimo_mes') {
-        $joins = 'LEFT JOIN form_submissions fs ON fs.linked_client_id = c.id';
-        $where[] = "(c.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) OR fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH))";
+        $where[] = "fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)";
     } elseif ($filterPeriodo === '3meses') {
-        $joins = 'LEFT JOIN form_submissions fs ON fs.linked_client_id = c.id';
-        $where[] = "(c.created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH) OR fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH))";
+        $where[] = "fs.created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)";
     }
     $where = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
@@ -120,10 +120,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     $sql = "SELECT c.*,
             (SELECT COUNT(*) FROM cases WHERE client_id = c.id AND status NOT IN ('concluido','arquivado')) as active_cases,
-            (SELECT MAX(contacted_at) FROM contacts WHERE client_id = c.id) as last_contact
+            (SELECT MAX(contacted_at) FROM contacts WHERE client_id = c.id) as last_contact,
+            MAX(fs.created_at) as form_date,
+            GROUP_CONCAT(DISTINCT fs.form_type SEPARATOR ', ') as form_types
             FROM clients c $joins $where
             GROUP BY c.id
-            ORDER BY c.created_at DESC
+            ORDER BY MAX(fs.created_at) DESC
             LIMIT {$pag['per_page']} OFFSET {$pag['offset']}";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -136,17 +138,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <tr>
                     <th>Nome</th>
                     <th>Telefone</th>
+                    <th>Formulário</th>
                     <th>Status</th>
                     <th>Casos ativos</th>
                     <th>Último contato</th>
-                    <th>Cadastro</th>
+                    <th>Data formulário</th>
                     <th style="width:80px;">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (empty($clients)): ?>
-                    <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">
-                        <?= $search ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado ainda.' ?>
+                    <tr><td colspan="9" class="text-center text-muted" style="padding:2rem;">
+                        <?= $search ? 'Nenhum resultado encontrado.' : 'Nenhum formulário recebido neste período.' ?>
                     </td></tr>
                 <?php else: ?>
                     <?php foreach ($clients as $c): ?>
@@ -163,6 +166,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 </a>
                             <?php else: ?>—<?php endif; ?>
                         </td>
+                        <td class="text-sm"><span class="badge badge-info"><?= e($c['form_types'] ?: '—') ?></span></td>
                         <td>
                             <?php
                             $st = isset($c['client_status']) ? $c['client_status'] : 'ativo';
@@ -179,7 +183,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-sm text-muted"><?= data_hora_br($c['last_contact']) ?></td>
-                        <td class="text-sm text-muted"><?= data_br($c['created_at']) ?></td>
+                        <td class="text-sm text-muted"><?= data_br($c['form_date']) ?></td>
                         <td>
                             <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $c['id']) ?>" class="btn btn-outline btn-sm" title="Ver">👁️</a>
                         </td>

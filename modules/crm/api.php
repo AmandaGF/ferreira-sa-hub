@@ -131,6 +131,18 @@ switch ($action) {
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
+    case 'remove_from_crm':
+        // Apenas arquiva os formulários — NÃO apaga o cadastro do cliente
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        if ($clientId) {
+            $pdo->prepare("UPDATE form_submissions SET status = 'arquivado' WHERE linked_client_id = ?")
+                ->execute(array($clientId));
+            audit_log('client_removed_from_crm', 'client', $clientId);
+            flash_set('success', 'Cliente removido do CRM. O cadastro do contato foi mantido.');
+        }
+        redirect(module_url('crm'));
+        break;
+
     case 'delete_client':
         $clientId = (int)($_POST['client_id'] ?? 0);
         if ($clientId) {

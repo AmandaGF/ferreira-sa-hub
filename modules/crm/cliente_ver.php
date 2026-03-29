@@ -155,13 +155,13 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
                 <?php endif; ?>
             <?php endforeach; ?>
 
-            <!-- Excluir -->
+            <!-- Remover do CRM (não apaga o cadastro do cliente) -->
             <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
                 <?= csrf_input() ?>
-                <input type="hidden" name="action" value="delete_client">
+                <input type="hidden" name="action" value="remove_from_crm">
                 <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
-                <button type="submit" class="status-btn danger" data-confirm="EXCLUIR este cliente permanentemente? Todos os dados, casos e contatos serão apagados.">
-                    🗑️ Excluir cadastro
+                <button type="submit" class="status-btn danger" data-confirm="Remover este cliente do CRM? O cadastro do contato será mantido.">
+                    🗑️ Remover do CRM
                 </button>
             </form>
         </div>
