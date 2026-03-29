@@ -79,6 +79,15 @@ $menuItems = [
         'roles' => ['admin', 'gestao'],
     ],
 
+    ['section' => 'Comunicação'],
+    [
+        'label' => 'Datas Especiais',
+        'icon'  => '🎂',
+        'href'  => url('modules/aniversarios/'),
+        'id'    => 'aniversarios',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+
     ['section' => 'Sistema'],
     [
         'label' => 'Usuários',
