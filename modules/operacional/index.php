@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Painel Operacional (Gestão de Casos)
+ * Ferreira & Sá Hub — Operacional (Board Kanban)
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -12,45 +12,42 @@ $userId = current_user_id();
 $isColaborador = has_role('colaborador');
 
 // Filtros
-$filterStatus   = $_GET['status'] ?? '';
-$filterPriority = $_GET['priority'] ?? '';
-$filterUser     = $_GET['user'] ?? '';
-$sortBy         = $_GET['sort'] ?? 'priority';
+$filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
+$filterUser = isset($_GET['user']) ? $_GET['user'] : '';
+$filterType = isset($_GET['type']) ? $_GET['type'] : '';
+
+// Colunas do board
+$columns = array(
+    'aguardando_docs' => array('label' => 'Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
+    'em_elaboracao'   => array('label' => 'Em Elaboração',   'color' => '#6366f1', 'icon' => '📝'),
+    'em_andamento'    => array('label' => 'Em Execução',     'color' => '#0ea5e9', 'icon' => '⚙️'),
+    'aguardando_prazo'=> array('label' => 'Aguardando Prazo','color' => '#d97706', 'icon' => '⏳'),
+    'distribuido'     => array('label' => 'Revisão',         'color' => '#8b5cf6', 'icon' => '🔍'),
+    'concluido'       => array('label' => 'Concluído',       'color' => '#059669', 'icon' => '✅'),
+);
 
 // Construir query
-$where = ["cs.status NOT IN ('concluido','arquivado')"];
-$params = [];
+$where = array('1=1');
+$params = array();
 
 if ($isColaborador) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = $userId;
 }
-
-if ($filterStatus) {
-    $where[] = "cs.status = ?";
-    $params[] = $filterStatus;
-}
-
 if ($filterPriority) {
     $where[] = "cs.priority = ?";
     $params[] = $filterPriority;
 }
-
 if ($filterUser && !$isColaborador) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = (int)$filterUser;
 }
+if ($filterType) {
+    $where[] = "cs.case_type = ?";
+    $params[] = $filterType;
+}
 
 $whereStr = implode(' AND ', $where);
-
-$orderBy = 'cs.created_at DESC';
-if ($sortBy === 'priority') {
-    $orderBy = "FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
-} elseif ($sortBy === 'deadline') {
-    $orderBy = "cs.deadline IS NULL, cs.deadline ASC, cs.created_at DESC";
-} elseif ($sortBy === 'status') {
-    $orderBy = "FIELD(cs.status, 'aguardando_docs','em_elaboracao','aguardando_prazo','distribuido','em_andamento'), cs.created_at DESC";
-}
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'pendente') as pending_tasks,
@@ -58,202 +55,239 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
-        WHERE $whereStr ORDER BY $orderBy";
+        WHERE $whereStr
+        ORDER BY FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
-$cases = $stmt->fetchAll();
+$allCases = $stmt->fetchAll();
+
+// Agrupar por status
+$byStatus = array();
+foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
+foreach ($allCases as $cs) {
+    $status = $cs['status'];
+    if (!isset($byStatus[$status])) {
+        // Status não mapeado (ativo, suspenso, etc) vai para aguardando_docs
+        $status = 'em_andamento';
+    }
+    $byStatus[$status][] = $cs;
+}
 
 // KPIs
-$totalCasos = count($cases);
+$totalAtivos = 0;
 $urgentes = 0;
 $comPrazo = 0;
-foreach ($cases as $cs) {
-    if ($cs['priority'] === 'urgente') $urgentes++;
-    if ($cs['deadline'] && $cs['deadline'] <= date('Y-m-d', strtotime('+7 days'))) $comPrazo++;
+foreach ($allCases as $cs) {
+    if ($cs['status'] !== 'concluido' && $cs['status'] !== 'arquivado') {
+        $totalAtivos++;
+        if ($cs['priority'] === 'urgente') $urgentes++;
+        if ($cs['deadline'] && $cs['deadline'] <= date('Y-m-d', strtotime('+7 days'))) $comPrazo++;
+    }
 }
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
-$statusLabels = [
-    'aguardando_docs' => 'Aguardando docs',
-    'em_elaboracao' => 'Em elaboração',
-    'aguardando_prazo' => 'Aguardando prazo',
-    'distribuido' => 'Distribuído',
-    'em_andamento' => 'Em andamento',
-    'concluido' => 'Concluído',
-    'arquivado' => 'Arquivado',
-    'suspenso' => 'Suspenso',
-];
-
-$statusBadge = [
-    'aguardando_docs' => 'warning', 'em_elaboracao' => 'info', 'aguardando_prazo' => 'warning',
-    'distribuido' => 'success', 'em_andamento' => 'info', 'concluido' => 'success',
-    'arquivado' => 'gestao', 'suspenso' => 'danger',
-];
-
-$priorityBadge = ['urgente' => 'danger', 'alta' => 'warning', 'normal' => 'gestao', 'baixa' => 'colaborador'];
+$priorityColors = array('urgente' => '#ef4444', 'alta' => '#f59e0b', 'normal' => '#6366f1', 'baixa' => '#9ca3af');
+$priorityLabels = array('urgente' => 'URGENTE', 'alta' => 'Alta', 'normal' => 'Normal', 'baixa' => 'Baixa');
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.op-filters { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1.5rem; align-items:flex-end; }
-.op-filters .form-group { margin:0; }
-.op-filters select { font-size:.8rem; padding:.4rem .6rem; }
-.case-row { display:flex; align-items:center; gap:1rem; padding:1rem 1.25rem; border-bottom:1px solid var(--border); transition:background var(--transition); }
-.case-row:hover { background:rgba(215,171,144,.04); }
-.case-row:last-child { border-bottom:none; }
-.case-priority-bar { width:4px; height:40px; border-radius:4px; flex-shrink:0; }
-.case-main { flex:1; min-width:0; }
-.case-title { font-weight:700; font-size:.9rem; color:var(--petrol-900); }
-.case-title a { color:var(--petrol-900); }
-.case-title a:hover { color:var(--rose); }
-.case-client { font-size:.78rem; color:var(--text-muted); }
-.case-badges { display:flex; gap:.35rem; flex-wrap:wrap; margin-top:.25rem; }
-.case-meta { display:flex; gap:1.5rem; align-items:center; flex-shrink:0; }
-.case-meta-item { text-align:center; }
-.case-meta-item label { font-size:.6rem; text-transform:uppercase; color:var(--text-muted); font-weight:700; letter-spacing:.5px; display:block; }
-.case-meta-item span { font-size:.82rem; }
-.tasks-bar { display:flex; align-items:center; gap:.35rem; font-size:.75rem; color:var(--text-muted); }
-.tasks-bar .bar { width:60px; height:6px; background:var(--border); border-radius:4px; overflow:hidden; }
-.tasks-bar .bar-fill { height:100%; background:var(--success); border-radius:4px; }
-.deadline-warning { color:var(--danger); font-weight:700; }
+.op-topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:.75rem; }
+.op-topbar h3 { font-size:1rem; font-weight:700; color:var(--petrol-900); }
+.op-filters { display:flex; gap:.35rem; flex-wrap:wrap; align-items:center; }
+.op-filter-select { font-size:.75rem; padding:.35rem .5rem; border:1.5px solid var(--border); border-radius:var(--radius); background:var(--bg-card); color:var(--text); cursor:pointer; }
+
+/* KPI mini */
+.op-kpis { display:flex; gap:.75rem; margin-bottom:1rem; flex-wrap:wrap; }
+.op-kpi {
+    background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border);
+    padding:.75rem 1rem; display:flex; align-items:center; gap:.6rem; min-width:140px;
+}
+.op-kpi-icon { font-size:1.2rem; }
+.op-kpi-value { font-size:1.3rem; font-weight:800; color:var(--petrol-900); }
+.op-kpi-label { font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
+
+/* Board Kanban */
+.op-board {
+    display:grid;
+    grid-template-columns:repeat(<?= count($columns) ?>, 1fr);
+    gap:.6rem;
+    min-height:500px;
+    overflow-x:auto;
+}
+.op-column { display:flex; flex-direction:column; min-width:0; }
+.op-col-header {
+    padding:.6rem .75rem; border-radius:var(--radius) var(--radius) 0 0;
+    color:#fff; font-weight:700; font-size:.75rem;
+    display:flex; justify-content:space-between; align-items:center;
+}
+.op-col-header .count { background:rgba(255,255,255,.25); padding:.1rem .45rem; border-radius:100px; font-size:.65rem; }
+.op-col-body {
+    flex:1; background:var(--bg); border:1px solid var(--border); border-top:none;
+    border-radius:0 0 var(--radius) var(--radius);
+    padding:.4rem; display:flex; flex-direction:column; gap:.4rem;
+    min-height:100px; overflow-y:auto; max-height:70vh;
+}
+
+/* Case Card */
+.op-card {
+    background:var(--bg-card); border-radius:var(--radius);
+    padding:.7rem .8rem; box-shadow:var(--shadow-sm);
+    border-left:4px solid #ccc;
+    cursor:pointer; transition:all var(--transition);
+}
+.op-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
+.op-card-name { font-weight:700; font-size:.82rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.op-card-client { font-size:.7rem; color:var(--text-muted); margin-bottom:.3rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.op-card-badges { display:flex; gap:.2rem; flex-wrap:wrap; margin-bottom:.35rem; }
+.op-card-badge {
+    font-size:.58rem; font-weight:700; padding:.12rem .35rem;
+    border-radius:4px; color:#fff; text-transform:uppercase; letter-spacing:.3px;
+}
+.op-card-footer { display:flex; justify-content:space-between; align-items:center; }
+.op-card-resp { font-size:.65rem; color:var(--rose-dark); font-weight:600; }
+.op-card-tasks { font-size:.65rem; color:var(--text-muted); display:flex; align-items:center; gap:.3rem; }
+.op-card-tasks .mini-bar { width:40px; height:4px; background:var(--border); border-radius:3px; overflow:hidden; display:inline-block; }
+.op-card-tasks .mini-fill { height:100%; background:var(--success); border-radius:3px; display:block; }
+.op-card-deadline { font-size:.6rem; margin-top:.3rem; }
+.op-card-deadline.overdue { color:#ef4444; font-weight:700; }
+.op-card-deadline.soon { color:#f59e0b; font-weight:600; }
+
+/* Move select */
+.op-card-move {
+    margin-top:.4rem; width:100%;
+    font-size:.65rem; padding:.2rem .3rem;
+    border:1px solid var(--border); border-radius:4px;
+    background:var(--bg-card); cursor:pointer;
+}
+
+.op-empty { text-align:center; padding:1.5rem .5rem; color:var(--text-muted); font-size:.75rem; }
+
+@media (max-width: 1024px) {
+    .op-board { grid-template-columns:repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .op-board { grid-template-columns:repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+    .op-board { grid-template-columns:1fr; }
+}
+
+.page-content { max-width:none !important; padding:.75rem !important; }
 </style>
 
 <!-- KPIs -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon petrol">📂</div>
-        <div class="stat-info"><div class="stat-value"><?= $totalCasos ?></div><div class="stat-label"><?= $isColaborador ? 'Seus casos' : 'Casos ativos' ?></div></div>
+<div class="op-kpis">
+    <div class="op-kpi">
+        <span class="op-kpi-icon">📂</span>
+        <div><div class="op-kpi-value"><?= $totalAtivos ?></div><div class="op-kpi-label"><?= $isColaborador ? 'Seus casos' : 'Casos ativos' ?></div></div>
     </div>
     <?php if ($urgentes > 0): ?>
-    <div class="stat-card">
-        <div class="stat-icon danger">🔴</div>
-        <div class="stat-info"><div class="stat-value"><?= $urgentes ?></div><div class="stat-label">Urgentes</div></div>
+    <div class="op-kpi">
+        <span class="op-kpi-icon">🔴</span>
+        <div><div class="op-kpi-value"><?= $urgentes ?></div><div class="op-kpi-label">Urgentes</div></div>
     </div>
     <?php endif; ?>
     <?php if ($comPrazo > 0): ?>
-    <div class="stat-card">
-        <div class="stat-icon warning">⏰</div>
-        <div class="stat-info"><div class="stat-value"><?= $comPrazo ?></div><div class="stat-label">Prazo em 7 dias</div></div>
+    <div class="op-kpi">
+        <span class="op-kpi-icon">⏰</span>
+        <div><div class="op-kpi-value"><?= $comPrazo ?></div><div class="op-kpi-label">Prazo em 7d</div></div>
     </div>
     <?php endif; ?>
 </div>
 
 <!-- Filtros -->
-<div class="op-filters">
-    <form method="GET" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
-        <div class="form-group">
-            <label class="form-label" style="font-size:.7rem;">Status</label>
-            <select name="status" class="form-select" style="font-size:.8rem;padding:.4rem;">
-                <option value="">Todos</option>
-                <?php foreach ($statusLabels as $k => $v): ?>
-                    <?php if (!in_array($k, ['concluido', 'arquivado'])): ?>
-                        <option value="<?= $k ?>" <?= $filterStatus === $k ? 'selected' : '' ?>><?= $v ?></option>
-                    <?php endif; ?>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="form-label" style="font-size:.7rem;">Prioridade</label>
-            <select name="priority" class="form-select" style="font-size:.8rem;padding:.4rem;">
-                <option value="">Todas</option>
-                <option value="urgente" <?= $filterPriority === 'urgente' ? 'selected' : '' ?>>Urgente</option>
-                <option value="alta" <?= $filterPriority === 'alta' ? 'selected' : '' ?>>Alta</option>
-                <option value="normal" <?= $filterPriority === 'normal' ? 'selected' : '' ?>>Normal</option>
-                <option value="baixa" <?= $filterPriority === 'baixa' ? 'selected' : '' ?>>Baixa</option>
-            </select>
-        </div>
+<div class="op-topbar">
+    <h3>Board Operacional</h3>
+    <form method="GET" class="op-filters">
+        <select name="priority" class="op-filter-select" onchange="this.form.submit()">
+            <option value="">Prioridade</option>
+            <option value="urgente" <?= $filterPriority === 'urgente' ? 'selected' : '' ?>>Urgente</option>
+            <option value="alta" <?= $filterPriority === 'alta' ? 'selected' : '' ?>>Alta</option>
+            <option value="normal" <?= $filterPriority === 'normal' ? 'selected' : '' ?>>Normal</option>
+            <option value="baixa" <?= $filterPriority === 'baixa' ? 'selected' : '' ?>>Baixa</option>
+        </select>
         <?php if (!$isColaborador): ?>
-        <div class="form-group">
-            <label class="form-label" style="font-size:.7rem;">Responsável</label>
-            <select name="user" class="form-select" style="font-size:.8rem;padding:.4rem;">
-                <option value="">Todos</option>
-                <?php foreach ($users as $u): ?>
-                    <option value="<?= $u['id'] ?>" <?= $filterUser == $u['id'] ? 'selected' : '' ?>><?= e($u['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
+        <select name="user" class="op-filter-select" onchange="this.form.submit()">
+            <option value="">Responsável</option>
+            <?php foreach ($users as $u): ?>
+                <option value="<?= $u['id'] ?>" <?= $filterUser == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option>
+            <?php endforeach; ?>
+        </select>
         <?php endif; ?>
-        <div class="form-group">
-            <label class="form-label" style="font-size:.7rem;">Ordenar</label>
-            <select name="sort" class="form-select" style="font-size:.8rem;padding:.4rem;">
-                <option value="priority" <?= $sortBy === 'priority' ? 'selected' : '' ?>>Prioridade</option>
-                <option value="deadline" <?= $sortBy === 'deadline' ? 'selected' : '' ?>>Prazo</option>
-                <option value="status" <?= $sortBy === 'status' ? 'selected' : '' ?>>Status</option>
-            </select>
-        </div>
-        <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
-        <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">Limpar</a>
+        <?php if ($filterPriority || $filterUser): ?>
+            <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.7rem;">Limpar</a>
+        <?php endif; ?>
     </form>
 </div>
 
-<!-- Lista de casos -->
-<div class="card">
-    <?php if (empty($cases)): ?>
-        <div class="card-body empty-state">
-            <div class="icon">📂</div>
-            <h3>Nenhum caso encontrado</h3>
-            <p><?= $isColaborador ? 'Você não tem casos atribuídos.' : 'Nenhum caso ativo com os filtros selecionados.' ?></p>
+<!-- Board Kanban -->
+<div class="op-board">
+    <?php foreach ($columns as $colKey => $col): ?>
+    <div class="op-column">
+        <div class="op-col-header" style="background:<?= $col['color'] ?>;">
+            <span><?= $col['icon'] ?> <?= $col['label'] ?></span>
+            <span class="count"><?= count($byStatus[$colKey]) ?></span>
         </div>
-    <?php else: ?>
-        <?php
-        $priorityColors = ['urgente' => 'var(--danger)', 'alta' => 'var(--warning)', 'normal' => 'var(--info)', 'baixa' => '#9ca3af'];
-        foreach ($cases as $cs):
-            $totalTasks = $cs['pending_tasks'] + $cs['done_tasks'];
-            $taskPercent = $totalTasks > 0 ? round(($cs['done_tasks'] / $totalTasks) * 100) : 0;
-            $isOverdue = $cs['deadline'] && $cs['deadline'] < date('Y-m-d');
-            $isSoon = $cs['deadline'] && !$isOverdue && $cs['deadline'] <= date('Y-m-d', strtotime('+3 days'));
-        ?>
-        <div class="case-row">
-            <div class="case-priority-bar" style="background:<?= $priorityColors[$cs['priority']] ?? '#9ca3af' ?>;"></div>
-            <div class="case-main">
-                <div class="case-title">
-                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>"><?= e($cs['title']) ?></a>
-                </div>
-                <div class="case-client">
-                    👤 <?= e($cs['client_name'] ?? 'Sem cliente') ?>
-                    <?php if ($cs['client_phone']): ?>
-                        · <a href="https://wa.me/55<?= preg_replace('/\D/', '', $cs['client_phone']) ?>" target="_blank" style="color:var(--success);">📱</a>
-                    <?php endif; ?>
-                    <?php if ($cs['drive_folder_url']): ?>
-                        · <a href="<?= e($cs['drive_folder_url']) ?>" target="_blank" style="color:var(--info);">📁 Drive</a>
-                    <?php endif; ?>
-                </div>
-                <div class="case-badges">
-                    <span class="badge badge-<?= $statusBadge[$cs['status']] ?? 'gestao' ?>"><?= $statusLabels[$cs['status']] ?? $cs['status'] ?></span>
-                    <span class="badge badge-<?= $priorityBadge[$cs['priority']] ?? 'gestao' ?>"><?= e($cs['priority']) ?></span>
-                    <?php if ($cs['case_type'] !== 'outro'): ?>
-                        <span class="badge badge-gestao"><?= e($cs['case_type']) ?></span>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <div class="case-meta">
-                <?php if ($totalTasks > 0): ?>
-                <div class="case-meta-item">
-                    <label>Tarefas</label>
-                    <div class="tasks-bar">
-                        <div class="bar"><div class="bar-fill" style="width:<?= $taskPercent ?>%;"></div></div>
-                        <span><?= $cs['done_tasks'] ?>/<?= $totalTasks ?></span>
+        <div class="op-col-body">
+            <?php if (empty($byStatus[$colKey])): ?>
+                <div class="op-empty">Nenhum caso</div>
+            <?php else: ?>
+                <?php foreach ($byStatus[$colKey] as $cs):
+                    $totalTasks = $cs['pending_tasks'] + $cs['done_tasks'];
+                    $taskPct = $totalTasks > 0 ? round(($cs['done_tasks'] / $totalTasks) * 100) : 0;
+                    $isOverdue = $cs['deadline'] && $cs['deadline'] < date('Y-m-d');
+                    $isSoon = $cs['deadline'] && !$isOverdue && $cs['deadline'] <= date('Y-m-d', strtotime('+3 days'));
+                    $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
+                ?>
+                <div class="op-card" style="border-left-color:<?= $pColor ?>;"
+                     onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
+                    <div class="op-card-name"><?= e($cs['title'] ? $cs['title'] : 'Caso #' . $cs['id']) ?></div>
+                    <div class="op-card-client">👤 <?= e($cs['client_name'] ? $cs['client_name'] : 'Sem cliente') ?></div>
+                    <div class="op-card-badges">
+                        <span class="op-card-badge" style="background:<?= $pColor ?>;"><?= isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'] ?></span>
+                        <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
+                            <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
+                        <?php endif; ?>
                     </div>
+                    <div class="op-card-footer">
+                        <span class="op-card-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></span>
+                        <?php if ($totalTasks > 0): ?>
+                        <span class="op-card-tasks">
+                            <span class="mini-bar"><span class="mini-fill" style="width:<?= $taskPct ?>%;"></span></span>
+                            <?= $cs['done_tasks'] ?>/<?= $totalTasks ?>
+                        </span>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($cs['deadline']): ?>
+                    <div class="op-card-deadline <?= $isOverdue ? 'overdue' : ($isSoon ? 'soon' : '') ?>">
+                        <?= $isOverdue ? '⚠️ Vencido ' : ($isSoon ? '⏰ ' : '📅 ') ?><?= date('d/m', strtotime($cs['deadline'])) ?>
+                    </div>
+                    <?php endif; ?>
+
+                    <!-- Mover rápido -->
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onclick="event.stopPropagation();">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="update_status">
+                        <input type="hidden" name="case_id" value="<?= $cs['id'] ?>">
+                        <select name="new_status" class="op-card-move" onchange="this.form.submit()">
+                            <option value="">Mover →</option>
+                            <?php foreach ($columns as $sk => $sv): ?>
+                                <?php if ($sk !== $colKey): ?>
+                                    <option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option>
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+                        </select>
+                    </form>
                 </div>
-                <?php endif; ?>
-                <div class="case-meta-item">
-                    <label>Responsável</label>
-                    <span class="text-sm"><?= e($cs['responsible_name'] ?: '—') ?></span>
-                </div>
-                <div class="case-meta-item">
-                    <label>Prazo</label>
-                    <span class="text-sm <?= $isOverdue ? 'deadline-warning' : ($isSoon ? 'text-warning' : '') ?>">
-                        <?= $cs['deadline'] ? data_br($cs['deadline']) : '—' ?>
-                        <?= $isOverdue ? ' ⚠️' : '' ?>
-                    </span>
-                </div>
-            </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
         </div>
-        <?php endforeach; ?>
-    <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
 </div>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
