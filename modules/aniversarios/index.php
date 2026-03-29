@@ -163,13 +163,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 .cal-box { background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border); padding:1rem; }
 .cal-box h4 { font-size:.85rem; font-weight:700; color:var(--petrol-900); margin-bottom:.75rem; }
+.cal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem; }
+.cal-header h4 { margin:0; }
+.cal-nav { background:none; border:1px solid var(--border); border-radius:6px; width:28px; height:28px; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:.75rem; color:var(--text-muted); }
+.cal-nav:hover { background:var(--bg); border-color:var(--petrol-300); }
 .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:2px; text-align:center; font-size:.7rem; }
 .cal-head { font-weight:700; color:var(--text-muted); padding:.3rem; }
-.cal-day { padding:.3rem; border-radius:4px; cursor:default; }
+.cal-day { padding:.3rem; border-radius:4px; cursor:default; position:relative; }
 .cal-day.empty { }
-.cal-day.has-bday { background:rgba(99,102,241,.15); color:#6366f1; font-weight:700; }
+.cal-day.has-bday { background:rgba(99,102,241,.15); color:#6366f1; font-weight:700; cursor:pointer; }
+.cal-day.has-bday:hover { background:rgba(99,102,241,.3); }
 .cal-day.today { background:var(--rose); color:#fff; font-weight:700; border-radius:50%; }
-.cal-day.today.has-bday { background:#059669; }
+.cal-day.today.has-bday { background:#059669; cursor:pointer; }
+.cal-day.today.has-bday:hover { background:#047857; }
+.cal-day.selected { outline:2px solid var(--petrol-900); outline-offset:1px; border-radius:4px; }
+
+.cal-popup { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:var(--shadow-md); padding:.75rem; margin-top:.5rem; display:none; }
+.cal-popup.active { display:block; }
+.cal-popup h5 { font-size:.78rem; font-weight:700; color:var(--petrol-900); margin-bottom:.5rem; }
+.cal-popup-item { display:flex; align-items:center; gap:.5rem; padding:.35rem 0; border-bottom:1px solid var(--border); font-size:.72rem; }
+.cal-popup-item:last-child { border-bottom:none; }
+.cal-popup-item .name { font-weight:600; color:var(--petrol-900); }
+.cal-popup-item .meta { color:var(--text-muted); font-size:.65rem; }
 </style>
 
 <!-- Stats -->
@@ -276,29 +291,40 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php endif; ?>
         </div>
 
-        <!-- Mini calendário -->
+        <!-- Mini calendário interativo -->
         <div class="cal-box">
-            <h4>📅 <?= $meses[$filtroMes] ?> <?= $currentYear ?></h4>
-            <?php
-            $firstDay = mktime(0, 0, 0, $filtroMes, 1, $currentYear);
-            $daysInMonth = (int)date('t', $firstDay);
-            $startWeekday = (int)date('w', $firstDay); // 0=dom
-            $bdayDays = array();
-            foreach ($anivMes as $a) { $bdayDays[(int)$a['dia']] = true; }
-            ?>
-            <div class="cal-grid">
-                <div class="cal-head">D</div><div class="cal-head">S</div><div class="cal-head">T</div><div class="cal-head">Q</div><div class="cal-head">Q</div><div class="cal-head">S</div><div class="cal-head">S</div>
-                <?php for ($i = 0; $i < $startWeekday; $i++): ?><div class="cal-day empty"></div><?php endfor; ?>
-                <?php for ($d = 1; $d <= $daysInMonth; $d++):
-                    $classes = 'cal-day';
-                    $isT = ($filtroMes === $currentMonth && $d === $currentDay);
-                    $hasBday = isset($bdayDays[$d]);
-                    if ($isT) $classes .= ' today';
-                    if ($hasBday) $classes .= ' has-bday';
-                ?>
-                <div class="<?= $classes ?>"><?= $d ?></div>
-                <?php endfor; ?>
+            <div class="cal-header">
+                <button class="cal-nav" onclick="navCal(-1)" title="Mês anterior">◀</button>
+                <h4>📅 <span id="calTitle"><?= $meses[$filtroMes] ?> <?= $currentYear ?></span></h4>
+                <button class="cal-nav" onclick="navCal(1)" title="Próximo mês">▶</button>
             </div>
+            <?php
+            // Preparar dados de aniversariantes para todos os meses (para o JS)
+            $allBdays = array();
+            try {
+                $allRows = $pdo->query(
+                    "SELECT c.id, c.name, c.phone, c.email, c.birth_date,
+                     DAY(c.birth_date) as dia, MONTH(c.birth_date) as mes,
+                     TIMESTAMPDIFF(YEAR, c.birth_date, CURDATE()) as idade
+                     FROM clients c WHERE c.birth_date IS NOT NULL ORDER BY DAY(c.birth_date)"
+                )->fetchAll();
+                foreach ($allRows as $r) {
+                    $m = (int)$r['mes'];
+                    $d = (int)$r['dia'];
+                    if (!isset($allBdays[$m])) $allBdays[$m] = array();
+                    if (!isset($allBdays[$m][$d])) $allBdays[$m][$d] = array();
+                    $allBdays[$m][$d][] = array(
+                        'id' => (int)$r['id'],
+                        'name' => $r['name'],
+                        'phone' => $r['phone'] ? $r['phone'] : '',
+                        'email' => $r['email'] ? $r['email'] : '',
+                        'idade' => (int)$r['idade']
+                    );
+                }
+            } catch (Exception $e) {}
+            ?>
+            <div id="calGrid" class="cal-grid"></div>
+            <div id="calPopup" class="cal-popup"></div>
         </div>
     </div>
 </div>
@@ -315,6 +341,98 @@ function copyBdayMsg() {
     }
     showToast('Mensagem copiada!');
 }
+
+// Calendário interativo
+var calData = <?= json_encode($allBdays, JSON_UNESCAPED_UNICODE) ?>;
+var calMonth = <?= $filtroMes ?>;
+var calYear = <?= $currentYear ?>;
+var todayMonth = <?= $currentMonth ?>;
+var todayDay = <?= $currentDay ?>;
+var meses = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+var selectedDay = null;
+
+function renderCal() {
+    var grid = document.getElementById('calGrid');
+    var popup = document.getElementById('calPopup');
+    popup.className = 'cal-popup';
+    popup.innerHTML = '';
+    selectedDay = null;
+
+    document.getElementById('calTitle').textContent = meses[calMonth] + ' ' + calYear;
+
+    var firstDay = new Date(calYear, calMonth - 1, 1).getDay();
+    var daysInMonth = new Date(calYear, calMonth, 0).getDate();
+    var monthData = calData[calMonth] || {};
+
+    var html = '<div class="cal-head">D</div><div class="cal-head">S</div><div class="cal-head">T</div><div class="cal-head">Q</div><div class="cal-head">Q</div><div class="cal-head">S</div><div class="cal-head">S</div>';
+
+    for (var i = 0; i < firstDay; i++) { html += '<div class="cal-day empty"></div>'; }
+
+    for (var d = 1; d <= daysInMonth; d++) {
+        var cls = 'cal-day';
+        var isToday = (calMonth === todayMonth && d === todayDay);
+        var hasBday = monthData[d] && monthData[d].length > 0;
+        if (isToday) cls += ' today';
+        if (hasBday) cls += ' has-bday';
+        var onclick = hasBday ? ' onclick="showDayPopup(' + d + ', this)"' : '';
+        var count = hasBday ? ' title="' + monthData[d].length + ' aniversariante(s)"' : '';
+        html += '<div class="' + cls + '"' + onclick + count + '>' + d + '</div>';
+    }
+    grid.innerHTML = html;
+}
+
+function showDayPopup(day, el) {
+    var popup = document.getElementById('calPopup');
+    var monthData = calData[calMonth] || {};
+    var people = monthData[day] || [];
+
+    // Toggle
+    if (selectedDay === day) {
+        popup.className = 'cal-popup';
+        popup.innerHTML = '';
+        selectedDay = null;
+        var prev = document.querySelector('.cal-day.selected');
+        if (prev) prev.classList.remove('selected');
+        return;
+    }
+
+    // Remove seleção anterior
+    var prev = document.querySelector('.cal-day.selected');
+    if (prev) prev.classList.remove('selected');
+    el.classList.add('selected');
+    selectedDay = day;
+
+    var html = '<h5>' + String(day).padStart(2, '0') + '/' + String(calMonth).padStart(2, '0') + ' — ' + people.length + ' aniversariante(s)</h5>';
+    for (var i = 0; i < people.length; i++) {
+        var p = people[i];
+        html += '<div class="cal-popup-item">';
+        html += '<span class="name">' + escHtml(p.name) + '</span>';
+        html += '<span class="meta">' + (p.idade ? p.idade + ' anos' : '') + '</span>';
+        if (p.phone) {
+            var fone = p.phone.replace(/\D/g, '');
+            html += '<a href="https://wa.me/55' + fone + '" target="_blank" style="color:#25D366;font-size:.7rem;font-weight:600;">WhatsApp</a>';
+        }
+        html += '</div>';
+    }
+    popup.innerHTML = html;
+    popup.className = 'cal-popup active';
+}
+
+function navCal(dir) {
+    calMonth += dir;
+    if (calMonth > 12) { calMonth = 1; calYear++; }
+    if (calMonth < 1) { calMonth = 12; calYear--; }
+    renderCal();
+}
+
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(s));
+    return d.innerHTML;
+}
+
+// Renderizar ao carregar
+renderCal();
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
