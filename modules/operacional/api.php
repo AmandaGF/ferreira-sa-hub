@@ -59,6 +59,21 @@ switch ($action) {
                 notify_gestao('Caso pronto para revisão', 'Caso #' . $caseId . ' está pronto para revisão.', 'pendencia', url('modules/operacional/caso_ver.php?id=' . $caseId), '🔍');
             }
 
+            // ── Auto-finalizar no Pipeline ──
+            // Se o caso vai para "Em Execução" e o lead vinculado está em "Pasta Apta", remove do Pipeline
+            if ($status === 'em_andamento') {
+                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
+                $linkedLead->execute(array($caseId));
+                $leadRow = $linkedLead->fetch();
+                if ($leadRow && $leadRow['stage'] === 'pasta_apta') {
+                    $pdo->prepare("UPDATE pipeline_leads SET stage = 'finalizado', updated_at = NOW() WHERE id = ?")
+                        ->execute(array($leadRow['id']));
+                    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                        ->execute(array($leadRow['id'], 'pasta_apta', 'finalizado', current_user_id(), 'Auto: caso entrou em execução no Operacional'));
+                    audit_log('lead_auto_finalized', 'lead', $leadRow['id'], 'case_id: ' . $caseId);
+                }
+            }
+
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
             flash_set('success', 'Status atualizado.');
         }

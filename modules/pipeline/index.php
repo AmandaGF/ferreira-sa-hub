@@ -11,21 +11,24 @@ $pdo = db();
 
 // Estágios do funil
 $stages = [
-    'novo'            => ['label' => 'Novo',            'color' => '#6366f1', 'icon' => '🆕'],
-    'contato_inicial' => ['label' => 'Contato Inicial', 'color' => '#0ea5e9', 'icon' => '📞'],
-    'agendado'        => ['label' => 'Agendado',        'color' => '#f59e0b', 'icon' => '📅'],
-    'proposta'        => ['label' => 'Proposta',        'color' => '#d97706', 'icon' => '📄'],
-    'elaboracao'      => ['label' => 'Elaboração Contrato', 'color' => '#8b5cf6', 'icon' => '📝'],
-    'contrato'        => ['label' => 'Contrato Assinado',   'color' => '#059669', 'icon' => '✅'],
-    'perdido'         => ['label' => 'Perdido',         'color' => '#dc2626', 'icon' => '❌'],
+    'novo'              => ['label' => 'Novo',               'color' => '#6366f1', 'icon' => '🆕'],
+    'contato_inicial'   => ['label' => 'Contato Inicial',    'color' => '#0ea5e9', 'icon' => '📞'],
+    'agendado'          => ['label' => 'Agendado',           'color' => '#f59e0b', 'icon' => '📅'],
+    'proposta'          => ['label' => 'Proposta',           'color' => '#d97706', 'icon' => '📄'],
+    'elaboracao'        => ['label' => 'Elaboração Contrato','color' => '#8b5cf6', 'icon' => '📝'],
+    'contrato'          => ['label' => 'Contrato Assinado',  'color' => '#059669', 'icon' => '✅'],
+    'preparacao_pasta'  => ['label' => 'Preparação da Pasta','color' => '#0d9488', 'icon' => '📂'],
+    'pasta_apta'        => ['label' => 'Pasta Apta',         'color' => '#15803d', 'icon' => '✔️'],
+    'perdido'           => ['label' => 'Perdido',            'color' => '#dc2626', 'icon' => '❌'],
 ];
 
-// Buscar leads agrupados por estágio
+// Buscar leads agrupados por estágio (exceto finalizados)
 $leads = $pdo->query(
     "SELECT pl.*, u.name as assigned_name,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline
      FROM pipeline_leads pl
      LEFT JOIN users u ON u.id = pl.assigned_to
+     WHERE pl.stage != 'finalizado'
      ORDER BY pl.updated_at DESC"
 )->fetchAll();
 
@@ -71,6 +74,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card[data-stage="proposta"] { border-left-color:#d97706; background:#fff7ed; }
 .lead-card[data-stage="elaboracao"] { border-left-color:#8b5cf6; background:#faf5ff; }
 .lead-card[data-stage="contrato"] { border-left-color:#059669; background:#ecfdf5; }
+.lead-card[data-stage="preparacao_pasta"] { border-left-color:#0d9488; background:#f0fdfa; }
+.lead-card[data-stage="pasta_apta"] { border-left-color:#15803d; background:#f0fdf4; }
 .lead-card[data-stage="perdido"] { border-left-color:#dc2626; background:#fef2f2; }
 .lead-name { font-weight:700; font-size:.88rem; color:var(--petrol-900); margin-bottom:.25rem; }
 .lead-meta { font-size:.72rem; color:var(--text-muted); display:flex; flex-direction:column; gap:.15rem; }
@@ -118,7 +123,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Kanban -->
-<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.5rem;min-height:400px;">
+<div style="display:grid;grid-template-columns:repeat(<?= count($stages) ?>,minmax(140px,1fr));gap:.5rem;min-height:400px;overflow-x:auto;">
     <?php foreach ($stages as $stageKey => $stage): ?>
     <div style="display:flex;flex-direction:column;min-width:0;">
         <div class="kanban-header" style="background:<?= $stage['color'] ?>;">
