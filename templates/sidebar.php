@@ -115,6 +115,13 @@ $menuItems = [
 
     ['section' => 'Comunicação'],
     [
+        'label' => 'Mensagens Prontas',
+        'icon'  => '💬',
+        'href'  => url('modules/mensagens/'),
+        'id'    => 'mensagens',
+        'roles' => ['admin', 'gestao', 'colaborador'],
+    ],
+    [
         'label' => 'Notificações',
         'icon'  => '🔔',
         'href'  => url('modules/notificacoes/'),
