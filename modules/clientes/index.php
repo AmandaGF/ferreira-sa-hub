@@ -188,7 +188,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php foreach ($clientes as $c): ?>
                 <tr>
                     <td>
-                        <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $c['id']) ?>" class="cli-name"><?= e($c['name']) ?></a>
+                        <a href="<?= module_url('clientes', 'ver.php?id=' . $c['id']) ?>" class="cli-name"><?= e($c['name']) ?></a>
                     </td>
                     <td><span class="cli-cpf"><?= e($c['cpf'] ? $c['cpf'] : '—') ?></span></td>
                     <td>
