@@ -115,25 +115,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
         $sep = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
 
         $lines = explode("\n", $content);
+        // Pular linhas de cabeçalho do relatório (ex: "AmandaGF - 29/03/2026")
+        while (!empty($lines)) {
+            $firstLine = trim($lines[0]);
+            // Se a linha contém "nome" ou "razão" ou "cpf", é o header real
+            if (stripos($firstLine, 'nome') !== false || stripos($firstLine, 'cpf') !== false) {
+                break;
+            }
+            array_shift($lines);
+        }
         $header = str_getcsv(array_shift($lines), $sep);
         $header = array_map('trim', $header);
         $header = array_map('mb_strtolower', $header);
 
         $fieldMap = array(
             'nome' => 'name', 'name' => 'name', 'nome completo' => 'name', 'cliente' => 'name',
-            'nome / razão social' => 'name', 'nome / razao social' => 'name', 'nome/razão social' => 'name', 'razão social' => 'name', 'razao social' => 'name',
+            'nome / razão social' => 'name', 'nome / razao social' => 'name', 'nome/razão social' => 'name', 'nome/razao social' => 'name', 'razão social' => 'name', 'razao social' => 'name',
             'cpf' => 'cpf', 'cpf/cnpj' => 'cpf', 'documento' => 'cpf',
             'rg' => 'rg',
             'telefone' => 'phone', 'phone' => 'phone', 'celular' => 'phone', 'tel' => 'phone', 'whatsapp' => 'phone',
+            'telefones / número' => 'phone', 'telefones / numero' => 'phone',
             'email' => 'email', 'e-mail' => 'email',
+            'e-mails / e-mail' => 'email', 'e-mails / email' => 'email',
             'nascimento' => 'birth_date', 'data de nascimento' => 'birth_date', 'data_nascimento' => 'birth_date',
             'profissao' => 'profession', 'profissão' => 'profession', 'profissão/nome fantasia' => 'profession', 'profissao/nome fantasia' => 'profession',
             'grupos' => 'grupos', 'classificações' => 'classificacoes', 'classificacoes' => 'classificacoes', 'tipo' => 'tipo',
             'estado civil' => 'marital_status', 'estado_civil' => 'marital_status',
             'endereco' => 'address_street', 'endereço' => 'address_street', 'rua' => 'address_street', 'logradouro' => 'address_street',
+            'endereços / logradouro' => 'address_street', 'enderecos / logradouro' => 'address_street',
+            'endereços / número' => 'address_number', 'enderecos / numero' => 'address_number',
+            'endereços / bairro' => 'address_neighborhood', 'enderecos / bairro' => 'address_neighborhood',
             'cidade' => 'address_city', 'municipio' => 'address_city',
+            'endereços / cidade' => 'address_city', 'enderecos / cidade' => 'address_city',
             'estado' => 'address_state', 'uf' => 'address_state',
+            'endereços / uf' => 'address_state', 'enderecos / uf' => 'address_state',
             'cep' => 'address_zip',
+            'endereços / cep' => 'address_zip', 'enderecos / cep' => 'address_zip',
+            'observações' => 'notes', 'observacoes' => 'notes',
             'observacao' => 'notes', 'observação' => 'notes', 'notas' => 'notes', 'obs' => 'notes',
             'origem' => 'source', 'fonte' => 'source',
         );
@@ -219,6 +237,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                 if (isset($row['notes']) && $row['notes'] && !isset($row['classificacoes'])) $notesArr[] = $row['notes'];
                 $notesStr = !empty($notesArr) ? implode(' | ', $notesArr) : null;
 
+                // Montar endereço completo (logradouro + número + bairro)
+                $streetParts = array();
+                if (isset($row['address_street']) && $row['address_street']) $streetParts[] = $row['address_street'];
+                if (isset($row['address_number']) && $row['address_number']) $streetParts[] = 'nº ' . $row['address_number'];
+                if (isset($row['address_neighborhood']) && $row['address_neighborhood']) $streetParts[] = $row['address_neighborhood'];
+                $fullStreet = !empty($streetParts) ? implode(', ', $streetParts) : null;
+
                 $pdo->prepare(
                     "INSERT INTO clients (name, cpf, rg, phone, email, birth_date, profession, marital_status,
                      address_street, address_city, address_state, address_zip, source, notes, client_status, created_at)
@@ -232,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                     $birthDate,
                     isset($row['profession']) ? $row['profession'] : null,
                     isset($row['marital_status']) ? $row['marital_status'] : null,
-                    isset($row['address_street']) ? $row['address_street'] : null,
+                    $fullStreet,
                     isset($row['address_city']) ? $row['address_city'] : null,
                     isset($row['address_state']) ? $row['address_state'] : null,
                     isset($row['address_zip']) ? $row['address_zip'] : null,
@@ -357,7 +382,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="mapping-info">
             <strong>Colunas mapeadas:</strong>
             <?php
-            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','address_street'=>'Endereço','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','grupos'=>'Grupos','classificacoes'=>'Classificações','tipo'=>'Tipo','source'=>'Origem','notes'=>'Obs');
+            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','address_street'=>'Logradouro','address_number'=>'Nº','address_neighborhood'=>'Bairro','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','grupos'=>'Grupos','classificacoes'=>'Classificações','tipo'=>'Tipo','source'=>'Origem','notes'=>'Obs');
             foreach ($allFields as $k => $v):
                 if (isset($preview['mapped'][$k])): ?>
                     <span class="mapped">✓ <?= $v ?></span>
