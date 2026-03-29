@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
             'email' => 'email', 'e-mail' => 'email',
             'nascimento' => 'birth_date', 'data de nascimento' => 'birth_date', 'data_nascimento' => 'birth_date',
             'profissao' => 'profession', 'profissão' => 'profession', 'profissão/nome fantasia' => 'profession', 'profissao/nome fantasia' => 'profession',
-            'grupos' => 'notes', 'classificações' => 'source', 'classificacoes' => 'source', 'tipo' => 'notes',
+            'grupos' => 'grupos', 'classificações' => 'classificacoes', 'classificacoes' => 'classificacoes', 'tipo' => 'tipo',
             'estado civil' => 'marital_status', 'estado_civil' => 'marital_status',
             'endereco' => 'address_street', 'endereço' => 'address_street', 'rua' => 'address_street', 'logradouro' => 'address_street',
             'cidade' => 'address_city', 'municipio' => 'address_city',
@@ -194,10 +194,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                     }
                 }
 
+                // Determinar source e status a partir das colunas do LegalOne
+                $source = 'importacao';
+                if (isset($row['source']) && $row['source']) {
+                    $source = $row['source'];
+                } elseif (isset($row['grupos']) && $row['grupos']) {
+                    $source = $row['grupos'];
+                }
+
+                $clientStatus = 'ativo';
+                if (isset($row['classificacoes']) && $row['classificacoes']) {
+                    $class = mb_strtolower($row['classificacoes']);
+                    if (strpos($class, 'cliente ativo') !== false) $clientStatus = 'ativo';
+                    elseif (strpos($class, 'cliente inativo') !== false) $clientStatus = 'cancelou';
+                    elseif (strpos($class, 'contrário') !== false || strpos($class, 'contrario') !== false) $clientStatus = 'ativo';
+                    elseif (strpos($class, 'fornecedor') !== false) $clientStatus = 'ativo';
+                }
+
+                // Montar notas com informações extras
+                $notesArr = array();
+                if (isset($row['classificacoes']) && $row['classificacoes']) $notesArr[] = 'Classificação: ' . $row['classificacoes'];
+                if (isset($row['grupos']) && $row['grupos']) $notesArr[] = 'Grupo: ' . $row['grupos'];
+                if (isset($row['tipo']) && $row['tipo']) $notesArr[] = 'Tipo: ' . $row['tipo'];
+                if (isset($row['notes']) && $row['notes'] && !isset($row['classificacoes'])) $notesArr[] = $row['notes'];
+                $notesStr = !empty($notesArr) ? implode(' | ', $notesArr) : null;
+
                 $pdo->prepare(
                     "INSERT INTO clients (name, cpf, rg, phone, email, birth_date, profession, marital_status,
-                     address_street, address_city, address_state, address_zip, source, notes, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+                     address_street, address_city, address_state, address_zip, source, notes, client_status, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
                 )->execute(array(
                     $row['name'],
                     isset($row['cpf']) ? $row['cpf'] : null,
@@ -211,8 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
                     isset($row['address_city']) ? $row['address_city'] : null,
                     isset($row['address_state']) ? $row['address_state'] : null,
                     isset($row['address_zip']) ? $row['address_zip'] : null,
-                    isset($row['source']) && $row['source'] ? $row['source'] : 'importacao',
-                    isset($row['notes']) ? $row['notes'] : null,
+                    $source,
+                    $notesStr,
+                    $clientStatus,
                 ));
                 $imported++;
             }
@@ -331,7 +357,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="mapping-info">
             <strong>Colunas mapeadas:</strong>
             <?php
-            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','address_street'=>'Endereço','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','source'=>'Origem','notes'=>'Obs');
+            $allFields = array('name'=>'Nome','cpf'=>'CPF','rg'=>'RG','phone'=>'Telefone','email'=>'E-mail','birth_date'=>'Nascimento','profession'=>'Profissão','marital_status'=>'Estado Civil','address_street'=>'Endereço','address_city'=>'Cidade','address_state'=>'UF','address_zip'=>'CEP','grupos'=>'Grupos','classificacoes'=>'Classificações','tipo'=>'Tipo','source'=>'Origem','notes'=>'Obs');
             foreach ($allFields as $k => $v):
                 if (isset($preview['mapped'][$k])): ?>
                     <span class="mapped">✓ <?= $v ?></span>
