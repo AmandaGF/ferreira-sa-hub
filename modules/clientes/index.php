@@ -38,6 +38,17 @@ if ($filterSource) {
 
 $whereStr = implode(' AND ', $where);
 
+// Paginação
+$perPage = 20;
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+
+$countStmt = $pdo->prepare("SELECT COUNT(*) FROM clients c WHERE $whereStr");
+$countStmt->execute($params);
+$totalFiltered = (int)$countStmt->fetchColumn();
+$totalPages = max(1, (int)ceil($totalFiltered / $perPage));
+$page = min($page, $totalPages);
+$offset = ($page - 1) * $perPage;
+
 $stmt = $pdo->prepare(
     "SELECT c.*,
      (SELECT COUNT(*) FROM cases WHERE client_id = c.id) as total_processos,
@@ -45,7 +56,7 @@ $stmt = $pdo->prepare(
      FROM clients c
      WHERE $whereStr
      ORDER BY c.name ASC
-     LIMIT 500"
+     LIMIT $perPage OFFSET $offset"
 );
 $stmt->execute($params);
 $clientes = $stmt->fetchAll();
@@ -217,5 +228,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </table>
     <?php endif; ?>
 </div>
+
+<?php if ($totalPages > 1): ?>
+<?php
+    // Montar query string sem page
+    $qsParams = $_GET;
+    unset($qsParams['page']);
+    $qs = http_build_query($qsParams);
+    $baseUrl = module_url('clientes') . ($qs ? '?' . $qs . '&' : '?');
+?>
+<div style="display:flex;justify-content:center;align-items:center;gap:.5rem;margin-top:1.25rem;flex-wrap:wrap;">
+    <?php if ($page > 1): ?>
+        <a href="<?= $baseUrl ?>page=1" class="btn btn-outline btn-sm" style="font-size:.75rem;">« Primeira</a>
+        <a href="<?= $baseUrl ?>page=<?= $page - 1 ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;">‹ Anterior</a>
+    <?php endif; ?>
+
+    <?php
+    $startP = max(1, $page - 3);
+    $endP = min($totalPages, $page + 3);
+    for ($p = $startP; $p <= $endP; $p++):
+    ?>
+        <?php if ($p === $page): ?>
+            <span class="btn btn-primary btn-sm" style="font-size:.75rem;cursor:default;"><?= $p ?></span>
+        <?php else: ?>
+            <a href="<?= $baseUrl ?>page=<?= $p ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;"><?= $p ?></a>
+        <?php endif; ?>
+    <?php endfor; ?>
+
+    <?php if ($page < $totalPages): ?>
+        <a href="<?= $baseUrl ?>page=<?= $page + 1 ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;">Próxima ›</a>
+        <a href="<?= $baseUrl ?>page=<?= $totalPages ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;">Última »</a>
+    <?php endif; ?>
+
+    <span style="font-size:.72rem;color:var(--text-muted);margin-left:.5rem;">
+        Página <?= $page ?> de <?= $totalPages ?> (<?= $totalFiltered ?> contatos)
+    </span>
+</div>
+<?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
