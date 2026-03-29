@@ -86,8 +86,14 @@ switch ($action) {
             $stmt->execute(array($userId));
             $u = $stmt->fetch();
             if ($u && !$u['is_active']) {
-                $pdo->prepare('DELETE FROM users WHERE id = ?')->execute(array($userId));
                 audit_log('user_rejected', 'user', $userId);
+                // Limpar referências antes de deletar
+                $pdo->prepare('UPDATE audit_log SET user_id = NULL WHERE user_id = ?')->execute(array($userId));
+                $pdo->prepare('UPDATE tickets SET requester_id = NULL WHERE requester_id = ?')->execute(array($userId));
+                $pdo->prepare('UPDATE pipeline_leads SET assigned_to = NULL WHERE assigned_to = ?')->execute(array($userId));
+                $pdo->prepare('UPDATE portal_links SET created_by = NULL WHERE created_by = ?')->execute(array($userId));
+                $pdo->prepare('DELETE FROM ticket_assignees WHERE user_id = ?')->execute(array($userId));
+                $pdo->prepare('DELETE FROM users WHERE id = ?')->execute(array($userId));
                 flash_set('success', 'Solicitação recusada e excluída.');
             }
         }
