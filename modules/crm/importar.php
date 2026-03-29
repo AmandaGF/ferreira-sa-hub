@@ -94,6 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['import_file'])) {
     // ═══════════════════════════════════════════
     // IMPORTAÇÃO VIA CSV
     // ═══════════════════════════════════════════
+    } elseif (in_array($ext, array('xls', 'xlsx'))) {
+        flash_set('error', 'Arquivo Excel (.xlsx) não é suportado diretamente. Por favor, salve como CSV primeiro: No Excel, vá em Arquivo → Salvar como → selecione "CSV (separado por vírgula)" ou "CSV UTF-8".');
+        redirect(module_url('crm', 'importar.php'));
+
     } elseif (in_array($ext, array('csv', 'txt'))) {
         $fileType = 'csv';
 
@@ -396,7 +400,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div class="form-group">
                 <label class="form-label">Selecione o arquivo</label>
-                <input type="file" name="import_file" accept=".csv,.txt,.pdf" required class="form-input" id="fileInput">
+                <input type="file" name="import_file" accept=".csv,.txt,.pdf,.xls,.xlsx" required class="form-input" id="fileInput">
                 <small style="color:var(--text-muted);font-size:.75rem;">
                     CSV: Arquivo → Salvar como → CSV | PDF: relatório com nomes, CPF, telefones
                 </small>
