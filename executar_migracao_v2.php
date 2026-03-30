@@ -10,7 +10,7 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-echo "=== Migração v2 (corrigida) ===\n\n";
+echo "=== Migração v3 (corrigida) ===\n\n";
 
 // 1. Limpar tabelas parciais
 echo "1. Limpando tabelas parciais...\n";
@@ -30,7 +30,7 @@ try {
 }
 
 // 2. Executar SQL v2
-$sqlFile = __DIR__ . '/migracao_ferreiraesa_v2.sql';
+$sqlFile = __DIR__ . '/migracao_ferreiraesa_v3.sql';
 if (!file_exists($sqlFile)) { die("Arquivo migracao_ferreiraesa_v2.sql não encontrado!\n"); }
 
 echo "\n2. Executando SQL v2 (" . number_format(filesize($sqlFile)) . " bytes)...\n";
