@@ -250,10 +250,54 @@ function closeFolderModal() {
     _pendingDragData = null;
 }
 
+function playCelebration() {
+    // Criar som de sino programaticamente (sem arquivo externo)
+    try {
+        var ctx = new (window.AudioContext || window.webkitAudioContext)();
+        var notes = [
+            {freq:830, start:0, dur:0.3},
+            {freq:1050, start:0.15, dur:0.3},
+            {freq:1320, start:0.3, dur:0.5},
+            {freq:1580, start:0.5, dur:0.7},
+        ];
+        notes.forEach(function(n) {
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.value = n.freq;
+            gain.gain.setValueAtTime(0.4, ctx.currentTime + n.start);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.start + n.dur);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + n.start);
+            osc.stop(ctx.currentTime + n.start + n.dur);
+        });
+        // Segundo sino (mais alto, festivo)
+        setTimeout(function() {
+            var ctx2 = new (window.AudioContext || window.webkitAudioContext)();
+            [1050, 1320, 1580, 1760, 2100].forEach(function(freq, i) {
+                var osc = ctx2.createOscillator();
+                var gain = ctx2.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0.3, ctx2.currentTime + i * 0.12);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + i * 0.12 + 0.6);
+                osc.connect(gain);
+                gain.connect(ctx2.destination);
+                osc.start(ctx2.currentTime + i * 0.12);
+                osc.stop(ctx2.currentTime + i * 0.12 + 0.6);
+            });
+        }, 400);
+    } catch(e) {}
+}
+
 function confirmFolder() {
     var folderName = document.getElementById('folderNameInput').value.trim();
     if (!folderName) { document.getElementById('folderNameInput').style.borderColor = '#ef4444'; return; }
     document.getElementById('folderModal').style.display = 'none';
+
+    // Tocar sino de celebração!
+    playCelebration();
 
     if (_pendingForm) {
         _pendingForm.querySelector('input[name="folder_name"]').value = folderName;
