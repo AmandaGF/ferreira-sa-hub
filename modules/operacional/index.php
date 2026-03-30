@@ -316,11 +316,13 @@ function confirmDocFaltante() {
     document.getElementById('docFaltanteModal').style.display = 'none';
 
     if (_pendingOpForm) {
-        // Adicionar campo descrição
+        // Remover o select para evitar conflito de nomes
+        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (sel) sel.removeAttribute('name');
+        // Adicionar campos
         var input = document.createElement('input');
         input.type = 'hidden'; input.name = 'doc_faltante_desc'; input.value = desc;
         _pendingOpForm.appendChild(input);
-        // Forçar new_status via hidden (select pode ter sido resetado)
         var statusInput = document.createElement('input');
         statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'doc_faltante';
         _pendingOpForm.appendChild(statusInput);
@@ -351,12 +353,14 @@ function confirmProcesso() {
             'proc_tipo': document.getElementById('procTipo').value,
             'proc_data': document.getElementById('procData').value
         };
+        // Remover select para evitar conflito
+        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (sel) sel.removeAttribute('name');
         for (var k in fields) {
             var input = document.createElement('input');
             input.type = 'hidden'; input.name = k; input.value = fields[k];
             _pendingOpForm.appendChild(input);
         }
-        // Forçar new_status via hidden
         var statusInput = document.createElement('input');
         statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'distribuido';
         _pendingOpForm.appendChild(statusInput);
