@@ -412,6 +412,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- ═══════════════════ CENTRAL DE EXPORTAÇÕES ═══════════════════ -->
+<div class="card" style="margin-top:1.5rem;">
+    <div class="card-header"><h3>📥 Central de Exportações (CSV)</h3></div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.75rem;">
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=clientes') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                👥 Clientes Completo
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=pipeline') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                📈 Pipeline Completo
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=casos') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                ⚙️ Casos Operacionais
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=contratos&de=' . $dataInicio . '&ate=' . $dataFim) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                ✅ Contratos (<?= $periodoLabel ?>)
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=leads_origem&de=' . $dataInicio . '&ate=' . $dataFim) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                📊 Leads por Origem (<?= $periodoLabel ?>)
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=docs_faltantes') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                ⚠️ Documentos Faltantes
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=formularios&de=' . $dataInicio . '&ate=' . $dataFim) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                📋 Formulários (<?= $periodoLabel ?>)
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=produtividade') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                📉 Produtividade
+            </a>
+            <a href="<?= module_url('relatorios', 'exportar.php?tipo=aniversariantes&mes=' . $mesAniv) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
+                🎂 Aniversariantes (<?= $meses[$mesAniv] ?>)
+            </a>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script>
 var fontFamily = "'Open Sans', sans-serif";
