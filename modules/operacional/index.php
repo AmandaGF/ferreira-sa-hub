@@ -7,11 +7,13 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
+if (!can_view_operacional()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
 $pageTitle = 'Operacional';
 $pdo = db();
 $userId = current_user_id();
 $isColaborador = has_role('colaborador');
+$canMove = can_move_operacional();
 
 // Filtros
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';

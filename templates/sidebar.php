@@ -7,144 +7,44 @@ $userRole = $user['role'] ?? 'colaborador';
 $userInitials = mb_substr($user['name'] ?? '?', 0, 2, 'UTF-8');
 
 // Definir itens do menu com controle de acesso por role
-$menuItems = [
-    ['section' => 'Principal'],
-    [
-        'label' => 'Dashboard',
-        'icon'  => '📊',
-        'href'  => url('modules/dashboard/'),
-        'id'    => 'dashboard',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
-    [
-        'label' => 'Portal de Links',
-        'icon'  => '🔗',
-        'href'  => url('modules/portal/'),
-        'id'    => 'portal',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+// all = todos os perfis
+$all = array('admin','gestao','comercial','cx','operacional','colaborador');
+$menuItems = array(
+    array('section' => 'Principal'),
+    array('label' => 'Dashboard',       'icon' => '📊', 'href' => url('modules/dashboard/'),       'id' => 'dashboard',       'roles' => $all),
+    array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
 
-    ['section' => 'Atendimento'],
-    [
-        'label' => 'Helpdesk',
-        'icon'  => '🎫',
-        'href'  => url('modules/helpdesk/'),
-        'id'    => 'helpdesk',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    array('section' => 'Atendimento'),
+    array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all),
 
-    ['section' => 'Comercial'],
-    [
-        'label' => 'CRM',
-        'icon'  => '🎯',
-        'href'  => url('modules/crm/'),
-        'id'    => 'crm',
-        'roles' => ['admin', 'gestao'],
-    ],
-    [
-        'label' => 'Pipeline',
-        'icon'  => '📈',
-        'href'  => url('modules/pipeline/'),
-        'id'    => 'pipeline',
-        'roles' => ['admin', 'gestao'],
-    ],
+    array('section' => 'Comercial'),
+    array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => array('admin','gestao','comercial','cx')),
+    array('label' => 'Pipeline',        'icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => array('admin','gestao','comercial','cx')),
 
-    ['section' => 'Cadastros'],
-    [
-        'label' => 'Clientes',
-        'icon'  => '👥',
-        'href'  => url('modules/clientes/'),
-        'id'    => 'clientes',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    array('section' => 'Cadastros'),
+    array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),
 
-    ['section' => 'Demandas'],
-    [
-        'label' => 'Pré-Processual',
-        'icon'  => '📂',
-        'href'  => url('modules/pre_processual/'),
-        'id'    => 'pre_processual',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
-    [
-        'label' => 'Processos',
-        'icon'  => '⚖️',
-        'href'  => url('modules/processos/'),
-        'id'    => 'processos',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
-    [
-        'label' => 'Extrajudicial',
-        'icon'  => '📋',
-        'href'  => url('modules/servicos/'),
-        'id'    => 'servicos',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    array('section' => 'Demandas'),
+    array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Extrajudicial',   'icon' => '📋', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
 
-    ['section' => 'Execução'],
-    [
-        'label' => 'Operacional',
-        'icon'  => '⚙️',
-        'href'  => url('modules/operacional/'),
-        'id'    => 'operacional',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    array('section' => 'Execução'),
+    array('label' => 'Operacional',     'icon' => '⚙️', 'href' => url('modules/operacional/'),     'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
 
-    ['section' => 'Dados'],
-    [
-        'label' => 'Documentos',
-        'icon'  => '📜',
-        'href'  => url('modules/documentos/'),
-        'id'    => 'documentos',
-        'roles' => ['admin', 'gestao'],
-    ],
-    [
-        'label' => 'Formulários',
-        'icon'  => '📋',
-        'href'  => url('modules/formularios/'),
-        'id'    => 'formularios',
-        'roles' => ['admin', 'gestao'],
-    ],
-    [
-        'label' => 'Relatórios',
-        'icon'  => '📉',
-        'href'  => url('modules/relatorios/'),
-        'id'    => 'relatorios',
-        'roles' => ['admin', 'gestao'],
-    ],
+    array('section' => 'Dados'),
+    array('label' => 'Documentos',      'icon' => '📜', 'href' => url('modules/documentos/'),      'id' => 'documentos',      'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Formulários',     'icon' => '📋', 'href' => url('modules/formularios/'),      'id' => 'formularios',     'roles' => array('admin','gestao')),
+    array('label' => 'Relatórios',      'icon' => '📉', 'href' => url('modules/relatorios/'),       'id' => 'relatorios',      'roles' => array('admin','gestao')),
 
-    ['section' => 'Comunicação'],
-    [
-        'label' => 'Mensagens Prontas',
-        'icon'  => '💬',
-        'href'  => url('modules/mensagens/'),
-        'id'    => 'mensagens',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
-    [
-        'label' => 'Notificações',
-        'icon'  => '🔔',
-        'href'  => url('modules/notificacoes/'),
-        'id'    => 'notificacoes',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
-    [
-        'label' => 'Datas Especiais',
-        'icon'  => '🎂',
-        'href'  => url('modules/aniversarios/'),
-        'id'    => 'aniversarios',
-        'roles' => ['admin', 'gestao', 'colaborador'],
-    ],
+    array('section' => 'Comunicação'),
+    array('label' => 'Mensagens Prontas','icon' => '💬', 'href' => url('modules/mensagens/'),       'id' => 'mensagens',       'roles' => $all),
+    array('label' => 'Notificações',    'icon' => '🔔', 'href' => url('modules/notificacoes/'),     'id' => 'notificacoes',    'roles' => $all),
+    array('label' => 'Datas Especiais', 'icon' => '🎂', 'href' => url('modules/aniversarios/'),     'id' => 'aniversarios',    'roles' => $all),
 
-    ['section' => 'Sistema'],
-    [
-        'label' => 'Usuários',
-        'icon'  => '🛡️',
-        'href'  => url('modules/usuarios/'),
-        'id'    => 'usuarios',
-        'roles' => ['admin'],
-    ],
-];
+    array('section' => 'Sistema'),
+    array('label' => 'Usuários',        'icon' => '🛡️', 'href' => url('modules/usuarios/'),        'id' => 'usuarios',        'roles' => array('admin')),
+);
 ?>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>

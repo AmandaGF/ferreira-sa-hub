@@ -80,23 +80,38 @@ function clean_str(?string $input, int $maxLength = 500): string
 }
 
 // ─── Roles ──────────────────────────────────────────────
+// Perfis: admin, gestao, comercial, cx, operacional, colaborador
 function role_label(string $role): string
 {
-    $labels = ['admin' => 'Administrador', 'gestao' => 'Gestão', 'colaborador' => 'Colaborador'];
-    return $labels[$role] ?? 'Desconhecido';
+    $labels = array('admin' => 'Administrador', 'gestao' => 'Gestão', 'comercial' => 'Comercial', 'cx' => 'CX', 'operacional' => 'Operacional', 'colaborador' => 'Colaborador');
+    return isset($labels[$role]) ? $labels[$role] : 'Desconhecido';
 }
 
 function role_level(string $role): int
 {
-    $levels = ['admin' => 3, 'gestao' => 2, 'colaborador' => 1];
-    return $levels[$role] ?? 0;
+    // admin > gestao > comercial/cx/operacional > colaborador
+    $levels = array('admin' => 5, 'gestao' => 4, 'comercial' => 3, 'cx' => 3, 'operacional' => 3, 'colaborador' => 1);
+    return isset($levels[$role]) ? $levels[$role] : 0;
 }
 
 function role_badge(string $role): string
 {
     $label = role_label($role);
-    return '<span class="badge badge-' . e($role) . '">' . $label . '</span>';
+    $badgeClass = $role;
+    if (in_array($role, array('comercial', 'cx', 'operacional'))) $badgeClass = 'gestao';
+    return '<span class="badge badge-' . e($badgeClass) . '">' . $label . '</span>';
 }
+
+// Pode ver o Pipeline Comercial/CX?
+function can_view_pipeline(): bool { return has_role('admin', 'gestao', 'comercial', 'cx'); }
+// Pode mover no Pipeline (colunas 1-4)?
+function can_move_pipeline_comercial(): bool { return has_role('admin', 'gestao', 'comercial'); }
+// Pode mover no Pipeline (colunas 5-8)?
+function can_move_pipeline_cx(): bool { return has_role('admin', 'gestao', 'cx'); }
+// Pode ver o Kanban Operacional?
+function can_view_operacional(): bool { return has_role('admin', 'gestao', 'operacional', 'comercial', 'cx'); }
+// Pode mover no Operacional?
+function can_move_operacional(): bool { return has_role('admin', 'gestao', 'operacional'); }
 
 // ─── Formatação ─────────────────────────────────────────
 function brl(int $cents): string

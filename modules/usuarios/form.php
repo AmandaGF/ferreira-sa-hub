@@ -144,6 +144,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label class="form-label" for="role">Perfil de acesso *</label>
                         <select id="role" name="role" class="form-select">
                             <option value="colaborador" <?= $f['role'] === 'colaborador' ? 'selected' : '' ?>>Colaborador</option>
+                            <option value="comercial" <?= $f['role'] === 'comercial' ? 'selected' : '' ?>>Comercial</option>
+                            <option value="cx" <?= $f['role'] === 'cx' ? 'selected' : '' ?>>CX</option>
+                            <option value="operacional" <?= $f['role'] === 'operacional' ? 'selected' : '' ?>>Operacional</option>
                             <option value="gestao" <?= $f['role'] === 'gestao' ? 'selected' : '' ?>>Gestão</option>
                             <option value="admin" <?= $f['role'] === 'admin' ? 'selected' : '' ?>>Administrador</option>
                         </select>

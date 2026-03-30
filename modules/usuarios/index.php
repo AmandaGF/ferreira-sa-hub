@@ -42,6 +42,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <input type="hidden" name="user_id" value="<?= $p['id'] ?>">
                                 <select name="role" style="font-size:.78rem;padding:.25rem .4rem;border:1px solid var(--border);border-radius:6px;">
                                     <option value="colaborador">Colaborador</option>
+                                    <option value="comercial">Comercial</option>
+                                    <option value="cx">CX</option>
+                                    <option value="operacional">Operacional</option>
                                     <option value="gestao">Gestão</option>
                                     <option value="admin">Admin</option>
                                 </select>

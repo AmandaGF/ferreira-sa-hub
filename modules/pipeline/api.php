@@ -6,7 +6,8 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_once __DIR__ . '/../../core/google_drive.php';
-require_min_role('gestao');
+require_login();
+if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('pipeline')); }
 if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('pipeline')); }

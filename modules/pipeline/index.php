@@ -6,7 +6,8 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
-require_min_role('gestao');
+require_login();
+if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
 $pageTitle = 'Pipeline Comercial/CX';
 $pdo = db();
