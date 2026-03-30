@@ -28,6 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $cep = clean_str($_POST['cep'] ?? '', 10);
     $endereco = clean_str($_POST['endereco'] ?? '', 500);
+    $cidade = clean_str($_POST['cidade'] ?? '', 100);
+    $uf = clean_str($_POST['uf'] ?? '', 2);
     $pix = clean_str($_POST['pix'] ?? '', 100);
     $conta_bancaria = clean_str($_POST['conta_bancaria'] ?? '', 200);
     $imposto_renda = $_POST['imposto_renda'] ?? '';
@@ -72,6 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'profession' => $profissao,
                     'marital_status' => $estado_civil,
                     'address_street' => $endereco,
+                    'address_city' => $cidade,
+                    'address_state' => $uf,
                     'address_zip' => $cep,
                 ),
                 json_encode($payload, JSON_UNESCAPED_UNICODE)
@@ -180,10 +184,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="email" name="email" required value="<?= e($_POST['email'] ?? '') ?>">
 
             <label>CEP <span class="obrigat">*</span></label>
-            <input type="text" name="cep" placeholder="00000-000" required value="<?= e($_POST['cep'] ?? '') ?>" maxlength="9">
+            <input type="text" name="cep" id="cep" placeholder="00000-000" required value="<?= e($_POST['cep'] ?? '') ?>" maxlength="9">
+            <span id="cepStatus" style="font-size:12px;color:#059669;display:none;">✓ Endereço encontrado!</span>
 
-            <label>Endereço Completo (Rua, número, Bairro e Cidade) <span class="obrigat">*</span></label>
-            <textarea name="endereco" required><?= e($_POST['endereco'] ?? '') ?></textarea>
+            <label>Rua / Logradouro</label>
+            <input type="text" name="rua" id="rua" value="<?= e($_POST['rua'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP">
+
+            <label>Número <span class="obrigat">*</span></label>
+            <input type="text" name="numero" id="numero" value="<?= e($_POST['numero'] ?? '') ?>" placeholder="Ex: 123" required>
+
+            <label>Complemento</label>
+            <input type="text" name="complemento" id="complemento" value="<?= e($_POST['complemento'] ?? '') ?>" placeholder="Apto, Bloco, Sala...">
+
+            <label>Bairro</label>
+            <input type="text" name="bairro" id="bairro" value="<?= e($_POST['bairro'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP">
+
+            <label>Cidade</label>
+            <input type="text" name="cidade" id="cidade" value="<?= e($_POST['cidade'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP">
+
+            <label>UF</label>
+            <input type="text" name="uf" id="uf" value="<?= e($_POST['uf'] ?? '') ?>" maxlength="2" placeholder="Ex: RJ">
+
+            <input type="hidden" name="endereco" id="enderecoCompleto" value="<?= e($_POST['endereco'] ?? '') ?>">
 
             <div class="section-title">Dados Bancários</div>
 
@@ -290,10 +312,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // CEP: 00000-000
+        // CEP: 00000-000 + busca automática via ViaCEP
         document.querySelector('input[name="cep"]').addEventListener('input', function() {
             mask(this, '99999-999');
+            var cep = this.value.replace(/\D/g, '');
+            if (cep.length === 8) {
+                buscarCEP(cep);
+            }
         });
+
+        function buscarCEP(cep) {
+            var status = document.getElementById('cepStatus');
+            status.style.display = 'none';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', 'https://viacep.com.br/ws/' + cep + '/json/');
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        if (!data.erro) {
+                            document.getElementById('rua').value = data.logradouro || '';
+                            document.getElementById('bairro').value = data.bairro || '';
+                            document.getElementById('cidade').value = data.localidade || '';
+                            document.getElementById('uf').value = data.uf || '';
+                            status.style.display = 'inline';
+                            // Focar no número
+                            document.getElementById('numero').focus();
+                        }
+                    } catch(e) {}
+                }
+            };
+            xhr.send();
+        }
 
         // RG: formata com pontos (00.000.000-0)
         document.querySelector('input[name="rg"]').addEventListener('input', function() {
@@ -301,6 +352,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (v.length <= 9) {
                 mask(this, '99.999.999-9');
             }
+        });
+
+        // Montar endereço completo antes de enviar
+        document.getElementById('clientForm').addEventListener('submit', function() {
+            var rua = document.getElementById('rua').value;
+            var numero = document.getElementById('numero').value;
+            var complemento = document.getElementById('complemento').value;
+            var bairro = document.getElementById('bairro').value;
+            var cidade = document.getElementById('cidade').value;
+            var uf = document.getElementById('uf').value;
+            var partes = [];
+            if (rua) partes.push(rua);
+            if (numero) partes.push('nº ' + numero);
+            if (complemento) partes.push(complemento);
+            if (bairro) partes.push(bairro);
+            if (cidade && uf) partes.push(cidade + '/' + uf);
+            else if (cidade) partes.push(cidade);
+            document.getElementById('enderecoCompleto').value = partes.join(', ');
         });
         </script>
         <?php endif; ?>
