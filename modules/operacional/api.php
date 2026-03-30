@@ -42,21 +42,26 @@ switch ($action) {
 
                 // Registrar documento pendente
                 $clientId = $currentCase ? (int)$currentCase['client_id'] : 0;
-                $linkedLead = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ? AND stage != 'finalizado'");
+                $linkedLead = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ?");
                 $linkedLead->execute(array($caseId));
                 $leadRow = $linkedLead->fetch();
                 $leadId = $leadRow ? (int)$leadRow['id'] : null;
 
-                $pdo->prepare("INSERT INTO documentos_pendentes (client_id, case_id, lead_id, descricao, solicitado_por) VALUES (?,?,?,?,?)")
-                    ->execute(array($clientId, $caseId, $leadId, $docDesc, current_user_id()));
+                try {
+                    if ($clientId > 0) {
+                        $pdo->prepare("INSERT INTO documentos_pendentes (client_id, case_id, lead_id, descricao, solicitado_por) VALUES (?,?,?,?,?)")
+                            ->execute(array($clientId, $caseId, $leadId, $docDesc, current_user_id()));
+                    }
+                } catch (Exception $e) { /* silenciar FK errors */ }
 
                 // Espelhar no Pipeline: mover lead para doc_faltante
                 if ($leadId) {
-                    $pdo->prepare("UPDATE pipeline_leads SET stage='doc_faltante', doc_faltante_motivo=?, stage_antes_doc_faltante=stage, updated_at=NOW() WHERE id=?")
-                        ->execute(array($docDesc, $leadId));
-
-                    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
-                        ->execute(array($leadId, 'auto', 'doc_faltante', current_user_id(), 'Operacional sinalizou: ' . $docDesc));
+                    try {
+                        $pdo->prepare("UPDATE pipeline_leads SET stage='doc_faltante', doc_faltante_motivo=?, stage_antes_doc_faltante=stage, updated_at=NOW() WHERE id=?")
+                            ->execute(array($docDesc, $leadId));
+                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                            ->execute(array($leadId, 'auto', 'doc_faltante', current_user_id(), 'Operacional sinalizou: ' . $docDesc));
+                    } catch (Exception $e) { /* silenciar se lead não compatível */ }
                 }
 
                 // Notificar CX/gestão
