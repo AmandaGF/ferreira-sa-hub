@@ -39,12 +39,35 @@ $tasks = $tasks->fetchAll();
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
-$statusLabels = [
-    'aguardando_docs' => 'Aguardando docs', 'em_elaboracao' => 'Em elaboração',
-    'aguardando_prazo' => 'Aguardando prazo', 'distribuido' => 'Distribuído',
-    'em_andamento' => 'Em andamento', 'concluido' => 'Concluído',
-    'arquivado' => 'Arquivado', 'suspenso' => 'Suspenso',
-];
+// Documentos pendentes deste caso
+$docsPendentes = array();
+$docsRecebidos = array();
+try {
+    $allDocs = $pdo->prepare(
+        "SELECT dp.*, us.name as solicitante_name, ur.name as receptor_name
+         FROM documentos_pendentes dp
+         LEFT JOIN users us ON us.id = dp.solicitado_por
+         LEFT JOIN users ur ON ur.id = dp.recebido_por
+         WHERE dp.case_id = ?
+         ORDER BY dp.solicitado_em DESC"
+    );
+    $allDocs->execute(array($caseId));
+    foreach ($allDocs->fetchAll() as $doc) {
+        if ($doc['status'] === 'pendente') $docsPendentes[] = $doc;
+        else $docsRecebidos[] = $doc;
+    }
+} catch (Exception $e) {}
+
+$statusLabels = array(
+    'aguardando_docs' => 'Contrato Assinado — Aguardando Docs',
+    'em_elaboracao' => 'Pasta Apta',
+    'em_andamento' => 'Em Execução',
+    'doc_faltante' => 'Documento Faltante',
+    'aguardando_prazo' => 'Aguardando Distribuição / Extrajudicial',
+    'distribuido' => 'Processo Distribuído',
+    'concluido' => 'Concluído',
+    'arquivado' => 'Arquivado',
+);
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -89,6 +112,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </div>
 </div>
+
+<!-- Documentos Pendentes / Recebidos -->
+<?php if (!empty($docsPendentes) || !empty($docsRecebidos)): ?>
+<div class="card mb-2">
+    <div class="card-header">
+        <h3>📄 Documentos Solicitados (<?= count($docsPendentes) ?> pendente<?= count($docsPendentes) !== 1 ? 's' : '' ?>)</h3>
+    </div>
+    <div class="card-body">
+        <?php if (!empty($docsPendentes)): ?>
+            <?php foreach ($docsPendentes as $dp): ?>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.65rem .85rem;margin-bottom:.4rem;background:#fef2f2;border:1.5px solid #fecaca;border-radius:10px;">
+                <span style="font-size:1.1rem;">⚠️</span>
+                <div style="flex:1;">
+                    <div style="font-size:.88rem;font-weight:700;color:#dc2626;"><?= e($dp['descricao']) ?></div>
+                    <div style="font-size:.68rem;color:#6b7280;">Solicitado por <?= e($dp['solicitante_name'] ?: '—') ?> em <?= date('d/m/Y H:i', strtotime($dp['solicitado_em'])) ?></div>
+                </div>
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="resolve_doc">
+                    <input type="hidden" name="doc_id" value="<?= $dp['id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <button type="submit" class="btn btn-success btn-sm" style="font-size:.72rem;" data-confirm="Confirmar que este documento foi recebido?">✓ Recebido</button>
+                </form>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+
+        <?php if (!empty($docsRecebidos)): ?>
+            <div style="margin-top:<?= !empty($docsPendentes) ? '.75rem' : '0' ?>;<?= !empty($docsPendentes) ? 'padding-top:.75rem;border-top:1px solid var(--border);' : '' ?>">
+                <p style="font-size:.72rem;font-weight:700;color:var(--text-muted);margin-bottom:.35rem;">Recebidos:</p>
+                <?php foreach ($docsRecebidos as $dr): ?>
+                <div style="display:flex;align-items:center;gap:.5rem;padding:.35rem 0;font-size:.78rem;color:var(--text-muted);">
+                    <span style="color:#059669;">✓</span>
+                    <span style="text-decoration:line-through;"><?= e($dr['descricao']) ?></span>
+                    <span style="font-size:.65rem;">— recebido em <?= date('d/m H:i', strtotime($dr['recebido_em'])) ?></span>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Status e Informações -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">

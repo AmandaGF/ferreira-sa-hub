@@ -145,6 +145,52 @@ switch ($action) {
         }
         break;
 
+    case 'resolve_doc':
+        $docId = (int)($_POST['doc_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($docId) {
+            // Marcar documento como recebido
+            $pdo->prepare("UPDATE documentos_pendentes SET status = 'recebido', recebido_em = NOW(), recebido_por = ? WHERE id = ?")
+                ->execute(array(current_user_id(), $docId));
+
+            // Verificar se ainda tem docs pendentes neste caso
+            $stillPending = $pdo->prepare("SELECT COUNT(*) FROM documentos_pendentes WHERE case_id = ? AND status = 'pendente'");
+            $stillPending->execute(array($caseId));
+            $numPending = (int)$stillPending->fetchColumn();
+
+            if ($numPending === 0) {
+                // Todos os docs recebidos — retornar caso para em_andamento (se estava em doc_faltante)
+                $caseStmt = $pdo->prepare("SELECT status, stage_antes_doc_faltante FROM cases WHERE id = ?");
+                $caseStmt->execute(array($caseId));
+                $caseRow = $caseStmt->fetch();
+
+                if ($caseRow && $caseRow['status'] === 'doc_faltante') {
+                    $returnTo = $caseRow['stage_antes_doc_faltante'] ?: 'em_andamento';
+                    $pdo->prepare("UPDATE cases SET status = ?, stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
+                        ->execute(array($returnTo, $caseId));
+
+                    // Retornar lead no Pipeline também
+                    $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
+                    $linkedLead->execute(array($caseId));
+                    $leadRow = $linkedLead->fetch();
+                    if ($leadRow && $leadRow['stage'] === 'doc_faltante') {
+                        $pdo->prepare("UPDATE pipeline_leads SET stage='reuniao_cobranca', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
+                            ->execute(array($leadRow['id']));
+                    }
+
+                    notify_gestao('Documentos completos!', 'Todos os documentos do caso #' . $caseId . ' foram recebidos. Retornou para execução.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '📄');
+                }
+
+                flash_set('success', 'Todos os documentos recebidos! Caso retornou para execução.');
+            } else {
+                flash_set('success', 'Documento marcado como recebido. Ainda ' . $numPending . ' pendente(s).');
+            }
+
+            audit_log('doc_received', 'documentos_pendentes', $docId);
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'update_case_info':
         if (!has_min_role('gestao')) { break; }
         $caseId = (int)($_POST['case_id'] ?? 0);
