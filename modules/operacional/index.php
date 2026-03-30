@@ -76,6 +76,19 @@ foreach ($allCases as $cs) {
     if ($cs['priority'] === 'urgente') $urgentes++;
 }
 
+// Documentos pendentes (para banner de alerta)
+$docsPendentes = array();
+try {
+    $docsPendentes = $pdo->query(
+        "SELECT dp.*, c.name as client_name, cs.title as case_title
+         FROM documentos_pendentes dp
+         LEFT JOIN clients c ON c.id = dp.client_id
+         LEFT JOIN cases cs ON cs.id = dp.case_id
+         WHERE dp.status = 'pendente'
+         ORDER BY dp.solicitado_em DESC"
+    )->fetchAll();
+} catch (Exception $e) {}
+
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 $priorityColors = array('urgente' => '#ef4444', 'alta' => '#f59e0b', 'normal' => '#6366f1', 'baixa' => '#9ca3af');
 $priorityLabels = array('urgente' => 'URGENTE', 'alta' => 'Alta', 'normal' => 'Normal', 'baixa' => 'Baixa');
@@ -125,6 +138,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 @media (max-width: 1024px) { .op-board { grid-template-columns:repeat(3, 1fr); } }
 @media (max-width: 768px) { .op-board { grid-template-columns:repeat(2, 1fr); } }
 </style>
+
+<!-- Banner: Documentos Pendentes -->
+<?php if (!empty($docsPendentes)): ?>
+<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+        <span style="font-size:1.2rem;">⚠️</span>
+        <strong style="font-size:.88rem;color:#dc2626;"><?= count($docsPendentes) ?> documento(s) faltante(s) — aguardando CX</strong>
+    </div>
+    <?php foreach ($docsPendentes as $dp): ?>
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.4rem 0;border-top:1px solid #fecaca;">
+        <span style="font-size:.78rem;font-weight:700;color:#052228;"><?= e($dp['client_name'] ?: $dp['case_title'] ?: 'Caso #' . $dp['case_id']) ?></span>
+        <span style="font-size:.75rem;color:#dc2626;font-weight:600;">→ <?= e($dp['descricao']) ?></span>
+        <span style="font-size:.65rem;color:#6b7280;margin-left:auto;"><?= date('d/m H:i', strtotime($dp['solicitado_em'])) ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <!-- KPIs -->
 <div class="op-kpis">
@@ -200,8 +230,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($cs['deadline']): ?>
                         <div class="op-card-deadline <?= $isOverdue ? 'overdue' : '' ?>"><?= $isOverdue ? '⚠️ Vencido ' : '📅 ' ?><?= date('d/m', strtotime($cs['deadline'])) ?></div>
                     <?php endif; ?>
-                    <?php if ($colKey === 'doc_faltante'): ?>
-                        <div class="op-card-doc-alert">⚠️ <?= e($cs['doc_faltante_desc'] ?: 'Documento faltante — aguardando CX') ?></div>
+                    <?php if ($cs['doc_faltante_desc']): ?>
+                        <div class="op-card-doc-alert">⚠️ Falta: <?= e($cs['doc_faltante_desc']) ?></div>
                     <?php endif; ?>
 
                     <!-- Mover rápido -->

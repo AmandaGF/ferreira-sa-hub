@@ -49,6 +49,18 @@ $contratosAssinados = count($byStage['contrato_assinado']) + count($byStage['age
 $pastasAptas = count($byStage['pasta_apta']);
 $docsFaltantes = count($byStage['doc_faltante']);
 
+// Documentos pendentes (para banner)
+$docsPendentes = array();
+try {
+    $docsPendentes = $pdo->query(
+        "SELECT dp.*, c.name as client_name
+         FROM documentos_pendentes dp
+         LEFT JOIN clients c ON c.id = dp.client_id
+         WHERE dp.status = 'pendente'
+         ORDER BY dp.solicitado_em DESC"
+    )->fetchAll();
+} catch (Exception $e) {}
+
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -78,6 +90,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-del { background:none; border:none; cursor:pointer; font-size:.75rem; padding:.15rem; opacity:.4; }
 .lead-del:hover { opacity:1; }
 </style>
+
+<!-- Banner: Documentos Pendentes -->
+<?php if (!empty($docsPendentes)): ?>
+<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
+        <span style="font-size:1.2rem;">⚠️</span>
+        <strong style="font-size:.88rem;color:#dc2626;"><?= count($docsPendentes) ?> documento(s) faltante(s) — CX precisa providenciar</strong>
+    </div>
+    <?php foreach ($docsPendentes as $dp): ?>
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.4rem 0;border-top:1px solid #fecaca;">
+        <span style="font-size:.78rem;font-weight:700;color:#052228;"><?= e($dp['client_name'] ?: 'Cliente') ?></span>
+        <span style="font-size:.75rem;color:#dc2626;font-weight:600;">→ <?= e($dp['descricao']) ?></span>
+        <span style="font-size:.65rem;color:#6b7280;margin-left:auto;"><?= date('d/m H:i', strtotime($dp['solicitado_em'])) ?></span>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <!-- KPIs -->
 <div class="pipeline-stats">
