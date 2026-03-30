@@ -3,12 +3,15 @@
  * Formulário de Cadastro de Clientes — versão PHP (grava direto no TurboCloud)
  * Substitui a versão Firebase
  */
-ob_start();
 
-require_once __DIR__ . '/../../core/config.php';
-require_once __DIR__ . '/../../core/database.php';
-require_once __DIR__ . '/../../core/functions.php';
-require_once __DIR__ . '/../../core/form_handler.php';
+// Detectar se está sendo chamado via require externo (ex: /cadastro/)
+$_formBaseDir = realpath(__DIR__);
+$_coreDir = $_formBaseDir . '/../../core';
+
+require_once $_coreDir . '/config.php';
+require_once $_coreDir . '/database.php';
+require_once $_coreDir . '/functions.php';
+require_once $_coreDir . '/form_handler.php';
 
 $success = false;
 $protocol = '';
@@ -56,25 +59,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'fam_contato_genitor' => $fam_contato_genitor, 'fam_endereco_genitor' => $fam_endereco_genitor,
         );
 
-        $result = process_form_submission(
-            'cadastro_cliente',
-            array(
-                'name' => $nome,
-                'phone' => $celular,
-                'email' => $email,
-                'cpf' => $cpf,
-                'rg' => $rg,
-                'birth_date' => $nascimento ?: null,
-                'profession' => $profissao,
-                'marital_status' => $estado_civil,
-                'address_street' => $endereco,
-                'address_zip' => $cep,
-            ),
-            json_encode($payload, JSON_UNESCAPED_UNICODE)
-        );
+        try {
+            $result = process_form_submission(
+                'cadastro_cliente',
+                array(
+                    'name' => $nome,
+                    'phone' => $celular,
+                    'email' => $email,
+                    'cpf' => $cpf,
+                    'rg' => $rg,
+                    'birth_date' => $nascimento ?: null,
+                    'profession' => $profissao,
+                    'marital_status' => $estado_civil,
+                    'address_street' => $endereco,
+                    'address_zip' => $cep,
+                ),
+                json_encode($payload, JSON_UNESCAPED_UNICODE)
+            );
 
-        $protocol = $result['protocol'];
-        $success = true;
+            $protocol = $result['protocol'];
+            $success = true;
+        } catch (Exception $e) {
+            $error = 'Erro ao salvar: ' . $e->getMessage();
+        }
     }
 }
 ?>
