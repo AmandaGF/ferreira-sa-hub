@@ -1,6 +1,6 @@
 <?php
 /**
- * Limpa tabelas parciais e executa migracao_ferreiraesa_v2.sql
+ * Limpa tabelas parciais e executa migracao_ferreiraesa_v3.sql via mysqli_multi_query
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
@@ -8,11 +8,11 @@ set_time_limit(600);
 
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
+
+echo "=== Migração v3 (mysqli_multi_query) ===\n\n";
+
+// 1. Limpar tabelas parciais via PDO
 $pdo = db();
-
-echo "=== Migração v3 (corrigida) ===\n\n";
-
-// 1. Limpar tabelas parciais
 echo "1. Limpando tabelas parciais...\n";
 try {
     $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
@@ -29,84 +29,57 @@ try {
     echo "   ERRO limpeza: " . $e->getMessage() . "\n";
 }
 
-// 2. Executar SQL v2
+// 2. Executar SQL v3 via mysqli_multi_query
 $sqlFile = __DIR__ . '/migracao_ferreiraesa_v3.sql';
-if (!file_exists($sqlFile)) { die("Arquivo migracao_ferreiraesa_v2.sql não encontrado!\n"); }
+if (!file_exists($sqlFile)) { die("Arquivo migracao_ferreiraesa_v3.sql não encontrado!\n"); }
 
-echo "\n2. Executando SQL v2 (" . number_format(filesize($sqlFile)) . " bytes)...\n";
+echo "\n2. Executando SQL v3 via mysqli (" . number_format(filesize($sqlFile)) . " bytes)...\n";
 
 $sql = file_get_contents($sqlFile);
-$sql = preg_replace('/--.*$/m', '', $sql);
 
-// Dividir respeitando strings (não cortar ; dentro de aspas)
-$statements = array();
-$current = '';
-$inString = false;
-$len = strlen($sql);
-for ($j = 0; $j < $len; $j++) {
-    $ch = $sql[$j];
-    if ($ch === "'" && !$inString) { $inString = true; }
-    elseif ($ch === "'" && $inString) {
-        // Verificar escape ''
-        if ($j + 1 < $len && $sql[$j + 1] === "'") { $current .= $ch; $j++; $current .= $sql[$j]; continue; }
-        $inString = false;
-    }
-    if ($ch === ';' && !$inString) {
-        $stmt = trim($current);
-        if (strlen($stmt) > 5) $statements[] = $stmt;
-        $current = '';
-    } else {
-        $current .= $ch;
-    }
-}
-$stmt = trim($current);
-if (strlen($stmt) > 5) $statements[] = $stmt;
-$total = count($statements);
+$mysqli = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+$mysqli->set_charset('utf8mb4');
+if ($mysqli->connect_error) { die("Erro conexão: " . $mysqli->connect_error . "\n"); }
+
 $ok = 0;
 $errors = 0;
-$skipped = 0;
 
-foreach ($statements as $i => $stmt) {
-    if (empty($stmt) || strlen($stmt) < 5) { $skipped++; continue; }
-
-    try {
-        $pdo->exec($stmt);
+if ($mysqli->multi_query($sql)) {
+    do {
+        if ($result = $mysqli->store_result()) {
+            $result->free();
+        }
         $ok++;
-    } catch (PDOException $e) {
-        $msg = $e->getMessage();
-        if (strpos($msg, 'already exists') !== false || strpos($msg, 'Duplicate column') !== false || strpos($msg, 'Duplicate entry') !== false) {
-            $skipped++;
-        } else {
+        if ($mysqli->errno) {
             $errors++;
-            if ($errors <= 10) {
-                $preview = substr($stmt, 0, 100);
-                echo "   ERRO #$errors: $msg\n   SQL: $preview...\n\n";
+            if ($errors <= 15) {
+                echo "   ERRO #$errors: " . $mysqli->error . "\n";
             }
         }
-    }
-
-    if (($i + 1) % 50 === 0) {
-        echo "   Processado " . ($i + 1) . " / $total...\n";
-    }
+    } while ($mysqli->next_result());
 }
 
-echo "\n=== RESULTADO ===\n";
-echo "Statements: $total | OK: $ok | Ignorados: $skipped | Erros: $errors\n";
+if ($mysqli->errno) {
+    $errors++;
+    echo "   ERRO FINAL: " . $mysqli->error . "\n";
+}
+$mysqli->close();
 
-// 3. Verificação
+echo "\n=== RESULTADO ===\n";
+echo "Queries: $ok | Erros: $errors\n";
+
+// 3. Verificação via PDO
+$pdo = db();
 echo "\n=== VERIFICAÇÃO ===\n";
 $checks = array('clientes', 'processos', 'kanban_cards', 'log_auditoria');
 foreach ($checks as $t) {
     try {
         $count = $pdo->query("SELECT COUNT(*) FROM `$t`")->fetchColumn();
         echo "$t: $count registros\n";
-    } catch (Exception $e) {
-        echo "$t: ERRO\n";
-    }
+    } catch (Exception $e) { echo "$t: ERRO\n"; }
 }
 
-// Kanban por coluna
-echo "\nKanban cards por coluna:\n";
+echo "\nKanban por coluna:\n";
 try {
     $rows = $pdo->query("SELECT coluna_atual, COUNT(*) as qtd FROM kanban_cards GROUP BY coluna_atual ORDER BY qtd DESC")->fetchAll();
     foreach ($rows as $r) { echo "  {$r['coluna_atual']}: {$r['qtd']}\n"; }
