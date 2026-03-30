@@ -1,0 +1,62 @@
+<?php
+/**
+ * Ferreira & Sá Hub — Integração Google Drive
+ *
+ * Envia POST para um Google Apps Script que cria a pasta do caso no Drive.
+ * O Apps Script deve retornar JSON com { "folderUrl": "https://drive.google.com/..." }
+ *
+ * Para configurar:
+ * 1. Crie um Google Apps Script com doPost() que cria a pasta
+ * 2. Faça deploy como Web App (acesso: qualquer pessoa)
+ * 3. Coloque a URL no config.php: define('GOOGLE_APPS_SCRIPT_URL', 'https://script.google.com/...');
+ */
+
+function create_drive_folder($clientName, $caseType, $caseId, $caseTitle = '') {
+    // Verificar se a URL do Apps Script está configurada
+    if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
+        return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL não configurado no config.php');
+    }
+
+    $payload = json_encode(array(
+        'clientName'  => $clientName,
+        'caseType'    => $caseType,
+        'caseId'      => $caseId,
+        'caseTitle'   => $caseTitle,
+        'timestamp'   => date('Y-m-d H:i:s'),
+    ));
+
+    $ch = curl_init(GOOGLE_APPS_SCRIPT_URL);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($error) {
+        return array('success' => false, 'error' => 'cURL: ' . $error);
+    }
+
+    $data = json_decode($response, true);
+
+    if ($httpCode === 200 && isset($data['folderUrl'])) {
+        // Salvar URL da pasta no caso
+        $pdo = db();
+        $pdo->prepare("UPDATE cases SET drive_folder_url = ? WHERE id = ?")
+            ->execute(array($data['folderUrl'], $caseId));
+
+        audit_log('drive_folder_created', 'case', $caseId, $data['folderUrl']);
+
+        return array('success' => true, 'folderUrl' => $data['folderUrl']);
+    }
+
+    return array('success' => false, 'error' => 'HTTP ' . $httpCode . ': ' . $response);
+}

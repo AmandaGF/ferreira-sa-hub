@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/google_drive.php';
 require_min_role('gestao');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('pipeline')); }
@@ -108,7 +109,15 @@ switch ($action) {
                     ->execute(array($newCaseId, $leadId));
 
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline preparacao_pasta - lead: ' . $leadId);
-                notify_gestao('Caso aberto no Operacional', $lead['name'] . ' entrou em Preparação da Pasta.', 'pendencia', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '📂');
+
+                // Criar pasta no Google Drive (se configurado)
+                $driveResult = create_drive_folder($lead['name'], $caseType, $newCaseId, ($lead['case_type'] ?: 'Novo caso') . ' — ' . $lead['name']);
+                $driveMsg = '';
+                if ($driveResult['success']) {
+                    $driveMsg = ' Pasta criada no Drive!';
+                }
+
+                notify_gestao('Caso aberto no Operacional', $lead['name'] . ' entrou em Preparação da Pasta.' . $driveMsg, 'pendencia', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '📂');
             }
         }
 
