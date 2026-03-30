@@ -19,14 +19,16 @@ $canMove = can_move_operacional();
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
 
-// Colunas do board (conforme doc técnico)
+// Colunas do board (conforme doc técnico v2)
 $columns = array(
-    'aguardando_docs'        => array('label' => 'Contrato Assinado — Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
-    'em_elaboracao'          => array('label' => 'Pasta Apta',                           'color' => '#059669', 'icon' => '✔️'),
-    'em_andamento'           => array('label' => 'Em Execução',                          'color' => '#0ea5e9', 'icon' => '⚙️'),
-    'doc_faltante'           => array('label' => 'Documento Faltante',                   'color' => '#dc2626', 'icon' => '⚠️'),
-    'aguardando_prazo'       => array('label' => 'Aguardando Distribuição / Extrajudicial', 'color' => '#8b5cf6', 'icon' => '⏳'),
-    'distribuido'            => array('label' => 'Processo Distribuído',                  'color' => '#15803d', 'icon' => '🏛️'),
+    'aguardando_docs'        => array('label' => 'Contrato — Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
+    'em_elaboracao'          => array('label' => 'Pasta Apta',                  'color' => '#059669', 'icon' => '✔️'),
+    'em_andamento'           => array('label' => 'Em Execução',                 'color' => '#0ea5e9', 'icon' => '⚙️'),
+    'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
+    'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
+    'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
+    'parceria_previdenciario'=> array('label' => 'Parceria / Previdenciário',   'color' => '#06b6d4', 'icon' => '🤝'),
+    'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
 );
 
 // Construir query

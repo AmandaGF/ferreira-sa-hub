@@ -32,6 +32,12 @@ $menuItems = array(
     array('section' => 'Execução'),
     array('label' => 'Operacional',     'icon' => '⚙️', 'href' => url('modules/operacional/'),     'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
 
+    array('section' => 'Controle'),
+    array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Ofícios',         'icon' => '📬', 'href' => url('modules/oficios/'),          'id' => 'oficios',         'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Alvarás',         'icon' => '💰', 'href' => url('modules/alvaras/'),          'id' => 'alvaras',         'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Parceiros',       'icon' => '🤝', 'href' => url('modules/parceiros/'),        'id' => 'parceiros',       'roles' => array('admin','gestao')),
+
     array('section' => 'Dados'),
     array('label' => 'Documentos',      'icon' => '📜', 'href' => url('modules/documentos/'),      'id' => 'documentos',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Formulários',     'icon' => '📋', 'href' => url('modules/formularios/'),      'id' => 'formularios',     'roles' => array('admin','gestao')),

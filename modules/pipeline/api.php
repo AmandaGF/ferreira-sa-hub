@@ -22,7 +22,7 @@ switch ($action) {
         $notes = clean_str($_POST['notes'] ?? '', 500);
         $folderName = isset($_POST['folder_name']) ? clean_str($_POST['folder_name'], 200) : '';
 
-        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado','perdido');
+        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','cancelado','suspenso','finalizado','perdido');
         if (!$leadId || !in_array($toStage, $validStages)) {
             flash_set('error', 'Dados inválidos.');
             redirect(module_url('pipeline'));
