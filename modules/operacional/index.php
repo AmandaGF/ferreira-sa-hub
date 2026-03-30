@@ -48,7 +48,8 @@ $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'pendente') as pending_tasks,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'feito') as done_tasks
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'feito') as done_tasks,
+        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -199,8 +200,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($cs['deadline']): ?>
                         <div class="op-card-deadline <?= $isOverdue ? 'overdue' : '' ?>"><?= $isOverdue ? '⚠️ Vencido ' : '📅 ' ?><?= date('d/m', strtotime($cs['deadline'])) ?></div>
                     <?php endif; ?>
-                    <?php if ($colKey === 'doc_faltante' && $cs['stage_antes_doc_faltante']): ?>
-                        <div class="op-card-doc-alert">⚠️ Documento faltante — aguardando CX</div>
+                    <?php if ($colKey === 'doc_faltante'): ?>
+                        <div class="op-card-doc-alert">⚠️ <?= e($cs['doc_faltante_desc'] ?: 'Documento faltante — aguardando CX') ?></div>
                     <?php endif; ?>
 
                     <!-- Mover rápido -->
@@ -319,7 +320,10 @@ function confirmDocFaltante() {
         var input = document.createElement('input');
         input.type = 'hidden'; input.name = 'doc_faltante_desc'; input.value = desc;
         _pendingOpForm.appendChild(input);
-        _pendingOpForm.querySelector('select').value = 'doc_faltante';
+        // Forçar new_status via hidden (select pode ter sido resetado)
+        var statusInput = document.createElement('input');
+        statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'doc_faltante';
+        _pendingOpForm.appendChild(statusInput);
         _pendingOpForm.submit();
     }
 }
@@ -352,7 +356,10 @@ function confirmProcesso() {
             input.type = 'hidden'; input.name = k; input.value = fields[k];
             _pendingOpForm.appendChild(input);
         }
-        _pendingOpForm.querySelector('select').value = 'distribuido';
+        // Forçar new_status via hidden
+        var statusInput = document.createElement('input');
+        statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'distribuido';
+        _pendingOpForm.appendChild(statusInput);
         _pendingOpForm.submit();
     }
 }
