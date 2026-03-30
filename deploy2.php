@@ -74,6 +74,8 @@ for ($i = 0; $i < $za->numFiles; $i++) {
     if (strpos($name, $prefix) !== 0) continue;
     $rel = substr($name, $prefixLen);
     if ($rel === '' || $rel === false) continue;
+    // NUNCA sobrescrever config.php e deploy2.php durante extração
+    if ($rel === 'core/config.php' || $rel === 'deploy2.php') continue;
     $target = $dir . '/' . $rel;
     if (substr($name, -1) === '/') {
         if (!is_dir($target)) { @mkdir($target, 0755, true); }
