@@ -18,6 +18,7 @@ switch ($action) {
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $toStage = $_POST['to_stage'] ?? '';
         $notes = clean_str($_POST['notes'] ?? '', 500);
+        $folderName = isset($_POST['folder_name']) ? clean_str($_POST['folder_name'], 200) : '';
 
         $validStages = ['novo','contato_inicial','agendado','proposta','elaboracao','contrato','preparacao_pasta','pasta_apta','finalizado','perdido'];
         if (!$leadId || !in_array($toStage, $validStages)) {
@@ -91,15 +92,18 @@ switch ($action) {
                     }
                 }
 
+                // Título do caso = nome da pasta (digitado pelo usuário) ou fallback
+                $caseTitle = $folderName ? $folderName : (($lead['case_type'] ?: 'Novo caso') . ' — ' . $lead['name']);
+
                 $pdo->prepare(
                     "INSERT INTO cases (client_id, title, case_type, status, priority, responsible_user_id, opened_at, notes)
                      VALUES (?,?,?,'aguardando_docs','normal',?,CURDATE(),?)"
                 )->execute(array(
                     $clientId,
-                    ($lead['case_type'] ?: 'Novo caso') . ' — ' . $lead['name'],
+                    $caseTitle,
                     $caseType,
                     $lead['assigned_to'],
-                    'Preparação da pasta. Origem: Pipeline.'
+                    'Preparação da pasta. Origem: Pipeline.' . ($folderName ? ' Pasta: ' . $folderName : '')
                 ));
                 $newCaseId = (int)$pdo->lastInsertId();
                 generate_case_checklist($newCaseId, $caseType);
@@ -111,7 +115,8 @@ switch ($action) {
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline preparacao_pasta - lead: ' . $leadId);
 
                 // Criar pasta no Google Drive (se configurado)
-                $driveResult = create_drive_folder($lead['name'], $caseType, $newCaseId, ($lead['case_type'] ?: 'Novo caso') . ' — ' . $lead['name']);
+                $driveFolderName = $folderName ? $folderName : ($lead['name'] . ($lead['case_type'] ? ' x ' . $lead['case_type'] : ''));
+                $driveResult = create_drive_folder($driveFolderName, $caseType, $newCaseId, $caseTitle);
                 $driveMsg = '';
                 if ($driveResult['success']) {
                     $driveMsg = ' Pasta criada no Drive!';

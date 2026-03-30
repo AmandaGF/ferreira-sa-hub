@@ -18,6 +18,7 @@ function create_drive_folder($clientName, $caseType, $caseId, $caseTitle = '') {
     }
 
     $payload = json_encode(array(
+        'folderName'  => $clientName,
         'clientName'  => $clientName,
         'caseType'    => $caseType,
         'caseId'      => $caseId,

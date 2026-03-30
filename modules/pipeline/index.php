@@ -154,11 +154,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="lead-days"><?= $lead['days_in_pipeline'] ?> dias no funil</div>
 
                     <div class="lead-actions" onclick="event.stopPropagation();">
-                        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:flex;gap:.25rem;">
+                        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:flex;gap:.25rem;" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
                             <?= csrf_input() ?>
                             <input type="hidden" name="action" value="move">
                             <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
-                            <select name="to_stage" onchange="this.form.submit()">
+                            <input type="hidden" name="folder_name" value="">
+                            <select name="to_stage" onchange="handleStageMove(this)">
                                 <option value="">Mover →</option>
                                 <?php foreach ($stages as $sk => $sv): ?>
                                     <?php if ($sk !== $stageKey): ?>
@@ -183,9 +184,94 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .kanban-body.drag-over { background:rgba(215,171,144,.15); border:2px dashed var(--rose); border-radius:var(--radius); }
 </style>
 
+<!-- Modal: Nome da Pasta -->
+<div id="folderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.25rem;">📂 Nome da Pasta no Drive</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Digite como quer que a pasta seja criada (ex: Ana Maria Braga x Pensão)</p>
+        <input type="text" id="folderNameInput" style="width:100%;padding:.65rem .85rem;font-size:.95rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;" placeholder="Nome da pasta...">
+        <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
+            <button onclick="closeFolderModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;color:#6b7280;">Cancelar</button>
+            <button onclick="confirmFolder()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Criar Pasta →</button>
+        </div>
+    </div>
+</div>
+
 <script>
+var _pendingForm = null;
+var _pendingDragData = null;
+
+// Quando seleciona no dropdown "Mover →"
+function handleStageMove(select) {
+    var stage = select.value;
+    if (!stage) return;
+    var form = select.closest('form');
+
+    if (stage === 'preparacao_pasta') {
+        // Abrir modal para digitar nome da pasta
+        var leadName = form.dataset.leadName || '';
+        var caseType = form.dataset.caseType || '';
+        var sugestao = leadName + (caseType ? ' x ' + caseType : '');
+        document.getElementById('folderNameInput').value = sugestao;
+        document.getElementById('folderModal').style.display = 'flex';
+        document.getElementById('folderNameInput').focus();
+        document.getElementById('folderNameInput').select();
+        _pendingForm = form;
+        _pendingDragData = null;
+    } else {
+        form.submit();
+    }
+}
+
+function closeFolderModal() {
+    document.getElementById('folderModal').style.display = 'none';
+    // Resetar select se veio do dropdown
+    if (_pendingForm) {
+        var sel = _pendingForm.querySelector('select[name="to_stage"]');
+        if (sel) sel.value = '';
+    }
+    _pendingForm = null;
+    _pendingDragData = null;
+}
+
+function confirmFolder() {
+    var folderName = document.getElementById('folderNameInput').value.trim();
+    if (!folderName) {
+        document.getElementById('folderNameInput').style.borderColor = '#ef4444';
+        return;
+    }
+
+    document.getElementById('folderModal').style.display = 'none';
+
+    if (_pendingForm) {
+        // Veio do dropdown
+        _pendingForm.querySelector('input[name="folder_name"]').value = folderName;
+        _pendingForm.submit();
+    } else if (_pendingDragData) {
+        // Veio do drag-and-drop
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = _pendingDragData.apiUrl;
+        form.innerHTML = '<input type="hidden" name="csrf_token" value="' + _pendingDragData.csrfToken + '">' +
+            '<input type="hidden" name="action" value="move">' +
+            '<input type="hidden" name="lead_id" value="' + _pendingDragData.leadId + '">' +
+            '<input type="hidden" name="to_stage" value="preparacao_pasta">' +
+            '<input type="hidden" name="folder_name" value="' + folderName.replace(/"/g, '&quot;') + '">';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Enter para confirmar
+document.getElementById('folderNameInput').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') confirmFolder();
+    if (e.key === 'Escape') closeFolderModal();
+});
+
 (function() {
     var draggedId = null;
+    var draggedName = '';
+    var draggedType = '';
     window._dragging = false;
     var csrfToken = '<?= generate_csrf_token() ?>';
     var apiUrl = '<?= module_url("pipeline", "api.php") ?>';
@@ -194,6 +280,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     document.querySelectorAll('.lead-card[draggable]').forEach(function(card) {
         card.addEventListener('dragstart', function(e) {
             draggedId = this.dataset.leadId;
+            // Pegar nome e tipo do card
+            var nameEl = this.querySelector('.lead-name');
+            draggedName = nameEl ? nameEl.textContent.trim() : '';
+            var form = this.querySelector('form');
+            draggedType = form ? (form.dataset.caseType || '') : '';
             window._dragging = true;
             this.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
@@ -225,16 +316,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
             var toStage = this.dataset.stage;
             if (!draggedId || !toStage) return;
 
-            // Enviar via form hidden
-            var form = document.createElement('form');
-            form.method = 'POST';
-            form.action = apiUrl;
-            form.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
-                '<input type="hidden" name="action" value="move">' +
-                '<input type="hidden" name="lead_id" value="' + draggedId + '">' +
-                '<input type="hidden" name="to_stage" value="' + toStage + '">';
-            document.body.appendChild(form);
-            form.submit();
+            if (toStage === 'preparacao_pasta') {
+                // Abrir modal
+                var sugestao = draggedName + (draggedType ? ' x ' + draggedType : '');
+                document.getElementById('folderNameInput').value = sugestao;
+                document.getElementById('folderModal').style.display = 'flex';
+                document.getElementById('folderNameInput').focus();
+                document.getElementById('folderNameInput').select();
+                _pendingForm = null;
+                _pendingDragData = { leadId: draggedId, csrfToken: csrfToken, apiUrl: apiUrl };
+            } else {
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = apiUrl;
+                form.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrfToken + '">' +
+                    '<input type="hidden" name="action" value="move">' +
+                    '<input type="hidden" name="lead_id" value="' + draggedId + '">' +
+                    '<input type="hidden" name="to_stage" value="' + toStage + '">';
+                document.body.appendChild(form);
+                form.submit();
+            }
         });
     });
 })();
