@@ -1,6 +1,7 @@
 <?php
 /**
- * Ferreira & Sá Hub — API do Pipeline
+ * Ferreira & Sá Hub — API do Pipeline Comercial/CX
+ * Gatilhos automáticos conforme doc técnico Kanban v2
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -20,198 +21,155 @@ switch ($action) {
         $notes = clean_str($_POST['notes'] ?? '', 500);
         $folderName = isset($_POST['folder_name']) ? clean_str($_POST['folder_name'], 200) : '';
 
-        $validStages = ['novo','contato_inicial','agendado','proposta','elaboracao','contrato','preparacao_pasta','pasta_apta','finalizado','perdido'];
+        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado','perdido');
         if (!$leadId || !in_array($toStage, $validStages)) {
             flash_set('error', 'Dados inválidos.');
             redirect(module_url('pipeline'));
         }
 
         $stmt = $pdo->prepare('SELECT * FROM pipeline_leads WHERE id = ?');
-        $stmt->execute([$leadId]);
+        $stmt->execute(array($leadId));
         $lead = $stmt->fetch();
         if (!$lead) { flash_set('error', 'Lead não encontrado.'); redirect(module_url('pipeline')); }
 
         $fromStage = $lead['stage'];
 
         // Atualizar estágio
-        if ($toStage === 'contrato') {
-            $pdo->prepare('UPDATE pipeline_leads SET stage=?, converted_at=NOW(), updated_at=NOW() WHERE id=?')
-                ->execute([$toStage, $leadId]);
-        } else {
-            $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
-                ->execute([$toStage, $leadId]);
-        }
+        $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
+            ->execute(array($toStage, $leadId));
 
         // Se perdido, salvar motivo
         if ($toStage === 'perdido' && $notes) {
             $pdo->prepare('UPDATE pipeline_leads SET lost_reason=? WHERE id=?')
-                ->execute([$notes, $leadId]);
+                ->execute(array($notes, $leadId));
         }
 
         // Registrar histórico
         $pdo->prepare('INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)')
-            ->execute([$leadId, $fromStage, $toStage, current_user_id(), $notes ?: null]);
+            ->execute(array($leadId, $fromStage, $toStage, current_user_id(), $notes ?: null));
 
         audit_log('lead_moved', 'lead', $leadId, "$fromStage -> $toStage");
 
-        // ── PREPARAÇÃO DA PASTA: criar caso no Operacional ──
-        if ($toStage === 'preparacao_pasta') {
+        // ═══════════════════════════════════════════════════
+        // GATILHOS AUTOMÁTICOS
+        // ═══════════════════════════════════════════════════
+
+        // ── CONTRATO ASSINADO: criar pasta Drive + caso no Operacional ──
+        if ($toStage === 'contrato_assinado') {
+            $pdo->prepare('UPDATE pipeline_leads SET converted_at=NOW() WHERE id=? AND converted_at IS NULL')
+                ->execute(array($leadId));
+
+            // Criar/buscar cliente
+            $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
+            if (!$clientId) {
+                $pdo->prepare(
+                    'INSERT INTO clients (name, phone, email, source, notes, created_by) VALUES (?,?,?,?,?,?)'
+                )->execute(array(
+                    $lead['name'], $lead['phone'], $lead['email'],
+                    $lead['source'], 'Convertido do Pipeline. Tipo: ' . ($lead['case_type'] ?: 'N/I'),
+                    current_user_id()
+                ));
+                $clientId = (int)$pdo->lastInsertId();
+                $pdo->prepare('UPDATE pipeline_leads SET client_id=? WHERE id=?')
+                    ->execute(array($clientId, $leadId));
+            }
+
+            // Título do caso
+            $caseTitle = $folderName ? $folderName : ($lead['name'] . ($lead['case_type'] ? ' x ' . $lead['case_type'] : ''));
+
             // Verificar se já tem caso vinculado
-            $existingCase = isset($lead['linked_case_id']) && $lead['linked_case_id']
-                ? (int)$lead['linked_case_id'] : 0;
+            $existingCase = isset($lead['linked_case_id']) && $lead['linked_case_id'] ? (int)$lead['linked_case_id'] : 0;
 
             if (!$existingCase) {
-                // Criar/buscar cliente
-                $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
-                if (!$clientId) {
-                    // Criar cliente
-                    $pdo->prepare(
-                        'INSERT INTO clients (name, phone, email, source, notes, created_by) VALUES (?,?,?,?,?,?)'
-                    )->execute(array(
-                        $lead['name'], $lead['phone'], $lead['email'],
-                        $lead['source'], 'Convertido do Pipeline. Tipo: ' . ($lead['case_type'] ?: 'N/I'),
-                        current_user_id()
-                    ));
-                    $clientId = (int)$pdo->lastInsertId();
-                    $pdo->prepare('UPDATE pipeline_leads SET client_id=? WHERE id=?')
-                        ->execute(array($clientId, $leadId));
-                }
-
-                // Criar caso no Operacional (status: aguardando_docs)
+                // Criar caso no Operacional (status: aguardando_docs = contrato assinado aguardando documentação)
                 $caseType = 'outro';
                 if ($lead['case_type']) {
-                    $typeMap = array(
-                        'divórcio' => 'divorcio', 'divorcio' => 'divorcio',
-                        'pensão' => 'pensao', 'pensao' => 'pensao', 'alimentos' => 'pensao',
-                        'guarda' => 'guarda', 'convivência' => 'convivencia', 'convivencia' => 'convivencia',
-                        'inventário' => 'inventario', 'inventario' => 'inventario',
-                    );
+                    $typeMap = array('divórcio'=>'divorcio','divorcio'=>'divorcio','pensão'=>'pensao','pensao'=>'pensao','alimentos'=>'pensao','guarda'=>'guarda','convivência'=>'convivencia','convivencia'=>'convivencia','inventário'=>'inventario','inventario'=>'inventario');
                     $lowerType = mb_strtolower($lead['case_type']);
                     foreach ($typeMap as $key => $val) {
                         if (strpos($lowerType, $key) !== false) { $caseType = $val; break; }
                     }
                 }
 
-                // Título do caso = nome da pasta (digitado pelo usuário) ou fallback
-                $caseTitle = $folderName ? $folderName : (($lead['case_type'] ?: 'Novo caso') . ' — ' . $lead['name']);
-
                 $pdo->prepare(
                     "INSERT INTO cases (client_id, title, case_type, status, priority, responsible_user_id, opened_at, notes)
                      VALUES (?,?,?,'aguardando_docs','normal',?,CURDATE(),?)"
                 )->execute(array(
-                    $clientId,
-                    $caseTitle,
-                    $caseType,
-                    $lead['assigned_to'],
-                    'Preparação da pasta. Origem: Pipeline.' . ($folderName ? ' Pasta: ' . $folderName : '')
+                    $clientId, $caseTitle, $caseType, $lead['assigned_to'],
+                    'Contrato assinado. Aguardando documentação. Origem: Pipeline.'
                 ));
                 $newCaseId = (int)$pdo->lastInsertId();
                 generate_case_checklist($newCaseId, $caseType);
 
-                // Vincular caso ao lead
                 $pdo->prepare('UPDATE pipeline_leads SET linked_case_id=? WHERE id=?')
                     ->execute(array($newCaseId, $leadId));
 
-                audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline preparacao_pasta - lead: ' . $leadId);
-
-                // Criar pasta no Google Drive (se configurado)
+                // Criar pasta no Google Drive
                 $driveFolderName = $folderName ? $folderName : ($lead['name'] . ($lead['case_type'] ? ' x ' . $lead['case_type'] : ''));
                 $driveResult = create_drive_folder($driveFolderName, $caseType, $newCaseId, $caseTitle);
-                $driveMsg = '';
-                if ($driveResult['success']) {
-                    $driveMsg = ' Pasta criada no Drive!';
-                }
 
-                notify_gestao('Caso aberto no Operacional', $lead['name'] . ' entrou em Preparação da Pasta.' . $driveMsg, 'pendencia', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '📂');
+                audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline contrato_assinado - lead: ' . $leadId);
+                notify_gestao('Contrato assinado!', $lead['name'] . ' — Caso criado no Operacional.' . ($driveResult['success'] ? ' Pasta criada no Drive!' : ''), 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '✅');
             }
         }
 
-        // Notificações por evento
-        $lName = $lead['name'];
-        if ($toStage === 'contrato') {
-            notify_gestao('Contrato assinado!', $lName . ' avançou para Contrato Assinado.', 'sucesso', url('modules/pipeline/'), '✅');
-        } elseif ($toStage === 'pasta_apta') {
-            notify_gestao('Pasta apta!', $lName . ' está com pasta apta.', 'sucesso', url('modules/pipeline/'), '✔️');
-        } elseif ($toStage === 'perdido') {
-            notify_gestao('Lead perdido', $lName . ' foi marcado como perdido.', 'alerta', url('modules/pipeline/'), '❌');
+        // ── PASTA APTA: espelhar no Operacional ──
+        if ($toStage === 'pasta_apta') {
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                // Atualizar caso no Operacional para "pasta_apta" (em_elaboracao)
+                $pdo->prepare("UPDATE cases SET status = 'em_elaboracao', updated_at = NOW() WHERE id = ? AND status = 'aguardando_docs'")
+                    ->execute(array($linkedCaseId));
+                notify_gestao('Pasta apta!', $lead['name'] . ' está com pasta apta. Operacional pode executar.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $linkedCaseId), '✔️');
+            }
         }
 
-        $stageLabels = array('novo'=>'Novo','contato_inicial'=>'Contato Inicial','agendado'=>'Agendado','proposta'=>'Proposta','elaboracao'=>'Elaboração Contrato','contrato'=>'Contrato Assinado','preparacao_pasta'=>'Preparação da Pasta','pasta_apta'=>'Pasta Apta','perdido'=>'Perdido');
+        // ── DOC FALTANTE RESOLVIDO (CX resolve): retornar ao Operacional ──
+        if ($fromStage === 'doc_faltante' && $toStage !== 'doc_faltante') {
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                // Retornar caso para "em_andamento" (em execução)
+                $pdo->prepare("UPDATE cases SET status = 'em_andamento', stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ? AND status = 'doc_faltante'")
+                    ->execute(array($linkedCaseId));
+
+                // Marcar documentos pendentes como recebidos
+                $pdo->prepare("UPDATE documentos_pendentes SET status = 'recebido', recebido_em = NOW(), recebido_por = ? WHERE lead_id = ? AND status = 'pendente'")
+                    ->execute(array(current_user_id(), $leadId));
+
+                notify_gestao('Documento recebido!', $lead['name'] . ' — documento recebido, caso retornou para execução.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $linkedCaseId), '📄');
+            }
+        }
+
+        // Labels para flash
+        $stageLabels = array('cadastro_preenchido'=>'Cadastro Preenchido','elaboracao_docs'=>'Elaboração Docs','link_enviados'=>'Link Enviados','contrato_assinado'=>'Contrato Assinado','agendado_docs'=>'Agendado + Docs','reuniao_cobranca'=>'Reunião/Cobrança','doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','perdido'=>'Perdido');
         flash_set('success', 'Lead movido para "' . (isset($stageLabels[$toStage]) ? $stageLabels[$toStage] : $toStage) . '".');
         redirect(module_url('pipeline'));
         break;
 
     case 'convert':
+        // Manter compatibilidade
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $stmt = $pdo->prepare('SELECT * FROM pipeline_leads WHERE id = ?');
-        $stmt->execute([$leadId]);
+        $stmt->execute(array($leadId));
         $lead = $stmt->fetch();
-
         if (!$lead) { flash_set('error', 'Lead não encontrado.'); redirect(module_url('pipeline')); }
 
-        // Criar cliente no CRM
-        $pdo->prepare(
-            'INSERT INTO clients (name, phone, email, source, notes, created_by) VALUES (?,?,?,?,?,?)'
-        )->execute([
-            $lead['name'],
-            $lead['phone'],
-            $lead['email'],
-            $lead['source'],
-            'Convertido do Pipeline. Tipo: ' . ($lead['case_type'] ?: 'N/I'),
-            current_user_id()
-        ]);
-        $clientId = (int)$pdo->lastInsertId();
-
-        // Vincular lead ao cliente
-        $pdo->prepare('UPDATE pipeline_leads SET client_id=? WHERE id=?')
-            ->execute([$clientId, $leadId]);
-
-        // Criar caso se tiver tipo
-        if ($lead['case_type']) {
-            $caseType = 'outro';
-            $typeMap = [
-                'divórcio' => 'divorcio', 'divorcio' => 'divorcio',
-                'pensão' => 'pensao', 'pensao' => 'pensao', 'alimentos' => 'pensao',
-                'guarda' => 'guarda', 'convivência' => 'convivencia', 'convivencia' => 'convivencia',
-                'inventário' => 'inventario', 'inventario' => 'inventario',
-                'família' => 'familia', 'familia' => 'familia',
-                'responsabilidade' => 'responsabilidade_civil',
-            ];
-            $lowerType = mb_strtolower($lead['case_type']);
-            foreach ($typeMap as $key => $val) {
-                if (strpos($lowerType, $key) !== false) { $caseType = $val; break; }
-            }
-
-            $pdo->prepare(
-                'INSERT INTO cases (client_id, title, case_type, priority, responsible_user_id, opened_at)
-                 VALUES (?,?,?,?,?,CURDATE())'
-            )->execute([
-                $clientId,
-                $lead['case_type'] . ' — ' . $lead['name'],
-                $caseType,
-                'normal',
-                $lead['assigned_to']
-            ]);
+        $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
+        if (!$clientId) {
+            $pdo->prepare('INSERT INTO clients (name, phone, email, source, notes, created_by) VALUES (?,?,?,?,?,?)')
+                ->execute(array($lead['name'], $lead['phone'], $lead['email'], $lead['source'], 'Convertido do Pipeline', current_user_id()));
+            $clientId = (int)$pdo->lastInsertId();
+            $pdo->prepare('UPDATE pipeline_leads SET client_id=? WHERE id=?')->execute(array($clientId, $leadId));
         }
-
-        // Gerar checklist automático para o caso
-        if ($lead['case_type']) {
-            $lastCaseId = (int)$pdo->lastInsertId();
-            if ($lastCaseId) {
-                generate_case_checklist($lastCaseId, $lead['case_type']);
-            }
-        }
-
-        audit_log('lead_converted', 'lead', $leadId, "client_id: $clientId");
-        notify_gestao('Lead convertido em cliente', $lead['name'] . ' foi convertido e registrado no CRM.', 'sucesso', url('modules/crm/cliente_ver.php?id=' . $clientId), '🎉');
-        flash_set('success', 'Cliente criado no CRM! Lead convertido.');
+        flash_set('success', 'Cliente criado!');
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
     case 'delete':
         $leadId = (int)($_POST['lead_id'] ?? 0);
         if ($leadId) {
-            $pdo->prepare('DELETE FROM pipeline_leads WHERE id = ?')->execute([$leadId]);
+            $pdo->prepare('DELETE FROM pipeline_history WHERE lead_id = ?')->execute(array($leadId));
+            $pdo->prepare('DELETE FROM pipeline_leads WHERE id = ?')->execute(array($leadId));
             audit_log('lead_deleted', 'lead', $leadId);
             flash_set('success', 'Lead excluído.');
         }

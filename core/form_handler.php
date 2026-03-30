@@ -95,21 +95,21 @@ function process_form_submission($formType, $clientData, $payloadJson)
         $pdo->prepare("UPDATE form_submissions SET linked_client_id = ? WHERE id = ?")
             ->execute(array($clientId, $submissionId));
 
-        // 3. Auto-criar lead no Pipeline (estágio: elaboração)
+        // 3. Auto-criar lead no Pipeline (estágio: cadastro_preenchido)
         $existingLead = null;
         if ($phone) {
-            $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato','finalizado','perdido') LIMIT 1");
+            $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato_assinado','finalizado','perdido') LIMIT 1");
             $check->execute(array($phone));
             $existingLead = $check->fetch();
         }
 
         if (!$existingLead) {
             $pdo->prepare(
-                "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'elaboracao', ?, NOW())"
+                "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'cadastro_preenchido', ?, NOW())"
             )->execute(array($name, $phone, $email, $clientId));
             $leadId = (int)$pdo->lastInsertId();
 
-            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'elaboracao', NOW())")
+            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'cadastro_preenchido', NOW())")
                 ->execute(array($leadId));
         }
     }
