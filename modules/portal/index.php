@@ -447,7 +447,7 @@ var linksData = <?= json_encode(array_map(function($l) {
         try { $pass = decrypt_value($l['password_encrypted']); } catch(Exception $e) {}
     }
     return [
-        'id' => $l['id'],
+        'id' => (int)$l['id'],
         'title' => $l['title'],
         'url' => $l['url'],
         'username' => $l['username'],
@@ -455,8 +455,8 @@ var linksData = <?= json_encode(array_map(function($l) {
         'hint' => $l['hint'],
         'category' => $l['category'],
         'audience' => $l['audience'],
-        'is_favorite' => $l['is_favorite'],
-        'sort_order' => $l['sort_order'],
+        'is_favorite' => (int)$l['is_favorite'],
+        'sort_order' => (int)$l['sort_order'],
     ];
 }, $links), JSON_UNESCAPED_UNICODE) ?>;
 
