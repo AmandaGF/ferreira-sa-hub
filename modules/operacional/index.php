@@ -272,7 +272,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <script>
 var _pendingOpForm = null;
-var csrfToken = '<?= csrf_token() ?>';
+var csrfToken = '<?= generate_csrf_token() ?>';
 
 function handleOpMove(select) {
     var status = select.value;
