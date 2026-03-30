@@ -91,20 +91,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-del:hover { opacity:1; }
 </style>
 
-<!-- Banner: Documentos Pendentes -->
-<?php if (!empty($docsPendentes)): ?>
-<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:12px;padding:1rem 1.25rem;margin-bottom:1rem;">
-    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
-        <span style="font-size:1.2rem;">⚠️</span>
-        <strong style="font-size:.88rem;color:#dc2626;"><?= count($docsPendentes) ?> documento(s) faltante(s) — CX precisa providenciar</strong>
+<!-- Banner: Documentos Pendentes (colapsável) -->
+<?php if (!empty($docsPendentes)):
+    $docsByClientP = array();
+    foreach ($docsPendentes as $dp) {
+        $key = $dp['client_name'] ?: 'Cliente';
+        if (!isset($docsByClientP[$key])) $docsByClientP[$key] = array();
+        $docsByClientP[$key][] = $dp;
+    }
+?>
+<div style="background:#fef2f2;border:2px solid #fecaca;border-radius:12px;padding:.75rem 1rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="var el=document.getElementById('docsExpandP');el.style.display=el.style.display==='none'?'block':'none';this.querySelector('.chevron').textContent=el.style.display==='none'?'▸':'▾';">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="font-size:1rem;">⚠️</span>
+            <strong style="font-size:.82rem;color:#dc2626;"><?= count($docsPendentes) ?> doc(s) faltante(s) — CX precisa providenciar</strong>
+        </div>
+        <span class="chevron" style="font-size:.8rem;color:#dc2626;">▸</span>
     </div>
-    <?php foreach ($docsPendentes as $dp): ?>
-    <div style="display:flex;align-items:center;gap:.75rem;padding:.4rem 0;border-top:1px solid #fecaca;">
-        <span style="font-size:.78rem;font-weight:700;color:#052228;"><?= e($dp['client_name'] ?: 'Cliente') ?></span>
-        <span style="font-size:.75rem;color:#dc2626;font-weight:600;">→ <?= e($dp['descricao']) ?></span>
-        <span style="font-size:.65rem;color:#6b7280;margin-left:auto;"><?= date('d/m H:i', strtotime($dp['solicitado_em'])) ?></span>
+    <div id="docsExpandP" style="display:none;margin-top:.5rem;">
+        <?php foreach ($docsByClientP as $clientName => $docs): ?>
+        <div style="padding:.4rem 0;border-top:1px solid #fecaca;">
+            <div style="font-size:.78rem;font-weight:700;color:#052228;">👤 <?= e($clientName) ?></div>
+            <?php foreach ($docs as $dp): ?>
+            <div style="display:flex;align-items:center;gap:.5rem;padding:.15rem 0 .15rem 1.2rem;">
+                <span style="font-size:.72rem;color:#dc2626;font-weight:600;">→ <?= e($dp['descricao']) ?></span>
+                <span style="font-size:.6rem;color:#6b7280;margin-left:auto;"><?= date('d/m H:i', strtotime($dp['solicitado_em'])) ?></span>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endforeach; ?>
     </div>
-    <?php endforeach; ?>
 </div>
 <?php endif; ?>
 
