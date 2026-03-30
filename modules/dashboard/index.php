@@ -18,21 +18,29 @@ $firstName = explode(' ', $user['name'])[0];
 $leadsHoje = 0;
 try { $leadsHoje = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE DATE(created_at) = CURDATE()")->fetchColumn(); } catch (Exception $e) {}
 
-// Leads ativos no pipeline
+// Leads ativos no pipeline (exceto finalizados e perdidos)
 $leadsAtivos = 0;
-try { $leadsAtivos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage NOT IN ('contrato','perdido')")->fetchColumn(); } catch (Exception $e) {}
+try { $leadsAtivos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage NOT IN ('finalizado','perdido')")->fetchColumn(); } catch (Exception $e) {}
 
-// Contratos assinados (total)
+// Contratos assinados (total — inclui todos que passaram por contrato_assinado)
 $contratos = 0;
-try { $contratos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'contrato'")->fetchColumn(); } catch (Exception $e) {}
+try { $contratos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado')")->fetchColumn(); } catch (Exception $e) {}
 
 // Contratos este mês
 $contratosMes = 0;
-try { $contratosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'contrato' AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
+try { $contratosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND MONTH(converted_at) = MONTH(CURDATE()) AND YEAR(converted_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
 
-// Casos em execução
+// Perdidos este mês
+$perdidosMes = 0;
+try { $perdidosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'perdido' AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
+
+// Casos em execução (operacional)
 $casosExecucao = 0;
-try { $casosExecucao = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status IN ('ativo','em_andamento','em_execucao')")->fetchColumn(); } catch (Exception $e) {}
+try { $casosExecucao = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status NOT IN ('concluido','arquivado')")->fetchColumn(); } catch (Exception $e) {}
+
+// Docs faltantes
+$docsFaltantes = 0;
+try { $docsFaltantes = (int)$pdo->query("SELECT COUNT(*) FROM documentos_pendentes WHERE status = 'pendente'")->fetchColumn(); } catch (Exception $e) {}
 
 // Pendências (formulários novos + tickets abertos)
 $formsPendentes = 0;
@@ -60,7 +68,7 @@ for ($i = 5; $i >= 0; $i--) {
     $convertidos = 0;
     try {
         $total = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE DATE_FORMAT(created_at, '%Y-%m') = '$mes'")->fetchColumn();
-        $convertidos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'contrato' AND DATE_FORMAT(updated_at, '%Y-%m') = '$mes'")->fetchColumn();
+        $convertidos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at, '%Y-%m') = '$mes'")->fetchColumn();
     } catch (Exception $e) {}
     $convData[] = $total > 0 ? round(($convertidos / $total) * 100) : 0;
 }
@@ -72,8 +80,8 @@ $prodContratos = array();
 try {
     $prodRows = $pdo->query(
         "SELECT u.name,
-         (SELECT COUNT(*) FROM cases c WHERE c.responsible_user_id = u.id AND c.status IN ('ativo','em_andamento','em_execucao')) as casos,
-         (SELECT COUNT(*) FROM pipeline_leads pl WHERE pl.assigned_to = u.id AND pl.stage = 'contrato') as contratos
+         (SELECT COUNT(*) FROM cases c WHERE c.responsible_user_id = u.id AND c.status NOT IN ('concluido','arquivado')) as casos,
+         (SELECT COUNT(*) FROM pipeline_leads pl WHERE pl.assigned_to = u.id AND pl.converted_at IS NOT NULL) as contratos
          FROM users u WHERE u.is_active = 1 ORDER BY u.name"
     )->fetchAll();
     foreach ($prodRows as $r) {
@@ -131,8 +139,9 @@ try {
 
 // ─── Pipeline por estágio (para gráfico de funil) ──────
 $pipeStages = array(
-    'novo' => 0, 'contato_inicial' => 0, 'agendado' => 0,
-    'proposta' => 0, 'elaboracao' => 0, 'contrato' => 0, 'perdido' => 0
+    'cadastro_preenchido' => 0, 'elaboracao_docs' => 0, 'link_enviados' => 0,
+    'contrato_assinado' => 0, 'agendado_docs' => 0, 'reuniao_cobranca' => 0,
+    'pasta_apta' => 0, 'perdido' => 0
 );
 try {
     $rows = $pdo->query("SELECT stage, COUNT(*) as total FROM pipeline_leads GROUP BY stage")->fetchAll();
@@ -331,26 +340,55 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <div class="kpi-card">
-        <div class="kpi-icon red">⚠️</div>
+        <div class="kpi-icon red">❌</div>
+        <div>
+            <div class="kpi-value"><?= $perdidosMes ?></div>
+            <div class="kpi-label">Perdidos no mês</div>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs secundários -->
+<div class="kpi-grid" style="margin-bottom:1.25rem;">
+    <div class="kpi-card">
+        <div class="kpi-icon rose">⚠️</div>
         <div>
             <div class="kpi-value"><?= $pendencias ?></div>
             <div class="kpi-label">Pendências</div>
             <div class="kpi-sub"><?= $formsPendentes ?> forms · <?= $ticketsAbertos ?> tickets</div>
         </div>
     </div>
+    <?php if ($docsFaltantes > 0): ?>
+    <div class="kpi-card">
+        <div class="kpi-icon red">📄</div>
+        <div>
+            <div class="kpi-value"><?= $docsFaltantes ?></div>
+            <div class="kpi-label">Docs faltantes</div>
+        </div>
+    </div>
+    <?php endif; ?>
+    <div class="kpi-card">
+        <div class="kpi-icon blue">👥</div>
+        <div>
+            <div class="kpi-value"><?= $totalClientes ?></div>
+            <div class="kpi-label">Clientes</div>
+        </div>
+    </div>
 </div>
 
 <!-- Funil do Pipeline -->
-<?php if (has_min_role('gestao')): ?>
+<?php if (has_role('admin','gestao','comercial','cx')): ?>
 <?php
     $totalPipe = array_sum($pipeStages);
     $funnelColors = array(
-        'novo' => '#6366f1', 'contato_inicial' => '#0ea5e9', 'agendado' => '#f59e0b',
-        'proposta' => '#d97706', 'elaboracao' => '#8b5cf6', 'contrato' => '#059669', 'perdido' => '#dc2626'
+        'cadastro_preenchido' => '#6366f1', 'elaboracao_docs' => '#0ea5e9', 'link_enviados' => '#f59e0b',
+        'contrato_assinado' => '#059669', 'agendado_docs' => '#0d9488', 'reuniao_cobranca' => '#d97706',
+        'pasta_apta' => '#15803d', 'perdido' => '#dc2626'
     );
     $funnelLabels = array(
-        'novo' => 'Novo', 'contato_inicial' => 'Contato', 'agendado' => 'Agendado',
-        'proposta' => 'Proposta', 'elaboracao' => 'Elaboração', 'contrato' => 'Contrato', 'perdido' => 'Perdido'
+        'cadastro_preenchido' => 'Cadastro', 'elaboracao_docs' => 'Elaboração', 'link_enviados' => 'Link Enviado',
+        'contrato_assinado' => 'Contrato', 'agendado_docs' => 'Agendado', 'reuniao_cobranca' => 'Cobrando Docs',
+        'pasta_apta' => 'Pasta Apta', 'perdido' => 'Perdido'
     );
 ?>
 <div class="funnel-card">
@@ -380,7 +418,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <!-- Gráficos -->
-<?php if (has_min_role('gestao')): ?>
+<?php if (has_role('admin','gestao','comercial','cx')): ?>
 <div class="charts-row">
     <div class="chart-card">
         <h4>📉 Taxa de Conversão</h4>
@@ -491,10 +529,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;">
             <a href="<?= module_url('portal') ?>" class="btn btn-outline" style="justify-content:flex-start;">🔗 Portal de Links</a>
             <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-outline" style="justify-content:flex-start;">🎫 Novo Chamado</a>
-            <?php if (has_min_role('gestao')): ?>
-            <a href="<?= module_url('crm') ?>" class="btn btn-outline" style="justify-content:flex-start;">👥 Clientes</a>
+            <?php if (can_view_pipeline()): ?>
             <a href="<?= module_url('pipeline') ?>" class="btn btn-outline" style="justify-content:flex-start;">📈 Pipeline</a>
+            <a href="<?= module_url('crm') ?>" class="btn btn-outline" style="justify-content:flex-start;">🎯 CRM</a>
+            <?php endif; ?>
+            <?php if (can_view_operacional()): ?>
             <a href="<?= module_url('operacional') ?>" class="btn btn-outline" style="justify-content:flex-start;">⚙️ Operacional</a>
+            <?php endif; ?>
+            <?php if (has_role('admin','gestao','operacional')): ?>
             <a href="<?= module_url('documentos') ?>" class="btn btn-outline" style="justify-content:flex-start;">📜 Documentos</a>
             <?php endif; ?>
         </div>
