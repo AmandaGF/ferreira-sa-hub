@@ -159,23 +159,48 @@ switch ($action) {
             $numPending = (int)$stillPending->fetchColumn();
 
             if ($numPending === 0) {
-                // Todos os docs recebidos → Operacional vai para "Pasta Apta" + Pipeline vai para "Pasta Apta"
-                $pdo->prepare("UPDATE cases SET status = 'em_elaboracao', stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
-                    ->execute(array($caseId));
+                // Todos os docs recebidos — verificar status anterior
+                $caseStmt = $pdo->prepare("SELECT status, stage_antes_doc_faltante FROM cases WHERE id = ?");
+                $caseStmt->execute(array($caseId));
+                $caseRow = $caseStmt->fetch();
+                $anteriorStatus = ($caseRow && $caseRow['stage_antes_doc_faltante']) ? $caseRow['stage_antes_doc_faltante'] : '';
 
-                // Pipeline: mover lead para pasta_apta
-                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
-                if ($leadRow && in_array($leadRow['stage'], array('doc_faltante', 'reuniao_cobranca', 'agendado_docs'))) {
-                    $pdo->prepare("UPDATE pipeline_leads SET stage='pasta_apta', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
-                        ->execute(array($leadRow['id']));
-                    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
-                        ->execute(array($leadRow['id'], $leadRow['stage'], 'pasta_apta', current_user_id(), 'Auto: todos os documentos recebidos'));
+                // Se estava em execução antes → volta para execução E finaliza Pipeline
+                if ($anteriorStatus === 'em_andamento') {
+                    $pdo->prepare("UPDATE cases SET status = 'em_andamento', stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
+                        ->execute(array($caseId));
+
+                    // Finalizar lead no Pipeline (sai do comercial)
+                    $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
+                    $linkedLead->execute(array($caseId));
+                    $leadRow = $linkedLead->fetch();
+                    if ($leadRow) {
+                        $pdo->prepare("UPDATE pipeline_leads SET stage='finalizado', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
+                            ->execute(array($leadRow['id']));
+                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                            ->execute(array($leadRow['id'], $leadRow['stage'], 'finalizado', current_user_id(), 'Auto: docs recebidos + caso já em execução'));
+                    }
+
+                    notify_gestao('Docs completos!', 'Caso #' . $caseId . ' voltou para execução. Card saiu do Pipeline.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '⚙️');
+                    flash_set('success', 'Todos os documentos recebidos! Caso voltou para execução.');
+                } else {
+                    // Não estava em execução → vai para Pasta Apta
+                    $pdo->prepare("UPDATE cases SET status = 'em_elaboracao', stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
+                        ->execute(array($caseId));
+
+                    $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
+                    $linkedLead->execute(array($caseId));
+                    $leadRow = $linkedLead->fetch();
+                    if ($leadRow && in_array($leadRow['stage'], array('doc_faltante', 'reuniao_cobranca', 'agendado_docs'))) {
+                        $pdo->prepare("UPDATE pipeline_leads SET stage='pasta_apta', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
+                            ->execute(array($leadRow['id']));
+                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                            ->execute(array($leadRow['id'], $leadRow['stage'], 'pasta_apta', current_user_id(), 'Auto: todos os documentos recebidos'));
+                    }
+
+                    notify_gestao('Pasta apta!', 'Todos os documentos recebidos — caso #' . $caseId . ' está com pasta apta.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '✔️');
+                    flash_set('success', 'Todos os documentos recebidos! Pasta apta.');
                 }
-
-                notify_gestao('Pasta apta!', 'Todos os documentos recebidos — caso #' . $caseId . ' está com pasta apta.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '✔️');
-                flash_set('success', 'Todos os documentos recebidos! Pasta apta.');
             } else {
                 flash_set('success', 'Documento marcado como recebido. Ainda ' . $numPending . ' pendente(s).');
             }
