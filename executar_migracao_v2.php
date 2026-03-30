@@ -38,7 +38,29 @@ echo "\n2. Executando SQL v2 (" . number_format(filesize($sqlFile)) . " bytes)..
 $sql = file_get_contents($sqlFile);
 $sql = preg_replace('/--.*$/m', '', $sql);
 
-$statements = array_filter(array_map('trim', explode(';', $sql)));
+// Dividir respeitando strings (não cortar ; dentro de aspas)
+$statements = array();
+$current = '';
+$inString = false;
+$len = strlen($sql);
+for ($j = 0; $j < $len; $j++) {
+    $ch = $sql[$j];
+    if ($ch === "'" && !$inString) { $inString = true; }
+    elseif ($ch === "'" && $inString) {
+        // Verificar escape ''
+        if ($j + 1 < $len && $sql[$j + 1] === "'") { $current .= $ch; $j++; $current .= $sql[$j]; continue; }
+        $inString = false;
+    }
+    if ($ch === ';' && !$inString) {
+        $stmt = trim($current);
+        if (strlen($stmt) > 5) $statements[] = $stmt;
+        $current = '';
+    } else {
+        $current .= $ch;
+    }
+}
+$stmt = trim($current);
+if (strlen($stmt) > 5) $statements[] = $stmt;
 $total = count($statements);
 $ok = 0;
 $errors = 0;
