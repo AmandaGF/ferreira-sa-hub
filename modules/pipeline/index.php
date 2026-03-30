@@ -153,8 +153,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php endif; ?>
                     <div class="lead-days"><?= $lead['days_in_pipeline'] ?> dias no funil</div>
 
-                    <div class="lead-actions" onclick="event.stopPropagation();">
-                        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:flex;gap:.25rem;" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
+                    <div class="lead-actions" onclick="event.stopPropagation();" style="display:flex;gap:.25rem;align-items:center;">
+                        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="flex:1;" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
                             <?= csrf_input() ?>
                             <input type="hidden" name="action" value="move">
                             <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
@@ -167,6 +167,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <?php endif; ?>
                                 <?php endforeach; ?>
                             </select>
+                        </form>
+                        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="flex-shrink:0;">
+                            <?= csrf_input() ?>
+                            <input type="hidden" name="action" value="delete">
+                            <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
+                            <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.8rem;padding:.2rem;opacity:.5;" title="Excluir lead" data-confirm="Excluir <?= e($lead['name']) ?> do Pipeline?">🗑️</button>
                         </form>
                     </div>
                 </div>
