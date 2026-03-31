@@ -99,6 +99,12 @@ if ($step === '3' && validate_csrf()) {
     $colPhone = isset($_POST['col_phone']) ? (int)$_POST['col_phone'] : -1;
     $colType = isset($_POST['col_type']) ? (int)$_POST['col_type'] : -1;
     $colStatus = isset($_POST['col_status']) ? (int)$_POST['col_status'] : -1;
+    $colValor = isset($_POST['col_valor']) ? (int)$_POST['col_valor'] : -1;
+    $colVencimento = isset($_POST['col_vencimento']) ? (int)$_POST['col_vencimento'] : -1;
+    $colPgto = isset($_POST['col_pgto']) ? (int)$_POST['col_pgto'] : -1;
+    $colUrgencia = isset($_POST['col_urgencia']) ? (int)$_POST['col_urgencia'] : -1;
+    $colNomePasta = isset($_POST['col_nome_pasta']) ? (int)$_POST['col_nome_pasta'] : -1;
+    $colPendencias = isset($_POST['col_pendencias']) ? (int)$_POST['col_pendencias'] : -1;
     $skipHeader = isset($_POST['skip_header']) ? true : false;
     $defaultStatus = isset($_POST['default_status']) ? $_POST['default_status'] : 'em_elaboracao';
 
@@ -153,10 +159,16 @@ if ($step === '3' && validate_csrf()) {
         // Observações
         $obs = ($colObs >= 0 && isset($row[$colObs])) ? trim($row[$colObs]) : '';
 
-        // Telefone / Tipo / Status
+        // Telefone / Tipo / Status / Campos comerciais
         $phone = ($colPhone >= 0 && isset($row[$colPhone])) ? trim($row[$colPhone]) : '';
         $caseType = ($colType >= 0 && isset($row[$colType])) ? trim($row[$colType]) : '';
         $status = ($colStatus >= 0 && isset($row[$colStatus])) ? trim($row[$colStatus]) : $defaultStatus;
+        $valorAcao = ($colValor >= 0 && isset($row[$colValor])) ? trim($row[$colValor]) : '';
+        $vencimento = ($colVencimento >= 0 && isset($row[$colVencimento])) ? trim($row[$colVencimento]) : '';
+        $formaPgto = ($colPgto >= 0 && isset($row[$colPgto])) ? trim($row[$colPgto]) : '';
+        $urgenciaVal = ($colUrgencia >= 0 && isset($row[$colUrgencia])) ? trim($row[$colUrgencia]) : '';
+        $nomePasta = ($colNomePasta >= 0 && isset($row[$colNomePasta])) ? trim($row[$colNomePasta]) : '';
+        $pendenciasVal = ($colPendencias >= 0 && isset($row[$colPendencias])) ? trim($row[$colPendencias]) : '';
 
         // Extrair tipo da ação do título (se não tem coluna dedicada)
         if (!$caseType && strpos($title, ' x ') !== false) {
@@ -249,11 +261,13 @@ if ($step === '3' && validate_csrf()) {
                 }
 
                 $pdo->prepare(
-                    "INSERT INTO pipeline_leads (client_id, name, phone, stage, case_type, assigned_to, notes, source, created_at) VALUES (?,?,?,?,?,?,?,'outro',?)"
+                    "INSERT INTO pipeline_leads (client_id, name, phone, stage, case_type, assigned_to, notes, source, created_at, valor_acao, vencimento_parcela, forma_pagamento, urgencia, observacoes, nome_pasta, pendencias) VALUES (?,?,?,?,?,?,?,'outro',?,?,?,?,?,?,?,?)"
                 )->execute(array(
                     $clientId, $title, $phone ?: null, $finalStage,
                     $caseType ?: null, $respId, $obs ?: null,
-                    $parsedDate ?: date('Y-m-d H:i:s')
+                    $parsedDate ?: date('Y-m-d H:i:s'),
+                    $valorAcao ?: null, $vencimento ?: null, $formaPgto ?: null,
+                    $urgenciaVal ?: null, $obs ?: null, $nomePasta ?: null, $pendenciasVal ?: null
                 ));
                 $inserted++;
             }
@@ -336,19 +350,24 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                 return $html;
             }
             // Auto-detectar colunas pelo nome do header
-            $autoMap = array('col_title'=>-1,'col_phone'=>-1,'col_date'=>-1,'col_type'=>-1,'col_resp'=>-1,'col_drive'=>-1,'col_obs'=>-1,'col_prazo'=>-1,'col_status'=>-1);
+            $autoMap = array('col_title'=>-1,'col_phone'=>-1,'col_date'=>-1,'col_type'=>-1,'col_resp'=>-1,'col_drive'=>-1,'col_obs'=>-1,'col_prazo'=>-1,'col_status'=>-1,'col_valor'=>-1,'col_vencimento'=>-1,'col_pgto'=>-1,'col_urgencia'=>-1,'col_nome_pasta'=>-1,'col_pendencias'=>-1);
             foreach ($headerNames as $i => $name) {
                 $n = mb_strtolower($name);
-                if (strpos($n, 'nome da pasta') !== false || strpos($n, 'titulo') !== false || strpos($n, 'título') !== false) $autoMap['col_title'] = $i;
+                if (strpos($n, 'nome da pasta') !== false) $autoMap['col_nome_pasta'] = $i;
                 elseif ($autoMap['col_title'] === -1 && strpos($n, 'nome') !== false && strpos($n, 'pasta') === false) $autoMap['col_title'] = $i;
-                if (strpos($n, 'contato') !== false || strpos($n, 'telefone') !== false || strpos($n, 'fone') !== false) $autoMap['col_phone'] = $i;
+                if (strpos($n, 'contato') !== false || strpos($n, 'telefone') !== false) $autoMap['col_phone'] = $i;
                 if (strpos($n, 'data') !== false && (strpos($n, 'fechamento') !== false || strpos($n, 'cadastro') !== false)) $autoMap['col_date'] = $i;
-                if (strpos($n, 'tipo') !== false && strpos($n, 'a') !== false) $autoMap['col_type'] = $i;
+                if (strpos($n, 'tipo') !== false) $autoMap['col_type'] = $i;
+                if (strpos($n, 'valor') !== false) $autoMap['col_valor'] = $i;
+                if (strpos($n, 'vencimento') !== false) $autoMap['col_vencimento'] = $i;
+                if (strpos($n, 'forma') !== false && strpos($n, 'pagamento') !== false) $autoMap['col_pgto'] = $i;
                 if (strpos($n, 'respons') !== false || strpos($n, 'executante') !== false) $autoMap['col_resp'] = $i;
+                if (strpos($n, 'urg') !== false) $autoMap['col_urgencia'] = $i;
                 if (strpos($n, 'drive') !== false || strpos($n, 'link') !== false) $autoMap['col_drive'] = $i;
-                if (strpos($n, 'observa') !== false || strpos($n, 'pend') !== false) $autoMap['col_obs'] = $i;
+                if (strpos($n, 'observa') !== false) $autoMap['col_obs'] = $i;
                 if (strpos($n, 'prazo') !== false || strpos($n, 'entrega') !== false) $autoMap['col_prazo'] = $i;
                 if (strpos($n, 'estado') !== false || strpos($n, 'status') !== false) $autoMap['col_status'] = $i;
+                if (strpos($n, 'pend') !== false) $autoMap['col_pendencias'] = $i;
             }
             // Se tem "NOME DA PASTA" usa esse como título; senão NOME
             if ($autoMap['col_title'] === -1 && !empty($headerNames)) $autoMap['col_title'] = 0;
@@ -362,7 +381,13 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                 <div><label style="font-size:.75rem;font-weight:700;">Link Drive</label><select name="col_drive" class="form-input"><?= colOptions($headerNames, $autoMap['col_drive']) ?></select></div>
                 <div><label style="font-size:.75rem;font-weight:700;">Observações</label><select name="col_obs" class="form-input"><?= colOptions($headerNames, $autoMap['col_obs']) ?></select></div>
                 <div><label style="font-size:.75rem;font-weight:700;">Prazo/Entrega</label><select name="col_prazo" class="form-input"><?= colOptions($headerNames, $autoMap['col_prazo']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Valor da Ação</label><select name="col_valor" class="form-input"><?= colOptions($headerNames, $autoMap['col_valor']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Vencimento 1ª Parcela</label><select name="col_vencimento" class="form-input"><?= colOptions($headerNames, $autoMap['col_vencimento']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Forma de Pagamento</label><select name="col_pgto" class="form-input"><?= colOptions($headerNames, $autoMap['col_pgto']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Urgência</label><select name="col_urgencia" class="form-input"><?= colOptions($headerNames, $autoMap['col_urgencia']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Nome da Pasta</label><select name="col_nome_pasta" class="form-input"><?= colOptions($headerNames, $autoMap['col_nome_pasta']) ?></select></div>
                 <div><label style="font-size:.75rem;font-weight:700;">Estado/Status</label><select name="col_status" class="form-input"><?= colOptions($headerNames, $autoMap['col_status']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Pendências</label><select name="col_pendencias" class="form-input"><?= colOptions($headerNames, $autoMap['col_pendencias']) ?></select></div>
             </div>
             <div style="display:flex;gap:1rem;margin-top:.75rem;align-items:center;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer;"><input type="checkbox" name="skip_header" value="1" checked> Pular cabeçalho</label>

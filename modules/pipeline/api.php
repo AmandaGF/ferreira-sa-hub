@@ -251,6 +251,21 @@ switch ($action) {
         redirect(module_url('pipeline'));
         break;
 
+    case 'inline_edit':
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $field = $_POST['field'] ?? '';
+        $value = $_POST['value'] ?? '';
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
+        $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
+            'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias');
+        if ($leadId && in_array($field, $allowed)) {
+            if ($field === 'assigned_to') $value = (int)$value ?: null;
+            $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        }
+        redirect(module_url('pipeline'));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('pipeline'));

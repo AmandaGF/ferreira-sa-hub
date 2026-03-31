@@ -212,46 +212,49 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endforeach; ?>
 </div>
 
-<!-- Visão Tabela -->
+<!-- Visão Tabela (Planilha Comercial Completa) -->
 <div id="viewTabela" style="display:none;">
 <style>
 .tbl-toolbar { display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem;padding:.5rem .75rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg); }
-.tbl-filter { font-size:.8rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text);min-width:140px; }
-.tbl-filter:focus { border-color:var(--rose);outline:none; }
+.tbl-filter { font-size:.8rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text);min-width:120px; }
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
-.tbl-csv:hover { opacity:.9; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-.tbl-grid { width:100%;border-collapse:collapse;font-size:.82rem; }
+.tbl-grid { width:100%;border-collapse:collapse;font-size:.78rem; }
 .tbl-grid thead { position:sticky;top:0;z-index:2; }
-.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
-.tbl-grid th:last-child { border-right:none; }
-.tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
-.tbl-grid tbody tr { cursor:pointer;transition:background .15s; }
+.tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px; }
+.tbl-grid tbody tr { transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
-.tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
-.tbl-grid .cell-name { font-weight:700;color:var(--petrol-900); }
-.tbl-grid .cell-resp { color:var(--rose-dark);font-weight:600; }
-.tbl-grid .cell-days { font-size:.72rem;background:rgba(0,0,0,.06);padding:2px 8px;border-radius:12px;display:inline-block; }
-.tbl-badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff; }
-.tbl-grid .cell-move select { font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text); }
-.tbl-grid .cell-move select:hover { border-color:var(--rose); }
-.tbl-pag { display:flex;justify-content:center;gap:4px;margin-top:1rem; }
-.tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text);transition:all .15s; }
-.tbl-pag a:hover { background:var(--petrol-100);border-color:var(--petrol-500); }
-.tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
-/* Linhas coloridas por etapa */
+.tbl-grid tbody tr:hover { background:rgba(215,171,144,.12); }
+.tbl-badge { display:inline-block;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700;color:#fff; }
+/* Edição inline */
+.tbl-grid td.editable { cursor:text;position:relative; }
+.tbl-grid td.editable:hover { background:rgba(215,171,144,.1);outline:1px dashed var(--rose); }
+.tbl-grid td.editable:focus-within { background:#fff;outline:2px solid var(--rose); }
+.tbl-grid td.editable input, .tbl-grid td.editable select { width:100%;border:none;background:transparent;font:inherit;padding:0;outline:none; }
+.tbl-grid td.saved::after { content:'✓';position:absolute;right:4px;top:50%;transform:translateY(-50%);color:var(--success);font-size:.7rem;font-weight:700;animation:fadeout 1.5s forwards; }
+@keyframes fadeout { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
+/* Linhas coloridas */
 .tbl-grid tbody tr[data-stage="cadastro_preenchido"] { border-left:4px solid #6366f1; }
 .tbl-grid tbody tr[data-stage="elaboracao_docs"] { border-left:4px solid #0ea5e9; }
 .tbl-grid tbody tr[data-stage="link_enviados"] { border-left:4px solid #f59e0b; }
 .tbl-grid tbody tr[data-stage="contrato_assinado"] { border-left:4px solid #059669; }
 .tbl-grid tbody tr[data-stage="agendado_docs"] { border-left:4px solid #0d9488; }
 .tbl-grid tbody tr[data-stage="reuniao_cobranca"] { border-left:4px solid #d97706; }
-.tbl-grid tbody tr[data-stage="doc_faltante"] { border-left:4px solid #dc2626; background:rgba(220,38,38,.04) !important; }
-.tbl-grid tbody tr[data-stage="pasta_apta"] { border-left:4px solid #15803d; background:rgba(21,128,61,.04) !important; }
-.tbl-grid tbody tr[data-stage="cancelado"] { border-left:4px solid #6b7280; opacity:.7; }
-.tbl-grid tbody tr[data-stage="suspenso"] { border-left:4px solid #9ca3af; background:rgba(156,163,175,.06) !important; }
+.tbl-grid tbody tr[data-stage="doc_faltante"] { border-left:4px solid #dc2626;background:rgba(220,38,38,.04) !important; }
+.tbl-grid tbody tr[data-stage="pasta_apta"] { border-left:4px solid #15803d;background:rgba(21,128,61,.04) !important; }
+.tbl-grid tbody tr[data-stage="cancelado"] { border-left:4px solid #dc2626;background:rgba(220,38,38,.06) !important;text-decoration:line-through;opacity:.6; }
+.tbl-grid tbody tr[data-stage="cancelado"] td { color:#991b1b !important; }
+.tbl-grid tbody tr[data-stage="cancelado"] .tbl-badge { background:#dc2626 !important; }
+.tbl-grid tbody tr[data-stage="suspenso"] { border-left:4px solid #9ca3af;background:rgba(156,163,175,.08) !important;font-style:italic; }
+.tbl-grid tbody tr[data-stage="suspenso"] td { color:#6b7280 !important; }
+.tbl-grid tbody tr[data-stage="contrato_assinado"] { background:rgba(5,150,105,.06) !important; }
+.tbl-grid tbody tr[data-stage="contrato_assinado"] td:first-child { font-weight:800; }
+.tbl-pag { display:flex;justify-content:center;gap:4px;margin-top:1rem; }
+.tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text); }
+.tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
 </style>
 <?php
 $allLeadsFlat = array();
@@ -262,59 +265,83 @@ $tabelaPage = max(1, (int)($_GET['tp'] ?? 1));
 $perPage = 25;
 $totalPages = max(1, ceil(count($allLeadsFlat) / $perPage));
 if ($tabelaPage > $totalPages) $tabelaPage = $totalPages;
-$offset = ($tabelaPage - 1) * $perPage;
-$pageLeads = array_slice($allLeadsFlat, $offset, $perPage);
+$pOffset = ($tabelaPage - 1) * $perPage;
+$pageLeads = array_slice($allLeadsFlat, $pOffset, $perPage);
 $tipos = array();
 foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
 sort($tipos);
 ?>
 <div class="tbl-toolbar">
     <select id="filterStage" onchange="filterPipelineTable()" class="tbl-filter">
-        <option value="">Todas as etapas</option>
+        <option value="">Etapa</option>
         <?php foreach ($stages as $sk => $sv): ?><option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option><?php endforeach; ?>
     </select>
     <select id="filterResp" onchange="filterPipelineTable()" class="tbl-filter">
-        <option value="">Todos responsáveis</option>
+        <option value="">Responsável</option>
         <?php foreach ($users as $u): ?><option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
     </select>
     <select id="filterType" onchange="filterPipelineTable()" class="tbl-filter">
-        <option value="">Todos os tipos</option>
+        <option value="">Tipo</option>
         <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
     <span class="tbl-count"><?= count($allLeadsFlat) ?> leads</span>
-    <button onclick="exportTableCSV('pipelineTableBody','pipeline')" class="tbl-csv">Exportar CSV</button>
+    <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
-<div class="tbl-wrap" style="max-height:72vh;overflow-y:auto;">
+<div class="tbl-wrap" style="max-height:75vh;overflow:auto;">
 <table class="tbl-grid" id="pipelineTableBody">
 <thead><tr>
-    <th onclick="sortTbl('pipelineTableBody',0)" style="width:40px;text-align:center;">#</th>
+    <th style="width:30px;text-align:center;cursor:default;">#</th>
     <th onclick="sortTbl('pipelineTableBody',1)">Nome</th>
-    <th onclick="sortTbl('pipelineTableBody',2)">Tipo de Ação</th>
-    <th onclick="sortTbl('pipelineTableBody',3)">Responsável</th>
-    <th onclick="sortTbl('pipelineTableBody',4)">Etapa</th>
-    <th onclick="sortTbl('pipelineTableBody',5)" style="text-align:center;">Dias</th>
-    <th onclick="sortTbl('pipelineTableBody',6)">Cadastro</th>
+    <th onclick="sortTbl('pipelineTableBody',2)">Contato</th>
+    <th onclick="sortTbl('pipelineTableBody',3)">Data Fech.</th>
+    <th onclick="sortTbl('pipelineTableBody',4)">Tipo de Ação</th>
+    <th onclick="sortTbl('pipelineTableBody',5)">Valor</th>
+    <th onclick="sortTbl('pipelineTableBody',6)">Vencto 1ª</th>
+    <th onclick="sortTbl('pipelineTableBody',7)">Pgto</th>
+    <th onclick="sortTbl('pipelineTableBody',8)">Responsável</th>
+    <th onclick="sortTbl('pipelineTableBody',9)">Urgência</th>
+    <th onclick="sortTbl('pipelineTableBody',10)">Observações</th>
+    <th onclick="sortTbl('pipelineTableBody',11)">Nome Pasta</th>
+    <th onclick="sortTbl('pipelineTableBody',12)">Estado</th>
+    <th onclick="sortTbl('pipelineTableBody',13)">Pendências</th>
     <th style="cursor:default;">Mover</th>
 </tr></thead>
 <tbody>
-<?php $n = $offset + 1; foreach ($pageLeads as $lead):
+<?php $n = $pOffset + 1; foreach ($pageLeads as $lead):
     $sk = $lead['_stage_key']; $si = $stages[$sk];
+    $lid = (int)$lead['id'];
 ?>
-<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
-    <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
-    <td class="cell-name"><?= e($lead['name']) ?></td>
-    <td><?= e($lead['case_type'] ?? '') ?></td>
-    <td class="cell-resp"><?= e($lead['assigned_name'] ? explode(' ', $lead['assigned_name'])[0] : '—') ?></td>
-    <td><span class="tbl-badge" style="background:<?= $si['color'] ?>;"><?= $si['icon'] ?> <?= $si['label'] ?></span></td>
-    <td style="text-align:center;"><span class="cell-days"><?= $lead['days_in_pipeline'] ?>d</span></td>
-    <td><?= date('d/m/Y', strtotime($lead['created_at'])) ?></td>
-    <td class="cell-move" onclick="event.stopPropagation();">
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>">
+    <td style="text-align:center;color:#999;font-size:.7rem;">
+        <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
+    </td>
+    <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
+    <td style="font-size:.72rem;"><?= $lead['created_at'] ? date('d/m/Y', strtotime($lead['created_at'])) : '' ?></td>
+    <td class="editable" style="min-width:100px;"><input value="<?= e($lead['case_type'] ?? '') ?>" data-id="<?= $lid ?>" data-field="case_type" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:90px;"><input value="<?= e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:80px;"><input value="<?= e($lead['vencimento_parcela'] ?? '') ?>" data-id="<?= $lid ?>" data-field="vencimento_parcela" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:70px;"><input value="<?= e($lead['forma_pagamento'] ?? '') ?>" data-id="<?= $lid ?>" data-field="forma_pagamento" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:80px;">
+        <select data-id="<?= $lid ?>" data-field="assigned_to" onchange="saveCell(this)">
+            <option value="">—</option>
+            <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
+        </select>
+    </td>
+    <td class="editable" style="min-width:60px;"><input value="<?= e($lead['urgencia'] ?? '') ?>" data-id="<?= $lid ?>" data-field="urgencia" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:120px;max-width:180px;"><input value="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>" data-id="<?= $lid ?>" data-field="observacoes" onchange="saveCell(this)" title="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>"></td>
+    <td class="editable" style="min-width:140px;"><input value="<?= e($lead['nome_pasta'] ?? '') ?>" data-id="<?= $lid ?>" data-field="nome_pasta" onchange="saveCell(this)"></td>
+    <td>
+        <span class="tbl-badge" style="background:<?= $si['color'] ?>;font-size:.6rem;"><?= $si['icon'] ?> <?= $si['label'] ?></span>
+    </td>
+    <td class="editable" style="min-width:100px;"><input value="<?= e($lead['pendencias'] ?? '') ?>" data-id="<?= $lid ?>" data-field="pendencias" onchange="saveCell(this)"></td>
+    <td onclick="event.stopPropagation();" style="min-width:80px;">
         <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="move">
-            <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
+            <input type="hidden" name="lead_id" value="<?= $lid ?>">
             <input type="hidden" name="folder_name" value="">
-            <select name="to_stage" onchange="handleStageMove(this)">
+            <select name="to_stage" onchange="handleStageMove(this)" style="font-size:.7rem;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:#fff;cursor:pointer;">
                 <option value="">Mover →</option>
                 <?php foreach ($stages as $ssk => $ssv): if ($ssk !== $sk && $ssk !== 'doc_faltante'): ?>
                     <option value="<?= $ssk ?>"><?= $ssv['icon'] ?> <?= $ssv['label'] ?></option>
@@ -326,7 +353,7 @@ sort($tipos);
 </tr>
 <?php endforeach; ?>
 <?php if (empty($pageLeads)): ?>
-<tr><td colspan="8" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
+<tr><td colspan="15" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
@@ -513,6 +540,27 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
 
 <script>
 // Toggle Kanban / Tabela
+// Salvar célula inline via AJAX
+function saveCell(el) {
+    var id = el.dataset.id;
+    var field = el.dataset.field;
+    var value = el.value;
+    var td = el.closest('td');
+    var formData = new FormData();
+    formData.append('action', 'inline_edit');
+    formData.append('lead_id', id);
+    formData.append('field', field);
+    formData.append('value', value);
+    formData.append('csrf_token', '<?= generate_csrf_token() ?>');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("pipeline", "api.php") ?>');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        if (td) { td.classList.add('saved'); setTimeout(function() { td.classList.remove('saved'); }, 1500); }
+    };
+    xhr.send(formData);
+}
+
 function toggleView(view) {
     var k = document.getElementById('viewKanban');
     var t = document.getElementById('viewTabela');
