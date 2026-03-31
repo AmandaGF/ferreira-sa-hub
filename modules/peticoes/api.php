@@ -102,10 +102,6 @@ if ($action === 'gerar') {
     $labelAcao = $tiposAcao[$tipoAcao] ?? $tipoAcao;
     $labelPeca = $tiposPeca[$tipoPeca] ?? $tipoPeca;
 
-    // Montar prompt do usuário
-    $userPrompt = "Tipo de peça: $labelPeca\nTipo de ação: $labelAcao\n\n";
-    $userPrompt .= "DADOS DO CLIENTE (PARTE AUTORA):\n$dadosCliente\n\n";
-    $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     // Extrair cidade/UF do campo cl_cidade (formato "Cidade/UF")
     $comarcaCidade = 'Barra Mansa';
     $comarcaUF = 'RJ';
@@ -115,9 +111,44 @@ if ($action === 'gerar') {
         $comarcaUF = trim($parts[1]) ?: 'RJ';
     }
 
+    // ══ PROMPT FIXO — Skill dra-amanda ══
+    // Esta instrução é SEMPRE prepended ao prompt do usuário.
+    // Garante que a petição seja gerada seguindo o padrão completo
+    // da Skill "dra-amanda" do escritório Ferreira & Sá.
+    $promptFixo = <<<'FIXO'
+[INSTRUÇÃO OBRIGATÓRIA — SKILL DRA-AMANDA]
+Você está operando como a skill "dra-amanda" do escritório Ferreira & Sá Advocacia Especializada.
+Siga RIGOROSAMENTE todas as regras do system prompt: princípios inegociáveis, estrutura da petição,
+visual law (HTML com estilos inline), qualificação das partes, seções fixas e referências jurídicas.
+
+A petição deve ser COMPLETA, do endereçamento à assinatura, incluindo:
+- Timbrado do escritório no topo (logo F + FERREIRA & SÁ)
+- Endereçamento ao Juízo competente
+- Indicações à direita (Gratuidade / Juízo 100% Digital quando aplicável)
+- Qualificação completa do Autor (nome em negrito+versalete, texto corrido)
+- Caixa da ação (fundo #052228, texto branco, faixa cobre à esquerda)
+- Qualificação do Réu (dados faltantes em vermelho)
+- Todas as seções com títulos à DIREITA + bloco petrol na margem direita
+- Subtópicos com barra cobre à esquerda
+- Fundamentação jurídica robusta com artigos, súmulas e doutrina
+- Tabela de pedidos com coluna de letras em fundo petrol
+- Seção de futuras intimações (Dra. Amanda, OAB-RJ 163.260)
+- Seção de provas e valor da causa (com extenso)
+- Assinatura centralizada + rodapé com 5 filiais
+- Use APENAS estilos inline, nunca CSS externo
+- Fonte Calibri, 12pt, justificado, text-indent 1.5cm, line-height 1.8
+[FIM DA INSTRUÇÃO OBRIGATÓRIA]
+
+FIXO;
+
+    // Montar prompt do usuário com instrução fixa prepended
+    $userPrompt = $promptFixo . "\n";
+    $userPrompt .= "Tipo de peça: $labelPeca\nTipo de ação: $labelAcao\n\n";
+    $userPrompt .= "DADOS DO CLIENTE (PARTE AUTORA):\n$dadosCliente\n\n";
+    $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";
     $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
-    $userPrompt .= "Elabore a petição completa em HTML formatado.";
+    $userPrompt .= "Elabore a petição completa em HTML formatado conforme a skill dra-amanda.";
 
     // ══ OTIMIZAÇÃO 2: Pré-processamento de documentos ══
     // PDFs e imagens limitados a 5MB cada, máx 10 arquivos
