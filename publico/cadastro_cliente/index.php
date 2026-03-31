@@ -429,21 +429,28 @@ function consultarCPF(cpfFormatado) {
         loading.style.display = 'none';
         try {
             var data = JSON.parse(xhr.responseText);
-            if (data.status === 'ERROR' || !data.nome) return;
-
-            var nomeInput = document.getElementById('nomeInput');
-            var nascInput = document.getElementById('nascimentoInput');
-
-            if (data.nome && (!nomeInput.value || nomeInput.value === '')) {
-                nomeInput.value = data.nome;
+            if (data.cpf_valido) {
+                ok.textContent = '✓ CPF válido';
+                ok.style.color = '#2D7A4F';
+                ok.style.display = 'inline';
+                setTimeout(function() { ok.style.display = 'none'; }, 3000);
+            } else if (data.status === 'ERROR' && data.message === 'CPF inválido') {
+                ok.textContent = '✗ CPF inválido';
+                ok.style.color = '#CC0000';
+                ok.style.display = 'inline';
             }
-            if (data.nascimento && !nascInput.value) {
-                // Formato da API: dd/mm/yyyy -> yyyy-mm-dd
-                var parts = data.nascimento.split('/');
-                if (parts.length === 3) nascInput.value = parts[2] + '-' + parts[1] + '-' + parts[0];
+            // Se a API retornar nome (futuro), preencher
+            if (data.nome) {
+                var nomeInput = document.getElementById('nomeInput');
+                if (nomeInput && !nomeInput.value) nomeInput.value = data.nome;
             }
-            ok.style.display = 'inline';
-            setTimeout(function() { ok.style.display = 'none'; }, 3000);
+            if (data.nascimento) {
+                var nascInput = document.getElementById('nascimentoInput');
+                if (nascInput && !nascInput.value) {
+                    var parts = data.nascimento.split('/');
+                    if (parts.length === 3) nascInput.value = parts[2] + '-' + parts[1] + '-' + parts[0];
+                }
+            }
         } catch(e) {}
     };
     xhr.onerror = function() { loading.style.display = 'none'; };

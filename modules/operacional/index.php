@@ -757,6 +757,13 @@ function confirmProcesso() {
                 return;
             }
 
+            if (newStatus === 'parceria_previdenciario') {
+                var form = dragCard.querySelector('form');
+                _pendingOpForm = form;
+                document.getElementById('parceiroModal').style.display = 'flex';
+                return;
+            }
+
             if (newStatus === 'distribuido') {
                 var form = dragCard.querySelector('form');
                 _pendingOpForm = form;
