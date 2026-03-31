@@ -171,10 +171,7 @@ Gere HTML com ESTILOS INLINE em cada elemento. Siga EXATAMENTE:
 
 PALETA: #052228 (petrol) | #173D46 (petrol médio) | #B87333 (cobre) | #D7AB90 (cobre claro) | #F4F4F4 (cinza) | #1A1A1A (texto) | #CC0000 (dados faltantes)
 
-LOGO/TIMBRADO (topo) — usar a imagem real do escritório:
-<div style="text-align:center;padding-bottom:20px;margin-bottom:24px;border-bottom:1px solid #D7AB90;">
-<img src="https://ferreiraesa.com.br/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia Especializada" style="max-width:400px;height:auto;">
-</div>
+LOGO/TIMBRADO: NÃO gere logo nem timbrado no HTML. O papel timbrado é aplicado como imagem de fundo pela plataforma. Comece direto pelo ENDEREÇAMENTO.
 
 ENDEREÇAMENTO: <p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#1A1A1A;text-transform:uppercase;">JUÍZO DA ___ VARA...</p>
 
@@ -228,11 +225,7 @@ ASSINATURA:
 <p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#052228;">AMANDA GUEDES FERREIRA</p>
 <p style="font-family:Calibri,sans-serif;font-size:11pt;color:#173D46;">OAB-RJ 163.260</p></div>
 
-RODAPÉ:
-<div style="border-top:1px solid #B87333;margin-top:48px;padding-top:12px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#888;">
-<div>Rio de Janeiro / RJ &nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp; Resende / RJ &nbsp;&nbsp; São Paulo / SP</div>
-<div>(24) 9.9205.0096 / (11) 2110-5438</div>
-<div>www.ferreiraesa.com.br &nbsp;&nbsp; contato@ferreiraesa.com.br</div></div>
+RODAPÉ: NÃO gere rodapé no HTML. O rodapé com as filiais já está no papel timbrado de fundo.
 
 REGRAS OBRIGATÓRIAS:
 - SEMPRE estilos inline (style="...") em cada elemento

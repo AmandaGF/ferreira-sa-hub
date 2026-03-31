@@ -71,16 +71,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .fab-campo label { font-size:.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.25rem; }
 .fab-campo input,.fab-campo select,.fab-campo textarea { width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit; }
 .fab-campo input:focus,.fab-campo select:focus,.fab-campo textarea:focus { border-color:var(--rose);outline:none; }
-.fab-preview { background:#fff;border:none;border-radius:2px;padding:48px 56px;max-height:70vh;overflow-y:auto;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;box-shadow:0 1px 8px rgba(0,0,0,.08),0 4px 24px rgba(0,0,0,.06);position:relative; }
+.fab-preview { background:#fff;border:none;border-radius:2px;max-height:75vh;overflow-y:auto;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;box-shadow:0 1px 8px rgba(0,0,0,.08),0 4px 24px rgba(0,0,0,.06);position:relative;background-image:url('<?= url("assets/img/timbrado.png") ?>');background-size:100% auto;background-repeat:repeat-y;background-position:top center;padding:160px 80px 120px 80px; }
 .fab-preview table { border-collapse:collapse; }
 .fab-preview td,.fab-preview th { border:none; }
 .fab-preview p { margin:8px 0; }
 .fab-preview h1 { font-size:13px;text-align:left;text-transform:uppercase;font-weight:700;color:#1A1A1A;margin:0 0 24px 0; }
 .fab-preview h2 { font-size:12pt;font-weight:700;color:#052228;letter-spacing:1px;text-align:right;margin:32px 0 16px 0; }
+@media (max-width:768px) {
+  .fab-preview { padding:120px 30px 80px 30px;background-size:100% auto; }
+}
 @media print {
   body * { visibility:hidden; }
   .fab-preview,.fab-preview * { visibility:visible; }
-  .fab-preview { position:absolute;left:0;top:0;width:100%;max-height:none;box-shadow:none;padding:20px 30px;-webkit-print-color-adjust:exact;print-color-adjust:exact; }
+  .fab-preview { position:absolute;left:0;top:0;width:100%;max-height:none;box-shadow:none;padding:160px 60px 120px 60px;-webkit-print-color-adjust:exact;print-color-adjust:exact; }
 }
 .fab-loading { text-align:center;padding:3rem; }
 .fab-loading .spinner { width:40px;height:40px;border:4px solid var(--border);border-top:4px solid var(--petrol-900);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem; }

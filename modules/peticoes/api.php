@@ -156,9 +156,10 @@ FIXO;
     $userPrompt .= "- Comece direto com o <div> do timbrado do escritório\n";
     $userPrompt .= "- Fonte: Calibri,sans-serif (NUNCA Times New Roman)\n";
     $userPrompt .= "- Siga EXATAMENTE os templates HTML do system prompt (timbrado, caixa da ação, seções à direita, pedidos em tabela)\n";
-    $userPrompt .= "- A petição deve ser COMPLETA do início ao fim: timbrado, endereçamento, qualificação, seções (fatos, direito, pedidos), intimações, provas, assinatura e rodapé\n";
-    $userPrompt .= "- NUNCA corte ou interrompa a petição. Se necessário, seja mais conciso nos fatos, mas SEMPRE inclua todas as seções até a assinatura final\n";
-    $userPrompt .= "- Use a logo real: <img src=\"https://ferreiraesa.com.br/conecta/assets/img/logo.png\" alt=\"Ferreira &amp; Sá\" style=\"max-width:400px;height:auto;\"> no timbrado\n";
+    $userPrompt .= "- NÃO gere timbrado/logo nem rodapé — o papel timbrado é aplicado como fundo pela plataforma\n";
+    $userPrompt .= "- Comece DIRETO pelo endereçamento ao Juízo\n";
+    $userPrompt .= "- A petição deve ser COMPLETA: endereçamento, indicações, qualificação, caixa da ação, todas as seções (fatos, direito, pedidos), intimações, provas, assinatura\n";
+    $userPrompt .= "- NUNCA corte ou interrompa. Se necessário, seja mais conciso nos fatos, mas SEMPRE inclua todas as seções até a assinatura final\n";
 
     // ══ OTIMIZAÇÃO 2: Pré-processamento de documentos ══
     // PDFs e imagens limitados a 5MB cada, máx 10 arquivos
