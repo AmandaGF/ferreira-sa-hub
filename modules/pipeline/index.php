@@ -137,17 +137,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 </div>
 
-<!-- Ações -->
+<!-- Ações + Toggle -->
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
     <h3 style="font-size:.95rem;font-weight:700;color:var(--petrol-900);">Pipeline Comercial/CX</h3>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;align-items:center;">
+        <div style="display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">
+            <button onclick="toggleView('kanban')" id="btnKanban" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;">Kanban</button>
+            <button onclick="toggleView('tabela')" id="btnTabela" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--bg-card);color:var(--text);">Tabela</button>
+        </div>
         <a href="<?= module_url('pipeline', 'lead_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Lead</a>
         <a href="<?= module_url('pipeline', 'perdidos.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Perdidos</a>
     </div>
 </div>
 
 <!-- Kanban -->
-<div style="display:grid;grid-template-columns:repeat(<?= count($stages) ?>,minmax(155px,1fr));gap:.4rem;min-height:400px;overflow-x:auto;">
+<div id="viewKanban" style="display:grid;grid-template-columns:repeat(<?= count($stages) ?>,minmax(155px,1fr));gap:.4rem;min-height:400px;overflow-x:auto;">
     <?php foreach ($stages as $stageKey => $stage): ?>
     <div style="display:flex;flex-direction:column;min-width:0;">
         <div class="kanban-header" style="background:<?= $stage['color'] ?>;">
@@ -203,6 +207,111 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
     <?php endforeach; ?>
+</div>
+
+<!-- Visão Tabela -->
+<div id="viewTabela" style="display:none;">
+<?php
+// Flatten leads + paginação
+$allLeadsFlat = array();
+foreach ($byStage as $stageKey => $stageLeads) {
+    foreach ($stageLeads as $l) {
+        $l['_stage_key'] = $stageKey;
+        $allLeadsFlat[] = $l;
+    }
+}
+$tabelaPage = max(1, (int)($_GET['tp'] ?? 1));
+$perPage = 25;
+$totalPages = max(1, ceil(count($allLeadsFlat) / $perPage));
+if ($tabelaPage > $totalPages) $tabelaPage = $totalPages;
+$offset = ($tabelaPage - 1) * $perPage;
+$pageLeads = array_slice($allLeadsFlat, $offset, $perPage);
+?>
+<div style="margin-bottom:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <select id="filterStage" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+        <option value="">Todas as etapas</option>
+        <?php foreach ($stages as $sk => $sv): ?>
+            <option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option>
+        <?php endforeach; ?>
+    </select>
+    <select id="filterResp" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+        <option value="">Todos responsáveis</option>
+        <?php foreach ($users as $u): ?>
+            <option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <select id="filterType" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+        <option value="">Todos os tipos</option>
+        <?php
+        $tipos = array();
+        foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
+        sort($tipos);
+        foreach ($tipos as $t): ?>
+            <option value="<?= e($t) ?>"><?= e($t) ?></option>
+        <?php endforeach; ?>
+    </select>
+    <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted);"><?= count($allLeadsFlat) ?> leads</span>
+    <button onclick="exportTableCSV('pipelineTableBody','pipeline')" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;">CSV</button>
+</div>
+<div style="overflow-x:auto;border:1px solid #bbb;border-radius:6px;">
+<table style="width:100%;border-collapse:collapse;font-size:.75rem;font-family:'Segoe UI',Arial,sans-serif;" id="pipelineTableBody">
+<thead>
+<tr style="background:linear-gradient(180deg,#f0f0f0,#e0e0e0);">
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',0)">#</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',1)">Nome</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',2)">Tipo Ação</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',3)">Responsável</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',4)">Etapa</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',5)">Dias</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',6)">Cadastro</th>
+    <th style="border:1px solid #bbb;padding:6px 8px;white-space:nowrap;font-size:.7rem;">Mover</th>
+</tr>
+</thead>
+<tbody>
+<?php $n = $offset + 1; foreach ($pageLeads as $lead):
+    $sk = $lead['_stage_key'];
+    $stageInfo = $stages[$sk];
+?>
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" style="cursor:pointer;" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;background:#f0f0f0;text-align:center;font-size:.68rem;color:#666;"><?= $n++ ?></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($lead['name']) ?></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= e($lead['case_type'] ?? '') ?></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;color:var(--rose-dark);font-weight:600;"><?= e($lead['assigned_name'] ? explode(' ', $lead['assigned_name'])[0] : '—') ?></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:.65rem;font-weight:700;color:#fff;background:<?= $stageInfo['color'] ?>;"><?= $stageInfo['icon'] ?> <?= $stageInfo['label'] ?></span></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;text-align:center;"><?= $lead['days_in_pipeline'] ?>d</td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= date('d/m/Y', strtotime($lead['created_at'])) ?></td>
+    <td style="border:1px solid #d0d0d0;padding:4px 8px;" onclick="event.stopPropagation();">
+        <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="move">
+            <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
+            <input type="hidden" name="folder_name" value="">
+            <select name="to_stage" onchange="handleStageMove(this)" style="font-size:.65rem;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);cursor:pointer;">
+                <option value="">Mover →</option>
+                <?php foreach ($stages as $ssk => $ssv): ?>
+                    <?php if ($ssk !== $sk && $ssk !== 'doc_faltante'): ?>
+                        <option value="<?= $ssk ?>"><?= $ssv['icon'] ?> <?= $ssv['label'] ?></option>
+                    <?php endif; ?>
+                <?php endforeach; ?>
+                <option value="perdido">❌ Perdido</option>
+            </select>
+        </form>
+    </td>
+</tr>
+<?php endforeach; ?>
+<?php if (empty($pageLeads)): ?>
+<tr><td colspan="8" style="text-align:center;color:#999;padding:30px;border:1px solid #d0d0d0;">Nenhum lead encontrado.</td></tr>
+<?php endif; ?>
+</tbody>
+</table>
+</div>
+<?php if ($totalPages > 1): ?>
+<div style="display:flex;justify-content:center;gap:4px;margin-top:.75rem;">
+    <?php for ($p = 1; $p <= $totalPages; $p++): ?>
+        <a href="?tp=<?= $p ?>" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;text-decoration:none;<?= $p === $tabelaPage ? 'background:var(--petrol-900);color:#fff;' : 'color:var(--text);' ?>"><?= $p ?></a>
+    <?php endfor; ?>
+</div>
+<?php endif; ?>
 </div>
 
 <!-- Modal: Nome da Pasta (ao mover para contrato_assinado) -->
@@ -376,4 +485,80 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
 })();
 </script>
 
+<script>
+// Toggle Kanban / Tabela
+function toggleView(view) {
+    var k = document.getElementById('viewKanban');
+    var t = document.getElementById('viewTabela');
+    var bk = document.getElementById('btnKanban');
+    var bt = document.getElementById('btnTabela');
+    if (view === 'tabela') {
+        k.style.display = 'none'; t.style.display = 'block';
+        bk.style.background = 'var(--bg-card)'; bk.style.color = 'var(--text)';
+        bt.style.background = 'var(--petrol-900)'; bt.style.color = '#fff';
+    } else {
+        k.style.display = 'grid'; t.style.display = 'none';
+        bt.style.background = 'var(--bg-card)'; bt.style.color = 'var(--text)';
+        bk.style.background = 'var(--petrol-900)'; bk.style.color = '#fff';
+    }
+    try { localStorage.setItem('pipeline_view', view); } catch(e) {}
+}
+// Restaurar preferência
+try { var saved = localStorage.getItem('pipeline_view'); if (saved === 'tabela') toggleView('tabela'); } catch(e) {}
+
+// Filtros da tabela
+function filterPipelineTable() {
+    var stage = document.getElementById('filterStage').value;
+    var resp = document.getElementById('filterResp').value;
+    var tipo = document.getElementById('filterType').value;
+    var rows = document.querySelectorAll('#pipelineTableBody tbody tr');
+    rows.forEach(function(row) {
+        if (!row.dataset.stage) return;
+        var show = true;
+        if (stage && row.dataset.stage !== stage) show = false;
+        if (resp && row.dataset.resp !== resp) show = false;
+        if (tipo && row.dataset.type !== tipo) show = false;
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+// Ordenar tabela
+var _sortDirs = {};
+function sortTbl(tableId, colIdx) {
+    var table = document.getElementById(tableId);
+    var tbody = table.querySelector('tbody');
+    var rows = Array.from(tbody.querySelectorAll('tr[data-stage]'));
+    var dir = _sortDirs[tableId + '_' + colIdx] === 'asc' ? 'desc' : 'asc';
+    _sortDirs[tableId + '_' + colIdx] = dir;
+    rows.sort(function(a, b) {
+        var av = (a.cells[colIdx] && a.cells[colIdx].textContent.trim()) || '';
+        var bv = (b.cells[colIdx] && b.cells[colIdx].textContent.trim()) || '';
+        var an = parseFloat(av.replace(/[^\d.-]/g, ''));
+        var bn = parseFloat(bv.replace(/[^\d.-]/g, ''));
+        if (!isNaN(an) && !isNaN(bn)) return dir === 'asc' ? an - bn : bn - an;
+        return dir === 'asc' ? av.localeCompare(bv, 'pt-BR') : bv.localeCompare(av, 'pt-BR');
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+}
+
+// Exportar CSV
+function exportTableCSV(tableId, name) {
+    var table = document.getElementById(tableId);
+    var csv = [];
+    table.querySelectorAll('tr').forEach(function(row) {
+        if (row.style.display === 'none') return;
+        var cols = [];
+        row.querySelectorAll('th, td').forEach(function(cell, i) {
+            if (i === 7) return;
+            cols.push('"' + cell.textContent.replace(/"/g, '""').trim() + '"');
+        });
+        csv.push(cols.join(';'));
+    });
+    var blob = new Blob(['\uFEFF' + csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name + '_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click();
+}
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
