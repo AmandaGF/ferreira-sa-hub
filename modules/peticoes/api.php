@@ -220,7 +220,7 @@ if ($action === 'gerar') {
     // reduzindo custo em ~90% nas chamadas subsequentes.
     // ══ OTIMIZAÇÃO 5: temperature 0.3, max_tokens 4096 ══
     $payload = json_encode(array(
-        'model' => 'claude-sonnet-4-6-20250514',
+        'model' => 'claude-sonnet-4-6',
         'max_tokens' => 4096,
         'temperature' => 0.3,
         'system' => array(
