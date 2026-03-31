@@ -42,6 +42,7 @@ $menuItems = array(
     array('label' => 'Documentos',      'icon' => '📜', 'href' => url('modules/documentos/'),      'id' => 'documentos',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Formulários',     'icon' => '📋', 'href' => url('modules/formularios/'),      'id' => 'formularios',     'roles' => array('admin','gestao')),
     array('label' => 'Relatórios',      'icon' => '📉', 'href' => url('modules/relatorios/'),       'id' => 'relatorios',      'roles' => array('admin','gestao')),
+    array('label' => 'Planilha',        'icon' => '📊', 'href' => url('modules/planilha/'),         'id' => 'planilha',        'roles' => array('admin','gestao','comercial','cx')),
 
     array('section' => 'Comunicação'),
     array('label' => 'Mensagens Prontas','icon' => '💬', 'href' => url('modules/mensagens/'),       'id' => 'mensagens',       'roles' => $all),
