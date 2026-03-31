@@ -12,19 +12,41 @@ if (strlen($cpf) !== 11) {
     exit;
 }
 
-$ch = curl_init("https://receitaws.com.br/v1/cpf/$cpf");
-curl_setopt_array($ch, array(
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT => 10,
-    CURLOPT_SSL_VERIFYPEER => false,
-    CURLOPT_USERAGENT => 'FES-Hub/1.0',
-));
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
+// Tentar ReceitaWS primeiro
+$apis = array(
+    "https://receitaws.com.br/v1/cpf/$cpf",
+    "https://www.receitaws.com.br/v1/cpf/$cpf",
+);
 
-if ($httpCode === 200 && $response) {
-    echo $response;
-} else {
-    echo json_encode(array('status' => 'ERROR', 'message' => 'API indisponível'));
+$response = null;
+$httpCode = 0;
+
+foreach ($apis as $url) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        CURLOPT_HTTPHEADER => array('Accept: application/json'),
+    ));
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+    curl_close($ch);
+
+    if ($httpCode === 200 && $response && strpos($response, 'nome') !== false) {
+        echo $response;
+        exit;
+    }
 }
+
+// Debug: retornar info do erro
+echo json_encode(array(
+    'status' => 'ERROR',
+    'message' => 'API indisponível',
+    'debug_http' => $httpCode,
+    'debug_error' => isset($error) ? $error : '',
+    'debug_response' => $response ? substr($response, 0, 200) : 'vazio',
+));
