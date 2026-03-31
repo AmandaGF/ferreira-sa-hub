@@ -68,9 +68,11 @@ if ($httpCode === 200 && $response) {
     }
 }
 
-// Fallback — CPF válido mas sem dados da API
+// Debug + fallback
 echo json_encode(array(
     'status' => 'OK',
     'cpf_valido' => true,
     'message' => 'CPF válido (dados indisponíveis)',
+    'debug_http' => $httpCode,
+    'debug_raw' => $response ? substr($response, 0, 500) : 'sem resposta',
 ));
