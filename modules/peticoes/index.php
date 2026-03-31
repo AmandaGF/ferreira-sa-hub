@@ -234,9 +234,24 @@ var camposAcaoData = <?= json_encode(array(
 )) ?>;
 
 function goStep(n) {
+    // Validar antes de avançar
+    if (n > 1) {
+        var tipoAcao = document.getElementById('tipoAcao').value;
+        var tipoPeca = document.getElementById('tipoPeca').value;
+        if (!tipoAcao) { document.getElementById('tipoAcao').style.borderColor = '#ef4444'; document.getElementById('tipoAcao').focus(); return; }
+        if (!tipoPeca) { document.getElementById('tipoPeca').style.borderColor = '#ef4444'; document.getElementById('tipoPeca').focus(); return; }
+        document.getElementById('tipoAcao').style.borderColor = '';
+        document.getElementById('tipoPeca').style.borderColor = '';
+    }
+    if (n > 2) {
+        var nome = document.getElementById('cl_nome').value.trim();
+        if (!nome) { document.getElementById('cl_nome').style.borderColor = '#ef4444'; document.getElementById('cl_nome').focus(); return; }
+        document.getElementById('cl_nome').style.borderColor = '';
+    }
     document.querySelectorAll('.fab-step').forEach(function(s) { s.classList.remove('active'); });
     document.getElementById('step' + n).classList.add('active');
     if (n === 3) loadCamposAcao();
+    window.scrollTo(0, 0);
 }
 
 function loadCamposAcao() {
@@ -266,7 +281,7 @@ function loadCamposAcao() {
 function gerarPeticao() {
     var tipoAcao = document.getElementById('tipoAcao').value;
     var tipoPeca = document.getElementById('tipoPeca').value;
-    if (!tipoAcao || !tipoPeca) { alert('Selecione o tipo de ação e a peça processual.'); return; }
+    if (!tipoAcao || !tipoPeca) { goStep(1); return; }
 
     goStep(4);
     document.getElementById('loadingArea').style.display = 'block';
