@@ -182,6 +182,9 @@ body.dark-mode .ag-ac-list { background:var(--bg-card); }
                     <?php endforeach; ?>
                 </select>
             </div>
+            <?php if (has_min_role('gestao')): ?>
+            <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">📄 Importar CSV</a>
+            <?php endif; ?>
             <button class="btn btn-primary btn-sm" onclick="abrirModal()" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
