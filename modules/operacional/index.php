@@ -18,6 +18,7 @@ $canMove = can_move_operacional();
 // Filtros
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
+$filterSearch = isset($_GET['q']) ? trim($_GET['q']) : '';
 
 // Colunas do board (conforme doc técnico v2)
 $columns = array(
@@ -46,6 +47,11 @@ if ($filterPriority) {
 if ($filterUser && !$isColaborador) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = (int)$filterUser;
+}
+if ($filterSearch) {
+    $where[] = "(cs.title LIKE ? OR c.name LIKE ? OR cs.case_type LIKE ? OR cs.case_number LIKE ?)";
+    $s = "%$filterSearch%";
+    $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
 }
 
 $whereStr = implode(' AND ', $where);
@@ -196,6 +202,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
         <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <form method="GET" class="op-filters">
+            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:180px;" onkeydown="if(event.key==='Enter')this.form.submit()">
             <select name="priority" class="op-filter-select" onchange="this.form.submit()">
                 <option value="">Prioridade</option>
                 <?php foreach ($priorityLabels as $pk => $pl): ?>
@@ -210,7 +217,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endforeach; ?>
             </select>
             <?php endif; ?>
-            <?php if ($filterPriority || $filterUser): ?>
+            <?php if ($filterPriority || $filterUser || $filterSearch): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">Limpar</a>
             <?php endif; ?>
         </form>
@@ -379,7 +386,7 @@ sort($opTipos);
     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
     $pLabel = isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'];
 ?>
-<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
+<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
     <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
     <td class="cell-name"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></td>
     <td><?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?></td>
@@ -520,11 +527,13 @@ function handleOpMove(select) {
 
     if (status === 'distribuido') {
         _pendingOpForm = form;
-        // Preencher tipo se disponível
-        var card = select.closest('.op-card');
+        // Preencher tipo se disponível (funciona no card e na tabela)
+        var card = select.closest('.op-card') || select.closest('tr');
         if (card && card.dataset.caseType) {
             document.getElementById('procTipo').value = card.dataset.caseType;
         }
+        // Reset para judicial por padrão
+        toggleProcType('judicial');
         document.getElementById('processoModal').style.display = 'flex';
         document.getElementById('procNumero').focus();
         select.value = '';
