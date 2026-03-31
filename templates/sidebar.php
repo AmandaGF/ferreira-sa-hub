@@ -1,13 +1,12 @@
 <?php
 /**
  * Sidebar — Menu lateral com navegação baseada em roles
+ * Suporte: colapsar (só ícones) + modo noturno
  */
 $user = current_user();
 $userRole = $user['role'] ?? 'colaborador';
 $userInitials = mb_substr($user['name'] ?? '?', 0, 2, 'UTF-8');
 
-// Definir itens do menu com controle de acesso por role
-// all = todos os perfis
 $all = array('admin','gestao','comercial','cx','operacional','colaborador');
 $menuItems = array(
     array('section' => 'Principal'),
@@ -25,10 +24,10 @@ $menuItems = array(
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
     array('label' => 'Extrajudicial',   'icon' => '📝', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
 
     array('section' => 'Cadastros'),
     array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),
-    array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
 
     array('section' => 'Controle'),
     array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => array('admin','gestao','operacional')),
@@ -43,7 +42,7 @@ $menuItems = array(
     array('label' => 'Planilha',        'icon' => '📊', 'href' => url('modules/planilha/'),         'id' => 'planilha',        'roles' => array('admin','gestao','comercial','cx')),
 
     array('section' => 'Comunicação'),
-    array('label' => 'Mensagens Prontas','icon' => '💬', 'href' => url('modules/mensagens/'),       'id' => 'mensagens',       'roles' => $all),
+    array('label' => 'Mensagens',       'icon' => '💬', 'href' => url('modules/mensagens/'),        'id' => 'mensagens',       'roles' => $all),
     array('label' => 'Notificações',    'icon' => '🔔', 'href' => url('modules/notificacoes/'),     'id' => 'notificacoes',    'roles' => $all),
     array('label' => 'Notif. Clientes', 'icon' => '📲', 'href' => url('modules/notificacoes/log_cliente.php'), 'id' => 'notif_clientes', 'roles' => array('admin','gestao','comercial','cx')),
     array('label' => 'Datas Especiais', 'icon' => '🎂', 'href' => url('modules/aniversarios/'),     'id' => 'aniversarios',    'roles' => $all),
@@ -52,6 +51,51 @@ $menuItems = array(
     array('label' => 'Usuários',        'icon' => '🛡️', 'href' => url('modules/usuarios/'),        'id' => 'usuarios',        'roles' => array('admin')),
 );
 ?>
+
+<style>
+/* Sidebar colapsável */
+.sidebar.collapsed { width:60px !important; }
+.sidebar.collapsed .sidebar-brand-text,
+.sidebar.collapsed .sidebar-section,
+.sidebar.collapsed .sidebar-link span:not(.icon),
+.sidebar.collapsed .user-info,
+.sidebar.collapsed .sidebar-controls span { display:none !important; }
+.sidebar.collapsed .sidebar-link { padding:.6rem .7rem;justify-content:center; }
+.sidebar.collapsed .sidebar-link .icon { margin:0;font-size:1.1rem; }
+.sidebar.collapsed .sidebar-brand { padding:.8rem .5rem;justify-content:center; }
+.sidebar.collapsed .sidebar-brand img { width:30px !important;height:30px !important; }
+.sidebar.collapsed .sidebar-footer { padding:.5rem;flex-direction:column;gap:.3rem; }
+.sidebar.collapsed .btn-logout { font-size:.7rem; }
+.sidebar.collapsed + .app-layout { margin-left:60px !important; }
+.sidebar.collapsed .sidebar-controls { flex-direction:column;padding:.3rem; }
+.sidebar.collapsed .sidebar-controls button { padding:4px;font-size:.85rem; }
+/* Controles do sidebar */
+.sidebar-controls { display:flex;gap:.25rem;padding:.4rem .8rem;border-top:1px solid rgba(255,255,255,.1); }
+.sidebar-controls button { background:rgba(255,255,255,.08);border:none;color:rgba(255,255,255,.7);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:.75rem;flex:1;transition:all .2s; }
+.sidebar-controls button:hover { background:rgba(255,255,255,.15);color:#fff; }
+/* Dark mode */
+body.dark-mode { --bg:#1a1a2e;--bg-card:#16213e;--bg-secondary:#0f3460;--text:#e0e0e0;--text-muted:#8899aa;--text-secondary:#7788aa;--border:#2a3a5e;--shadow-sm:0 1px 3px rgba(0,0,0,.4);--shadow-md:0 4px 12px rgba(0,0,0,.5); }
+body.dark-mode .topbar { background:var(--bg-card) !important;border-color:var(--border) !important; }
+body.dark-mode .card,.dark-mode .stat-card { background:var(--bg-card) !important;border-color:var(--border) !important;color:var(--text) !important; }
+body.dark-mode .card-header { background:var(--bg-secondary) !important;border-color:var(--border) !important; }
+body.dark-mode .page-content { background:var(--bg) !important; }
+body.dark-mode .main-content { background:var(--bg) !important; }
+body.dark-mode h1,body.dark-mode h2,body.dark-mode h3,body.dark-mode .topbar-title { color:var(--text) !important; }
+body.dark-mode .form-input,body.dark-mode .form-select,body.dark-mode select,body.dark-mode input,body.dark-mode textarea { background:var(--bg-secondary) !important;color:var(--text) !important;border-color:var(--border) !important; }
+body.dark-mode table th { background:var(--bg-secondary) !important; }
+body.dark-mode table td { background:var(--bg-card) !important;color:var(--text) !important;border-color:var(--border) !important; }
+body.dark-mode table tr:nth-child(even) td { background:rgba(255,255,255,.03) !important; }
+body.dark-mode table tr:hover td { background:rgba(215,171,144,.1) !important; }
+body.dark-mode .tbl-toolbar { background:var(--bg-card) !important;border-color:var(--border) !important; }
+body.dark-mode .tbl-grid th { background:linear-gradient(180deg,#1a2744,#16213e) !important; }
+body.dark-mode .tbl-grid td { border-color:var(--border) !important; }
+body.dark-mode .btn-outline { color:var(--text) !important;border-color:var(--border) !important; }
+body.dark-mode .lead-card,.dark-mode .op-card { background:var(--bg-card) !important;border-color:var(--border) !important; }
+body.dark-mode .lead-name,.dark-mode .op-card-name { color:var(--text) !important; }
+body.dark-mode .kanban-body,.dark-mode .op-col-body { background:var(--bg) !important;border-color:var(--border) !important; }
+body.dark-mode .pipeline-stats .stat-card,.dark-mode .op-kpi { background:var(--bg-card) !important;border-color:var(--border) !important; }
+body.dark-mode a { color:var(--rose); }
+</style>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -70,13 +114,24 @@ $menuItems = array(
                 <div class="sidebar-section"><?= e($item['section']) ?></div>
             <?php elseif (in_array($userRole, $item['roles'], true)): ?>
                 <a href="<?= $item['href'] ?>"
-                   class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>">
+                   class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
+                   title="<?= e($item['label']) ?>">
                     <span class="icon"><?= $item['icon'] ?></span>
-                    <?= e($item['label']) ?>
+                    <span><?= e($item['label']) ?></span>
                 </a>
             <?php endif; ?>
         <?php endforeach; ?>
     </nav>
+
+    <!-- Controles: Colapsar + Dark Mode -->
+    <div class="sidebar-controls">
+        <button onclick="toggleSidebarCollapse()" title="Recolher menu" id="btnCollapse">
+            <span>◀ Recolher</span>
+        </button>
+        <button onclick="toggleDarkMode()" title="Modo noturno" id="btnDarkMode">
+            🌙
+        </button>
+    </div>
 
     <div class="sidebar-footer">
         <div class="user-avatar"><?= e(mb_strtoupper($userInitials)) ?></div>
@@ -87,3 +142,46 @@ $menuItems = array(
         <a href="<?= url('auth/logout.php') ?>" class="btn-logout" title="Sair">⏻</a>
     </div>
 </aside>
+
+<script>
+// Colapsar sidebar
+function toggleSidebarCollapse() {
+    var sb = document.getElementById('sidebar');
+    sb.classList.toggle('collapsed');
+    var btn = document.getElementById('btnCollapse');
+    if (sb.classList.contains('collapsed')) {
+        btn.innerHTML = '▶';
+        btn.title = 'Expandir menu';
+    } else {
+        btn.innerHTML = '<span>◀ Recolher</span>';
+        btn.title = 'Recolher menu';
+    }
+    try { localStorage.setItem('sidebar_collapsed', sb.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
+}
+
+// Dark Mode
+function toggleDarkMode() {
+    document.body.classList.toggle('dark-mode');
+    var isDark = document.body.classList.contains('dark-mode');
+    var btn = document.getElementById('btnDarkMode');
+    btn.textContent = isDark ? '☀️' : '🌙';
+    btn.title = isDark ? 'Modo claro' : 'Modo noturno';
+    try { localStorage.setItem('dark_mode', isDark ? '1' : '0'); } catch(e) {}
+}
+
+// Restaurar preferências
+(function() {
+    try {
+        if (localStorage.getItem('sidebar_collapsed') === '1') {
+            document.getElementById('sidebar').classList.add('collapsed');
+            document.getElementById('btnCollapse').innerHTML = '▶';
+            document.getElementById('btnCollapse').title = 'Expandir menu';
+        }
+        if (localStorage.getItem('dark_mode') === '1') {
+            document.body.classList.add('dark-mode');
+            document.getElementById('btnDarkMode').textContent = '☀️';
+            document.getElementById('btnDarkMode').title = 'Modo claro';
+        }
+    } catch(e) {}
+})();
+</script>
