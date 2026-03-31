@@ -251,13 +251,38 @@ switch ($action) {
         redirect(module_url('pipeline'));
         break;
 
+    case 'duplicate':
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        if ($leadId) {
+            $orig = $pdo->prepare("SELECT * FROM pipeline_leads WHERE id = ?");
+            $orig->execute(array($leadId));
+            $origLead = $orig->fetch();
+            if ($origLead) {
+                $pdo->prepare(
+                    "INSERT INTO pipeline_leads (client_id, name, phone, email, source, stage, case_type, assigned_to, notes, created_at)
+                     VALUES (?,?,?,?,?,'cadastro_preenchido','',?,?,NOW())"
+                )->execute(array(
+                    $origLead['client_id'], $origLead['name'], $origLead['phone'], $origLead['email'],
+                    $origLead['source'], $origLead['assigned_to'], 'Duplicado de lead #' . $leadId
+                ));
+                $newId = (int)$pdo->lastInsertId();
+                $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
+                    ->execute(array($newId, 'cadastro_preenchido', current_user_id(), 'Duplicado para nova ação'));
+                flash_set('success', 'Lead duplicado! Edite o tipo de ação.');
+                redirect(module_url('pipeline', 'lead_ver.php?id=' . $newId));
+            }
+        }
+        redirect(module_url('pipeline'));
+        break;
+
     case 'inline_edit':
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $field = $_POST['field'] ?? '';
         $value = $_POST['value'] ?? '';
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
-            'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias');
+            'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
+            'data_agendamento','onboard_realizado','origem_lead');
         if ($leadId && in_array($field, $allowed)) {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
             $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));

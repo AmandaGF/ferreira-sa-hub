@@ -26,8 +26,24 @@ $stages = array(
     'suspenso'            => array('label' => 'Suspenso',                   'color' => '#9ca3af', 'icon' => '⏸️', 'resp' => 'Admin'),
 );
 
+// Filtros
+$searchPipeline = isset($_GET['q']) ? trim($_GET['q']) : '';
+$filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
+
 // Buscar leads (exceto finalizados)
-$leads = $pdo->query(
+$pipeWhere = "pl.stage NOT IN ('finalizado','perdido')";
+$pipeParams = array();
+if ($searchPipeline) {
+    $pipeWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
+    $s = "%$searchPipeline%";
+    $pipeParams = array($s, $s, $s);
+}
+if ($filterMonth) {
+    $pipeWhere .= " AND DATE_FORMAT(pl.created_at, '%Y-%m') = ?";
+    $pipeParams[] = $filterMonth;
+}
+
+$stmt = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
      cs.drive_folder_url
@@ -35,9 +51,11 @@ $leads = $pdo->query(
      LEFT JOIN users u ON u.id = pl.assigned_to
      LEFT JOIN clients c ON c.id = pl.client_id
      LEFT JOIN cases cs ON cs.id = pl.linked_case_id
-     WHERE pl.stage NOT IN ('finalizado','perdido')
+     WHERE $pipeWhere
      ORDER BY pl.updated_at DESC"
-)->fetchAll();
+);
+$stmt->execute($pipeParams);
+$leads = $stmt->fetchAll();
 
 $byStage = array();
 foreach (array_keys($stages) as $s) { $byStage[$s] = array(); }
@@ -148,7 +166,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button onclick="toggleView('tabela')" id="btnTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
         </div>
     </div>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <form method="GET" style="display:flex;gap:.4rem;align-items:center;">
+            <input type="text" name="q" value="<?= e($searchPipeline) ?>" placeholder="Buscar nome..." style="font-size:.78rem;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;width:150px;" onkeydown="if(event.key==='Enter')this.form.submit()">
+            <input type="month" name="mes" value="<?= e($filterMonth) ?>" style="font-size:.72rem;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;" onchange="this.form.submit()">
+            <?php if ($searchPipeline || $filterMonth): ?>
+                <a href="<?= module_url('pipeline') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">Limpar</a>
+            <?php endif; ?>
+        </form>
         <a href="<?= module_url('planilha', 'importar.php?destino=pipeline') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <a href="<?= module_url('pipeline', 'lead_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Lead</a>
         <a href="<?= module_url('pipeline', 'perdidos.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Perdidos</a>

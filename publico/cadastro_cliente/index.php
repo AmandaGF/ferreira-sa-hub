@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <input type="text" name="cpf" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14">
 
             <label>Data de Nascimento</label>
-            <input type="date" name="nascimento" value="<?= e($_POST['nascimento'] ?? '') ?>">
+            <input type="date" name="nascimento" value="<?= e($_POST['nascimento'] ?? '') ?>" required>
 
             <label>Profissão (se desempregado, também deve informar)</label>
             <input type="text" name="profissao" value="<?= e($_POST['profissao'] ?? '') ?>">

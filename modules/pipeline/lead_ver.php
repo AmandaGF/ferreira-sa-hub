@@ -291,6 +291,61 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <?php endif; ?>
 
+    <!-- Ações Rápidas -->
+    <div class="card">
+        <div class="card-header"><h3>Ações Rápidas</h3></div>
+        <div class="card-body" style="display:flex;gap:.5rem;flex-wrap:wrap;">
+            <a href="<?= module_url('documentos', 'index.php?client_id=' . ($lead['client_id'] ?: 0)) ?>" class="btn btn-outline btn-sm">📜 Elaborar Documento</a>
+            <?php if ($lead['linked_case_id']): ?>
+                <a href="<?= module_url('peticoes', 'index.php?case_id=' . $lead['linked_case_id']) ?>" class="btn btn-outline btn-sm" style="color:#B87333;border-color:#B87333;">📝 Fábrica de Petições</a>
+            <?php endif; ?>
+            <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:inline;" data-confirm="Criar outra ação para este cliente?">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="duplicate">
+                <input type="hidden" name="lead_id" value="<?= $leadId ?>">
+                <button type="submit" class="btn btn-outline btn-sm">📋 + Nova Ação (duplicar)</button>
+            </form>
+            <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este lead permanentemente?">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="lead_id" value="<?= $leadId ?>">
+                <button type="submit" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#dc2626;">🗑️ Excluir Lead</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Agendamento e Onboard -->
+    <div class="card">
+        <div class="card-header"><h3>📅 Agendamento / Onboard</h3></div>
+        <div class="card-body">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.75rem;align-items:end;">
+                <div>
+                    <span class="fl">Data do agendamento</span>
+                    <input type="date" id="data_agendamento" value="<?= e($lead['data_agendamento'] ?? '') ?>" onchange="saveField('data_agendamento',this.value,<?= $leadId ?>)" style="width:100%;padding:5px 8px;font-size:.85rem;border:1.5px solid var(--border);border-radius:8px;">
+                    <span class="sv" id="save-data_agendamento">Salvo!</span>
+                </div>
+                <div>
+                    <span class="fl">Onboard realizado</span>
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.88rem;padding:5px 0;">
+                        <input type="checkbox" <?= ($lead['onboard_realizado'] ?? 0) ? 'checked' : '' ?> onchange="saveField('onboard_realizado',this.checked?1:0,<?= $leadId ?>)" style="width:18px;height:18px;">
+                        <?= ($lead['onboard_realizado'] ?? 0) ? '<span style="color:var(--success);font-weight:700;">Sim ✓</span>' : '<span style="color:var(--text-muted);">Não</span>' ?>
+                    </label>
+                    <span class="sv" id="save-onboard_realizado">Salvo!</span>
+                </div>
+                <div>
+                    <span class="fl">Origem do lead</span>
+                    <select onchange="saveField('origem_lead',this.value,<?= $leadId ?>)" style="width:100%;padding:5px 8px;font-size:.82rem;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-card);">
+                        <option value="">—</option>
+                        <?php foreach (array('trafego_pago'=>'Tráfego Pago','indicacao'=>'Indicação','ltv'=>'LTV','instagram'=>'Instagram','whatsapp'=>'WhatsApp','google'=>'Google','formulario'=>'Formulário') as $k=>$v): ?>
+                            <option value="<?= $k ?>" <?= ($lead['origem_lead'] ?? '') === $k ? 'selected' : '' ?>><?= $v ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <span class="sv" id="save-origem_lead">Salvo!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Mover estágio -->
     <div class="card">
         <div class="card-header"><h3>Mover para</h3></div>

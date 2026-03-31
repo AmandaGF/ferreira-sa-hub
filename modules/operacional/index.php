@@ -19,6 +19,7 @@ $canMove = can_move_operacional();
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
 $filterSearch = isset($_GET['q']) ? trim($_GET['q']) : '';
+$filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 
 // Colunas do board (conforme doc técnico v2)
 $columns = array(
@@ -28,7 +29,7 @@ $columns = array(
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
-    'parceria_previdenciario'=> array('label' => 'Parceria / Previdenciário',   'color' => '#06b6d4', 'icon' => '🤝'),
+    'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
     'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
 );
 
@@ -52,6 +53,10 @@ if ($filterSearch) {
     $where[] = "(cs.title LIKE ? OR c.name LIKE ? OR cs.case_type LIKE ? OR cs.case_number LIKE ?)";
     $s = "%$filterSearch%";
     $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
+}
+if ($filterMonth) {
+    $where[] = "DATE_FORMAT(cs.created_at, '%Y-%m') = ?";
+    $params[] = $filterMonth;
 }
 
 $whereStr = implode(' AND ', $where);
@@ -202,7 +207,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
         <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <form method="GET" class="op-filters">
-            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:180px;" onkeydown="if(event.key==='Enter')this.form.submit()">
+            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:160px;" onkeydown="if(event.key==='Enter')this.form.submit()">
+            <input type="month" name="mes" value="<?= e($filterMonth) ?>" class="op-filter-select" style="min-width:120px;" onchange="this.form.submit()">
             <select name="priority" class="op-filter-select" onchange="this.form.submit()">
                 <option value="">Prioridade</option>
                 <?php foreach ($priorityLabels as $pk => $pl): ?>
@@ -217,7 +223,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endforeach; ?>
             </select>
             <?php endif; ?>
-            <?php if ($filterPriority || $filterUser || $filterSearch): ?>
+            <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">Limpar</a>
             <?php endif; ?>
         </form>
