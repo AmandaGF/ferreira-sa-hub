@@ -62,7 +62,7 @@ if ($step === '2' && isset($_FILES['csv_file'])) {
             $handle = fopen($tmpPath, 'r');
             $preview = array();
             $lineNum = 0;
-            while (($row = fgetcsv($handle, 0, $sep)) !== false && $lineNum < 12) {
+            while (($row = fgetcsv($handle, 0, $sep)) !== false && $lineNum < 5) {
                 $preview[] = $row;
                 $lineNum++;
             }
@@ -274,8 +274,8 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 <?php elseif ($step === '2' && isset($preview)): ?>
 <!-- STEP 2: Preview + Mapeamento -->
 <div class="card" style="margin-bottom:1rem;">
-    <div class="card-header"><strong>Preview do arquivo</strong> — <?= $totalLines ?> linhas | Separador: "<?= $sep === ';' ? ';' : ',' ?>"</div>
-    <div class="card-body" style="overflow-x:auto;">
+    <div class="card-header"><strong>Preview do arquivo</strong> — <?= $totalLines ?> linhas | Separador: "<?= $sep === ';' ? ';' : ',' ?>" (mostrando 5 primeiras)</div>
+    <div class="card-body" style="overflow-x:auto;max-height:220px;overflow-y:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:.72rem;">
             <thead>
                 <tr>
@@ -371,9 +371,10 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                 </div>
             </div>
 
-            <div style="margin-top:1.25rem;display:flex;gap:.5rem;">
-                <button type="submit" class="btn btn-primary">Importar <?= $totalLines ?> linhas</button>
+            <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;padding:1rem;background:var(--success-bg);border-radius:var(--radius);border:2px solid var(--success);">
+                <button type="submit" class="btn btn-primary" style="padding:10px 28px;font-size:.95rem;font-weight:700;background:var(--success);border:none;">Importar <?= $totalLines ?> linhas</button>
                 <a href="<?= module_url('planilha', 'importar.php') ?>" class="btn btn-secondary">Cancelar</a>
+                <span style="font-size:.78rem;color:var(--text-muted);margin-left:.5rem;">Verifique o mapeamento acima antes de confirmar</span>
             </div>
         </div>
     </div>
