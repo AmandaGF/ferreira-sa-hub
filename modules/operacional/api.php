@@ -377,6 +377,24 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'delete_case':
+        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); break; }
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            // Desvincular lead do pipeline
+            $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = NULL WHERE linked_case_id = ?")->execute(array($caseId));
+            // Remover docs pendentes
+            $pdo->prepare("DELETE FROM documentos_pendentes WHERE case_id = ?")->execute(array($caseId));
+            // Remover tarefas
+            $pdo->prepare("DELETE FROM case_tasks WHERE case_id = ?")->execute(array($caseId));
+            // Remover caso
+            $pdo->prepare("DELETE FROM cases WHERE id = ?")->execute(array($caseId));
+            audit_log('case_deleted', 'case', $caseId);
+            flash_set('success', 'Caso excluído.');
+        }
+        redirect(module_url('operacional'));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('operacional'));

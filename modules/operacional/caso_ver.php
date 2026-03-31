@@ -89,9 +89,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .task-meta { font-size:.72rem; color:var(--text-muted); flex-shrink:0; }
 </style>
 
-<div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
+<div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
     <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">← Voltar</a>
     <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="delete_case">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#dc2626;">🗑️ Excluir Caso</button>
+    </form>
 </div>
 
 <!-- Header do caso -->
