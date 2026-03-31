@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Detalhe do Lead (edição inline + formulários)
+ * Ferreira & Sá Hub — Detalhe do Lead (edição inline + formulários + campos comerciais)
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_min_role('gestao');
@@ -8,7 +8,13 @@ require_min_role('gestao');
 $pdo = db();
 $leadId = (int)($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare('SELECT pl.*, u.name as assigned_name, cs.drive_folder_url FROM pipeline_leads pl LEFT JOIN users u ON u.id = pl.assigned_to LEFT JOIN cases cs ON cs.id = pl.linked_case_id WHERE pl.id = ?');
+$stmt = $pdo->prepare(
+    'SELECT pl.*, u.name as assigned_name, cs.drive_folder_url
+     FROM pipeline_leads pl
+     LEFT JOIN users u ON u.id = pl.assigned_to
+     LEFT JOIN cases cs ON cs.id = pl.linked_case_id
+     WHERE pl.id = ?'
+);
 $stmt->execute(array($leadId));
 $lead = $stmt->fetch();
 if (!$lead) { flash_set('error', 'Lead não encontrado.'); redirect(module_url('pipeline')); }
@@ -17,9 +23,10 @@ if (!$lead) { flash_set('error', 'Lead não encontrado.'); redirect(module_url('
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inline_edit' && validate_csrf()) {
     $field = $_POST['field'] ?? '';
     $value = $_POST['value'] ?? '';
-    $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to');
+    $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
+        'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes',
+        'nome_pasta','pendencias');
     if (in_array($field, $allowed)) {
-        if ($field === 'estimated_value_cents') $value = (int)(floatval(str_replace(array('.', ','), array('', '.'), $value)) * 100);
         if ($field === 'assigned_to') $value = (int)$value ?: null;
         $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -38,7 +45,7 @@ $history = $pdo->prepare('SELECT ph.*, u.name as user_name FROM pipeline_history
 $history->execute(array($leadId));
 $history = $history->fetchAll();
 
-// Respostas dos formulários (pelo nome ou client_id)
+// Respostas dos formulários
 $formSubs = array();
 try {
     if ($lead['client_id']) {
@@ -47,13 +54,17 @@ try {
         $formSubs = $fs->fetchAll();
     }
     if (empty($formSubs)) {
+        $searchName = $lead['name'];
+        if (strpos($searchName, ' x ') !== false) $searchName = trim(explode(' x ', $searchName)[0]);
         $fs = $pdo->prepare("SELECT * FROM form_submissions WHERE client_name LIKE ? ORDER BY created_at DESC LIMIT 5");
-        $fs->execute(array('%' . $lead['name'] . '%'));
+        $fs->execute(array('%' . $searchName . '%'));
         $formSubs = $fs->fetchAll();
     }
 } catch (Exception $e) {}
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+$isOperacional = has_role('operacional');
+$isComercial = has_role('comercial') || has_role('cx') || has_role('admin') || has_role('gestao');
 
 $stageLabels = array(
     'cadastro_preenchido'=>'📋 Cadastro','elaboracao_docs'=>'📝 Elaboração','link_enviados'=>'📨 Link Enviado',
@@ -63,13 +74,12 @@ $stageLabels = array(
 );
 $sourceLabels = array('calculadora'=>'Calculadora','landing'=>'Site','indicacao'=>'Indicação','instagram'=>'Instagram','google'=>'Google','whatsapp'=>'WhatsApp','outro'=>'Outro');
 
-// Labels dos campos de formulário
 $formFieldLabels = array(
     'nome'=>'Nome','name'=>'Nome','telefone'=>'Telefone','phone'=>'Telefone',
     'email'=>'E-mail','cpf'=>'CPF','rg'=>'RG','data_nascimento'=>'Data Nasc.',
-    'endereco'=>'Endereço','address'=>'Endereço','cep'=>'CEP','cidade'=>'Cidade','estado'=>'Estado',
-    'tipo_acao'=>'Tipo de Ação','case_type'=>'Tipo','profissao'=>'Profissão',
-    'estado_civil'=>'Estado Civil','tem_filhos'=>'Tem filhos?','nomes_filhos'=>'Nomes dos filhos',
+    'endereco'=>'Endereço','cep'=>'CEP','cidade'=>'Cidade','estado'=>'Estado',
+    'tipo_acao'=>'Tipo de Ação','profissao'=>'Profissão','estado_civil'=>'Estado Civil',
+    'tem_filhos'=>'Tem filhos?','nomes_filhos'=>'Nomes dos filhos',
     'observacoes'=>'Observações','mensagem'=>'Mensagem','descricao'=>'Descrição',
     'renda_mensal'=>'Renda Mensal','valor_pensao'=>'Valor Pensão',
 );
@@ -78,34 +88,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.lead-detail { max-width:780px; }
+.lead-detail { max-width:820px; }
 .lead-detail .card { margin-bottom:1rem; }
-.field-editable { cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s;min-height:1.5em;display:inline-block; }
-.field-editable:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
-.field-editable:focus { background:#fff;outline:2px solid var(--rose);border-radius:6px; }
-.field-editing { background:#fff;border:2px solid var(--rose);border-radius:6px;padding:4px 8px;font-size:inherit;font-family:inherit;width:100%;outline:none; }
-.field-label { font-size:.7rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;display:block;margin-bottom:2px; }
+.fe { cursor:pointer;padding:4px 8px;border-radius:6px;transition:background .15s;min-height:1.4em;display:inline-block; }
+.fe:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
+.fe:focus { background:#fff;outline:2px solid var(--rose); }
+.fl { font-size:.68rem;text-transform:uppercase;color:var(--text-muted);font-weight:700;display:block;margin-bottom:2px; }
+.sv { font-size:.6rem;color:var(--success);font-weight:600;margin-left:.35rem;opacity:0;transition:opacity .3s; }
+.sv.show { opacity:1; }
+.info-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.85rem; }
+.info-val { font-size:.88rem; }
+.section-title { font-size:.85rem;font-weight:700;color:var(--petrol-900);margin-bottom:.5rem;display:flex;align-items:center;gap:.5rem; }
+.badge-inadimplente { background:#dc2626;color:#fff;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;animation:pulse 2s infinite; }
+.badge-adimplente { background:#059669;color:#fff;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700; }
+.badge-asaas { background:#7c3aed;color:#fff;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.7} }
+.fin-card { display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem;padding:.75rem;background:linear-gradient(135deg,#f8f9fa,#fff);border-radius:var(--radius);border:1px solid var(--border); }
+.fin-item { text-align:center; }
+.fin-item .fl { text-align:center; }
 .form-response { background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-top:.5rem; }
-.form-response-field { display:flex;gap:.5rem;padding:.35rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.82rem; }
+.form-response-field { display:flex;gap:.5rem;padding:.3rem 0;border-bottom:1px solid rgba(0,0,0,.05);font-size:.82rem; }
 .form-response-field:last-child { border-bottom:none; }
 .form-response-label { font-weight:700;color:var(--petrol-900);min-width:120px;flex-shrink:0; }
-.form-response-value { color:var(--text); }
-.save-indicator { font-size:.65rem;color:var(--success);font-weight:600;margin-left:.5rem;opacity:0;transition:opacity .3s; }
-.save-indicator.show { opacity:1; }
 </style>
 
 <div class="lead-detail">
-    <a href="<?= module_url('pipeline') ?>" class="btn btn-outline btn-sm mb-2">← Voltar ao Kanban</a>
+    <a href="<?= module_url('pipeline') ?>" class="btn btn-outline btn-sm" style="margin-bottom:.75rem;">← Voltar ao Kanban</a>
 
+    <!-- Header -->
     <div class="card">
         <div class="card-header">
             <h3 style="font-size:1.1rem;">
-                <span class="field-editable" contenteditable="true" data-field="name" data-id="<?= $leadId ?>"><?= e($lead['name']) ?></span>
-                <span class="save-indicator" id="save-name">Salvo!</span>
+                <span class="fe" contenteditable="true" data-field="name" data-id="<?= $leadId ?>"><?= e($lead['name']) ?></span>
+                <span class="sv" id="save-name">Salvo!</span>
             </h3>
-            <div style="display:flex;gap:.5rem;">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
                 <?php if (!empty($lead['drive_folder_url'])): ?>
-                    <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank" class="btn btn-outline btn-sm" style="color:#0ea5e9;border-color:#0ea5e9;">📂 Pasta Drive</a>
+                    <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank" class="btn btn-outline btn-sm" style="color:#0ea5e9;border-color:#0ea5e9;">📂 Drive</a>
                 <?php endif; ?>
                 <?php if ($lead['phone']): ?>
                     <a href="https://wa.me/55<?= preg_replace('/\D/', '', $lead['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
@@ -113,55 +132,121 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
         <div class="card-body">
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;">
+            <!-- Dados básicos -->
+            <div class="info-grid">
                 <div>
-                    <span class="field-label">Etapa</span>
+                    <span class="fl">Etapa</span>
                     <span class="badge badge-info"><?= $stageLabels[$lead['stage']] ?? $lead['stage'] ?></span>
                 </div>
                 <div>
-                    <span class="field-label">Telefone</span>
-                    <span class="field-editable" contenteditable="true" data-field="phone" data-id="<?= $leadId ?>"><?= e($lead['phone'] ?: '—') ?></span>
-                    <span class="save-indicator" id="save-phone">Salvo!</span>
+                    <span class="fl">Telefone</span>
+                    <span class="fe info-val" contenteditable="true" data-field="phone" data-id="<?= $leadId ?>"><?= e($lead['phone'] ?: '—') ?></span>
+                    <span class="sv" id="save-phone">Salvo!</span>
                 </div>
                 <div>
-                    <span class="field-label">E-mail</span>
-                    <span class="field-editable" contenteditable="true" data-field="email" data-id="<?= $leadId ?>"><?= e($lead['email'] ?: '—') ?></span>
-                    <span class="save-indicator" id="save-email">Salvo!</span>
+                    <span class="fl">E-mail</span>
+                    <span class="fe info-val" contenteditable="true" data-field="email" data-id="<?= $leadId ?>"><?= e($lead['email'] ?: '—') ?></span>
+                    <span class="sv" id="save-email">Salvo!</span>
                 </div>
                 <div>
-                    <span class="field-label">Origem</span>
-                    <span style="font-size:.88rem;"><?= $sourceLabels[$lead['source']] ?? $lead['source'] ?></span>
+                    <span class="fl">Origem</span>
+                    <span class="info-val"><?= $sourceLabels[$lead['source']] ?? $lead['source'] ?></span>
                 </div>
                 <div>
-                    <span class="field-label">Tipo de Ação</span>
-                    <span class="field-editable" contenteditable="true" data-field="case_type" data-id="<?= $leadId ?>"><?= e($lead['case_type'] ?: '—') ?></span>
-                    <span class="save-indicator" id="save-case_type">Salvo!</span>
+                    <span class="fl">Tipo de Ação</span>
+                    <span class="fe info-val" contenteditable="true" data-field="case_type" data-id="<?= $leadId ?>"><?= e($lead['case_type'] ?: '—') ?></span>
+                    <span class="sv" id="save-case_type">Salvo!</span>
                 </div>
                 <div>
-                    <span class="field-label">Valor Estimado</span>
-                    <span class="field-editable" contenteditable="true" data-field="estimated_value_cents" data-id="<?= $leadId ?>"><?= $lead['estimated_value_cents'] ? number_format($lead['estimated_value_cents'] / 100, 2, ',', '.') : '—' ?></span>
-                    <span class="save-indicator" id="save-estimated_value_cents">Salvo!</span>
-                </div>
-                <div>
-                    <span class="field-label">Responsável</span>
+                    <span class="fl">Responsável</span>
                     <select onchange="saveField('assigned_to',this.value,<?= $leadId ?>)" style="font-size:.85rem;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;">
-                        <option value="">— Nenhum —</option>
+                        <option value="">—</option>
                         <?php foreach ($users as $u): ?>
                             <option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e($u['name']) ?></option>
                         <?php endforeach; ?>
                     </select>
-                    <span class="save-indicator" id="save-assigned_to">Salvo!</span>
+                    <span class="sv" id="save-assigned_to">Salvo!</span>
                 </div>
                 <div>
-                    <span class="field-label">Criado em</span>
-                    <span style="font-size:.88rem;"><?= date('d/m/Y H:i', strtotime($lead['created_at'])) ?></span>
+                    <span class="fl">Nome da Pasta</span>
+                    <span class="fe info-val" contenteditable="true" data-field="nome_pasta" data-id="<?= $leadId ?>"><?= e($lead['nome_pasta'] ?: '—') ?></span>
+                    <span class="sv" id="save-nome_pasta">Salvo!</span>
+                </div>
+                <div>
+                    <span class="fl">Criado em</span>
+                    <span class="info-val"><?= date('d/m/Y H:i', strtotime($lead['created_at'])) ?></span>
                 </div>
             </div>
 
-            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
-                <span class="field-label">Observações</span>
-                <div class="field-editable" contenteditable="true" data-field="notes" data-id="<?= $leadId ?>" style="min-height:3em;white-space:pre-wrap;font-size:.88rem;"><?= e($lead['notes'] ?: 'Clique para adicionar...') ?></div>
-                <span class="save-indicator" id="save-notes">Salvo!</span>
+            <!-- Financeiro (visível para comercial/gestão/admin) -->
+            <?php if ($isComercial): ?>
+            <div style="margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--border);">
+                <div class="section-title">💰 Financeiro</div>
+                <div class="fin-card">
+                    <div class="fin-item">
+                        <span class="fl">Valor da Ação</span>
+                        <span class="fe" contenteditable="true" data-field="valor_acao" data-id="<?= $leadId ?>" style="font-weight:700;color:var(--petrol-900);font-size:.95rem;"><?= e($lead['valor_acao'] ?: '—') ?></span>
+                        <span class="sv" id="save-valor_acao">Salvo!</span>
+                    </div>
+                    <div class="fin-item">
+                        <span class="fl">Vencto 1ª Parcela</span>
+                        <span class="fe" contenteditable="true" data-field="vencimento_parcela" data-id="<?= $leadId ?>"><?= e($lead['vencimento_parcela'] ?: '—') ?></span>
+                        <span class="sv" id="save-vencimento_parcela">Salvo!</span>
+                    </div>
+                    <div class="fin-item">
+                        <span class="fl">Forma de Pagamento</span>
+                        <span class="fe" contenteditable="true" data-field="forma_pagamento" data-id="<?= $leadId ?>"><?= e($lead['forma_pagamento'] ?: '—') ?></span>
+                        <span class="sv" id="save-forma_pagamento">Salvo!</span>
+                    </div>
+                    <div class="fin-item">
+                        <span class="fl">Cadastro Asaas</span>
+                        <select onchange="saveField('cadastro_asaas',this.value,<?= $leadId ?>)" style="font-size:.82rem;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;">
+                            <option value="" <?= !$lead['cadastro_asaas'] ? 'selected' : '' ?>>—</option>
+                            <option value="Sim" <?= $lead['cadastro_asaas'] === 'Sim' ? 'selected' : '' ?>>✅ Sim</option>
+                            <option value="Não" <?= $lead['cadastro_asaas'] === 'Não' ? 'selected' : '' ?>>❌ Não</option>
+                        </select>
+                        <span class="sv" id="save-cadastro_asaas">Salvo!</span>
+                    </div>
+                    <div class="fin-item">
+                        <span class="fl">Urgência</span>
+                        <span class="fe" contenteditable="true" data-field="urgencia" data-id="<?= $leadId ?>"><?= e($lead['urgencia'] ?: '—') ?></span>
+                        <span class="sv" id="save-urgencia">Salvo!</span>
+                    </div>
+                </div>
+            </div>
+            <?php endif; ?>
+
+            <!-- Inadimplência (visível para TODOS) -->
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                <div class="section-title" style="margin:0;">📊 Status Financeiro</div>
+                <?php
+                $inadimplente = mb_strtolower(trim($lead['pendencias'] ?? ''));
+                $isInadimplente = $inadimplente && (strpos($inadimplente, 'inadimplente') !== false || strpos($inadimplente, 'inadimpl') !== false);
+                ?>
+                <?php if ($lead['cadastro_asaas'] === 'Sim'): ?>
+                    <span class="badge-asaas">Asaas ✓</span>
+                <?php endif; ?>
+                <?php if ($isInadimplente): ?>
+                    <span class="badge-inadimplente">⚠️ INADIMPLENTE</span>
+                <?php elseif ($lead['cadastro_asaas'] === 'Sim'): ?>
+                    <span class="badge-adimplente">Adimplente ✓</span>
+                <?php else: ?>
+                    <span style="font-size:.78rem;color:var(--text-muted);">Sem informação financeira</span>
+                <?php endif; ?>
+            </div>
+
+            <!-- Observações e Pendências -->
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                <div>
+                    <span class="fl">Observações</span>
+                    <div class="fe" contenteditable="true" data-field="observacoes" data-id="<?= $leadId ?>" style="min-height:2.5em;white-space:pre-wrap;font-size:.85rem;"><?= e($lead['observacoes'] ?: $lead['notes'] ?: 'Clique para adicionar...') ?></div>
+                    <span class="sv" id="save-observacoes">Salvo!</span>
+                </div>
+                <div>
+                    <span class="fl">Pendências</span>
+                    <div class="fe" contenteditable="true" data-field="pendencias" data-id="<?= $leadId ?>" style="min-height:2.5em;white-space:pre-wrap;font-size:.85rem;<?= $isInadimplente ? 'color:#dc2626;font-weight:700;' : '' ?>"><?= e($lead['pendencias'] ?: 'Clique para adicionar...') ?></div>
+                    <span class="sv" id="save-pendencias">Salvo!</span>
+                </div>
             </div>
 
             <?php if ($lead['stage'] === 'perdido' && $lead['lost_reason']): ?>
@@ -197,7 +282,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 ?>
                 <div class="form-response-field">
                     <span class="form-response-label"><?= e($label) ?></span>
-                    <span class="form-response-value"><?= e($val) ?></span>
+                    <span><?= e($val) ?></span>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -218,7 +303,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php foreach ($stageLabels as $sk => $sl): ?>
                     <?php if ($sk !== $lead['stage'] && $sk !== 'doc_faltante'): ?>
                         <button type="submit" name="to_stage" value="<?= $sk ?>" class="btn btn-outline btn-sm"
-                            onclick="<?= $sk === 'contrato_assinado' ? 'event.preventDefault();handleStageButton(this.form,\'' . $sk . '\')' : '' ?>"
                             <?= $sk === 'perdido' ? 'data-confirm="Marcar como perdido?"' : '' ?>><?= $sl ?></button>
                     <?php endif; ?>
                 <?php endforeach; ?>
@@ -249,10 +333,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 var csrfToken = '<?= generate_csrf_token() ?>';
 var apiUrl = '<?= module_url("pipeline", "lead_ver.php?id=" . $leadId) ?>';
 
-// Edição inline — salvar ao sair do campo
-document.querySelectorAll('.field-editable[contenteditable]').forEach(function(el) {
+document.querySelectorAll('.fe[contenteditable]').forEach(function(el) {
     var original = el.textContent.trim();
-
     el.addEventListener('blur', function() {
         var newVal = this.textContent.trim();
         if (newVal === original || (newVal === 'Clique para adicionar...' && !original)) return;
@@ -260,16 +342,9 @@ document.querySelectorAll('.field-editable[contenteditable]').forEach(function(e
         saveField(this.dataset.field, newVal, this.dataset.id);
         original = newVal;
     });
-
     el.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter' && this.dataset.field !== 'notes') {
-            e.preventDefault();
-            this.blur();
-        }
-        if (e.key === 'Escape') {
-            this.textContent = original;
-            this.blur();
-        }
+        if (e.key === 'Enter' && this.dataset.field !== 'observacoes' && this.dataset.field !== 'pendencias') { e.preventDefault(); this.blur(); }
+        if (e.key === 'Escape') { this.textContent = original; this.blur(); }
     });
 });
 
@@ -279,16 +354,12 @@ function saveField(field, value, id) {
     formData.append('field', field);
     formData.append('value', value);
     formData.append('csrf_token', csrfToken);
-
     var xhr = new XMLHttpRequest();
     xhr.open('POST', apiUrl);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
         var indicator = document.getElementById('save-' + field);
-        if (indicator) {
-            indicator.classList.add('show');
-            setTimeout(function() { indicator.classList.remove('show'); }, 1500);
-        }
+        if (indicator) { indicator.classList.add('show'); setTimeout(function() { indicator.classList.remove('show'); }, 1500); }
     };
     xhr.send(formData);
 }
