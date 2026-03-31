@@ -94,8 +94,8 @@ if ($action === 'gerar') {
     }
 
     $payload = json_encode(array(
-        'model' => 'claude-sonnet-4-6-20250514',
-        'max_tokens' => 4096,
+        'model' => 'claude-sonnet-4-5-20250514',
+        'max_tokens' => 8192,
         'system' => get_system_prompt(),
         'messages' => array(
             array('role' => 'user', 'content' => $userPrompt)

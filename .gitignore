@@ -12,6 +12,10 @@ Thumbs.db
 instalar.php
 debug.php
 
+# Configuração sensível
+.env
+core/config.php
+
 # IDE
 .vscode/
 .idea/
