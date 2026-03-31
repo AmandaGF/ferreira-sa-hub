@@ -423,7 +423,7 @@ function consultarCPF(cpfFormatado) {
     loading.style.display = 'inline'; ok.style.display = 'none';
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://receitaws.com.br/v1/cpf/' + cpfLimpo, true);
+    xhr.open('GET', '/conecta/publico/api_cpf.php?cpf=' + cpfLimpo, true);
     xhr.timeout = 10000;
     xhr.onload = function() {
         loading.style.display = 'none';
