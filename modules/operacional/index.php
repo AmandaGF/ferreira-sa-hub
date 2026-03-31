@@ -186,12 +186,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Filtros + Toggle -->
 <div class="op-topbar">
-    <h3>Kanban Operacional</h3>
-    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-        <div style="display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">
-            <button onclick="toggleOpView('kanban')" id="btnOpKanban" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;">Kanban</button>
-            <button onclick="toggleOpView('tabela')" id="btnOpTabela" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--bg-card);color:var(--text);">Tabela</button>
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <h3 style="margin:0;">Kanban Operacional</h3>
+        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
+            <button onclick="toggleOpView('kanban')" id="btnOpKanban" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">📋 Kanban</button>
+            <button onclick="toggleOpView('tabela')" id="btnOpTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
         </div>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <form method="GET" class="op-filters">
             <select name="priority" class="op-filter-select" onchange="this.form.submit()">
                 <option value="">Prioridade</option>
@@ -285,13 +288,39 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Visão Tabela Operacional -->
 <div id="viewOpTabela" style="display:none;">
+<style>
+.tbl-toolbar { display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem;padding:.5rem .75rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg); }
+.tbl-filter { font-size:.8rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text);min-width:140px; }
+.tbl-filter:focus { border-color:var(--rose);outline:none; }
+.tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
+.tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
+.tbl-csv:hover { opacity:.9; }
+.tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
+.tbl-grid { width:100%;border-collapse:collapse;font-size:.82rem; }
+.tbl-grid thead { position:sticky;top:0;z-index:2; }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
+.tbl-grid th:hover { background:var(--petrol-500); }
+.tbl-grid th:last-child { border-right:none; }
+.tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
+.tbl-grid tbody tr { cursor:pointer;transition:background .15s; }
+.tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
+.tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
+.tbl-grid .cell-name { font-weight:700;color:var(--petrol-900); }
+.tbl-grid .cell-resp { color:var(--rose-dark);font-weight:600; }
+.tbl-badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff; }
+.tbl-badge-sm { display:inline-block;padding:2px 8px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff; }
+.tbl-grid .cell-proc { font-size:.78rem;color:var(--petrol-500);font-weight:600; }
+.tbl-grid .cell-move select { font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text); }
+.tbl-grid .cell-move select:hover { border-color:var(--rose); }
+.tbl-pag { display:flex;justify-content:center;gap:4px;margin-top:1rem; }
+.tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text);transition:all .15s; }
+.tbl-pag a:hover { background:var(--petrol-100);border-color:var(--petrol-500); }
+.tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
+</style>
 <?php
 $allCasesFlat = array();
 foreach ($byStatus as $statusKey => $statusCases) {
-    foreach ($statusCases as $cs) {
-        $cs['_status_key'] = $statusKey;
-        $allCasesFlat[] = $cs;
-    }
+    foreach ($statusCases as $cs) { $cs['_status_key'] = $statusKey; $allCasesFlat[] = $cs; }
 }
 $opPage = max(1, (int)($_GET['op'] ?? 1));
 $opPerPage = 25;
@@ -299,91 +328,79 @@ $opTotalPages = max(1, ceil(count($allCasesFlat) / $opPerPage));
 if ($opPage > $opTotalPages) $opPage = $opTotalPages;
 $opOffset = ($opPage - 1) * $opPerPage;
 $pageCases = array_slice($allCasesFlat, $opOffset, $opPerPage);
+$opTipos = array();
+foreach ($allCasesFlat as $cs) { if ($cs['case_type'] && $cs['case_type'] !== 'outro' && !in_array($cs['case_type'], $opTipos)) $opTipos[] = $cs['case_type']; }
+sort($opTipos);
 ?>
-<div style="margin-bottom:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-    <select id="filterOpStatus" onchange="filterOpTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+<div class="tbl-toolbar">
+    <select id="filterOpStatus" onchange="filterOpTable()" class="tbl-filter">
         <option value="">Todos os status</option>
-        <?php foreach ($columns as $ck => $cv): ?>
-            <option value="<?= $ck ?>"><?= $cv['icon'] ?> <?= $cv['label'] ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($columns as $ck => $cv): ?><option value="<?= $ck ?>"><?= $cv['icon'] ?> <?= $cv['label'] ?></option><?php endforeach; ?>
     </select>
-    <select id="filterOpResp" onchange="filterOpTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+    <select id="filterOpResp" onchange="filterOpTable()" class="tbl-filter">
         <option value="">Todos responsáveis</option>
-        <?php foreach ($users as $u): ?>
-            <option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($users as $u): ?><option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
     </select>
-    <select id="filterOpType" onchange="filterOpTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+    <select id="filterOpType" onchange="filterOpTable()" class="tbl-filter">
         <option value="">Todos os tipos</option>
-        <?php
-        $opTipos = array();
-        foreach ($allCasesFlat as $cs) { if ($cs['case_type'] && $cs['case_type'] !== 'outro' && !in_array($cs['case_type'], $opTipos)) $opTipos[] = $cs['case_type']; }
-        sort($opTipos);
-        foreach ($opTipos as $t): ?>
-            <option value="<?= e($t) ?>"><?= e($t) ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($opTipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted);"><?= count($allCasesFlat) ?> casos</span>
-    <button onclick="exportTableCSV('opTableBody','operacional')" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;">CSV</button>
+    <span class="tbl-count"><?= count($allCasesFlat) ?> casos</span>
+    <button onclick="exportTableCSV('opTableBody','operacional')" class="tbl-csv">Exportar CSV</button>
 </div>
-<div style="overflow-x:auto;border:1px solid #bbb;border-radius:6px;">
-<table style="width:100%;border-collapse:collapse;font-size:.75rem;font-family:'Segoe UI',Arial,sans-serif;" id="opTableBody">
-<thead>
-<tr style="background:linear-gradient(180deg,#f0f0f0,#e0e0e0);">
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',0)">#</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',1)">Caso</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',2)">Tipo Ação</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',3)">Responsável</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',4)">Status</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',5)">Prioridade</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',6)">Nº Processo</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('opTableBody',7)">Cadastro</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;white-space:nowrap;font-size:.7rem;">Mover</th>
-</tr>
-</thead>
+<div class="tbl-wrap" style="max-height:72vh;overflow-y:auto;">
+<table class="tbl-grid" id="opTableBody">
+<thead><tr>
+    <th onclick="sortTbl('opTableBody',0)" style="width:40px;text-align:center;">#</th>
+    <th onclick="sortTbl('opTableBody',1)">Caso</th>
+    <th onclick="sortTbl('opTableBody',2)">Tipo de Ação</th>
+    <th onclick="sortTbl('opTableBody',3)">Responsável</th>
+    <th onclick="sortTbl('opTableBody',4)">Status</th>
+    <th onclick="sortTbl('opTableBody',5)">Prioridade</th>
+    <th onclick="sortTbl('opTableBody',6)">Nº Processo</th>
+    <th onclick="sortTbl('opTableBody',7)">Cadastro</th>
+    <th style="cursor:default;">Mover</th>
+</tr></thead>
 <tbody>
 <?php $n = $opOffset + 1; foreach ($pageCases as $cs):
-    $sk = $cs['_status_key'];
-    $colInfo = $columns[$sk];
+    $sk = $cs['_status_key']; $ci = $columns[$sk];
     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
     $pLabel = isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'];
 ?>
-<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" style="cursor:pointer;" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;background:#f0f0f0;text-align:center;font-size:.68rem;color:#666;"><?= $n++ ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;color:var(--rose-dark);font-weight:600;"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:.65rem;font-weight:700;color:#fff;background:<?= $colInfo['color'] ?>;"><?= $colInfo['icon'] ?> <?= $colInfo['label'] ?></span></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.6rem;font-weight:700;color:#fff;background:<?= $pColor ?>;"><?= $pLabel ?></span></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;font-size:.7rem;color:var(--petrol-500);font-weight:600;"><?= e($cs['case_number'] ?? '') ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;" onclick="event.stopPropagation();">
+<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
+    <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
+    <td class="cell-name"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></td>
+    <td><?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?></td>
+    <td class="cell-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></td>
+    <td><span class="tbl-badge" style="background:<?= $ci['color'] ?>;"><?= $ci['icon'] ?> <?= $ci['label'] ?></span></td>
+    <td><span class="tbl-badge-sm" style="background:<?= $pColor ?>;"><?= $pLabel ?></span></td>
+    <td class="cell-proc"><?= e($cs['case_number'] ?? '') ?></td>
+    <td><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
+    <td class="cell-move" onclick="event.stopPropagation();">
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="update_status">
             <input type="hidden" name="case_id" value="<?= $cs['id'] ?>">
-            <select name="new_status" class="op-card-move" onchange="handleOpMove(this)" style="font-size:.62rem;padding:2px 4px;width:auto;">
+            <select name="new_status" onchange="handleOpMove(this)">
                 <option value="">Mover →</option>
-                <?php foreach ($columns as $csk => $csv): ?>
-                    <?php if ($csk !== $sk): ?>
-                        <option value="<?= $csk ?>"><?= $csv['icon'] ?> <?= $csv['label'] ?></option>
-                    <?php endif; ?>
-                <?php endforeach; ?>
+                <?php foreach ($columns as $csk => $csv): if ($csk !== $sk): ?>
+                    <option value="<?= $csk ?>"><?= $csv['icon'] ?> <?= $csv['label'] ?></option>
+                <?php endif; endforeach; ?>
             </select>
         </form>
     </td>
 </tr>
 <?php endforeach; ?>
 <?php if (empty($pageCases)): ?>
-<tr><td colspan="9" style="text-align:center;color:#999;padding:30px;border:1px solid #d0d0d0;">Nenhum caso encontrado.</td></tr>
+<tr><td colspan="9" style="text-align:center;color:#999;padding:2rem;">Nenhum caso encontrado.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
 </div>
 <?php if ($opTotalPages > 1): ?>
-<div style="display:flex;justify-content:center;gap:4px;margin-top:.75rem;">
+<div class="tbl-pag">
     <?php for ($p = 1; $p <= $opTotalPages; $p++): ?>
-        <a href="?op=<?= $p ?><?= $filterPriority ? '&priority=' . e($filterPriority) : '' ?><?= $filterUser ? '&user=' . e($filterUser) : '' ?>" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;text-decoration:none;<?= $p === $opPage ? 'background:var(--petrol-900);color:#fff;' : 'color:var(--text);' ?>"><?= $p ?></a>
+        <a href="?op=<?= $p ?><?= $filterPriority ? '&priority=' . e($filterPriority) : '' ?><?= $filterUser ? '&user=' . e($filterUser) : '' ?>" class="<?= $p === $opPage ? 'active' : '' ?>"><?= $p ?></a>
     <?php endfor; ?>
 </div>
 <?php endif; ?>

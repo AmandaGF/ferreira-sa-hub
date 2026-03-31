@@ -137,14 +137,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 </div>
 
-<!-- Ações + Toggle -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
-    <h3 style="font-size:.95rem;font-weight:700;color:var(--petrol-900);">Pipeline Comercial/CX</h3>
-    <div style="display:flex;gap:.5rem;align-items:center;">
-        <div style="display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;">
-            <button onclick="toggleView('kanban')" id="btnKanban" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;">Kanban</button>
-            <button onclick="toggleView('tabela')" id="btnTabela" style="padding:4px 12px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:var(--bg-card);color:var(--text);">Tabela</button>
+<!-- Toggle + Ações -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <h3 style="font-size:1rem;font-weight:700;color:var(--petrol-900);margin:0;">Pipeline Comercial/CX</h3>
+        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
+            <button onclick="toggleView('kanban')" id="btnKanban" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">📋 Kanban</button>
+            <button onclick="toggleView('tabela')" id="btnTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
         </div>
+    </div>
+    <div style="display:flex;gap:.5rem;">
+        <a href="<?= module_url('planilha', 'importar.php?destino=pipeline') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <a href="<?= module_url('pipeline', 'lead_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Lead</a>
         <a href="<?= module_url('pipeline', 'perdidos.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Perdidos</a>
     </div>
@@ -211,14 +214,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Visão Tabela -->
 <div id="viewTabela" style="display:none;">
+<style>
+.tbl-toolbar { display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem;padding:.5rem .75rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg); }
+.tbl-filter { font-size:.8rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text);min-width:140px; }
+.tbl-filter:focus { border-color:var(--rose);outline:none; }
+.tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
+.tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
+.tbl-csv:hover { opacity:.9; }
+.tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
+.tbl-grid { width:100%;border-collapse:collapse;font-size:.82rem; }
+.tbl-grid thead { position:sticky;top:0;z-index:2; }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
+.tbl-grid th:hover { background:var(--petrol-500); }
+.tbl-grid th:last-child { border-right:none; }
+.tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
+.tbl-grid tbody tr { cursor:pointer;transition:background .15s; }
+.tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
+.tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
+.tbl-grid .cell-name { font-weight:700;color:var(--petrol-900); }
+.tbl-grid .cell-resp { color:var(--rose-dark);font-weight:600; }
+.tbl-grid .cell-days { font-size:.72rem;background:rgba(0,0,0,.06);padding:2px 8px;border-radius:12px;display:inline-block; }
+.tbl-badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff; }
+.tbl-grid .cell-move select { font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text); }
+.tbl-grid .cell-move select:hover { border-color:var(--rose); }
+.tbl-pag { display:flex;justify-content:center;gap:4px;margin-top:1rem; }
+.tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text);transition:all .15s; }
+.tbl-pag a:hover { background:var(--petrol-100);border-color:var(--petrol-500); }
+.tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
+</style>
 <?php
-// Flatten leads + paginação
 $allLeadsFlat = array();
 foreach ($byStage as $stageKey => $stageLeads) {
-    foreach ($stageLeads as $l) {
-        $l['_stage_key'] = $stageKey;
-        $allLeadsFlat[] = $l;
-    }
+    foreach ($stageLeads as $l) { $l['_stage_key'] = $stageKey; $allLeadsFlat[] = $l; }
 }
 $tabelaPage = max(1, (int)($_GET['tp'] ?? 1));
 $perPage = 25;
@@ -226,73 +253,61 @@ $totalPages = max(1, ceil(count($allLeadsFlat) / $perPage));
 if ($tabelaPage > $totalPages) $tabelaPage = $totalPages;
 $offset = ($tabelaPage - 1) * $perPage;
 $pageLeads = array_slice($allLeadsFlat, $offset, $perPage);
+$tipos = array();
+foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
+sort($tipos);
 ?>
-<div style="margin-bottom:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-    <select id="filterStage" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+<div class="tbl-toolbar">
+    <select id="filterStage" onchange="filterPipelineTable()" class="tbl-filter">
         <option value="">Todas as etapas</option>
-        <?php foreach ($stages as $sk => $sv): ?>
-            <option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($stages as $sk => $sv): ?><option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option><?php endforeach; ?>
     </select>
-    <select id="filterResp" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+    <select id="filterResp" onchange="filterPipelineTable()" class="tbl-filter">
         <option value="">Todos responsáveis</option>
-        <?php foreach ($users as $u): ?>
-            <option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($users as $u): ?><option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
     </select>
-    <select id="filterType" onchange="filterPipelineTable()" style="font-size:.72rem;padding:.3rem .5rem;border:1.5px solid var(--border);border-radius:var(--radius);background:var(--bg-card);">
+    <select id="filterType" onchange="filterPipelineTable()" class="tbl-filter">
         <option value="">Todos os tipos</option>
-        <?php
-        $tipos = array();
-        foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
-        sort($tipos);
-        foreach ($tipos as $t): ?>
-            <option value="<?= e($t) ?>"><?= e($t) ?></option>
-        <?php endforeach; ?>
+        <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <span style="margin-left:auto;font-size:.72rem;color:var(--text-muted);"><?= count($allLeadsFlat) ?> leads</span>
-    <button onclick="exportTableCSV('pipelineTableBody','pipeline')" style="padding:4px 12px;background:#059669;color:#fff;border:none;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;">CSV</button>
+    <span class="tbl-count"><?= count($allLeadsFlat) ?> leads</span>
+    <button onclick="exportTableCSV('pipelineTableBody','pipeline')" class="tbl-csv">Exportar CSV</button>
 </div>
-<div style="overflow-x:auto;border:1px solid #bbb;border-radius:6px;">
-<table style="width:100%;border-collapse:collapse;font-size:.75rem;font-family:'Segoe UI',Arial,sans-serif;" id="pipelineTableBody">
-<thead>
-<tr style="background:linear-gradient(180deg,#f0f0f0,#e0e0e0);">
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',0)">#</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',1)">Nome</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',2)">Tipo Ação</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',3)">Responsável</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',4)">Etapa</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',5)">Dias</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;cursor:pointer;white-space:nowrap;font-size:.7rem;" onclick="sortTbl('pipelineTableBody',6)">Cadastro</th>
-    <th style="border:1px solid #bbb;padding:6px 8px;white-space:nowrap;font-size:.7rem;">Mover</th>
-</tr>
-</thead>
+<div class="tbl-wrap" style="max-height:72vh;overflow-y:auto;">
+<table class="tbl-grid" id="pipelineTableBody">
+<thead><tr>
+    <th onclick="sortTbl('pipelineTableBody',0)" style="width:40px;text-align:center;">#</th>
+    <th onclick="sortTbl('pipelineTableBody',1)">Nome</th>
+    <th onclick="sortTbl('pipelineTableBody',2)">Tipo de Ação</th>
+    <th onclick="sortTbl('pipelineTableBody',3)">Responsável</th>
+    <th onclick="sortTbl('pipelineTableBody',4)">Etapa</th>
+    <th onclick="sortTbl('pipelineTableBody',5)" style="text-align:center;">Dias</th>
+    <th onclick="sortTbl('pipelineTableBody',6)">Cadastro</th>
+    <th style="cursor:default;">Mover</th>
+</tr></thead>
 <tbody>
 <?php $n = $offset + 1; foreach ($pageLeads as $lead):
-    $sk = $lead['_stage_key'];
-    $stageInfo = $stages[$sk];
+    $sk = $lead['_stage_key']; $si = $stages[$sk];
 ?>
-<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" style="cursor:pointer;" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;background:#f0f0f0;text-align:center;font-size:.68rem;color:#666;"><?= $n++ ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;font-weight:600;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($lead['name']) ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= e($lead['case_type'] ?? '') ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;color:var(--rose-dark);font-weight:600;"><?= e($lead['assigned_name'] ? explode(' ', $lead['assigned_name'])[0] : '—') ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><span style="display:inline-block;padding:1px 8px;border-radius:10px;font-size:.65rem;font-weight:700;color:#fff;background:<?= $stageInfo['color'] ?>;"><?= $stageInfo['icon'] ?> <?= $stageInfo['label'] ?></span></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;text-align:center;"><?= $lead['days_in_pipeline'] ?>d</td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;white-space:nowrap;"><?= date('d/m/Y', strtotime($lead['created_at'])) ?></td>
-    <td style="border:1px solid #d0d0d0;padding:4px 8px;" onclick="event.stopPropagation();">
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+    <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
+    <td class="cell-name"><?= e($lead['name']) ?></td>
+    <td><?= e($lead['case_type'] ?? '') ?></td>
+    <td class="cell-resp"><?= e($lead['assigned_name'] ? explode(' ', $lead['assigned_name'])[0] : '—') ?></td>
+    <td><span class="tbl-badge" style="background:<?= $si['color'] ?>;"><?= $si['icon'] ?> <?= $si['label'] ?></span></td>
+    <td style="text-align:center;"><span class="cell-days"><?= $lead['days_in_pipeline'] ?>d</span></td>
+    <td><?= date('d/m/Y', strtotime($lead['created_at'])) ?></td>
+    <td class="cell-move" onclick="event.stopPropagation();">
         <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="move">
             <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
             <input type="hidden" name="folder_name" value="">
-            <select name="to_stage" onchange="handleStageMove(this)" style="font-size:.65rem;padding:2px 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg-card);cursor:pointer;">
+            <select name="to_stage" onchange="handleStageMove(this)">
                 <option value="">Mover →</option>
-                <?php foreach ($stages as $ssk => $ssv): ?>
-                    <?php if ($ssk !== $sk && $ssk !== 'doc_faltante'): ?>
-                        <option value="<?= $ssk ?>"><?= $ssv['icon'] ?> <?= $ssv['label'] ?></option>
-                    <?php endif; ?>
-                <?php endforeach; ?>
+                <?php foreach ($stages as $ssk => $ssv): if ($ssk !== $sk && $ssk !== 'doc_faltante'): ?>
+                    <option value="<?= $ssk ?>"><?= $ssv['icon'] ?> <?= $ssv['label'] ?></option>
+                <?php endif; endforeach; ?>
                 <option value="perdido">❌ Perdido</option>
             </select>
         </form>
@@ -300,15 +315,15 @@ $pageLeads = array_slice($allLeadsFlat, $offset, $perPage);
 </tr>
 <?php endforeach; ?>
 <?php if (empty($pageLeads)): ?>
-<tr><td colspan="8" style="text-align:center;color:#999;padding:30px;border:1px solid #d0d0d0;">Nenhum lead encontrado.</td></tr>
+<tr><td colspan="8" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
 </div>
 <?php if ($totalPages > 1): ?>
-<div style="display:flex;justify-content:center;gap:4px;margin-top:.75rem;">
+<div class="tbl-pag">
     <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-        <a href="?tp=<?= $p ?>" style="padding:4px 10px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;text-decoration:none;<?= $p === $tabelaPage ? 'background:var(--petrol-900);color:#fff;' : 'color:var(--text);' ?>"><?= $p ?></a>
+        <a href="?tp=<?= $p ?>" class="<?= $p === $tabelaPage ? 'active' : '' ?>"><?= $p ?></a>
     <?php endfor; ?>
 </div>
 <?php endif; ?>
