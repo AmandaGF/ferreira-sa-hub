@@ -96,8 +96,32 @@ switch ($action) {
                 exit;
             }
 
+            // ── CANCELADO: só Admin + espelhar no Pipeline ──
+            if ($status === 'cancelado') {
+                if (!has_role('admin')) {
+                    $msg = 'Apenas administradores podem cancelar.';
+                    if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => $msg)); exit; }
+                    flash_set('error', $msg);
+                    redirect(module_url('operacional'));
+                    exit;
+                }
+                // Cancelar lead vinculado no Pipeline
+                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
+                $linkedLead->execute(array($caseId));
+                $leadRow = $linkedLead->fetch();
+                if ($leadRow && !in_array($leadRow['stage'], array('cancelado', 'finalizado'))) {
+                    $pdo->prepare("UPDATE pipeline_leads SET stage = 'cancelado', updated_at = NOW() WHERE id = ?")
+                        ->execute(array($leadRow['id']));
+                    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                        ->execute(array($leadRow['id'], $leadRow['stage'], 'cancelado', current_user_id(), 'Auto: caso cancelado no Operacional'));
+                    audit_log('lead_auto_cancelled', 'lead', $leadRow['id'], 'Operacional cancelou caso #' . $caseId);
+                }
+                $caseTitle = $currentCase ? $currentCase['title'] : 'Caso #' . $caseId;
+                notify_gestao('Caso cancelado', $caseTitle . ' foi cancelado no Operacional.' . ($leadRow ? ' Lead também cancelado no Pipeline.' : ''), 'alerta', url('modules/operacional/'), '❌');
+            }
+
             // ── MOVIMENTAÇÕES NORMAIS ──
-            $closedAt = in_array($status, array('concluido','arquivado')) ? date('Y-m-d') : null;
+            $closedAt = in_array($status, array('concluido','arquivado','cancelado')) ? date('Y-m-d') : null;
             $pdo->prepare('UPDATE cases SET status=?, closed_at=?, updated_at=NOW() WHERE id=?')
                 ->execute(array($status, $closedAt, $caseId));
             audit_log('case_status', 'case', $caseId, $status);
