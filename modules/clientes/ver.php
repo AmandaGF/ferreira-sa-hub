@@ -21,6 +21,35 @@ if (!$client) {
 
 $pageTitle = $client['name'];
 
+// Peças geradas vinculadas ao cliente
+$peticoes = array();
+try {
+    $stmtPet = $pdo->prepare(
+        "SELECT cd.*, u.name as user_name, cs.title as case_title
+         FROM case_documents cd
+         LEFT JOIN users u ON u.id = cd.gerado_por
+         LEFT JOIN cases cs ON cs.id = cd.case_id
+         WHERE cd.client_id = ?
+         ORDER BY cd.created_at DESC"
+    );
+    $stmtPet->execute(array($clientId));
+    $peticoes = $stmtPet->fetchAll();
+} catch (Exception $e) { /* tabela pode não existir */ }
+
+// Compromissos da agenda vinculados ao cliente
+$compromissos = array();
+try {
+    $stmtAg = $pdo->prepare(
+        "SELECT e.*, u.name as responsavel_name
+         FROM agenda_eventos e
+         LEFT JOIN users u ON u.id = e.responsavel_id
+         WHERE e.client_id = ? AND e.status != 'cancelado'
+         ORDER BY e.data_inicio DESC"
+    );
+    $stmtAg->execute(array($clientId));
+    $compromissos = $stmtAg->fetchAll();
+} catch (Exception $e) { /* tabela pode não existir */ }
+
 // Processos do cliente
 $cases = $pdo->prepare(
     'SELECT cs.*, u.name as responsible_name FROM cases cs
@@ -162,5 +191,112 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     <?php endif; ?>
 </div>
+
+<!-- Peças Geradas (Fábrica de Petições) -->
+<?php if (!empty($peticoes)): ?>
+<div class="card" style="margin-top:1.25rem;">
+    <div class="card-header">
+        <h3>Peças Geradas (<?= count($peticoes) ?>)</h3>
+        <a href="<?= module_url('peticoes') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">+ Nova petição</a>
+    </div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+        <thead><tr style="background:var(--petrol-900);color:#fff;">
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Título</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Tipo Ação</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Peça</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Gerado por</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Data</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Tokens</th>
+            <th style="padding:.5rem .75rem;text-align:center;font-size:.72rem;text-transform:uppercase;">Ações</th>
+        </tr></thead>
+        <tbody>
+        <?php
+        $tiposAcaoLabel = array('alimentos'=>'Alimentos','revisional_alimentos'=>'Revisional','execucao_alimentos'=>'Execução Alimentos','guarda_convivencia'=>'Guarda','investigacao_paternidade'=>'Invest. Paternidade','divorcio_consensual'=>'Divórcio Consensual','divorcio_litigioso'=>'Divórcio Litigioso','inventario'=>'Inventário','consumidor'=>'Consumidor','usucapiao'=>'Usucapião');
+        $tiposPecaLabel = array('peticao_inicial'=>'Petição Inicial','tutela_urgencia'=>'Tutela Urgência','contestacao'=>'Contestação','replica'=>'Réplica','memoriais'=>'Memoriais','recurso_inominado'=>'Recurso Inominado','cumprimento_sentenca'=>'Cumprimento Sentença','impugnacao'=>'Impugnação','embargos_execucao'=>'Embargos Execução','manifestacao'=>'Manifestação');
+        foreach ($peticoes as $doc): ?>
+        <tr style="border-bottom:1px solid var(--border);">
+            <td style="padding:.55rem .75rem;font-weight:600;">
+                <?= e($doc['titulo'] ? $doc['titulo'] : 'Peça #' . $doc['id']) ?>
+                <?php if ($doc['case_title']): ?>
+                    <div style="font-size:.7rem;color:var(--text-muted);font-weight:400;">Caso: <?= e($doc['case_title']) ?></div>
+                <?php endif; ?>
+            </td>
+            <td style="padding:.55rem .75rem;">
+                <span class="badge badge-info" style="font-size:.7rem;"><?= isset($tiposAcaoLabel[$doc['tipo_acao']]) ? $tiposAcaoLabel[$doc['tipo_acao']] : e($doc['tipo_acao']) ?></span>
+            </td>
+            <td style="padding:.55rem .75rem;font-size:.78rem;"><?= isset($tiposPecaLabel[$doc['tipo_peca']]) ? $tiposPecaLabel[$doc['tipo_peca']] : e($doc['tipo_peca']) ?></td>
+            <td style="padding:.55rem .75rem;font-size:.78rem;"><?= e($doc['user_name'] ? $doc['user_name'] : '—') ?></td>
+            <td style="padding:.55rem .75rem;font-size:.78rem;"><?= $doc['created_at'] ? date('d/m/Y H:i', strtotime($doc['created_at'])) : '—' ?></td>
+            <td style="padding:.55rem .75rem;font-size:.72rem;color:var(--text-muted);">
+                <?php if ($doc['tokens_input'] || $doc['tokens_output']): ?>
+                    <?= number_format(($doc['tokens_input'] ?: 0) + ($doc['tokens_output'] ?: 0)) ?>
+                    <?php if ($doc['custo_usd']): ?><br>$<?= number_format($doc['custo_usd'], 4) ?><?php endif; ?>
+                <?php else: ?>—<?php endif; ?>
+            </td>
+            <td style="padding:.55rem .75rem;text-align:center;">
+                <a href="<?= module_url('peticoes', 'ver.php?id=' . $doc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.7rem;" target="_blank">Ver</a>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Agenda / Compromissos -->
+<?php if (!empty($compromissos)): ?>
+<div class="card" style="margin-top:1.25rem;">
+    <div class="card-header"><h3>Compromissos (<?= count($compromissos) ?>)</h3></div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+        <thead><tr style="background:var(--petrol-900);color:#fff;">
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Compromisso</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Tipo</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Data/Hora</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Responsável</th>
+            <th style="padding:.5rem .75rem;text-align:left;font-size:.72rem;text-transform:uppercase;">Status</th>
+        </tr></thead>
+        <tbody>
+        <?php
+        $tipoAgLabels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. Interna','mediacao_cejusc'=>'Mediação','ligacao'=>'Ligação');
+        $tipoAgCores = array('audiencia'=>'#052228','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000','onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A','ligacao'=>'#888880');
+        foreach ($compromissos as $ev):
+            $cor = isset($tipoAgCores[$ev['tipo']]) ? $tipoAgCores[$ev['tipo']] : '#888';
+            $lbl = isset($tipoAgLabels[$ev['tipo']]) ? $tipoAgLabels[$ev['tipo']] : $ev['tipo'];
+            $isPast = strtotime($ev['data_inicio']) < time();
+        ?>
+        <tr style="border-bottom:1px solid var(--border);<?= $ev['status'] === 'realizado' ? 'opacity:.6;' : '' ?>">
+            <td style="padding:.55rem .75rem;font-weight:600;border-left:3px solid <?= $cor ?>;">
+                <?= e($ev['titulo']) ?>
+                <?php if ($ev['local']): ?><div style="font-size:.7rem;color:var(--text-muted);font-weight:400;">📍 <?= e($ev['local']) ?></div><?php endif; ?>
+            </td>
+            <td style="padding:.55rem .75rem;">
+                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:600;color:#fff;background:<?= $cor ?>;"><?= $lbl ?></span>
+            </td>
+            <td style="padding:.55rem .75rem;font-size:.78rem;">
+                <?= date('d/m/Y', strtotime($ev['data_inicio'])) ?>
+                <?php if ($ev['dia_todo'] != 1): ?> às <?= date('H:i', strtotime($ev['data_inicio'])) ?><?php endif; ?>
+            </td>
+            <td style="padding:.55rem .75rem;font-size:.78rem;"><?= e($ev['responsavel_name'] ? $ev['responsavel_name'] : '—') ?></td>
+            <td style="padding:.55rem .75rem;">
+                <?php if ($ev['status'] === 'realizado'): ?>
+                    <span class="badge badge-success" style="font-size:.7rem;">Realizado</span>
+                <?php elseif ($ev['status'] === 'remarcado'): ?>
+                    <span class="badge badge-warning" style="font-size:.7rem;">Remarcado</span>
+                <?php elseif ($isPast): ?>
+                    <span class="badge badge-danger" style="font-size:.7rem;">Passado</span>
+                <?php else: ?>
+                    <span class="badge badge-info" style="font-size:.7rem;">Agendado</span>
+                <?php endif; ?>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
