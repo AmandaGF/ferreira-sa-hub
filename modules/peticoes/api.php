@@ -24,43 +24,56 @@ if ($action === 'gerar') {
     $tipoPeca = clean_str($_POST['tipo_peca'] ?? '', 80);
     $tipoAcao = clean_str($_POST['tipo_acao'] ?? '', 80);
 
-    if (!$caseId || !$tipoPeca || !$tipoAcao) {
-        echo json_encode(array('error' => 'Dados incompletos'));
+    // Nome do cliente é obrigatório (vem do formulário)
+    $clNome = trim($_POST['cl_nome'] ?? '');
+
+    if (!$tipoPeca || !$tipoAcao) {
+        echo json_encode(array('error' => 'Selecione o tipo de ação e o tipo de peça.'));
+        exit;
+    }
+    if (!$clNome) {
+        echo json_encode(array('error' => 'Preencha ao menos o nome do cliente.'));
         exit;
     }
 
-    // Buscar dados do caso e cliente
-    $stmt = $pdo->prepare(
-        "SELECT cs.*, cl.name as client_name, cl.cpf, cl.rg, cl.birth_date,
-                cl.address_street, cl.address_city, cl.address_state, cl.address_zip,
-                cl.profession, cl.marital_status, cl.gender, cl.email as client_email,
-                cl.phone as client_phone, cl.pix_key, cl.children_names
-         FROM cases cs
-         LEFT JOIN clients cl ON cl.id = cs.client_id
-         WHERE cs.id = ?"
-    );
-    $stmt->execute(array($caseId));
-    $caso = $stmt->fetch();
-
-    if (!$caso) {
-        echo json_encode(array('error' => 'Caso não encontrado'));
-        exit;
+    // Buscar dados do caso (se vinculado)
+    $caso = null;
+    $clientId = 0;
+    if ($caseId) {
+        $stmt = $pdo->prepare(
+            "SELECT cs.*, cl.name as client_name, cl.id as client_id, cl.pix_key, cl.children_names
+             FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?"
+        );
+        $stmt->execute(array($caseId));
+        $caso = $stmt->fetch();
+        if ($caso) $clientId = (int)($caso['client_id'] ?: 0);
     }
 
-    // Montar dados do cliente
-    $dadosCliente = "Nome: " . ($caso['client_name'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCPF: " . ($caso['cpf'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nRG: " . ($caso['rg'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nData de nascimento: " . ($caso['birth_date'] ? date('d/m/Y', strtotime($caso['birth_date'])) : '[NÃO INFORMADO]');
-    $dadosCliente .= "\nProfissão: " . ($caso['profession'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nEstado civil: " . ($caso['marital_status'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nEndereço: " . ($caso['address_street'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCidade/UF: " . ($caso['address_city'] ?: '[NÃO INFORMADO]') . '/' . ($caso['address_state'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCEP: " . ($caso['address_zip'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nTelefone: " . ($caso['client_phone'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nE-mail: " . ($caso['client_email'] ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nChave PIX: " . ($caso['pix_key'] ?: '[NÃO INFORMADO]');
-    if ($caso['children_names']) $dadosCliente .= "\nFilhos: " . $caso['children_names'];
+    // Montar dados do cliente A PARTIR DO FORMULÁRIO (sempre usa o que o usuário digitou/editou)
+    $clCpf = trim($_POST['cl_cpf'] ?? '');
+    $clRg = trim($_POST['cl_rg'] ?? '');
+    $clNascimento = trim($_POST['cl_nascimento'] ?? '');
+    $clProfissao = trim($_POST['cl_profissao'] ?? '');
+    $clEstadoCivil = trim($_POST['cl_estado_civil'] ?? '');
+    $clEndereco = trim($_POST['cl_endereco'] ?? '');
+    $clCidade = trim($_POST['cl_cidade'] ?? '');
+    $clCep = trim($_POST['cl_cep'] ?? '');
+    $clTelefone = trim($_POST['cl_telefone'] ?? '');
+    $clEmail = trim($_POST['cl_email'] ?? '');
+
+    $dadosCliente = "Nome: " . ($clNome ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nCPF: " . ($clCpf ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nRG: " . ($clRg ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nData de nascimento: " . ($clNascimento ? date('d/m/Y', strtotime($clNascimento)) : '[NÃO INFORMADO]');
+    $dadosCliente .= "\nProfissão: " . ($clProfissao ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nEstado civil: " . ($clEstadoCivil ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nEndereço: " . ($clEndereco ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nCidade/UF: " . ($clCidade ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nCEP: " . ($clCep ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nTelefone: " . ($clTelefone ?: '[NÃO INFORMADO]');
+    $dadosCliente .= "\nE-mail: " . ($clEmail ?: '[NÃO INFORMADO]');
+    if ($caso && $caso['pix_key']) $dadosCliente .= "\nChave PIX: " . $caso['pix_key'];
+    if ($caso && $caso['children_names']) $dadosCliente .= "\nFilhos: " . $caso['children_names'];
 
     // Campos específicos da ação
     $camposEspecificos = '';
@@ -82,9 +95,86 @@ if ($action === 'gerar') {
     $userPrompt = "Tipo de peça: $labelPeca\nTipo de ação: $labelAcao\n\n";
     $userPrompt .= "DADOS DO CLIENTE (PARTE AUTORA):\n$dadosCliente\n\n";
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
+    // Extrair cidade/UF do campo cl_cidade (formato "Cidade/UF")
+    $comarcaCidade = 'Barra Mansa';
+    $comarcaUF = 'RJ';
+    if ($clCidade && strpos($clCidade, '/') !== false) {
+        $parts = explode('/', $clCidade);
+        $comarcaCidade = trim($parts[0]) ?: 'Barra Mansa';
+        $comarcaUF = trim($parts[1]) ?: 'RJ';
+    }
+
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";
-    $userPrompt .= "Comarca: " . ($caso['address_city'] ?: 'Barra Mansa') . '/' . ($caso['address_state'] ?: 'RJ') . "\n\n";
+    $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
     $userPrompt .= "Elabore a petição completa em HTML formatado.";
+
+    // Processar arquivos anexados
+    $contentBlocks = array();
+    $anexosInfo = '';
+    if (!empty($_FILES['anexos']['name'][0])) {
+        $tiposAceitos = array(
+            'application/pdf' => 'document',
+            'image/jpeg' => 'image',
+            'image/png' => 'image',
+            'image/webp' => 'image',
+        );
+        $mediaTypes = array(
+            'application/pdf' => 'application/pdf',
+            'image/jpeg' => 'image/jpeg',
+            'image/png' => 'image/png',
+            'image/webp' => 'image/webp',
+        );
+        $maxFiles = 5;
+        $maxSize = 10 * 1024 * 1024;
+        $count = min(count($_FILES['anexos']['name']), $maxFiles);
+
+        for ($i = 0; $i < $count; $i++) {
+            if ($_FILES['anexos']['error'][$i] !== UPLOAD_ERR_OK) continue;
+            $mime = $_FILES['anexos']['type'][$i];
+            $tmpPath = $_FILES['anexos']['tmp_name'][$i];
+            $fileName = $_FILES['anexos']['name'][$i];
+            $fileSize = $_FILES['anexos']['size'][$i];
+
+            if (!isset($tiposAceitos[$mime]) || $fileSize > $maxSize) continue;
+
+            $base64 = base64_encode(file_get_contents($tmpPath));
+            $blockType = $tiposAceitos[$mime];
+
+            if ($blockType === 'document') {
+                $contentBlocks[] = array(
+                    'type' => 'document',
+                    'source' => array(
+                        'type' => 'base64',
+                        'media_type' => 'application/pdf',
+                        'data' => $base64,
+                    ),
+                );
+            } else {
+                $contentBlocks[] = array(
+                    'type' => 'image',
+                    'source' => array(
+                        'type' => 'base64',
+                        'media_type' => $mediaTypes[$mime],
+                        'data' => $base64,
+                    ),
+                );
+            }
+            $anexosInfo .= "\n- " . $fileName . ' (' . round($fileSize / 1024) . ' KB)';
+        }
+
+        if ($anexosInfo) {
+            $userPrompt .= "\n\nDOCUMENTOS ANEXADOS PARA ANÁLISE:" . $anexosInfo;
+            $userPrompt .= "\nAnalise os documentos acima e utilize as informações relevantes para fundamentar a petição.";
+        }
+    }
+
+    // Montar conteúdo da mensagem (texto + anexos)
+    $messageContent = array();
+    // Anexos primeiro, depois o texto
+    foreach ($contentBlocks as $block) {
+        $messageContent[] = $block;
+    }
+    $messageContent[] = array('type' => 'text', 'text' => $userPrompt);
 
     // Chamar API Anthropic
     $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
@@ -98,7 +188,7 @@ if ($action === 'gerar') {
         'max_tokens' => 8192,
         'system' => get_system_prompt(),
         'messages' => array(
-            array('role' => 'user', 'content' => $userPrompt)
+            array('role' => 'user', 'content' => $messageContent)
         ),
     ));
 
@@ -112,7 +202,7 @@ if ($action === 'gerar') {
             'anthropic-version: 2023-06-01',
         ),
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 120,
+        CURLOPT_TIMEOUT => 180,
         CURLOPT_SSL_VERIFYPEER => false,
     ));
 
@@ -140,13 +230,13 @@ if ($action === 'gerar') {
     $custoUsd = ($tokensIn * 0.003 / 1000) + ($tokensOut * 0.015 / 1000);
 
     // Salvar no banco
-    $titulo = $labelPeca . ' — ' . $labelAcao . ' — ' . ($caso['client_name'] ?: 'Caso #' . $caseId);
+    $titulo = $labelPeca . ' — ' . $labelAcao . ' — ' . ($clNome ?: 'Sem cliente');
     $stmt = $pdo->prepare(
         "INSERT INTO case_documents (case_id, client_id, tipo_peca, tipo_acao, titulo, conteudo_html, gerado_por, tokens_input, tokens_output, custo_usd)
          VALUES (?,?,?,?,?,?,?,?,?,?)"
     );
     $stmt->execute(array(
-        $caseId, $caso['client_id'] ?: 0, $tipoPeca, $tipoAcao,
+        $caseId ?: 0, $clientId, $tipoPeca, $tipoAcao,
         $titulo, $htmlPeticao, current_user_id(),
         $tokensIn, $tokensOut, $custoUsd
     ));

@@ -149,7 +149,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="fab-campo"><label>Estado civil</label><input id="cl_estado_civil" value="<?= e($caso['marital_status'] ?? '') ?>"></div>
                     <div class="fab-campo" style="grid-column:span 2;"><label>Endereço</label><input id="cl_endereco" value="<?= e($caso['address_street'] ?? '') ?>"></div>
                     <div class="fab-campo"><label>Cidade/UF</label><input id="cl_cidade" value="<?= e(($caso['address_city'] ?? '') . '/' . ($caso['address_state'] ?? '')) ?>"></div>
-                    <div class="fab-campo"><label>CEP</label><input id="cl_cep" value="<?= e($caso['address_zip'] ?? '') ?>"></div>
+                    <div class="fab-campo" style="position:relative;">
+                        <label>CEP</label>
+                        <input id="cl_cep" value="<?= e($caso['address_zip'] ?? '') ?>" placeholder="00000-000" maxlength="9" oninput="mascaraCep(this);buscarCep(this.value)">
+                        <span id="cepLoading" style="display:none;position:absolute;right:10px;top:28px;font-size:.75rem;color:var(--text-muted);">buscando...</span>
+                    </div>
                     <div class="fab-campo"><label>Telefone</label><input id="cl_telefone" value="<?= e($caso['client_phone'] ?? '') ?>"></div>
                     <div class="fab-campo"><label>E-mail</label><input id="cl_email" value="<?= e($caso['client_email'] ?? '') ?>"></div>
                 </div>
@@ -168,6 +172,30 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div id="camposAcaoContainer">
                     <p style="color:var(--text-muted);font-size:.82rem;">Selecione o tipo de ação no Passo 1.</p>
                 </div>
+
+                <!-- Upload de documentos -->
+                <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1.5px solid var(--border);">
+                    <div class="fab-campo">
+                        <label style="font-size:.85rem;font-weight:700;color:var(--petrol-900);margin-bottom:.5rem;">
+                            📎 Anexar documentos de apoio <span style="font-weight:400;color:var(--text-muted);">(opcional)</span>
+                        </label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem;">
+                            A IA analisará os documentos para embasar a petição. Aceita: PDF, JPG, PNG, WebP (máx. 10MB cada, até 5 arquivos).
+                        </p>
+                        <div id="uploadArea" style="border:2px dashed var(--border);border-radius:10px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);"
+                             onclick="document.getElementById('inputArquivos').click()"
+                             ondragover="event.preventDefault();this.style.borderColor='var(--rose)';this.style.background='rgba(215,171,144,.08)';"
+                             ondragleave="this.style.borderColor='var(--border)';this.style.background='var(--bg)';"
+                             ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';handleFiles(event.dataTransfer.files);">
+                            <div style="font-size:1.5rem;margin-bottom:.35rem;">📄</div>
+                            <div style="font-size:.82rem;font-weight:600;color:var(--petrol-900);">Clique ou arraste arquivos aqui</div>
+                            <div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;">PDF, JPG, PNG, WebP — até 5 arquivos</div>
+                        </div>
+                        <input type="file" id="inputArquivos" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none;" onchange="handleFiles(this.files)">
+                        <div id="listaArquivos" style="margin-top:.5rem;"></div>
+                    </div>
+                </div>
+
                 <div class="fab-nav">
                     <button onclick="goStep(2)" class="btn btn-secondary">← Voltar</button>
                     <button onclick="gerarPeticao()" class="btn btn-primary" id="btnGerar" style="background:var(--success);">Gerar Petição →</button>
@@ -195,7 +223,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                         <div class="fab-preview" id="peticaoHTML"></div>
                     </div>
-                    <div id="errorArea" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem;color:#dc2626;font-size:.85rem;"></div>
+                    <div id="errorArea" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem;color:#dc2626;font-size:.85rem;">
+                        <span id="errorMsg"></span>
+                        <div style="margin-top:1rem;display:flex;gap:.5rem;">
+                            <button onclick="goStep(1)" class="btn btn-secondary btn-sm">← Voltar ao início</button>
+                            <button onclick="goStep(3)" class="btn btn-primary btn-sm">← Corrigir dados</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -295,20 +329,38 @@ function gerarPeticao() {
     formData.append('tipo_peca', tipoPeca);
     formData.append('csrf_token', '<?= generate_csrf_token() ?>');
 
+    // Dados do cliente (do formulário manual)
+    formData.append('cl_nome', document.getElementById('cl_nome').value);
+    formData.append('cl_cpf', document.getElementById('cl_cpf').value);
+    formData.append('cl_rg', document.getElementById('cl_rg').value);
+    formData.append('cl_nascimento', document.getElementById('cl_nascimento').value);
+    formData.append('cl_profissao', document.getElementById('cl_profissao').value);
+    formData.append('cl_estado_civil', document.getElementById('cl_estado_civil').value);
+    formData.append('cl_endereco', document.getElementById('cl_endereco').value);
+    formData.append('cl_cidade', document.getElementById('cl_cidade').value);
+    formData.append('cl_cep', document.getElementById('cl_cep').value);
+    formData.append('cl_telefone', document.getElementById('cl_telefone').value);
+    formData.append('cl_email', document.getElementById('cl_email').value);
+
     // Campos específicos
     document.querySelectorAll('#camposAcaoContainer input, #camposAcaoContainer select, #camposAcaoContainer textarea').forEach(function(el) {
         if (el.name) formData.append(el.name, el.value);
     });
 
+    // Arquivos anexados
+    arquivosAnexados.forEach(function(f, i) {
+        formData.append('anexos[]', f);
+    });
+
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '<?= module_url("peticoes", "api.php") ?>');
-    xhr.timeout = 120000;
+    xhr.timeout = 180000;
     xhr.onload = function() {
         document.getElementById('loadingArea').style.display = 'none';
         try {
             var resp = JSON.parse(xhr.responseText);
             if (resp.error) {
-                document.getElementById('errorArea').textContent = resp.error;
+                document.getElementById('errorMsg').textContent = resp.error;
                 document.getElementById('errorArea').style.display = 'block';
             } else {
                 document.getElementById('peticaoHTML').innerHTML = resp.html;
@@ -316,18 +368,18 @@ function gerarPeticao() {
                 document.getElementById('previewArea').style.display = 'block';
             }
         } catch(e) {
-            document.getElementById('errorArea').textContent = 'Erro ao processar resposta: ' + e.message;
+            document.getElementById('errorMsg').textContent = 'Erro ao processar resposta: ' + e.message;
             document.getElementById('errorArea').style.display = 'block';
         }
     };
     xhr.onerror = function() {
         document.getElementById('loadingArea').style.display = 'none';
-        document.getElementById('errorArea').textContent = 'Erro de conexão. Tente novamente.';
+        document.getElementById('errorMsg').textContent = 'Erro de conexão. Tente novamente.';
         document.getElementById('errorArea').style.display = 'block';
     };
     xhr.ontimeout = function() {
         document.getElementById('loadingArea').style.display = 'none';
-        document.getElementById('errorArea').textContent = 'Timeout. A geração demorou mais de 2 minutos. Tente novamente.';
+        document.getElementById('errorMsg').textContent = 'Timeout. A geração demorou mais de 2 minutos. Tente novamente.';
         document.getElementById('errorArea').style.display = 'block';
     };
     xhr.send(formData);
@@ -404,6 +456,89 @@ function preencherCliente(cl) {
     document.getElementById('cl_cep').value = cl.address_zip || '';
     document.getElementById('cl_telefone').value = cl.phone || '';
     document.getElementById('cl_email').value = cl.email || '';
+}
+
+// === Busca CEP via ViaCEP (gratuito) ===
+function mascaraCep(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (v.length > 5) v = v.substring(0,5) + '-' + v.substring(5,8);
+    el.value = v;
+}
+
+var cepTimer = null;
+function buscarCep(val) {
+    clearTimeout(cepTimer);
+    var cep = val.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    document.getElementById('cepLoading').style.display = 'inline';
+    cepTimer = setTimeout(function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'https://viacep.com.br/ws/' + cep + '/json/');
+        xhr.timeout = 8000;
+        xhr.onload = function() {
+            document.getElementById('cepLoading').style.display = 'none';
+            try {
+                var d = JSON.parse(xhr.responseText);
+                if (d.erro) return;
+                document.getElementById('cl_endereco').value = (d.logradouro || '') + (d.complemento ? ', ' + d.complemento : '') + (d.bairro ? ' — ' + d.bairro : '');
+                document.getElementById('cl_cidade').value = (d.localidade || '') + '/' + (d.uf || '');
+            } catch(e) {}
+        };
+        xhr.onerror = xhr.ontimeout = function() {
+            document.getElementById('cepLoading').style.display = 'none';
+        };
+        xhr.send();
+    }, 300);
+}
+
+// === Upload de documentos ===
+var arquivosAnexados = [];
+var MAX_FILES = 5;
+var MAX_SIZE = 10 * 1024 * 1024; // 10MB
+var TIPOS_ACEITOS = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+
+function handleFiles(fileList) {
+    for (var i = 0; i < fileList.length; i++) {
+        if (arquivosAnexados.length >= MAX_FILES) {
+            alert('Máximo de ' + MAX_FILES + ' arquivos.');
+            break;
+        }
+        var f = fileList[i];
+        if (TIPOS_ACEITOS.indexOf(f.type) === -1) {
+            alert('Tipo não aceito: ' + f.name + '\nAceitos: PDF, JPG, PNG, WebP');
+            continue;
+        }
+        if (f.size > MAX_SIZE) {
+            alert('Arquivo muito grande: ' + f.name + ' (' + (f.size / 1024 / 1024).toFixed(1) + 'MB)\nMáximo: 10MB');
+            continue;
+        }
+        arquivosAnexados.push(f);
+    }
+    renderArquivos();
+    // Limpar input para permitir re-selecionar mesmo arquivo
+    document.getElementById('inputArquivos').value = '';
+}
+
+function removerArquivo(idx) {
+    arquivosAnexados.splice(idx, 1);
+    renderArquivos();
+}
+
+function renderArquivos() {
+    var container = document.getElementById('listaArquivos');
+    if (!arquivosAnexados.length) { container.innerHTML = ''; return; }
+    var html = '';
+    arquivosAnexados.forEach(function(f, i) {
+        var icon = f.type === 'application/pdf' ? '📕' : '🖼️';
+        var size = f.size < 1024 * 1024 ? (f.size / 1024).toFixed(0) + ' KB' : (f.size / 1024 / 1024).toFixed(1) + ' MB';
+        html += '<div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;margin-bottom:.25rem;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:.8rem;">';
+        html += '<span>' + icon + '</span>';
+        html += '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + f.name + '">' + f.name + '</span>';
+        html += '<span style="color:var(--text-muted);font-size:.7rem;flex-shrink:0;">' + size + '</span>';
+        html += '<button type="button" onclick="removerArquivo(' + i + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:0 4px;" title="Remover">✕</button>';
+        html += '</div>';
+    });
+    container.innerHTML = html;
 }
 
 // Carregar campos se tipo já pré-selecionado
