@@ -180,7 +180,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             📎 Anexar documentos de apoio <span style="font-weight:400;color:var(--text-muted);">(opcional)</span>
                         </label>
                         <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem;">
-                            A IA analisará os documentos para embasar a petição. Aceita: PDF, JPG, PNG, WebP (máx. 10MB cada, até 5 arquivos).
+                            A IA analisará os documentos para embasar a petição. Aceita: PDF, JPG, PNG, WebP (máx. 5MB cada, até 10 arquivos).
                         </p>
                         <div id="uploadArea" style="border:2px dashed var(--border);border-radius:10px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg);"
                              onclick="document.getElementById('inputArquivos').click()"
@@ -189,7 +189,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                              ondrop="event.preventDefault();this.style.borderColor='var(--border)';this.style.background='var(--bg)';handleFiles(event.dataTransfer.files);">
                             <div style="font-size:1.5rem;margin-bottom:.35rem;">📄</div>
                             <div style="font-size:.82rem;font-weight:600;color:var(--petrol-900);">Clique ou arraste arquivos aqui</div>
-                            <div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;">PDF, JPG, PNG, WebP — até 5 arquivos</div>
+                            <div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;">PDF, JPG, PNG, WebP — até 10 arquivos (5MB cada)</div>
                         </div>
                         <input type="file" id="inputArquivos" multiple accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none;" onchange="handleFiles(this.files)">
                         <div id="listaArquivos" style="margin-top:.5rem;"></div>
@@ -493,8 +493,8 @@ function buscarCep(val) {
 
 // === Upload de documentos ===
 var arquivosAnexados = [];
-var MAX_FILES = 5;
-var MAX_SIZE = 10 * 1024 * 1024; // 10MB
+var MAX_FILES = 10;
+var MAX_SIZE = 5 * 1024 * 1024; // 5MB
 var TIPOS_ACEITOS = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
 function handleFiles(fileList) {

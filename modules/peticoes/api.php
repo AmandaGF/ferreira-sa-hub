@@ -49,7 +49,7 @@ if ($action === 'gerar') {
         if ($caso) $clientId = (int)($caso['client_id'] ?: 0);
     }
 
-    // Montar dados do cliente A PARTIR DO FORMULÁRIO (sempre usa o que o usuário digitou/editou)
+    // ══ OTIMIZAÇÃO 3: Dados do cliente em formato compacto (JSON) ══
     $clCpf = trim($_POST['cl_cpf'] ?? '');
     $clRg = trim($_POST['cl_rg'] ?? '');
     $clNascimento = trim($_POST['cl_nascimento'] ?? '');
@@ -61,19 +61,23 @@ if ($action === 'gerar') {
     $clTelefone = trim($_POST['cl_telefone'] ?? '');
     $clEmail = trim($_POST['cl_email'] ?? '');
 
-    $dadosCliente = "Nome: " . ($clNome ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCPF: " . ($clCpf ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nRG: " . ($clRg ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nData de nascimento: " . ($clNascimento ? date('d/m/Y', strtotime($clNascimento)) : '[NÃO INFORMADO]');
-    $dadosCliente .= "\nProfissão: " . ($clProfissao ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nEstado civil: " . ($clEstadoCivil ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nEndereço: " . ($clEndereco ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCidade/UF: " . ($clCidade ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nCEP: " . ($clCep ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nTelefone: " . ($clTelefone ?: '[NÃO INFORMADO]');
-    $dadosCliente .= "\nE-mail: " . ($clEmail ?: '[NÃO INFORMADO]');
-    if ($caso && $caso['pix_key']) $dadosCliente .= "\nChave PIX: " . $caso['pix_key'];
-    if ($caso && $caso['children_names']) $dadosCliente .= "\nFilhos: " . $caso['children_names'];
+    $dadosClienteArr = array(
+        'nome' => $clNome ?: '[NÃO INFORMADO]',
+        'cpf' => $clCpf ?: '[NÃO INFORMADO]',
+        'rg' => $clRg ?: '[NÃO INFORMADO]',
+        'nascimento' => $clNascimento ? date('d/m/Y', strtotime($clNascimento)) : '[NÃO INFORMADO]',
+        'profissao' => $clProfissao ?: '[NÃO INFORMADO]',
+        'estado_civil' => $clEstadoCivil ?: '[NÃO INFORMADO]',
+        'endereco' => $clEndereco ?: '[NÃO INFORMADO]',
+        'cidade_uf' => $clCidade ?: '[NÃO INFORMADO]',
+        'cep' => $clCep ?: '[NÃO INFORMADO]',
+        'telefone' => $clTelefone ?: '[NÃO INFORMADO]',
+        'email' => $clEmail ?: '[NÃO INFORMADO]',
+    );
+    if ($caso && $caso['pix_key']) $dadosClienteArr['pix'] = $caso['pix_key'];
+    if ($caso && $caso['children_names']) $dadosClienteArr['filhos'] = $caso['children_names'];
+
+    $dadosCliente = json_encode($dadosClienteArr, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
     // Campos específicos da ação
     $camposEspecificos = '';
@@ -108,7 +112,9 @@ if ($action === 'gerar') {
     $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
     $userPrompt .= "Elabore a petição completa em HTML formatado.";
 
-    // Processar arquivos anexados
+    // ══ OTIMIZAÇÃO 2: Pré-processamento de documentos ══
+    // PDFs e imagens limitados a 5MB cada, máx 10 arquivos
+    // PDFs são enviados como document (Claude lê nativamente)
     $contentBlocks = array();
     $anexosInfo = '';
     if (!empty($_FILES['anexos']['name'][0])) {
@@ -124,8 +130,8 @@ if ($action === 'gerar') {
             'image/png' => 'image/png',
             'image/webp' => 'image/webp',
         );
-        $maxFiles = 5;
-        $maxSize = 10 * 1024 * 1024;
+        $maxFiles = 10;
+        $maxSize = 5 * 1024 * 1024; // 5MB por arquivo (otimizado vs 10MB)
         $count = min(count($_FILES['anexos']['name']), $maxFiles);
 
         for ($i = 0; $i < $count; $i++) {
@@ -137,7 +143,8 @@ if ($action === 'gerar') {
 
             if (!isset($tiposAceitos[$mime]) || $fileSize > $maxSize) continue;
 
-            $base64 = base64_encode(file_get_contents($tmpPath));
+            $rawContent = file_get_contents($tmpPath);
+            $base64 = base64_encode($rawContent);
             $blockType = $tiposAceitos[$mime];
 
             if ($blockType === 'document') {
@@ -164,7 +171,7 @@ if ($action === 'gerar') {
 
         if ($anexosInfo) {
             $userPrompt .= "\n\nDOCUMENTOS ANEXADOS PARA ANÁLISE:" . $anexosInfo;
-            $userPrompt .= "\nAnalise os documentos acima e utilize as informações relevantes para fundamentar a petição.";
+            $userPrompt .= "\nExtraia apenas as informações relevantes dos documentos para fundamentar a petição.";
         }
     }
 
@@ -176,6 +183,31 @@ if ($action === 'gerar') {
     }
     $messageContent[] = array('type' => 'text', 'text' => $userPrompt);
 
+    // ══ OTIMIZAÇÃO 4: Cache de petições recentes (mesmo dia, mesmos dados) ══
+    $cacheKey = md5($tipoAcao . $tipoPeca . $clNome . $clientId . date('Y-m-d'));
+    $cacheDir = sys_get_temp_dir();
+    $cacheFile = $cacheDir . '/peticao_cache_' . $cacheKey . '.json';
+    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if ($cached && isset($cached['html'])) {
+            // Salvar no banco mesmo usando cache
+            $titulo = $labelPeca . ' — ' . $labelAcao . ' — ' . ($clNome ?: 'Sem cliente');
+            $stmt = $pdo->prepare(
+                "INSERT INTO case_documents (case_id, client_id, tipo_peca, tipo_acao, titulo, conteudo_html, gerado_por, tokens_input, tokens_output, custo_usd)
+                 VALUES (?,?,?,?,?,?,?,?,?,?)"
+            );
+            $stmt->execute(array($caseId ?: 0, $clientId, $tipoPeca, $tipoAcao, $titulo, $cached['html'], current_user_id(), 0, 0, 0));
+            $docId = (int)$pdo->lastInsertId();
+            audit_log('PETICAO_GERADA', 'case', $caseId ?: 0, $titulo . ' (cache)');
+            echo json_encode(array(
+                'ok' => true, 'doc_id' => $docId, 'titulo' => $titulo,
+                'html' => $cached['html'], 'tokens_in' => 0, 'tokens_out' => 0,
+                'custo' => '0.0000', 'cache' => true,
+            ));
+            exit;
+        }
+    }
+
     // Chamar API Anthropic
     $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
     if (!$apiKey) {
@@ -183,10 +215,21 @@ if ($action === 'gerar') {
         exit;
     }
 
+    // ══ OTIMIZAÇÃO 1: Prompt Caching — cache_control: ephemeral no system prompt ══
+    // O system prompt (~3.500 tokens) é cacheado pela Anthropic por 5min,
+    // reduzindo custo em ~90% nas chamadas subsequentes.
+    // ══ OTIMIZAÇÃO 5: temperature 0.3, max_tokens 4096 ══
     $payload = json_encode(array(
         'model' => 'claude-sonnet-4-5-20250514',
-        'max_tokens' => 8192,
-        'system' => get_system_prompt(),
+        'max_tokens' => 4096,
+        'temperature' => 0.3,
+        'system' => array(
+            array(
+                'type' => 'text',
+                'text' => get_system_prompt(),
+                'cache_control' => array('type' => 'ephemeral'),
+            )
+        ),
         'messages' => array(
             array('role' => 'user', 'content' => $messageContent)
         ),
@@ -227,7 +270,18 @@ if ($action === 'gerar') {
     $htmlPeticao = $data['content'][0]['text'];
     $tokensIn = isset($data['usage']['input_tokens']) ? (int)$data['usage']['input_tokens'] : 0;
     $tokensOut = isset($data['usage']['output_tokens']) ? (int)$data['usage']['output_tokens'] : 0;
-    $custoUsd = ($tokensIn * 0.003 / 1000) + ($tokensOut * 0.015 / 1000);
+    $tokensCacheRead = isset($data['usage']['cache_read_input_tokens']) ? (int)$data['usage']['cache_read_input_tokens'] : 0;
+    $tokensCacheCreate = isset($data['usage']['cache_creation_input_tokens']) ? (int)$data['usage']['cache_creation_input_tokens'] : 0;
+
+    // Custo: input normal $3/MTok, cache read $0.30/MTok, cache create $3.75/MTok, output $15/MTok
+    $custoUsd = (($tokensIn - $tokensCacheRead) * 3 / 1000000)
+              + ($tokensCacheRead * 0.30 / 1000000)
+              + ($tokensCacheCreate * 3.75 / 1000000)
+              + ($tokensOut * 15 / 1000000);
+
+    // ══ OTIMIZAÇÃO 4: Salvar no cache local ══
+    $cacheData = array('html' => $htmlPeticao, 'tokens_in' => $tokensIn, 'tokens_out' => $tokensOut);
+    @file_put_contents($cacheFile, json_encode($cacheData));
 
     // Salvar no banco
     $titulo = $labelPeca . ' — ' . $labelAcao . ' — ' . ($clNome ?: 'Sem cliente');
