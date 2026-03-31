@@ -3,21 +3,29 @@
  * Fábrica de Petições — API
  * Chama API Anthropic (Claude Sonnet 4.6) e retorna HTML da petição
  */
-ob_start();
-require_once __DIR__ . '/../../core/middleware.php';
 
-// Limpar qualquer output do middleware e forçar JSON
-ob_end_clean();
+// Inicializar sessão e funções SEM o middleware (evita redirect HTML)
+require_once __DIR__ . '/../../core/config.php';
+require_once __DIR__ . '/../../core/database.php';
+require_once __DIR__ . '/../../core/functions.php';
+require_once __DIR__ . '/../../core/auth.php';
+
 header('Content-Type: application/json; charset=utf-8');
 
-// Verificar login sem redirect HTML
+// Verificar login sem redirect
 if (!is_logged_in()) {
-    echo json_encode(array('error' => 'Sessão expirada. Faça login novamente.'));
+    echo json_encode(array('error' => 'Sessão expirada. Faça login novamente e tente de novo.'));
     exit;
 }
 
 if (!has_min_role('gestao') && !has_role('cx') && !has_role('operacional')) {
     echo json_encode(array('error' => 'Sem permissão'));
+    exit;
+}
+
+// Validar CSRF
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !validate_csrf()) {
+    echo json_encode(array('error' => 'Token CSRF inválido. Recarregue a página.'));
     exit;
 }
 
