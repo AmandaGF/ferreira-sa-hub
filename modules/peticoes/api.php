@@ -3,18 +3,22 @@
  * Fábrica de Petições — API
  * Chama API Anthropic (Claude Sonnet 4.6) e retorna HTML da petição
  */
+// Forçar JSON output mesmo em caso de erro PHP
+header('Content-Type: application/json; charset=utf-8');
+set_error_handler(function($severity, $message, $file, $line) {
+    echo json_encode(array('error' => 'Erro PHP: ' . $message . ' em ' . basename($file) . ':' . $line));
+    exit;
+});
+
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
 if (!has_min_role('gestao') && !has_role('cx') && !has_role('operacional')) {
-    header('Content-Type: application/json');
     echo json_encode(array('error' => 'Sem permissão'));
     exit;
 }
 
 require_once __DIR__ . '/system_prompt.php';
-
-header('Content-Type: application/json; charset=utf-8');
 
 $pdo = db();
 $action = $_POST['action'] ?? '';
