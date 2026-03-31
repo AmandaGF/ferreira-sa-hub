@@ -228,30 +228,13 @@ FIXO;
     }
     $messageContent[] = array('type' => 'text', 'text' => $userPrompt);
 
-    // ══ OTIMIZAÇÃO 4: Cache de petições recentes (mesmo dia, mesmos dados) ══
-    $cacheKey = md5($tipoAcao . $tipoPeca . $clNome . $clientId . date('Y-m-d'));
+    // ══ Cache DESABILITADO temporariamente — forçar chamadas novas à API ══
+    // O cache estava retornando petições antigas com formato incorreto.
+    // Reabilitar quando o visual law estiver estável.
+    $cacheKey = md5($tipoAcao . $tipoPeca . $clNome . $clientId . date('Y-m-d-H'));
     $cacheDir = sys_get_temp_dir();
     $cacheFile = $cacheDir . '/peticao_cache_' . $cacheKey . '.json';
-    if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 86400) {
-        $cached = json_decode(file_get_contents($cacheFile), true);
-        if ($cached && isset($cached['html'])) {
-            // Salvar no banco mesmo usando cache
-            $titulo = $labelPeca . ' — ' . $labelAcao . ' — ' . ($clNome ?: 'Sem cliente');
-            $stmt = $pdo->prepare(
-                "INSERT INTO case_documents (case_id, client_id, tipo_peca, tipo_acao, titulo, conteudo_html, gerado_por, tokens_input, tokens_output, custo_usd)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)"
-            );
-            $stmt->execute(array($caseId ?: 0, $clientId, $tipoPeca, $tipoAcao, $titulo, $cached['html'], current_user_id(), 0, 0, 0));
-            $docId = (int)$pdo->lastInsertId();
-            audit_log('PETICAO_GERADA', 'case', $caseId ?: 0, $titulo . ' (cache)');
-            echo json_encode(array(
-                'ok' => true, 'doc_id' => $docId, 'titulo' => $titulo,
-                'html' => $cached['html'], 'tokens_in' => 0, 'tokens_out' => 0,
-                'custo' => '0.0000', 'cache' => true,
-            ));
-            exit;
-        }
-    }
+    // Cache desabilitado: sempre chama a API
 
     // ══ MODO DEBUG: ?debug=1 mostra o que seria enviado sem chamar a API ══
     if (isset($_POST['debug']) && $_POST['debug'] === '1') {
