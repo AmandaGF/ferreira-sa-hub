@@ -89,7 +89,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .task-meta { font-size:.72rem; color:var(--text-muted); flex-shrink:0; }
 </style>
 
-<a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm mb-2">← Voltar</a>
+<div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
+    <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">← Voltar</a>
+    <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
+</div>
 
 <!-- Header do caso -->
 <div class="caso-header">

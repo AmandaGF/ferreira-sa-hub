@@ -25,6 +25,7 @@ $menuItems = array(
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
     array('label' => 'Extrajudicial',   'icon' => '📝', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
     array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Fáb. Petições',  'icon' => '📝', 'href' => url('modules/peticoes/'),         'id' => 'peticoes',        'roles' => array('admin','gestao','operacional','cx')),
 
     array('section' => 'Cadastros'),
     array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),
