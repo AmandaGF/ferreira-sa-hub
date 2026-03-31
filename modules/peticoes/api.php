@@ -156,6 +156,9 @@ FIXO;
     $userPrompt .= "- Comece direto com o <div> do timbrado do escritório\n";
     $userPrompt .= "- Fonte: Calibri,sans-serif (NUNCA Times New Roman)\n";
     $userPrompt .= "- Siga EXATAMENTE os templates HTML do system prompt (timbrado, caixa da ação, seções à direita, pedidos em tabela)\n";
+    $userPrompt .= "- A petição deve ser COMPLETA do início ao fim: timbrado, endereçamento, qualificação, seções (fatos, direito, pedidos), intimações, provas, assinatura e rodapé\n";
+    $userPrompt .= "- NUNCA corte ou interrompa a petição. Se necessário, seja mais conciso nos fatos, mas SEMPRE inclua todas as seções até a assinatura final\n";
+    $userPrompt .= "- Use a logo real: <img src=\"https://ferreiraesa.com.br/conecta/assets/img/logo.png\" alt=\"Ferreira &amp; Sá\" style=\"max-width:400px;height:auto;\"> no timbrado\n";
 
     // ══ OTIMIZAÇÃO 2: Pré-processamento de documentos ══
     // PDFs e imagens limitados a 5MB cada, máx 10 arquivos
@@ -243,7 +246,7 @@ FIXO;
             'system_prompt_tokens_estimado' => (int)(mb_strlen(get_system_prompt(), 'UTF-8') / 4),
             'user_message' => $messageContent,
             'model' => 'claude-sonnet-4-6',
-            'max_tokens' => 8192,
+            'max_tokens' => 16384,
             'temperature' => 0.3,
             'cache_control' => 'ephemeral',
             'anexos_count' => count($contentBlocks),
@@ -264,7 +267,7 @@ FIXO;
     $systemPromptText = get_system_prompt();
     $payload = json_encode(array(
         'model' => 'claude-sonnet-4-6',
-        'max_tokens' => 8192,
+        'max_tokens' => 16384,
         'temperature' => 0.3,
         'system' => array(
             array(

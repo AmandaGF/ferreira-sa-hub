@@ -171,12 +171,10 @@ Gere HTML com ESTILOS INLINE em cada elemento. Siga EXATAMENTE:
 
 PALETA: #052228 (petrol) | #173D46 (petrol médio) | #B87333 (cobre) | #D7AB90 (cobre claro) | #F4F4F4 (cinza) | #1A1A1A (texto) | #CC0000 (dados faltantes)
 
-LOGO/TIMBRADO (topo):
+LOGO/TIMBRADO (topo) — usar a imagem real do escritório:
 <div style="text-align:center;padding-bottom:20px;margin-bottom:24px;border-bottom:1px solid #D7AB90;">
-<table style="margin:0 auto;border:none;border-collapse:collapse;"><tr>
-<td style="padding-right:12px;vertical-align:middle;border:none;"><div style="width:40px;height:50px;background:#052228;border-radius:4px;display:flex;align-items:center;justify-content:center;"><span style="color:#D7AB90;font-family:Georgia,serif;font-size:22px;font-weight:700;">F</span></div></td>
-<td style="vertical-align:middle;border:none;"><div style="font-family:Georgia,serif;font-size:20px;color:#052228;letter-spacing:8px;font-weight:400;">F E R R E I R A &nbsp; & &nbsp; S Á</div><div style="font-size:9px;color:#B87333;letter-spacing:5px;font-weight:600;margin-top:2px;">A D V O C A C I A &nbsp; E S P E C I A L I Z A D A</div></td>
-</tr></table></div>
+<img src="https://ferreiraesa.com.br/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia Especializada" style="max-width:400px;height:auto;">
+</div>
 
 ENDEREÇAMENTO: <p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#1A1A1A;text-transform:uppercase;">JUÍZO DA ___ VARA...</p>
 

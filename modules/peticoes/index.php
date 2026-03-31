@@ -365,7 +365,7 @@ function gerarPeticao() {
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '<?= module_url("peticoes", "api.php") ?>');
-    xhr.timeout = 180000;
+    xhr.timeout = 240000;
     xhr.onload = function() {
         document.getElementById('loadingArea').style.display = 'none';
         try {
