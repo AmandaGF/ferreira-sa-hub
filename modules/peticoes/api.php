@@ -4,28 +4,20 @@
  * Chama API Anthropic (Claude Sonnet 4.6) e retorna HTML da petição
  */
 
-// Inicializar sessão e funções SEM o middleware (evita redirect HTML)
-require_once __DIR__ . '/../../core/config.php';
-require_once __DIR__ . '/../../core/database.php';
-require_once __DIR__ . '/../../core/functions.php';
-require_once __DIR__ . '/../../core/auth.php';
+// Carregar middleware normalmente
+require_once __DIR__ . '/../../core/middleware.php';
+
+// Interceptar: se não logado, retornar JSON em vez de redirect HTML
+if (!is_logged_in()) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array('error' => 'Sessão expirada. Recarregue a página e faça login.'));
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Verificar login sem redirect
-if (!is_logged_in()) {
-    echo json_encode(array('error' => 'Sessão expirada. Faça login novamente e tente de novo.'));
-    exit;
-}
-
 if (!has_min_role('gestao') && !has_role('cx') && !has_role('operacional')) {
     echo json_encode(array('error' => 'Sem permissão'));
-    exit;
-}
-
-// Validar CSRF
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !validate_csrf()) {
-    echo json_encode(array('error' => 'Token CSRF inválido. Recarregue a página.'));
     exit;
 }
 
