@@ -17,7 +17,7 @@ if ($action === 'fix_deploy') {
 
     // Agora rodar deploy via URL publica
     echo "2. Baixando ZIP (URL publica)...\n";
-    $url = 'https://github.com/AmandaGF/ferreira-sa-hub/archive/refs/heads/main.zip';
+    $url = 'https://codeload.github.com/AmandaGF/ferreira-sa-hub/zip/refs/heads/main';
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);

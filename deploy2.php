@@ -40,7 +40,8 @@ if ($ghToken) {
     if (!$url) { die("ERRO: nao conseguiu URL de redirect da API\n$headers\n"); }
     echo "   Redirect OK\n";
 } else {
-    $url = 'https://github.com/AmandaGF/ferreira-sa-hub/archive/refs/heads/main.zip';
+    // URL direta sem redirect (codeload é a URL final do GitHub)
+    $url = 'https://codeload.github.com/AmandaGF/ferreira-sa-hub/zip/refs/heads/main';
 }
 // Passo 2: baixar ZIP da URL final (sem auth necessario)
 $ch = curl_init();
