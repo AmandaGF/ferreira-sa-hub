@@ -164,14 +164,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="section-title">Dados Pessoais</div>
 
-            <label>Nome Completo <span class="obrigat">*</span></label>
-            <input type="text" name="nome" required value="<?= e($_POST['nome'] ?? '') ?>">
-
             <label>CPF <span class="obrigat">*</span></label>
-            <input type="text" name="cpf" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14">
+            <div style="position:relative;">
+                <input type="text" name="cpf" id="cpfInput" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14" autocomplete="off">
+                <span id="cpfLoading" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--cobre);">Consultando...</span>
+                <span id="cpfOk" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#2D7A4F;font-weight:600;">✓ Dados preenchidos</span>
+            </div>
 
-            <label>Data de Nascimento</label>
-            <input type="date" name="nascimento" value="<?= e($_POST['nascimento'] ?? '') ?>" required>
+            <label>Nome Completo <span class="obrigat">*</span></label>
+            <input type="text" name="nome" id="nomeInput" required value="<?= e($_POST['nome'] ?? '') ?>">
+
+            <label>Data de Nascimento <span class="obrigat">*</span></label>
+            <input type="date" name="nascimento" id="nascimentoInput" value="<?= e($_POST['nascimento'] ?? '') ?>" required>
 
             <label>Profissão (se desempregado, também deve informar)</label>
             <input type="text" name="profissao" value="<?= e($_POST['profissao'] ?? '') ?>">
@@ -388,5 +392,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </script>
         <?php endif; ?>
     </div>
+
+<script>
+// Máscara de CPF
+var cpfInput = document.getElementById('cpfInput');
+if (cpfInput) {
+    cpfInput.addEventListener('input', function() {
+        var v = this.value.replace(/\D/g, '');
+        if (v.length > 11) v = v.substr(0, 11);
+        if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+        else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+        else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+        this.value = v;
+
+        // Consultar quando completar 14 chars (000.000.000-00)
+        if (v.length === 14) consultarCPF(v);
+    });
+
+    cpfInput.addEventListener('blur', function() {
+        if (this.value.length === 14) consultarCPF(this.value);
+    });
+}
+
+function consultarCPF(cpfFormatado) {
+    var cpfLimpo = cpfFormatado.replace(/\D/g, '');
+    if (cpfLimpo.length !== 11) return;
+
+    var loading = document.getElementById('cpfLoading');
+    var ok = document.getElementById('cpfOk');
+    loading.style.display = 'inline'; ok.style.display = 'none';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://receitaws.com.br/v1/cpf/' + cpfLimpo, true);
+    xhr.timeout = 10000;
+    xhr.onload = function() {
+        loading.style.display = 'none';
+        try {
+            var data = JSON.parse(xhr.responseText);
+            if (data.status === 'ERROR' || !data.nome) return;
+
+            var nomeInput = document.getElementById('nomeInput');
+            var nascInput = document.getElementById('nascimentoInput');
+
+            if (data.nome && (!nomeInput.value || nomeInput.value === '')) {
+                nomeInput.value = data.nome;
+            }
+            if (data.nascimento && !nascInput.value) {
+                // Formato da API: dd/mm/yyyy -> yyyy-mm-dd
+                var parts = data.nascimento.split('/');
+                if (parts.length === 3) nascInput.value = parts[2] + '-' + parts[1] + '-' + parts[0];
+            }
+            ok.style.display = 'inline';
+            setTimeout(function() { ok.style.display = 'none'; }, 3000);
+        } catch(e) {}
+    };
+    xhr.onerror = function() { loading.style.display = 'none'; };
+    xhr.ontimeout = function() { loading.style.display = 'none'; };
+    xhr.send();
+}
+</script>
 </body>
 </html>
