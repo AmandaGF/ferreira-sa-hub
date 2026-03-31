@@ -225,9 +225,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div id="errorArea" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:1rem;color:#dc2626;font-size:.85rem;">
                         <span id="errorMsg"></span>
-                        <div style="margin-top:1rem;display:flex;gap:.5rem;">
+                        <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+                            <button id="btnRetry" onclick="gerarPeticao()" class="btn btn-primary btn-sm" style="display:none;background:#059669;">🔄 Tentar novamente</button>
                             <button onclick="goStep(1)" class="btn btn-secondary btn-sm">← Voltar ao início</button>
-                            <button onclick="goStep(3)" class="btn btn-primary btn-sm">← Corrigir dados</button>
+                            <button onclick="goStep(3)" class="btn btn-outline btn-sm">← Corrigir dados</button>
                         </div>
                     </div>
                 </div>
@@ -361,6 +362,14 @@ function gerarPeticao() {
             var resp = JSON.parse(xhr.responseText);
             if (resp.error) {
                 document.getElementById('errorMsg').textContent = resp.error;
+                // Botão "Tentar novamente" automático para erros de sobrecarga
+                var retryBtn = document.getElementById('btnRetry');
+                if (resp.retry) {
+                    retryBtn.style.display = 'inline-block';
+                    retryBtn.onclick = function() { gerarPeticao(); };
+                } else {
+                    retryBtn.style.display = 'none';
+                }
                 document.getElementById('errorArea').style.display = 'block';
             } else {
                 document.getElementById('peticaoHTML').innerHTML = resp.html;

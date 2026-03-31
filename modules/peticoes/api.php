@@ -235,35 +235,67 @@ if ($action === 'gerar') {
         ),
     ));
 
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, array(
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => array(
-            'Content-Type: application/json',
-            'x-api-key: ' . $apiKey,
-            'anthropic-version: 2023-06-01',
-        ),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 180,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ));
+    // ══ Retry automático com espera progressiva (overloaded = 529, rate limit = 429) ══
+    $maxTentativas = 3;
+    $response = '';
+    $httpCode = 0;
+    $error = '';
+    $data = null;
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
+    for ($tentativa = 0; $tentativa < $maxTentativas; $tentativa++) {
+        $ch = curl_init('https://api.anthropic.com/v1/messages');
+        curl_setopt_array($ch, array(
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => array(
+                'Content-Type: application/json',
+                'x-api-key: ' . $apiKey,
+                'anthropic-version: 2023-06-01',
+            ),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 180,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ));
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        // Se não é erro de sobrecarga/rate limit, sair do loop
+        if ($httpCode !== 529 && $httpCode !== 429) break;
+
+        // Espera progressiva: 2s, 4s, 8s
+        if ($tentativa < $maxTentativas - 1) {
+            sleep(pow(2, $tentativa) * 2);
+        }
+    }
 
     if ($error) {
-        echo json_encode(array('error' => 'Erro de conexão: ' . $error));
+        echo json_encode(array('error' => 'Erro de conexão com a API. Verifique sua internet e tente novamente.'));
         exit;
     }
 
     $data = json_decode($response, true);
 
+    if ($httpCode === 529 || $httpCode === 429) {
+        echo json_encode(array(
+            'error' => 'A API está momentaneamente sobrecarregada. Aguarde alguns segundos e tente novamente.',
+            'retry' => true,
+        ));
+        exit;
+    }
+
     if ($httpCode !== 200 || !isset($data['content'][0]['text'])) {
-        $errMsg = isset($data['error']['message']) ? $data['error']['message'] : 'Erro HTTP ' . $httpCode;
-        echo json_encode(array('error' => 'API Anthropic: ' . $errMsg));
+        $errMsg = isset($data['error']['message']) ? $data['error']['message'] : '';
+        if ($httpCode === 401) {
+            $errMsg = 'Chave da API inválida ou expirada. Verifique a configuração.';
+        } elseif ($httpCode === 400) {
+            $errMsg = 'Erro nos dados enviados: ' . $errMsg;
+        } elseif (!$errMsg) {
+            $errMsg = 'Erro inesperado (HTTP ' . $httpCode . '). Tente novamente.';
+        }
+        echo json_encode(array('error' => $errMsg));
         exit;
     }
 
