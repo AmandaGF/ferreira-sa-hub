@@ -15,6 +15,7 @@ echo "   OK\n\n";
 
 echo "2. Baixando ZIP com cURL...\n";
 $ghToken = defined('GITHUB_TOKEN') ? GITHUB_TOKEN : '';
+if (isset($_GET['notk'])) { $ghToken = ''; echo "   (Token ignorado via parametro)\n"; }
 if ($ghToken) {
     // Passo 1: pegar URL de redirect da API
     $apiUrl = 'https://api.github.com/repos/AmandaGF/ferreira-sa-hub/zipball/main';
@@ -76,7 +77,7 @@ for ($i = 0; $i < $za->numFiles; $i++) {
     $rel = substr($name, $prefixLen);
     if ($rel === '' || $rel === false) continue;
     // NUNCA sobrescrever config.php e deploy2.php durante extração
-    if ($rel === 'core/config.php' || $rel === 'deploy2.php') continue;
+    if ($rel === 'core/config.php' || $rel === 'deploy2.php' || $rel === 'add_github_token.php') continue;
     $target = $dir . '/' . $rel;
     if (substr($name, -1) === '/') {
         if (!is_dir($target)) { @mkdir($target, 0755, true); }
