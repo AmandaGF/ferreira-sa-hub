@@ -198,6 +198,57 @@ function paginate(int $total, int $perPage = 20, int $currentPage = 1): array
     ];
 }
 
+// ─── Agenda de Contatos (anti-duplicação) ─────────────
+
+/**
+ * Busca contato existente ou cria um novo.
+ * Busca por: telefone (prioridade) → email → nome exato.
+ * Retorna o ID do contato.
+ */
+function find_or_create_client(array $data): int
+{
+    $pdo = db();
+    $name = isset($data['name']) ? trim($data['name']) : '';
+    $phone = isset($data['phone']) ? trim($data['phone']) : '';
+    $email = isset($data['email']) ? trim($data['email']) : '';
+
+    // 1. Buscar por telefone (mais confiável)
+    if ($phone) {
+        $phoneClean = preg_replace('/\D/', '', $phone);
+        if (strlen($phoneClean) >= 8) {
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')','') LIKE ? LIMIT 1");
+            $stmt->execute(array('%' . substr($phoneClean, -8) . '%'));
+            $row = $stmt->fetch();
+            if ($row) return (int)$row['id'];
+        }
+    }
+
+    // 2. Buscar por email
+    if ($email) {
+        $stmt = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
+        $stmt->execute(array($email));
+        $row = $stmt->fetch();
+        if ($row) return (int)$row['id'];
+    }
+
+    // 3. Buscar por nome exato
+    if ($name) {
+        $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+        $stmt->execute(array($name));
+        $row = $stmt->fetch();
+        if ($row) return (int)$row['id'];
+    }
+
+    // 4. Não encontrou — criar novo
+    if (!$name) return 0;
+
+    $pdo->prepare(
+        "INSERT INTO clients (name, phone, email, cpf, source, client_status, created_at) VALUES (?,?,?,?,'outro','ativo',NOW())"
+    )->execute(array($name, $phone ?: null, $email ?: null, isset($data['cpf']) ? $data['cpf'] : null));
+
+    return (int)$pdo->lastInsertId();
+}
+
 // ─── Notificações ──────────────────────────────────────
 
 /**

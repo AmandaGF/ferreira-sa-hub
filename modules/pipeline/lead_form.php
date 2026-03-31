@@ -108,18 +108,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $newId = (int)$pdo->lastInsertId();
 
-            // Auto-criar client se não vinculou a existente
+            // Vincular ao contato existente ou criar novo (anti-duplicação)
             if (!$clientIdFromPost && $f['name']) {
-                $existsClient = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
-                $existsClient->execute(array($f['name']));
-                $existsRow = $existsClient->fetch();
-                if ($existsRow) {
-                    $clientIdFromPost = (int)$existsRow['id'];
-                } else {
-                    $pdo->prepare("INSERT INTO clients (name, phone, email, source, client_status, created_at) VALUES (?,?,?,'outro','ativo',NOW())")
-                        ->execute(array($f['name'], $f['phone'] ?: null, $f['email'] ?: null));
-                    $clientIdFromPost = (int)$pdo->lastInsertId();
-                }
+                $clientIdFromPost = find_or_create_client(array('name' => $f['name'], 'phone' => $f['phone'], 'email' => $f['email']));
                 $pdo->prepare("UPDATE pipeline_leads SET client_id = ? WHERE id = ?")->execute(array($clientIdFromPost, $newId));
             }
 

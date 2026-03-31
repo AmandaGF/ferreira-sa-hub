@@ -191,18 +191,8 @@ if ($step === '3' && validate_csrf()) {
                 $exists->execute(array($title));
                 if ($exists->fetch()) { $skipped++; continue; }
 
-                // Buscar client
-                $clientStmt = $pdo->prepare("SELECT id FROM clients WHERE name LIKE ? LIMIT 1");
-                $clientStmt->execute(array('%' . $clientName . '%'));
-                $clientRow = $clientStmt->fetch();
-                $clientId = $clientRow ? (int)$clientRow['id'] : null;
-
-                // Se não encontrou, criar client
-                if (!$clientId) {
-                    $pdo->prepare("INSERT INTO clients (name, source, client_status, created_at) VALUES (?, 'outro', 'ativo', ?)")
-                        ->execute(array($clientName, $parsedDate ?: date('Y-m-d H:i:s')));
-                    $clientId = (int)$pdo->lastInsertId();
-                }
+                // Vincular ao contato existente ou criar (anti-duplicação)
+                $clientId = find_or_create_client(array('name' => $clientName, 'phone' => $phone));
 
                 $pdo->prepare(
                     "INSERT INTO cases (client_id, title, case_type, status, responsible_user_id, drive_folder_url, deadline, notes, opened_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
@@ -226,23 +216,15 @@ if ($step === '3' && validate_csrf()) {
                 $exists->execute($existsParams);
                 if ($exists->fetch()) { $skipped++; continue; }
 
-                // Buscar client pelo nome (sem " x tipo")
+                // Vincular ao contato existente ou criar (anti-duplicação)
                 $clientName = $title;
                 if (strpos($title, ' x ') !== false) {
                     $clientName = trim(explode(' x ', $title)[0]);
                 } elseif (strpos($title, ' - ') !== false) {
                     $clientName = trim(explode(' - ', $title)[0]);
                 }
-                $clientStmt = $pdo->prepare("SELECT id FROM clients WHERE name LIKE ? LIMIT 1");
-                $clientStmt->execute(array('%' . $clientName . '%'));
-                $clientRow = $clientStmt->fetch();
-                $clientId = $clientRow ? (int)$clientRow['id'] : null;
-
-                // Criar client se não existe
+                $clientId = find_or_create_client(array('name' => $clientName, 'phone' => $phone));
                 if (!$clientId) {
-                    $pdo->prepare("INSERT INTO clients (name, phone, source, client_status, created_at) VALUES (?,?, 'outro', 'ativo', ?)")
-                        ->execute(array($clientName, $phone ?: null, $parsedDate ?: date('Y-m-d H:i:s')));
-                    $clientId = (int)$pdo->lastInsertId();
                 }
 
                 // Mapear status da planilha para stage do Pipeline

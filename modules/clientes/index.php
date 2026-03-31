@@ -8,7 +8,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'Clientes';
+$pageTitle = 'Agenda de Contatos';
 $pdo = db();
 
 // Filtros
