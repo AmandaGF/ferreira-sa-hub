@@ -431,12 +431,19 @@ sort($opTipos);
     </div>
 </div>
 
-<!-- Modal: Processo Distribuído -->
+<!-- Modal: Processo Distribuído / Extrajudicial -->
 <div id="processoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.5rem;">🏛️ Dados do Processo Distribuído</h3>
-        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Preencha os dados do processo judicial.</p>
-        <div style="display:grid;gap:.75rem;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:540px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 id="procModalTitle" style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.5rem;">🏛️ Dados do Processo Distribuído</h3>
+
+        <!-- Toggle: Judicial / Extrajudicial -->
+        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;margin-bottom:1rem;">
+            <button type="button" id="btnJudicial" onclick="toggleProcType('judicial')" style="flex:1;padding:8px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">🏛️ Judicial</button>
+            <button type="button" id="btnExtrajudicial" onclick="toggleProcType('extrajudicial')" style="flex:1;padding:8px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📋 Extrajudicial</button>
+        </div>
+
+        <!-- Campos Judiciais -->
+        <div id="camposJudicial" style="display:grid;gap:.75rem;">
             <div>
                 <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Número do processo *</label>
                 <input type="text" id="procNumero" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="0000000-00.0000.0.00.0000">
@@ -456,9 +463,40 @@ sort($opTipos);
                 </div>
             </div>
         </div>
+
+        <!-- Campos Extrajudiciais -->
+        <div id="camposExtrajudicial" style="display:none;grid-template-columns:1fr;gap:.75rem;">
+            <div>
+                <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Tipo de serviço extrajudicial *</label>
+                <select id="extraTipo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                    <option value="">Selecione...</option>
+                    <option value="Inventário">Inventário</option>
+                    <option value="Divórcio Extrajudicial">Divórcio Extrajudicial</option>
+                    <option value="Escritura">Escritura</option>
+                    <option value="Usucapião">Usucapião</option>
+                    <option value="Consultoria">Consultoria</option>
+                    <option value="Contratos">Contratos</option>
+                    <option value="Mediação">Mediação</option>
+                    <option value="Notificação Extrajudicial">Notificação Extrajudicial</option>
+                    <option value="Acordo Extrajudicial">Acordo Extrajudicial</option>
+                    <option value="Outro">Outro</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Descrição do que foi feito *</label>
+                <textarea id="extraDescricao" rows="3" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;resize:vertical;" placeholder="Descreva o serviço realizado, cartório, partes envolvidas..."></textarea>
+            </div>
+            <div>
+                <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Data de conclusão</label>
+                <input type="date" id="extraData" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" value="<?= date('Y-m-d') ?>">
+            </div>
+        </div>
+
+        <input type="hidden" id="procCategory" value="judicial">
+
         <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
             <button onclick="closeProcModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
-            <button onclick="confirmProcesso()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Salvar Processo →</button>
+            <button onclick="confirmProcesso()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Salvar →</button>
         </div>
     </div>
 </div>
@@ -528,35 +566,89 @@ function closeProcModal() {
     _pendingOpForm = null;
 }
 
-function confirmProcesso() {
-    var numero = document.getElementById('procNumero').value.trim();
-    var vara = document.getElementById('procVara').value.trim();
-    if (!numero || !vara) {
-        if (!numero) document.getElementById('procNumero').style.borderColor = '#ef4444';
-        if (!vara) document.getElementById('procVara').style.borderColor = '#ef4444';
-        return;
+// Toggle Judicial / Extrajudicial
+function toggleProcType(type) {
+    var judicial = document.getElementById('camposJudicial');
+    var extra = document.getElementById('camposExtrajudicial');
+    var btnJ = document.getElementById('btnJudicial');
+    var btnE = document.getElementById('btnExtrajudicial');
+    var title = document.getElementById('procModalTitle');
+    document.getElementById('procCategory').value = type;
+    if (type === 'extrajudicial') {
+        judicial.style.display = 'none';
+        extra.style.display = 'grid';
+        btnJ.style.background = '#fff'; btnJ.style.color = 'var(--petrol-900)';
+        btnE.style.background = 'var(--petrol-900)'; btnE.style.color = '#fff';
+        title.innerHTML = '📋 Serviço Extrajudicial';
+    } else {
+        judicial.style.display = 'grid';
+        extra.style.display = 'none';
+        btnE.style.background = '#fff'; btnE.style.color = 'var(--petrol-900)';
+        btnJ.style.background = 'var(--petrol-900)'; btnJ.style.color = '#fff';
+        title.innerHTML = '🏛️ Dados do Processo Distribuído';
     }
-    document.getElementById('processoModal').style.display = 'none';
+}
 
-    if (_pendingOpForm) {
-        var fields = {
-            'proc_numero': numero,
-            'proc_vara': vara,
-            'proc_tipo': document.getElementById('procTipo').value,
-            'proc_data': document.getElementById('procData').value
-        };
-        // Remover select para evitar conflito
-        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
-        if (sel) sel.removeAttribute('name');
-        for (var k in fields) {
-            var input = document.createElement('input');
-            input.type = 'hidden'; input.name = k; input.value = fields[k];
-            _pendingOpForm.appendChild(input);
+function confirmProcesso() {
+    var category = document.getElementById('procCategory').value;
+
+    if (category === 'extrajudicial') {
+        var tipo = document.getElementById('extraTipo').value;
+        var desc = document.getElementById('extraDescricao').value.trim();
+        if (!tipo) { document.getElementById('extraTipo').style.borderColor = '#ef4444'; return; }
+        if (!desc) { document.getElementById('extraDescricao').style.borderColor = '#ef4444'; return; }
+        document.getElementById('processoModal').style.display = 'none';
+
+        if (_pendingOpForm) {
+            var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+            if (sel) sel.removeAttribute('name');
+            var fields = {
+                'proc_tipo': tipo,
+                'proc_data': document.getElementById('extraData').value,
+                'proc_numero': '',
+                'proc_vara': desc,
+                'proc_category': 'extrajudicial'
+            };
+            for (var k in fields) {
+                var input = document.createElement('input');
+                input.type = 'hidden'; input.name = k; input.value = fields[k];
+                _pendingOpForm.appendChild(input);
+            }
+            var statusInput = document.createElement('input');
+            statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'distribuido';
+            _pendingOpForm.appendChild(statusInput);
+            _pendingOpForm.submit();
         }
-        var statusInput = document.createElement('input');
-        statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'distribuido';
-        _pendingOpForm.appendChild(statusInput);
-        _pendingOpForm.submit();
+    } else {
+        var numero = document.getElementById('procNumero').value.trim();
+        var vara = document.getElementById('procVara').value.trim();
+        if (!numero || !vara) {
+            if (!numero) document.getElementById('procNumero').style.borderColor = '#ef4444';
+            if (!vara) document.getElementById('procVara').style.borderColor = '#ef4444';
+            return;
+        }
+        document.getElementById('processoModal').style.display = 'none';
+
+        if (_pendingOpForm) {
+            var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+            if (sel) sel.removeAttribute('name');
+            var fields = {
+                'proc_numero': numero,
+                'proc_vara': vara,
+                'proc_tipo': document.getElementById('procTipo').value,
+                'proc_data': document.getElementById('procData').value,
+                'proc_category': 'judicial'
+            };
+            for (var k in fields) {
+                var input = document.createElement('input');
+                input.type = 'hidden'; input.name = k; input.value = fields[k];
+                _pendingOpForm.appendChild(input);
+            }
+            var statusInput = document.createElement('input');
+            statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'distribuido';
+            _pendingOpForm.appendChild(statusInput);
+            _pendingOpForm.submit();
+        }
     }
 }
 

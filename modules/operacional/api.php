@@ -84,18 +84,19 @@ switch ($action) {
                 exit;
             }
 
-            // ── PROCESSO DISTRIBUÍDO: salvar dados do modal ──
+            // ── PROCESSO DISTRIBUÍDO / EXTRAJUDICIAL: salvar dados do modal ──
             if ($status === 'distribuido') {
                 $procNumero = clean_str($_POST['proc_numero'] ?? '', 30);
                 $procVara = clean_str($_POST['proc_vara'] ?? '', 150);
                 $procTipo = clean_str($_POST['proc_tipo'] ?? '', 60);
                 $procData = $_POST['proc_data'] ?? null;
                 if ($procData === '') $procData = null;
+                $procCategory = ($_POST['proc_category'] ?? 'judicial') === 'extrajudicial' ? 'extrajudicial' : 'judicial';
 
-                $pdo->prepare('UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type), distribution_date=?, updated_at=NOW() WHERE id=?')
-                    ->execute(array($status, $procNumero ?: null, $procVara ?: null, $procTipo, $procData, $caseId));
+                $pdo->prepare('UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type), distribution_date=?, category=?, updated_at=NOW() WHERE id=?')
+                    ->execute(array($status, $procNumero ?: null, $procVara ?: null, $procTipo, $procData, $procCategory, $caseId));
 
-                audit_log('processo_distribuido', 'case', $caseId, 'Processo: ' . $procNumero . ' - ' . $procVara);
+                audit_log($procCategory === 'extrajudicial' ? 'extrajudicial' : 'processo_distribuido', 'case', $caseId, ($procCategory === 'extrajudicial' ? 'Extrajudicial: ' : 'Processo: ') . ($procNumero ?: $procVara));
                 notify_gestao('Processo distribuído!', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . $procNumero . ' (' . $procVara . ')', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '🏛️');
 
                 // BLOCO 4: Notificar cliente — Processo distribuído (só se tiver nº)

@@ -17,20 +17,18 @@ $menuItems = array(
     array('section' => 'Atendimento'),
     array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all),
 
-    array('section' => 'Comercial'),
+    array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => array('admin','gestao','comercial','cx')),
-    array('label' => 'Kanban Comercial II','icon' => '📈', 'href' => url('modules/pipeline/'),        'id' => 'pipeline',        'roles' => array('admin','gestao','comercial','cx')),
-
-    array('section' => 'Cadastros'),
-    array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),
-
-    array('section' => 'Demandas'),
-    array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
-    array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
-    array('label' => 'Extrajudicial',   'icon' => '📋', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => array('admin','gestao','comercial','cx')),
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
+    array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Extrajudicial',   'icon' => '📝', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
+
+    array('section' => 'Cadastros'),
+    array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),
+    array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => array('admin','gestao','operacional')),
 
     array('section' => 'Controle'),
     array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => array('admin','gestao','operacional')),
