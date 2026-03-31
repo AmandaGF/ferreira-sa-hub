@@ -16,6 +16,20 @@ $pdo = db();
 $caseId = (int)($_GET['case_id'] ?? 0);
 $pageTitle = 'Fábrica de Petições';
 
+// API de busca de clientes (AJAX)
+if (isset($_GET['ajax_busca_cliente'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $q = trim($_GET['q'] ?? '');
+    if (strlen($q) < 2) { echo '[]'; exit; }
+    $stmt = $pdo->prepare(
+        "SELECT id, name, cpf, rg, birth_date, phone, email, address_street, address_city, address_state, address_zip, profession, marital_status, gender, pix_key, children_names
+         FROM clients WHERE name LIKE ? ORDER BY name LIMIT 15"
+    );
+    $stmt->execute(array('%' . $q . '%'));
+    echo json_encode($stmt->fetchAll());
+    exit;
+}
+
 // Buscar caso
 $caso = null;
 $cliente = null;
@@ -117,7 +131,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="fab-step-num">2</div>
                     <div class="fab-step-title">Dados do cliente</div>
                 </div>
-                <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;">Pré-preenchidos do cadastro. Complete os faltantes.</p>
+
+                <!-- Busca de cliente -->
+                <div class="fab-campo" style="position:relative;margin-bottom:1rem;">
+                    <label>Buscar cliente cadastrado</label>
+                    <input type="text" id="buscaCliente" placeholder="Digite o nome do cliente..." autocomplete="off" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:2px solid var(--rose);border-radius:8px;font-family:inherit;">
+                    <div id="buscaResultados" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:10;background:#fff;border:1.5px solid var(--border);border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;box-shadow:var(--shadow-md);"></div>
+                </div>
+
+                <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;">Selecione um cliente acima para preencher automaticamente, ou preencha manualmente.</p>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;">
                     <div class="fab-campo"><label>Nome completo</label><input id="cl_nome" value="<?= e($caso['client_name'] ?? '') ?>"></div>
                     <div class="fab-campo"><label>CPF</label><input id="cl_cpf" value="<?= e($caso['cpf'] ?? '') ?>"></div>
@@ -311,6 +333,62 @@ function copiarPeticao() {
 function verPeca(id) {
     // Buscar peça salva e mostrar
     window.open('<?= module_url("peticoes", "ver.php?id=") ?>' + id, '_blank');
+}
+
+// Busca de clientes com autocomplete
+(function() {
+    var input = document.getElementById('buscaCliente');
+    var results = document.getElementById('buscaResultados');
+    var timer = null;
+
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var q = this.value.trim();
+        if (q.length < 2) { results.style.display = 'none'; return; }
+        timer = setTimeout(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '<?= module_url("peticoes", "index.php") ?>?ajax_busca_cliente=1&q=' + encodeURIComponent(q));
+            xhr.onload = function() {
+                try {
+                    var clientes = JSON.parse(xhr.responseText);
+                    if (!clientes.length) { results.innerHTML = '<div style="padding:8px 12px;font-size:.82rem;color:var(--text-muted);">Nenhum encontrado</div>'; results.style.display = 'block'; return; }
+                    var html = '';
+                    clientes.forEach(function(cl) {
+                        html += '<div onclick=\'preencherCliente(' + JSON.stringify(cl).replace(/'/g, "\\'") + ')\' style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;font-size:.82rem;transition:background .1s;" onmouseover="this.style.background=\'rgba(215,171,144,.15)\'" onmouseout="this.style.background=\'#fff\'">';
+                        html += '<strong>' + (cl.name || '') + '</strong>';
+                        if (cl.cpf) html += ' <span style="color:var(--text-muted);">— CPF: ' + cl.cpf + '</span>';
+                        if (cl.phone) html += ' <span style="color:var(--text-muted);">— ' + cl.phone + '</span>';
+                        html += '</div>';
+                    });
+                    results.innerHTML = html;
+                    results.style.display = 'block';
+                } catch(e) { results.style.display = 'none'; }
+            };
+            xhr.send();
+        }, 300);
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !results.contains(e.target)) {
+            results.style.display = 'none';
+        }
+    });
+})();
+
+function preencherCliente(cl) {
+    document.getElementById('buscaResultados').style.display = 'none';
+    document.getElementById('buscaCliente').value = cl.name || '';
+    document.getElementById('cl_nome').value = cl.name || '';
+    document.getElementById('cl_cpf').value = cl.cpf || '';
+    document.getElementById('cl_rg').value = cl.rg || '';
+    document.getElementById('cl_nascimento').value = cl.birth_date || '';
+    document.getElementById('cl_profissao').value = cl.profession || '';
+    document.getElementById('cl_estado_civil').value = cl.marital_status || '';
+    document.getElementById('cl_endereco').value = cl.address_street || '';
+    document.getElementById('cl_cidade').value = (cl.address_city || '') + '/' + (cl.address_state || '');
+    document.getElementById('cl_cep').value = cl.address_zip || '';
+    document.getElementById('cl_telefone').value = cl.phone || '';
+    document.getElementById('cl_email').value = cl.email || '';
 }
 
 // Carregar campos se tipo já pré-selecionado
