@@ -272,89 +272,38 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 </div>
 
 <?php elseif ($step === '2' && isset($preview)): ?>
-<!-- STEP 2: Preview + Mapeamento -->
-<?php error_reporting(E_ALL); ini_set('display_errors', 1); ?>
-<div class="card" style="margin-bottom:1rem;">
-    <div class="card-header"><strong>Preview do arquivo</strong> — <?= $totalLines ?> linhas | Separador: "<?= $sep === ';' ? ';' : ',' ?>" (mostrando 5 primeiras)</div>
-    <div class="card-body" style="overflow-x:auto;max-height:220px;overflow-y:auto;">
-        <table style="width:100%;border-collapse:collapse;font-size:.72rem;">
-            <thead>
-                <tr>
-                    <?php if (!empty($preview[0])): ?>
-                        <?php foreach ($preview[0] as $i => $col): ?>
-                            <th style="border:1px solid #ddd;padding:4px 6px;background:#f0f0f0;white-space:nowrap;">Col <?= $i ?></th>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tr>
-            </thead>
-            <tbody>
-                <?php foreach ($preview as $ri => $row): ?>
-                <tr style="<?= $ri === 0 ? 'background:#fff8e1;font-weight:600;' : '' ?>">
-                    <?php foreach ($row as $cell): ?>
-                        <td style="border:1px solid #ddd;padding:3px 6px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?= e($cell) ?>"><?= e(mb_substr($cell, 0, 40)) ?></td>
-                    <?php endforeach; ?>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-</div>
-
-<form method="POST">
+<!-- STEP 2: Preview + Mapeamento (tudo junto) -->
+<form method="POST" action="">
     <?= csrf_input() ?>
     <input type="hidden" name="step" value="3">
     <input type="hidden" name="destino" value="<?= e($destino) ?>">
 
-    <div class="card">
-        <div class="card-header"><strong>Mapeamento de colunas</strong> — Informe qual coluna corresponde a cada campo</div>
+    <div style="background:var(--success-bg);border:2px solid var(--success);border-radius:12px;padding:1rem;margin-bottom:1rem;display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" style="padding:12px 32px;font-size:1rem;font-weight:700;background:var(--success);border:none;border-radius:10px;">Importar <?= $totalLines ?> linhas</button>
+        <span style="font-size:.85rem;color:var(--text);">Arquivo carregado com sucesso! Configure o mapeamento abaixo e clique para importar.</span>
+        <a href="<?= module_url('planilha', 'importar.php') ?>" style="margin-left:auto;font-size:.78rem;color:var(--text-muted);">Cancelar</a>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem;">
+        <div class="card-header"><strong>Mapeamento de colunas</strong></div>
         <div class="card-body">
-            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;">Olhe o preview acima e informe o número da coluna (Col 0, Col 1, etc.). Deixe -1 para ignorar.</p>
-
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;">
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Título/Nome do caso *</label>
-                    <input type="number" name="col_title" value="1" class="form-input" min="-1" required>
-                </div>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Data do cadastro</label>
-                    <input type="number" name="col_date" value="2" class="form-input" min="-1">
-                </div>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Prazo</label>
-                    <input type="number" name="col_prazo" value="3" class="form-input" min="-1">
-                </div>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Executante/Responsável</label>
-                    <input type="number" name="col_resp" value="5" class="form-input" min="-1">
-                </div>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Link Drive</label>
-                    <input type="number" name="col_drive" value="6" class="form-input" min="-1">
-                </div>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Observações</label>
-                    <input type="number" name="col_obs" value="7" class="form-input" min="-1">
-                </div>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;">Indique o número da coluna (Col 0, Col 1...) para cada campo. Use -1 para ignorar.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem;">
+                <div><label style="font-size:.75rem;font-weight:700;">Título/Nome *</label><input type="number" name="col_title" value="1" class="form-input" min="-1" required></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Data cadastro</label><input type="number" name="col_date" value="2" class="form-input" min="-1"></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Prazo</label><input type="number" name="col_prazo" value="3" class="form-input" min="-1"></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Responsável</label><input type="number" name="col_resp" value="5" class="form-input" min="-1"></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Link Drive</label><input type="number" name="col_drive" value="6" class="form-input" min="-1"></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Observações</label><input type="number" name="col_obs" value="7" class="form-input" min="-1"></div>
                 <?php if ($destino === 'pipeline'): ?>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Telefone</label>
-                    <input type="number" name="col_phone" value="-1" class="form-input" min="-1">
-                </div>
+                <div><label style="font-size:.75rem;font-weight:700;">Telefone</label><input type="number" name="col_phone" value="-1" class="form-input" min="-1"></div>
                 <?php endif; ?>
-                <div class="form-group">
-                    <label style="font-size:.78rem;font-weight:700;">Tipo de ação</label>
-                    <input type="number" name="col_type" value="-1" class="form-input" min="-1">
-                    <small style="font-size:.65rem;color:var(--text-muted);">-1 = extrair do título (parte após " x ")</small>
-                </div>
+                <div><label style="font-size:.75rem;font-weight:700;">Tipo de ação</label><input type="number" name="col_type" value="-1" class="form-input" min="-1"><small style="font-size:.6rem;color:var(--text-muted);">-1 = extrair do título</small></div>
             </div>
-
-            <div style="display:flex;gap:1rem;margin-top:1rem;align-items:center;flex-wrap:wrap;">
-                <label style="display:flex;align-items:center;gap:.35rem;font-size:.78rem;cursor:pointer;">
-                    <input type="checkbox" name="skip_header" value="1" checked>
-                    Pular primeira linha (cabeçalho)
-                </label>
+            <div style="display:flex;gap:1rem;margin-top:.75rem;align-items:center;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer;"><input type="checkbox" name="skip_header" value="1" checked> Pular cabeçalho</label>
                 <div>
-                    <label style="font-size:.78rem;font-weight:700;">Status padrão:</label>
+                    <label style="font-size:.75rem;font-weight:700;">Status padrão:</label>
                     <?php if ($destino === 'operacional'): ?>
                     <select name="default_status" class="form-input" style="display:inline;width:auto;font-size:.78rem;">
                         <option value="em_elaboracao">Pasta Apta</option>
@@ -371,12 +320,28 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                     <?php endif; ?>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;padding:1rem;background:var(--success-bg);border-radius:var(--radius);border:2px solid var(--success);">
-                <button type="submit" class="btn btn-primary" style="padding:10px 28px;font-size:.95rem;font-weight:700;background:var(--success);border:none;">Importar <?= $totalLines ?> linhas</button>
-                <a href="<?= module_url('planilha', 'importar.php') ?>" class="btn btn-secondary">Cancelar</a>
-                <span style="font-size:.78rem;color:var(--text-muted);margin-left:.5rem;">Verifique o mapeamento acima antes de confirmar</span>
-            </div>
+    <div class="card">
+        <div class="card-header"><strong>Preview</strong> — <?= $totalLines ?> linhas | Separador: "<?= $sep === ';' ? ';' : ',' ?>"</div>
+        <div class="card-body" style="overflow-x:auto;max-height:200px;overflow-y:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.7rem;">
+                <thead><tr>
+                    <?php if (!empty($preview[0])): foreach ($preview[0] as $i => $col): ?>
+                        <th style="border:1px solid #ddd;padding:3px 5px;background:#f0f0f0;white-space:nowrap;font-size:.65rem;">Col <?= $i ?></th>
+                    <?php endforeach; endif; ?>
+                </tr></thead>
+                <tbody>
+                    <?php foreach ($preview as $ri => $row): ?>
+                    <tr style="<?= $ri === 0 ? 'background:#fff8e1;font-weight:600;' : '' ?>">
+                        <?php foreach ($row as $cell): ?>
+                            <td style="border:1px solid #ddd;padding:2px 4px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.65rem;" title="<?= e($cell) ?>"><?= e(mb_substr($cell, 0, 30)) ?></td>
+                        <?php endforeach; ?>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
 </form>
