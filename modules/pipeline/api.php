@@ -111,6 +111,9 @@ switch ($action) {
 
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline contrato_assinado - lead: ' . $leadId);
                 notify_gestao('Contrato assinado!', $lead['name'] . ' — Caso criado no Operacional.' . ($driveResult['success'] ? ' Pasta criada no Drive!' : ''), 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '✅');
+
+                // BLOCO 4: Notificar cliente — Boas-vindas
+                notificar_cliente('boas_vindas', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $newCaseId, $leadId);
             }
         }
 
@@ -122,6 +125,12 @@ switch ($action) {
                 $pdo->prepare("UPDATE cases SET status = 'em_elaboracao', updated_at = NOW() WHERE id = ? AND status = 'aguardando_docs'")
                     ->execute(array($linkedCaseId));
                 notify_gestao('Pasta apta!', $lead['name'] . ' está com pasta apta. Operacional pode executar.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $linkedCaseId), '✔️');
+
+                // BLOCO 4: Notificar cliente — Documentos recebidos
+                $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
+                if ($clientId) {
+                    notificar_cliente('docs_recebidos', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $linkedCaseId, $leadId);
+                }
             }
         }
 
@@ -158,13 +167,52 @@ switch ($action) {
             notify_gestao('Lead cancelado', $lead['name'] . ' foi cancelado no Pipeline.' . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
         }
 
-        // ── SUSPENSO: só Admin ──
+        // ── SUSPENSO: só Admin + bilateral com memória de estado ──
         if ($toStage === 'suspenso') {
             if (!has_role('admin')) {
                 flash_set('error', 'Apenas administradores podem suspender.');
                 redirect(module_url('pipeline'));
                 exit;
             }
+            $prazoSusp = isset($_POST['prazo_suspensao']) ? $_POST['prazo_suspensao'] : null;
+            if ($prazoSusp === '') $prazoSusp = null;
+
+            // Salvar coluna anterior + data da suspensão
+            $pdo->prepare('UPDATE pipeline_leads SET coluna_antes_suspensao=?, data_suspensao=NOW(), prazo_suspensao=? WHERE id=?')
+                ->execute(array($fromStage, $prazoSusp, $leadId));
+
+            // Espelhar no Operacional
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                $caseStmt = $pdo->prepare('SELECT status FROM cases WHERE id = ?');
+                $caseStmt->execute(array($linkedCaseId));
+                $caseRow = $caseStmt->fetch();
+                if ($caseRow && !in_array($caseRow['status'], array('cancelado', 'concluido', 'arquivado', 'suspenso'))) {
+                    $pdo->prepare("UPDATE cases SET status='suspenso', coluna_antes_suspensao=?, data_suspensao=NOW(), prazo_suspensao=?, updated_at=NOW() WHERE id=?")
+                        ->execute(array($caseRow['status'], $prazoSusp, $linkedCaseId));
+                    audit_log('case_auto_suspended', 'case', $linkedCaseId, 'Pipeline suspendeu lead #' . $leadId);
+                }
+            }
+            notify_gestao('Lead suspenso', $lead['name'] . ' foi suspenso no Pipeline.' . ($linkedCaseId ? ' Caso também suspenso.' : '') . ($prazoSusp ? ' Prazo: ' . $prazoSusp : ''), 'alerta', url('modules/pipeline/'), '⏸️');
+        }
+
+        // ── REATIVAR DO SUSPENSO: restaurar estado anterior ──
+        if ($fromStage === 'suspenso' && $toStage !== 'suspenso') {
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                // Restaurar caso para status anterior
+                $caseStmt = $pdo->prepare('SELECT coluna_antes_suspensao FROM cases WHERE id = ?');
+                $caseStmt->execute(array($linkedCaseId));
+                $caseRow = $caseStmt->fetch();
+                $statusAnterior = ($caseRow && $caseRow['coluna_antes_suspensao']) ? $caseRow['coluna_antes_suspensao'] : 'em_andamento';
+                $pdo->prepare("UPDATE cases SET status=?, coluna_antes_suspensao=NULL, data_suspensao=NULL, prazo_suspensao=NULL, updated_at=NOW() WHERE id=? AND status='suspenso'")
+                    ->execute(array($statusAnterior, $linkedCaseId));
+                audit_log('case_auto_reactivated', 'case', $linkedCaseId, 'Pipeline reativou lead #' . $leadId . ' → ' . $statusAnterior);
+            }
+            // Limpar dados de suspensão do lead
+            $pdo->prepare('UPDATE pipeline_leads SET coluna_antes_suspensao=NULL, data_suspensao=NULL, prazo_suspensao=NULL WHERE id=?')
+                ->execute(array($leadId));
+            notify_gestao('Lead reativado!', $lead['name'] . ' saiu do Suspenso.', 'sucesso', url('modules/pipeline/'), '▶️');
         }
 
         // Labels para flash
