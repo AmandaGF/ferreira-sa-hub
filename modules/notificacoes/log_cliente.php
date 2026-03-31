@@ -16,9 +16,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     if ($notifId) {
         $pdo->prepare("UPDATE notificacoes_cliente SET status='enviado', enviado_em=NOW(), enviado_por=? WHERE id=?")
             ->execute(array(current_user_id(), $notifId));
-        flash_set('success', 'Marcado como enviado.');
+        flash_set('success', 'Marcado como enviado!');
     }
-    redirect(module_url('notificacoes', 'log_cliente.php'));
+    // Redirecionar para aba "Enviados" para ver o registro
+    redirect(module_url('notificacoes', 'log_cliente.php?status=enviado'));
 }
 
 // Filtros

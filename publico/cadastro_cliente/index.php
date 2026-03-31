@@ -77,6 +77,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'address_city' => $cidade,
                     'address_state' => $uf,
                     'address_zip' => $cep,
+                    'gender' => isset($sexo) ? $sexo : null,
+                    'has_children' => ($filhos === 'Sim') ? 1 : (($filhos === 'Não') ? 0 : null),
+                    'children_names' => $nome_filhos ?: null,
                 ),
                 json_encode($payload, JSON_UNESCAPED_UNICODE)
             );

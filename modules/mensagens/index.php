@@ -158,6 +158,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <div class="msg-card-footer">
                     <button class="btn btn-primary btn-sm" onclick="copyMsg(<?= $t['id'] ?>)">📋 Copiar</button>
+                    <?php if ($t['for_whatsapp']): ?>
+                    <button class="btn btn-sm" style="background:#25D366;color:#fff;" onclick="sendWhatsApp(<?= $t['id'] ?>)">💬 WhatsApp</button>
+                    <?php endif; ?>
                     <button class="btn btn-outline btn-sm" onclick="viewMsg(<?= $t['id'] ?>)">👁️ Ver</button>
                     <?php if ($isAdmin): ?>
                         <button class="btn btn-outline btn-sm" onclick="editMsg(<?= $t['id'] ?>)">✏️</button>
@@ -263,6 +266,17 @@ function copyMsg(id) {
     if (!msg) return;
     copyToClipboard(msg.body);
     showToast('Mensagem copiada!');
+}
+
+function sendWhatsApp(id) {
+    var msg = msgData.find(function(m) { return m.id === id; });
+    if (!msg) return;
+    var phone = prompt('Informe o número do WhatsApp (com DDD):\nEx: 24999001234');
+    if (!phone) return;
+    phone = phone.replace(/\D/g, '');
+    if (phone.length <= 11) phone = '55' + phone;
+    var text = encodeURIComponent(msg.body);
+    window.open('https://wa.me/' + phone + '?text=' + text, '_blank');
 }
 
 function viewMsg(id) {

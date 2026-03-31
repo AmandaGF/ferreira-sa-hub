@@ -40,6 +40,9 @@ function process_form_submission($formType, $clientData, $payloadJson)
     $addressCity = isset($clientData['address_city']) ? clean_str($clientData['address_city'], 100) : null;
     $addressState = isset($clientData['address_state']) ? clean_str($clientData['address_state'], 2) : null;
     $addressZip = isset($clientData['address_zip']) ? clean_str($clientData['address_zip'], 10) : null;
+    $hasChildren = isset($clientData['has_children']) ? (int)$clientData['has_children'] : null;
+    $childrenNames = isset($clientData['children_names']) ? clean_str($clientData['children_names'], 500) : null;
+    $gender = isset($clientData['gender']) ? clean_str($clientData['gender'], 20) : null;
 
     // 1. Salvar em form_submissions
     $stmt = $pdo->prepare(
@@ -77,13 +80,26 @@ function process_form_submission($formType, $clientData, $payloadJson)
 
         if ($existingClient) {
             $clientId = (int)$existingClient['id'];
+            // Atualizar dados faltantes (filhos, gênero, etc.)
+            $updateFields = array();
+            $updateParams = array();
+            if ($hasChildren !== null) { $updateFields[] = 'has_children=?'; $updateParams[] = $hasChildren; }
+            if ($childrenNames) { $updateFields[] = 'children_names=?'; $updateParams[] = $childrenNames; }
+            if ($gender) { $updateFields[] = 'gender=?'; $updateParams[] = $gender; }
+            if ($birthDate && !$existingClient['birth_date']) { $updateFields[] = 'birth_date=?'; $updateParams[] = $birthDate; }
+            if ($cpf && empty($existingClient['cpf'])) { $updateFields[] = 'cpf=?'; $updateParams[] = $cpf; }
+            if (!empty($updateFields)) {
+                $updateParams[] = $clientId;
+                $pdo->prepare("UPDATE clients SET " . implode(',', $updateFields) . " WHERE id=?")->execute($updateParams);
+            }
         } else {
             $pdo->prepare(
-                "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, address_street, address_city, address_state, address_zip, source, notes, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+                "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, gender, has_children, children_names, address_street, address_city, address_state, address_zip, source, notes, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
             )->execute(array(
                 $name, $cpf, $rg, $birthDate ?: null,
                 $phone, $email, $profession, $maritalStatus,
+                $gender, $hasChildren, $childrenNames,
                 $addressStreet, $addressCity, $addressState, $addressZip,
                 'landing',
                 'Auto-cadastrado via formulário: ' . $formType

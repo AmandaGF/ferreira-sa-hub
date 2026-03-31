@@ -59,14 +59,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  VALUES (?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $f['name'], $f['phone'] ?: null, $f['email'] ?: null, $f['source'],
-                'novo', $f['case_type'] ?: null, $f['estimated_value'] ?: null,
+                'cadastro_preenchido', $f['case_type'] ?: null, $f['estimated_value'] ?: null,
                 $f['assigned_to'], $f['notes'] ?: null
             ]);
             $newId = (int)$pdo->lastInsertId();
 
+            // Auto-criar client se não existe
+            $clientId = null;
+            if ($f['name']) {
+                $existsClient = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+                $existsClient->execute(array($f['name']));
+                $existsRow = $existsClient->fetch();
+                if ($existsRow) {
+                    $clientId = (int)$existsRow['id'];
+                } else {
+                    $pdo->prepare("INSERT INTO clients (name, phone, email, source, client_status, created_at) VALUES (?,?,?,'outro','ativo',NOW())")
+                        ->execute(array($f['name'], $f['phone'] ?: null, $f['email'] ?: null));
+                    $clientId = (int)$pdo->lastInsertId();
+                }
+                $pdo->prepare("UPDATE pipeline_leads SET client_id = ? WHERE id = ?")->execute(array($clientId, $newId));
+            }
+
             // Registrar histórico
             $pdo->prepare('INSERT INTO pipeline_history (lead_id, to_stage, changed_by) VALUES (?,?,?)')
-                ->execute([$newId, 'novo', current_user_id()]);
+                ->execute([$newId, 'cadastro_preenchido', current_user_id()]);
 
             audit_log('lead_created', 'lead', $newId);
             flash_set('success', 'Lead criado.');
