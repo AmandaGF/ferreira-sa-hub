@@ -9,7 +9,7 @@ $pageTitle = 'Treinamento';
 $pdo = db();
 
 // Buscar usuários ativos (exceto admin) para os chips
-$activeUsers = $pdo->query("SELECT name FROM users WHERE is_active = 1 AND role != 'admin' ORDER BY name")->fetchAll();
+$activeUsers = $pdo->query("SELECT name FROM users WHERE is_active = 1 AND name NOT LIKE '%Amanda%' ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
