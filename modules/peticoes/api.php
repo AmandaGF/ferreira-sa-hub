@@ -3,15 +3,18 @@
  * Fábrica de Petições — API
  * Chama API Anthropic (Claude Sonnet 4.6) e retorna HTML da petição
  */
-// Forçar JSON output mesmo em caso de erro PHP
-header('Content-Type: application/json; charset=utf-8');
-set_error_handler(function($severity, $message, $file, $line) {
-    echo json_encode(array('error' => 'Erro PHP: ' . $message . ' em ' . basename($file) . ':' . $line));
-    exit;
-});
-
+ob_start();
 require_once __DIR__ . '/../../core/middleware.php';
-require_login();
+
+// Limpar qualquer output do middleware e forçar JSON
+ob_end_clean();
+header('Content-Type: application/json; charset=utf-8');
+
+// Verificar login sem redirect HTML
+if (!is_logged_in()) {
+    echo json_encode(array('error' => 'Sessão expirada. Faça login novamente.'));
+    exit;
+}
 
 if (!has_min_role('gestao') && !has_role('cx') && !has_role('operacional')) {
     echo json_encode(array('error' => 'Sem permissão'));
