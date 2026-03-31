@@ -10,22 +10,21 @@ echo "=== Migração: Fábrica de Petições ===\n\n";
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS case_documents (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        case_id INT NOT NULL,
-        client_id INT NOT NULL,
+        case_id INT UNSIGNED NOT NULL,
+        client_id INT UNSIGNED NOT NULL DEFAULT 0,
         tipo_peca VARCHAR(80) NOT NULL,
         tipo_acao VARCHAR(80) NOT NULL,
         titulo VARCHAR(200),
         conteudo_html LONGTEXT,
-        gerado_por INT,
+        gerado_por INT UNSIGNED DEFAULT NULL,
         drive_file_id VARCHAR(100),
         drive_file_url VARCHAR(500),
         tokens_input INT,
         tokens_output INT,
         custo_usd DECIMAL(8,6),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE,
-        FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE,
-        FOREIGN KEY (gerado_por) REFERENCES users(id) ON DELETE SET NULL
+        INDEX idx_case (case_id),
+        INDEX idx_client (client_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
     echo "OK: tabela case_documents criada\n";
 } catch (Exception $e) { echo $e->getMessage() . "\n"; }
