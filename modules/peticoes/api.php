@@ -208,6 +208,22 @@ if ($action === 'gerar') {
         }
     }
 
+    // ══ MODO DEBUG: ?debug=1 mostra o que seria enviado sem chamar a API ══
+    if (isset($_POST['debug']) && $_POST['debug'] === '1') {
+        $debugInfo = array(
+            'system_prompt' => get_system_prompt(),
+            'system_prompt_tokens_estimado' => (int)(mb_strlen(get_system_prompt(), 'UTF-8') / 4),
+            'user_message' => $messageContent,
+            'model' => 'claude-sonnet-4-6',
+            'max_tokens' => 4096,
+            'temperature' => 0.3,
+            'cache_control' => 'ephemeral',
+            'anexos_count' => count($contentBlocks),
+        );
+        echo json_encode($debugInfo, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        exit;
+    }
+
     // Chamar API Anthropic
     $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
     if (!$apiKey) {
@@ -216,9 +232,8 @@ if ($action === 'gerar') {
     }
 
     // ══ OTIMIZAÇÃO 1: Prompt Caching — cache_control: ephemeral no system prompt ══
-    // O system prompt (~3.500 tokens) é cacheado pela Anthropic por 5min,
-    // reduzindo custo em ~90% nas chamadas subsequentes.
     // ══ OTIMIZAÇÃO 5: temperature 0.3, max_tokens 4096 ══
+    $systemPromptText = get_system_prompt();
     $payload = json_encode(array(
         'model' => 'claude-sonnet-4-6',
         'max_tokens' => 4096,
@@ -226,7 +241,7 @@ if ($action === 'gerar') {
         'system' => array(
             array(
                 'type' => 'text',
-                'text' => get_system_prompt(),
+                'text' => $systemPromptText,
                 'cache_control' => array('type' => 'ephemeral'),
             )
         ),
@@ -277,6 +292,18 @@ if ($action === 'gerar') {
     }
 
     $data = json_decode($response, true);
+
+    // Salvar log do retorno bruto da última chamada (para debug)
+    $logDir = __DIR__ . '/../../uploads';
+    if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
+    @file_put_contents($logDir . '/peticao_last_response.json', json_encode(array(
+        'timestamp' => date('Y-m-d H:i:s'),
+        'http_code' => $httpCode,
+        'tentativas' => $tentativa + 1,
+        'response_raw' => $data,
+        'payload_system_prompt' => mb_substr($systemPromptText, 0, 200) . '...',
+        'payload_user_prompt' => $userPrompt,
+    ), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
     if ($httpCode === 529 || $httpCode === 429) {
         echo json_encode(array(
