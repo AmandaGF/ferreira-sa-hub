@@ -105,6 +105,8 @@ try {
 } catch (Exception $e) {}
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+$parceirosAtivos = array();
+try { $parceirosAtivos = $pdo->query("SELECT id, nome, area FROM parceiros WHERE ativo = 1 ORDER BY nome")->fetchAll(); } catch (Exception $e) {}
 $priorityColors = array('urgente' => '#ef4444', 'alta' => '#f59e0b', 'normal' => '#6366f1', 'baixa' => '#9ca3af');
 $priorityLabels = array('urgente' => 'URGENTE', 'alta' => 'Alta', 'normal' => 'Normal', 'baixa' => 'Baixa');
 
@@ -514,6 +516,27 @@ sort($opTipos);
     </div>
 </div>
 
+<!-- Modal: Selecionar Parceiro -->
+<div id="parceiroModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.5rem;">🤝 Selecionar Parceiro</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Selecione o advogado parceiro para este caso.</p>
+        <select id="parceiroSelect" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+            <option value="">Selecione o parceiro...</option>
+            <?php foreach ($parceirosAtivos as $parc): ?>
+                <option value="<?= $parc['id'] ?>"><?= e($parc['nome']) ?><?= $parc['area'] ? ' — ' . e($parc['area']) : '' ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php if (empty($parceirosAtivos)): ?>
+        <p style="font-size:.75rem;color:#dc2626;margin-top:.5rem;">Nenhum parceiro cadastrado. <a href="<?= module_url('parceiros') ?>">Cadastrar parceiro</a></p>
+        <?php endif; ?>
+        <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
+            <button onclick="closeParceiroModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmParceiro()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar →</button>
+        </div>
+    </div>
+</div>
+
 <script>
 var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
@@ -531,9 +554,15 @@ function handleOpMove(select) {
         return;
     }
 
+    if (status === 'parceria_previdenciario') {
+        _pendingOpForm = form;
+        document.getElementById('parceiroModal').style.display = 'flex';
+        select.value = '';
+        return;
+    }
+
     if (status === 'distribuido') {
         _pendingOpForm = form;
-        // Preencher tipo se disponível (funciona no card e na tabela)
         var card = select.closest('.op-card') || select.closest('tr');
         if (card && card.dataset.caseType) {
             document.getElementById('procTipo').value = card.dataset.caseType;
@@ -579,6 +608,30 @@ function confirmDocFaltante() {
 function closeProcModal() {
     document.getElementById('processoModal').style.display = 'none';
     _pendingOpForm = null;
+}
+
+// Parceiro
+function closeParceiroModal() {
+    document.getElementById('parceiroModal').style.display = 'none';
+    _pendingOpForm = null;
+}
+
+function confirmParceiro() {
+    var parceiroId = document.getElementById('parceiroSelect').value;
+    if (!parceiroId) { document.getElementById('parceiroSelect').style.borderColor = '#ef4444'; return; }
+    document.getElementById('parceiroModal').style.display = 'none';
+
+    if (_pendingOpForm) {
+        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (sel) sel.removeAttribute('name');
+        var statusInput = document.createElement('input');
+        statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'parceria_previdenciario';
+        _pendingOpForm.appendChild(statusInput);
+        var parcInput = document.createElement('input');
+        parcInput.type = 'hidden'; parcInput.name = 'parceiro_id'; parcInput.value = parceiroId;
+        _pendingOpForm.appendChild(parcInput);
+        _pendingOpForm.submit();
+    }
 }
 
 // Toggle Judicial / Extrajudicial

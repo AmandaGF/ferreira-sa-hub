@@ -4,7 +4,7 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!has_role('admin','gestao')) { redirect(url('modules/dashboard/')); }
+if (!has_min_role('gestao')) { redirect(url('modules/dashboard/')); }
 
 $pageTitle = 'Parceiros';
 $pdo = db();
@@ -41,11 +41,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         if ($id) { $pdo->prepare("UPDATE parceiros SET ativo = NOT ativo WHERE id = ?")->execute(array($id)); }
         redirect(module_url('parceiros'));
     }
+
+    if ($action === 'delete') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id) {
+            // Desvincular cases primeiro
+            $pdo->prepare("UPDATE cases SET parceiro_id = NULL WHERE parceiro_id = ?")->execute(array($id));
+            $pdo->prepare("DELETE FROM parceiros WHERE id = ?")->execute(array($id));
+            flash_set('success', 'Parceiro excluído.');
+        }
+        redirect(module_url('parceiros'));
+    }
 }
 
 $parceiros = $pdo->query("SELECT * FROM parceiros ORDER BY ativo DESC, nome ASC")->fetchAll();
 
-// Processos ativos por parceiro
 $processosParceiro = array();
 try {
     $rows = $pdo->query("SELECT parceiro_id, COUNT(*) as total FROM cases WHERE parceiro_id IS NOT NULL AND status NOT IN ('concluido','arquivado') GROUP BY parceiro_id")->fetchAll();
@@ -80,10 +90,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <td class="text-sm"><?= $p['pct_honorarios'] ? $p['pct_honorarios'] . '%' : '—' ?></td>
                         <td><span class="badge badge-info"><?= isset($processosParceiro[(int)$p['id']]) ? $processosParceiro[(int)$p['id']] : 0 ?></span></td>
                         <td><span class="badge badge-<?= $p['ativo'] ? 'success' : 'gestao' ?>"><?= $p['ativo'] ? 'Ativo' : 'Inativo' ?></span></td>
-                        <td>
+                        <td style="white-space:nowrap;">
                             <form method="POST" style="display:inline;">
                                 <?= csrf_input() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $p['id'] ?>">
-                                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .35rem;"><?= $p['ativo'] ? '⏸️' : '▶️' ?></button>
+                                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .35rem;" title="<?= $p['ativo'] ? 'Desativar' : 'Ativar' ?>"><?= $p['ativo'] ? '⏸️' : '▶️' ?></button>
+                            </form>
+                            <form method="POST" style="display:inline;" data-confirm="Excluir parceiro <?= e($p['nome']) ?>?">
+                                <?= csrf_input() ?><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="<?= $p['id'] ?>">
+                                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .35rem;color:#dc2626;border-color:#dc2626;" title="Excluir">🗑️</button>
                             </form>
                         </td>
                     </tr>
@@ -94,7 +108,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Modal -->
+<!-- Modal Novo Parceiro -->
 <div class="modal-overlay" id="modalParceiro">
     <div class="modal">
         <div class="modal-header"><h3>Novo Parceiro</h3><button class="modal-close">&times;</button></div>

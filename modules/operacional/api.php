@@ -196,6 +196,15 @@ switch ($action) {
                 notify_gestao('Caso cancelado', $caseTitle . ' foi cancelado no Operacional.' . ($leadRow ? ' Lead também cancelado no Pipeline.' : ''), 'alerta', url('modules/operacional/'), '❌');
             }
 
+            // ── PARCERIA: salvar parceiro_id ──
+            if ($status === 'parceria_previdenciario' && isset($_POST['parceiro_id'])) {
+                $parceiroId = (int)$_POST['parceiro_id'];
+                if ($parceiroId) {
+                    $pdo->prepare("UPDATE cases SET parceiro_id = ? WHERE id = ?")->execute(array($parceiroId, $caseId));
+                    audit_log('parceiro_vinculado', 'case', $caseId, 'Parceiro #' . $parceiroId);
+                }
+            }
+
             // ── MOVIMENTAÇÕES NORMAIS ──
             $closedAt = in_array($status, array('concluido','arquivado','cancelado')) ? date('Y-m-d') : null;
             $pdo->prepare('UPDATE cases SET status=?, closed_at=?, updated_at=NOW() WHERE id=?')
