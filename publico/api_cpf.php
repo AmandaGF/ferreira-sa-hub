@@ -28,11 +28,49 @@ if (!validaCPF($cpf)) {
     exit;
 }
 
-// CPF válido — retornar confirmação
-// A ReceitaWS gratuita não está mais disponível para consulta de nome por CPF.
-// Retornamos a validação do CPF para que o formulário saiba que é válido.
+// Consultar Hub do Desenvolvedor
+$token = '995e0ed2fbfc176e867c0d3a888661fd25f5413d8e95773fd15dab37e8078b18';
+
+$ch = curl_init("https://ws.hubdodesenvolvedor.com.br/v2/cpf/?cpf=$cpf&token=$token");
+curl_setopt_array($ch, array(
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 15,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_USERAGENT => 'FES-Hub/1.0',
+));
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+
+if ($httpCode === 200 && $response) {
+    $data = json_decode($response, true);
+
+    if (isset($data['result']) && isset($data['result']['nome_da_pf'])) {
+        // Sucesso — retornar no formato que o JS espera
+        echo json_encode(array(
+            'status' => 'OK',
+            'cpf_valido' => true,
+            'nome' => $data['result']['nome_da_pf'],
+            'nascimento' => isset($data['result']['data_nascimento']) ? $data['result']['data_nascimento'] : null,
+        ));
+        exit;
+    }
+
+    if (isset($data['status']) && $data['status'] === true && isset($data['return'])) {
+        echo json_encode(array(
+            'status' => 'OK',
+            'cpf_valido' => true,
+            'nome' => isset($data['return']['nome']) ? $data['return']['nome'] : null,
+            'nascimento' => isset($data['return']['nascimento']) ? $data['return']['nascimento'] : null,
+        ));
+        exit;
+    }
+}
+
+// Fallback — CPF válido mas sem dados da API
 echo json_encode(array(
     'status' => 'OK',
     'cpf_valido' => true,
-    'message' => 'CPF válido',
+    'message' => 'CPF válido (dados indisponíveis)',
 ));
