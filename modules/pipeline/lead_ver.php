@@ -8,7 +8,7 @@ require_min_role('gestao');
 $pdo = db();
 $leadId = (int)($_GET['id'] ?? 0);
 
-$stmt = $pdo->prepare('SELECT pl.*, u.name as assigned_name FROM pipeline_leads pl LEFT JOIN users u ON u.id = pl.assigned_to WHERE pl.id = ?');
+$stmt = $pdo->prepare('SELECT pl.*, u.name as assigned_name, cs.drive_folder_url FROM pipeline_leads pl LEFT JOIN users u ON u.id = pl.assigned_to LEFT JOIN cases cs ON cs.id = pl.linked_case_id WHERE pl.id = ?');
 $stmt->execute(array($leadId));
 $lead = $stmt->fetch();
 if (!$lead) { flash_set('error', 'Lead não encontrado.'); redirect(module_url('pipeline')); }
@@ -104,6 +104,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <span class="save-indicator" id="save-name">Salvo!</span>
             </h3>
             <div style="display:flex;gap:.5rem;">
+                <?php if (!empty($lead['drive_folder_url'])): ?>
+                    <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank" class="btn btn-outline btn-sm" style="color:#0ea5e9;border-color:#0ea5e9;">📂 Pasta Drive</a>
+                <?php endif; ?>
                 <?php if ($lead['phone']): ?>
                     <a href="https://wa.me/55<?= preg_replace('/\D/', '', $lead['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
                 <?php endif; ?>

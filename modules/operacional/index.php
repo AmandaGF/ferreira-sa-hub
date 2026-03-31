@@ -254,6 +254,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </span>
                         <?php endif; ?>
                     </div>
+                    <?php if (!empty($cs['drive_folder_url'])): ?>
+                        <a href="<?= e($cs['drive_folder_url']) ?>" target="_blank" onclick="event.stopPropagation();" style="font-size:.58rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.2rem;">📂 Pasta Drive</a>
+                    <?php endif; ?>
                     <?php if ($cs['case_number']): ?>
                         <div class="op-card-process">🏛️ <?= e($cs['case_number']) ?></div>
                     <?php endif; ?>
