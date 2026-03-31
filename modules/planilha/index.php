@@ -260,6 +260,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 
 <div class="page-header" style="margin-bottom: 8px;">
     <h1>Planilha</h1>
+    <a href="<?= module_url('planilha', 'importar.php') ?>" class="btn btn-primary btn-sm">Importar CSV</a>
 </div>
 
 <div class="planilha-toolbar">
