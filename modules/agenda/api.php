@@ -1,0 +1,238 @@
+<?php
+/**
+ * Agenda — API (CRUD de eventos)
+ */
+require_once __DIR__ . '/../../core/middleware.php';
+require_login();
+
+$pdo = db();
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+
+// ── GET: buscar eventos (AJAX) ──────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Content-Type: application/json; charset=utf-8');
+    $action = $_GET['action'] ?? '';
+
+    // Listar eventos de um intervalo
+    if ($action === 'listar') {
+        $inicio = $_GET['inicio'] ?? date('Y-m-01');
+        $fim    = $_GET['fim'] ?? date('Y-m-t');
+        $responsavel = isset($_GET['responsavel']) ? (int)$_GET['responsavel'] : 0;
+
+        $sql = "SELECT e.*, c.name as client_name, c.phone as client_phone,
+                       cs.title as case_title, cs.case_number,
+                       u.name as responsavel_name
+                FROM agenda_eventos e
+                LEFT JOIN clients c ON c.id = e.client_id
+                LEFT JOIN cases cs ON cs.id = e.case_id
+                LEFT JOIN users u ON u.id = e.responsavel_id
+                WHERE e.data_inicio <= ? AND (e.data_fim >= ? OR e.data_inicio >= ?)
+                  AND e.status != 'cancelado'";
+        $params = array($fim . ' 23:59:59', $inicio . ' 00:00:00', $inicio . ' 00:00:00');
+
+        if ($responsavel) {
+            $sql .= " AND e.responsavel_id = ?";
+            $params[] = $responsavel;
+        }
+
+        $sql .= " ORDER BY e.data_inicio ASC";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+
+    // Buscar clientes (autocomplete)
+    if ($action === 'busca_cliente') {
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) { echo '[]'; exit; }
+        $stmt = $pdo->prepare("SELECT id, name, phone FROM clients WHERE name LIKE ? ORDER BY name LIMIT 15");
+        $stmt->execute(array('%' . $q . '%'));
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+
+    // Buscar processos (autocomplete)
+    if ($action === 'busca_caso') {
+        $q = trim($_GET['q'] ?? '');
+        if (strlen($q) < 2) { echo '[]'; exit; }
+        $stmt = $pdo->prepare(
+            "SELECT cs.id, cs.title, cs.case_number, c.name as client_name
+             FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id
+             WHERE cs.title LIKE ? OR cs.case_number LIKE ? OR c.name LIKE ?
+             ORDER BY cs.title LIMIT 15"
+        );
+        $stmt->execute(array('%'.$q.'%', '%'.$q.'%', '%'.$q.'%'));
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+
+    // Buscar evento por ID
+    if ($action === 'get') {
+        $id = (int)($_GET['id'] ?? 0);
+        if (!$id) { echo json_encode(array('error' => 'ID inválido')); exit; }
+        $stmt = $pdo->prepare(
+            "SELECT e.*, c.name as client_name, cs.title as case_title, u.name as responsavel_name
+             FROM agenda_eventos e
+             LEFT JOIN clients c ON c.id = e.client_id
+             LEFT JOIN cases cs ON cs.id = e.case_id
+             LEFT JOIN users u ON u.id = e.responsavel_id
+             WHERE e.id = ?"
+        );
+        $stmt->execute(array($id));
+        $ev = $stmt->fetch();
+        if (!$ev) { echo json_encode(array('error' => 'Evento não encontrado')); exit; }
+        echo json_encode($ev);
+        exit;
+    }
+
+    echo json_encode(array('error' => 'Ação GET inválida'));
+    exit;
+}
+
+// ── POST: criar/editar/excluir ──────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') { exit; }
+
+header('Content-Type: application/json; charset=utf-8');
+
+if (!validate_csrf()) {
+    echo json_encode(array('error' => 'Token CSRF inválido'));
+    exit;
+}
+
+$action = $_POST['action'] ?? '';
+
+// ── CRIAR / EDITAR ──
+if ($action === 'salvar') {
+    $id            = (int)($_POST['id'] ?? 0);
+    $titulo        = trim($_POST['titulo'] ?? '');
+    $tipo          = $_POST['tipo'] ?? 'reuniao_cliente';
+    $modalidade    = $_POST['modalidade'] ?? 'nao_aplicavel';
+    $dataInicio    = $_POST['data_inicio'] ?? '';
+    $dataFim       = $_POST['data_fim'] ?? '';
+    $diaTodo       = isset($_POST['dia_todo']) ? 1 : 0;
+    $local         = trim($_POST['local'] ?? '');
+    $meetLink      = trim($_POST['meet_link'] ?? '');
+    $descricao     = trim($_POST['descricao'] ?? '');
+    $clientId      = (int)($_POST['client_id'] ?? 0) ?: null;
+    $caseId        = (int)($_POST['case_id'] ?? 0) ?: null;
+    $responsavelId = (int)($_POST['responsavel_id'] ?? current_user_id());
+    $msgCliente    = trim($_POST['msg_cliente'] ?? '');
+    $lembreteEmail = isset($_POST['lembrete_email']) ? 1 : 0;
+    $lembreteWa    = isset($_POST['lembrete_whatsapp']) ? 1 : 0;
+    $lembretePortal= isset($_POST['lembrete_portal']) ? 1 : 0;
+    $lembreteCliente = isset($_POST['lembrete_cliente']) ? 1 : 0;
+
+    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','ligacao');
+    $modalidadesValidas = array('presencial','online','nao_aplicavel');
+
+    if (!$titulo) { echo json_encode(array('error' => 'Título é obrigatório')); exit; }
+    if (!$dataInicio) { echo json_encode(array('error' => 'Data de início é obrigatória')); exit; }
+    if (!in_array($tipo, $tiposValidos)) $tipo = 'reuniao_cliente';
+    if (!in_array($modalidade, $modalidadesValidas)) $modalidade = 'nao_aplicavel';
+    if (!$dataFim) $dataFim = $dataInicio;
+
+    if ($id) {
+        // Editar
+        $canEdit = has_min_role('gestao');
+        if (!$canEdit) {
+            $stmt = $pdo->prepare("SELECT responsavel_id FROM agenda_eventos WHERE id = ?");
+            $stmt->execute(array($id));
+            $ev = $stmt->fetch();
+            if (!$ev || (int)$ev['responsavel_id'] !== current_user_id()) {
+                echo json_encode(array('error' => 'Sem permissão para editar este evento'));
+                exit;
+            }
+        }
+        $stmt = $pdo->prepare(
+            "UPDATE agenda_eventos SET titulo=?, tipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
+             local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
+             msg_cliente=?, lembrete_email=?, lembrete_whatsapp=?, lembrete_portal=?, lembrete_cliente=?,
+             updated_at=NOW() WHERE id=?"
+        );
+        $stmt->execute(array(
+            $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+            $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
+            $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
+            $id
+        ));
+        audit_log('AGENDA_EDITADO', 'agenda', $id, $titulo);
+        echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado'));
+    } else {
+        // Criar
+        $stmt = $pdo->prepare(
+            "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
+             local, meet_link, descricao, client_id, case_id, responsavel_id,
+             msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
+             status, created_by)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+        );
+        $stmt->execute(array(
+            $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+            $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
+            $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
+            current_user_id()
+        ));
+        $newId = (int)$pdo->lastInsertId();
+
+        // Notificar responsável se diferente do criador
+        if ($responsavelId && $responsavelId !== current_user_id()) {
+            notify($responsavelId, 'Novo compromisso', $titulo . ' em ' . date('d/m/Y H:i', strtotime($dataInicio)),
+                url('modules/agenda/?evento=' . $newId), 'info', '📅');
+        }
+
+        audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
+        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado'));
+    }
+    exit;
+}
+
+// ── MARCAR STATUS ──
+if ($action === 'status') {
+    $id = (int)($_POST['id'] ?? 0);
+    $status = $_POST['status'] ?? '';
+    $statusValidos = array('agendado','realizado','cancelado','remarcado');
+    if (!$id || !in_array($status, $statusValidos)) {
+        echo json_encode(array('error' => 'Dados inválidos'));
+        exit;
+    }
+
+    $canEdit = has_min_role('gestao');
+    if (!$canEdit) {
+        $stmt = $pdo->prepare("SELECT responsavel_id FROM agenda_eventos WHERE id = ?");
+        $stmt->execute(array($id));
+        $ev = $stmt->fetch();
+        if (!$ev || (int)$ev['responsavel_id'] !== current_user_id()) {
+            echo json_encode(array('error' => 'Sem permissão'));
+            exit;
+        }
+    }
+
+    $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
+    audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status);
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── EXCLUIR ──
+if ($action === 'excluir') {
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(array('error' => 'ID inválido')); exit; }
+
+    if (!has_min_role('gestao')) {
+        $stmt = $pdo->prepare("SELECT responsavel_id FROM agenda_eventos WHERE id = ?");
+        $stmt->execute(array($id));
+        $ev = $stmt->fetch();
+        if (!$ev || (int)$ev['responsavel_id'] !== current_user_id()) {
+            echo json_encode(array('error' => 'Sem permissão'));
+            exit;
+        }
+    }
+
+    $pdo->prepare("UPDATE agenda_eventos SET status='cancelado', updated_at=NOW() WHERE id=?")->execute(array($id));
+    audit_log('AGENDA_CANCELADO', 'agenda', $id, '');
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+echo json_encode(array('error' => 'Ação inválida'));
