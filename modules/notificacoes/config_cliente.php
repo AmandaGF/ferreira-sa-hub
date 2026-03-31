@@ -54,7 +54,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
     </div>
     <div class="card-body">
         <form method="post" action="">
-            <?= csrf_field() ?>
+            <?= csrf_input() ?>
             <input type="hidden" name="tipo" value="<?= e($tpl['tipo']) ?>">
 
             <div style="margin-bottom: 12px;">

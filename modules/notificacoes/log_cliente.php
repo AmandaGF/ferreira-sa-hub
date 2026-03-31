@@ -124,7 +124,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 
                         <?php if ($n['status'] === 'pendente'): ?>
                             <form method="post" style="display: inline;">
-                                <?= csrf_field() ?>
+                                <?= csrf_input() ?>
                                 <input type="hidden" name="notif_id" value="<?= (int)$n['id'] ?>">
                                 <button type="submit" class="btn btn-sm btn-secondary" title="Marcar como enviado">Enviado</button>
                             </form>

@@ -300,7 +300,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 </div>
 
 <form method="POST">
-    <?= csrf_field() ?>
+    <?= csrf_input() ?>
     <input type="hidden" name="step" value="3">
     <input type="hidden" name="destino" value="<?= e($destino) ?>">
 
