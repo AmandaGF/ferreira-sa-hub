@@ -29,8 +29,8 @@ $menuItems = array(
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => array('admin','gestao','operacional')),
     array('label' => 'Extrajudicial',   'icon' => '📋', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => array('admin','gestao','operacional')),
 
-    array('section' => 'Execução'),
-    array('label' => 'Operacional',     'icon' => '⚙️', 'href' => url('modules/operacional/'),     'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
+    array('section' => '⚙️ Operacional'),
+    array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => array('admin','gestao','operacional','comercial','cx')),
 
     array('section' => 'Controle'),
     array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => array('admin','gestao','operacional')),
