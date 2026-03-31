@@ -28,10 +28,10 @@ if (!validaCPF($cpf)) {
     exit;
 }
 
-// Consultar Hub do Desenvolvedor
-$token = '995e0ed2fbfc176e867c0d3a888661fd25f5413d8e95773fd15dab37e8078b18';
+// Consultar cpfcnpj.com.br
+$token = '9320d4099cf4099528cce511241c48a0';
 
-$ch = curl_init("https://ws.hubdodesenvolvedor.com.br/v2/cpf/?cpf=$cpf&token=$token");
+$ch = curl_init("https://api.cpfcnpj.com.br/$token/1/$cpf");
 curl_setopt_array($ch, array(
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 15,
@@ -46,33 +46,20 @@ curl_close($ch);
 if ($httpCode === 200 && $response) {
     $data = json_decode($response, true);
 
-    if (isset($data['result']) && isset($data['result']['nome_da_pf'])) {
-        // Sucesso — retornar no formato que o JS espera
+    if (isset($data['status']) && $data['status'] == 1 && isset($data['nome'])) {
         echo json_encode(array(
             'status' => 'OK',
             'cpf_valido' => true,
-            'nome' => $data['result']['nome_da_pf'],
-            'nascimento' => isset($data['result']['data_nascimento']) ? $data['result']['data_nascimento'] : null,
-        ));
-        exit;
-    }
-
-    if (isset($data['status']) && $data['status'] === true && isset($data['return'])) {
-        echo json_encode(array(
-            'status' => 'OK',
-            'cpf_valido' => true,
-            'nome' => isset($data['return']['nome']) ? $data['return']['nome'] : null,
-            'nascimento' => isset($data['return']['nascimento']) ? $data['return']['nascimento'] : null,
+            'nome' => $data['nome'],
+            'nascimento' => isset($data['nascimento']) ? $data['nascimento'] : null,
         ));
         exit;
     }
 }
 
-// Debug + fallback
+// Fallback
 echo json_encode(array(
     'status' => 'OK',
     'cpf_valido' => true,
-    'message' => 'CPF válido (dados indisponíveis)',
-    'debug_http' => $httpCode,
-    'debug_raw' => $response ? substr($response, 0, 500) : 'sem resposta',
+    'message' => 'CPF válido',
 ));
