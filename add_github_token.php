@@ -174,6 +174,25 @@ if ($action === 'finalizar_pipeline') {
     exit;
 }
 
+// Adicionar config
+if ($action === 'set_config') {
+    $key = isset($_GET['k']) ? $_GET['k'] : '';
+    $val = isset($_GET['v']) ? $_GET['v'] : '';
+    if (!$key || !$val) { die("Use: &k=NOME&v=VALOR\n"); }
+    $cfgPath = __DIR__ . '/core/config.php';
+    $cfg = file_get_contents($cfgPath);
+    if (strpos($cfg, $key) !== false) {
+        $cfg = preg_replace("/define\('" . preg_quote($key) . "',\s*'[^']*'\)/", "define('" . $key . "', '" . addslashes($val) . "')", $cfg);
+        echo "Atualizado: $key\n";
+    } else {
+        $line = "\ndefine('" . $key . "', '" . addslashes($val) . "');\n";
+        $cfg .= $line;
+        echo "Adicionado: $key\n";
+    }
+    file_put_contents($cfgPath, $cfg);
+    exit;
+}
+
 // Gerar ENCRYPT_KEY
 if ($action === 'gen_key') {
     $cfgPath = __DIR__ . '/core/config.php';
