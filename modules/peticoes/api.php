@@ -148,7 +148,14 @@ FIXO;
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";
     $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
-    $userPrompt .= "Elabore a petição completa em HTML formatado conforme a skill dra-amanda.";
+    $userPrompt .= "Elabore a petição completa em HTML.\n\n";
+    $userPrompt .= "REGRAS DE OUTPUT OBRIGATÓRIAS:\n";
+    $userPrompt .= "- Retorne SOMENTE o HTML puro, SEM markdown, SEM ```html, SEM ```\n";
+    $userPrompt .= "- NÃO use tags <html>, <head>, <body>, <style>, <!DOCTYPE>\n";
+    $userPrompt .= "- Use APENAS estilos inline (style=\"...\") em cada elemento\n";
+    $userPrompt .= "- Comece direto com o <div> do timbrado do escritório\n";
+    $userPrompt .= "- Fonte: Calibri,sans-serif (NUNCA Times New Roman)\n";
+    $userPrompt .= "- Siga EXATAMENTE os templates HTML do system prompt (timbrado, caixa da ação, seções à direita, pedidos em tabela)\n";
 
     // ══ OTIMIZAÇÃO 2: Pré-processamento de documentos ══
     // PDFs e imagens limitados a 5MB cada, máx 10 arquivos
@@ -365,6 +372,17 @@ FIXO;
     }
 
     $htmlPeticao = $data['content'][0]['text'];
+
+    // Limpar output: remover code blocks markdown e tags HTML externas
+    $htmlPeticao = preg_replace('/^```html?\s*/i', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/\s*```\s*$/', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/<!(DOCTYPE|doctype)[^>]*>/', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/<\/?html[^>]*>/', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/<head>.*?<\/head>/s', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/<\/?body[^>]*>/', '', $htmlPeticao);
+    $htmlPeticao = preg_replace('/<style[^>]*>.*?<\/style>/s', '', $htmlPeticao);
+    $htmlPeticao = trim($htmlPeticao);
+
     $tokensIn = isset($data['usage']['input_tokens']) ? (int)$data['usage']['input_tokens'] : 0;
     $tokensOut = isset($data['usage']['output_tokens']) ? (int)$data['usage']['output_tokens'] : 0;
     $tokensCacheRead = isset($data['usage']['cache_read_input_tokens']) ? (int)$data['usage']['cache_read_input_tokens'] : 0;
