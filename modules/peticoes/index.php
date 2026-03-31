@@ -71,9 +71,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .fab-campo label { font-size:.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.25rem; }
 .fab-campo input,.fab-campo select,.fab-campo textarea { width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit; }
 .fab-campo input:focus,.fab-campo select:focus,.fab-campo textarea:focus { border-color:var(--rose);outline:none; }
-.fab-preview { background:#fff;border:2px solid var(--border);border-radius:12px;padding:2rem;max-height:60vh;overflow-y:auto;font-family:'Times New Roman',serif;font-size:14px;line-height:1.8; }
-.fab-preview h1 { font-size:16px;text-align:center;text-transform:uppercase; }
-.fab-preview h2 { font-size:14px;font-weight:bold;border-left:4px solid #052228;padding-left:10px;margin-top:1.5em; }
+.fab-preview { background:#fff;border:1px solid #ccc;border-radius:4px;padding:40px 50px;max-height:70vh;overflow-y:auto;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;box-shadow:0 2px 20px rgba(0,0,0,.12);position:relative; }
+.fab-preview::before { content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#052228,#B87333); }
+.fab-preview h1 { font-size:13px;text-align:center;text-transform:uppercase;font-weight:700;color:#052228;letter-spacing:1px; }
+.fab-preview h2 { font-size:14px;font-weight:800;color:#052228;text-transform:uppercase;letter-spacing:1px;padding-left:16px;border-left:5px solid #052228;margin-top:1.5em; }
+@media print {
+  .fab-container > *:not(.card:last-of-type) { display:none !important; }
+  .fab-preview { max-height:none;box-shadow:none;border:none;padding:20px; }
+  .fab-preview::before { display:none; }
+  .page-content,.main-content,.topbar,.sidebar { all:unset; }
+}
 .fab-loading { text-align:center;padding:3rem; }
 .fab-loading .spinner { width:40px;height:40px;border:4px solid var(--border);border-top:4px solid var(--petrol-900);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem; }
 @keyframes spin { to { transform:rotate(360deg); } }
@@ -215,8 +222,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <p style="font-size:.75rem;color:var(--text-muted);">Isso pode levar até 60 segundos.</p>
                     </div>
                     <div id="previewArea" style="display:none;">
-                        <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-                            <button onclick="copiarPeticao()" class="btn btn-primary btn-sm">📋 Copiar texto</button>
+                        <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
+                            <button onclick="copiarPeticao()" class="btn btn-primary btn-sm">📋 Copiar</button>
+                            <button onclick="baixarWord()" class="btn btn-outline btn-sm" style="border-color:#2b579a;color:#2b579a;">📝 Word</button>
+                            <button onclick="baixarPDF()" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">📕 PDF</button>
                             <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Imprimir</button>
                             <button onclick="goStep(1)" class="btn btn-secondary btn-sm">Nova petição</button>
                             <span id="infoTokens" style="margin-left:auto;font-size:.7rem;color:var(--text-muted);"></span>
@@ -404,6 +413,30 @@ function copiarPeticao() {
     document.execCommand('copy');
     sel.removeAllRanges();
     alert('Petição copiada para a área de transferência!');
+}
+
+function baixarWord() {
+    var html = document.getElementById('peticaoHTML').innerHTML;
+    var fullHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+        + '<head><meta charset="utf-8"><style>@page{size:A4;margin:2.5cm 3cm 2cm 3cm;}body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}</style></head>'
+        + '<body>' + html + '</body></html>';
+    var blob = new Blob(['\ufeff' + fullHtml], {type: 'application/msword'});
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'peticao_' + new Date().toISOString().slice(0,10) + '.doc';
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+function baixarPDF() {
+    var el = document.getElementById('peticaoHTML');
+    var win = window.open('', '_blank');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Petição</title>'
+        + '<style>@page{size:A4;margin:2.5cm 3cm 2cm 3cm;}body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}'
+        + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head>'
+        + '<body>' + el.innerHTML + '</body></html>');
+    win.document.close();
+    setTimeout(function() { win.print(); }, 500);
 }
 
 function verPeca(id) {

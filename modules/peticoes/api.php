@@ -215,7 +215,7 @@ if ($action === 'gerar') {
             'system_prompt_tokens_estimado' => (int)(mb_strlen(get_system_prompt(), 'UTF-8') / 4),
             'user_message' => $messageContent,
             'model' => 'claude-sonnet-4-6',
-            'max_tokens' => 4096,
+            'max_tokens' => 8192,
             'temperature' => 0.3,
             'cache_control' => 'ephemeral',
             'anexos_count' => count($contentBlocks),
@@ -236,7 +236,7 @@ if ($action === 'gerar') {
     $systemPromptText = get_system_prompt();
     $payload = json_encode(array(
         'model' => 'claude-sonnet-4-6',
-        'max_tokens' => 4096,
+        'max_tokens' => 8192,
         'temperature' => 0.3,
         'system' => array(
             array(

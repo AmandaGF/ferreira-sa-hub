@@ -102,20 +102,74 @@ DOS PEDIDOS (abertura em Família):
 "Em razão do exposto, requer, com a oitiva do Ministério Público:"
 Pedidos com letras a), b), c)... e sub-itens I., II., III.
 
-=== FORMATAÇÃO ===
-Gere o texto em HTML estruturado para posterior conversão em DOCX.
-Use as seguintes tags:
-- <h1> para endereçamento
-- <h2> para seções (DOS FATOS, DO DIREITO, etc.)
-- <p> para parágrafos
-- <strong> para negritos
-- <em> para itálicos
-- Use <div class="secao"> para cada seção com barra colorida
-- Use <div class="caixa-acao"> para a caixa do tipo da ação
-- Use <span class="dado-faltante"> para dados que a equipe precisa buscar
+=== PALETA DE CORES DO VISUAL LAW ===
+primario:   #052228  (barras de seção, caixa da ação, coluna de pedidos)
+cobre:      #B87333  (faixa da caixa de ação, linha inferior de seção)
+cobreClaro: #D7AB90  (borda lateral da linha do tempo)
+cinza:      #F4F4F4  (fundo de subtópicos, linhas alternadas)
+texto:      #1A1A1A  (corpo do texto)
+vermelho:   #CC0000  (dados faltantes da Ré)
 
-Paleta de cores:
-primario: #052228 | cobre: #B87333 | cobreClaro: #D7AB90 | cinza: #F4F4F4 | texto: #1A1A1A | vermelho: #CC0000
+=== FORMATAÇÃO HTML — INSTRUÇÕES OBRIGATÓRIAS ===
+
+Gere o HTML completo com estilos inline seguindo EXATAMENTE estas regras:
+
+1. PÁGINA: fundo branco, fonte Calibri 12pt, cor #1A1A1A, line-height 1.8.
+
+2. TIMBRADO DO ESCRITÓRIO (topo da petição):
+<div style="text-align:center;border-bottom:3px solid #052228;padding-bottom:16px;margin-bottom:24px;">
+  <div style="font-family:'Playfair Display',Georgia,serif;font-size:22px;font-weight:700;color:#052228;letter-spacing:2px;">FERREIRA & SÁ</div>
+  <div style="font-size:11px;color:#B87333;font-weight:600;letter-spacing:3px;margin-top:2px;">ADVOCACIA ESPECIALIZADA</div>
+  <div style="font-size:10px;color:#666;margin-top:8px;">Rua Dr. Aldrovando de Oliveira, n. 140 — Ano Bom — Barra Mansa — RJ</div>
+  <div style="font-size:10px;color:#666;">amandaferreira@ferreiraesa.com.br</div>
+</div>
+
+3. ENDEREÇAMENTO (h1):
+<h1 style="font-size:13px;text-align:center;text-transform:uppercase;font-weight:700;color:#052228;letter-spacing:1px;margin-bottom:24px;">
+JUÍZO DA ___ VARA ...
+</h1>
+
+4. CAIXA DO TIPO DA AÇÃO (obrigatório fundo petrol):
+<div style="background:#052228;color:#FFFFFF;padding:14px 24px;border-radius:6px;text-align:center;font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin:20px 0;border-bottom:4px solid #B87333;">
+AÇÃO DE ALIMENTOS
+</div>
+
+5. SEÇÕES DO CORPO (barra lateral petrol + linha inferior cobre):
+<div style="margin:28px 0 16px 0;padding:0 0 8px 0;border-bottom:2px solid #B87333;">
+  <h2 style="font-size:14px;font-weight:800;color:#052228;text-transform:uppercase;letter-spacing:1px;margin:0;padding-left:16px;border-left:5px solid #052228;">
+  DOS FATOS
+  </h2>
+</div>
+
+6. PARÁGRAFOS: <p style="text-align:justify;text-indent:40px;margin:8px 0;">
+
+7. DADOS FALTANTES: <span style="color:#CC0000;font-weight:700;">[DADO FALTANTE]</span>
+
+8. QUALIFICAÇÃO DO AUTOR: nome em <strong style="font-variant:small-caps;">NOME DO CLIENTE</strong>
+
+9. PEDIDOS:
+<div style="background:#F4F4F4;border-left:4px solid #052228;padding:16px 20px;border-radius:0 8px 8px 0;margin:12px 0;">
+a) pedido...<br>
+b) pedido...<br>
+</div>
+
+10. ENCERRAMENTO E ASSINATURA:
+<div style="text-align:center;margin-top:40px;padding-top:20px;border-top:1px solid #ddd;">
+  <p>Nestes termos, pede deferimento.</p>
+  <p>[Cidade], [data].</p>
+  <br>
+  <div style="font-weight:700;font-size:13px;color:#052228;">AMANDA GUEDES FERREIRA</div>
+  <div style="font-size:11px;color:#B87333;">OAB-RJ 163.260</div>
+</div>
+
+11. RODAPÉ:
+<div style="text-align:center;border-top:2px solid #052228;padding-top:10px;margin-top:40px;font-size:9px;color:#888;">
+  Ferreira & Sá Advocacia Especializada — Rua Dr. Aldrovando de Oliveira, n. 140, Ano Bom, Barra Mansa/RJ — amandaferreira@ferreiraesa.com.br
+</div>
+
+IMPORTANTE: Use SEMPRE estilos inline (style="...") em cada elemento. Não use <style> nem CSS externo.
+IMPORTANTE: A caixa da ação DEVE ter background #052228 e cor branca. NUNCA use fundo cinza.
+IMPORTANTE: Cada seção DEVE ter border-left 5px solid #052228 e border-bottom 2px solid #B87333.
 PROMPT;
 }
 
