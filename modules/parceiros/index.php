@@ -9,6 +9,17 @@ if (!has_min_role('gestao')) { redirect(url('modules/dashboard/')); }
 $pageTitle = 'Parceiros';
 $pdo = db();
 
+// AJAX busca contatos
+if (isset($_GET['ajax_busca'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $q = trim($_GET['q'] ?? '');
+    if (strlen($q) < 2) { echo '[]'; exit; }
+    $stmt = $pdo->prepare("SELECT id, name, phone, email FROM clients WHERE name LIKE ? ORDER BY name LIMIT 10");
+    $stmt->execute(array('%' . $q . '%'));
+    echo json_encode($stmt->fetchAll());
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $action = $_POST['action'] ?? '';
 
@@ -115,14 +126,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="modal-body">
             <form method="POST">
                 <?= csrf_input() ?><input type="hidden" name="action" value="create">
-                <div class="form-group"><label class="form-label">Nome *</label><input type="text" name="nome" class="form-input" required></div>
+                <div class="form-group" style="position:relative;">
+                    <label class="form-label">Buscar na Agenda de Contatos</label>
+                    <input type="text" id="buscaContato" class="form-input" placeholder="Digite o nome para buscar..." autocomplete="off" style="border-color:var(--rose);">
+                    <div id="buscaContatoRes" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:20;background:#fff;border:1.5px solid var(--border);border-radius:0 0 8px 8px;max-height:160px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.15);"></div>
+                </div>
+                <div class="form-group"><label class="form-label">Nome *</label><input type="text" name="nome" id="parceiroNome" class="form-input" required></div>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label">OAB</label><input type="text" name="oab" class="form-input"></div>
                     <div class="form-group"><label class="form-label">Área</label><input type="text" name="area" class="form-input" placeholder="Trabalhista, Criminal..."></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" class="form-input"></div>
-                    <div class="form-group"><label class="form-label">Telefone</label><input type="text" name="telefone" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" id="parceiroEmail" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Telefone</label><input type="text" name="telefone" id="parceiroTel" class="form-input"></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label class="form-label">% Honorários</label><input type="text" name="pct_honorarios" class="form-input" placeholder="30"></div>
@@ -137,4 +153,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<script>
+(function() {
+    var input = document.getElementById('buscaContato');
+    var results = document.getElementById('buscaContatoRes');
+    if (!input) return;
+    var timer;
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var q = this.value.trim();
+        if (q.length < 2) { results.style.display = 'none'; return; }
+        timer = setTimeout(function() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', '<?= module_url("parceiros") ?>?ajax_busca=1&q=' + encodeURIComponent(q));
+            xhr.onload = function() {
+                try {
+                    var data = JSON.parse(xhr.responseText);
+                    if (!data.length) { results.innerHTML = '<div style="padding:8px 12px;font-size:.82rem;color:#999;">Nenhum contato encontrado</div>'; results.style.display = 'block'; return; }
+                    results.innerHTML = data.map(function(c) {
+                        return '<div style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;font-size:.82rem;" onmouseover="this.style.background=\'rgba(215,171,144,.15)\'" onmouseout="this.style.background=\'#fff\'" onclick="preencherParceiro(\'' + (c.name||'').replace(/'/g,"\\'") + '\',\'' + (c.email||'').replace(/'/g,"\\'") + '\',\'' + (c.phone||'').replace(/'/g,"\\'") + '\')"><strong>' + (c.name||'') + '</strong>' + (c.phone ? ' — ' + c.phone : '') + (c.email ? ' — ' + c.email : '') + '</div>';
+                    }).join('');
+                    results.style.display = 'block';
+                } catch(e) { results.style.display = 'none'; }
+            };
+            xhr.send();
+        }, 300);
+    });
+    document.addEventListener('click', function(e) {
+        if (!input.contains(e.target) && !results.contains(e.target)) results.style.display = 'none';
+    });
+})();
+
+function preencherParceiro(nome, email, tel) {
+    document.getElementById('buscaContatoRes').style.display = 'none';
+    document.getElementById('buscaContato').value = nome;
+    document.getElementById('parceiroNome').value = nome;
+    if (email) document.getElementById('parceiroEmail').value = email;
+    if (tel) document.getElementById('parceiroTel').value = tel;
+}
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
