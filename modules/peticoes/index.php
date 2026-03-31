@@ -71,15 +71,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .fab-campo label { font-size:.78rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.25rem; }
 .fab-campo input,.fab-campo select,.fab-campo textarea { width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit; }
 .fab-campo input:focus,.fab-campo select:focus,.fab-campo textarea:focus { border-color:var(--rose);outline:none; }
-.fab-preview { background:#fff;border:1px solid #ccc;border-radius:4px;padding:40px 50px;max-height:70vh;overflow-y:auto;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;box-shadow:0 2px 20px rgba(0,0,0,.12);position:relative; }
-.fab-preview::before { content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,#052228,#B87333); }
-.fab-preview h1 { font-size:13px;text-align:center;text-transform:uppercase;font-weight:700;color:#052228;letter-spacing:1px; }
-.fab-preview h2 { font-size:14px;font-weight:800;color:#052228;text-transform:uppercase;letter-spacing:1px;padding-left:16px;border-left:5px solid #052228;margin-top:1.5em; }
+.fab-preview { background:#fff;border:none;border-radius:2px;padding:48px 56px;max-height:70vh;overflow-y:auto;font-family:Calibri,'Segoe UI',Arial,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;box-shadow:0 1px 8px rgba(0,0,0,.08),0 4px 24px rgba(0,0,0,.06);position:relative; }
+.fab-preview table { border-collapse:collapse; }
+.fab-preview td,.fab-preview th { border:none; }
+.fab-preview p { margin:8px 0; }
+.fab-preview h1 { font-size:13px;text-align:left;text-transform:uppercase;font-weight:700;color:#1A1A1A;margin:0 0 24px 0; }
+.fab-preview h2 { font-size:12pt;font-weight:700;color:#052228;letter-spacing:1px;text-align:right;margin:32px 0 16px 0; }
 @media print {
-  .fab-container > *:not(.card:last-of-type) { display:none !important; }
-  .fab-preview { max-height:none;box-shadow:none;border:none;padding:20px; }
-  .fab-preview::before { display:none; }
-  .page-content,.main-content,.topbar,.sidebar { all:unset; }
+  body * { visibility:hidden; }
+  .fab-preview,.fab-preview * { visibility:visible; }
+  .fab-preview { position:absolute;left:0;top:0;width:100%;max-height:none;box-shadow:none;padding:20px 30px;-webkit-print-color-adjust:exact;print-color-adjust:exact; }
 }
 .fab-loading { text-align:center;padding:3rem; }
 .fab-loading .spinner { width:40px;height:40px;border:4px solid var(--border);border-top:4px solid var(--petrol-900);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem; }
