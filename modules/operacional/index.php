@@ -316,6 +316,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text);transition:all .15s; }
 .tbl-pag a:hover { background:var(--petrol-100);border-color:var(--petrol-500); }
 .tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
+/* Linhas coloridas por status */
+.tbl-grid tbody tr[data-status="aguardando_docs"] { border-left:4px solid #f59e0b; }
+.tbl-grid tbody tr[data-status="em_elaboracao"] { border-left:4px solid #059669; background:rgba(5,150,105,.04) !important; }
+.tbl-grid tbody tr[data-status="em_andamento"] { border-left:4px solid #0ea5e9; background:rgba(14,165,233,.04) !important; }
+.tbl-grid tbody tr[data-status="doc_faltante"] { border-left:4px solid #dc2626; background:rgba(220,38,38,.06) !important; }
+.tbl-grid tbody tr[data-status="aguardando_prazo"] { border-left:4px solid #8b5cf6; }
+.tbl-grid tbody tr[data-status="distribuido"] { border-left:4px solid #15803d; background:rgba(21,128,61,.04) !important; }
+.tbl-grid tbody tr[data-status="parceria_previdenciario"] { border-left:4px solid #06b6d4; }
+.tbl-grid tbody tr[data-status="cancelado"] { border-left:4px solid #6b7280; opacity:.7; }
 </style>
 <?php
 $allCasesFlat = array();

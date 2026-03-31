@@ -19,7 +19,7 @@ $menuItems = array(
 
     array('section' => 'Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => array('admin','gestao','comercial','cx')),
-    array('label' => 'Pipeline',        'icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => array('admin','gestao','comercial','cx')),
+    array('label' => 'Kanban Comercial II','icon' => '📈', 'href' => url('modules/pipeline/'),        'id' => 'pipeline',        'roles' => array('admin','gestao','comercial','cx')),
 
     array('section' => 'Cadastros'),
     array('label' => 'Clientes',        'icon' => '👥', 'href' => url('modules/clientes/'),         'id' => 'clientes',        'roles' => $all),

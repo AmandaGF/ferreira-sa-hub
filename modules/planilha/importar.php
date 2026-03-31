@@ -25,43 +25,57 @@ foreach ($users as $u) {
 $step = isset($_POST['step']) ? $_POST['step'] : (isset($_GET['step']) ? $_GET['step'] : '1');
 $destino = isset($_POST['destino']) ? $_POST['destino'] : (isset($_GET['destino']) ? $_GET['destino'] : 'operacional');
 $resultado = null;
+$uploadError = '';
+
+// Diretório para arquivos temporários
+$tmpDir = __DIR__ . '/../../uploads';
+if (!is_dir($tmpDir)) @mkdir($tmpDir, 0755, true);
 
 // ─── STEP 2: Preview do CSV ──────────────────────────
 if ($step === '2' && isset($_FILES['csv_file'])) {
     $file = $_FILES['csv_file'];
     if ($file['error'] !== UPLOAD_ERR_OK) {
-        flash_set('error', 'Erro no upload: ' . $file['error']);
-        redirect(module_url('planilha', 'importar.php'));
+        $errorMessages = array(1=>'Arquivo excede o limite do servidor',2=>'Arquivo excede o limite do formulário',3=>'Upload incompleto',4=>'Nenhum arquivo enviado',6=>'Sem pasta temporária',7=>'Falha ao gravar');
+        $uploadError = isset($errorMessages[$file['error']]) ? $errorMessages[$file['error']] : 'Erro ' . $file['error'];
+        $step = '1';
+    } elseif ($file['size'] === 0) {
+        $uploadError = 'Arquivo vazio.';
+        $step = '1';
+    } else {
+        // Detectar separador
+        $content = file_get_contents($file['tmp_name']);
+        if (!$content) {
+            $uploadError = 'Não foi possível ler o arquivo.';
+            $step = '1';
+        } else {
+            // Tentar corrigir encoding
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1,Windows-1252');
+            }
+            $firstLine = strtok($content, "\n");
+            $sep = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
+
+            $tmpPath = $tmpDir . '/import_' . session_id() . '_' . time() . '.csv';
+            file_put_contents($tmpPath, $content);
+
+            // Ler primeiras 12 linhas para preview
+            $handle = fopen($tmpPath, 'r');
+            $preview = array();
+            $lineNum = 0;
+            while (($row = fgetcsv($handle, 0, $sep)) !== false && $lineNum < 12) {
+                $preview[] = $row;
+                $lineNum++;
+            }
+            fclose($handle);
+
+            // Contar total
+            $totalLines = count(file($tmpPath)) - 1;
+
+            $_SESSION['import_file'] = $tmpPath;
+            $_SESSION['import_sep'] = $sep;
+            $_SESSION['import_destino'] = $destino;
+        }
     }
-
-    // Detectar separador
-    $content = file_get_contents($file['tmp_name']);
-    // Tentar corrigir encoding
-    if (!mb_check_encoding($content, 'UTF-8')) {
-        $content = mb_convert_encoding($content, 'UTF-8', 'ISO-8859-1,Windows-1252');
-    }
-    $firstLine = strtok($content, "\n");
-    $sep = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
-
-    $tmpPath = sys_get_temp_dir() . '/fes_import_' . session_id() . '.csv';
-    file_put_contents($tmpPath, $content);
-
-    // Ler primeiras 10 linhas para preview
-    $handle = fopen($tmpPath, 'r');
-    $preview = array();
-    $lineNum = 0;
-    while (($row = fgetcsv($handle, 0, $sep)) !== false && $lineNum < 12) {
-        $preview[] = $row;
-        $lineNum++;
-    }
-    fclose($handle);
-
-    // Contar total
-    $totalLines = count(file($tmpPath)) - 1; // -1 para header
-
-    $_SESSION['import_file'] = $tmpPath;
-    $_SESSION['import_sep'] = $sep;
-    $_SESSION['import_destino'] = $destino;
 }
 
 // ─── STEP 3: Executar importação ─────────────────────
@@ -374,6 +388,12 @@ require_once __DIR__ . '/../../templates/layout_start.php';
             <h2 style="font-size:1rem;">Importar planilha CSV</h2>
             <p style="font-size:.78rem;color:var(--text-muted);">Exporte sua planilha do Excel como CSV (UTF-8) e faça upload aqui.</p>
         </div>
+
+        <?php if ($uploadError): ?>
+            <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.75rem;margin-bottom:1rem;font-size:.82rem;color:#dc2626;font-weight:600;">
+                <?= e($uploadError) ?>
+            </div>
+        <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="step" value="2">

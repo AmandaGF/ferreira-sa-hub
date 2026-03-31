@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Pipeline Comercial/CX (Kanban)
+ * Ferreira & Sá Hub — Kanban Comercial II (Kanban)
  * Fluxo: Cadastro → Elaboração → Link Enviados → Contrato Assinado →
  *        Agendado/Docs → Reunião/Cobrança → Doc Faltante → Pasta Apta
  */
@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
-$pageTitle = 'Pipeline Comercial/CX';
+$pageTitle = 'Kanban Comercial II';
 $pdo = db();
 
 // Estágios do funil (conforme doc técnico)
@@ -140,7 +140,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Toggle + Ações -->
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
     <div style="display:flex;align-items:center;gap:1rem;">
-        <h3 style="font-size:1rem;font-weight:700;color:var(--petrol-900);margin:0;">Pipeline Comercial/CX</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--petrol-900);margin:0;">Kanban Comercial II</h3>
         <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
             <button onclick="toggleView('kanban')" id="btnKanban" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">📋 Kanban</button>
             <button onclick="toggleView('tabela')" id="btnTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
@@ -241,6 +241,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-pag a { padding:6px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.78rem;text-decoration:none;font-weight:600;color:var(--text);transition:all .15s; }
 .tbl-pag a:hover { background:var(--petrol-100);border-color:var(--petrol-500); }
 .tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
+/* Linhas coloridas por etapa */
+.tbl-grid tbody tr[data-stage="cadastro_preenchido"] { border-left:4px solid #6366f1; }
+.tbl-grid tbody tr[data-stage="elaboracao_docs"] { border-left:4px solid #0ea5e9; }
+.tbl-grid tbody tr[data-stage="link_enviados"] { border-left:4px solid #f59e0b; }
+.tbl-grid tbody tr[data-stage="contrato_assinado"] { border-left:4px solid #059669; }
+.tbl-grid tbody tr[data-stage="agendado_docs"] { border-left:4px solid #0d9488; }
+.tbl-grid tbody tr[data-stage="reuniao_cobranca"] { border-left:4px solid #d97706; }
+.tbl-grid tbody tr[data-stage="doc_faltante"] { border-left:4px solid #dc2626; background:rgba(220,38,38,.04) !important; }
+.tbl-grid tbody tr[data-stage="pasta_apta"] { border-left:4px solid #15803d; background:rgba(21,128,61,.04) !important; }
+.tbl-grid tbody tr[data-stage="cancelado"] { border-left:4px solid #6b7280; opacity:.7; }
+.tbl-grid tbody tr[data-stage="suspenso"] { border-left:4px solid #9ca3af; background:rgba(156,163,175,.06) !important; }
 </style>
 <?php
 $allLeadsFlat = array();
