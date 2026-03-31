@@ -202,25 +202,56 @@ if ($step === '3' && validate_csrf()) {
                 $inserted++;
 
             } elseif ($destino === 'pipeline') {
-                // Verificar duplicata
-                $exists = $pdo->prepare("SELECT id FROM pipeline_leads WHERE name = ? AND stage NOT IN ('finalizado','cancelado','perdido')");
-                $exists->execute(array($title));
+                // Duplicata: mesmo nome + mesmo tipo = mesmo contrato
+                $existsSql = "SELECT id FROM pipeline_leads WHERE name = ?";
+                $existsParams = array($title);
+                if ($caseType) {
+                    $existsSql .= " AND case_type = ?";
+                    $existsParams[] = $caseType;
+                }
+                $existsSql .= " AND stage NOT IN ('finalizado','cancelado','perdido')";
+                $exists = $pdo->prepare($existsSql);
+                $exists->execute($existsParams);
                 if ($exists->fetch()) { $skipped++; continue; }
 
-                // Buscar client
+                // Buscar client pelo nome (sem " x tipo")
                 $clientName = $title;
                 if (strpos($title, ' x ') !== false) {
                     $clientName = trim(explode(' x ', $title)[0]);
+                } elseif (strpos($title, ' - ') !== false) {
+                    $clientName = trim(explode(' - ', $title)[0]);
                 }
                 $clientStmt = $pdo->prepare("SELECT id FROM clients WHERE name LIKE ? LIMIT 1");
                 $clientStmt->execute(array('%' . $clientName . '%'));
                 $clientRow = $clientStmt->fetch();
                 $clientId = $clientRow ? (int)$clientRow['id'] : null;
 
+                // Criar client se não existe
+                if (!$clientId) {
+                    $pdo->prepare("INSERT INTO clients (name, phone, source, client_status, created_at) VALUES (?,?, 'outro', 'ativo', ?)")
+                        ->execute(array($clientName, $phone ?: null, $parsedDate ?: date('Y-m-d H:i:s')));
+                    $clientId = (int)$pdo->lastInsertId();
+                }
+
+                // Mapear status da planilha para stage do Pipeline
+                $stageMap = array(
+                    'pasta apta' => 'pasta_apta',
+                    'cancelado' => 'cancelado',
+                    'aguardando envio' => 'elaboracao_docs',
+                    'elaboracao' => 'elaboracao_docs',
+                );
+                $finalStage = $defaultStatus;
+                if ($status && $status !== $defaultStatus) {
+                    $statusLower = mb_strtolower(trim($status));
+                    if (isset($stageMap[$statusLower])) {
+                        $finalStage = $stageMap[$statusLower];
+                    }
+                }
+
                 $pdo->prepare(
                     "INSERT INTO pipeline_leads (client_id, name, phone, stage, case_type, assigned_to, notes, source, created_at) VALUES (?,?,?,?,?,?,?,'outro',?)"
                 )->execute(array(
-                    $clientId, $title, $phone ?: null, $defaultStatus,
+                    $clientId, $title, $phone ?: null, $finalStage,
                     $caseType ?: null, $respId, $obs ?: null,
                     $parsedDate ?: date('Y-m-d H:i:s')
                 ));
@@ -285,20 +316,53 @@ require_once __DIR__ . '/../../templates/layout_start.php';
     </div>
 
     <div class="card" style="margin-bottom:1rem;">
-        <div class="card-header"><strong>Mapeamento de colunas</strong></div>
+        <div class="card-header"><strong>Mapeamento de colunas</strong> — selecione qual coluna do CSV corresponde a cada campo</div>
         <div class="card-body">
-            <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;">Indique o número da coluna (Col 0, Col 1...) para cada campo. Use -1 para ignorar.</p>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.6rem;">
-                <div><label style="font-size:.75rem;font-weight:700;">Título/Nome *</label><input type="number" name="col_title" value="1" class="form-input" min="-1" required></div>
-                <div><label style="font-size:.75rem;font-weight:700;">Data cadastro</label><input type="number" name="col_date" value="2" class="form-input" min="-1"></div>
-                <div><label style="font-size:.75rem;font-weight:700;">Prazo</label><input type="number" name="col_prazo" value="3" class="form-input" min="-1"></div>
-                <div><label style="font-size:.75rem;font-weight:700;">Responsável</label><input type="number" name="col_resp" value="5" class="form-input" min="-1"></div>
-                <div><label style="font-size:.75rem;font-weight:700;">Link Drive</label><input type="number" name="col_drive" value="6" class="form-input" min="-1"></div>
-                <div><label style="font-size:.75rem;font-weight:700;">Observações</label><input type="number" name="col_obs" value="7" class="form-input" min="-1"></div>
-                <?php if ($destino === 'pipeline'): ?>
-                <div><label style="font-size:.75rem;font-weight:700;">Telefone</label><input type="number" name="col_phone" value="-1" class="form-input" min="-1"></div>
-                <?php endif; ?>
-                <div><label style="font-size:.75rem;font-weight:700;">Tipo de ação</label><input type="number" name="col_type" value="-1" class="form-input" min="-1"><small style="font-size:.6rem;color:var(--text-muted);">-1 = extrair do título</small></div>
+            <?php
+            // Detectar nomes das colunas do header
+            $headerNames = array();
+            if (!empty($preview[0])) {
+                foreach ($preview[0] as $i => $val) {
+                    $headerNames[$i] = trim($val) ?: 'Col ' . $i;
+                }
+            }
+            // Gerar options de colunas
+            function colOptions($headerNames, $selected = -1) {
+                $html = '<option value="-1">— Ignorar —</option>';
+                foreach ($headerNames as $i => $name) {
+                    $sel = ($i == $selected) ? ' selected' : '';
+                    $html .= '<option value="' . $i . '"' . $sel . '>Col ' . $i . ': ' . htmlspecialchars(mb_substr($name, 0, 25)) . '</option>';
+                }
+                return $html;
+            }
+            // Auto-detectar colunas pelo nome do header
+            $autoMap = array('col_title'=>-1,'col_phone'=>-1,'col_date'=>-1,'col_type'=>-1,'col_resp'=>-1,'col_drive'=>-1,'col_obs'=>-1,'col_prazo'=>-1,'col_status'=>-1);
+            foreach ($headerNames as $i => $name) {
+                $n = mb_strtolower($name);
+                if (strpos($n, 'nome da pasta') !== false || strpos($n, 'titulo') !== false || strpos($n, 'título') !== false) $autoMap['col_title'] = $i;
+                elseif ($autoMap['col_title'] === -1 && strpos($n, 'nome') !== false && strpos($n, 'pasta') === false) $autoMap['col_title'] = $i;
+                if (strpos($n, 'contato') !== false || strpos($n, 'telefone') !== false || strpos($n, 'fone') !== false) $autoMap['col_phone'] = $i;
+                if (strpos($n, 'data') !== false && (strpos($n, 'fechamento') !== false || strpos($n, 'cadastro') !== false)) $autoMap['col_date'] = $i;
+                if (strpos($n, 'tipo') !== false && strpos($n, 'a') !== false) $autoMap['col_type'] = $i;
+                if (strpos($n, 'respons') !== false || strpos($n, 'executante') !== false) $autoMap['col_resp'] = $i;
+                if (strpos($n, 'drive') !== false || strpos($n, 'link') !== false) $autoMap['col_drive'] = $i;
+                if (strpos($n, 'observa') !== false || strpos($n, 'pend') !== false) $autoMap['col_obs'] = $i;
+                if (strpos($n, 'prazo') !== false || strpos($n, 'entrega') !== false) $autoMap['col_prazo'] = $i;
+                if (strpos($n, 'estado') !== false || strpos($n, 'status') !== false) $autoMap['col_status'] = $i;
+            }
+            // Se tem "NOME DA PASTA" usa esse como título; senão NOME
+            if ($autoMap['col_title'] === -1 && !empty($headerNames)) $autoMap['col_title'] = 0;
+            ?>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;">
+                <div><label style="font-size:.75rem;font-weight:700;">Título/Nome do caso *</label><select name="col_title" class="form-input" required><?= colOptions($headerNames, $autoMap['col_title']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Telefone/Contato</label><select name="col_phone" class="form-input"><?= colOptions($headerNames, $autoMap['col_phone']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Data do cadastro</label><select name="col_date" class="form-input"><?= colOptions($headerNames, $autoMap['col_date']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Tipo de ação</label><select name="col_type" class="form-input"><?= colOptions($headerNames, $autoMap['col_type']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Responsável</label><select name="col_resp" class="form-input"><?= colOptions($headerNames, $autoMap['col_resp']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Link Drive</label><select name="col_drive" class="form-input"><?= colOptions($headerNames, $autoMap['col_drive']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Observações</label><select name="col_obs" class="form-input"><?= colOptions($headerNames, $autoMap['col_obs']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Prazo/Entrega</label><select name="col_prazo" class="form-input"><?= colOptions($headerNames, $autoMap['col_prazo']) ?></select></div>
+                <div><label style="font-size:.75rem;font-weight:700;">Estado/Status</label><select name="col_status" class="form-input"><?= colOptions($headerNames, $autoMap['col_status']) ?></select></div>
             </div>
             <div style="display:flex;gap:1rem;margin-top:.75rem;align-items:center;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer;"><input type="checkbox" name="skip_header" value="1" checked> Pular cabeçalho</label>
