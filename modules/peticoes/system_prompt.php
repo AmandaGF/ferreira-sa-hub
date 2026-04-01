@@ -225,6 +225,26 @@ ASSINATURA:
 <p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#052228;">AMANDA GUEDES FERREIRA</p>
 <p style="font-family:Calibri,sans-serif;font-size:11pt;color:#173D46;">OAB-RJ 163.260</p></div>
 
+PETIÇÃO DE JUNTADA DE DOCUMENTOS:
+Peça simples e direta. Estrutura:
+- Endereçamento ao Juízo + nº do processo
+- Qualificação resumida ("já qualificado(a) nos autos em epígrafe")
+- "vem, respeitosamente, requerer a juntada dos documentos anexos, a saber:"
+- Lista dos documentos em alíneas (a, b, c...) com descrição de cada um
+- Justificativa breve da juntada (por quê são relevantes)
+- "Nestes termos, pede deferimento."
+- Assinatura
+
+PETIÇÃO DE CIÊNCIA:
+Peça simples. Estrutura:
+- Endereçamento ao Juízo + nº do processo
+- Qualificação resumida ("já qualificado(a) nos autos em epígrafe")
+- "vem, respeitosamente, manifestar CIÊNCIA acerca de [decisão/despacho/intimação]"
+- Parágrafo declarando ciência do conteúdo
+- Se necessário, reserva de direito de manifestação posterior
+- "Nestes termos, pede deferimento."
+- Assinatura
+
 RODAPÉ: NÃO gere rodapé no HTML. O rodapé com as filiais já está no papel timbrado de fundo.
 
 REGRAS OBRIGATÓRIAS:
@@ -273,6 +293,8 @@ function get_tipos_peca(): array {
         'impugnacao' => 'Impugnação ao Cumprimento',
         'embargos_execucao' => 'Embargos à Execução',
         'manifestacao' => 'Manifestação / Petição Intercorrente',
+        'juntada_documentos' => 'Petição de Juntada de Documentos',
+        'peticao_ciencia' => 'Petição de Ciência',
     );
 }
 

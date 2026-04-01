@@ -124,7 +124,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <div class="fab-campo">
                     <label>Tipo de Peça</label>
-                    <select id="tipoPeca">
+                    <select id="tipoPeca" onchange="loadCamposAcao()">
                         <option value="">Selecione...</option>
                         <?php foreach ($tiposPeca as $k => $v): ?>
                             <option value="<?= $k ?>"><?= e($v) ?></option>
@@ -346,15 +346,43 @@ function goStep(n) {
     window.scrollTo(0, 0);
 }
 
+// Campos específicos por tipo de PEÇA (intercorrentes)
+var camposPecaData = {
+    'juntada_documentos': [
+        {name:'numero_processo',label:'Nº do processo',type:'text',placeholder:'0000000-00.0000.0.00.0000'},
+        {name:'vara_juizo',label:'Vara / Juízo',type:'text',placeholder:'Ex: 1ª Vara de Família da Comarca de Barra Mansa'},
+        {name:'lista_documentos',label:'Lista dos documentos a juntar (um por linha)',type:'textarea',rows:5,placeholder:'Ex:\nCertidão de nascimento atualizada\nComprovante de residência\nDeclaração de imposto de renda 2025\nLaudo médico do filho'},
+        {name:'justificativa_juntada',label:'Justificativa da juntada',type:'textarea',rows:3,placeholder:'Por que esses documentos são relevantes para o processo?'},
+        {name:'observacoes_caso',label:'Observações adicionais',type:'textarea',rows:2}
+    ],
+    'peticao_ciencia': [
+        {name:'numero_processo',label:'Nº do processo',type:'text',placeholder:'0000000-00.0000.0.00.0000'},
+        {name:'vara_juizo',label:'Vara / Juízo',type:'text',placeholder:'Ex: 1ª Vara de Família da Comarca de Barra Mansa'},
+        {name:'objeto_ciencia',label:'Objeto da ciência (decisão, despacho, intimação...)',type:'text',placeholder:'Ex: r. decisão de id. 123456 que deferiu a tutela de urgência'},
+        {name:'reserva_manifestacao',label:'Reservar direito de manifestação posterior?',type:'select',options:{sim:'Sim',nao:'Não'}},
+        {name:'observacoes_caso',label:'Observações adicionais',type:'textarea',rows:2}
+    ]
+};
+
 function loadCamposAcao() {
-    var tipo = document.getElementById('tipoAcao').value;
+    var tipoAcao = document.getElementById('tipoAcao').value;
+    var tipoPeca = document.getElementById('tipoPeca').value;
     var container = document.getElementById('camposAcaoContainer');
-    if (!tipo || !camposAcaoData[tipo]) {
-        container.innerHTML = '<p style="color:var(--text-muted);font-size:.82rem;">Campos específicos não disponíveis para esta ação ainda. Você pode adicionar informações nas observações.</p><div class="fab-campo"><label>Observações do caso</label><textarea name="observacoes_caso" rows="5" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" placeholder="Descreva os detalhes relevantes do caso..."></textarea></div>';
+
+    // Verificar se tem campos por tipo de PEÇA (intercorrentes)
+    var campos = null;
+    if (tipoPeca && camposPecaData[tipoPeca]) {
+        campos = camposPecaData[tipoPeca];
+    } else if (tipoAcao && camposAcaoData[tipoAcao]) {
+        campos = camposAcaoData[tipoAcao];
+    }
+
+    if (!campos) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:.82rem;">Você pode adicionar informações nas observações.</p><div class="fab-campo"><label>Observações do caso</label><textarea name="observacoes_caso" rows="5" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" placeholder="Descreva os detalhes relevantes do caso..."></textarea></div>';
         return;
     }
     var html = '';
-    camposAcaoData[tipo].forEach(function(campo) {
+    campos.forEach(function(campo) {
         html += '<div class="fab-campo"><label>' + campo.label + '</label>';
         if (campo.type === 'textarea') {
             html += '<textarea name="' + campo.name + '" rows="' + (campo.rows || 3) + '" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" placeholder="' + (campo.placeholder || '') + '"></textarea>';

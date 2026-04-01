@@ -110,6 +110,22 @@ if ($action === 'gerar') {
         $camposEspecificos .= "Observações do caso: " . $obsGeral . "\n";
     }
 
+    // Campos extras de peças intercorrentes (juntada, ciência)
+    $camposIntercorrentes = array(
+        'numero_processo' => 'Nº do processo',
+        'vara_juizo' => 'Vara / Juízo',
+        'lista_documentos' => 'Documentos a juntar',
+        'justificativa_juntada' => 'Justificativa da juntada',
+        'objeto_ciencia' => 'Objeto da ciência',
+        'reserva_manifestacao' => 'Reservar manifestação posterior',
+    );
+    foreach ($camposIntercorrentes as $key => $label) {
+        $val = trim($_POST[$key] ?? '');
+        if ($val) {
+            $camposEspecificos .= $label . ': ' . $val . "\n";
+        }
+    }
+
     // Recursos visuais solicitados
     $visuais = array();
     $visuaisMap = array(
