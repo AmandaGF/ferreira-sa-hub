@@ -504,6 +504,7 @@ if (!$showEditor) {
         <a href="<?= module_url('documentos') ?>">← Voltar</a>
         <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante)) ?>">✏️ Editar</a>
         <button onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
         <?php if ($phone): ?>
             <a href="https://wa.me/55<?= preg_replace('/\D/', '', $phone) ?>" target="_blank" class="btn-zap">💬 WhatsApp</a>
         <?php endif; ?>
@@ -557,6 +558,31 @@ if (!$showEditor) {
     </div>
 </div>
 <?php endif; ?>
+
+<script>
+function copiarConteudo() {
+    var el = document.querySelector('.doc-body');
+    if (!el) return;
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    document.execCommand('copy');
+    sel.removeAllRanges();
+
+    // Feedback visual no botão
+    var btns = document.querySelectorAll('.toolbar button');
+    btns.forEach(function(b) {
+        if (b.textContent.indexOf('Copiar') !== -1) {
+            var original = b.innerHTML;
+            b.innerHTML = '✓ Copiado!';
+            b.style.background = '#065f46';
+            setTimeout(function() { b.innerHTML = original; b.style.background = '#059669'; }, 2000);
+        }
+    });
+}
+</script>
 
 </body>
 </html>
