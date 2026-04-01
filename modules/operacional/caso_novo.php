@@ -31,6 +31,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $client_id          = (int)($_POST['client_id'] ?? 0);
     $parte_re_nome      = trim($_POST['parte_re_nome'] ?? '');
     $parte_re_cpf_cnpj  = trim($_POST['parte_re_cpf_cnpj'] ?? '');
+
+    // Filhos (para processos de alimentos)
+    $filhosJson = null;
+    $filhosNomes = $_POST['filho_nome'] ?? array();
+    $filhosNasc = $_POST['filho_nascimento'] ?? array();
+    $filhosCpf = $_POST['filho_cpf'] ?? array();
+    if (!empty($filhosNomes)) {
+        $filhos = array();
+        for ($fi = 0; $fi < count($filhosNomes); $fi++) {
+            $fn = trim($filhosNomes[$fi]);
+            if ($fn === '') continue;
+            $filhos[] = array(
+                'nome' => $fn,
+                'nascimento' => isset($filhosNasc[$fi]) ? trim($filhosNasc[$fi]) : '',
+                'cpf' => isset($filhosCpf[$fi]) ? trim($filhosCpf[$fi]) : '',
+            );
+        }
+        if (!empty($filhos)) $filhosJson = json_encode($filhos, JSON_UNESCAPED_UNICODE);
+    }
     $title              = trim($_POST['title'] ?? '');
     $case_type          = trim($_POST['case_type'] ?? '');
     $case_number        = trim($_POST['case_number'] ?? '');
@@ -59,15 +78,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $sql = "INSERT INTO cases
-        (client_id, parte_re_nome, parte_re_cpf_cnpj, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
+        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
         VALUES
-        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
+        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
         ':client_id'          => $client_id,
         ':parte_re_nome'      => $parte_re_nome !== '' ? $parte_re_nome : null,
         ':parte_re_cpf_cnpj'  => $parte_re_cpf_cnpj !== '' ? $parte_re_cpf_cnpj : null,
+        ':filhos_json'        => $filhosJson,
         ':title'              => $title,
         ':case_type'          => $case_type,
         ':case_number'        => $case_number,
@@ -96,10 +116,41 @@ $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY na
 
 // Pré-carregar cliente se vier via ?client_id=
 $preClient = null;
+$preFilhos = array();
 if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
-    $stmtPre = $pdo->prepare("SELECT id, name, cpf, phone FROM clients WHERE id = ?");
+    $stmtPre = $pdo->prepare("SELECT id, name, cpf, phone, children_names FROM clients WHERE id = ?");
     $stmtPre->execute(array((int)$_GET['client_id']));
     $preClient = $stmtPre->fetch();
+
+    // Tentar puxar filhos do formulário de convivência/gastos
+    if ($preClient) {
+        try {
+            $stmtFilhos = $pdo->prepare("SELECT payload_json FROM form_submissions WHERE linked_client_id = ? AND form_type IN ('convivencia','gastos_pensao','cadastro_cliente') ORDER BY created_at DESC LIMIT 1");
+            $stmtFilhos->execute(array($preClient['id']));
+            $formFilhos = $stmtFilhos->fetch();
+            if ($formFilhos && $formFilhos['payload_json']) {
+                $payload = json_decode($formFilhos['payload_json'], true);
+                if (isset($payload['children']) && is_array($payload['children'])) {
+                    foreach ($payload['children'] as $ch) {
+                        if (isset($ch['name']) && $ch['name']) {
+                            $preFilhos[] = array('nome' => $ch['name'], 'nascimento' => isset($ch['birth_date']) ? $ch['birth_date'] : '', 'cpf' => '');
+                        }
+                    }
+                }
+                if (empty($preFilhos) && isset($payload['nome_filho_referente']) && $payload['nome_filho_referente']) {
+                    $preFilhos[] = array('nome' => $payload['nome_filho_referente'], 'nascimento' => '', 'cpf' => '');
+                }
+            }
+            // Fallback: children_names do cadastro
+            if (empty($preFilhos) && $preClient['children_names']) {
+                $nomes = preg_split('/[,;eE]/', $preClient['children_names']);
+                foreach ($nomes as $n) {
+                    $n = trim($n);
+                    if ($n) $preFilhos[] = array('nome' => $n, 'nascimento' => '', 'cpf' => '');
+                }
+            }
+        } catch (Exception $e) {}
+    }
 }
 
 $statusLabels = array(
@@ -187,6 +238,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-col">
                         <label>Nome da Parte Ré</label>
                         <input type="text" id="parteReNome" name="parte_re_nome" class="form-input" placeholder="Nome da parte contrária">
+                    </div>
+                </div>
+
+                <!-- Filhos (aparece para alimentos) -->
+                <div id="secaoFilhos" style="display:none;margin-bottom:.85rem;padding:1rem;background:rgba(184,115,51,.06);border:1.5px solid rgba(184,115,51,.2);border-radius:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+                        <label style="margin:0;color:#B87333;">Filho(s) — Requerente(s)</label>
+                        <button type="button" onclick="addFilho()" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#B87333;border-color:#B87333;">+ Adicionar filho</button>
+                    </div>
+                    <div id="listaFilhos">
+                        <?php if (!empty($preFilhos)): ?>
+                            <?php foreach ($preFilhos as $fi => $f): ?>
+                            <div class="form-row filho-row" style="margin-bottom:.5rem;align-items:flex-end;">
+                                <div class="form-col"><label style="font-size:.7rem;">Nome completo</label><input type="text" name="filho_nome[]" class="form-input" value="<?= e($f['nome']) ?>" placeholder="Nome do(a) filho(a)"></div>
+                                <div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">Nascimento</label><input type="date" name="filho_nascimento[]" class="form-input" value="<?= e($f['nascimento']) ?>"></div>
+                                <div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">CPF</label><input type="text" name="filho_cpf[]" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00"></div>
+                                <?php if ($fi > 0): ?><button type="button" onclick="this.parentElement.remove();" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:0 4px;margin-bottom:6px;">✕</button><?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="form-row filho-row" style="margin-bottom:.5rem;align-items:flex-end;">
+                                <div class="form-col"><label style="font-size:.7rem;">Nome completo</label><input type="text" name="filho_nome[]" class="form-input" placeholder="Nome do(a) filho(a)"></div>
+                                <div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">Nascimento</label><input type="date" name="filho_nascimento[]" class="form-input"></div>
+                                <div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">CPF</label><input type="text" name="filho_cpf[]" class="form-input" placeholder="000.000.000-00"></div>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -416,6 +493,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     });
 })();
+
+// ── Filhos (para processos de alimentos) ──
+function addFilho() {
+    var html = '<div class="form-row filho-row" style="margin-bottom:.5rem;align-items:flex-end;">';
+    html += '<div class="form-col"><label style="font-size:.7rem;">Nome completo</label><input type="text" name="filho_nome[]" class="form-input" placeholder="Nome do(a) filho(a)"></div>';
+    html += '<div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">Nascimento</label><input type="date" name="filho_nascimento[]" class="form-input"></div>';
+    html += '<div class="form-col" style="max-width:160px;"><label style="font-size:.7rem;">CPF</label><input type="text" name="filho_cpf[]" class="form-input" placeholder="000.000.000-00"></div>';
+    html += '<button type="button" onclick="this.parentElement.remove();" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:0 4px;margin-bottom:6px;">✕</button>';
+    html += '</div>';
+    document.getElementById('listaFilhos').insertAdjacentHTML('beforeend', html);
+}
+
+// Mostrar seção filhos quando tipo contém "alimentos"
+var caseTypeInput = document.querySelector('input[name="case_type"]');
+if (caseTypeInput) {
+    function checkAlimentos() {
+        var val = caseTypeInput.value.toLowerCase();
+        var secao = document.getElementById('secaoFilhos');
+        if (secao) {
+            secao.style.display = (val.indexOf('alimento') !== -1 || val.indexOf('pensão') !== -1 || val.indexOf('pensao') !== -1 || val.indexOf('guarda') !== -1) ? 'block' : 'none';
+        }
+    }
+    caseTypeInput.addEventListener('input', checkAlimentos);
+    caseTypeInput.addEventListener('change', checkAlimentos);
+    checkAlimentos(); // Verificar estado inicial
+}
 
 // ── Máscara CPF/CNPJ + Busca automática ──
 function formatarCpfCnpj(el) {

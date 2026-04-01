@@ -30,6 +30,17 @@ $alteracoes = array(
         "parte_re_cpf_cnpj — CPF ou CNPJ da parte ré",
 );
 
+// Coluna filhos_json em cases (para processos de alimentos)
+$chk = $pdo->query("SHOW COLUMNS FROM cases LIKE 'filhos_json'");
+if (!$chk->fetch()) {
+    try {
+        $pdo->exec("ALTER TABLE cases ADD COLUMN filhos_json TEXT NULL DEFAULT NULL AFTER parte_re_cpf_cnpj");
+        echo "[OK] filhos_json — dados dos filhos (alimentos)\n";
+    } catch (Exception $e) { echo "[ERRO] filhos_json — " . $e->getMessage() . "\n"; }
+} else {
+    echo "[JÁ EXISTE] filhos_json\n";
+}
+
 // Tabela case_andamentos: coluna para registrar envio WhatsApp
 echo "\n--- case_andamentos ---\n";
 $andCols = array(

@@ -141,7 +141,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </form>
     <div class="meta">
+        <?php
+        // Filhos como requerentes (processos de alimentos)
+        $filhos = array();
+        if (isset($case['filhos_json']) && $case['filhos_json']) {
+            $filhos = json_decode($case['filhos_json'], true);
+            if (!is_array($filhos)) $filhos = array();
+        }
+        if (!empty($filhos)):
+            $nomesFilhos = array();
+            foreach ($filhos as $f) { if (isset($f['nome']) && $f['nome']) $nomesFilhos[] = $f['nome']; }
+        ?>
+        👶 <?= e(implode(' e ', $nomesFilhos)) ?> <span style="font-size:.72rem;opacity:.7;">representado(s) por</span> <?= e($case['client_name'] ?? 'Sem cliente') ?>
+        <?php else: ?>
         👤 <?= e($case['client_name'] ?? 'Sem cliente') ?>
+        <?php endif; ?>
         <?php if (isset($case['parte_re_nome']) && $case['parte_re_nome']): ?>
             × <?= e($case['parte_re_nome']) ?><?php if (isset($case['parte_re_cpf_cnpj']) && $case['parte_re_cpf_cnpj']): ?> <span style="font-size:.72rem;opacity:.7;">(<?= e($case['parte_re_cpf_cnpj']) ?>)</span><?php endif; ?>
         <?php endif; ?>
