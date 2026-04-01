@@ -32,7 +32,7 @@ function asaas_request($method, $endpoint, $data = null) {
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT => 30,
-        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_HTTPHEADER => array(
             'Content-Type: application/json',
             'access_token: ' . $cfg['key'],

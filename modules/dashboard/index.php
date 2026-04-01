@@ -66,22 +66,22 @@ $contratosMesAnt = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE convert
 // Faturamento do mês (subtraindo cancelamentos do mês vigente)
 $faturamentoBruto = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
 $canceladoValorMes = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
-$faturamentoMes = $faturamentoBruto; // já exclui cancelados na query
+$faturamentoMes = $faturamentoBruto; // query já exclui cancelados com stage NOT IN
 $faturamentoMesAnt = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAnterior'");
 
 // Ticket médio
 $ticketMedio = $contratosMes > 0 ? round($faturamentoMes / $contratosMes, 2) : 0;
 
-// Melhor mês em 12 meses (faturamento e contratos)
+// Melhor mês em 12 meses (faturamento e contratos) — 1 query em vez de 24
 $melhorFat = 0; $melhorFatMes = '';
 $melhorContratos = 0; $melhorContratosMes = '';
-for ($i = 1; $i <= 12; $i++) {
-    $m = date('Y-m', strtotime("-$i months"));
-    $mLabel = $ML[(int)date('n', strtotime("-$i months"))] . '/' . date('y', strtotime("-$i months"));
-    $fat = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
-    $con = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
-    if ($fat > $melhorFat) { $melhorFat = $fat; $melhorFatMes = $mLabel; }
-    if ($con > $melhorContratos) { $melhorContratos = $con; $melhorContratosMes = $mLabel; }
+$recordRows = qrows($pdo, "SELECT DATE_FORMAT(converted_at,'%Y-%m') as mes, COUNT(*) as cnt, IFNULL(SUM(estimated_value_cents),0)/100 as fat FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND converted_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH) AND DATE_FORMAT(converted_at,'%Y-%m') != '$mesAtual' GROUP BY DATE_FORMAT(converted_at,'%Y-%m')");
+foreach ($recordRows as $rr) {
+    $mesNum = (int)substr($rr['mes'], 5, 2);
+    $anoShort = substr($rr['mes'], 2, 2);
+    $mLabel = $ML[$mesNum] . '/' . $anoShort;
+    if ((float)$rr['fat'] > $melhorFat) { $melhorFat = (float)$rr['fat']; $melhorFatMes = $mLabel; }
+    if ((int)$rr['cnt'] > $melhorContratos) { $melhorContratos = (int)$rr['cnt']; $melhorContratosMes = $mLabel; }
 }
 
 // Tempo médio lead → contrato (dias)

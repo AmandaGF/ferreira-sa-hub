@@ -370,14 +370,31 @@ function find_or_create_client(array $data): int
         if ($row) return (int)$row['id'];
     }
 
-    // 4. Não encontrou — criar novo
+    // 4. Não encontrou — criar novo (com proteção contra duplicatas)
     if (!$name) return 0;
 
-    $pdo->prepare(
-        "INSERT INTO clients (name, phone, email, cpf, source, client_status, created_at) VALUES (?,?,?,?,'outro','ativo',NOW())"
-    )->execute(array($name, $phone ?: null, $email ?: null, isset($data['cpf']) ? $data['cpf'] : null));
-
-    return (int)$pdo->lastInsertId();
+    try {
+        $pdo->prepare(
+            "INSERT INTO clients (name, phone, email, cpf, source, client_status, created_at) VALUES (?,?,?,?,'outro','ativo',NOW())"
+        )->execute(array($name, $phone ?: null, $email ?: null, isset($data['cpf']) ? $data['cpf'] : null));
+        return (int)$pdo->lastInsertId();
+    } catch (Exception $e) {
+        // Se deu erro de duplicata (race condition), buscar o que já existe
+        if ($phone) {
+            $phoneClean = preg_replace('/\D/', '', $phone);
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(phone,' ',''),'-','') LIKE ? LIMIT 1");
+            $stmt->execute(array('%' . substr($phoneClean, -8) . '%'));
+            $row = $stmt->fetch();
+            if ($row) return (int)$row['id'];
+        }
+        if ($name) {
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+            $stmt->execute(array($name));
+            $row = $stmt->fetch();
+            if ($row) return (int)$row['id'];
+        }
+        return 0;
+    }
 }
 
 // ─── Notificações ──────────────────────────────────────

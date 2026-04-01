@@ -10,6 +10,24 @@ require_once __DIR__ . '/../../core/database.php';
 
 header('Content-Type: application/json');
 
+// Autenticação via token no header (configurar no Asaas)
+$webhookToken = '';
+try {
+    $pdo = db();
+    $row = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'asaas_webhook_token' LIMIT 1")->fetch();
+    if ($row) $webhookToken = $row['valor'];
+} catch (Exception $e) {}
+
+if ($webhookToken) {
+    $receivedToken = isset($_SERVER['HTTP_ASAAS_ACCESS_TOKEN']) ? $_SERVER['HTTP_ASAAS_ACCESS_TOKEN'] : '';
+    if (!$receivedToken) $receivedToken = isset($_GET['token']) ? $_GET['token'] : '';
+    if ($receivedToken !== $webhookToken) {
+        http_response_code(401);
+        echo json_encode(array('error' => 'Unauthorized'));
+        exit;
+    }
+}
+
 $input = file_get_contents('php://input');
 $data = json_decode($input, true);
 
