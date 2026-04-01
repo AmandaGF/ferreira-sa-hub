@@ -57,76 +57,93 @@ function process_form_submission($formType, $clientData, $payloadJson)
     ));
     $submissionId = (int)$pdo->lastInsertId();
 
-    // 2. Auto-cadastrar no CRM + Pipeline SOMENTE para cadastro_cliente
-    //    Outros formulários: só salvam a submissão, não entram no CRM/Pipeline
+    // 2. Vincular ao cliente SEMPRE (qualquer tipo de formulário)
+    //    CRM + Pipeline: SOMENTE para cadastro_cliente
     $clientId = null;
     $leadId = null;
-
     $entersCrm = ($formType === 'cadastro_cliente');
 
-    if ($name && $entersCrm) {
-        // Verificar se já existe pelo telefone ou e-mail
-        $existingClient = null;
-        if ($phone) {
-            $check = $pdo->prepare("SELECT id FROM clients WHERE phone = ? LIMIT 1");
-            $check->execute(array($phone));
-            $existingClient = $check->fetch();
-        }
-        if (!$existingClient && $email) {
-            $check = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
-            $check->execute(array($email));
-            $existingClient = $check->fetch();
+    if ($name) {
+        // Buscar cliente existente usando find_or_create_client se disponível
+        if (function_exists('find_or_create_client')) {
+            $clientId = find_or_create_client($name, $phone, $email);
+        } else {
+            // Fallback: buscar por telefone → email → nome
+            $existingClient = null;
+            if ($phone) {
+                $phoneLast8 = substr(preg_replace('/\D/', '', $phone), -8);
+                if (strlen($phoneLast8) >= 8) {
+                    $check = $pdo->prepare("SELECT id FROM clients WHERE phone LIKE ? LIMIT 1");
+                    $check->execute(array('%' . $phoneLast8));
+                    $existingClient = $check->fetch();
+                }
+            }
+            if (!$existingClient && $email) {
+                $check = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
+                $check->execute(array($email));
+                $existingClient = $check->fetch();
+            }
+            if (!$existingClient && $name) {
+                $check = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+                $check->execute(array($name));
+                $existingClient = $check->fetch();
+            }
+
+            if ($existingClient) {
+                $clientId = (int)$existingClient['id'];
+            } else {
+                $pdo->prepare(
+                    "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, gender, has_children, children_names, address_street, address_city, address_state, address_zip, source, notes, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
+                )->execute(array(
+                    $name, $cpf, $rg, $birthDate ?: null,
+                    $phone, $email, $profession, $maritalStatus,
+                    $gender, $hasChildren, $childrenNames,
+                    $addressStreet, $addressCity, $addressState, $addressZip,
+                    'formulario',
+                    'Auto-cadastrado via formulário: ' . $formType
+                ));
+                $clientId = (int)$pdo->lastInsertId();
+            }
         }
 
-        if ($existingClient) {
-            $clientId = (int)$existingClient['id'];
-            // Atualizar dados faltantes (filhos, gênero, etc.)
+        // Atualizar dados faltantes no cliente existente
+        if ($clientId) {
             $updateFields = array();
             $updateParams = array();
             if ($hasChildren !== null) { $updateFields[] = 'has_children=?'; $updateParams[] = $hasChildren; }
             if ($childrenNames) { $updateFields[] = 'children_names=?'; $updateParams[] = $childrenNames; }
             if ($gender) { $updateFields[] = 'gender=?'; $updateParams[] = $gender; }
-            if ($birthDate && !$existingClient['birth_date']) { $updateFields[] = 'birth_date=?'; $updateParams[] = $birthDate; }
-            if ($cpf && empty($existingClient['cpf'])) { $updateFields[] = 'cpf=?'; $updateParams[] = $cpf; }
             if (!empty($updateFields)) {
                 $updateParams[] = $clientId;
                 $pdo->prepare("UPDATE clients SET " . implode(',', $updateFields) . " WHERE id=?")->execute($updateParams);
             }
-        } else {
-            $pdo->prepare(
-                "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status, gender, has_children, children_names, address_street, address_city, address_state, address_zip, source, notes, created_at)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
-            )->execute(array(
-                $name, $cpf, $rg, $birthDate ?: null,
-                $phone, $email, $profession, $maritalStatus,
-                $gender, $hasChildren, $childrenNames,
-                $addressStreet, $addressCity, $addressState, $addressZip,
-                'landing',
-                'Auto-cadastrado via formulário: ' . $formType
-            ));
-            $clientId = (int)$pdo->lastInsertId();
         }
 
-        // Vincular formulário ao cliente
-        $pdo->prepare("UPDATE form_submissions SET linked_client_id = ? WHERE id = ?")
-            ->execute(array($clientId, $submissionId));
-
-        // 3. Auto-criar lead no Pipeline (estágio: cadastro_preenchido)
-        $existingLead = null;
-        if ($phone) {
-            $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato_assinado','finalizado','perdido') LIMIT 1");
-            $check->execute(array($phone));
-            $existingLead = $check->fetch();
+        // Vincular formulário ao cliente (TODOS os tipos)
+        if ($clientId) {
+            $pdo->prepare("UPDATE form_submissions SET linked_client_id = ? WHERE id = ?")
+                ->execute(array($clientId, $submissionId));
         }
 
-        if (!$existingLead) {
-            $pdo->prepare(
-                "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'cadastro_preenchido', ?, NOW())"
-            )->execute(array($name, $phone, $email, $clientId));
-            $leadId = (int)$pdo->lastInsertId();
+        // 3. Auto-criar lead no Pipeline SOMENTE para cadastro_cliente
+        if ($entersCrm && $clientId) {
+            $existingLead = null;
+            if ($phone) {
+                $check = $pdo->prepare("SELECT id FROM pipeline_leads WHERE phone = ? AND stage NOT IN ('contrato_assinado','finalizado','perdido') LIMIT 1");
+                $check->execute(array($phone));
+                $existingLead = $check->fetch();
+            }
 
-            $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'cadastro_preenchido', NOW())")
-                ->execute(array($leadId));
+            if (!$existingLead) {
+                $pdo->prepare(
+                    "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'cadastro_preenchido', ?, NOW())"
+                )->execute(array($name, $phone, $email, $clientId));
+                $leadId = (int)$pdo->lastInsertId();
+
+                $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'cadastro_preenchido', NOW())")
+                    ->execute(array($leadId));
+            }
         }
     }
 
