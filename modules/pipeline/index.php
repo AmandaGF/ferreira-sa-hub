@@ -194,7 +194,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
                 <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $stage['color'] ?>;"
-                     onclick="if(!window._dragging&&!event.target.closest('.lead-actions'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+                     onclick="if(!window._dragging&&!event.target.closest('.lead-actions')){event.preventDefault();abrirDrawer('lead_id=<?= $lead['id'] ?>');}"
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?><span class="phone">📱 <?= e($lead['phone']) ?></span><?php endif; ?>
@@ -665,4 +665,5 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
+<?php $drawerOriginKanban = 'pipeline'; require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
