@@ -39,6 +39,18 @@ $tasks = $tasks->fetchAll();
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
+// Andamentos do caso
+$andamentos = array();
+try {
+    $stmtAnd = $pdo->prepare(
+        "SELECT a.*, u.name as user_name FROM case_andamentos a
+         LEFT JOIN users u ON u.id = a.created_by
+         WHERE a.case_id = ? ORDER BY a.data_andamento DESC, a.created_at DESC"
+    );
+    $stmtAnd->execute(array($caseId));
+    $andamentos = $stmtAnd->fetchAll();
+} catch (Exception $e) { /* tabela pode não existir ainda */ }
+
 // Documentos pendentes deste caso
 $docsPendentes = array();
 $docsRecebidos = array();
@@ -92,6 +104,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
     <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">← Voltar</a>
     <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
+    <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="delete_case">
@@ -257,6 +270,99 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <input type="date" name="due_date" class="form-input" style="width:140px;">
             <button type="submit" class="btn btn-primary btn-sm">+</button>
         </form>
+    </div>
+</div>
+
+<!-- Andamentos Processuais -->
+<div class="card mb-2">
+    <div class="card-header">
+        <h3>Andamentos (<?= count($andamentos) ?>)</h3>
+    </div>
+    <div class="card-body">
+        <!-- Formulário de novo andamento -->
+        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="add_andamento">
+            <input type="hidden" name="case_id" value="<?= $caseId ?>">
+            <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                <input type="date" name="data_andamento" class="form-input" value="<?= date('Y-m-d') ?>" required style="width:150px;">
+                <select name="tipo" class="form-select" style="width:180px;">
+                    <option value="movimentacao">Movimentação</option>
+                    <option value="despacho">Despacho</option>
+                    <option value="decisao">Decisão</option>
+                    <option value="sentenca">Sentença</option>
+                    <option value="audiencia">Audiência</option>
+                    <option value="peticao_juntada">Petição juntada</option>
+                    <option value="intimacao">Intimação</option>
+                    <option value="citacao">Citação</option>
+                    <option value="acordo">Acordo</option>
+                    <option value="recurso">Recurso</option>
+                    <option value="cumprimento">Cumprimento</option>
+                    <option value="diligencia">Diligência</option>
+                    <option value="observacao">Observação interna</option>
+                </select>
+                <button type="submit" class="btn btn-primary btn-sm">+ Adicionar</button>
+            </div>
+            <textarea name="descricao" class="form-input" rows="2" placeholder="Descreva o andamento..." required style="width:100%;font-size:.85rem;"></textarea>
+        </form>
+
+        <?php if (empty($andamentos)): ?>
+            <p class="text-muted text-sm" style="text-align:center;padding:1rem;">Nenhum andamento registrado.</p>
+        <?php else: ?>
+            <div style="position:relative;padding-left:24px;">
+                <!-- Linha vertical da timeline -->
+                <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border);"></div>
+
+                <?php
+                $tipoIcons = array(
+                    'movimentacao'=>'📋','despacho'=>'📤','decisao'=>'⚖️','sentenca'=>'🏛️',
+                    'audiencia'=>'🎤','peticao_juntada'=>'📎','intimacao'=>'📬','citacao'=>'📨',
+                    'acordo'=>'🤝','recurso'=>'📑','cumprimento'=>'✅','diligencia'=>'🔍','observacao'=>'💬'
+                );
+                $tipoCores = array(
+                    'movimentacao'=>'#888','despacho'=>'#B87333','decisao'=>'#052228','sentenca'=>'#052228',
+                    'audiencia'=>'#6B4C9A','peticao_juntada'=>'#059669','intimacao'=>'#dc2626','citacao'=>'#dc2626',
+                    'acordo'=>'#2D7A4F','recurso'=>'#1a3a7a','cumprimento'=>'#059669','diligencia'=>'#B87333','observacao'=>'#888'
+                );
+                $tipoLabels = array(
+                    'movimentacao'=>'Movimentação','despacho'=>'Despacho','decisao'=>'Decisão','sentenca'=>'Sentença',
+                    'audiencia'=>'Audiência','peticao_juntada'=>'Petição juntada','intimacao'=>'Intimação','citacao'=>'Citação',
+                    'acordo'=>'Acordo','recurso'=>'Recurso','cumprimento'=>'Cumprimento','diligencia'=>'Diligência','observacao'=>'Observação'
+                );
+                foreach ($andamentos as $and):
+                    $icon = isset($tipoIcons[$and['tipo']]) ? $tipoIcons[$and['tipo']] : '📋';
+                    $cor = isset($tipoCores[$and['tipo']]) ? $tipoCores[$and['tipo']] : '#888';
+                    $lbl = isset($tipoLabels[$and['tipo']]) ? $tipoLabels[$and['tipo']] : $and['tipo'];
+                ?>
+                <div style="position:relative;margin-bottom:16px;padding-left:20px;">
+                    <!-- Bolinha da timeline -->
+                    <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:<?= $cor ?>;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;"><?= $icon ?></div>
+
+                    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-left:3px solid <?= $cor ?>;">
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
+                            <div>
+                                <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;"><?= $lbl ?></span>
+                                <span style="font-size:.7rem;color:var(--text-muted);margin-left:8px;"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?></span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:6px;">
+                                <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
+                                <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
+                                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este andamento?">
+                                    <?= csrf_input() ?>
+                                    <input type="hidden" name="action" value="delete_andamento">
+                                    <input type="hidden" name="andamento_id" value="<?= $and['id'] ?>">
+                                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                                    <button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.7rem;padding:2px 4px;" title="Excluir">✕</button>
+                                </form>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <p style="font-size:.85rem;margin:0;white-space:pre-wrap;line-height:1.5;"><?= e($and['descricao']) ?></p>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 </div>
 

@@ -395,6 +395,47 @@ switch ($action) {
         redirect(module_url('operacional'));
         break;
 
+    case 'add_andamento':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
+        $tipoAnd = $_POST['tipo'] ?? 'movimentacao';
+        $descAnd = trim($_POST['descricao'] ?? '');
+        if ($caseId && $descAnd) {
+            try {
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())"
+                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, current_user_id()));
+                audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
+                flash_set('success', 'Andamento registrado.');
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao salvar andamento: ' . $e->getMessage());
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
+    case 'delete_andamento':
+        $andId = (int)($_POST['andamento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($andId) {
+            $canDelete = has_min_role('gestao');
+            if (!$canDelete) {
+                $chk = $pdo->prepare("SELECT created_by FROM case_andamentos WHERE id = ?");
+                $chk->execute(array($andId));
+                $row = $chk->fetch();
+                $canDelete = $row && (int)$row['created_by'] === current_user_id();
+            }
+            if ($canDelete) {
+                $pdo->prepare("DELETE FROM case_andamentos WHERE id = ?")->execute(array($andId));
+                audit_log('ANDAMENTO_EXCLUIDO', 'case', $caseId, 'ID: ' . $andId);
+                flash_set('success', 'Andamento excluído.');
+            } else {
+                flash_set('error', 'Sem permissão para excluir.');
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('operacional'));
