@@ -40,11 +40,28 @@ $moradores = isset($payload['moradores']) ? $payload['moradores'] : '—';
 $protocolo = $form['protocol'];
 $dataForm = date('d/m/Y', strtotime($form['created_at']));
 
+// O payload_json pode ter nesting duplo: payload_json contém string JSON com stored/totais
+// Tentar desaninhar se payload_json existe como string dentro do payload
+if (isset($payload['payload_json']) && is_string($payload['payload_json'])) {
+    $inner = json_decode($payload['payload_json'], true);
+    if (is_array($inner)) {
+        // Mesclar dados internos (prioridade para o inner)
+        $payload = array_merge($payload, $inner);
+    }
+}
+
 // Totais podem estar em $payload['totais'] (app) ou no nível raiz (migrado)
 $totais = isset($payload['totais']) ? $payload['totais'] : $payload;
 
 // Detalhamento individual dos gastos (subcategorias)
 $stored = isset($payload['stored']) ? $payload['stored'] : array();
+
+// Se stored é string JSON (aninhado), decodificar
+if (is_string($stored)) {
+    $storedDecoded = json_decode($stored, true);
+    if (is_array($storedDecoded)) $stored = $storedDecoded;
+    else $stored = array();
+}
 
 // Moradia: usar rateada (dividida por moradores)
 $moradiaTotal = isset($totais['moradia_total_cents']) ? (int)$totais['moradia_total_cents'] : 0;
