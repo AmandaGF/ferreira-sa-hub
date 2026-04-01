@@ -99,6 +99,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if ($client['phone']): ?>
             <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php endif; ?>
+        <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
         <?php if (has_min_role('gestao')): ?>
             <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>
             <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
@@ -159,7 +160,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Processos vinculados -->
 <div class="card">
-    <div class="card-header"><h3>Processos / Demandas (<?= count($cases) ?>)</h3></div>
+    <div class="card-header">
+        <h3>Processos / Demandas (<?= count($cases) ?>)</h3>
+        <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">+ Novo Processo</a>
+    </div>
     <?php if (empty($cases)): ?>
         <div class="card-body" style="text-align:center;padding:2rem;color:var(--text-muted);">
             Nenhum processo vinculado a este contato.

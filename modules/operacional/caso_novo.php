@@ -82,6 +82,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // ─── GET: exibir formulario ─────────────────────────────────────────
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
+// Pré-carregar cliente se vier via ?client_id=
+$preClient = null;
+if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
+    $stmtPre = $pdo->prepare("SELECT id, name, cpf, phone FROM clients WHERE id = ?");
+    $stmtPre->execute(array((int)$_GET['client_id']));
+    $preClient = $stmtPre->fetch();
+}
+
 $statusLabels = array(
     'aguardando_docs'   => 'Contrato Assinado — Aguardando Docs',
     'em_elaboracao'     => 'Pasta Apta',
@@ -130,11 +138,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-col" style="flex:2;">
                         <label>Cliente *</label>
                         <div class="busca-cliente-wrap">
-                            <input type="text" id="buscaCliente" class="form-input" placeholder="Digite o nome do cliente..." autocomplete="off">
+                            <input type="text" id="buscaCliente" class="form-input" placeholder="Digite o nome do cliente..." autocomplete="off"<?= $preClient ? ' style="display:none;"' : '' ?>>
                             <div id="buscaResultados" class="busca-cliente-results"></div>
                         </div>
-                        <input type="hidden" name="client_id" id="clientId" value="">
-                        <div id="clienteSelecionado"></div>
+                        <input type="hidden" name="client_id" id="clientId" value="<?= $preClient ? $preClient['id'] : '' ?>">
+                        <div id="clienteSelecionado">
+                            <?php if ($preClient): ?>
+                                <span class="cliente-selecionado"><?= e($preClient['name']) ?> <button type="button" onclick="limparCliente()">&times;</button></span>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
 
