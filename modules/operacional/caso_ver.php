@@ -71,16 +71,17 @@ try {
 } catch (Exception $e) {}
 
 $statusLabels = array(
-    'aguardando_docs' => 'Contrato Assinado — Aguardando Docs',
-    'em_elaboracao' => 'Pasta Apta',
-    'doc_faltante' => 'Documento Faltante',
-    'aguardando_prazo' => 'Aguardando Distribuição / Extrajudicial',
-    'distribuido' => 'Processo Distribuído',
     'em_andamento' => 'Processo em Andamento',
-    'suspenso' => 'Processo Suspenso',
-    'concluido' => 'Processo Finalizado / Arquivado',
-    'cancelado' => 'Cancelado',
-    'arquivado' => 'Arquivado',
+    'suspenso'     => 'Processo Suspenso',
+    'arquivado'    => 'Processo Finalizado / Arquivado',
+    'renunciamos'  => 'Renunciamos',
+);
+
+$statusCores = array(
+    'em_andamento' => '#059669',  // verde
+    'suspenso'     => '#d97706',  // amarelo/laranja
+    'arquivado'    => '#dc2626',  // vermelho
+    'renunciamos'  => '#6b7280',  // cinza
 );
 
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
@@ -119,7 +120,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Header do caso -->
-<div class="caso-header">
+<?php $corStatus = isset($statusCores[$case['status']]) ? $statusCores[$case['status']] : '#052228'; ?>
+<div class="caso-header" style="border-left:6px solid <?= $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
     <h2 style="display:flex;align-items:center;gap:.5rem;">
         <span id="casoTitulo" onclick="editarTitulo()" style="cursor:pointer;" title="Clique para editar o nome da pasta"><?= e($case['title']) ?></span>
         <span onclick="editarTitulo()" style="cursor:pointer;font-size:.7rem;opacity:.6;" title="Editar nome">✏️</span>
@@ -237,9 +239,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="case_id" value="<?= $case['id'] ?>">
                 <div class="form-group" style="margin:0;">
-                    <select name="status" class="form-select" onchange="this.form.submit()">
-                        <?php foreach ($statusLabels as $k => $v): ?>
-                            <option value="<?= $k ?>" <?= $case['status'] === $k ? 'selected' : '' ?>><?= $v ?></option>
+                    <select name="status" class="form-select" id="selectStatus" onchange="this.form.submit()" style="border-left:4px solid <?= $corStatus ?>;font-weight:700;">
+                        <?php foreach ($statusLabels as $k => $v):
+                            $cor = isset($statusCores[$k]) ? $statusCores[$k] : '#888';
+                        ?>
+                            <option value="<?= $k ?>" <?= $case['status'] === $k ? 'selected' : '' ?> style="color:<?= $cor ?>;font-weight:700;"><?= $v ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

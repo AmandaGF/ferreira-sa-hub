@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $responsible_user_id = (int)($_POST['responsible_user_id'] ?? 0);
     $drive_folder_url   = trim($_POST['drive_folder_url'] ?? '');
     $notes              = trim($_POST['notes'] ?? '');
-    $status             = trim($_POST['status'] ?? 'aguardando_docs');
+    $status             = trim($_POST['status'] ?? 'em_andamento');
 
     // Validacoes basicas
     $errors = array();
@@ -99,15 +99,10 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
 }
 
 $statusLabels = array(
-    'aguardando_docs'   => 'Contrato Assinado — Aguardando Docs',
-    'em_elaboracao'     => 'Pasta Apta',
-    'doc_faltante'      => 'Documento Faltante',
-    'aguardando_prazo'  => 'Aguardando Distribuição / Extrajudicial',
-    'distribuido'       => 'Processo Distribuído',
-    'em_andamento'      => 'Processo em Andamento',
-    'suspenso'          => 'Processo Suspenso',
-    'concluido'         => 'Processo Finalizado / Arquivado',
-    'cancelado'         => 'Cancelado',
+    'em_andamento' => 'Processo em Andamento',
+    'suspenso'     => 'Processo Suspenso',
+    'arquivado'    => 'Processo Finalizado / Arquivado',
+    'renunciamos'  => 'Renunciamos',
 );
 
 $departamentos = array(
@@ -262,7 +257,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label>Status</label>
                         <select name="status" class="form-select">
                             <?php foreach ($statusLabels as $k => $v): ?>
-                                <option value="<?= $k ?>" <?= $k === 'aguardando_docs' ? 'selected' : '' ?>><?= $v ?></option>
+                                <option value="<?= $k ?>" <?= $k === 'em_andamento' ? 'selected' : '' ?>><?= $v ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
