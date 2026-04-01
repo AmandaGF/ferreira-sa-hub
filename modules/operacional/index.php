@@ -269,7 +269,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
                 ?>
                 <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" style="border-left-color:<?= $pColor ?>;"
-                     onclick="if(!event.target.closest('select,form,.op-card-move')){event.preventDefault();abrirDrawer('case_id=<?= $cs['id'] ?>');}"
+                     onclick="if(!event.target.closest('select,form,.op-card-move'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;flex-shrink:0;margin-left:4px;">📂</a>
@@ -413,7 +413,7 @@ sort($opTipos);
     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
     $pLabel = isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'];
 ?>
-<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form')){event.preventDefault();abrirDrawer('case_id=<?= $cs['id'] ?>');}" style="cursor:pointer;">
+<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
     <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
     <td class="cell-name"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></td>
     <td><?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?></td>
@@ -892,5 +892,4 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
-<?php $drawerOriginKanban = 'operacional'; require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
