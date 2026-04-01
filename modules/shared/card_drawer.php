@@ -164,9 +164,16 @@ function renderDrawer() {
     document.getElementById('cdTabFinanceiro').style.display = d.can_financeiro ? '' : 'none';
 
     // ── ABA GERAL ──
-    var h = '<div class="cd-section"><h5>Dados do Cliente</h5>';
-    h += field('Nome', c.name) + field('CPF', c.cpf) + field('Telefone', c.phone) + field('E-mail', c.email);
-    h += field('Endereço', [c.address_street, c.address_city, c.address_state].filter(Boolean).join(', '));
+    var cid = d.client_id;
+    var h = '<div class="cd-section"><h5>Dados do Cliente <span style="font-size:.55rem;color:#B87333;font-weight:400;text-transform:none;">(editável)</span></h5>';
+    h += editField('Nome', c.name, 'client', cid, 'name');
+    h += editField('CPF', c.cpf, 'client', cid, 'cpf');
+    h += editField('Telefone', c.phone, 'client', cid, 'phone');
+    h += editField('E-mail', c.email, 'client', cid, 'email');
+    h += editField('Endereço', c.address_street, 'client', cid, 'address_street');
+    h += editField('Cidade', c.address_city, 'client', cid, 'address_city');
+    h += editField('UF', c.address_state, 'client', cid, 'address_state');
+    h += editField('CEP', c.address_zip, 'client', cid, 'address_zip');
     h += '</div>';
     if (l || cs) {
         h += '<div class="cd-section"><h5>Status</h5>';
@@ -219,13 +226,20 @@ function renderDrawer() {
         });
         h += '</div>';
     }
+    // Comentários
+    h += '<div class="cd-section cd-comments-section"><h5>💬 Comentários</h5>' + renderComentarios() + '</div>';
+
     document.getElementById('cdPanelGeral').innerHTML = h;
 
     // ── ABA COMERCIAL ──
     if (d.can_comercial && l) {
-        h = '<div class="cd-section"><h5>Contrato</h5>';
-        h += field('Valor', l.valor_acao || '—') + field('Forma Pagamento', l.forma_pagamento || '—') + field('Vencimento Parcela', l.vencimento_parcela || '—');
-        h += field('Nome Pasta', l.nome_pasta || '—') + field('Pendências', l.pendencias || '—');
+        var lid = d.lead_id;
+        h = '<div class="cd-section"><h5>Contrato <span style="font-size:.55rem;color:#B87333;font-weight:400;text-transform:none;">(editável)</span></h5>';
+        h += editField('Valor', l.valor_acao, 'lead', lid, 'valor_acao');
+        h += editField('Forma Pagamento', l.forma_pagamento, 'lead', lid, 'forma_pagamento');
+        h += editField('Vencimento Parcela', l.vencimento_parcela, 'lead', lid, 'vencimento_parcela');
+        h += editField('Nome Pasta', l.nome_pasta, 'lead', lid, 'nome_pasta');
+        h += editField('Pendências', l.pendencias, 'lead', lid, 'pendencias');
         h += field('Convertido em', l.converted_at ? fmt(l.converted_at) : '—');
         h += '</div>';
         h += '<div class="cd-section"><h5>Histórico Pipeline</h5><div class="cd-timeline">';
@@ -241,10 +255,19 @@ function renderDrawer() {
 
     // ── ABA OPERACIONAL ──
     if (cs) {
-        h = '<div class="cd-section"><h5>Processo</h5>';
-        h += field('Pasta', cs.title) + field('Nº Processo', cs.case_number) + field('Vara', cs.court) + field('Comarca', cs.comarca + (cs.comarca_uf ? '/'+cs.comarca_uf : '') + (cs.regional ? ' — Regional de '+cs.regional : ''));
-        h += field('Sistema', cs.sistema_tribunal) + field('Segredo', cs.segredo_justica == 1 ? 'Sim' : 'Não');
-        h += field('Parte Ré', cs.parte_re_nome);
+        var csid = d.case_id;
+        h = '<div class="cd-section"><h5>Processo <span style="font-size:.55rem;color:#B87333;font-weight:400;text-transform:none;">(editável)</span></h5>';
+        h += editField('Pasta', cs.title, 'case', csid, 'title');
+        h += editField('Nº Processo', cs.case_number, 'case', csid, 'case_number');
+        h += editField('Vara', cs.court, 'case', csid, 'court');
+        h += editField('Comarca', cs.comarca, 'case', csid, 'comarca');
+        h += editField('UF', cs.comarca_uf, 'case', csid, 'comarca_uf');
+        h += editField('Regional', cs.regional, 'case', csid, 'regional');
+        h += editField('Sistema', cs.sistema_tribunal, 'case', csid, 'sistema_tribunal');
+        h += editField('Parte Ré', cs.parte_re_nome, 'case', csid, 'parte_re_nome');
+        h += editField('CPF/CNPJ Parte Ré', cs.parte_re_cpf_cnpj, 'case', csid, 'parte_re_cpf_cnpj');
+        h += editField('Link Drive', cs.drive_folder_url, 'case', csid, 'drive_folder_url');
+        h += editField('Observações', cs.notes, 'case', csid, 'notes', 'textarea');
         h += '</div>';
         // Tarefas
         h += '<div class="cd-section"><h5>Tarefas (' + (d.tasks||[]).length + ')</h5>';
@@ -325,6 +348,109 @@ function renderDrawer() {
 
 function field(label, value) {
     return '<div class="cd-field"><span class="label">' + label + '</span><span class="value">' + esc(value) + '</span></div>';
+}
+
+// Campo editável inline
+function editField(label, value, entity, entityId, fieldName, type) {
+    type = type || 'text';
+    var id = 'ef_' + entity + '_' + fieldName;
+    var val = value || '';
+    var inputHtml = '';
+    if (type === 'textarea') {
+        inputHtml = '<textarea id="' + id + '" style="width:100%;font-size:.78rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;resize:vertical;min-height:40px;">' + esc(val) + '</textarea>';
+    } else {
+        inputHtml = '<input type="' + type + '" id="' + id + '" value="' + esc(val).replace(/"/g,'&quot;') + '" style="width:100%;font-size:.78rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;">';
+    }
+    return '<div class="cd-field" style="flex-direction:column;align-items:stretch;gap:2px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+        + '<span class="label">' + label + '</span>'
+        + '<button onclick="salvarCampo(\'' + entity + '\',' + entityId + ',\'' + fieldName + '\',\'' + id + '\')" style="background:#B87333;color:#fff;border:none;padding:1px 8px;border-radius:4px;font-size:.62rem;font-weight:600;cursor:pointer;">Salvar</button>'
+        + '</div>'
+        + inputHtml
+        + '<span id="' + id + '_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600;">✓ Salvo!</span>'
+        + '</div>';
+}
+
+function salvarCampo(entity, entityId, fieldName, inputId) {
+    var input = document.getElementById(inputId);
+    if (!input) return;
+    var value = input.value;
+    var ok = document.getElementById(inputId + '_ok');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= url("modules/shared/card_actions.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        try {
+            var resp = JSON.parse(xhr.responseText);
+            if (resp.ok) {
+                input.style.borderColor = '#059669';
+                if (ok) { ok.style.display = 'inline'; setTimeout(function(){ ok.style.display = 'none'; }, 2000); }
+                setTimeout(function(){ input.style.borderColor = ''; }, 2000);
+            } else {
+                input.style.borderColor = '#dc2626';
+                alert(resp.error || 'Erro ao salvar');
+            }
+        } catch(e) { alert('Erro ao salvar'); }
+    };
+    xhr.send('action=update_field&entity=' + entity + '&entity_id=' + entityId + '&field=' + fieldName + '&value=' + encodeURIComponent(value));
+}
+
+// ═══ COMENTÁRIOS ═══
+function renderComentarios() {
+    var d = cdData;
+    var h = '<div class="cd-section">';
+    // Form novo comentário
+    h += '<div style="margin-bottom:.75rem;">';
+    h += '<textarea id="cdNovoComentario" style="width:100%;font-size:.82rem;padding:8px;border:1.5px solid var(--border);border-radius:8px;resize:vertical;min-height:60px;" placeholder="Escrever comentário..."></textarea>';
+    h += '<button onclick="enviarComentario()" style="background:#B87333;color:#fff;border:none;padding:5px 16px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;margin-top:4px;">Comentar</button>';
+    h += '</div>';
+    // Lista de comentários
+    var comments = d.comments || [];
+    comments.forEach(function(c) {
+        var nome = c.user_name ? c.user_name.split(' ')[0] : 'Sistema';
+        var initials = c.user_name ? c.user_name.substring(0,2).toUpperCase() : '??';
+        h += '<div style="display:flex;gap:8px;padding:8px 0;border-top:1px solid #f3f4f6;">';
+        h += '<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#052228,#0d3640);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0;">' + initials + '</div>';
+        h += '<div style="flex:1;"><div style="font-size:.72rem;"><strong>' + esc(nome) + '</strong> <span style="color:#94a3b8;">' + fmt(c.created_at) + '</span></div>';
+        h += '<div style="font-size:.8rem;margin-top:2px;white-space:pre-wrap;">' + esc(c.message) + '</div></div>';
+        h += '</div>';
+    });
+    if (!comments.length) h += '<div style="color:#94a3b8;font-size:.78rem;padding:.5rem 0;">Nenhum comentário ainda</div>';
+    h += '</div>';
+    return h;
+}
+
+function enviarComentario() {
+    var ta = document.getElementById('cdNovoComentario');
+    if (!ta || !ta.value.trim()) return;
+    var msg = ta.value.trim();
+    var d = cdData;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= url("modules/shared/card_actions.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        try {
+            var resp = JSON.parse(xhr.responseText);
+            if (resp.ok) {
+                // Adicionar o comentário no topo da lista
+                if (!d.comments) d.comments = [];
+                d.comments.unshift(resp.comment);
+                // Re-renderizar a aba atual se for geral
+                var panel = document.getElementById('cdPanelGeral');
+                if (panel) {
+                    // Atualizar seção de comentários
+                    var comDiv = panel.querySelector('.cd-comments-section');
+                    if (comDiv) comDiv.innerHTML = renderComentarios();
+                }
+                ta.value = '';
+                ta.style.borderColor = '#059669';
+                setTimeout(function(){ ta.style.borderColor = ''; }, 1500);
+            }
+        } catch(e) {}
+    };
+    xhr.send('action=add_comment&client_id=' + d.client_id + '&case_id=' + (d.case_id||0) + '&lead_id=' + (d.lead_id||0) + '&message=' + encodeURIComponent(msg));
 }
 
 // Fechar com ESC

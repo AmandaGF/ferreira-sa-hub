@@ -143,7 +143,15 @@ try {
     $result['compromissos'] = $stmt->fetchAll();
 } catch (Exception $e) {}
 
-// ── 11. HISTÓRICO UNIFICADO ──
+// ── 11. COMENTÁRIOS ──
+$result['comments'] = array();
+try {
+    $stmt = $pdo->prepare("SELECT cc.*, u.name as user_name FROM card_comments cc LEFT JOIN users u ON u.id = cc.user_id WHERE cc.client_id = ? ORDER BY cc.created_at DESC LIMIT 30");
+    $stmt->execute(array($clientId));
+    $result['comments'] = $stmt->fetchAll();
+} catch (Exception $e) {}
+
+// ── 12. HISTÓRICO UNIFICADO ──
 $result['historico'] = array();
 $histItems = array();
 
