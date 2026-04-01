@@ -130,6 +130,7 @@ function _permission_defaults()
         'formularios'         => array('admin','gestao'),
         'relatorios'          => array('admin','gestao'),
         'usuarios'            => array('admin'),
+        'financeiro'          => array('admin','gestao','comercial'),
         'faturamento'         => array('admin'),
     );
 }
@@ -230,6 +231,7 @@ function module_permission_labels()
         'peticoes' => 'Fábrica de Petições',
         'formularios' => 'Formulários',
         'relatorios' => 'Relatórios',
+        'financeiro' => 'Módulo Financeiro',
         'usuarios' => 'Gestão de Usuários',
         'faturamento' => 'Ver Faturamento (R$)',
     );

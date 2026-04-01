@@ -115,6 +115,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">+ Novo Processo</a>
     <?php endif; ?>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId) ?>" class="btn btn-outline btn-sm">🎫 Abrir Chamado</a>
+    <?php if ($case['client_id'] && can_access('financeiro')): ?>
+        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
+    <?php endif; ?>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="delete_case">

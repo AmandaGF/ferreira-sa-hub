@@ -66,7 +66,7 @@ function process_form_submission($formType, $clientData, $payloadJson)
     if ($name) {
         // Buscar cliente existente usando find_or_create_client se disponível
         if (function_exists('find_or_create_client')) {
-            $clientId = find_or_create_client($name, $phone, $email);
+            $clientId = find_or_create_client(array('name' => $name, 'phone' => $phone, 'email' => $email));
         } else {
             // Fallback: buscar por telefone → email → nome
             $existingClient = null;
