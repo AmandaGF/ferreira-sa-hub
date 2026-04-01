@@ -175,6 +175,43 @@ function renderDrawer() {
         if (cs) h += field('Tipo de Ação', cs.case_type) + field('Departamento', cs.departamento);
         h += '</div>';
     }
+    // Dados do formulário de cadastro
+    if (d.form_data) {
+        var fd = d.form_data;
+        var formLabels = {
+            'profissao':'Profissão','estado_civil':'Estado Civil','rg':'RG','nascimento':'Nascimento',
+            'cep':'CEP','endereco':'Endereço','cidade':'Cidade','uf':'UF',
+            'pix':'PIX','conta_bancaria':'Conta Bancária',
+            'imposto_renda':'Declara IR?','clt':'CLT?','filhos':'Tem filhos?','nome_filhos':'Nome dos filhos',
+            'tipo_atendimento':'Tipo Atendimento','autoriza_contato':'Autoriza contato?',
+            'fam_saude':'Saúde (família)','fam_escola':'Escola','fam_pensao_atual':'Pensão atual',
+            'fam_trabalho_genitor':'Trabalho do genitor','fam_contato_genitor':'Contato do genitor',
+            'fam_endereco_genitor':'Endereço do genitor',
+            'nome_responsavel':'Responsável','cpf_responsavel':'CPF Responsável',
+            'whatsapp':'WhatsApp','nome_filho_referente':'Filho referente',
+            'tea_status':'TEA?','faz_tratamento_especifico':'Tratamento específico?',
+            'detalhe_tratamento':'Detalhe tratamento','qtd_filhos':'Qtd filhos',
+            'fonte_renda':'Fonte de renda','obs_renda':'Obs. renda',
+            'quem_paga':'Quem paga','moradores':'Moradores',
+            'situacao':'Situação','porcentagem':'Porcentagem','idade_filhos':'Idade dos filhos',
+        };
+        var skipForm = ['nome','name','client_name','client_phone','client_email','email','celular','phone',
+            'cpf','form_type','protocol_original','protocol','protocolo','id','created_at','updated_at',
+            'ip','ip_address','user_agent','data_envio','seconds','nanoseconds','payload_json','totais'];
+        h += '<div class="cd-section"><h5>Formulário de Cadastro</h5>';
+        for (var fk in fd) {
+            if (skipForm.indexOf(fk) >= 0) continue;
+            var val = fd[fk];
+            if (val === null || val === '' || typeof val === 'object') continue;
+            // Converter centavos
+            if (fk.indexOf('_cents') >= 0 && !isNaN(val)) val = fmtR(val / 100);
+            var lbl = formLabels[fk] || fk.replace(/_/g,' ').replace(/\b\w/g, function(c){return c.toUpperCase();});
+            h += field(lbl, String(val));
+        }
+        if (d.form_date) h += '<div style="font-size:.62rem;color:#94a3b8;margin-top:.3rem;">Preenchido em ' + fmt(d.form_date) + '</div>';
+        h += '</div>';
+    }
+
     if (d.casos_todos && d.casos_todos.length > 1) {
         h += '<div class="cd-section"><h5>Processos (' + d.casos_todos.length + ')</h5>';
         d.casos_todos.forEach(function(ct) {

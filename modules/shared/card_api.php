@@ -48,6 +48,22 @@ $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = ?");
 $stmt->execute(array($clientId));
 $result['client'] = $stmt->fetch();
 
+// ── 1B. FORMULÁRIO DE CADASTRO (dados extras do cliente) ──
+$result['form_data'] = null;
+try {
+    $stmtForm = $pdo->prepare("SELECT payload_json, form_type, created_at FROM form_submissions WHERE linked_client_id = ? ORDER BY created_at DESC LIMIT 1");
+    $stmtForm->execute(array($clientId));
+    $formRow = $stmtForm->fetch();
+    if ($formRow && $formRow['payload_json']) {
+        $payload = json_decode($formRow['payload_json'], true);
+        if (is_array($payload)) {
+            $result['form_data'] = $payload;
+            $result['form_type'] = $formRow['form_type'];
+            $result['form_date'] = $formRow['created_at'];
+        }
+    }
+} catch (Exception $e) {}
+
 // ── 2. LEAD (Pipeline) ──
 $result['lead'] = null;
 if ($leadId) {
