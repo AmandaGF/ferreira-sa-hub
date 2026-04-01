@@ -423,7 +423,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <input type="hidden" name="action" value="delete_andamento">
                                     <input type="hidden" name="andamento_id" value="<?= $and['id'] ?>">
                                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                                    <button type="submit" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.7rem;padding:2px 4px;" title="Excluir">✕</button>
+                                    <button type="submit" onclick="return confirm('Excluir este andamento? Esta ação não pode ser desfeita.');" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.7rem;padding:2px 4px;" title="Excluir">✕</button>
                                 </form>
                                 <?php endif; ?>
                             </div>
