@@ -432,7 +432,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>
                                 <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;">
-                                    <a href="#" onclick="enviarWhatsApp(<?= $and['id'] ?>, '<?= $clientWhatsapp ?>?text=<?= urlencode($msgAnd) ?>'); return false;" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">💬 Enviar</a>
+                                    <a href="#" onclick="enviarWhatsApp(<?= $and['id'] ?>, '<?= e($clientWhatsapp) ?>?text=<?= e(urlencode($msgAnd)) ?>'); return false;" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">💬 Enviar</a>
                                     <?php if ($jaEnviou): ?>
                                         <span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span>
                                     <?php endif; ?>

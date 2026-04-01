@@ -138,7 +138,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Detectar se é formato LegalOne:
     // 1. Header contém "Confidencial" (com ou sem encoding quebrado)
     // 2. Primeira linha tem 10+ ponto e vírgula (LegalOne tem ~15 campos)
-    $primeiraLinha = strtok($conteudo, "\n");
+    $linhas_temp = explode("\n", $conteudo);
+    $primeiraLinha = isset($linhas_temp[0]) ? $linhas_temp[0] : '';
     $semicolonCount = substr_count($primeiraLinha, ';');
     $isLegalOne = ($semicolonCount >= 10) || (stripos($conteudo, 'onfidencial') !== false && stripos($conteudo, 'ipo de origem') !== false);
 

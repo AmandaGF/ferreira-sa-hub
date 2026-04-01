@@ -382,7 +382,7 @@ switch ($action) {
         break;
 
     case 'delete_case':
-        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); break; }
+        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); redirect(module_url('operacional')); }
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId) {
             // Desvincular lead do pipeline
