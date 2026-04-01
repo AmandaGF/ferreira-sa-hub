@@ -180,6 +180,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="fab-step-num">3</div>
                     <div class="fab-step-title">Dados específicos da ação</div>
                 </div>
+                <!-- Opções processuais fixas -->
+                <div style="background:rgba(5,34,40,.03);border:1.5px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem;">
+                    <label style="font-size:.85rem;font-weight:700;color:var(--petrol-900);margin-bottom:.75rem;display:block;">Opções processuais</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;">
+                        <div class="fab-campo" style="margin-bottom:0;">
+                            <label>Gratuidade de Justiça</label>
+                            <select id="opGratuidade" name="op_gratuidade" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;">
+                                <option value="sim">Sim — Pedir gratuidade</option>
+                                <option value="nao">Não — Não pedir</option>
+                            </select>
+                        </div>
+                        <div class="fab-campo" style="margin-bottom:0;">
+                            <label>Audiência de conciliação/mediação</label>
+                            <select id="opAudiencia" name="op_audiencia" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;">
+                                <option value="dispensar">Dispensar audiência</option>
+                                <option value="remota">Sim — Remota via CEJUSC (Juízo 100% Digital)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top:.75rem;">
+                        <div class="fab-campo" style="margin-bottom:0;">
+                            <label>Tutela provisória</label>
+                            <select id="opTutela" name="op_tutela" onchange="toggleTutelaDesc()" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;">
+                                <option value="nao">Não pedir tutela</option>
+                                <option value="urgencia_antecipada">Tutela provisória de urgência antecipada (art. 300 CPC)</option>
+                                <option value="cautelar">Tutela cautelar (art. 305 CPC)</option>
+                                <option value="evidencia">Tutela de evidência (art. 311 CPC)</option>
+                            </select>
+                        </div>
+                        <div id="tutelaDescBox" style="display:none;margin-top:.5rem;">
+                            <div class="fab-campo" style="margin-bottom:0;">
+                                <label>Descreva o que deseja pedir na tutela</label>
+                                <textarea id="opTutelaDesc" name="op_tutela_desc" rows="3" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" placeholder="Ex: Fixação de alimentos provisórios no valor de R$ 1.500/mês; guarda provisória em favor da genitora; proibição de contato com a criança..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="camposAcaoContainer">
                     <p style="color:var(--text-muted);font-size:.82rem;">Selecione o tipo de ação no Passo 1.</p>
                 </div>
@@ -428,6 +466,12 @@ function gerarPeticao() {
     formData.append('cl_telefone', document.getElementById('cl_telefone').value);
     formData.append('cl_email', document.getElementById('cl_email').value);
 
+    // Opções processuais fixas
+    formData.append('op_gratuidade', document.getElementById('opGratuidade').value);
+    formData.append('op_audiencia', document.getElementById('opAudiencia').value);
+    formData.append('op_tutela', document.getElementById('opTutela').value);
+    formData.append('op_tutela_desc', document.getElementById('opTutelaDesc').value);
+
     // Campos específicos da ação
     document.querySelectorAll('#camposAcaoContainer input, #camposAcaoContainer select, #camposAcaoContainer textarea').forEach(function(el) {
         if (el.name) formData.append(el.name, el.value);
@@ -602,6 +646,12 @@ function preencherCliente(cl) {
     document.getElementById('cl_cep').value = cl.address_zip || '';
     document.getElementById('cl_telefone').value = cl.phone || '';
     document.getElementById('cl_email').value = cl.email || '';
+}
+
+// === Toggle tutela desc ===
+function toggleTutelaDesc() {
+    var val = document.getElementById('opTutela').value;
+    document.getElementById('tutelaDescBox').style.display = val === 'nao' ? 'none' : 'block';
 }
 
 // === Busca CEP via ViaCEP (gratuito) ===

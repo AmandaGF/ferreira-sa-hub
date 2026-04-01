@@ -126,6 +126,40 @@ if ($action === 'gerar') {
         }
     }
 
+    // Opções processuais fixas
+    $opGratuidade = trim($_POST['op_gratuidade'] ?? 'sim');
+    $opAudiencia = trim($_POST['op_audiencia'] ?? 'dispensar');
+    $opTutela = trim($_POST['op_tutela'] ?? 'nao');
+    $opTutelaDesc = trim($_POST['op_tutela_desc'] ?? '');
+
+    $opcoesProc = '';
+    if ($opGratuidade === 'sim') {
+        $opcoesProc .= "GRATUIDADE DE JUSTIÇA: SIM — Incluir seção 'DA GRATUIDADE DE JUSTIÇA' e indicação à direita.\n";
+    } else {
+        $opcoesProc .= "GRATUIDADE DE JUSTIÇA: NÃO — Não incluir seção de gratuidade nem indicação.\n";
+    }
+
+    if ($opAudiencia === 'dispensar') {
+        $opcoesProc .= "AUDIÊNCIA: DISPENSAR — Pedir a dispensa de audiência de conciliação/mediação prévia, considerando o grau de litigiosidade. Caso indeferida a dispensa, requerer que a sessão seja designada de forma remota, via CEJUSC, com mediador especializado em conflitos familiares, com fundamento na Lei n. 13.140/2015 e no art. 165, §3º, do CPC.\n";
+    } else {
+        $opcoesProc .= "AUDIÊNCIA: SIM, REMOTA — Requerer a designação de sessão de mediação/conciliação de forma remota, via CEJUSC, em razão da adoção do Juízo 100% Digital (Resolução 385/2021 do CNJ), com mediador especializado, com fundamento na Lei n. 13.140/2015 e no art. 165, §3º, do CPC.\n";
+    }
+
+    $tutelaLabels = array(
+        'urgencia_antecipada' => 'Tutela provisória de urgência antecipada (art. 300 CPC)',
+        'cautelar' => 'Tutela cautelar (art. 305 CPC)',
+        'evidencia' => 'Tutela de evidência (art. 311 CPC)',
+    );
+    if ($opTutela !== 'nao' && isset($tutelaLabels[$opTutela])) {
+        $opcoesProc .= "TUTELA PROVISÓRIA: SIM — " . $tutelaLabels[$opTutela] . "\n";
+        if ($opTutelaDesc) {
+            $opcoesProc .= "PEDIDO DE TUTELA: " . $opTutelaDesc . "\n";
+            $opcoesProc .= "IMPORTANTE: Elabore uma seção específica 'DA TUTELA PROVISÓRIA' com fundamentação jurídica robusta para o pedido descrito acima. Demonstre a probabilidade do direito e o perigo de dano/risco ao resultado útil do processo. Inclua o pedido de tutela nos pedidos finais.\n";
+        }
+    } else {
+        $opcoesProc .= "TUTELA PROVISÓRIA: NÃO — Não pedir tutela.\n";
+    }
+
     // Recursos visuais solicitados
     $visuais = array();
     $visuaisMap = array(
@@ -174,6 +208,7 @@ FIXO;
     $userPrompt = $promptFixo . "\n\n";
     $userPrompt .= "Tipo de peça: $labelPeca\nTipo de ação: $labelAcao\n\n";
     $userPrompt .= "DADOS DO CLIENTE (PARTE AUTORA):\n$dadosCliente\n\n";
+    $userPrompt .= "OPÇÕES PROCESSUAIS:\n$opcoesProc\n";
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";
     $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
