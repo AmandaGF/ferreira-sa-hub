@@ -195,7 +195,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <select name="forma_pagamento" class="form-select"><option value="PIX">PIX</option><option value="BOLETO">Boleto</option><option value="UNDEFINED">Todas</option></select></div>
         </div>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Valor (R$)</label><input type="number" name="valor" class="form-input" step="0.01" min="5" required></div>
+            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Valor (R$)</label><input type="text" name="valor" class="form-input input-reais" required placeholder="0,00"></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Vencimento</label><input type="date" name="vencimento" class="form-input" required value="<?= date('Y-m-d', strtotime('+3 days')) ?>"></div>
         </div>
         <div id="parcCob2" style="display:none;gap:.5rem;margin-bottom:.6rem;">

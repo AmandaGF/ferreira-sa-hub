@@ -18,7 +18,9 @@ switch ($action) {
     case 'criar_cobranca':
         $clientId = (int)($_POST['client_id'] ?? 0);
         $tipo = $_POST['tipo'] ?? 'unica';
-        $valor = (float)($_POST['valor'] ?? 0);
+        // Converter "1.500,00" → 1500.00
+        $valorRaw = $_POST['valor'] ?? '0';
+        $valor = (float)str_replace(array('.', ','), array('', '.'), preg_replace('/[^\d,.]/', '', $valorRaw));
         $vencimento = $_POST['vencimento'] ?? '';
         $descricao = clean_str($_POST['descricao'] ?? 'Honorários Advocatícios', 250);
         $formaPag = $_POST['forma_pagamento'] ?? 'PIX';

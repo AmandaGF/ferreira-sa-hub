@@ -27,7 +27,7 @@ function qrows($pdo, $sql) { try { return $pdo->query($sql)->fetchAll(); } catch
 // ═══════════════════════════════════════════════════════════
 // METAS (editáveis pelo admin, salvas em configuracoes)
 // ═══════════════════════════════════════════════════════════
-$metasDefault = array('contratos_mes' => 10, 'faturamento_mes' => 50000, 'distribuicoes_mes' => 8, 'entregas_mes' => 5);
+$metasDefault = array('contratos_mes' => 10, 'faturamento_mes' => 50000, 'distribuicoes_mes' => 8);
 $metas = $metasDefault;
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, chave VARCHAR(60) UNIQUE NOT NULL, valor TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
@@ -45,7 +45,10 @@ try {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'salvar_metas' && has_role('admin')) {
     if (validate_csrf()) {
         foreach (array_keys($metasDefault) as $mk) {
-            $val = (int)($_POST[$mk] ?? 0);
+            $raw = $_POST[$mk] ?? '0';
+            // Limpar formatação BR: "50.000,00" → 50000
+            $limpo = preg_replace('/[^\d]/', '', $raw);
+            $val = (int)$limpo;
             if ($val > 0) {
                 try { $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?")->execute(array('meta_' . $mk, $val, $val)); $metas[$mk] = $val; } catch (Exception $e) {}
             }
@@ -435,7 +438,7 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 
 <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon orange">🏛️</div><div><div class="kpi-value"><?= $distribuidos ?></div><div class="kpi-label">Distribuídos <?= $mesNome ?></div><?= comparativo($distribuidos, $distribuidosAnt) ?><?= metaBar($distribuidos, $metas['distribuicoes_mes'], '100px') ?></div></a>
-    <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">📦</div><div><div class="kpi-value"><?= $entregasMes ?></div><div class="kpi-label">Entregues <?= $mesNome ?></div><?= metaBar($entregasMes, $metas['entregas_mes'], '100px') ?></div></a>
+    <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">📦</div><div><div class="kpi-value"><?= $entregasMes ?></div><div class="kpi-label">Finalizados <?= $mesNome ?></div></div></a>
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">📂</div><div><div class="kpi-value"><?= $pastasAptas ?></div><div class="kpi-label">Pastas Aptas</div></div></a>
 </div>
 
@@ -480,9 +483,8 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     <h3 style="font-size:1rem;margin-bottom:1rem;color:var(--petrol-900);">⚙️ Metas Mensais</h3>
     <form method="POST"><?= csrf_input() ?><input type="hidden" name="action" value="salvar_metas">
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Contratos / mês</label><input type="number" name="contratos_mes" value="<?= $metas['contratos_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
-        <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Faturamento / mês (R$)</label><input type="number" name="faturamento_mes" value="<?= $metas['faturamento_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
+        <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Faturamento / mês</label><input type="text" name="faturamento_mes" value="<?= number_format($metas['faturamento_mes'], 2, ',', '.') ?>" class="form-input" style="width:100%;" placeholder="R$ 50.000,00" oninput="this.value=formatarReais(this.value)"></div>
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Distribuições / mês</label><input type="number" name="distribuicoes_mes" value="<?= $metas['distribuicoes_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
-        <div style="margin-bottom:1rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Entregas / mês</label><input type="number" name="entregas_mes" value="<?= $metas['entregas_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;">
             <button type="button" onclick="document.getElementById('modalMetas').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
             <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar</button>

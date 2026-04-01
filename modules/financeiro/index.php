@@ -224,7 +224,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Valor (R$) *</label>
-                <input type="number" name="valor" class="form-input" step="0.01" min="5" required placeholder="0,00">
+                <input type="text" name="valor" class="form-input input-reais" required placeholder="0,00">
             </div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Vencimento *</label>
                 <input type="date" name="vencimento" class="form-input" required value="<?= date('Y-m-d', strtotime('+3 days')) ?>">

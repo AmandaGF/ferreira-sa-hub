@@ -3,6 +3,7 @@
 </div><!-- /.app-layout -->
 
 <script src="<?= url('assets/js/conecta.js') ?>"></script>
+<script src="<?= url('assets/js/helpers.js') ?>"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('<?= url('sw.js') ?>').catch(function(){});}</script>
 <?php if (!empty($extraJs)): ?>
     <script><?= $extraJs ?></script>

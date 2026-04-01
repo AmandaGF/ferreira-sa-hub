@@ -138,7 +138,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">CPF</label>
-                        <input type="text" name="cpf" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00">
+                        <input type="text" name="cpf" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)">
                     </div>
                     <div class="form-group">
                         <label class="form-label">RG</label>
@@ -166,13 +166,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
 
                 <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">CEP</label>
+                        <input type="text" name="address_zip" id="cepInput" class="form-input" value="<?= e($f['address_zip']) ?>" placeholder="00000-000" maxlength="9" oninput="formatarCEP(this)" onblur="buscarCEP(this,{endereco:'[name=address_street]',cidade:'[name=address_city]',uf:'[name=address_state]'})">
+                        <span class="cep-loading" style="display:none;font-size:.7rem;color:var(--text-muted);">Buscando...</span>
+                    </div>
                     <div class="form-group" style="grid-column: span 2;">
                         <label class="form-label">Endereço</label>
                         <input type="text" name="address_street" class="form-input" value="<?= e($f['address_street']) ?>" placeholder="Rua, número, complemento">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">CEP</label>
-                        <input type="text" name="address_zip" class="form-input" value="<?= e($f['address_zip']) ?>" placeholder="00000-000">
                     </div>
                 </div>
 
