@@ -23,12 +23,19 @@ foreach ($paths as $p) {
     echo "\nTentando: $p\n";
     if (file_exists($p)) {
         echo "ENCONTRADO! (" . filesize($p) . " bytes)\n\n";
-        // Mostrar só as linhas do JS relevante (últimas 120 linhas)
+        // Mostrar linhas que contêm "collection" ou "leads_calculadora" ou "pensionForm" ou "then"
         $lines = file($p);
         $total = count($lines);
-        $start = max(0, $total - 120);
-        for ($i = $start; $i < $total; $i++) {
-            echo ($i+1) . ": " . $lines[$i];
+        echo "Total linhas: $total\n\n";
+        for ($i = 0; $i < $total; $i++) {
+            $l = $lines[$i];
+            if (stripos($l, 'collection') !== false || stripos($l, 'leads_calc') !== false
+                || stripos($l, 'pensionForm') !== false || stripos($l, '.then') !== false
+                || stripos($l, 'submit') !== false || stripos($l, 'dados') !== false
+                || stripos($l, 'btnCalc') !== false || stripos($l, 'valorFinal') !== false
+                || stripos($l, 'result') !== false) {
+                echo ($i+1) . ": " . rtrim($l) . "\n";
+            }
         }
         break;
     } else {
