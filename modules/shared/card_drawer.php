@@ -292,4 +292,25 @@ function field(label, value) {
 
 // Fechar com ESC
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') fecharDrawer(); });
+
+// ── Interceptar cliques nos cards SEM modificar o HTML ──
+// Captura o clique antes do onclick inline e abre o drawer em vez de navegar
+document.addEventListener('click', function(e) {
+    // Card do Operacional
+    var opCard = e.target.closest('.op-card[data-case-id]');
+    if (opCard && !e.target.closest('select,form,.op-card-move,a')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        abrirDrawer('case_id=' + opCard.getAttribute('data-case-id'));
+        return false;
+    }
+    // Card do Pipeline
+    var leadCard = e.target.closest('.lead-card[data-lead-id]');
+    if (leadCard && !e.target.closest('.lead-actions,select,form,a')) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        abrirDrawer('lead_id=' + leadCard.getAttribute('data-lead-id'));
+        return false;
+    }
+}, true); // true = fase de captura (antes do onclick inline)
 </script>

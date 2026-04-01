@@ -665,4 +665,5 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
+<?php $drawerOriginKanban = 'pipeline'; require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
