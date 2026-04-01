@@ -107,18 +107,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $userId = current_user_id();
     $registros = array();
 
-    // Ler conteúdo
+    // Ler conteúdo: arquivo > texto colado > conteúdo salvo do preview
     $conteudo = '';
     if (!empty($_FILES['arquivo']['tmp_name']) && $_FILES['arquivo']['error'] === UPLOAD_ERR_OK) {
         $conteudo = file_get_contents($_FILES['arquivo']['tmp_name']);
     } elseif (trim($_POST['texto'] ?? '') !== '') {
         $conteudo = $_POST['texto'];
+    } elseif (trim($_POST['conteudo_salvo'] ?? '') !== '') {
+        // Conteúdo salvo do preview anterior
+        $conteudo = $_POST['conteudo_salvo'];
     }
 
     if ($conteudo === '') {
         flash_set('error', 'Nenhum dado fornecido.');
         redirect(module_url('operacional', 'importar_andamentos.php?case_id=' . $caseId));
     }
+
+    // Guardar conteúdo para o próximo submit (preview → importar)
+    $conteudoSalvo = $conteudo;
 
     // BOM UTF-8
     if (substr($conteudo, 0, 3) === "\xEF\xBB\xBF") {
@@ -323,6 +329,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <form method="POST" enctype="multipart/form-data" id="formImportar">
                 <?= csrf_input() ?>
                 <input type="hidden" name="modo" id="modoImportar" value="preview">
+                <?php if (isset($conteudoSalvo) && $conteudoSalvo): ?>
+                    <textarea name="conteudo_salvo" style="display:none;"><?= e($conteudoSalvo) ?></textarea>
+                <?php endif; ?>
 
                 <div style="margin-bottom:1rem;">
                     <label style="font-size:.78rem;font-weight:700;color:var(--petrol-900);display:block;margin-bottom:.3rem;">Upload CSV do LegalOne</label>
