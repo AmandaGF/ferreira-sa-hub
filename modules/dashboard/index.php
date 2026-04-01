@@ -86,10 +86,8 @@ for ($i = 1; $i <= 12; $i++) {
 $tempoMedio = qfloat($pdo, "SELECT AVG(DATEDIFF(converted_at, created_at)) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
 
 // Pipeline por estágio — sem importados
-// Aguardando assinatura = SOMENTE quem recebeu o link mas ainda não assinou
-$aguardandoContrato = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'link_enviados' AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
-// Em captação = ainda preparando docs/contrato
-$emCaptacao = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs') AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
+// Aguardando assinatura = cadastro_preenchido + elaboracao_docs + link_enviados (antes de assinar)
+$aguardandoContrato = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs','link_enviados') AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
 $pastasAptas = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'pasta_apta'");
 
 // Cancelados
