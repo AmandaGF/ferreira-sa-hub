@@ -122,6 +122,10 @@ function fmt($cents) { return 'R$ ' . number_format($cents / 100, 2, ',', '.'); 
 function pct($parte, $total) { return $total > 0 ? round(($parte / $total) * 100, 1) : 0; }
 
 $logoUrl = url('assets/img/logo.png');
+
+// DEBUG: ver estrutura real dos dados (visível no código-fonte)
+$debugStoredKeys = !empty($stored) ? implode(', ', array_keys($stored)) : 'VAZIO';
+$debugTotaisKeys = is_array($totais) ? implode(', ', array_keys($totais)) : 'VAZIO';
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -348,6 +352,10 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
             <?php endforeach; ?>
         </div>
     </div>
+
+    <!-- DEBUG (remover depois): -->
+    <!-- STORED KEYS: <?= $debugStoredKeys ?> -->
+    <!-- TOTAIS KEYS: <?= $debugTotaisKeys ?> -->
 
     <!-- Nota legal -->
     <div class="nota-legal">
