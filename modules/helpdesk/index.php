@@ -19,8 +19,8 @@ $search         = trim($_GET['q'] ?? '');
 $where = [];
 $params = [];
 
-// Admin vê tudo. Outros veem: seus chamados + chamados do seu setor
-if (!has_role('admin')) {
+// Admin e Gestão veem tudo. Outros veem: seus chamados + chamados do seu setor
+if (!has_role('admin') && !has_role('gestao')) {
     $userSetor = current_user()['setor'] ?? '';
     if ($userSetor) {
         $where[] = "(t.requester_id = ? OR ta.user_id = ? OR t.department = ?)";
