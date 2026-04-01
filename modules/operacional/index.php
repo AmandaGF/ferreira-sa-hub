@@ -263,7 +263,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 ?>
                 <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" style="border-left-color:<?= $pColor ?>;"
                      onclick="if(!event.target.closest('select,form,.op-card-move'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
-                    <div class="op-card-name"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+                        <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
+                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;flex-shrink:0;margin-left:4px;">📂</a>
+                    </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
                     <div class="op-card-badges">
                         <span class="op-card-badge" style="background:<?= $pColor ?>;"><?= isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'] ?></span>
@@ -280,9 +283,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </span>
                         <?php endif; ?>
                     </div>
-                    <?php if (!empty($cs['drive_folder_url'])): ?>
-                        <a href="<?= e($cs['drive_folder_url']) ?>" target="_blank" onclick="event.stopPropagation();" style="font-size:.58rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.2rem;">📂 Pasta Drive</a>
-                    <?php endif; ?>
                     <?php if ($cs['case_number']): ?>
                         <div class="op-card-process">🏛️ <?= e($cs['case_number']) ?></div>
                     <?php endif; ?>
