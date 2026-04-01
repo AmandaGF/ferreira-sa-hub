@@ -115,7 +115,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Header do caso -->
 <div class="caso-header">
-    <h2><?= e($case['title']) ?></h2>
+    <h2 style="display:flex;align-items:center;gap:.5rem;">
+        <span id="casoTitulo" onclick="editarTitulo()" style="cursor:pointer;" title="Clique para editar o nome da pasta"><?= e($case['title']) ?></span>
+        <span onclick="editarTitulo()" style="cursor:pointer;font-size:.7rem;opacity:.6;" title="Editar nome">✏️</span>
+    </h2>
+    <form id="formTitulo" method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:none;margin-bottom:.5rem;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="update_title">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <div style="display:flex;gap:.35rem;align-items:center;">
+            <input type="text" name="title" id="inputTitulo" value="<?= e($case['title']) ?>" style="flex:1;padding:.4rem .6rem;font-size:1rem;font-weight:700;border:2px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-family:inherit;">
+            <button type="submit" style="background:#059669;color:#fff;border:none;padding:.4rem .8rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;">Salvar</button>
+            <button type="button" onclick="cancelarTitulo()" style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:.4rem .6rem;border-radius:8px;font-size:.78rem;cursor:pointer;">✕</button>
+        </div>
+    </form>
     <div class="meta">
         👤 <?= e($case['client_name'] ?? 'Sem cliente') ?>
         · <?= e($case['case_type']) ?>
@@ -396,4 +409,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 <?php endif; ?>
 
+<script>
+function editarTitulo() {
+    document.getElementById('casoTitulo').parentElement.style.display = 'none';
+    document.getElementById('formTitulo').style.display = 'block';
+    var input = document.getElementById('inputTitulo');
+    input.focus();
+    input.select();
+}
+function cancelarTitulo() {
+    document.getElementById('casoTitulo').parentElement.style.display = 'flex';
+    document.getElementById('formTitulo').style.display = 'none';
+}
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

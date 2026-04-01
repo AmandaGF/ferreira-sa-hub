@@ -395,6 +395,17 @@ switch ($action) {
         redirect(module_url('operacional'));
         break;
 
+    case 'update_title':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $newTitle = trim($_POST['title'] ?? '');
+        if ($caseId && $newTitle) {
+            $pdo->prepare("UPDATE cases SET title = ?, updated_at = NOW() WHERE id = ?")->execute(array($newTitle, $caseId));
+            audit_log('CASE_TITLE_CHANGED', 'case', $caseId, $newTitle);
+            flash_set('success', 'Nome da pasta atualizado.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
