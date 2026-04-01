@@ -274,10 +274,6 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
         <div class="kpi-icon green">✅</div>
         <div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div>
     </a>
-    <a href="?tab=comercial" class="kpi-card">
-        <div class="kpi-icon purple">💰</div>
-        <div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 0, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt) ?></div>
-    </a>
     <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon blue">📝</div>
         <div><div class="kpi-value"><?= $aguardandoContrato ?></div><div class="kpi-label">Aguardando Contrato</div><div class="kpi-sub">Assinatura pendente</div></div>
