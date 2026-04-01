@@ -120,28 +120,24 @@ body.dark-mode a { color:var(--rose); }
         <?php foreach ($menuItems as $item): ?>
             <?php if (isset($item['section'])): ?>
                 <div class="sidebar-section"><?= e($item['section']) ?></div>
-            <?php
-            // Verificar permissão: can_access() se módulo tem permissão configurada, senão fallback para roles
-            $showItem = false;
-            if (function_exists('can_access') && isset($item['id'])) {
-                $permDefaults = _permission_defaults();
-                if (isset($permDefaults[$item['id']])) {
-                    $showItem = can_access($item['id']);
+            <?php else:
+                // Verificar permissão
+                $showItem = false;
+                if (function_exists('can_access') && isset($item['id'])) {
+                    $defaults = _permission_defaults();
+                    $showItem = isset($defaults[$item['id']]) ? can_access($item['id']) : in_array($userRole, $item['roles'], true);
                 } else {
                     $showItem = in_array($userRole, $item['roles'], true);
                 }
-            } else {
-                $showItem = in_array($userRole, $item['roles'], true);
-            }
-            ?>
-            <?php if ($showItem): ?>
+                if ($showItem): ?>
                 <a href="<?= $item['href'] ?>"
                    class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
                    title="<?= e($item['label']) ?>">
                     <span class="icon"><?= $item['icon'] ?></span>
                     <span><?= e($item['label']) ?></span>
                 </a>
-            <?php endif; ?>
+            <?php endif; // showItem ?>
+            <?php endif; // section vs item ?>
         <?php endforeach; ?>
     </nav>
 
