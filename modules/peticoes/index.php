@@ -468,11 +468,29 @@ function copiarPeticao() {
     alert('Petição copiada para a área de transferência!');
 }
 
+// Timbrado HTML para exportação (logo + rodapé)
+var timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
+    + '<img src="<?= url("assets/img/logo.png") ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá">'
+    + '</div>'
+    + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
+
+var timbradoRodape = '<div style="border-top:1px solid #888;margin-top:48px;padding-top:10px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
+    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; São Paulo / SP</strong></div>'
+    + '<div>(24) 9.9205.0096 / (11) 2110-5438</div>'
+    + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
+    + '</div>';
+
 function baixarWord() {
     var html = document.getElementById('peticaoHTML').innerHTML;
     var fullHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
-        + '<head><meta charset="utf-8"><style>@page{size:A4;margin:2.5cm 3cm 2cm 3cm;}body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}</style></head>'
-        + '<body>' + html + '</body></html>';
+        + '<head><meta charset="utf-8">'
+        + '<style>'
+        + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
+        + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}'
+        + 'table{border-collapse:collapse;}'
+        + 'td,th{border:none;}'
+        + '</style></head>'
+        + '<body>' + timbradoTopo + html + timbradoRodape + '</body></html>';
     var blob = new Blob(['\ufeff' + fullHtml], {type: 'application/msword'});
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -482,12 +500,17 @@ function baixarWord() {
 }
 
 function baixarPDF() {
-    var el = document.getElementById('peticaoHTML');
+    var html = document.getElementById('peticaoHTML').innerHTML;
     var win = window.open('', '_blank');
-    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Petição</title>'
-        + '<style>@page{size:A4;margin:2.5cm 3cm 2cm 3cm;}body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}'
-        + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}</style></head>'
-        + '<body>' + el.innerHTML + '</body></html>');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Petição — Ferreira &amp; Sá</title>'
+        + '<style>'
+        + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
+        + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}'
+        + 'table{border-collapse:collapse;}'
+        + 'td,th{border:none;}'
+        + '@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}}'
+        + '</style></head>'
+        + '<body>' + timbradoTopo + html + timbradoRodape + '</body></html>');
     win.document.close();
     setTimeout(function() { win.print(); }, 500);
 }
