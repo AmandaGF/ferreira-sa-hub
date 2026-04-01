@@ -59,13 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'salva
 // MÉTRICAS COMERCIAL
 // ═══════════════════════════════════════════════════════════
 
-// Contratos fechados no mês (converted_at no mês)
-$contratosMes = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
-$contratosMesAnt = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAnterior'");
+// Contratos fechados no mês (excluindo cancelados do mesmo mês)
+$contratosMes = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
+$contratosMesAnt = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAnterior'");
 
-// Faturamento do mês
-$faturamentoMes = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
-$faturamentoMesAnt = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAnterior'");
+// Faturamento do mês (subtraindo cancelamentos do mês vigente)
+$faturamentoBruto = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
+$canceladoValorMes = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
+$faturamentoMes = $faturamentoBruto; // já exclui cancelados na query
+$faturamentoMesAnt = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAnterior'");
 
 // Ticket médio
 $ticketMedio = $contratosMes > 0 ? round($faturamentoMes / $contratosMes, 2) : 0;
@@ -76,8 +78,8 @@ $melhorContratos = 0; $melhorContratosMes = '';
 for ($i = 1; $i <= 12; $i++) {
     $m = date('Y-m', strtotime("-$i months"));
     $mLabel = $ML[(int)date('n', strtotime("-$i months"))] . '/' . date('y', strtotime("-$i months"));
-    $fat = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
-    $con = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
+    $fat = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
+    $con = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND stage NOT IN ('cancelado','perdido') AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
     if ($fat > $melhorFat) { $melhorFat = $fat; $melhorFatMes = $mLabel; }
     if ($con > $melhorContratos) { $melhorContratos = $con; $melhorContratosMes = $mLabel; }
 }
@@ -182,12 +184,13 @@ $proxAniversarios = qrows($pdo, "SELECT name, DATE_FORMAT(birth_date,'%d/%m') as
 require_once APP_ROOT . '/templates/layout_start.php';
 
 // Helper: barra de comparativo
-function comparativo($atual, $anterior) {
+function comparativo($atual, $anterior, $isMoney = false) {
     $diff = $atual - $anterior;
     $pct = $anterior > 0 ? round(($diff / $anterior) * 100) : ($atual > 0 ? 100 : 0);
     $cls = $diff > 0 ? 'stat-up' : ($diff < 0 ? 'stat-down' : 'stat-equal');
     $arrow = $diff > 0 ? '↑' : ($diff < 0 ? '↓' : '=');
-    return '<div class="stat-compare ' . $cls . '">' . $arrow . abs($diff) . ' (' . ($pct >= 0 ? '+' : '') . $pct . '%) vs mês anterior</div>';
+    $diffStr = $isMoney ? 'R$ ' . number_format(abs($diff), 2, ',', '.') : abs($diff);
+    return '<div class="stat-compare ' . $cls . '">' . $arrow . $diffStr . ' (' . ($pct >= 0 ? '+' : '') . $pct . '%) vs mês anterior</div>';
 }
 
 function metaBar($atual, $meta, $width = '100%') {
@@ -376,8 +379,8 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <div class="kpi-grid">
     <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?php if ($melhorContratos > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: <?= $melhorContratos ?> (<?= $melhorContratosMes ?>)</div><?php endif; ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div></a>
     <?php if (can_access('faturamento')): ?>
-    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 0, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 0, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
-    <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value">R$ <?= number_format($ticketMedio, 0, ',', '.') ?></div><div class="kpi-label">Ticket Médio</div><div class="kpi-sub"><?= $tempoMedio > 0 ? round($tempoMedio) . ' dias p/ fechar' : '—' ?></div></div></div>
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 2, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt, true) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 2, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
+    <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value">R$ <?= number_format($ticketMedio, 2, ',', '.') ?></div><div class="kpi-label">Ticket Médio</div><div class="kpi-sub"><?= $tempoMedio > 0 ? round($tempoMedio) . ' dias p/ fechar' : '—' ?></div></div></div>
     <?php else: ?>
     <?php $pctFat = $faturamentoMesAnt > 0 ? round((($faturamentoMes - $faturamentoMesAnt) / $faturamentoMesAnt) * 100) : ($faturamentoMes > 0 ? 100 : 0); ?>
     <?php $pctRecorde = $melhorFat > 0 ? round(($faturamentoMes / $melhorFat) * 100) : 0; ?>
