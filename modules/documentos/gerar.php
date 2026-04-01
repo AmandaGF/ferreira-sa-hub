@@ -130,14 +130,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $caseData = null;
 $caseIdDoc = (int)($_GET['case_id'] ?? 0);
 if ($caseIdDoc) {
-    $stmtCase = $pdo->prepare('SELECT case_number, court, comarca, comarca_uf FROM cases WHERE id = ?');
+    $stmtCase = $pdo->prepare('SELECT case_number, court, comarca, comarca_uf, regional FROM cases WHERE id = ?');
     $stmtCase->execute(array($caseIdDoc));
     $caseData = $stmtCase->fetch();
 }
 
 // Campos extras para juntada/ciência — pré-preenchidos com dados do processo
 $numeroProcesso = $_POST['numero_processo'] ?? ($_GET['numero_processo'] ?? ($caseData ? ($caseData['case_number'] ?: '') : ''));
-$varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? ($caseData ? ($caseData['court'] ?: '') : ''));
+// Montar vara com regional: "1ª Vara de Família da Comarca do Rio de Janeiro - Regional de Madureira"
+$varaFromCase = '';
+if ($caseData) {
+    $varaFromCase = $caseData['court'] ?: '';
+    if ($varaFromCase && isset($caseData['regional']) && $caseData['regional']) {
+        // Se a vara já não menciona regional, adicionar
+        if (stripos($varaFromCase, 'regional') === false) {
+            $comarcaNome = $caseData['comarca'] ?: '';
+            if ($comarcaNome && stripos($varaFromCase, $comarcaNome) === false) {
+                $varaFromCase .= ' da Comarca de ' . strtoupper($comarcaNome);
+            }
+            $varaFromCase .= ' - REGIONAL DE ' . strtoupper($caseData['regional']);
+        }
+    }
+}
+$varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? $varaFromCase);
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';

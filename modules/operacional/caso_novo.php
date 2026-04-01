@@ -56,6 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $court              = trim($_POST['court'] ?? '');
     $comarca            = trim($_POST['comarca'] ?? '');
     $comarca_uf         = trim($_POST['comarca_uf'] ?? '');
+    $regional           = trim($_POST['regional'] ?? '');
     $sistema_tribunal   = trim($_POST['sistema_tribunal'] ?? '');
     $segredo_justica    = isset($_POST['segredo_justica']) ? 1 : 0;
     $departamento       = trim($_POST['departamento'] ?? 'operacional');
@@ -78,9 +79,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $sql = "INSERT INTO cases
-        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
+        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, regional, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
         VALUES
-        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
+        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :regional, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
@@ -94,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':court'              => $court,
         ':comarca'            => $comarca,
         ':comarca_uf'         => $comarca_uf !== '' ? $comarca_uf : null,
+        ':regional'           => $regional !== '' ? $regional : null,
         ':sistema_tribunal'   => $sistema_tribunal !== '' ? $sistema_tribunal : null,
         ':segredo_justica'    => $segredo_justica,
         ':departamento'       => $departamento !== '' ? $departamento : 'operacional',
@@ -323,6 +325,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-col" style="max-width:200px;">
                         <label>Data de Distribuicao</label>
                         <input type="date" name="distribution_date" class="form-input">
+                    </div>
+                </div>
+
+                <!-- Regional (ex: Madureira, Campo Grande, Bangu) -->
+                <div class="form-row">
+                    <div class="form-col" style="max-width:180px;">
+                        <label>Tem Regional?</label>
+                        <select id="temRegional" class="form-select" onchange="document.getElementById('campoRegional').style.display=this.value==='sim'?'block':'none';">
+                            <option value="nao">Não</option>
+                            <option value="sim">Sim</option>
+                        </select>
+                    </div>
+                    <div class="form-col" id="campoRegional" style="display:none;">
+                        <label>Qual Regional?</label>
+                        <input type="text" name="regional" class="form-input" placeholder="Ex: Madureira, Campo Grande, Bangu...">
                     </div>
                 </div>
 

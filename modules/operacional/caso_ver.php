@@ -175,7 +175,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             · <?= e($case['court']) ?>
         <?php endif; ?>
         <?php if (isset($case['comarca']) && $case['comarca']): ?>
-            · <?= e($case['comarca']) ?><?php if (isset($case['comarca_uf']) && $case['comarca_uf']): ?>/<?= e($case['comarca_uf']) ?><?php endif; ?>
+            · <?= e($case['comarca']) ?><?php if (isset($case['comarca_uf']) && $case['comarca_uf']): ?>/<?= e($case['comarca_uf']) ?><?php endif; ?><?php if (isset($case['regional']) && $case['regional']): ?> — Regional de <?= e($case['regional']) ?><?php endif; ?>
         <?php endif; ?>
         <?php if ($case['distribution_date']): ?>
             · Distribuído em <?= data_br($case['distribution_date']) ?>

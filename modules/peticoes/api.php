@@ -189,10 +189,27 @@ if ($action === 'gerar') {
     // Extrair cidade/UF do campo cl_cidade (formato "Cidade/UF")
     $comarcaCidade = 'Barra Mansa';
     $comarcaUF = 'RJ';
+    $regional = '';
+    $varaCompleta = '';
     if ($clCidade && strpos($clCidade, '/') !== false) {
         $parts = explode('/', $clCidade);
         $comarcaCidade = trim($parts[0]) ?: 'Barra Mansa';
         $comarcaUF = trim($parts[1]) ?: 'RJ';
+    }
+
+    // Se tem caso vinculado, buscar comarca/vara/regional do caso
+    if ($caseId > 0) {
+        try {
+            $caseRow = $pdo->prepare("SELECT court, comarca, comarca_uf, regional FROM cases WHERE id = ?");
+            $caseRow->execute(array($caseId));
+            $caseInfo = $caseRow->fetch();
+            if ($caseInfo) {
+                if ($caseInfo['comarca']) $comarcaCidade = $caseInfo['comarca'];
+                if ($caseInfo['comarca_uf']) $comarcaUF = $caseInfo['comarca_uf'];
+                if ($caseInfo['regional']) $regional = $caseInfo['regional'];
+                if ($caseInfo['court']) $varaCompleta = $caseInfo['court'];
+            }
+        } catch (Exception $e) {}
     }
 
     // ══ PROMPT FIXO — Skill dra-amanda ══
@@ -211,7 +228,17 @@ FIXO;
     $userPrompt .= "OPÇÕES PROCESSUAIS:\n$opcoesProc\n";
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";
-    $userPrompt .= "Comarca: " . $comarcaCidade . '/' . $comarcaUF . "\n\n";
+    $comarcaStr = $comarcaCidade . '/' . $comarcaUF;
+    if ($regional) $comarcaStr .= ' - Regional de ' . $regional;
+    $userPrompt .= "Comarca: " . $comarcaStr . "\n";
+    if ($varaCompleta) {
+        $varaStr = $varaCompleta;
+        if ($regional && stripos($varaStr, 'regional') === false) {
+            $varaStr .= ' DA COMARCA DE ' . strtoupper($comarcaCidade) . ' - REGIONAL DE ' . strtoupper($regional);
+        }
+        $userPrompt .= "Vara/Juízo completo: " . $varaStr . "\n";
+    }
+    $userPrompt .= "\n";
     $userPrompt .= "Elabore a petição completa em HTML.\n\n";
     $userPrompt .= "REGRAS DE OUTPUT OBRIGATÓRIAS:\n";
     $userPrompt .= "- Retorne SOMENTE o HTML puro, SEM markdown, SEM ```html, SEM ```\n";
