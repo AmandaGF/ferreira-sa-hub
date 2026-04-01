@@ -135,13 +135,42 @@ try {
 } catch (Exception $e) {}
 
 // ═══════════════════════════════════════════════════════════
-// METAS (configuráveis)
+// METAS (editáveis pelo admin)
 // ═══════════════════════════════════════════════════════════
-$metas = array(
-    'leads_mes' => 50,
-    'contratos_mes' => 10,
-    'casos_entregues_mes' => 5,
-);
+$metasDefault = array('leads_mes' => 50, 'contratos_mes' => 10, 'casos_entregues_mes' => 5);
+$metas = $metasDefault;
+try {
+    $metaRows = $pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'meta_%'")->fetchAll();
+    foreach ($metaRows as $mr) {
+        $key = str_replace('meta_', '', $mr['chave']);
+        if (isset($metas[$key])) $metas[$key] = (int)$mr['valor'];
+    }
+} catch (Exception $e) {
+    // Tabela pode não existir — criar
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS configuracoes (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, chave VARCHAR(60) UNIQUE NOT NULL, valor TEXT, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)");
+        foreach ($metasDefault as $k => $v) {
+            $pdo->prepare("INSERT IGNORE INTO configuracoes (chave, valor) VALUES (?, ?)")->execute(array('meta_' . $k, $v));
+        }
+    } catch (Exception $e2) {}
+}
+
+// POST: admin atualiza metas
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'salvar_metas' && has_role('admin')) {
+    if (validate_csrf()) {
+        foreach (array('leads_mes', 'contratos_mes', 'casos_entregues_mes') as $mk) {
+            $val = (int)($_POST[$mk] ?? 0);
+            if ($val > 0) {
+                try {
+                    $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = ?")->execute(array('meta_' . $mk, $val, $val));
+                    $metas[$mk] = $val;
+                } catch (Exception $e) {}
+            }
+        }
+        flash_set('success', 'Metas atualizadas!');
+        redirect(module_url('dashboard', '?tab=' . $tab));
+    }
+}
 
 // ═══════════════════════════════════════════════════════════
 // ATIVIDADES + ANIVERSÁRIOS
@@ -193,6 +222,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .kpi-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; margin-bottom:1.25rem; }
 .kpi-card { background:var(--bg-card); border-radius:var(--radius-lg); padding:1.1rem 1.25rem; border:1px solid var(--border); display:flex; align-items:center; gap:.85rem; transition:all var(--transition); }
 .kpi-card:hover { box-shadow:var(--shadow-md); transform:translateY(-2px); }
+a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 .kpi-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.3rem; flex-shrink:0; }
 .kpi-icon.blue { background:rgba(99,102,241,.15); }
 .kpi-icon.green { background:rgba(5,150,105,.15); }
@@ -275,7 +305,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php if ($tab === 'geral'): ?>
 <!-- ═══════════════ ABA GERAL ═══════════════ -->
 <div class="kpi-grid">
-    <div class="kpi-card">
+    <a href="?tab=comercial" class="kpi-card">
         <div class="kpi-icon green">✅</div>
         <div>
             <div class="kpi-value"><?= $contratosMes ?></div>
@@ -285,36 +315,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?= $diffC > 0 ? '↑' : ($diffC < 0 ? '↓' : '=') ?> <?= abs($diffC) ?> vs mês anterior
             </div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon blue">📈</div>
         <div>
             <div class="kpi-value"><?= $leadsAtivos ?></div>
             <div class="kpi-label">Leads Ativos</div>
             <?php if ($leadsHoje > 0): ?><div class="kpi-sub">+<?= $leadsHoje ?> hoje</div><?php endif; ?>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon orange">⚙️</div>
         <div>
             <div class="kpi-value"><?= $casosAtivos ?></div>
             <div class="kpi-label">Processos Ativos</div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('helpdesk') ?>" class="kpi-card">
         <div class="kpi-icon rose">⚠️</div>
         <div>
             <div class="kpi-value"><?= $pendencias ?></div>
             <div class="kpi-label">Pendências</div>
             <div class="kpi-sub"><?= $formsPendentes ?> forms · <?= $ticketsAbertos ?> tickets<?= $docsFaltantes > 0 ? " · $docsFaltantes docs" : '' ?></div>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Metas do mês -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+    <h4 style="font-size:.85rem;font-weight:700;color:var(--petrol-900);">🎯 Metas de <?= $mesLabel[(int)date('n')] ?></h4>
+    <?php if (has_role('admin')): ?>
+        <button onclick="document.getElementById('modalMetas').style.display='flex';" class="btn btn-outline btn-sm" style="font-size:.72rem;">✏️ Editar metas</button>
+    <?php endif; ?>
+</div>
 <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
     <?php
     $metaItems = array(
@@ -336,6 +372,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <?php endforeach; ?>
 </div>
+
+<!-- Modal editar metas -->
+<?php if (has_role('admin')): ?>
+<div id="modalMetas" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:400px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
+        <h3 style="font-size:1rem;margin-bottom:1rem;color:var(--petrol-900);">Editar Metas Mensais</h3>
+        <form method="POST">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="salvar_metas">
+            <div style="margin-bottom:.75rem;">
+                <label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.2rem;">Meta de Leads / mês</label>
+                <input type="number" name="leads_mes" value="<?= $metas['leads_mes'] ?>" class="form-input" min="1" style="width:100%;">
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.2rem;">Meta de Contratos / mês</label>
+                <input type="number" name="contratos_mes" value="<?= $metas['contratos_mes'] ?>" class="form-input" min="1" style="width:100%;">
+            </div>
+            <div style="margin-bottom:1rem;">
+                <label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.2rem;">Meta de Entregas / mês</label>
+                <input type="number" name="casos_entregues_mes" value="<?= $metas['casos_entregues_mes'] ?>" class="form-input" min="1" style="width:100%;">
+            </div>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                <button type="button" onclick="document.getElementById('modalMetas').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar Metas</button>
+            </div>
+        </form>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Atividades + Aniversários -->
 <div class="bottom-row">
@@ -406,7 +471,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- ═══════════════ ABA COMERCIAL ═══════════════ -->
 
 <div class="kpi-grid">
-    <div class="kpi-card">
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon green">✅</div>
         <div>
             <div class="kpi-value"><?= $contratosMes ?></div>
@@ -414,9 +479,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="meta-bar" style="width:120px;"><div class="meta-fill" style="width:<?= $metas['contratos_mes'] > 0 ? min(100, round($contratosMes / $metas['contratos_mes'] * 100)) : 0 ?>%;background:<?= $contratosMes >= $metas['contratos_mes'] ? '#059669' : '#f59e0b' ?>;"></div></div>
             <div class="meta-text">Meta: <?= $metas['contratos_mes'] ?></div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon blue">📈</div>
         <div>
             <div class="kpi-value"><?= $leadsMes ?></div>
@@ -424,25 +489,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="meta-bar" style="width:120px;"><div class="meta-fill" style="width:<?= $metas['leads_mes'] > 0 ? min(100, round($leadsMes / $metas['leads_mes'] * 100)) : 0 ?>%;background:<?= $leadsMes >= $metas['leads_mes'] ? '#059669' : '#6366f1' ?>;"></div></div>
             <div class="meta-text">Meta: <?= $metas['leads_mes'] ?></div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon purple">🎯</div>
         <div>
             <div class="kpi-value"><?= $leadsAtivos ?></div>
             <div class="kpi-label">Leads Ativos Total</div>
-            <?php if ($leadsHoje > 0): ?><div class="kpi-sub">+<?= $leadsHoje ?> hoje</div><?php endif; ?>
+            <div class="kpi-sub">Todos no Kanban Comercial</div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('crm') ?>" class="kpi-card">
         <div class="kpi-icon red">❌</div>
         <div>
             <div class="kpi-value"><?= $canceladosMes ?></div>
             <div class="kpi-label">Cancelados em <?= $mesLabel[(int)date('n')] ?></div>
             <div class="kpi-sub" style="color:var(--text-muted);">Total histórico: <?= $canceladosTotal ?></div>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Cancelados com contexto -->
@@ -496,23 +561,23 @@ $funnelLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elab
 <!-- ═══════════════ ABA OPERACIONAL ═══════════════ -->
 
 <div class="kpi-grid">
-    <div class="kpi-card">
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon green">🟢</div>
         <div>
             <div class="kpi-value"><?= $casosEmAndamento ?></div>
             <div class="kpi-label">Em Andamento</div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon orange">🟡</div>
         <div>
             <div class="kpi-value"><?= $casosSuspensos ?></div>
             <div class="kpi-label">Suspensos</div>
         </div>
-    </div>
+    </a>
 
-    <div class="kpi-card">
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon blue">🏛️</div>
         <div>
             <div class="kpi-value"><?= $casosDistribuidosMes ?></div>
@@ -537,27 +602,27 @@ $funnelLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elab
 
 <!-- Pendências operacionais -->
 <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
-    <div class="kpi-card">
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon red">📄</div>
         <div>
             <div class="kpi-value"><?= $docsFaltantes ?></div>
             <div class="kpi-label">Documentos Faltantes</div>
         </div>
-    </div>
-    <div class="kpi-card">
+    </a>
+    <a href="<?= module_url('helpdesk') ?>" class="kpi-card">
         <div class="kpi-icon rose">🎫</div>
         <div>
             <div class="kpi-value"><?= $ticketsAbertos ?></div>
             <div class="kpi-label">Chamados Abertos</div>
         </div>
-    </div>
-    <div class="kpi-card">
+    </a>
+    <a href="<?= module_url('crm') ?>" class="kpi-card">
         <div class="kpi-icon blue">👥</div>
         <div>
             <div class="kpi-value"><?= $totalClientes ?></div>
             <div class="kpi-label">Total Clientes</div>
         </div>
-    </div>
+    </a>
 </div>
 
 <!-- Processos por status -->
