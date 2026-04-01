@@ -44,9 +44,17 @@ switch ($action) {
 
                 // Registrar documento pendente
                 $clientId = $currentCase ? (int)$currentCase['client_id'] : 0;
-                $linkedLead = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                // Buscar lead vinculado: primeiro por case_id, depois por client_id
+                $leadRow = null;
+                $leadId = null;
+                $chkLead = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
+                $chkLead->execute(array($caseId));
+                $leadRow = $chkLead->fetch();
+                if (!$leadRow && $clientId > 0) {
+                    $chkLead2 = $pdo->prepare("SELECT id FROM pipeline_leads WHERE client_id = ? AND stage NOT IN ('finalizado','perdido') ORDER BY id DESC LIMIT 1");
+                    $chkLead2->execute(array($clientId));
+                    $leadRow = $chkLead2->fetch();
+                }
                 $leadId = $leadRow ? (int)$leadRow['id'] : null;
 
                 try {

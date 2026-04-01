@@ -276,13 +276,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
                     <div class="op-card-badges">
-                        <span class="op-card-badge" style="background:<?= $pColor ?>;"><?= isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'] ?></span>
                         <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
                             <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="op-card-footer">
                         <span class="op-card-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></span>
+                        <?php $diasUpdate = (int)((time() - strtotime($cs['updated_at'])) / 86400); ?>
+                        <span style="font-size:.65rem;color:<?= $diasUpdate > 30 ? '#dc2626' : ($diasUpdate > 7 ? '#f59e0b' : 'var(--text-muted)') ?>;"><?= $diasUpdate ?>d</span>
                         <?php if ($totalTasks > 0): ?>
                         <span class="op-card-tasks">
                             <span class="mini-bar"><span class="mini-fill" style="width:<?= $taskPct ?>%;"></span></span>
