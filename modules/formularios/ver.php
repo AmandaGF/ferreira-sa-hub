@@ -328,6 +328,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('formularios', '?type=' . urlencode($form['form_type'])) ?>" class="btn btn-outline btn-sm">← Voltar</a>
         <div class="flex gap-1">
             <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Imprimir</button>
+            <?php if ($form['form_type'] === 'gastos_pensao'): ?>
+                <a href="<?= module_url('formularios', 'relatorio_gastos.php?id=' . $form['id']) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📊 Relatório Visual</a>
+            <?php endif; ?>
             <?php if ($form['client_phone']): ?>
                 <a href="https://wa.me/55<?= preg_replace('/\D/', '', $form['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
             <?php endif; ?>
