@@ -22,17 +22,12 @@ echo $dryRun ? ">>> MODO SIMULAÇÃO (adicione &executar para rodar) <<<\n\n" : 
 $projectId = 'coleta-clientes';
 $baseUrl = 'https://firestore.googleapis.com/v1/projects/' . $projectId . '/databases/(default)/documents/';
 
-// Coleções para migrar
+// Coleções do Firebase (nomes reais descobertos no código)
 $colecoes = array(
-    'convivencia' => 'convivencia',
-    'gastos_pensao' => 'gastos_pensao',
-    'leads' => 'calculadora_lead',
-    'clientes' => 'cadastro_cliente',
-    // Tentar variações comuns
-    'gastos' => 'gastos_pensao',
-    'calculadora' => 'calculadora_lead',
-    'cadastro' => 'cadastro_cliente',
-    'formularios' => 'convivencia',
+    'leads_calculadora' => 'calculadora_lead',   // Leads da calculadora de pensão
+    'cadastro_clientes' => 'cadastro_cliente',     // Cadastros de clientes
+    // Convivência e gastos_pensao usam MySQL direto (tabela intake_visitas),
+    // não Firebase. Já foram migrados anteriormente.
 );
 
 $totalImportados = 0;
