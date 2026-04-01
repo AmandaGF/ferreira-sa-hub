@@ -155,6 +155,8 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
     }
 }
 
+// Status para cadastro MANUAL de processo (não entra no Kanban Operacional)
+// Para aparecer no Kanban, o processo deve vir pelo fluxo do Pipeline
 $statusLabels = array(
     'em_andamento' => 'Processo em Andamento',
     'suspenso'     => 'Processo Suspenso',

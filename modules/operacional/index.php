@@ -64,8 +64,7 @@ $whereStr = implode(' AND ', $where);
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'pendente') as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'feito') as done_tasks,
-        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc,
-        (SELECT COUNT(*) FROM pipeline_leads WHERE linked_case_id = cs.id OR (client_id = cs.client_id AND client_id > 0)) as has_pipeline
+        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -84,9 +83,6 @@ foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 $mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
-    // Casos sem vínculo ao pipeline (cadastro manual) → só na listagem de Processos
-    if ((int)$cs['has_pipeline'] === 0) continue;
-
     // Distribuídos: só aparece no mês da distribuição. Depois, só na pasta de processos.
     if ($status === 'distribuido') {
         $mesRef = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
@@ -101,7 +97,7 @@ foreach ($allCases as $cs) {
             continue;
         }
     }
-    if (!isset($byStatus[$status])) { $byStatus['em_andamento'][] = $cs; continue; }
+    if (!isset($byStatus[$status])) continue; // Status sem coluna no Kanban (suspenso, renunciamos, etc)
     $byStatus[$status][] = $cs;
 }
 
