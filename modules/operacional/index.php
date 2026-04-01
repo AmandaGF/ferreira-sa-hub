@@ -25,7 +25,7 @@ $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 $columns = array(
     'aguardando_docs'        => array('label' => 'Contrato — Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
     'em_elaboracao'          => array('label' => 'Pasta Apta',                  'color' => '#059669', 'icon' => '✔️'),
-    'em_andamento'           => array('label' => 'Em Execução',                 'color' => '#0ea5e9', 'icon' => '⚙️'),
+    // em_andamento não aparece no Kanban — processos em execução ficam na listagem de Processos
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
@@ -97,7 +97,7 @@ foreach ($allCases as $cs) {
             continue;
         }
     }
-    if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
+    if (!isset($byStatus[$status])) continue; // Status não tem coluna no Kanban — pula
     $byStatus[$status][] = $cs;
 }
 
