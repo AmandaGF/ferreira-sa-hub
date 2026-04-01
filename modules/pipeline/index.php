@@ -22,7 +22,7 @@ $stages = array(
     'reuniao_cobranca'    => array('label' => 'Reunião / Cobrando Docs',    'color' => '#d97706', 'icon' => '🤝', 'resp' => 'CX'),
     'doc_faltante'        => array('label' => 'Documento Faltante',         'color' => '#dc2626', 'icon' => '⚠️', 'resp' => 'Auto'),
     'pasta_apta'          => array('label' => 'Pasta Apta',                 'color' => '#15803d', 'icon' => '✔️', 'resp' => 'CX'),
-    'cancelado'           => array('label' => 'Cancelado',                  'color' => '#6b7280', 'icon' => '❌', 'resp' => 'Admin'),
+    // 'cancelado' removido do Kanban — aparece apenas nos Relatórios
     'suspenso'            => array('label' => 'Suspenso',                   'color' => '#9ca3af', 'icon' => '⏸️', 'resp' => 'Admin'),
 );
 
@@ -31,7 +31,7 @@ $searchPipeline = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 
 // Buscar leads (exceto finalizados)
-$pipeWhere = "pl.stage NOT IN ('finalizado','perdido')";
+$pipeWhere = "pl.stage NOT IN ('finalizado','perdido','cancelado')";
 $pipeParams = array();
 if ($searchPipeline) {
     $pipeWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
