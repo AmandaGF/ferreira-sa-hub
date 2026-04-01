@@ -30,7 +30,7 @@ $columns = array(
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
-    // 'cancelado' removido do Kanban — aparece apenas nos Relatórios
+    'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
 );
 
 // Construir query
@@ -68,7 +68,7 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
-        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado','cancelado')
+        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado')
         ORDER BY FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
 
 $stmt = $pdo->prepare($sql);
@@ -83,11 +83,13 @@ foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 $mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
-    // Distribuídos de meses anteriores: ocultar do Kanban (não exibir)
-    if ($status === 'distribuido') {
-        $mesDistrib = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
-        if ($mesDistrib < $mesAtual) {
-            continue; // Pula — não aparece no Kanban nem na tabela
+    // Distribuídos e cancelados de meses anteriores: ocultar do Kanban
+    if ($status === 'distribuido' || $status === 'cancelado') {
+        $mesRef = ($status === 'distribuido' && $cs['distribution_date'])
+            ? date('Y-m', strtotime($cs['distribution_date']))
+            : date('Y-m', strtotime($cs['updated_at']));
+        if ($mesRef < $mesAtual) {
+            continue; // Pula — só mostra no mês atual, depois vai pro relatório
         }
     }
     if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
