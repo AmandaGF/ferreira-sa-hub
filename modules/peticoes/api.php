@@ -360,6 +360,11 @@ FIXO;
     }
 
     $data = json_decode($response, true);
+    if ($data === null && $httpCode === 200) {
+        echo json_encode(array('error' => 'Resposta inválida da API (JSON malformado). Tente novamente.'));
+        exit;
+    }
+    if (!is_array($data)) $data = array();
 
     // Salvar log do retorno bruto
     $logDir = __DIR__ . '/../../uploads';

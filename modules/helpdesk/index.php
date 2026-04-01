@@ -9,8 +9,6 @@ require_login();
 $pageTitle = 'Helpdesk';
 $pdo = db();
 $userId = current_user_id();
-$isColaborador = has_role('colaborador');
-
 // Filtros
 $filterStatus   = $_GET['status'] ?? '';
 $filterPriority = $_GET['priority'] ?? '';

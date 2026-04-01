@@ -219,6 +219,10 @@ function carregarProcessos() {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '<?= module_url("helpdesk", "novo.php") ?>?ajax_cases=1&client_id=' + clientId);
     xhr.onload = function() {
+        if (xhr.status !== 200) {
+            select.innerHTML = '<option value="">Erro ao carregar</option>';
+            return;
+        }
         try {
             var cases = JSON.parse(xhr.responseText);
             for (var i = 0; i < cases.length; i++) {
@@ -227,10 +231,21 @@ function carregarProcessos() {
                 opt.textContent = cases[i].title + (cases[i].case_number ? ' — ' + cases[i].case_number : '');
                 select.appendChild(opt);
             }
-        } catch(e) {}
+            if (cases.length === 0) {
+                select.innerHTML = '<option value="">Nenhum processo</option>';
+            }
+        } catch(e) {
+            select.innerHTML = '<option value="">Erro ao carregar</option>';
+        }
     };
     xhr.send();
 }
-<?php if ($preClientId): ?>carregarProcessos();<?php endif; ?>
+<?php if ($preClientId): ?>
+document.getElementById('clienteSelect').value = '<?= (int)$preClientId ?>';
+carregarProcessos();
+<?php if ($preCaseId): ?>
+setTimeout(function(){ document.getElementById('processoSelect').value = '<?= (int)$preCaseId ?>'; }, 500);
+<?php endif; ?>
+<?php endif; ?>
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
