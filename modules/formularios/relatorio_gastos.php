@@ -40,25 +40,54 @@ $moradores = isset($payload['moradores']) ? $payload['moradores'] : '—';
 $protocolo = $form['protocol'];
 $dataForm = date('d/m/Y', strtotime($form['created_at']));
 
-// Categorias de gastos
+// Totais podem estar em $payload['totais'] (app) ou no nível raiz (migrado)
+$totais = isset($payload['totais']) ? $payload['totais'] : $payload;
+
+// Detalhamento individual dos gastos (subcategorias)
+$stored = isset($payload['stored']) ? $payload['stored'] : array();
+
+// Moradia: usar rateada (dividida por moradores)
+$moradiaTotal = isset($totais['moradia_total_cents']) ? (int)$totais['moradia_total_cents'] : 0;
+$moradiaRateada = isset($totais['moradia_rateada_cents']) ? (int)$totais['moradia_rateada_cents'] : 0;
+$numMoradores = is_numeric($moradores) ? (int)$moradores : 1;
+
+// Categorias de gastos (busca nos totais)
 $categorias = array(
-    'moradia' => array('label' => 'Moradia', 'icon' => '🏠', 'cor' => '#052228', 'campo' => 'total_moradia_rateada_cents'),
-    'alimentacao' => array('label' => 'Alimentação', 'icon' => '🍽️', 'cor' => '#B87333', 'campo' => 'total_alimentacao_cents'),
-    'saude' => array('label' => 'Saúde', 'icon' => '🏥', 'cor' => '#059669', 'campo' => 'total_saude_cents'),
-    'educacao' => array('label' => 'Educação', 'icon' => '📚', 'cor' => '#6366f1', 'campo' => 'total_educacao_cents'),
-    'transporte' => array('label' => 'Transporte', 'icon' => '🚗', 'cor' => '#0ea5e9', 'campo' => 'total_transporte_cents'),
-    'vestuario' => array('label' => 'Vestuário', 'icon' => '👕', 'cor' => '#d97706', 'campo' => 'total_vestuario_cents'),
-    'lazer' => array('label' => 'Lazer e Cultura', 'icon' => '🎮', 'cor' => '#8b5cf6', 'campo' => 'total_lazer_cents'),
-    'tecnologia' => array('label' => 'Tecnologia', 'icon' => '💻', 'cor' => '#06b6d4', 'campo' => 'total_tecnologia_cents'),
-    'cuidados' => array('label' => 'Cuidados Pessoais', 'icon' => '🧴', 'cor' => '#ec4899', 'campo' => 'total_cuidados_cents'),
-    'outros' => array('label' => 'Outros', 'icon' => '📋', 'cor' => '#6b7280', 'campo' => 'total_outros_cents'),
+    'moradia' => array('label' => 'Moradia (rateada)', 'icon' => '🏠', 'cor' => '#052228', 'campo' => 'moradia_rateada_cents'),
+    'alimentacao' => array('label' => 'Alimentação', 'icon' => '🍽️', 'cor' => '#B87333', 'campo' => 'alimentacao_cents'),
+    'saude' => array('label' => 'Saúde', 'icon' => '🏥', 'cor' => '#059669', 'campo' => 'saude_cents'),
+    'educacao' => array('label' => 'Educação', 'icon' => '📚', 'cor' => '#6366f1', 'campo' => 'educacao_cents'),
+    'transporte' => array('label' => 'Transporte', 'icon' => '🚗', 'cor' => '#0ea5e9', 'campo' => 'transporte_cents'),
+    'vestuario' => array('label' => 'Vestuário', 'icon' => '👕', 'cor' => '#d97706', 'campo' => 'vestuario_cents'),
+    'lazer' => array('label' => 'Lazer e Cultura', 'icon' => '🎮', 'cor' => '#8b5cf6', 'campo' => 'lazer_cents'),
+    'tecnologia' => array('label' => 'Tecnologia', 'icon' => '💻', 'cor' => '#06b6d4', 'campo' => 'tecnologia_cents'),
+    'cuidados' => array('label' => 'Cuidados Pessoais', 'icon' => '🧴', 'cor' => '#ec4899', 'campo' => 'cuidados_cents'),
+    'outros' => array('label' => 'Outros', 'icon' => '📋', 'cor' => '#6b7280', 'campo' => 'outros_cents'),
 );
 
-$totalGeral = isset($payload['total_geral_cents']) ? (int)$payload['total_geral_cents'] : 0;
+// Mapeamento de subcategorias para detalhamento
+$subcategorias = array(
+    'moradia' => array('agua_cents'=>'Água','internet_cents'=>'Internet','telefone_cents'=>'Telefone','tv_cents'=>'TV/Streaming','manutencao_cents'=>'Manutenção','aluguel_cents'=>'Aluguel','condominio_cents'=>'Condomínio','luz_cents'=>'Luz/Energia','gas_cents'=>'Gás','iptu_cents'=>'IPTU'),
+    'alimentacao' => array('supermercado_cents'=>'Supermercado','feira_cents'=>'Feira/Hortifruti','carnes_cents'=>'Açougue/Carnes','padaria_cents'=>'Padaria','lanche_escolar_cents'=>'Lanche escolar','refeicoes_fora_cents'=>'Refeições fora','leite_formula_cents'=>'Leite/Fórmula','agua_mineral_cents'=>'Água mineral','suplementos_cents'=>'Suplementos'),
+    'saude' => array('plano_saude_cents'=>'Plano de saúde','consultas_cents'=>'Consultas','odontologia_cents'=>'Odontologia','oculos_cents'=>'Óculos/Lentes','medicamentos_cents'=>'Medicamentos','terapia_cents'=>'Terapia/Psicólogo'),
+    'educacao' => array('escola_cents'=>'Escola/Mensalidade','material_escolar_cents'=>'Material escolar','uniforme_cents'=>'Uniforme','cursos_cents'=>'Cursos/Atividades extras'),
+    'transporte' => array('transporte_escolar_cents'=>'Transporte escolar','uber_cents'=>'Uber/Transporte app','combustivel_cents'=>'Combustível','onibus_cents'=>'Ônibus/Passagens'),
+    'vestuario' => array('roupas_cents'=>'Roupas','calcados_cents'=>'Calçados'),
+    'lazer' => array('passeios_cents'=>'Passeios','aniversarios_cents'=>'Aniversários/Festas','brinquedos_cents'=>'Brinquedos','outros_lazer_cents'=>'Outros lazer'),
+    'cuidados' => array('higiene_cents'=>'Higiene pessoal','fraldas_cents'=>'Fraldas','cabelo_cents'=>'Corte de cabelo'),
+);
+
+$totalGeral = isset($totais['total_geral_cents']) ? (int)$totais['total_geral_cents'] : 0;
 $gastosData = array();
 $totalCalculado = 0;
 foreach ($categorias as $key => $cat) {
-    $valor = isset($payload[$cat['campo']]) ? (int)$payload[$cat['campo']] : 0;
+    // Tentar campo no totais, fallback para nível raiz com prefixo total_
+    $valor = 0;
+    if (isset($totais[$cat['campo']])) {
+        $valor = (int)$totais[$cat['campo']];
+    } elseif (isset($payload['total_' . $cat['campo']])) {
+        $valor = (int)$payload['total_' . $cat['campo']];
+    }
     $gastosData[$key] = $valor;
     $totalCalculado += $valor;
 }
@@ -223,10 +252,32 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
                 </td>
                 <td><?= fmt($valor) ?></td>
             </tr>
+            <?php
+            // Detalhamento das subcategorias (se existir em stored)
+            if (isset($subcategorias[$key]) && !empty($stored)):
+                foreach ($subcategorias[$key] as $subCampo => $subLabel):
+                    $subValor = isset($stored[$subCampo]) ? (int)$stored[$subCampo] : 0;
+                    if ($subValor === 0) continue;
+                ?>
+                <tr style="background:rgba(0,0,0,.02);">
+                    <td></td>
+                    <td style="padding-left:32px;font-size:10pt;color:#666;">↳ <?= $subLabel ?></td>
+                    <td></td>
+                    <td style="font-size:10pt;color:#666;"><?= fmt($subValor) ?></td>
+                </tr>
+                <?php endforeach;
+            endif; ?>
             <?php endforeach; ?>
+            <?php if ($moradiaTotal > 0 && $moradiaRateada > 0 && $moradiaTotal !== $moradiaRateada): ?>
+            <tr style="background:#fef3c7;">
+                <td></td>
+                <td colspan="2" style="font-size:9pt;color:#92400e;"><strong>Nota:</strong> Moradia total <?= fmt($moradiaTotal) ?> ÷ <?= $numMoradores ?> moradores = <?= fmt($moradiaRateada) ?> (rateio)</td>
+                <td></td>
+            </tr>
+            <?php endif; ?>
             <tr class="total-row">
                 <td></td>
-                <td>TOTAL MENSAL</td>
+                <td>TOTAL MENSAL APROXIMADO</td>
                 <td></td>
                 <td><?= fmt($totalGeral) ?></td>
             </tr>
@@ -255,7 +306,7 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
 
     <!-- Nota legal -->
     <div class="nota-legal">
-        <strong>Nota:</strong> Estimativa elaborada com base nas necessidades ordinárias informadas pelo(a) responsável, nos termos do art. 1.694, §1º, do Código Civil c/c art. 22 do ECA. Valores sujeitos a atualização no curso da instrução processual.
+        <strong>Nota:</strong> Estimativa elaborada com base nas necessidades ordinárias informadas pelo(a) responsável, nos termos do art. 1.694, §1º, do Código Civil c/c art. 22 do ECA (se aplicável). Os valores de moradia foram rateados proporcionalmente pelo número de moradores da residência. Valores sujeitos a atualização no curso da instrução processual.
         <br><strong>Fonte:</strong> Ferreira &amp; Sá Advocacia Especializada — OAB-RJ 163.260
     </div>
 
