@@ -118,7 +118,7 @@ $templates = array(
     array(
         'processo_distribuido',
         'Processo Distribuído',
-        "Olá, [Nome]! Temos uma boa notícia: sua ação foi distribuída.\nNúmero do processo: [numero_processo]\nVara/Juízo: [vara_juizo]\nAcompanhe pelo site do tribunal com este número.\nContinuaremos te atualizando sobre as próximas etapas!",
+        "Olá, [Nome]! Temos uma boa notícia: sua ação foi distribuída.\nNúmero do processo: [numero_processo]\nVara/Juízo: [vara_juizo]\n\nAcompanhe o andamento do seu caso pelo Ferreira & Sá Conecta: https://conecta.legalone.com.br/login?tenant=ferreiraesa\n\nContinuaremos te atualizando sobre as próximas etapas!",
         "[Nome], [numero_processo], [vara_juizo], [tipo_acao]"
     ),
     array(
