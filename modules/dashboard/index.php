@@ -70,6 +70,18 @@ $faturamentoMesAnt = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/1
 // Ticket médio
 $ticketMedio = $contratosMes > 0 ? round($faturamentoMes / $contratosMes, 2) : 0;
 
+// Melhor mês em 12 meses (faturamento e contratos)
+$melhorFat = 0; $melhorFatMes = '';
+$melhorContratos = 0; $melhorContratosMes = '';
+for ($i = 1; $i <= 12; $i++) {
+    $m = date('Y-m', strtotime("-$i months"));
+    $mLabel = $ML[(int)date('n', strtotime("-$i months"))] . '/' . date('y', strtotime("-$i months"));
+    $fat = qfloat($pdo, "SELECT IFNULL(SUM(estimated_value_cents),0)/100 FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
+    $con = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$m'");
+    if ($fat > $melhorFat) { $melhorFat = $fat; $melhorFatMes = $mLabel; }
+    if ($con > $melhorContratos) { $melhorContratos = $con; $melhorContratosMes = $mLabel; }
+}
+
 // Tempo médio lead → contrato (dias)
 $tempoMedio = qfloat($pdo, "SELECT AVG(DATEDIFF(converted_at, created_at)) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
 
@@ -361,9 +373,16 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <?php elseif ($tab === 'comercial'): ?>
 <!-- ═══════════════ ABA COMERCIAL ═══════════════ -->
 <div class="kpi-grid">
-    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div></a>
-    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 0, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt) ?></div></a>
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?php if ($melhorContratos > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: <?= $melhorContratos ?> (<?= $melhorContratosMes ?>)</div><?php endif; ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div></a>
+    <?php if (has_role('admin')): ?>
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 0, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 0, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
     <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value">R$ <?= number_format($ticketMedio, 0, ',', '.') ?></div><div class="kpi-label">Ticket Médio</div><div class="kpi-sub"><?= $tempoMedio > 0 ? round($tempoMedio) . ' dias p/ fechar' : '—' ?></div></div></div>
+    <?php else: ?>
+    <?php $pctFat = $faturamentoMesAnt > 0 ? round((($faturamentoMes - $faturamentoMesAnt) / $faturamentoMesAnt) * 100) : ($faturamentoMes > 0 ? 100 : 0); ?>
+    <?php $pctRecorde = $melhorFat > 0 ? round(($faturamentoMes / $melhorFat) * 100) : 0; ?>
+    <div class="kpi-card"><div class="kpi-icon purple">📊</div><div><div class="kpi-value" style="color:<?= $pctFat >= 0 ? '#059669' : '#dc2626' ?>;"><?= $pctFat >= 0 ? '+' : '' ?><?= $pctFat ?>%</div><div class="kpi-label">Faturamento vs <?= $ML[(int)date('n', strtotime('-1 month'))] ?></div><div class="kpi-sub"><?= $pctFat >= 0 ? 'Acima' : 'Abaixo' ?> do mês anterior</div><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;"><?= $pctRecorde ?>% do recorde (<?= $melhorFatMes ?>)</div><?php endif; ?></div></div>
+    <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value"><?= $tempoMedio > 0 ? round($tempoMedio) . 'd' : '—' ?></div><div class="kpi-label">Tempo Médio p/ Fechar</div><div class="kpi-sub">Dias até contrato</div></div></div>
+    <?php endif; ?>
     <a href="<?= module_url('crm') ?>" class="kpi-card"><div class="kpi-icon red">❌</div><div><div class="kpi-value"><?= $canceladosMes ?></div><div class="kpi-label">Cancelados <?= $mesNome ?></div><div class="kpi-sub" style="color:var(--text-muted);">Total: <?= $canceladosTotal ?></div></div></a>
 </div>
 
@@ -394,9 +413,9 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <?php if (!empty($rankingAcoes)): ?>
 <div class="dash-card" style="margin-bottom:1.25rem;">
     <h4>🏆 Tipos de Ação mais Contratados</h4>
-    <table><thead><tr><th>Tipo</th><th>Qtd</th><th>Faturamento</th></tr></thead><tbody>
+    <table><thead><tr><th>Tipo</th><th>Qtd</th><?php if (has_role('admin')): ?><th>Faturamento</th><?php endif; ?></tr></thead><tbody>
     <?php foreach ($rankingAcoes as $ra): ?>
-    <tr><td style="font-weight:600;"><?= e($ra['case_type']) ?></td><td><?= $ra['total'] ?></td><td>R$ <?= number_format($ra['faturamento'], 0, ',', '.') ?></td></tr>
+    <tr><td style="font-weight:600;"><?= e($ra['case_type']) ?></td><td><?= $ra['total'] ?></td><?php if (has_role('admin')): ?><td>R$ <?= number_format($ra['faturamento'], 0, ',', '.') ?></td><?php endif; ?></tr>
     <?php endforeach; ?></tbody></table>
 </div>
 <?php endif; ?>
