@@ -289,7 +289,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
     </a>
     <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon blue">📝</div>
-        <div><div class="kpi-value"><?= $aguardandoContrato ?></div><div class="kpi-label">Aguardando Contrato</div><div class="kpi-sub">Assinatura pendente</div></div>
+        <div><div class="kpi-value"><?= $aguardandoContrato ?></div><div class="kpi-label">Aguardando Assinatura</div><div class="kpi-sub">Assinatura pendente</div></div>
     </a>
     <a href="?tab=operacional" class="kpi-card">
         <div class="kpi-icon <?= $prazos7dias > 0 ? 'red' : 'green' ?>">⏰</div>
