@@ -122,17 +122,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
         · <?= e($case['responsible_name'] ?: 'Sem responsável') ?>
         <?php if ($case['deadline']): ?> · Prazo: <?= data_br($case['deadline']) ?><?php endif; ?>
     </div>
+    <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || (isset($case['comarca']) && $case['comarca'])): ?>
+    <div style="margin-top:.5rem;font-size:.82rem;color:rgba(255,255,255,.8);">
+        <?php if ($case['case_number']): ?>
+            <span style="font-family:monospace;font-size:.85rem;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px;"><?= e($case['case_number']) ?></span>
+        <?php endif; ?>
+        <?php if (isset($case['court']) && $case['court']): ?>
+            · <?= e($case['court']) ?>
+        <?php endif; ?>
+        <?php if (isset($case['comarca']) && $case['comarca']): ?>
+            · <?= e($case['comarca']) ?>
+        <?php endif; ?>
+        <?php if ($case['distribution_date']): ?>
+            · Distribuído em <?= data_br($case['distribution_date']) ?>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
     <div class="actions">
         <?php if ($case['client_phone']): ?>
             <a href="https://wa.me/55<?= preg_replace('/\D/', '', $case['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php endif; ?>
-        <?php if ($case['drive_folder_url']): ?>
-            <a href="<?= e($case['drive_folder_url']) ?>" target="_blank" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">📁 Abrir pasta Drive</a>
-        <?php endif; ?>
         <?php if ($case['client_id']): ?>
-            <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver no CRM</a>
+            <a href="<?= module_url('clientes', 'ver.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente</a>
         <?php endif; ?>
     </div>
+</div>
+
+<!-- Atalhos rápidos -->
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">📅 + Compromisso</a>
+    <a href="<?= module_url('prazos') ?>?novo=1&case_id=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">⏰ + Prazo</a>
+    <a href="#tarefas" class="btn btn-outline btn-sm" style="font-size:.78rem;" onclick="document.querySelector('[name=title]').focus();">✓ + Tarefa</a>
 </div>
 
 <!-- Documentos Pendentes / Recebidos -->

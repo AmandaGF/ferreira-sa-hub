@@ -30,9 +30,12 @@ try { $contratos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE s
 $contratosMes = 0;
 try { $contratosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND MONTH(converted_at) = MONTH(CURDATE()) AND YEAR(converted_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
 
-// Perdidos este mês
-$perdidosMes = 0;
-try { $perdidosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'perdido' AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
+// Cancelados este mês (pipeline cancelado + operacional cancelado)
+$canceladosMes = 0;
+try {
+    $canceladosMes += (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn();
+    $canceladosMes += (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status = 'cancelado' AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn();
+} catch (Exception $e) {}
 
 // Casos em execução (operacional)
 $casosExecucao = 0;
@@ -342,8 +345,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="kpi-card">
         <div class="kpi-icon red">❌</div>
         <div>
-            <div class="kpi-value"><?= $perdidosMes ?></div>
-            <div class="kpi-label">Perdidos no mês</div>
+            <div class="kpi-value"><?= $canceladosMes ?></div>
+            <div class="kpi-label">CANCELADOS NO MÊS</div>
         </div>
     </div>
 </div>
@@ -383,12 +386,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $funnelColors = array(
         'cadastro_preenchido' => '#6366f1', 'elaboracao_docs' => '#0ea5e9', 'link_enviados' => '#f59e0b',
         'contrato_assinado' => '#059669', 'agendado_docs' => '#0d9488', 'reuniao_cobranca' => '#d97706',
-        'pasta_apta' => '#15803d', 'perdido' => '#dc2626'
+        'pasta_apta' => '#15803d', 'perdido' => '#dc2626', 'cancelado' => '#dc2626'
     );
     $funnelLabels = array(
         'cadastro_preenchido' => 'Cadastro', 'elaboracao_docs' => 'Elaboração', 'link_enviados' => 'Link Enviado',
         'contrato_assinado' => 'Contrato', 'agendado_docs' => 'Agendado', 'reuniao_cobranca' => 'Cobrando Docs',
-        'pasta_apta' => 'Pasta Apta', 'perdido' => 'Perdido'
+        'pasta_apta' => 'Pasta Apta', 'perdido' => 'Cancelado', 'cancelado' => 'Cancelado'
     );
 ?>
 <div class="funnel-card">

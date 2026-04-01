@@ -207,6 +207,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+        <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Novo Processo</a>
         <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <form method="GET" class="op-filters">
             <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:160px;" onkeydown="if(event.key==='Enter')this.form.submit()">
