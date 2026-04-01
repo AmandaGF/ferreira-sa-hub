@@ -80,17 +80,17 @@ function clean_str(?string $input, int $maxLength = 500): string
 }
 
 // ─── Roles ──────────────────────────────────────────────
-// Perfis: admin, gestao, comercial, cx, operacional, colaborador
+// Perfis: admin, gestao, comercial, cx, operacional, colaborador, estagiario
 function role_label(string $role): string
 {
-    $labels = array('admin' => 'Administrador', 'gestao' => 'Gestão', 'comercial' => 'Comercial', 'cx' => 'CX', 'operacional' => 'Operacional', 'colaborador' => 'Colaborador');
+    $labels = array('admin' => 'Administrador', 'gestao' => 'Gestão', 'comercial' => 'Comercial', 'cx' => 'CX', 'operacional' => 'Operacional', 'colaborador' => 'Colaborador', 'estagiario' => 'Estagiário');
     return isset($labels[$role]) ? $labels[$role] : 'Desconhecido';
 }
 
 function role_level(string $role): int
 {
-    // admin > gestao > comercial/cx/operacional > colaborador
-    $levels = array('admin' => 5, 'gestao' => 4, 'comercial' => 3, 'cx' => 3, 'operacional' => 3, 'colaborador' => 1);
+    // admin > gestao > comercial/cx/operacional > estagiario > colaborador
+    $levels = array('admin' => 5, 'gestao' => 4, 'comercial' => 3, 'cx' => 3, 'operacional' => 3, 'estagiario' => 2, 'colaborador' => 1);
     return isset($levels[$role]) ? $levels[$role] : 0;
 }
 

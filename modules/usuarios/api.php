@@ -68,7 +68,7 @@ switch ($action) {
 
     case 'approve':
         $role = $_POST['role'] ?? 'colaborador';
-        $validRoles = array('admin', 'gestao', 'colaborador');
+        $validRoles = array('admin', 'gestao', 'comercial', 'cx', 'operacional', 'colaborador', 'estagiario');
         if (!in_array($role, $validRoles)) $role = 'colaborador';
 
         if ($userId) {

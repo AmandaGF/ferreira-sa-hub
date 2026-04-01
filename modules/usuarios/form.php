@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Validações
     if (empty($name)) $errors[] = 'Nome é obrigatório.';
     if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'E-mail válido é obrigatório.';
-    if (!in_array($role, ['admin', 'gestao', 'colaborador'])) $errors[] = 'Perfil inválido.';
+    if (!in_array($role, array('admin', 'gestao', 'comercial', 'cx', 'operacional', 'colaborador', 'estagiario'))) $errors[] = 'Perfil inválido.';
 
     // Verificar email duplicado
     if (empty($errors)) {
@@ -143,6 +143,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-group">
                         <label class="form-label" for="role">Perfil de acesso *</label>
                         <select id="role" name="role" class="form-select">
+                            <option value="estagiario" <?= $f['role'] === 'estagiario' ? 'selected' : '' ?>>Estagiário</option>
                             <option value="colaborador" <?= $f['role'] === 'colaborador' ? 'selected' : '' ?>>Colaborador</option>
                             <option value="comercial" <?= $f['role'] === 'comercial' ? 'selected' : '' ?>>Comercial</option>
                             <option value="cx" <?= $f['role'] === 'cx' ? 'selected' : '' ?>>CX</option>
