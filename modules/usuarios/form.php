@@ -170,6 +170,64 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </form>
         </div>
     </div>
+
+    <?php if ($editId && $user): ?>
+    <!-- Permissões individuais -->
+    <?php
+    $userPerms = get_user_permissions($editId, $user['role']);
+    $moduleLabels = module_permission_labels();
+
+    // POST: salvar permissões
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['perm_action'] ?? '') === 'salvar_permissoes') {
+        // Já processado acima mas vamos tratar aqui separado
+    }
+    ?>
+    <div class="card" style="margin-top:1.25rem;">
+        <div class="card-header">
+            <h3>Permissões de Acesso</h3>
+            <span style="font-size:.72rem;color:var(--text-muted);">Perfil: <?= role_label($user['role']) ?> — Altere apenas o que for diferente do padrão</span>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="<?= module_url('usuarios', 'api.php') ?>">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="update_permissions">
+                <input type="hidden" name="user_id" value="<?= $editId ?>">
+
+                <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--border);">
+                            <th style="text-align:left;padding:.5rem;font-size:.72rem;text-transform:uppercase;color:var(--text-muted);">Módulo</th>
+                            <th style="text-align:center;padding:.5rem;font-size:.72rem;width:80px;">Padrão</th>
+                            <th style="text-align:center;padding:.5rem;font-size:.72rem;width:140px;">Acesso</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php foreach ($moduleLabels as $mod => $label):
+                        $perm = isset($userPerms[$mod]) ? $userPerms[$mod] : array('default' => false, 'override' => null, 'effective' => false);
+                        $defaultIcon = $perm['default'] ? '✅' : '❌';
+                    ?>
+                        <tr style="border-bottom:1px solid rgba(0,0,0,.05);">
+                            <td style="padding:.45rem .5rem;font-weight:600;"><?= $label ?></td>
+                            <td style="text-align:center;padding:.45rem;font-size:.85rem;"><?= $defaultIcon ?></td>
+                            <td style="text-align:center;padding:.45rem;">
+                                <select name="perm[<?= $mod ?>]" class="form-select" style="font-size:.78rem;padding:.25rem .5rem;width:auto;display:inline;<?= $perm['override'] !== null ? 'border-color:#B87333;' : '' ?>">
+                                    <option value="default" <?= $perm['override'] === null ? 'selected' : '' ?>>Padrão do perfil</option>
+                                    <option value="1" <?= $perm['override'] === 1 ? 'selected' : '' ?>>✅ Liberar</option>
+                                    <option value="0" <?= $perm['override'] === 0 ? 'selected' : '' ?>>🚫 Bloquear</option>
+                                </select>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+                    <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar Permissões</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

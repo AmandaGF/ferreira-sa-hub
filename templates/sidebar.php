@@ -117,7 +117,7 @@ body.dark-mode a { color:var(--rose); }
         <?php foreach ($menuItems as $item): ?>
             <?php if (isset($item['section'])): ?>
                 <div class="sidebar-section"><?= e($item['section']) ?></div>
-            <?php elseif (in_array($userRole, $item['roles'], true)): ?>
+            <?php elseif (function_exists('can_access') && isset($item['id']) && isset(_permission_defaults()[$item['id']]) ? can_access($item['id']) : in_array($userRole, $item['roles'], true)): ?>
                 <a href="<?= $item['href'] ?>"
                    class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
                    title="<?= e($item['label']) ?>">

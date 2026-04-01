@@ -86,7 +86,10 @@ for ($i = 1; $i <= 12; $i++) {
 $tempoMedio = qfloat($pdo, "SELECT AVG(DATEDIFF(converted_at, created_at)) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mesAtual'");
 
 // Pipeline por estágio — sem importados
-$aguardandoContrato = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado') AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
+// Aguardando assinatura = SOMENTE quem recebeu o link mas ainda não assinou
+$aguardandoContrato = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'link_enviados' AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
+// Em captação = ainda preparando docs/contrato
+$emCaptacao = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs') AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
 $pastasAptas = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'pasta_apta'");
 
 // Cancelados
@@ -275,8 +278,8 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <!-- Abas -->
 <div class="dash-tabs">
     <a href="?tab=geral" class="dash-tab <?= $tab === 'geral' ? 'active' : '' ?>">Geral</a>
-    <?php if (has_role('admin','gestao','comercial','cx')): ?><a href="?tab=comercial" class="dash-tab <?= $tab === 'comercial' ? 'active' : '' ?>">Comercial</a><?php endif; ?>
-    <?php if (has_role('admin','gestao','operacional')): ?><a href="?tab=operacional" class="dash-tab <?= $tab === 'operacional' ? 'active' : '' ?>">Operacional</a><?php endif; ?>
+    <?php if (can_access('dashboard_comercial')): ?><a href="?tab=comercial" class="dash-tab <?= $tab === 'comercial' ? 'active' : '' ?>">Comercial</a><?php endif; ?>
+    <?php if (can_access('dashboard_operacional')): ?><a href="?tab=operacional" class="dash-tab <?= $tab === 'operacional' ? 'active' : '' ?>">Operacional</a><?php endif; ?>
 </div>
 
 <?php if ($tab === 'geral'): ?>
@@ -374,7 +377,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <!-- ═══════════════ ABA COMERCIAL ═══════════════ -->
 <div class="kpi-grid">
     <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?php if ($melhorContratos > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: <?= $melhorContratos ?> (<?= $melhorContratosMes ?>)</div><?php endif; ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div></a>
-    <?php if (has_role('admin')): ?>
+    <?php if (can_access('faturamento')): ?>
     <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 0, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 0, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
     <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value">R$ <?= number_format($ticketMedio, 0, ',', '.') ?></div><div class="kpi-label">Ticket Médio</div><div class="kpi-sub"><?= $tempoMedio > 0 ? round($tempoMedio) . ' dias p/ fechar' : '—' ?></div></div></div>
     <?php else: ?>
@@ -413,9 +416,9 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <?php if (!empty($rankingAcoes)): ?>
 <div class="dash-card" style="margin-bottom:1.25rem;">
     <h4>🏆 Tipos de Ação mais Contratados</h4>
-    <table><thead><tr><th>Tipo</th><th>Qtd</th><?php if (has_role('admin')): ?><th>Faturamento</th><?php endif; ?></tr></thead><tbody>
+    <table><thead><tr><th>Tipo</th><th>Qtd</th><?php if (can_access('faturamento')): ?><th>Faturamento</th><?php endif; ?></tr></thead><tbody>
     <?php foreach ($rankingAcoes as $ra): ?>
-    <tr><td style="font-weight:600;"><?= e($ra['case_type']) ?></td><td><?= $ra['total'] ?></td><?php if (has_role('admin')): ?><td>R$ <?= number_format($ra['faturamento'], 0, ',', '.') ?></td><?php endif; ?></tr>
+    <tr><td style="font-weight:600;"><?= e($ra['case_type']) ?></td><td><?= $ra['total'] ?></td><?php if (can_access('faturamento')): ?><td>R$ <?= number_format($ra['faturamento'], 0, ',', '.') ?></td><?php endif; ?></tr>
     <?php endforeach; ?></tbody></table>
 </div>
 <?php endif; ?>

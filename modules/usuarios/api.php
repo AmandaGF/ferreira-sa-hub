@@ -105,6 +105,41 @@ switch ($action) {
         }
         break;
 
+    case 'update_permissions':
+        if (!$userId) { flash_set('error', 'Usuário inválido.'); break; }
+
+        // Criar tabela se não existe
+        $pdo->exec("CREATE TABLE IF NOT EXISTS user_permissions (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            module VARCHAR(50) NOT NULL,
+            allowed TINYINT(1) NOT NULL DEFAULT 1,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uk_user_module (user_id, module)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $perms = $_POST['perm'] ?? array();
+        $validModules = array_keys(module_permission_labels());
+
+        // Limpar overrides antigos deste usuário
+        $pdo->prepare("DELETE FROM user_permissions WHERE user_id = ?")->execute(array($userId));
+
+        // Inserir apenas os overrides (não-default)
+        $count = 0;
+        foreach ($perms as $mod => $val) {
+            if (!in_array($mod, $validModules)) continue;
+            if ($val === 'default') continue; // Sem override
+            $allowed = (int)$val;
+            $pdo->prepare("INSERT INTO user_permissions (user_id, module, allowed) VALUES (?, ?, ?)")
+                ->execute(array($userId, $mod, $allowed));
+            $count++;
+        }
+
+        audit_log('permissions_updated', 'user', $userId, "$count overrides definidos");
+        flash_set('success', "Permissões atualizadas! ($count alterações)");
+        redirect(module_url('usuarios', 'form.php?id=' . $userId));
+        exit;
+
     default:
         flash_set('error', 'Ação inválida.');
 }

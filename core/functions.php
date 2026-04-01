@@ -102,16 +102,145 @@ function role_badge(string $role): string
     return '<span class="badge badge-' . e($badgeClass) . '">' . $label . '</span>';
 }
 
-// Pode ver o Pipeline Comercial/CX?
-function can_view_pipeline(): bool { return has_role('admin', 'gestao', 'comercial', 'cx'); }
-// Pode mover no Pipeline (colunas 1-4)?
-function can_move_pipeline_comercial(): bool { return has_role('admin', 'gestao', 'comercial'); }
-// Pode mover no Pipeline (colunas 5-8)?
-function can_move_pipeline_cx(): bool { return has_role('admin', 'gestao', 'cx'); }
-// Pode ver o Kanban Operacional?
-function can_view_operacional(): bool { return has_role('admin', 'gestao', 'operacional', 'comercial', 'cx'); }
-// Pode mover no Operacional?
-function can_move_operacional(): bool { return has_role('admin', 'gestao', 'operacional'); }
+// ═══════════════════════════════════════════════════════
+// SISTEMA DE PERMISSÕES POR MÓDULO
+// Defaults por role + overrides individuais por usuário
+// ═══════════════════════════════════════════════════════
+
+// Módulos e quais roles TÊM acesso por padrão
+function _permission_defaults()
+{
+    return array(
+        'dashboard'           => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
+        'dashboard_comercial' => array('admin','gestao','comercial','cx'),
+        'dashboard_operacional' => array('admin','gestao','operacional'),
+        'portal'              => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
+        'helpdesk'            => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
+        'agenda'              => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
+        'crm'                 => array('admin','gestao','comercial','cx'),
+        'pipeline'            => array('admin','gestao','comercial','cx'),
+        'pipeline_mover_comercial' => array('admin','gestao','comercial'),
+        'pipeline_mover_cx'   => array('admin','gestao','cx'),
+        'operacional'         => array('admin','gestao','operacional','comercial','cx'),
+        'operacional_mover'   => array('admin','gestao','operacional'),
+        'processos'           => array('admin','gestao','operacional','comercial','cx'),
+        'prazos'              => array('admin','gestao','operacional'),
+        'documentos'          => array('admin','gestao','operacional'),
+        'peticoes'            => array('admin','gestao','operacional'),
+        'formularios'         => array('admin','gestao'),
+        'relatorios'          => array('admin','gestao'),
+        'usuarios'            => array('admin'),
+        'faturamento'         => array('admin'),
+    );
+}
+
+/**
+ * Verifica se o usuário atual pode acessar um módulo.
+ * 1. Admin sempre pode tudo
+ * 2. Verifica override individual (user_permissions)
+ * 3. Fallback para default do role
+ */
+function can_access($module)
+{
+    static $overrides = null;
+
+    $role = current_user_role();
+    if (!$role) return false;
+    if ($role === 'admin') return true;
+
+    $userId = current_user_id();
+
+    // Carregar overrides do banco (uma vez por request)
+    if ($overrides === null) {
+        $overrides = array();
+        try {
+            $rows = db()->prepare("SELECT module, allowed FROM user_permissions WHERE user_id = ?");
+            $rows->execute(array($userId));
+            foreach ($rows->fetchAll() as $r) {
+                $overrides[$r['module']] = (int)$r['allowed'];
+            }
+        } catch (Exception $e) {
+            // Tabela pode não existir ainda
+        }
+    }
+
+    // Override individual tem prioridade
+    if (isset($overrides[$module])) {
+        return (bool)$overrides[$module];
+    }
+
+    // Default do role
+    $defaults = _permission_defaults();
+    if (isset($defaults[$module])) {
+        return in_array($role, $defaults[$module], true);
+    }
+
+    return false;
+}
+
+/**
+ * Retorna as permissões de um usuário específico (para UI admin)
+ */
+function get_user_permissions($userId, $userRole)
+{
+    $defaults = _permission_defaults();
+    $result = array();
+
+    // Carregar overrides
+    $overrides = array();
+    try {
+        $rows = db()->prepare("SELECT module, allowed FROM user_permissions WHERE user_id = ?");
+        $rows->execute(array($userId));
+        foreach ($rows->fetchAll() as $r) $overrides[$r['module']] = (int)$r['allowed'];
+    } catch (Exception $e) {}
+
+    foreach ($defaults as $module => $roles) {
+        $defaultAllowed = in_array($userRole, $roles, true);
+        $hasOverride = isset($overrides[$module]);
+        $effectiveAllowed = $hasOverride ? (bool)$overrides[$module] : $defaultAllowed;
+
+        $result[$module] = array(
+            'default' => $defaultAllowed,
+            'override' => $hasOverride ? (int)$overrides[$module] : null,
+            'effective' => $effectiveAllowed,
+        );
+    }
+    return $result;
+}
+
+// Labels amigáveis dos módulos
+function module_permission_labels()
+{
+    return array(
+        'dashboard' => 'Dashboard (Geral)',
+        'dashboard_comercial' => 'Dashboard Comercial',
+        'dashboard_operacional' => 'Dashboard Operacional',
+        'portal' => 'Portal de Links',
+        'helpdesk' => 'Helpdesk',
+        'agenda' => 'Agenda',
+        'crm' => 'CRM (Clientes)',
+        'pipeline' => 'Kanban Comercial',
+        'pipeline_mover_comercial' => 'Mover Pipeline (Comercial)',
+        'pipeline_mover_cx' => 'Mover Pipeline (CX)',
+        'operacional' => 'Kanban Operacional',
+        'operacional_mover' => 'Mover Operacional',
+        'processos' => 'Processos',
+        'prazos' => 'Prazos',
+        'documentos' => 'Documentos',
+        'peticoes' => 'Fábrica de Petições',
+        'formularios' => 'Formulários',
+        'relatorios' => 'Relatórios',
+        'usuarios' => 'Gestão de Usuários',
+        'faturamento' => 'Ver Faturamento (R$)',
+    );
+}
+
+// ── Funções legadas (mantidas para compatibilidade) ──
+function can_view_pipeline(): bool { return can_access('pipeline'); }
+function can_move_pipeline_comercial(): bool { return can_access('pipeline_mover_comercial'); }
+function can_move_pipeline_cx(): bool { return can_access('pipeline_mover_cx'); }
+function can_view_operacional(): bool { return can_access('operacional'); }
+function can_move_operacional(): bool { return can_access('operacional_mover'); }
 
 // ─── Formatação ─────────────────────────────────────────
 function brl(int $cents): string
