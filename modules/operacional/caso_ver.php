@@ -138,7 +138,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || (isset($case['comarca']) && $case['comarca'])): ?>
     <div style="margin-top:.5rem;font-size:.82rem;color:rgba(255,255,255,.8);">
         <?php if ($case['case_number']): ?>
-            <span style="font-family:monospace;font-size:.85rem;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px;"><?= e($case['case_number']) ?></span>
+            <span onclick="copiarNumero(this)" style="font-family:monospace;font-size:.85rem;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .2s;" title="Clique para copiar o nº do processo"><?= e($case['case_number']) ?></span>
         <?php endif; ?>
         <?php if (isset($case['court']) && $case['court']): ?>
             · <?= e($case['court']) ?>
@@ -410,6 +410,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <script>
+function copiarNumero(el) {
+    var texto = el.textContent.trim();
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(texto);
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = texto;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+    }
+    var original = el.innerHTML;
+    el.innerHTML = '✓ Copiado!';
+    el.style.background = 'rgba(5,150,105,.5)';
+    setTimeout(function() { el.innerHTML = original; el.style.background = 'rgba(255,255,255,.15)'; }, 1500);
+}
 function editarTitulo() {
     document.getElementById('casoTitulo').parentElement.style.display = 'none';
     document.getElementById('formTitulo').style.display = 'block';
