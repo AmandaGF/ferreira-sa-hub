@@ -217,7 +217,7 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
 <!-- Tab: Casos -->
 <div class="tab-content" id="tab-casos">
     <?php if (!$isReadOnly): ?>
-        <a href="<?= module_url('crm', 'caso_form.php?client_id=' . $client['id']) ?>" class="btn btn-primary btn-sm mb-2">+ Novo Caso</a>
+        <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-primary btn-sm mb-2">+ Novo Caso</a>
     <?php endif; ?>
 
     <?php if (empty($cases)): ?>
@@ -230,7 +230,7 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
                     <tbody>
                         <?php foreach ($cases as $cs): ?>
                         <tr>
-                            <td class="font-bold"><?= e($cs['title']) ?></td>
+                            <td class="font-bold"><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" style="color:var(--petrol-900);text-decoration:none;"><?= e($cs['title']) ?></a></td>
                             <td class="text-sm"><?= e($cs['case_type']) ?></td>
                             <td><span class="badge badge-<?= $statusBadge[$cs['status']] ?? 'gestao' ?>"><?= $statusLabels[$cs['status']] ?? $cs['status'] ?></span></td>
                             <td><span class="badge badge-<?= $cs['priority'] === 'urgente' ? 'danger' : ($cs['priority'] === 'alta' ? 'warning' : 'gestao') ?>"><?= e($cs['priority']) ?></span></td>
