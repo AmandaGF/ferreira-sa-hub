@@ -35,12 +35,13 @@ try { $docsFaltantes = (int)$pdo->query("SELECT COUNT(*) FROM documentos_pendent
 // MÉTRICAS COMERCIAL
 // ═══════════════════════════════════════════════════════════
 
-// Leads ativos
-$leadsAtivos = 0; $leadsHoje = 0; $leadsMes = 0;
+// Pipeline — métricas por estágio
+$pipelineAtivo = 0; $aguardandoContrato = 0; $pastasAptas = 0;
 try {
-    $leadsAtivos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage NOT IN ('finalizado','perdido','cancelado')")->fetchColumn();
-    $leadsHoje = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE DATE(created_at) = CURDATE()")->fetchColumn();
-    $leadsMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE DATE_FORMAT(created_at, '%Y-%m') = '$mesAtual'")->fetchColumn();
+    $pipelineAtivo = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage NOT IN ('finalizado','perdido','cancelado')")->fetchColumn();
+    // Aguardando assinatura = cadastro_preenchido + elaboracao_docs + link_enviados + contrato_assinado
+    $aguardandoContrato = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado')")->fetchColumn();
+    $pastasAptas = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'pasta_apta'")->fetchColumn();
 } catch (Exception $e) {}
 
 // Contratos fechados NO MÊS (pela data de conversão)
@@ -318,19 +319,20 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
     </a>
 
     <a href="<?= module_url('pipeline') ?>" class="kpi-card">
-        <div class="kpi-icon blue">📈</div>
+        <div class="kpi-icon blue">📝</div>
         <div>
-            <div class="kpi-value"><?= $leadsAtivos ?></div>
-            <div class="kpi-label">Leads Ativos</div>
-            <?php if ($leadsHoje > 0): ?><div class="kpi-sub">+<?= $leadsHoje ?> hoje</div><?php endif; ?>
+            <div class="kpi-value"><?= $aguardandoContrato ?></div>
+            <div class="kpi-label">Aguardando Contrato</div>
+            <div class="kpi-sub">Assinatura pendente</div>
         </div>
     </a>
 
     <a href="<?= module_url('operacional') ?>" class="kpi-card">
-        <div class="kpi-icon orange">⚙️</div>
+        <div class="kpi-icon green">📂</div>
         <div>
-            <div class="kpi-value"><?= $casosAtivos ?></div>
-            <div class="kpi-label">Processos Ativos</div>
+            <div class="kpi-value"><?= $pastasAptas ?></div>
+            <div class="kpi-label">Pastas Aptas</div>
+            <div class="kpi-sub">Prontas p/ distribuição</div>
         </div>
     </a>
 
@@ -354,7 +356,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
     <?php
     $metaItems = array(
-        array('label' => 'Leads / Meta', 'atual' => $leadsMes, 'meta' => $metas['leads_mes'], 'cor' => '#6366f1'),
+        array('label' => 'Novos Contratos / Meta', 'atual' => $contratosMes, 'meta' => $metas['leads_mes'], 'cor' => '#6366f1'),
         array('label' => 'Contratos / Meta', 'atual' => $contratosMes, 'meta' => $metas['contratos_mes'], 'cor' => '#059669'),
         array('label' => 'Entregas / Meta', 'atual' => $casosArquivadosMes, 'meta' => $metas['casos_entregues_mes'], 'cor' => '#B87333'),
     );
@@ -382,7 +384,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="salvar_metas">
             <div style="margin-bottom:.75rem;">
-                <label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.2rem;">Meta de Leads / mês</label>
+                <label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.2rem;">Meta de Novos Contratos / mês</label>
                 <input type="number" name="leads_mes" value="<?= $metas['leads_mes'] ?>" class="form-input" min="1" style="width:100%;">
             </div>
             <div style="margin-bottom:.75rem;">
@@ -482,21 +484,20 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
     </a>
 
     <a href="<?= module_url('pipeline') ?>" class="kpi-card">
-        <div class="kpi-icon blue">📈</div>
+        <div class="kpi-icon blue">📝</div>
         <div>
-            <div class="kpi-value"><?= $leadsMes ?></div>
-            <div class="kpi-label">Leads em <?= $mesLabel[(int)date('n')] ?></div>
-            <div class="meta-bar" style="width:120px;"><div class="meta-fill" style="width:<?= $metas['leads_mes'] > 0 ? min(100, round($leadsMes / $metas['leads_mes'] * 100)) : 0 ?>%;background:<?= $leadsMes >= $metas['leads_mes'] ? '#059669' : '#6366f1' ?>;"></div></div>
-            <div class="meta-text">Meta: <?= $metas['leads_mes'] ?></div>
+            <div class="kpi-value"><?= $aguardandoContrato ?></div>
+            <div class="kpi-label">Aguardando Contrato</div>
+            <div class="kpi-sub">Assinatura pendente</div>
         </div>
     </a>
 
-    <a href="<?= module_url('pipeline') ?>" class="kpi-card">
-        <div class="kpi-icon purple">🎯</div>
+    <a href="<?= module_url('operacional') ?>" class="kpi-card">
+        <div class="kpi-icon green">📂</div>
         <div>
-            <div class="kpi-value"><?= $leadsAtivos ?></div>
-            <div class="kpi-label">Leads Ativos Total</div>
-            <div class="kpi-sub">Todos no Kanban Comercial</div>
+            <div class="kpi-value"><?= $pastasAptas ?></div>
+            <div class="kpi-label">Pastas Aptas</div>
+            <div class="kpi-sub">Prontas p/ distribuição</div>
         </div>
     </a>
 
@@ -552,7 +553,7 @@ $funnelLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elab
         <canvas id="chartConversao"></canvas>
     </div>
     <div class="chart-card">
-        <h4>📊 Leads vs Contratos por mês</h4>
+        <h4>📊 Entradas vs Contratos por mês</h4>
         <canvas id="chartLeadsContratos"></canvas>
     </div>
 </div>
@@ -654,7 +655,7 @@ $funnelLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elab
 
     // Leads vs Contratos
     var c2 = document.getElementById('chartLeadsContratos');
-    if (c2) new Chart(c2, { type:'bar', data:{ labels:<?= json_encode($convLabels) ?>, datasets:[ {label:'Leads',data:<?= json_encode($convLeads) ?>,backgroundColor:'rgba(99,102,241,.6)',borderRadius:4}, {label:'Contratos',data:<?= json_encode($convConvertidos) ?>,backgroundColor:'rgba(5,150,105,.7)',borderRadius:4} ] }, options:{ responsive:true, plugins:{legend:{labels:{color:fc,font:{size:11}}}}, scales:{ y:{beginAtZero:true,ticks:{color:fc,stepSize:5},grid:{color:gc}}, x:{ticks:{color:fc},grid:{display:false}} } } });
+    if (c2) new Chart(c2, { type:'bar', data:{ labels:<?= json_encode($convLabels) ?>, datasets:[ {label:'Entradas no Pipeline',data:<?= json_encode($convLeads) ?>,backgroundColor:'rgba(99,102,241,.6)',borderRadius:4}, {label:'Contratos',data:<?= json_encode($convConvertidos) ?>,backgroundColor:'rgba(5,150,105,.7)',borderRadius:4} ] }, options:{ responsive:true, plugins:{legend:{labels:{color:fc,font:{size:11}}}}, scales:{ y:{beginAtZero:true,ticks:{color:fc,stepSize:5},grid:{color:gc}}, x:{ticks:{color:fc},grid:{display:false}} } } });
     <?php endif; ?>
 
     <?php if ($tab === 'operacional'): ?>
