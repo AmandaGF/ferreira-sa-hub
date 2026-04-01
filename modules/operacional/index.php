@@ -68,7 +68,7 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
-        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado','renunciamos')
+        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado')
         ORDER BY FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
 
 $stmt = $pdo->prepare($sql);
@@ -97,7 +97,7 @@ foreach ($allCases as $cs) {
             continue;
         }
     }
-    if (!isset($byStatus[$status])) continue; // Status sem coluna no Kanban (suspenso, renunciamos, etc)
+    if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
     $byStatus[$status][] = $cs;
 }
 
