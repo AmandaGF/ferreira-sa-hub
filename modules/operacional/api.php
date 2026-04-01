@@ -18,6 +18,22 @@ if (!validate_csrf()) {
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// Helper: buscar lead vinculado ao caso (por case_id ou client_id)
+function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
+    // Primeiro por linked_case_id
+    $stmt = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao, stage_antes_doc_faltante FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
+    $stmt->execute(array($caseId));
+    $row = $stmt->fetch();
+    if ($row) return $row;
+    // Fallback por client_id
+    if ($clientId > 0) {
+        $stmt2 = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao, stage_antes_doc_faltante FROM pipeline_leads WHERE client_id = ? AND stage NOT IN ('finalizado','perdido') ORDER BY id DESC LIMIT 1");
+        $stmt2->execute(array($clientId));
+        return $stmt2->fetch();
+    }
+    return null;
+}
+
 switch ($action) {
     case 'update_status':
         if (!has_min_role('gestao') && !has_role('colaborador')) { break; }
@@ -44,17 +60,7 @@ switch ($action) {
 
                 // Registrar documento pendente
                 $clientId = $currentCase ? (int)$currentCase['client_id'] : 0;
-                // Buscar lead vinculado: primeiro por case_id, depois por client_id
-                $leadRow = null;
-                $leadId = null;
-                $chkLead = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
-                $chkLead->execute(array($caseId));
-                $leadRow = $chkLead->fetch();
-                if (!$leadRow && $clientId > 0) {
-                    $chkLead2 = $pdo->prepare("SELECT id FROM pipeline_leads WHERE client_id = ? AND stage NOT IN ('finalizado','perdido') ORDER BY id DESC LIMIT 1");
-                    $chkLead2->execute(array($clientId));
-                    $leadRow = $chkLead2->fetch();
-                }
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 $leadId = $leadRow ? (int)$leadRow['id'] : null;
 
                 try {
@@ -141,9 +147,7 @@ switch ($action) {
                     ->execute(array('suspenso', $oldStatus, $prazoSusp, $caseId));
 
                 // Espelhar no Pipeline
-                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && !in_array($leadRow['stage'], array('cancelado', 'finalizado', 'perdido', 'suspenso'))) {
                     $pdo->prepare("UPDATE pipeline_leads SET stage='suspenso', coluna_antes_suspensao=?, data_suspensao=NOW(), prazo_suspensao=?, updated_at=NOW() WHERE id=?")
                         ->execute(array($leadRow['stage'], $prazoSusp, $leadRow['id']));
@@ -165,9 +169,7 @@ switch ($action) {
             // ── REATIVAR DO SUSPENSO: restaurar estado anterior ──
             if ($oldStatus === 'suspenso' && $status !== 'suspenso') {
                 // Restaurar lead no Pipeline
-                $linkedLead = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && $leadRow['stage'] === 'suspenso') {
                     $stageAnterior = $leadRow['coluna_antes_suspensao'] ? $leadRow['coluna_antes_suspensao'] : 'elaboracao_docs';
                     $pdo->prepare("UPDATE pipeline_leads SET stage=?, coluna_antes_suspensao=NULL, data_suspensao=NULL, prazo_suspensao=NULL, updated_at=NOW() WHERE id=?")
@@ -192,9 +194,7 @@ switch ($action) {
                     exit;
                 }
                 // Cancelar lead vinculado no Pipeline
-                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && !in_array($leadRow['stage'], array('cancelado', 'finalizado'))) {
                     $pdo->prepare("UPDATE pipeline_leads SET stage = 'cancelado', updated_at = NOW() WHERE id = ?")
                         ->execute(array($leadRow['id']));
@@ -223,9 +223,7 @@ switch ($action) {
 
             // ── EM EXECUÇÃO: auto-finalizar Pipeline se Pasta Apta ──
             if ($status === 'em_andamento') {
-                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && $leadRow['stage'] === 'pasta_apta') {
                     $pdo->prepare("UPDATE pipeline_leads SET stage = 'finalizado', updated_at = NOW() WHERE id = ?")
                         ->execute(array($leadRow['id']));
@@ -244,9 +242,7 @@ switch ($action) {
                     ->execute(array(current_user_id(), $caseId));
 
                 // Retornar lead do Pipeline (se estava em doc_faltante)
-                $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                $linkedLead->execute(array($caseId));
-                $leadRow = $linkedLead->fetch();
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && $leadRow['stage'] === 'doc_faltante') {
                     $pdo->prepare("UPDATE pipeline_leads SET stage='reuniao_cobranca', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
                         ->execute(array($leadRow['id']));
@@ -267,6 +263,8 @@ switch ($action) {
     case 'resolve_doc':
         $docId = (int)($_POST['doc_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        $clientId = 0;
+        if ($caseId) { $cRow = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?"); $cRow->execute(array($caseId)); $cr = $cRow->fetch(); if ($cr) $clientId = (int)$cr['client_id']; }
         if ($docId) {
             // Marcar documento como recebido
             $pdo->prepare("UPDATE documentos_pendentes SET status = 'recebido', recebido_em = NOW(), recebido_por = ? WHERE id = ?")
@@ -290,9 +288,7 @@ switch ($action) {
                         ->execute(array($caseId));
 
                     // Finalizar lead no Pipeline (sai do comercial)
-                    $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                    $linkedLead->execute(array($caseId));
-                    $leadRow = $linkedLead->fetch();
+                    $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                     if ($leadRow) {
                         $pdo->prepare("UPDATE pipeline_leads SET stage='finalizado', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
                             ->execute(array($leadRow['id']));
@@ -307,9 +303,7 @@ switch ($action) {
                     $pdo->prepare("UPDATE cases SET status = 'em_elaboracao', stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
                         ->execute(array($caseId));
 
-                    $linkedLead = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ?");
-                    $linkedLead->execute(array($caseId));
-                    $leadRow = $linkedLead->fetch();
+                    $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                     if ($leadRow && in_array($leadRow['stage'], array('doc_faltante', 'reuniao_cobranca', 'agendado_docs'))) {
                         $pdo->prepare("UPDATE pipeline_leads SET stage='pasta_apta', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
                             ->execute(array($leadRow['id']));

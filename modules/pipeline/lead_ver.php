@@ -159,7 +159,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <div>
                     <span class="fl">Responsável</span>
-                    <select onchange="saveField('assigned_to',this.value,<?= $leadId ?>)" style="font-size:.85rem;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;">
+                    <select onchange="saveField('assigned_to',this.value,<?= $leadId ?>)" style="font-size:.82rem;padding:3px 6px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);cursor:pointer;width:100%;max-width:200px;">
                         <option value="">—</option>
                         <?php foreach ($users as $u): ?>
                             <option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e($u['name']) ?></option>
