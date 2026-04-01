@@ -65,16 +65,41 @@ $categorias = array(
     'outros' => array('label' => 'Outros', 'icon' => '📋', 'cor' => '#6b7280', 'campo' => 'outros_cents'),
 );
 
-// Mapeamento de subcategorias para detalhamento
-$subcategorias = array(
-    'moradia' => array('agua_cents'=>'Água','internet_cents'=>'Internet','telefone_cents'=>'Telefone','tv_cents'=>'TV/Streaming','manutencao_cents'=>'Manutenção','aluguel_cents'=>'Aluguel','condominio_cents'=>'Condomínio','luz_cents'=>'Luz/Energia','gas_cents'=>'Gás','iptu_cents'=>'IPTU'),
-    'alimentacao' => array('supermercado_cents'=>'Supermercado','feira_cents'=>'Feira/Hortifruti','carnes_cents'=>'Açougue/Carnes','padaria_cents'=>'Padaria','lanche_escolar_cents'=>'Lanche escolar','refeicoes_fora_cents'=>'Refeições fora','leite_formula_cents'=>'Leite/Fórmula','agua_mineral_cents'=>'Água mineral','suplementos_cents'=>'Suplementos'),
-    'saude' => array('plano_saude_cents'=>'Plano de saúde','consultas_cents'=>'Consultas','odontologia_cents'=>'Odontologia','oculos_cents'=>'Óculos/Lentes','medicamentos_cents'=>'Medicamentos','terapia_cents'=>'Terapia/Psicólogo'),
-    'educacao' => array('escola_cents'=>'Escola/Mensalidade','material_escolar_cents'=>'Material escolar','uniforme_cents'=>'Uniforme','cursos_cents'=>'Cursos/Atividades extras'),
-    'transporte' => array('transporte_escolar_cents'=>'Transporte escolar','uber_cents'=>'Uber/Transporte app','combustivel_cents'=>'Combustível','onibus_cents'=>'Ônibus/Passagens'),
-    'vestuario' => array('roupas_cents'=>'Roupas','calcados_cents'=>'Calçados'),
-    'lazer' => array('passeios_cents'=>'Passeios','aniversarios_cents'=>'Aniversários/Festas','brinquedos_cents'=>'Brinquedos','outros_lazer_cents'=>'Outros lazer'),
-    'cuidados' => array('higiene_cents'=>'Higiene pessoal','fraldas_cents'=>'Fraldas','cabelo_cents'=>'Corte de cabelo'),
+// Mapeamento de nomes de campos do stored → labels legíveis
+$storedLabels = array(
+    'agua'=>'Água','internet'=>'Internet','telefone'=>'Telefone','tv'=>'TV/Streaming',
+    'manutencao'=>'Manutenção','aluguel'=>'Aluguel','condominio'=>'Condomínio',
+    'luz'=>'Luz/Energia','gas'=>'Gás','iptu'=>'IPTU',
+    'supermercado'=>'Supermercado','feira'=>'Feira/Hortifruti','carnes'=>'Açougue/Carnes',
+    'padaria'=>'Padaria','lanche_escolar'=>'Lanche escolar','lanche'=>'Lanche',
+    'refeicoes_fora'=>'Refeições fora','leite_formula'=>'Leite/Fórmula','leite'=>'Leite/Fórmula',
+    'agua_mineral'=>'Água mineral','suplementos'=>'Suplementos',
+    'plano_saude'=>'Plano de saúde','plano'=>'Plano de saúde','consultas'=>'Consultas',
+    'odontologia'=>'Odontologia','oculos'=>'Óculos/Lentes','medicamentos'=>'Medicamentos',
+    'terapia'=>'Terapia/Psicólogo','fisioterapia'=>'Fisioterapia','fonoaudiologia'=>'Fonoaudiologia',
+    'escola'=>'Escola/Mensalidade','material_escolar'=>'Material escolar','uniforme'=>'Uniforme',
+    'cursos'=>'Cursos/Atividades','natacao'=>'Natação','ballet'=>'Ballet','futebol'=>'Futebol',
+    'musica'=>'Aula de música','reforco'=>'Reforço escolar','ingles'=>'Inglês',
+    'transporte_escolar'=>'Transporte escolar','uber'=>'Uber/App','combustivel'=>'Combustível',
+    'onibus'=>'Ônibus/Passagens','estacionamento'=>'Estacionamento',
+    'roupas'=>'Roupas','calcados'=>'Calçados',
+    'passeios'=>'Passeios','aniversarios'=>'Aniversários/Festas','brinquedos'=>'Brinquedos',
+    'outros_lazer'=>'Outros lazer','cinema'=>'Cinema','parque'=>'Parques',
+    'higiene'=>'Higiene pessoal','fraldas'=>'Fraldas','cabelo'=>'Corte de cabelo',
+    'celular'=>'Celular','tablet'=>'Tablet','jogos'=>'Jogos/Apps',
+);
+
+// Agrupar campos do stored por categoria
+$storedPorCategoria = array(
+    'moradia' => array('agua','internet','telefone','tv','manutencao','aluguel','condominio','luz','gas','iptu'),
+    'alimentacao' => array('supermercado','feira','carnes','padaria','lanche_escolar','lanche','refeicoes_fora','leite_formula','leite','agua_mineral','suplementos'),
+    'saude' => array('plano_saude','plano','consultas','odontologia','oculos','medicamentos','terapia','fisioterapia','fonoaudiologia'),
+    'educacao' => array('escola','material_escolar','uniforme','cursos','natacao','ballet','futebol','musica','reforco','ingles'),
+    'transporte' => array('transporte_escolar','uber','combustivel','onibus','estacionamento'),
+    'vestuario' => array('roupas','calcados'),
+    'lazer' => array('passeios','aniversarios','brinquedos','outros_lazer','cinema','parque'),
+    'cuidados' => array('higiene','fraldas','cabelo'),
+    'tecnologia' => array('celular','tablet','jogos'),
 );
 
 $totalGeral = isset($totais['total_geral_cents']) ? (int)$totais['total_geral_cents'] : 0;
@@ -253,11 +278,21 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
                 <td><?= fmt($valor) ?></td>
             </tr>
             <?php
-            // Detalhamento das subcategorias (se existir em stored)
-            if (isset($subcategorias[$key]) && !empty($stored)):
-                foreach ($subcategorias[$key] as $subCampo => $subLabel):
-                    $subValor = isset($stored[$subCampo]) ? (int)$stored[$subCampo] : 0;
+            // Detalhamento das subcategorias do stored
+            if (isset($storedPorCategoria[$key]) && !empty($stored)):
+                $camposExibidos = array();
+                foreach ($storedPorCategoria[$key] as $subCampo):
+                    $subValor = 0;
+                    // Tentar nome direto, com _cents, e variações
+                    foreach (array($subCampo, $subCampo . '_cents') as $tentativa) {
+                        if (isset($stored[$tentativa]) && (int)$stored[$tentativa] > 0) {
+                            $subValor = (int)$stored[$tentativa];
+                            $camposExibidos[] = $tentativa;
+                            break;
+                        }
+                    }
                     if ($subValor === 0) continue;
+                    $subLabel = isset($storedLabels[$subCampo]) ? $storedLabels[$subCampo] : ucfirst(str_replace('_', ' ', $subCampo));
                 ?>
                 <tr style="background:rgba(0,0,0,.02);">
                     <td></td>
@@ -266,7 +301,17 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
                     <td style="font-size:10pt;color:#666;"><?= fmt($subValor) ?></td>
                 </tr>
                 <?php endforeach;
-            endif; ?>
+
+                // Observações da categoria (campos obs_xxx no stored)
+                $obsKeys = array('obs_moradia','obs_alimentacao','obs_saude','obs_educacao','obs_transporte','obs_vestuario','obs_lazer','obs_tecnologia','obs_cuidados','obs_outros','obs_' . $key);
+                foreach ($obsKeys as $obsKey) {
+                    $obsVal = isset($stored[$obsKey]) ? trim($stored[$obsKey]) : '';
+                    if ($obsVal && strpos($obsKey, $key) !== false) {
+                        echo '<tr style="background:rgba(0,0,0,.02);"><td></td><td colspan="2" style="padding-left:32px;font-size:9pt;color:#92400e;font-style:italic;">📝 ' . htmlspecialchars($obsVal, ENT_QUOTES, 'UTF-8') . '</td><td></td></tr>';
+                    }
+                }
+            endif;
+            ?>
             <?php endforeach; ?>
             <?php if ($moradiaTotal > 0 && $moradiaRateada > 0 && $moradiaTotal !== $moradiaRateada): ?>
             <tr style="background:#fef3c7;">
