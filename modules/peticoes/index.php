@@ -184,6 +184,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <p style="color:var(--text-muted);font-size:.82rem;">Selecione o tipo de ação no Passo 1.</p>
                 </div>
 
+                <!-- Recursos visuais (tabelas e gráficos) -->
+                <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1.5px solid var(--border);">
+                    <div class="fab-campo">
+                        <label style="font-size:.85rem;font-weight:700;color:var(--petrol-900);margin-bottom:.5rem;">
+                            Recursos visuais <span style="font-weight:400;color:var(--text-muted);">(opcional)</span>
+                        </label>
+                        <p style="font-size:.72rem;color:var(--text-muted);margin-bottom:.5rem;">
+                            Selecione os elementos visuais que deseja incluir na petição (Visual Law).
+                        </p>
+                        <div style="display:flex;flex-direction:column;gap:6px;">
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_tabela_despesas" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Tabela de despesas mensais</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">alimentação, saúde, educação...</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_linha_tempo" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Linha do tempo dos fatos</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">cronologia visual dos eventos</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_tabela_comparativa" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Tabela comparativa</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">antes x depois, autor x réu...</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_tabela_convivencia" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Tabela de regime de convivência</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">dias, horários, pernoite...</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_tabela_alimentos" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Tabela de cálculo de alimentos</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">percentuais, valores, incidência</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;cursor:pointer;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;">
+                                <input type="checkbox" name="visual_tabela_bens" value="1" style="accent-color:var(--petrol-900);">
+                                <span>Tabela de partilha de bens</span>
+                                <span style="color:var(--text-muted);font-size:.72rem;margin-left:auto;">imóveis, veículos, contas...</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Upload de documentos -->
                 <div style="margin-top:1.25rem;padding-top:1.25rem;border-top:1.5px solid var(--border);">
                     <div class="fab-campo">
@@ -356,9 +400,14 @@ function gerarPeticao() {
     formData.append('cl_telefone', document.getElementById('cl_telefone').value);
     formData.append('cl_email', document.getElementById('cl_email').value);
 
-    // Campos específicos
+    // Campos específicos da ação
     document.querySelectorAll('#camposAcaoContainer input, #camposAcaoContainer select, #camposAcaoContainer textarea').forEach(function(el) {
         if (el.name) formData.append(el.name, el.value);
+    });
+
+    // Recursos visuais (checkboxes)
+    document.querySelectorAll('#step3 input[type="checkbox"]').forEach(function(cb) {
+        if (cb.checked && cb.name) formData.append(cb.name, '1');
     });
 
     // Arquivos anexados

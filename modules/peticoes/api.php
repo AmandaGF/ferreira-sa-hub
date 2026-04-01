@@ -110,6 +110,26 @@ if ($action === 'gerar') {
         $camposEspecificos .= "Observações do caso: " . $obsGeral . "\n";
     }
 
+    // Recursos visuais solicitados
+    $visuais = array();
+    $visuaisMap = array(
+        'visual_tabela_despesas' => 'Inclua uma TABELA DE DESPESAS MENSAIS ESSENCIAIS detalhada com categorias (Alimentação, Educação, Saúde, Vestuário, Lazer, Moradia, Transporte, Necessidades Diversas), descrição e valor mensal estimado. Header fundo #052228 texto branco, linhas alternadas #FFFFFF/#F4F4F4. Rodapé com total e fonte.',
+        'visual_linha_tempo' => 'Inclua uma LINHA DO TEMPO visual dos fatos em formato de tabela com 3 colunas: marcador (cor #B87333), data (bold #052228) e evento. Linhas alternadas #FFFFFF/#F4F4F4. Borda esquerda #D7AB90 na coluna de eventos.',
+        'visual_tabela_comparativa' => 'Inclua uma TABELA COMPARATIVA com duas ou mais colunas comparando situações (ex: antes x depois, autor x réu, necessidades x possibilidades). Header fundo #052228 texto branco.',
+        'visual_tabela_convivencia' => 'Inclua uma TABELA DE REGIME DE CONVIVÊNCIA com colunas: Tipo de Convivência, Frequência, Horário/Regra, Pernoite. Header fundo #052228 texto branco, linhas alternadas.',
+        'visual_tabela_alimentos' => 'Inclua uma TABELA DE CÁLCULO DE ALIMENTOS mostrando: base de cálculo, percentual, valor resultante, incidência sobre 13º/férias/FGTS. Header fundo #052228 texto branco.',
+        'visual_tabela_bens' => 'Inclua uma TABELA DE PARTILHA DE BENS com colunas: Bem, Descrição, Valor Estimado, Proposta de Partilha. Header fundo #052228 texto branco, linhas alternadas.',
+    );
+    foreach ($visuaisMap as $key => $instrucao) {
+        if (!empty($_POST[$key])) {
+            $visuais[] = $instrucao;
+        }
+    }
+    $instrucaoVisuais = '';
+    if (!empty($visuais)) {
+        $instrucaoVisuais = "\n\nRECURSOS VISUAIS SOLICITADOS (incluir obrigatoriamente):\n" . implode("\n", $visuais);
+    }
+
     // Labels
     $tiposAcao = get_tipos_acao();
     $tiposPeca = get_tipos_peca();
@@ -152,6 +172,9 @@ FIXO;
     $userPrompt .= "- Siga EXATAMENTE os templates HTML do system prompt (caixa da ação, seções à direita, pedidos em tabela)\n";
     $userPrompt .= "- A petição deve ser COMPLETA: endereçamento, indicações, qualificação, caixa da ação, todas as seções, intimações, provas, assinatura\n";
     $userPrompt .= "- NUNCA corte ou interrompa. Seja conciso se necessário, mas inclua TODAS as seções até a assinatura\n";
+    if ($instrucaoVisuais) {
+        $userPrompt .= $instrucaoVisuais . "\n";
+    }
 
     // ══ Pré-processamento de documentos ══
     $contentBlocks = array();
