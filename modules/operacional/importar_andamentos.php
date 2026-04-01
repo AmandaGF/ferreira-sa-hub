@@ -35,34 +35,7 @@ $errosCount = 0;
 $ignorados = 0;
 $preview = array();
 
-// ─── Movimentações que são RUÍDO (ignorar) ───
-$ruido = array(
-    'expedição de certidão',
-    'expedição de outros documentos',
-    'expedição de mandado',
-    'expedição de aviso de recebimento',
-    'conclusos ao juiz',
-    'conclusos para decisão',
-    'recebidos os autos',
-    'proferido despacho de mero expediente',
-    'distribuído por sorteio',
-    'decorrido prazo de',
-    'disponibilizado no dj eletrônico',
-    'publicado intimação em',
-    'publicado decisão em',
-    'publicado despacho em',
-    'juntada de aviso de recebimento',
-);
-
-function ehRuido($descricao, $ruido) {
-    $desc = mb_strtolower(trim($descricao));
-    foreach ($ruido as $r) {
-        if (strpos($desc, $r) === 0 || $desc === $r) return true;
-    }
-    // Muito curto e genérico
-    if (mb_strlen($desc) < 10) return true;
-    return false;
-}
+// Sem filtro de ruído — importa tudo que o LegalOne exporta
 
 function detectarTipo($tipoOrigem, $tipoLegalOne, $descricao) {
     $desc = mb_strtolower($descricao);
@@ -147,44 +120,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('operacional', 'importar_andamentos.php?case_id=' . $caseId));
     }
 
-    // Fix encoding
-    if (mb_detect_encoding($conteudo, 'UTF-8', true) === false) {
-        $conteudo = mb_convert_encoding($conteudo, 'UTF-8', 'ISO-8859-1');
-    }
     // BOM UTF-8
     if (substr($conteudo, 0, 3) === "\xEF\xBB\xBF") {
         $conteudo = substr($conteudo, 3);
     }
+    // Fix encoding
+    if (mb_detect_encoding($conteudo, 'UTF-8', true) === false) {
+        $conteudo = mb_convert_encoding($conteudo, 'UTF-8', 'ISO-8859-1');
+    }
 
-    // Detectar se é formato LegalOne (header com "Confidencial;Tipo de origem;")
-    $isLegalOne = (strpos($conteudo, 'Confidencial') !== false && strpos($conteudo, 'Tipo de origem') !== false);
+    // Detectar se é formato LegalOne:
+    // 1. Header contém "Confidencial" (com ou sem encoding quebrado)
+    // 2. Primeira linha tem 10+ ponto e vírgula (LegalOne tem ~15 campos)
+    $primeiraLinha = strtok($conteudo, "\n");
+    $semicolonCount = substr_count($primeiraLinha, ';');
+    $isLegalOne = ($semicolonCount >= 10) || (stripos($conteudo, 'onfidencial') !== false && stripos($conteudo, 'ipo de origem') !== false);
 
     if ($isLegalOne) {
         // ── Parser CSV LegalOne com campos multiline entre aspas ──
         $tmpFile = tempnam(sys_get_temp_dir(), 'csv_');
         file_put_contents($tmpFile, $conteudo);
         $handle = fopen($tmpFile, 'r');
+
+        // Ler header e mapear índices
         $header = fgetcsv($handle, 0, ';', '"');
-        // Mapear índices do header
         $colIdx = array();
         if ($header) {
             foreach ($header as $i => $h) {
                 $h = trim(mb_strtolower($h));
-                if (strpos($h, 'tipo de origem') !== false) $colIdx['origem'] = $i;
+                // Usar strpos para aceitar encoding quebrado
+                if (strpos($h, 'tipo de origem') !== false || strpos($h, 'ipo de origem') !== false) $colIdx['origem'] = $i;
                 if ($h === 'data') $colIdx['data'] = $i;
                 if ($h === 'hora') $colIdx['hora'] = $i;
                 if ($h === 'tipo') $colIdx['tipo'] = $i;
                 if (strpos($h, 'descri') !== false) $colIdx['descricao'] = $i;
+                if ($h === 'confidencial' || strpos($h, 'onfidencial') !== false) $colIdx['confidencial'] = $i;
             }
+        }
+
+        // Fallback: se não achou pelo nome, usar posições fixas do LegalOne
+        if (empty($colIdx) || !isset($colIdx['data'])) {
+            $colIdx = array('confidencial' => 0, 'origem' => 1, 'data' => 2, 'hora' => 3, 'tipo' => 4, 'descricao' => 5);
         }
 
         while (($row = fgetcsv($handle, 0, ';', '"')) !== false) {
             if (count($row) < 5) continue;
 
-            $origem = isset($colIdx['origem']) ? trim($row[$colIdx['origem']]) : '';
-            $dataStr = isset($colIdx['data']) ? trim($row[$colIdx['data']]) : '';
-            $tipoLO = isset($colIdx['tipo']) ? trim($row[$colIdx['tipo']]) : '';
-            $descricao = isset($colIdx['descricao']) ? trim($row[$colIdx['descricao']]) : '';
+            $origem = isset($colIdx['origem']) && isset($row[$colIdx['origem']]) ? trim($row[$colIdx['origem']]) : '';
+            $dataStr = isset($colIdx['data']) && isset($row[$colIdx['data']]) ? trim($row[$colIdx['data']]) : '';
+            $tipoLO = isset($colIdx['tipo']) && isset($row[$colIdx['tipo']]) ? trim($row[$colIdx['tipo']]) : '';
+            $descricao = isset($colIdx['descricao']) && isset($row[$colIdx['descricao']]) ? trim($row[$colIdx['descricao']]) : '';
 
             // Parsear data
             $data = null;
@@ -194,25 +179,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$data) continue;
             if ($descricao === '') continue;
 
-            // Verificar se é ruído
-            if (ehRuido($descricao, $ruido)) {
-                $ignorados++;
-                continue;
-            }
-
             // Detectar tipo
             $tipo = detectarTipo($origem, $tipoLO, $descricao);
 
-            // Para publicações, resumir o texto
-            if ($tipoLO === 'Publicação' || strpos(mb_strtolower($origem), 'recorte') !== false) {
+            // Para publicações, resumir o texto (muito longo)
+            if (stripos($tipoLO, 'Publica') !== false || stripos($origem, 'Recorte') !== false) {
                 $descricao = resumirPublicacao($descricao);
             }
 
-            // Limpar descrição
+            // Limpar descrição (remover quebras de linha, espaços extras)
             $descricao = trim(preg_replace('/\s+/', ' ', str_replace(array("\r\n", "\r", "\n"), ' ', $descricao)));
             if (mb_strlen($descricao) > 2000) {
                 $descricao = mb_substr($descricao, 0, 2000) . '...';
             }
+
+            if ($descricao === '') continue;
 
             $registros[] = array('data' => $data, 'tipo' => $tipo, 'descricao' => $descricao, 'origem' => $origem);
         }
@@ -336,7 +317,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 Exporte os andamentos do <strong>LegalOne</strong> em CSV e faça o upload aqui.
             </p>
             <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:1rem;">
-                O sistema filtra automaticamente o ruído (Expedição de Certidão, Conclusos ao Juiz, etc.) e importa apenas andamentos relevantes: publicações, despachos, sentenças, decisões, audiências e notas manuais.
+                O sistema detecta automaticamente o formato do LegalOne, classifica cada andamento por tipo (despacho, sentença, decisão, intimação, etc.) e resume as publicações longas do Diário de Justiça.
             </p>
 
             <form method="POST" enctype="multipart/form-data" id="formImportar">
@@ -361,7 +342,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($resultado): ?>
                         <span style="font-size:.78rem;color:var(--text-muted);">
                             <?= count($preview) ?> relevantes
-                            <?php if ($ignorados > 0): ?> · <?= $ignorados ?> ruído filtrado<?php endif; ?>
                         </span>
                     <?php endif; ?>
                 </div>
