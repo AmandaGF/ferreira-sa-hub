@@ -125,9 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acaoTexto === '' && isset($_POST['acao_custom'])) $acaoTexto = strtoupper($_POST['acao_custom']);
 }
 
-// Campos extras para juntada/ciência
-$numeroProcesso = $_POST['numero_processo'] ?? ($_GET['numero_processo'] ?? '');
-$varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? '');
+// Buscar dados do caso/processo se veio do módulo operacional
+$caseData = null;
+$caseIdDoc = (int)($_GET['case_id'] ?? 0);
+if ($caseIdDoc) {
+    $stmtCase = $pdo->prepare('SELECT case_number, court, comarca, comarca_uf FROM cases WHERE id = ?');
+    $stmtCase->execute(array($caseIdDoc));
+    $caseData = $stmtCase->fetch();
+}
+
+// Campos extras para juntada/ciência — pré-preenchidos com dados do processo
+$numeroProcesso = $_POST['numero_processo'] ?? ($_GET['numero_processo'] ?? ($caseData ? ($caseData['case_number'] ?: '') : ''));
+$varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? ($caseData ? ($caseData['court'] ?: '') : ''));
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';

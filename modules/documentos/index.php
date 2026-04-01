@@ -9,8 +9,9 @@ require_min_role('gestao');
 $pageTitle = 'Documentos';
 $pdo = db();
 
-// Cliente pré-selecionado (vindo do CRM)
+// Cliente e caso pré-selecionados (vindo do processo)
 $preClientId = (int)($_GET['client_id'] ?? 0);
+$preCaseId = (int)($_GET['case_id'] ?? 0);
 
 $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY name ASC")->fetchAll();
 
@@ -84,6 +85,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="card-header"><h3>Gerar Documento</h3></div>
     <div class="card-body">
         <form method="GET" action="<?= module_url('documentos', 'gerar.php') ?>" id="docForm">
+            <?php if ($preCaseId): ?><input type="hidden" name="case_id" value="<?= $preCaseId ?>"><?php endif; ?>
 
             <!-- 1. Tipo de documento -->
             <p class="form-label" style="font-size:.88rem;margin-bottom:.75rem;">1. Tipo de documento</p>

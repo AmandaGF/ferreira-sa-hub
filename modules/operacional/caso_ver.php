@@ -110,7 +110,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
     <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">← Voltar</a>
     <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
-    <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
+    <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="delete_case">
