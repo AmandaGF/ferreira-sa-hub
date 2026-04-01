@@ -411,13 +411,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <?php
         // Campos do JSON ignorando os que já mostramos
-        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds');
-        foreach ($payload as $key => $val):
+        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds', 'client_name', 'client_phone', 'client_email', 'form_type', 'protocol_original', 'protocol', 'protocolo');
+        // Flatten: se tem 'totais' aninhado, extrair os sub-campos
+        $flatPayload = array();
+        foreach ($payload as $key => $val) {
+            if ($key === 'totais' && is_array($val)) {
+                foreach ($val as $sk => $sv) { $flatPayload['total_' . str_replace('_cents', '', $sk) . '_cents'] = $sv; }
+            } else {
+                $flatPayload[$key] = $val;
+            }
+        }
+
+        foreach ($flatPayload as $key => $val):
             if (in_array($key, $skipKeys)) continue;
             $label = getLabel($key, $fieldLabels);
             $displayVal = getValue($val, $valueLabels, $key);
             $isEmpty = ($displayVal === '' || $displayVal === null);
-            $isMoney = isCentsField($key);
+            $isMoney = isCentsField($key) || strpos($key, 'renda') !== false;
             $isTotal = ($key === 'total_geral_cents');
         ?>
             <div class="field-row">
