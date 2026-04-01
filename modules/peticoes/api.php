@@ -104,6 +104,12 @@ if ($action === 'gerar') {
         }
     }
 
+    // SEMPRE capturar observações (campo genérico que aparece para todos os tipos)
+    $obsGeral = trim($_POST['observacoes_caso'] ?? '');
+    if ($obsGeral && strpos($camposEspecificos, $obsGeral) === false) {
+        $camposEspecificos .= "Observações do caso: " . $obsGeral . "\n";
+    }
+
     // Labels
     $tiposAcao = get_tipos_acao();
     $tiposPeca = get_tipos_peca();
