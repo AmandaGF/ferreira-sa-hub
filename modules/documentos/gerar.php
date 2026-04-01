@@ -136,7 +136,36 @@ $reservaManifestacao = $_POST['reserva_manifestacao'] ?? 'sim';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia'));
 $logoUrl = url('assets/img/logo.png');
+
+// Auto-atualizar cadastro do cliente com dados preenchidos no formulário
+if (!$showEditor && $clientId) {
+    $updates = array();
+    $params_up = array();
+    $camposMap = array(
+        'cpf' => 'cpf', 'email' => 'email', 'phone' => 'phone',
+        'profissao' => 'profession', 'estado_civil' => 'marital_status',
+        'rg' => 'rg',
+    );
+    foreach ($camposMap as $postKey => $dbCol) {
+        $val = trim($_POST[$postKey] ?? '');
+        if ($val && empty($client[$dbCol])) {
+            $updates[] = "$dbCol = ?";
+            $params_up[] = $val;
+        }
+    }
+    // Endereço
+    $endPost = trim($_POST['endereco_completo'] ?? '');
+    if ($endPost && empty($client['address_street'])) {
+        $updates[] = "address_street = ?";
+        $params_up[] = $endPost;
+    }
+    if (!empty($updates)) {
+        $params_up[] = $clientId;
+        $pdo->prepare("UPDATE clients SET " . implode(', ', $updates) . " WHERE id = ?")->execute($params_up);
+    }
+}
 
 // Salvar no histórico quando gera o documento final
 if (!$showEditor) {
@@ -211,7 +240,7 @@ if (!$showEditor) {
             <div><label>CPF</label><input name="cpf" value="<?= e($cpf) ?>" placeholder="Preencha o CPF..." style="<?= $cpf ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
 
-        <?php if (!$isDefesa): ?>
+        <?php if (!$isDefesa && !$isIntercorrente): ?>
         <div style="margin-bottom:.75rem;">
             <label>Endereço completo</label>
             <input name="endereco_completo" value="<?= e($enderecoCompleto) ?>" placeholder="Preencha o endereço..." style="<?= $enderecoCompleto ? '' : 'border-color:#d97706;' ?>">
@@ -222,10 +251,12 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if (!$isIntercorrente): ?>
         <div class="row">
             <div><label>Profissão</label><input name="profissao" value="<?= e($profissao) ?>" placeholder="Preencha..." style="<?= $profissao ? '' : 'border-color:#d97706;' ?>"></div>
             <div><label>Estado civil</label><input name="estado_civil" value="<?= e($estadoCivil) ?>" placeholder="Preencha..." style="<?= $estadoCivil ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
+        <?php endif; ?>
 
         <p style="font-size:.7rem;color:#d97706;margin-bottom:.75rem;">⚠ Campos com borda laranja precisam ser preenchidos</p>
 
