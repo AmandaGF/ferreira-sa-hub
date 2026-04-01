@@ -19,19 +19,11 @@ $search         = trim($_GET['q'] ?? '');
 $where = [];
 $params = [];
 
-// Admin e Gestão veem tudo. Outros veem: seus chamados + chamados do seu setor
-if (!has_role('admin') && !has_role('gestao')) {
-    $userSetor = current_user()['setor'] ?? '';
-    if ($userSetor) {
-        $where[] = "(t.requester_id = ? OR ta.user_id = ? OR t.department = ?)";
-        $params[] = $userId;
-        $params[] = $userId;
-        $params[] = $userSetor;
-    } else {
-        $where[] = "(t.requester_id = ? OR ta.user_id = ?)";
-        $params[] = $userId;
-        $params[] = $userId;
-    }
+// Equipe vê tudo. Colaborador/estagiário vê só os seus
+if (has_role('colaborador') || has_role('estagiario')) {
+    $where[] = "(t.requester_id = ? OR ta.user_id = ?)";
+    $params[] = $userId;
+    $params[] = $userId;
 }
 if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
 if ($filterPriority) { $where[] = "t.priority = ?"; $params[] = $filterPriority; }
@@ -53,7 +45,7 @@ $stmt = $pdo->prepare(
      LEFT JOIN users u2 ON u2.id = ta.user_id
      $whereStr
      GROUP BY t.id
-     ORDER BY FIELD(t.priority, 'urgente','normal','baixa'), t.created_at DESC
+     ORDER BY FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC
      LIMIT 100"
 );
 $stmt->execute($params);

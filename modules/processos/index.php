@@ -161,7 +161,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $isOverdue = $p['deadline'] && $p['deadline'] < date('Y-m-d');
                 ?>
                 <tr>
-                    <td><span class="proc-number"><?= e($p['case_number']) ?></span></td>
+                    <td><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" class="proc-number" style="text-decoration:none;color:inherit;cursor:pointer;" title="Abrir pasta do processo"><?= e($p['case_number']) ?></a></td>
                     <td>
                         <?php if ($p['client_id']): ?>
                             <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $p['client_id']) ?>" class="client-link"><?= e($p['client_name']) ?></a>

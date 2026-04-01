@@ -185,7 +185,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" style="color:var(--petrol-900);text-decoration:none;"><?= e($cs['title'] ? $cs['title'] : 'Caso #' . $cs['id']) ?></a>
                     </td>
                     <td style="padding:.55rem .75rem;"><?= e($cs['case_type'] ? $cs['case_type'] : '—') ?></td>
-                    <td style="padding:.55rem .75rem;font-family:monospace;font-size:.78rem;"><?= e($cs['case_number'] ? $cs['case_number'] : (isset($cs['internal_number']) && $cs['internal_number'] ? $cs['internal_number'] : '—')) ?></td>
+                    <td style="padding:.55rem .75rem;font-family:monospace;font-size:.78rem;"><?php if ($cs['case_number']): ?><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" style="color:var(--petrol-900);text-decoration:none;" title="Abrir pasta"><?= e($cs['case_number']) ?></a><?php else: ?>—<?php endif; ?></td>
                     <td style="padding:.55rem .75rem;"><span class="badge badge-<?= isset($statusBadge[$cs['status']]) ? $statusBadge[$cs['status']] : 'gestao' ?>"><?= isset($statusLabels[$cs['status']]) ? $statusLabels[$cs['status']] : $cs['status'] ?></span></td>
                     <td style="padding:.55rem .75rem;font-size:.78rem;"><?= e($cs['responsible_name'] ? $cs['responsible_name'] : '—') ?></td>
                 </tr>

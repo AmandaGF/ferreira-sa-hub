@@ -78,9 +78,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
 
         <div style="display:flex;gap:2rem;flex-wrap:wrap;font-size:.82rem;color:var(--text-muted);">
-            <?php if ($ticket['client_name']): ?><span>👤 <?= e($ticket['client_name']) ?></span><?php endif; ?>
-            <?php if ($ticket['client_contact']): ?><span>📱 <?= e($ticket['client_contact']) ?></span><?php endif; ?>
-            <?php if ($ticket['case_number']): ?><span>📁 <?= e($ticket['case_number']) ?></span><?php endif; ?>
+            <?php
+            // Buscar cliente e processo vinculados
+            $linkedClient = null; $linkedCase = null;
+            if (isset($ticket['client_id']) && $ticket['client_id']) {
+                $lc = $pdo->prepare("SELECT id, name, phone FROM clients WHERE id = ?"); $lc->execute(array($ticket['client_id'])); $linkedClient = $lc->fetch();
+            }
+            if (isset($ticket['case_id']) && $ticket['case_id']) {
+                $lcs = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE id = ?"); $lcs->execute(array($ticket['case_id'])); $linkedCase = $lcs->fetch();
+            }
+            ?>
+            <?php if ($linkedClient): ?>
+                <span>👤 <a href="<?= module_url('clientes', 'ver.php?id=' . $linkedClient['id']) ?>" style="color:var(--petrol-900);font-weight:600;"><?= e($linkedClient['name']) ?></a></span>
+            <?php elseif ($ticket['client_name']): ?>
+                <span>👤 <?= e($ticket['client_name']) ?></span>
+            <?php endif; ?>
+            <?php if ($linkedClient && $linkedClient['phone']): ?>
+                <span>📱 <a href="https://wa.me/55<?= preg_replace('/\D/', '', $linkedClient['phone']) ?>" target="_blank" style="color:#25D366;"><?= e($linkedClient['phone']) ?></a></span>
+            <?php elseif ($ticket['client_contact']): ?>
+                <span>📱 <?= e($ticket['client_contact']) ?></span>
+            <?php endif; ?>
+            <?php if ($linkedCase): ?>
+                <span>📁 <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $linkedCase['id']) ?>" style="color:var(--petrol-900);font-weight:600;"><?= e($linkedCase['title']) ?><?= $linkedCase['case_number'] ? ' — ' . e($linkedCase['case_number']) : '' ?></a></span>
+            <?php elseif ($ticket['case_number']): ?>
+                <span>📁 <?= e($ticket['case_number']) ?></span>
+            <?php endif; ?>
             <?php if ($ticket['due_date']): ?><span>⏰ Prazo: <?= data_br($ticket['due_date']) ?></span><?php endif; ?>
             <span>👥 <?= !empty($assignees) ? e(implode(', ', array_column($assignees, 'name'))) : 'Sem responsável' ?></span>
         </div>

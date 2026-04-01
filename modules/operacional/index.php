@@ -414,7 +414,7 @@ sort($opTipos);
     <td class="cell-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></td>
     <td><span class="tbl-badge" style="background:<?= $ci['color'] ?>;"><?= $ci['icon'] ?> <?= $ci['label'] ?></span></td>
     <td><span class="tbl-badge-sm" style="background:<?= $pColor ?>;"><?= $pLabel ?></span></td>
-    <td class="cell-proc"><?= e($cs['case_number'] ?? '') ?></td>
+    <td class="cell-proc"><?php if (!empty($cs['case_number'])): ?><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" style="color:var(--petrol-900);text-decoration:none;"><?= e($cs['case_number']) ?></a><?php endif; ?></td>
     <td><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
     <td class="cell-move" onclick="event.stopPropagation();">
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
