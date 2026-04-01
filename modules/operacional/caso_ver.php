@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Detalhe do Caso (Operacional)
+ * Ferreira & Sá Hub — Detalhe do Caso (Operacional) v2
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -332,6 +332,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card mb-2">
     <div class="card-header">
         <h3>Andamentos (<?= count($andamentos) ?>)</h3>
+        <a href="<?= module_url('operacional', 'importar_andamentos.php?case_id=' . $caseId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar LegalOne</a>
     </div>
     <div class="card-body">
         <!-- Formulário de novo andamento -->
