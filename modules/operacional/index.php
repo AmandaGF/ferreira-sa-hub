@@ -83,13 +83,18 @@ foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 $mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
-    // Distribuídos e cancelados de meses anteriores: ocultar do Kanban
-    if ($status === 'distribuido' || $status === 'cancelado') {
-        $mesRef = ($status === 'distribuido' && $cs['distribution_date'])
-            ? date('Y-m', strtotime($cs['distribution_date']))
-            : date('Y-m', strtotime($cs['updated_at']));
-        if ($mesRef < $mesAtual) {
-            continue; // Pula — só mostra no mês atual, depois vai pro relatório
+    // Distribuídos: só aparece no mês da distribuição. Depois, só na pasta de processos.
+    if ($status === 'distribuido') {
+        $mesRef = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
+        if ($mesRef !== $mesAtual) {
+            continue; // Só mostra no mês exato da distribuição
+        }
+    }
+    // Cancelados: só no mês que cancelou
+    if ($status === 'cancelado') {
+        $mesRef = date('Y-m', strtotime($cs['updated_at']));
+        if ($mesRef !== $mesAtual) {
+            continue;
         }
     }
     if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
