@@ -408,8 +408,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <?php if ($clientWhatsapp):
                                     $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
                                     $msgAnd = "Olá " . ($case['client_name'] ?: '') . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* — " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\n_Ferreira & Sá Advocacia_";
+                                    $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>
-                                <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgAnd) ?>" target="_blank" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp">💬 Enviar</a>
+                                <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;">
+                                    <a href="#" onclick="enviarWhatsApp(<?= $and['id'] ?>, '<?= $clientWhatsapp ?>?text=<?= urlencode($msgAnd) ?>'); return false;" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">💬 Enviar</a>
+                                    <?php if ($jaEnviou): ?>
+                                        <span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span>
+                                    <?php endif; ?>
+                                </span>
                                 <?php endif; ?>
                                 <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
                                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este andamento?">
@@ -442,6 +448,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <script>
+function enviarWhatsApp(andamentoId, waUrl) {
+    // 1. Abrir WhatsApp
+    window.open(waUrl, '_blank');
+
+    // 2. Registrar envio via AJAX
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        // Atualizar visual
+        var wrap = document.getElementById('waBtnWrap' + andamentoId);
+        if (wrap) {
+            var existing = wrap.querySelector('span[style*="059669"]');
+            if (!existing) {
+                var badge = document.createElement('span');
+                badge.style.cssText = 'font-size:.65rem;color:#059669;font-weight:600;';
+                var agora = new Date();
+                badge.textContent = '✓ ' + agora.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+                wrap.appendChild(badge);
+            }
+        }
+        var btn = document.getElementById('waBtn' + andamentoId);
+        if (btn) {
+            btn.textContent = '✓ Enviado';
+            btn.style.background = '#047857';
+            setTimeout(function() { btn.innerHTML = '💬 Reenviar'; btn.style.background = '#25D366'; }, 3000);
+        }
+    };
+    xhr.send('action=log_whatsapp_andamento&andamento_id=' + andamentoId + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= csrf_token() ?>');
+}
+
 function copiarNumero(el) {
     var texto = el.textContent.trim();
     if (navigator.clipboard) {

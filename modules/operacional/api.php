@@ -449,6 +449,26 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'log_whatsapp_andamento':
+        $andId = (int)($_POST['andamento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($andId && $caseId) {
+            try {
+                $pdo->prepare(
+                    "UPDATE case_andamentos SET whatsapp_enviado_em = NOW(), whatsapp_enviado_por = ? WHERE id = ? AND case_id = ?"
+                )->execute(array(current_user_id(), $andId, $caseId));
+            } catch (Exception $e) {
+                // Colunas podem não existir ainda — ignorar
+            }
+        }
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            echo json_encode(array('ok' => true));
+            exit;
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('operacional'));

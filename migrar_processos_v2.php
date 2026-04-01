@@ -30,6 +30,22 @@ $alteracoes = array(
         "parte_re_cpf_cnpj — CPF ou CNPJ da parte ré",
 );
 
+// Tabela case_andamentos: coluna para registrar envio WhatsApp
+echo "\n--- case_andamentos ---\n";
+$andCols = array(
+    "ADD COLUMN whatsapp_enviado_em DATETIME NULL DEFAULT NULL" =>
+        "whatsapp_enviado_em — data/hora do envio ao cliente",
+    "ADD COLUMN whatsapp_enviado_por INT UNSIGNED NULL DEFAULT NULL" =>
+        "whatsapp_enviado_por — quem enviou",
+);
+foreach ($andCols as $sql => $desc) {
+    $colName = trim(explode(' ', trim(explode('COLUMN', $sql)[1]))[0]);
+    $chk = $pdo->query("SHOW COLUMNS FROM case_andamentos LIKE '$colName'");
+    if ($chk->fetch()) { echo "[JÁ EXISTE] $colName\n"; continue; }
+    try { $pdo->exec("ALTER TABLE case_andamentos $sql"); echo "[OK] $colName — $desc\n"; }
+    catch (Exception $e) { echo "[ERRO] $colName — " . $e->getMessage() . "\n"; }
+}
+
 foreach ($alteracoes as $sql => $desc) {
     $colName = trim(explode(' ', trim(explode('COLUMN', $sql)[1]))[0]);
 
