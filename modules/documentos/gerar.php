@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -32,6 +32,8 @@ $typeLabels = array(
     'isencao_ir' => 'Declaração de Isenção de IR',
     'residencia' => 'Declaração de Residência',
     'acordo' => 'Termo de Acordo Extrajudicial',
+    'juntada' => 'Petição de Juntada de Documentos',
+    'ciencia' => 'Petição de Ciência',
 );
 
 $acaoLabels = array(
@@ -122,6 +124,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $baseRisco = $_POST['base_risco'] ?? 'do proveito econômico obtido';
     if ($acaoTexto === '' && isset($_POST['acao_custom'])) $acaoTexto = strtoupper($_POST['acao_custom']);
 }
+
+// Campos extras para juntada/ciência
+$numeroProcesso = $_POST['numero_processo'] ?? ($_GET['numero_processo'] ?? '');
+$varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? '');
+$listaDocumentos = $_POST['lista_documentos'] ?? '';
+$justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
+$objetoCiencia = $_POST['objeto_ciencia'] ?? '';
+$reservaManifestacao = $_POST['reserva_manifestacao'] ?? 'sim';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
@@ -413,6 +423,45 @@ if (!$showEditor) {
         </script>
         <?php endif; ?>
 
+        <?php if ($tipo === 'juntada'): ?>
+        <div class="section">
+            <h4>Dados da Juntada</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Lista dos documentos (um por linha)</label>
+                <textarea name="lista_documentos" rows="5" placeholder="Ex:&#10;Certidão de nascimento atualizada&#10;Comprovante de residência&#10;Declaração de IR 2025"><?= e($listaDocumentos) ?></textarea>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Justificativa da juntada</label>
+                <textarea name="justificativa_juntada" rows="3" placeholder="Por que esses documentos são relevantes?"><?= e($justificativaJuntada) ?></textarea>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($tipo === 'ciencia'): ?>
+        <div class="section">
+            <h4>Dados da Ciência</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Objeto da ciência (decisão, despacho, intimação...)</label>
+                <input name="objeto_ciencia" value="<?= e($objetoCiencia) ?>" placeholder="Ex: r. decisão de id. 123456 que deferiu a tutela de urgência">
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Reservar direito de manifestação posterior?</label>
+                <select name="reserva_manifestacao">
+                    <option value="sim" <?= $reservaManifestacao === 'sim' ? 'selected' : '' ?>>Sim</option>
+                    <option value="nao" <?= $reservaManifestacao === 'nao' ? 'selected' : '' ?>>Não</option>
+                </select>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -450,6 +499,12 @@ if (!$showEditor) {
         'tipo_cobranca' => $tipoCobranca,
         'percentual_risco' => $percentualRisco,
         'base_risco' => $baseRisco,
+        'numero_processo' => $numeroProcesso,
+        'vara_juizo' => $varaJuizo,
+        'lista_documentos' => $listaDocumentos,
+        'justificativa' => $justificativaJuntada,
+        'objeto_ciencia' => $objetoCiencia,
+        'reserva_manifestacao' => $reservaManifestacao,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -459,6 +514,8 @@ if (!$showEditor) {
     elseif ($tipo === 'isencao_ir') echo template_isencao_ir($d);
     elseif ($tipo === 'residencia') echo template_residencia($d);
     elseif ($tipo === 'acordo') echo template_acordo($d);
+    elseif ($tipo === 'juntada') echo template_juntada($d);
+    elseif ($tipo === 'ciencia') echo template_ciencia($d);
     ?>
     </div>
 

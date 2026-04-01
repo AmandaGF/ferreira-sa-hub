@@ -23,6 +23,8 @@ $docTypes = array(
     'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'IN RFB 1548/2015 + Lei 7.115/83'),
     'residencia' => array('label' => 'Decl. de Residência', 'icon' => '🏠', 'color' => '#0d9488', 'desc' => 'Comprovação de endereço — Lei 7.115/83'),
     'acordo' => array('label' => 'Termo de Acordo', 'icon' => '🤝', 'color' => '#8b5cf6', 'desc' => 'Acordo extrajudicial entre as partes'),
+    'juntada' => array('label' => 'Pet. Juntada de Docs', 'icon' => '📎', 'color' => '#059669', 'desc' => 'Juntada de documentos ao processo'),
+    'ciencia' => array('label' => 'Petição de Ciência', 'icon' => '👁️', 'color' => '#4f46e5', 'desc' => 'Ciência de decisão/despacho/intimação'),
 );
 
 // Histórico de documentos gerados

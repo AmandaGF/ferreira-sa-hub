@@ -339,3 +339,101 @@ function template_acordo($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════
+// PETIÇÃO DE JUNTADA DE DOCUMENTOS
+// ═══════════════════════════════════════════════════════
+function template_juntada($d) {
+    $esc = escritorioData();
+    $html = '<div class="doc-title">PETIÇÃO DE JUNTADA DE DOCUMENTOS</div>';
+
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+
+    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">JUNTADA DE DOCUMENTOS</div>';
+
+    $html .= '<p>pelos motivos de fato e de direito a seguir expostos.</p>';
+
+    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS DOCUMENTOS</p>';
+    $html .= '<p>A parte requer a juntada dos seguintes documentos, imprescindíveis ao regular andamento do feito:</p>';
+
+    $docs = isset($d['lista_documentos']) && $d['lista_documentos'] ? $d['lista_documentos'] : '';
+    if ($docs) {
+        $linhas = preg_split('/\r?\n/', $docs);
+        $letra = ord('a');
+        $html .= '<div style="margin:12px 0;">';
+        foreach ($linhas as $linha) {
+            $linha = trim($linha);
+            if (!$linha) continue;
+            $html .= '<p style="text-indent:0;margin:4px 0;"><strong>' . chr($letra) . ')</strong> ' . f($linha) . ';</p>';
+            $letra++;
+        }
+        $html .= '</div>';
+    } else {
+        $html .= '<p style="text-indent:0;">a) ________________________________;</p>';
+        $html .= '<p style="text-indent:0;">b) ________________________________;</p>';
+        $html .= '<p style="text-indent:0;">c) ________________________________.</p>';
+    }
+
+    $justificativa = isset($d['justificativa']) && $d['justificativa'] ? $d['justificativa'] : '';
+    if ($justificativa) {
+        $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA JUSTIFICATIVA</p>';
+        $html .= '<p>' . f($justificativa) . '</p>';
+    }
+
+    $html .= '<p>A juntada dos referidos documentos faz-se necessária para a instrução processual adequada e a garantia do direito ao contraditório e à ampla defesa, nos termos do art. 5º, LV, da Constituição Federal.</p>';
+
+    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DO PEDIDO</p>';
+    $html .= '<p>Ante o exposto, requer a Vossa Excelência que se digne a receber e determinar a juntada dos documentos que acompanham esta petição, dando-se ciência à parte contrária, na forma da lei.</p>';
+
+    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════
+// PETIÇÃO DE CIÊNCIA
+// ═══════════════════════════════════════════════════════
+function template_ciencia($d) {
+    $esc = escritorioData();
+    $html = '<div class="doc-title">PETIÇÃO DE CIÊNCIA</div>';
+
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'r. decisão/despacho de id. _______________';
+
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+
+    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
+
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CIÊNCIA</div>';
+
+    $html .= '<p>acerca da <strong>' . f($objetoCiencia) . '</strong>, proferida nos autos em epígrafe, declarando estar ciente de seu inteiro teor.</p>';
+
+    $reserva = isset($d['reserva_manifestacao']) && $d['reserva_manifestacao'] === 'sim';
+    if ($reserva) {
+        $html .= '<p>Desde já, <strong>reserva-se o direito de manifestação posterior</strong> no prazo legal, caso entenda necessário, ficando consignado que a presente ciência não importa em concordância tácita com o conteúdo da referida decisão.</p>';
+    }
+
+    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}
