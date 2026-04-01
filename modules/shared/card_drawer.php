@@ -288,13 +288,34 @@ function renderDrawer() {
     // ── ABA DOCS ──
     h = '';
     var docsPend = d.docs_pendentes || [];
-    if (docsPend.length) {
-        h += '<div class="cd-section"><h5>Documentos Pendentes (' + docsPend.length + ')</h5>';
-        docsPend.forEach(function(dp) {
-            var cor = dp.status === 'pendente' ? '#dc2626' : '#059669';
-            h += '<div style="padding:.3rem 0;border-bottom:1px solid #f3f4f6;border-left:3px solid '+cor+';padding-left:8px;"><span style="font-weight:600;color:'+cor+';">' + esc(dp.descricao) + '</span> <span style="font-size:.65rem;color:#94a3b8;">' + dp.status + '</span></div>';
+    var pendentes = docsPend.filter(function(dp){ return dp.status === 'pendente'; });
+    var recebidos = docsPend.filter(function(dp){ return dp.status !== 'pendente'; });
+
+    if (pendentes.length) {
+        h += '<div class="cd-section"><h5 style="color:#dc2626;">⚠️ Documentos Pendentes (' + pendentes.length + ')</h5>';
+        pendentes.forEach(function(dp) {
+            h += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #fecaca;background:#fef2f2;border-radius:6px;padding:8px;margin-bottom:4px;">';
+            h += '<span style="font-size:1rem;">📄</span>';
+            h += '<div style="flex:1;"><div style="font-weight:600;color:#dc2626;font-size:.82rem;">' + esc(dp.descricao) + '</div>';
+            h += '<div style="font-size:.65rem;color:#94a3b8;">Solicitado por ' + esc(dp.solicitante_name || '—') + '</div></div>';
+            h += '<button onclick="marcarDocRecebido(' + dp.id + ',' + d.case_id + ')" style="background:#059669;color:#fff;border:none;padding:4px 10px;border-radius:5px;font-size:.7rem;font-weight:600;cursor:pointer;white-space:nowrap;" id="docBtn' + dp.id + '">✓ Recebido</button>';
+            h += '</div>';
         });
         h += '</div>';
+    }
+    if (recebidos.length) {
+        h += '<div class="cd-section"><h5 style="color:#059669;">✓ Documentos Recebidos (' + recebidos.length + ')</h5>';
+        recebidos.forEach(function(dp) {
+            h += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #f3f4f6;opacity:.6;">';
+            h += '<span style="color:#059669;">✓</span>';
+            h += '<span style="text-decoration:line-through;font-size:.78rem;">' + esc(dp.descricao) + '</span>';
+            if (dp.recebido_em) h += '<span style="font-size:.6rem;color:#94a3b8;">em ' + fmt(dp.recebido_em) + '</span>';
+            h += '</div>';
+        });
+        h += '</div>';
+    }
+    if (!docsPend.length) {
+        h += '<div class="cd-section"><h5>Documentos Pendentes</h5><div style="color:#059669;font-size:.82rem;padding:.5rem 0;">Nenhum documento pendente 🎉</div></div>';
     }
     var pecas = d.pecas || [];
     h += '<div class="cd-section"><h5>Peças Geradas (' + pecas.length + ')</h5>';
@@ -451,6 +472,27 @@ function enviarComentario() {
         } catch(e) {}
     };
     xhr.send('action=add_comment&client_id=' + d.client_id + '&case_id=' + (d.case_id||0) + '&lead_id=' + (d.lead_id||0) + '&message=' + encodeURIComponent(msg));
+}
+
+// ═══ MARCAR DOC COMO RECEBIDO ═══
+function marcarDocRecebido(docId, caseId) {
+    if (!confirm('Confirmar recebimento deste documento?')) return;
+
+    var btn = document.getElementById('docBtn' + docId);
+    if (btn) { btn.textContent = '...'; btn.disabled = true; }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= url("modules/operacional/api.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        // Recarregar o drawer para atualizar o status
+        if (cdData) {
+            abrirDrawer('case_id=' + caseId);
+            // Trocar para aba Docs
+            setTimeout(function(){ cdTab('docs'); }, 500);
+        }
+    };
+    xhr.send('action=resolve_doc&doc_id=' + docId + '&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=<?= csrf_token() ?>');
 }
 
 // Fechar com ESC
