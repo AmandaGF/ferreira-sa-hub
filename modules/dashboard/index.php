@@ -30,9 +30,12 @@ try { $contratos = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE s
 $contratosMes = 0;
 try { $contratosMes = (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND MONTH(converted_at) = MONTH(CURDATE()) AND YEAR(converted_at) = YEAR(CURDATE())")->fetchColumn(); } catch (Exception $e) {}
 
-// Cancelados este mês (pipeline cancelado + operacional cancelado)
+// Cancelados (total geral + este mês)
+$canceladosTotal = 0;
 $canceladosMes = 0;
 try {
+    $canceladosTotal += (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cancelado','perdido')")->fetchColumn();
+    $canceladosTotal += (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status = 'cancelado'")->fetchColumn();
     $canceladosMes += (int)$pdo->query("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn();
     $canceladosMes += (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status = 'cancelado' AND MONTH(updated_at) = MONTH(CURDATE()) AND YEAR(updated_at) = YEAR(CURDATE())")->fetchColumn();
 } catch (Exception $e) {}
@@ -345,8 +348,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="kpi-card">
         <div class="kpi-icon red">❌</div>
         <div>
-            <div class="kpi-value"><?= $canceladosMes ?></div>
-            <div class="kpi-label">CANCELADOS NO MÊS</div>
+            <div class="kpi-value"><?= $canceladosTotal ?></div>
+            <div class="kpi-label">CANCELADOS (<?= $canceladosMes ?> este mês)</div>
         </div>
     </div>
 </div>
