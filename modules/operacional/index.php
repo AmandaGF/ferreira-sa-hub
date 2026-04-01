@@ -76,10 +76,20 @@ $stmt->execute($params);
 $allCases = $stmt->fetchAll();
 
 // Agrupar por status
+// Regra: "distribuido" só aparece no Kanban no mês da distribuição.
+// Meses anteriores ficam ocultos do Kanban (mas continuam no banco como "distribuido").
 $byStatus = array();
 foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
+$mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
+    // Distribuídos de meses anteriores: ocultar do Kanban (não exibir)
+    if ($status === 'distribuido') {
+        $mesDistrib = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
+        if ($mesDistrib < $mesAtual) {
+            continue; // Pula — não aparece no Kanban nem na tabela
+        }
+    }
     if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
     $byStatus[$status][] = $cs;
 }

@@ -136,6 +136,21 @@ $casosConcluidos = (int)$stmtCC->fetchColumn();
 
 $casosUrgentes = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE priority='urgente' AND status NOT IN ('concluido','arquivado')")->fetchColumn();
 
+// Distribuídos no período (judiciais)
+$stmtDistrib = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND category = 'judicial' AND DATE(distribution_date) BETWEEN ? AND ?");
+$stmtDistrib->execute(array($dataInicio, $dataFim));
+$distribuidosPeriodo = (int)$stmtDistrib->fetchColumn();
+
+// Extrajudiciais no período
+$stmtExtra = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND category = 'extrajudicial' AND DATE(distribution_date) BETWEEN ? AND ?");
+$stmtExtra->execute(array($dataInicio, $dataFim));
+$extrajudicialPeriodo = (int)$stmtExtra->fetchColumn();
+
+// Cancelados no período (operacional)
+$stmtCanc = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE status = 'cancelado' AND DATE(updated_at) BETWEEN ? AND ?");
+$stmtCanc->execute(array($dataInicio, $dataFim));
+$canceladosPeriodo = (int)$stmtCanc->fetchColumn();
+
 // Prazos vencidos
 $prazosVencidos = $pdo->query(
     "SELECT cs.id, cs.title, cs.deadline, cs.priority, c.name as client_name, u.name as responsible_name
@@ -301,6 +316,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon petrol">📂</div><div class="stat-info"><div class="stat-value"><?= $casosAtivos ?></div><div class="stat-label">Casos ativos</div></div></div>
         <div class="stat-card"><div class="stat-icon info">🆕</div><div class="stat-info"><div class="stat-value"><?= $casosNovos ?></div><div class="stat-label">Novos no período</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#15803d;color:#fff;">🏛️</div><div class="stat-info"><div class="stat-value"><?= $distribuidosPeriodo ?></div><div class="stat-label">Distribuídos no período</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#8b5cf6;color:#fff;">📝</div><div class="stat-info"><div class="stat-value"><?= $extrajudicialPeriodo ?></div><div class="stat-label">Extrajudiciais no período</div></div></div>
+        <div class="stat-card"><div class="stat-icon" style="background:#dc2626;color:#fff;">❌</div><div class="stat-info"><div class="stat-value"><?= $canceladosPeriodo ?></div><div class="stat-label">Cancelados no período</div></div></div>
         <div class="stat-card"><div class="stat-icon success">✅</div><div class="stat-info"><div class="stat-value"><?= $casosConcluidos ?></div><div class="stat-label">Concluídos no período</div></div></div>
         <div class="stat-card"><div class="stat-icon danger">🔴</div><div class="stat-info"><div class="stat-value"><?= $casosUrgentes ?></div><div class="stat-label">Urgentes</div></div></div>
         <div class="stat-card"><div class="stat-icon rose">⏱️</div><div class="stat-info"><div class="stat-value"><?= $tempoResolucao ?>d</div><div class="stat-label">Tempo médio resolução</div></div></div>
