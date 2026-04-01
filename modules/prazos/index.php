@@ -90,17 +90,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .prazo-data.alerta { color:#f59e0b; }
 </style>
 
-<?php if (isset($_GET['voltar_caso']) && (int)$_GET['voltar_caso'] > 0): ?>
+<?php
+$voltarCaso = (int)($_GET['voltar_caso'] ?? $_GET['case_id'] ?? 0);
+if ($voltarCaso > 0): ?>
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
-    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_GET['voltar_caso']) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
-    <a href="<?= module_url('agenda') ?>" class="btn btn-outline btn-sm">📅 Agenda</a>
+    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $voltarCaso) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
+    <a href="<?= module_url('agenda') ?>?voltar_caso=<?= $voltarCaso ?>" class="btn btn-outline btn-sm">📅 Agenda</a>
 </div>
 <?php endif; ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
     <div style="display:flex;gap:.35rem;">
-        <a href="?filtro=pendentes<?= isset($_GET['voltar_caso']) ? '&voltar_caso=' . (int)$_GET['voltar_caso'] : '' ?>" class="btn btn-<?= $filtro === 'pendentes' ? 'primary' : 'outline' ?> btn-sm">Pendentes</a>
-        <a href="?filtro=todos<?= isset($_GET['voltar_caso']) ? '&voltar_caso=' . (int)$_GET['voltar_caso'] : '' ?>" class="btn btn-<?= $filtro === 'todos' ? 'primary' : 'outline' ?> btn-sm">Todos</a>
+        <a href="?filtro=pendentes<?= $voltarCaso ? '&case_id=' . $voltarCaso : '' ?>" class="btn btn-<?= $filtro === 'pendentes' ? 'primary' : 'outline' ?> btn-sm">Pendentes</a>
+        <a href="?filtro=todos<?= $voltarCaso ? '&case_id=' . $voltarCaso : '' ?>" class="btn btn-<?= $filtro === 'todos' ? 'primary' : 'outline' ?> btn-sm">Todos</a>
     </div>
     <button class="btn btn-primary btn-sm" data-modal="modalPrazo">+ Novo Prazo</button>
 </div>

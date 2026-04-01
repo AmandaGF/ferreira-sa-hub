@@ -157,10 +157,12 @@ body.dark-mode .ag-ac-list { background:var(--bg-card); }
 }
 </style>
 
-<?php if (isset($_GET['voltar_caso']) && (int)$_GET['voltar_caso'] > 0): ?>
+<?php
+$voltarCaso = (int)($_GET['voltar_caso'] ?? $_GET['case_id'] ?? 0);
+if ($voltarCaso > 0): ?>
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
-    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_GET['voltar_caso']) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
-    <a href="<?= module_url('prazos') ?>?voltar_caso=<?= (int)$_GET['voltar_caso'] ?>" class="btn btn-outline btn-sm">⏰ Prazos</a>
+    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $voltarCaso) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
+    <a href="<?= module_url('prazos') ?>?case_id=<?= $voltarCaso ?>" class="btn btn-outline btn-sm">⏰ Prazos</a>
 </div>
 <?php endif; ?>
 
