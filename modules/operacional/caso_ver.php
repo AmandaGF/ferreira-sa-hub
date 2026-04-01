@@ -138,6 +138,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </form>
     <div class="meta">
         👤 <?= e($case['client_name'] ?? 'Sem cliente') ?>
+        <?php if (isset($case['parte_re_nome']) && $case['parte_re_nome']): ?>
+            × <?= e($case['parte_re_nome']) ?><?php if (isset($case['parte_re_cpf_cnpj']) && $case['parte_re_cpf_cnpj']): ?> <span style="font-size:.72rem;opacity:.7;">(<?= e($case['parte_re_cpf_cnpj']) ?>)</span><?php endif; ?>
+        <?php endif; ?>
         · <?= e($case['case_type']) ?>
         · <?= e($case['responsible_name'] ?: 'Sem responsável') ?>
         <?php if ($case['deadline']): ?> · Prazo: <?= data_br($case['deadline']) ?><?php endif; ?>
@@ -403,9 +406,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
                                 <?php if ($clientWhatsapp):
-                                    $msgAnd = "Olá " . ($case['client_name'] ?: '') . ", informamos sobre o andamento do seu processo:\n\n*" . $lbl . "* — " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\n_Ferreira & Sá Advocacia_";
+                                    $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
+                                    $msgAnd = "Olá " . ($case['client_name'] ?: '') . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* — " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\n_Ferreira & Sá Advocacia_";
                                 ?>
-                                <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgAnd) ?>" target="_blank" style="background:none;border:none;color:#25D366;cursor:pointer;font-size:.82rem;padding:2px 4px;text-decoration:none;" title="Enviar ao cliente via WhatsApp">💬</a>
+                                <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgAnd) ?>" target="_blank" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp">💬 Enviar</a>
                                 <?php endif; ?>
                                 <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
                                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este andamento?">

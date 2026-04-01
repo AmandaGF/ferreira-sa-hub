@@ -24,6 +24,10 @@ $alteracoes = array(
         "departamento — operacional, administrativo, etc.",
     "ADD COLUMN comarca_uf CHAR(2) NULL DEFAULT NULL AFTER comarca" =>
         "comarca_uf — UF separado (para busca por estado)",
+    "ADD COLUMN parte_re_nome VARCHAR(200) NULL DEFAULT NULL AFTER client_id" =>
+        "parte_re_nome — Nome da parte ré",
+    "ADD COLUMN parte_re_cpf_cnpj VARCHAR(20) NULL DEFAULT NULL AFTER parte_re_nome" =>
+        "parte_re_cpf_cnpj — CPF ou CNPJ da parte ré",
 );
 
 foreach ($alteracoes as $sql => $desc) {

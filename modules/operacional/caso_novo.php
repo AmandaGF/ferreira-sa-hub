@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $client_id          = (int)($_POST['client_id'] ?? 0);
+    $parte_re_nome      = trim($_POST['parte_re_nome'] ?? '');
+    $parte_re_cpf_cnpj  = trim($_POST['parte_re_cpf_cnpj'] ?? '');
     $title              = trim($_POST['title'] ?? '');
     $case_type          = trim($_POST['case_type'] ?? '');
     $case_number        = trim($_POST['case_number'] ?? '');
@@ -57,13 +59,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $sql = "INSERT INTO cases
-        (client_id, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
+        (client_id, parte_re_nome, parte_re_cpf_cnpj, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
         VALUES
-        (:client_id, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
+        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
         ':client_id'          => $client_id,
+        ':parte_re_nome'      => $parte_re_nome !== '' ? $parte_re_nome : null,
+        ':parte_re_cpf_cnpj'  => $parte_re_cpf_cnpj !== '' ? $parte_re_cpf_cnpj : null,
         ':title'              => $title,
         ':case_type'          => $case_type,
         ':case_number'        => $case_number,
@@ -170,6 +174,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <span class="cliente-selecionado"><?= e($preClient['name']) ?> <button type="button" onclick="limparCliente()">&times;</button></span>
                             <?php endif; ?>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Parte Ré -->
+                <div class="form-row">
+                    <div class="form-col" style="max-width:220px;">
+                        <label>CPF/CNPJ da Parte Ré</label>
+                        <input type="text" id="parteReCpfCnpj" name="parte_re_cpf_cnpj" class="form-input" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarCpfCnpj()">
+                        <span id="parteReLoading" style="display:none;font-size:.72rem;color:var(--text-muted);">Buscando...</span>
+                    </div>
+                    <div class="form-col">
+                        <label>Nome da Parte Ré</label>
+                        <input type="text" id="parteReNome" name="parte_re_nome" class="form-input" placeholder="Nome da parte contrária">
                     </div>
                 </div>
 
@@ -399,6 +416,75 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     });
 })();
+
+// ── Máscara CPF/CNPJ + Busca automática ──
+function formatarCpfCnpj(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (v.length <= 11) {
+        // CPF: 000.000.000-00
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d)/, '$1.$2');
+        v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+        // CNPJ: 00.000.000/0000-00
+        v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+        v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+        v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+        v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    el.value = v;
+}
+
+function buscarCpfCnpj() {
+    var input = document.getElementById('parteReCpfCnpj');
+    var nomeInput = document.getElementById('parteReNome');
+    var loading = document.getElementById('parteReLoading');
+    var doc = input.value.replace(/\D/g, '');
+
+    // Se nome já está preenchido, não buscar
+    if (nomeInput.value.trim() !== '') return;
+
+    if (doc.length === 14) {
+        // CNPJ — buscar na ReceitaWS (gratuita)
+        loading.style.display = 'inline';
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'https://www.receitaws.com.br/v1/cnpj/' + doc);
+        xhr.timeout = 8000;
+        xhr.onload = function() {
+            loading.style.display = 'none';
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.nome) {
+                    nomeInput.value = data.nome;
+                    nomeInput.style.borderColor = '#059669';
+                    setTimeout(function() { nomeInput.style.borderColor = ''; }, 2000);
+                }
+            } catch(e) {}
+        };
+        xhr.onerror = function() { loading.style.display = 'none'; };
+        xhr.ontimeout = function() { loading.style.display = 'none'; };
+        xhr.send();
+    } else if (doc.length === 11) {
+        // CPF — buscar na base interna de clientes
+        loading.style.display = 'inline';
+        var cpfFormatado = doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('GET', '<?= module_url("operacional", "caso_novo.php") ?>?ajax_busca_cliente=1&q=' + encodeURIComponent(cpfFormatado));
+        xhr2.onload = function() {
+            loading.style.display = 'none';
+            try {
+                var clientes = JSON.parse(xhr2.responseText);
+                if (clientes.length > 0) {
+                    nomeInput.value = clientes[0].name;
+                    nomeInput.style.borderColor = '#059669';
+                    setTimeout(function() { nomeInput.style.borderColor = ''; }, 2000);
+                }
+            } catch(e) {}
+        };
+        xhr2.onerror = function() { loading.style.display = 'none'; };
+        xhr2.send();
+    }
+}
 
 // ── Busca de cidades por UF (API IBGE) ──
 var cidadesCache = {};
