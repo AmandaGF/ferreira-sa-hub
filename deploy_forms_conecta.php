@@ -151,13 +151,11 @@ if (!file_exists($calcFile)) {
     if (strpos($calc, 'api_form.php') !== false) {
         echo "  JÁ ATUALIZADO (contém api_form.php)\n\n";
     } else {
-        // Substituir o bloco Firebase por fetch ao Conecta
-        $oldCode = 'db.collection("leads_calculadora").add(dados).then(() => {';
-        if (strpos($calc, $oldCode) !== false) {
-            // Encontrar o bloco completo até o fechamento });
-            $startPos = strpos($calc, $oldCode);
-            // Buscar o fechamento: });  (fim do .then())
-            $searchFrom = $startPos + strlen($oldCode);
+        // Busca flexível: procurar db.collection(..."leads_calculadora"...).add(dados).then(
+        // Pode ter aspas simples ou duplas, espaços variados
+        if (preg_match('/db\.collection\s*\(\s*["\']leads_calculadora["\']\s*\)\s*\.add\s*\(\s*dados\s*\)\s*\.then\s*\(\s*(?:function\s*\(\s*\)\s*\{|\(\s*\)\s*=>\s*\{)/s', $calc, $m, PREG_OFFSET_CAPTURE)) {
+            $startPos = $m[0][1];
+            $searchFrom = $startPos + strlen($m[0][0]);
             // Contar as chaves para achar o fechamento correto
             $depth = 1;
             $pos = $searchFrom;
@@ -168,11 +166,12 @@ if (!file_exists($calcFile)) {
                 $pos++;
             }
             // Avançar até o ');' do .then()
-            while ($pos < $len && ($calc[$pos] === ')' || $calc[$pos] === ';')) {
+            while ($pos < $len && ($calc[$pos] === ')' || $calc[$pos] === ';' || $calc[$pos] === ' ' || $calc[$pos] === "\n" || $calc[$pos] === "\r")) {
                 $pos++;
             }
 
             $oldBlock = substr($calc, $startPos, $pos - $startPos);
+            echo "  Bloco encontrado (" . strlen($oldBlock) . " chars, pos $startPos)\n";
 
             $newBlock = <<<'JS'
 // Enviar para o Conecta (substitui Firebase)
@@ -223,7 +222,15 @@ JS;
                 $atualizados++;
             }
         } else {
-            echo "  ERRO: Bloco Firebase não encontrado no formato esperado\n\n";
+            // Debug: mostrar o que tem perto de "leads_calculadora"
+            $findPos = strpos($calc, 'leads_calculadora');
+            if ($findPos !== false) {
+                $snippet = substr($calc, max(0, $findPos - 50), 200);
+                echo "  DEBUG: Trecho encontrado perto de leads_calculadora:\n";
+                echo "  " . str_replace("\n", "\n  ", $snippet) . "\n\n";
+            } else {
+                echo "  ERRO: 'leads_calculadora' NÃO encontrado no arquivo!\n\n";
+            }
             $erros++;
         }
     }
