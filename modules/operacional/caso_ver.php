@@ -393,7 +393,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $cor = isset($tipoCores[$and['tipo']]) ? $tipoCores[$and['tipo']] : '#888';
                     $lbl = isset($tipoLabels[$and['tipo']]) ? $tipoLabels[$and['tipo']] : $and['tipo'];
                 ?>
-                <div style="position:relative;margin-bottom:16px;padding-left:20px;">
+                <div class="andamento-item" style="position:relative;margin-bottom:16px;padding-left:20px;">
                     <!-- Bolinha da timeline -->
                     <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:<?= $cor ?>;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;"><?= $icon ?></div>
 
@@ -433,6 +433,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <!-- Paginação -->
+            <?php if (count($andamentos) > 10): ?>
+            <div id="andPaginacao" style="display:flex;justify-content:center;gap:4px;margin-top:1rem;flex-wrap:wrap;"></div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
@@ -497,6 +502,48 @@ function copiarNumero(el) {
     el.style.background = 'rgba(5,150,105,.5)';
     setTimeout(function() { el.innerHTML = original; el.style.background = 'rgba(255,255,255,.15)'; }, 1500);
 }
+// ── Paginação dos andamentos (10 por página) ──
+(function() {
+    var items = document.querySelectorAll('.andamento-item');
+    if (items.length <= 10) return;
+    var perPage = 10;
+    var totalPages = Math.ceil(items.length / perPage);
+    var currentPage = 1;
+    var pagDiv = document.getElementById('andPaginacao');
+    if (!pagDiv) return;
+
+    function showPage(page) {
+        currentPage = page;
+        for (var i = 0; i < items.length; i++) {
+            items[i].style.display = (i >= (page - 1) * perPage && i < page * perPage) ? '' : 'none';
+        }
+        renderPag();
+    }
+
+    function renderPag() {
+        var html = '';
+        var btnStyle = 'padding:4px 10px;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;border:1px solid var(--border);text-decoration:none;';
+        if (currentPage > 1) {
+            html += '<a href="#" onclick="andPage(' + (currentPage - 1) + ');return false;" style="' + btnStyle + 'color:var(--petrol-900);">← Ant</a>';
+        }
+        for (var p = 1; p <= totalPages; p++) {
+            if (p === currentPage) {
+                html += '<span style="' + btnStyle + 'background:var(--petrol-900);color:#fff;border-color:var(--petrol-900);">' + p + '</span>';
+            } else {
+                html += '<a href="#" onclick="andPage(' + p + ');return false;" style="' + btnStyle + 'color:var(--petrol-900);">' + p + '</a>';
+            }
+        }
+        if (currentPage < totalPages) {
+            html += '<a href="#" onclick="andPage(' + (currentPage + 1) + ');return false;" style="' + btnStyle + 'color:var(--petrol-900);">Próx →</a>';
+        }
+        html += '<span style="font-size:.72rem;color:var(--text-muted);margin-left:8px;">' + items.length + ' andamentos</span>';
+        pagDiv.innerHTML = html;
+    }
+
+    window.andPage = function(p) { showPage(p); };
+    showPage(1);
+})();
+
 function editarTitulo() {
     document.getElementById('casoTitulo').parentElement.style.display = 'none';
     document.getElementById('formTitulo').style.display = 'block';
