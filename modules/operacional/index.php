@@ -25,7 +25,7 @@ $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 $columns = array(
     'aguardando_docs'        => array('label' => 'Contrato — Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
     'em_elaboracao'          => array('label' => 'Pasta Apta',                  'color' => '#059669', 'icon' => '✔️'),
-    // em_andamento não aparece no Kanban — processos em execução ficam na listagem de Processos
+    'em_andamento'           => array('label' => 'Em Execução',                 'color' => '#0ea5e9', 'icon' => '⚙️'),
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
@@ -64,11 +64,12 @@ $whereStr = implode(' AND ', $where);
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'pendente') as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'feito') as done_tasks,
-        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc
+        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc,
+        (SELECT COUNT(*) FROM pipeline_leads WHERE linked_case_id = cs.id OR (client_id = cs.client_id AND client_id > 0)) as has_pipeline
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
-        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado')
+        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado','renunciamos')
         ORDER BY FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
 
 $stmt = $pdo->prepare($sql);
@@ -83,6 +84,9 @@ foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 $mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
+    // Casos sem vínculo ao pipeline (cadastro manual) → só na listagem de Processos
+    if ((int)$cs['has_pipeline'] === 0) continue;
+
     // Distribuídos: só aparece no mês da distribuição. Depois, só na pasta de processos.
     if ($status === 'distribuido') {
         $mesRef = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
@@ -97,7 +101,7 @@ foreach ($allCases as $cs) {
             continue;
         }
     }
-    if (!isset($byStatus[$status])) continue; // Status não tem coluna no Kanban — pula
+    if (!isset($byStatus[$status])) { $byStatus['em_andamento'][] = $cs; continue; }
     $byStatus[$status][] = $cs;
 }
 
