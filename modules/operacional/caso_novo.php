@@ -34,6 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $case_number        = trim($_POST['case_number'] ?? '');
     $court              = trim($_POST['court'] ?? '');
     $comarca            = trim($_POST['comarca'] ?? '');
+    $comarca_uf         = trim($_POST['comarca_uf'] ?? '');
+    $sistema_tribunal   = trim($_POST['sistema_tribunal'] ?? '');
+    $segredo_justica    = isset($_POST['segredo_justica']) ? 1 : 0;
+    $departamento       = trim($_POST['departamento'] ?? 'operacional');
     $category           = in_array(($_POST['category'] ?? ''), array('judicial', 'extrajudicial')) ? $_POST['category'] : 'judicial';
     $distribution_date  = $_POST['distribution_date'] ?? '';
     $priority           = in_array(($_POST['priority'] ?? ''), array('urgente', 'alta', 'normal', 'baixa')) ? $_POST['priority'] : 'normal';
@@ -53,9 +57,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $sql = "INSERT INTO cases
-        (client_id, title, case_type, case_number, court, comarca, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
+        (client_id, title, case_type, case_number, court, comarca, comarca_uf, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, created_at, updated_at)
         VALUES
-        (:client_id, :title, :case_type, :case_number, :court, :comarca, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
+        (:client_id, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
@@ -65,6 +69,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':case_number'        => $case_number,
         ':court'              => $court,
         ':comarca'            => $comarca,
+        ':comarca_uf'         => $comarca_uf !== '' ? $comarca_uf : null,
+        ':sistema_tribunal'   => $sistema_tribunal !== '' ? $sistema_tribunal : null,
+        ':segredo_justica'    => $segredo_justica,
+        ':departamento'       => $departamento !== '' ? $departamento : 'operacional',
         ':category'           => $category,
         ':distribution_date'  => $distribution_date !== '' ? $distribution_date : null,
         ':status'             => $status,
@@ -93,12 +101,32 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
 $statusLabels = array(
     'aguardando_docs'   => 'Contrato Assinado — Aguardando Docs',
     'em_elaboracao'     => 'Pasta Apta',
-    'em_andamento'      => 'Em Execucao',
     'doc_faltante'      => 'Documento Faltante',
-    'aguardando_prazo'  => 'Aguardando Distribuicao / Extrajudicial',
-    'distribuido'       => 'Processo Distribuido',
-    'concluido'         => 'Concluido',
-    'arquivado'         => 'Arquivado',
+    'aguardando_prazo'  => 'Aguardando Distribuição / Extrajudicial',
+    'distribuido'       => 'Processo Distribuído',
+    'em_andamento'      => 'Processo em Andamento',
+    'suspenso'          => 'Processo Suspenso',
+    'concluido'         => 'Processo Finalizado / Arquivado',
+    'cancelado'         => 'Cancelado',
+);
+
+$departamentos = array(
+    'operacional'    => 'Operacional',
+    'administrativo' => 'Administrativo',
+    'comercial'      => 'Comercial',
+    'financeiro'     => 'Financeiro',
+);
+
+$sistemasTribunal = array(
+    ''      => '— Selecionar —',
+    'PJE'   => 'PJe (Processo Judicial Eletrônico)',
+    'DCP'   => 'DCP (Distribuição e Controle Processual)',
+    'ESAJ'  => 'e-SAJ',
+    'EPROC' => 'EPROC',
+    'PROJUDI' => 'PROJUDI',
+    'TUCUJURIS' => 'TUCUJURIS',
+    'SEI'   => 'SEI',
+    'OUTRO' => 'Outro',
 );
 
 $pageTitle = 'Novo Processo';
@@ -185,15 +213,46 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
 
-                <!-- Comarca + Data de Distribuicao -->
+                <!-- UF + Comarca (cidade) + Data de Distribuicao -->
                 <div class="form-row">
-                    <div class="form-col">
-                        <label>Comarca</label>
-                        <input type="text" name="comarca" class="form-input" placeholder="Ex: Barra Mansa/RJ">
+                    <div class="form-col" style="max-width:120px;">
+                        <label>Estado (UF)</label>
+                        <select name="comarca_uf" id="comarcaUf" class="form-select" onchange="filtrarCidades()">
+                            <option value="">UF</option>
+                            <?php
+                            $ufs = array('AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO');
+                            foreach ($ufs as $uf): ?>
+                                <option value="<?= $uf ?>"><?= $uf ?></option>
+                            <?php endforeach; ?>
+                        </select>
                     </div>
-                    <div class="form-col" style="max-width:220px;">
+                    <div class="form-col">
+                        <label>Comarca (Cidade)</label>
+                        <input type="text" name="comarca" id="comarcaCidade" class="form-input" placeholder="Digite a cidade..." autocomplete="off" list="listaCidades">
+                        <datalist id="listaCidades"></datalist>
+                    </div>
+                    <div class="form-col" style="max-width:200px;">
                         <label>Data de Distribuicao</label>
                         <input type="date" name="distribution_date" class="form-input">
+                    </div>
+                </div>
+
+                <!-- Sistema + Segredo de Justiça -->
+                <div class="form-row">
+                    <div class="form-col">
+                        <label>Sistema do Tribunal</label>
+                        <select name="sistema_tribunal" class="form-select">
+                            <?php foreach ($sistemasTribunal as $k => $v): ?>
+                                <option value="<?= $k ?>"><?= $v ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-col" style="max-width:200px;">
+                        <label>Segredo de Justica</label>
+                        <div style="display:flex;align-items:center;gap:.5rem;height:42px;">
+                            <input type="checkbox" name="segredo_justica" id="segredoJustica" value="1" style="width:18px;height:18px;cursor:pointer;">
+                            <label for="segredoJustica" style="font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;">Sim, é segredo</label>
+                        </div>
                     </div>
                 </div>
 
@@ -218,8 +277,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
 
-                <!-- Responsavel -->
+                <!-- Departamento + Responsavel -->
                 <div class="form-row">
+                    <div class="form-col" style="max-width:220px;">
+                        <label>Departamento</label>
+                        <select name="departamento" class="form-select">
+                            <?php foreach ($departamentos as $k => $v): ?>
+                                <option value="<?= $k ?>" <?= $k === 'operacional' ? 'selected' : '' ?>><?= $v ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
                     <div class="form-col" style="max-width:320px;">
                         <label>Responsavel</label>
                         <select name="responsible_user_id" class="form-select">
@@ -337,6 +404,47 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     });
 })();
+
+// ── Busca de cidades por UF (API IBGE) ──
+var cidadesCache = {};
+function filtrarCidades() {
+    var uf = document.getElementById('comarcaUf').value;
+    var datalist = document.getElementById('listaCidades');
+    var inputCidade = document.getElementById('comarcaCidade');
+    datalist.innerHTML = '';
+    inputCidade.value = '';
+    if (!uf) return;
+
+    if (cidadesCache[uf]) {
+        preencherCidades(cidadesCache[uf]);
+        return;
+    }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome');
+    xhr.onload = function() {
+        try {
+            var cidades = JSON.parse(xhr.responseText);
+            var nomes = [];
+            for (var i = 0; i < cidades.length; i++) {
+                nomes.push(cidades[i].nome);
+            }
+            cidadesCache[uf] = nomes;
+            preencherCidades(nomes);
+        } catch(e) {}
+    };
+    xhr.send();
+}
+
+function preencherCidades(nomes) {
+    var datalist = document.getElementById('listaCidades');
+    datalist.innerHTML = '';
+    for (var i = 0; i < nomes.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = nomes[i];
+        datalist.appendChild(opt);
+    }
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

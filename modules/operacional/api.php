@@ -23,7 +23,7 @@ switch ($action) {
         if (!has_min_role('gestao') && !has_role('colaborador')) { break; }
         $caseId = (int)($_POST['case_id'] ?? 0);
         $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
-        $validStatuses = array('aguardando_docs','em_elaboracao','em_andamento','doc_faltante','aguardando_prazo','distribuido','parceria_previdenciario','cancelado','suspenso','concluido','arquivado');
+        $validStatuses = array('aguardando_docs','em_elaboracao','em_andamento','doc_faltante','aguardando_prazo','distribuido','parceria_previdenciario','cancelado','suspenso','concluido','arquivado','finalizado');
 
         if ($caseId && in_array($status, $validStatuses)) {
             // Buscar caso atual

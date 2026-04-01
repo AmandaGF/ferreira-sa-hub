@@ -73,13 +73,18 @@ try {
 $statusLabels = array(
     'aguardando_docs' => 'Contrato Assinado — Aguardando Docs',
     'em_elaboracao' => 'Pasta Apta',
-    'em_andamento' => 'Em Execução',
     'doc_faltante' => 'Documento Faltante',
     'aguardando_prazo' => 'Aguardando Distribuição / Extrajudicial',
     'distribuido' => 'Processo Distribuído',
-    'concluido' => 'Concluído',
+    'em_andamento' => 'Processo em Andamento',
+    'suspenso' => 'Processo Suspenso',
+    'concluido' => 'Processo Finalizado / Arquivado',
+    'cancelado' => 'Cancelado',
     'arquivado' => 'Arquivado',
 );
+
+$clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
+$clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -144,16 +149,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
             · <?= e($case['court']) ?>
         <?php endif; ?>
         <?php if (isset($case['comarca']) && $case['comarca']): ?>
-            · <?= e($case['comarca']) ?>
+            · <?= e($case['comarca']) ?><?php if (isset($case['comarca_uf']) && $case['comarca_uf']): ?>/<?= e($case['comarca_uf']) ?><?php endif; ?>
         <?php endif; ?>
         <?php if ($case['distribution_date']): ?>
             · Distribuído em <?= data_br($case['distribution_date']) ?>
         <?php endif; ?>
+        <?php if (isset($case['sistema_tribunal']) && $case['sistema_tribunal']): ?>
+            · <span style="background:rgba(255,255,255,.2);padding:1px 6px;border-radius:3px;font-size:.75rem;font-weight:600;"><?= e($case['sistema_tribunal']) ?></span>
+        <?php endif; ?>
+        <?php if (isset($case['segredo_justica']) && $case['segredo_justica']): ?>
+            · <span style="background:#dc2626;padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:700;color:#fff;">SEGREDO DE JUSTIÇA</span>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+    <?php if (isset($case['departamento']) && $case['departamento']): ?>
+    <div style="margin-top:.3rem;font-size:.75rem;color:rgba(255,255,255,.6);">
+        Dept: <?= ucfirst(e($case['departamento'])) ?>
     </div>
     <?php endif; ?>
     <div class="actions">
-        <?php if ($case['client_phone']): ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $case['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+        <?php if ($clientWhatsapp): ?>
+            <a href="<?= $clientWhatsapp ?>?text=<?= urlencode('Olá ' . ($case['client_name'] ?: '') . ', tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo' . ($case['title'] ? ' (' . $case['title'] . ')' : '') . '.') ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php endif; ?>
         <?php if ($case['client_id']): ?>
             <a href="<?= module_url('clientes', 'ver.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente</a>
@@ -379,6 +395,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
+                                <?php if ($clientWhatsapp): ?>
+                                <a href="<?= $clientWhatsapp ?>?text=<?= urlencode('Olá ' . ($case['client_name'] ?: '') . ", informamos sobre o andamento do seu processo:\n\n" . '*' . $lbl . '* — ' . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\n_Ferreira & Sá Advocacia_') ?>" target="_blank" style="background:none;border:none;color:#25D366;cursor:pointer;font-size:.82rem;padding:2px 4px;text-decoration:none;" title="Enviar ao cliente via WhatsApp">💬</a>
+                                <?php endif; ?>
                                 <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
                                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este andamento?">
                                     <?= csrf_input() ?>
