@@ -26,6 +26,7 @@ $docTypes = array(
     'acordo' => array('label' => 'Termo de Acordo', 'icon' => '🤝', 'color' => '#8b5cf6', 'desc' => 'Acordo extrajudicial entre as partes'),
     'juntada' => array('label' => 'Pet. Juntada de Docs', 'icon' => '📎', 'color' => '#059669', 'desc' => 'Juntada de documentos ao processo'),
     'ciencia' => array('label' => 'Petição de Ciência', 'icon' => '👁️', 'color' => '#4f46e5', 'desc' => 'Ciência de decisão/despacho/intimação'),
+    'prevjud' => array('label' => 'Pesquisa PREVJUD', 'icon' => '🔍', 'color' => '#052228', 'desc' => 'Pesquisa de vínculo empregatício via PREVJUD'),
 );
 
 // Histórico de documentos gerados

@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -34,6 +34,7 @@ $typeLabels = array(
     'acordo' => 'Termo de Acordo Extrajudicial',
     'juntada' => 'Petição de Juntada de Documentos',
     'ciencia' => 'Petição de Ciência',
+    'prevjud' => 'Pesquisa PREVJUD',
 );
 
 $acaoLabels = array(
@@ -141,11 +142,13 @@ $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
 $reservaManifestacao = $_POST['reserva_manifestacao'] ?? 'sim';
+$nomeGenitor = $_POST['nome_genitor'] ?? '';
+$cpfGenitor = $_POST['cpf_genitor'] ?? '';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -502,6 +505,20 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'prevjud'): ?>
+        <div class="section">
+            <h4>Dados da Pesquisa PREVJUD</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2ª Vara de Família de Resende"></div>
+            </div>
+            <div class="row">
+                <div><label>Nome completo do(a) pesquisado(a) (genitor/genitora)</label><input name="nome_genitor" value="<?= e($nomeGenitor) ?>" placeholder="Nome de quem paga a pensão" required></div>
+                <div><label>CPF do(a) pesquisado(a)</label><input name="cpf_genitor" value="<?= e($cpfGenitor) ?>" placeholder="000.000.000-00" required></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -546,6 +563,8 @@ if (!$showEditor) {
         'justificativa' => $justificativaJuntada,
         'objeto_ciencia' => $objetoCiencia,
         'reserva_manifestacao' => $reservaManifestacao,
+        'nome_genitor' => $nomeGenitor,
+        'cpf_genitor' => $cpfGenitor,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -557,6 +576,7 @@ if (!$showEditor) {
     elseif ($tipo === 'acordo') echo template_acordo($d);
     elseif ($tipo === 'juntada') echo template_juntada($d);
     elseif ($tipo === 'ciencia') echo template_ciencia($d);
+    elseif ($tipo === 'prevjud') echo template_prevjud($d);
     ?>
     </div>
 

@@ -405,6 +405,82 @@ function template_juntada($d) {
 // ═══════════════════════════════════════════════════════
 // PETIÇÃO DE CIÊNCIA
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// PESQUISA PREVJUD
+// ═══════════════════════════════════════════════════════
+function template_prevjud($d) {
+    $esc = escritorioData();
+    $html = '';
+
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $nomeGenitor = isset($d['nome_genitor']) && $d['nome_genitor'] ? $d['nome_genitor'] : '_______________';
+    $cpfGenitor = isset($d['cpf_genitor']) && $d['cpf_genitor'] ? $d['cpf_genitor'] : '___.___.___-__';
+
+    // Cabeçalho
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DO JUÍZO DA ' . f($vara) . '</p>';
+    $html .= '<br>';
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
+    $html .= '<br>';
+
+    // Qualificação
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;"><strong>' . f($d['nome']) . '</strong>';
+    if (isset($d['child_names']) && $d['child_names']) {
+        $html .= ', representado(a) por sua genitora/genitor <strong>' . f($d['child_names']) . '</strong>';
+    }
+    $html .= ', já qualificado(a) nos autos do processo em epígrafe, por intermédio de seus advogados que esta subscrevem digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
+
+    // Destaque visual PREVJUD
+    $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);border-radius:8px;overflow:hidden;">';
+    $html .= '<div style="padding:15px 25px;text-align:center;">';
+    $html .= '<div style="font-size:10px;color:#B87333;text-transform:uppercase;letter-spacing:4px;font-weight:600;margin-bottom:4px;">Requerimento de</div>';
+    $html .= '<div style="font-size:16px;color:#fff;font-weight:800;letter-spacing:5px;">PESQUISA PREVJUD</div>';
+    $html .= '</div></div>';
+
+    // Corpo
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Requerer a Vossa Excelência a realização de pesquisa, via <strong>Sistema PREVJUD</strong> (Previdência e Justiça), a fim de que se apure e se obtenha informações detalhadas acerca do(s) <strong>vínculo(s) empregatício(s)</strong>, contribuições previdenciárias, benefícios e demais relações de trabalho do(a) senhor(a):</p>';
+
+    // Box com dados do pesquisado
+    $html .= '<div style="margin:20px 0;border:2px solid #052228;border-radius:10px;overflow:hidden;">';
+    $html .= '<div style="background:#052228;color:#fff;padding:8px 20px;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;">Dados para Pesquisa</div>';
+    $html .= '<div style="padding:15px 20px;">';
+    $html .= '<table style="width:100%;border-collapse:collapse;">';
+    $html .= '<tr><td style="padding:6px 10px;font-size:11px;color:#6b7280;font-weight:600;width:120px;border-bottom:1px solid #e5e7eb;">Nome Completo</td><td style="padding:6px 10px;font-size:12px;font-weight:700;border-bottom:1px solid #e5e7eb;">' . f($nomeGenitor) . '</td></tr>';
+    $html .= '<tr><td style="padding:6px 10px;font-size:11px;color:#6b7280;font-weight:600;border-bottom:1px solid #e5e7eb;">CPF</td><td style="padding:6px 10px;font-size:12px;font-weight:700;font-family:monospace;border-bottom:1px solid #e5e7eb;">' . f($cpfGenitor) . '</td></tr>';
+    $html .= '</table></div></div>';
+
+    // Fundamentação
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente diligência se faz necessária para a correta instrução processual, sendo imprescindível a verificação das <strong>reais condições financeiras</strong> do(a) requerido(a), especialmente no que tange à existência de vínculos empregatícios formais, informais ou eventuais benefícios previdenciários, nos termos do <strong>art. 370 do CPC</strong> e em atenção ao princípio da busca da verdade real.</p>';
+
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Tal medida é fundamental para garantir a <strong>adequada fixação</strong> ou <strong>revisão dos alimentos</strong>, assegurando que os valores correspondam à real capacidade contributiva do alimentante e às necessidades do(a) alimentando(a), conforme dispõe o <strong>art. 1.694, §1º, do Código Civil</strong>.</p>';
+
+    // Pedidos
+    $html .= '<div style="margin:25px 0;background:#f8f9fa;border-left:4px solid #B87333;border-radius:0 8px 8px 0;padding:15px 20px;">';
+    $html .= '<div style="font-size:10px;color:#B87333;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;">Do Requerimento</div>';
+    $html .= '<p style="text-align:justify;line-height:1.8;margin:0;">Ante o exposto, requer a Vossa Excelência que determine a realização de pesquisa via <strong>Sistema PREVJUD</strong> em nome de <strong>' . f($nomeGenitor) . '</strong>, CPF <strong>' . f($cpfGenitor) . '</strong>, para que se obtenha:</p>';
+    $html .= '<ul style="margin:10px 0 0 20px;line-height:1.8;">';
+    $html .= '<li>Informações sobre <strong>vínculos empregatícios</strong> ativos e inativos;</li>';
+    $html .= '<li>Valores de <strong>remuneração</strong> percebida;</li>';
+    $html .= '<li>Eventuais <strong>benefícios previdenciários</strong> (aposentadoria, auxílios, pensões);</li>';
+    $html .= '<li>Histórico de <strong>contribuições ao INSS</strong>.</li>';
+    $html .= '</ul></div>';
+
+    // Fechamento
+    $html .= '<p style="text-align:center;margin-top:2.5rem;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    // Assinaturas
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════
+// CIÊNCIA
+// ═══════════════════════════════════════════════════════
 function template_ciencia($d) {
     $esc = escritorioData();
     $html = '<div class="doc-title">PETIÇÃO DE CIÊNCIA</div>';
