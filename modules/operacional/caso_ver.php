@@ -207,7 +207,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Atalhos rápidos -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-    <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">📅 + Compromisso</a>
+    <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
+    <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Agendar Reuniao + Meet</a>
     <a href="<?= module_url('prazos') ?>?novo=1&case_id=<?= $caseId ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">⏰ + Prazo</a>
     <a href="#tarefas" class="btn btn-outline btn-sm" style="font-size:.78rem;" onclick="document.querySelector('[name=title]').focus();">✓ + Tarefa</a>
 </div>

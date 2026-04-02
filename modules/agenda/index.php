@@ -159,6 +159,26 @@ body.dark-mode .ag-ac-list { background:var(--bg-card); }
 
 <?php
 $voltarCaso = (int)($_GET['voltar_caso'] ?? $_GET['case_id'] ?? 0);
+$preClientId = (int)($_GET['client_id'] ?? 0);
+$preCaseId = (int)($_GET['case_id'] ?? 0);
+$preNovo = isset($_GET['novo']);
+
+// Pré-carregar dados do cliente/caso para pré-preencher modal
+$preClientName = '';
+$preCaseTitle = '';
+if ($preClientId) {
+    $stmt = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+    $stmt->execute(array($preClientId));
+    $row = $stmt->fetch();
+    if ($row) $preClientName = $row['name'];
+}
+if ($preCaseId) {
+    $stmt = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
+    $stmt->execute(array($preCaseId));
+    $row = $stmt->fetch();
+    if ($row) $preCaseTitle = $row['title'];
+}
+
 if ($voltarCaso > 0): ?>
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
     <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $voltarCaso) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
@@ -192,8 +212,9 @@ if ($voltarCaso > 0): ?>
                 </select>
             </div>
             <?php if (has_min_role('gestao')): ?>
-            <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">📄 Importar CSV</a>
+            <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">Importar CSV</a>
             <?php endif; ?>
+            <a href="https://balcaovirtual.tjrj.jus.br/" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcao Virtual</a>
             <button class="btn btn-primary btn-sm" onclick="abrirModal()" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
@@ -358,6 +379,33 @@ mesAtual = hoje.getMonth();
 anoAtual = hoje.getFullYear();
 diaLista = hoje;
 recarregarEventos();
+
+// Auto-abrir modal se veio com ?novo=1
+<?php if ($preNovo):
+    $preTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+    $preModalidade = isset($_GET['modalidade']) ? $_GET['modalidade'] : '';
+?>
+setTimeout(function() {
+    abrirModal();
+    <?php if ($preClientId): ?>
+    document.getElementById('agClienteBusca').value = <?= json_encode($preClientName) ?>;
+    document.getElementById('agClienteId').value = '<?= $preClientId ?>';
+    <?php endif; ?>
+    <?php if ($preCaseId): ?>
+    document.getElementById('agCasoBusca').value = <?= json_encode($preCaseTitle) ?>;
+    document.getElementById('agCasoId').value = '<?= $preCaseId ?>';
+    <?php endif; ?>
+    <?php if ($preTipo): ?>
+    var preBtn = document.querySelector('.ag-tipo-btn[data-t="<?= e($preTipo) ?>"]');
+    if (preBtn) selTipo('<?= e($preTipo) ?>', preBtn);
+    <?php endif; ?>
+    <?php if ($preModalidade): ?>
+    document.getElementById('agModalidade').value = '<?= e($preModalidade) ?>';
+    toggleMeet();
+    <?php endif; ?>
+    atualizarPreview();
+}, 300);
+<?php endif; ?>
 
 // ── FETCH EVENTOS ───────────────────────────────────────────
 function recarregarEventos() {
