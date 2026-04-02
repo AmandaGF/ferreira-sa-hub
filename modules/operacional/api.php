@@ -262,16 +262,22 @@ switch ($action) {
 
     case 'resolve_doc':
         $docId = (int)($_POST['doc_id'] ?? 0);
-        $caseId = (int)($_POST['case_id'] ?? 0);
+        $caseId = 0;
         $clientId = 0;
 
-        // Se case_id não veio (drawer aberto pelo Pipeline), resolver pelo doc
-        if (!$caseId && $docId) {
-            $dRow = $pdo->prepare("SELECT case_id, client_id FROM documentos_pendentes WHERE id = ?");
+        // SEMPRE resolver case_id e client_id pelo próprio documento
+        // (o drawer pode enviar o case_id errado quando o cliente tem múltiplos casos)
+        if ($docId) {
+            $dRow = $pdo->prepare("SELECT case_id, client_id, lead_id FROM documentos_pendentes WHERE id = ?");
             $dRow->execute(array($docId));
             $dr = $dRow->fetch();
-            if ($dr) { $caseId = (int)$dr['case_id']; $clientId = (int)$dr['client_id']; }
+            if ($dr) {
+                $caseId = (int)$dr['case_id'];
+                $clientId = (int)$dr['client_id'];
+            }
         }
+        // Fallback: usar case_id do POST se o doc não tinha
+        if (!$caseId) $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId && !$clientId) { $cRow = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?"); $cRow->execute(array($caseId)); $cr = $cRow->fetch(); if ($cr) $clientId = (int)$cr['client_id']; }
         if ($docId) {
             // Marcar documento como recebido
