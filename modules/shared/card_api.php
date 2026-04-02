@@ -14,11 +14,21 @@ $leadId = (int)($_GET['lead_id'] ?? 0);
 $caseId = (int)($_GET['case_id'] ?? 0);
 
 // Resolver IDs a partir de qualquer entrada
-if ($leadId && !$clientId) {
+if ($leadId) {
     $r = $pdo->prepare("SELECT client_id, linked_case_id FROM pipeline_leads WHERE id = ?");
     $r->execute(array($leadId));
     $lr = $r->fetch();
-    if ($lr) { $clientId = (int)$lr['client_id']; if (!$caseId) $caseId = (int)$lr['linked_case_id']; }
+    if ($lr) {
+        if (!$clientId) $clientId = (int)$lr['client_id'];
+        if (!$caseId) $caseId = (int)$lr['linked_case_id'];
+        // Fallback: se linked_case_id é NULL, buscar caso pelo client_id
+        if (!$caseId && $clientId) {
+            $r2 = $pdo->prepare("SELECT id FROM cases WHERE client_id = ? ORDER BY created_at DESC LIMIT 1");
+            $r2->execute(array($clientId));
+            $cr2 = $r2->fetch();
+            if ($cr2) $caseId = (int)$cr2['id'];
+        }
+    }
 }
 if ($caseId && !$clientId) {
     $r = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
@@ -110,14 +120,29 @@ if ($caseId) {
 }
 
 // ── 7. DOCUMENTOS PENDENTES ──
+// Busca por case_id OU lead_id OU client_id para garantir que documentos
+// apareçam mesmo quando o lead não tem linked_case_id
 $result['docs_pendentes'] = array();
-if ($caseId) {
-    try {
-        $stmt = $pdo->prepare("SELECT dp.*, u.name as solicitante_name FROM documentos_pendentes dp LEFT JOIN users u ON u.id = dp.solicitado_por WHERE dp.case_id = ? ORDER BY dp.solicitado_em DESC");
-        $stmt->execute(array($caseId));
-        $result['docs_pendentes'] = $stmt->fetchAll();
-    } catch (Exception $e) {}
-}
+try {
+    $docConditions = array();
+    $docParams = array();
+    if ($caseId) { $docConditions[] = 'dp.case_id = ?'; $docParams[] = $caseId; }
+    if ($leadId) { $docConditions[] = 'dp.lead_id = ?'; $docParams[] = $leadId; }
+    if ($clientId && !$caseId && !$leadId) { $docConditions[] = 'dp.client_id = ?'; $docParams[] = $clientId; }
+    if ($docConditions) {
+        $docWhere = implode(' OR ', $docConditions);
+        $stmt = $pdo->prepare("SELECT dp.*, u.name as solicitante_name FROM documentos_pendentes dp LEFT JOIN users u ON u.id = dp.solicitado_por WHERE ($docWhere) ORDER BY dp.solicitado_em DESC");
+        $stmt->execute($docParams);
+        // Deduplicar por ID (caso match por case_id E lead_id retorne o mesmo doc)
+        $seen = array();
+        foreach ($stmt->fetchAll() as $doc) {
+            if (!isset($seen[$doc['id']])) {
+                $seen[$doc['id']] = true;
+                $result['docs_pendentes'][] = $doc;
+            }
+        }
+    }
+} catch (Exception $e) {}
 
 // ── 8. PEÇAS GERADAS ──
 $result['pecas'] = array();

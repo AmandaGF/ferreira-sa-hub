@@ -264,7 +264,15 @@ switch ($action) {
         $docId = (int)($_POST['doc_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
         $clientId = 0;
-        if ($caseId) { $cRow = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?"); $cRow->execute(array($caseId)); $cr = $cRow->fetch(); if ($cr) $clientId = (int)$cr['client_id']; }
+
+        // Se case_id não veio (drawer aberto pelo Pipeline), resolver pelo doc
+        if (!$caseId && $docId) {
+            $dRow = $pdo->prepare("SELECT case_id, client_id FROM documentos_pendentes WHERE id = ?");
+            $dRow->execute(array($docId));
+            $dr = $dRow->fetch();
+            if ($dr) { $caseId = (int)$dr['case_id']; $clientId = (int)$dr['client_id']; }
+        }
+        if ($caseId && !$clientId) { $cRow = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?"); $cRow->execute(array($caseId)); $cr = $cRow->fetch(); if ($cr) $clientId = (int)$cr['client_id']; }
         if ($docId) {
             // Marcar documento como recebido
             $pdo->prepare("UPDATE documentos_pendentes SET status = 'recebido', recebido_em = NOW(), recebido_por = ? WHERE id = ?")
@@ -320,6 +328,7 @@ switch ($action) {
 
             audit_log('doc_received', 'documentos_pendentes', $docId);
         }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'pending' => isset($numPending) ? $numPending : 0)); exit; }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
