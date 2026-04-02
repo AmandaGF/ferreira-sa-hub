@@ -330,9 +330,12 @@ if ($voltarCaso > 0): ?>
             <textarea class="ag-fi" id="agDescricao" rows="2" placeholder="Notas internas..."></textarea>
         </div>
     </div>
-    <div class="ag-modal-footer">
-        <button class="ag-btn-cancelar" onclick="fecharModal()">Cancelar</button>
-        <button class="ag-btn-salvar" onclick="salvarEvento()">Salvar compromisso</button>
+    <div class="ag-modal-footer" style="display:flex;justify-content:space-between;">
+        <button id="agBtnExcluir" class="ag-btn-cancelar" style="color:#dc2626;border-color:#dc2626;display:none;" onclick="excluirEventoModal()">Excluir</button>
+        <div style="display:flex;gap:8px;margin-left:auto;">
+            <button class="ag-btn-cancelar" onclick="fecharModal()">Cancelar</button>
+            <button class="ag-btn-salvar" onclick="salvarEvento()">Salvar compromisso</button>
+        </div>
     </div>
 </div>
 </div>
@@ -578,8 +581,9 @@ function renderLista() {
             (ev.client_name ? '<span>📋 ' + esc(ev.client_name) + '</span>' : '') +
             '</div>' +
             '<div class="ag-lc-acoes">' + meetHtml + msgHtml +
-            '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">✓ Realizado</button>' +
-            '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">✏️ Editar</button>' +
+            '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>' +
+            '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>' +
+            '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>' +
             '</div></div></div>';
     }).join('');
 }
@@ -641,6 +645,7 @@ function abrirModal(dataStr) {
     document.getElementById('agMeetLink').value = '';
     document.getElementById('btnGerarMeet').textContent = 'Gerar Meet';
     document.getElementById('btnGerarMeet').disabled = false;
+    document.getElementById('agBtnExcluir').style.display = 'none';
     toggleMeet();
 
     var agora = new Date();
@@ -693,6 +698,7 @@ function abrirModalEditar(id) {
             var btn = document.querySelector('.ag-tipo-btn[data-t="' + ev.tipo + '"]');
             if (btn) selTipo(ev.tipo, btn);
 
+            document.getElementById('agBtnExcluir').style.display = 'inline-block';
             document.getElementById('agOverlay').classList.add('aberto');
         } catch(ex) { alert('Erro ao carregar evento'); }
     };
@@ -878,6 +884,43 @@ function marcarRealizado(id, btn) {
         btn.style.borderColor = '#888';
         btn.disabled = true;
         setTimeout(recarregarEventos, 500);
+    };
+    xhr.send(fd);
+}
+
+function excluirEvento(id) {
+    if (!confirm('Tem certeza que deseja excluir este compromisso?')) return;
+    var fd = new FormData();
+    fd.append('action', 'excluir');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try { var r = JSON.parse(xhr.responseText); if (r.error) { alert(r.error); return; } }
+        catch(e) {}
+        recarregarEventos();
+    };
+    xhr.send(fd);
+}
+
+function excluirEventoModal() {
+    var id = document.getElementById('agEvId').value;
+    if (!id || id === '0') return;
+    if (!confirm('Tem certeza que deseja excluir este compromisso?')) return;
+    var fd = new FormData();
+    fd.append('action', 'excluir');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try { var r = JSON.parse(xhr.responseText); if (r.error) { alert(r.error); return; } }
+        catch(e) {}
+        fecharModal();
+        recarregarEventos();
     };
     xhr.send(fd);
 }
