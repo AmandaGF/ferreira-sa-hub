@@ -64,7 +64,7 @@ $drawerOrigin = isset($drawerOriginKanban) ? $drawerOriginKanban : 'operacional'
 .cd-panel { font-size:.82rem; }
 .cd-section { margin-bottom:1rem; }
 .cd-section h5 { font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; color:#94a3b8; font-weight:700; margin-bottom:.4rem; }
-.cd-field { display:flex; justify-content:space-between; padding:.3rem 0; border-bottom:1px solid #f3f4f6; }
+.cd-field { display:flex; justify-content:space-between; padding:.3rem 0; border-bottom:1px solid #f3f4f6; position:relative; align-items:center; min-height:28px; }
 .cd-field .label { color:#6b7280; font-size:.75rem; }
 .cd-field .value { font-weight:600; color:#052228; font-size:.78rem; text-align:right; max-width:60%; }
 .cd-badge { display:inline-block; padding:2px 8px; border-radius:4px; font-size:.65rem; font-weight:700; color:#fff; }
@@ -371,25 +371,41 @@ function field(label, value) {
     return '<div class="cd-field"><span class="label">' + label + '</span><span class="value">' + esc(value) + '</span></div>';
 }
 
-// Campo editável inline
+// Campo editável inline — estilo Trello (clica no valor para editar)
 function editField(label, value, entity, entityId, fieldName, type) {
     type = type || 'text';
     var id = 'ef_' + entity + '_' + fieldName;
     var val = value || '';
-    var inputHtml = '';
-    if (type === 'textarea') {
-        inputHtml = '<textarea id="' + id + '" style="width:100%;font-size:.78rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;resize:vertical;min-height:40px;">' + esc(val) + '</textarea>';
-    } else {
-        inputHtml = '<input type="' + type + '" id="' + id + '" value="' + esc(val).replace(/"/g,'&quot;') + '" style="width:100%;font-size:.78rem;padding:3px 6px;border:1px solid var(--border);border-radius:4px;">';
-    }
-    return '<div class="cd-field" style="flex-direction:column;align-items:stretch;gap:2px;">'
-        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+    var displayVal = val || '—';
+    return '<div class="cd-field">'
         + '<span class="label">' + label + '</span>'
-        + '<button onclick="salvarCampo(\'' + entity + '\',' + entityId + ',\'' + fieldName + '\',\'' + id + '\')" style="background:#B87333;color:#fff;border:none;padding:1px 8px;border-radius:4px;font-size:.62rem;font-weight:600;cursor:pointer;">Salvar</button>'
+        + '<span class="value cd-editable" id="' + id + '_display" onclick="ativarEdicao(\'' + id + '\')" title="Clique para editar" style="cursor:pointer;border-bottom:1px dashed transparent;"'
+        + ' onmouseover="this.style.borderBottomColor=\'#B87333\'" onmouseout="this.style.borderBottomColor=\'transparent\'">' + esc(displayVal) + '</span>'
+        + '<div id="' + id + '_edit" style="display:none;position:absolute;right:0;top:0;bottom:0;display:none;align-items:center;gap:4px;">'
+        + (type === 'textarea'
+            ? '<textarea id="' + id + '" style="width:200px;font-size:.78rem;padding:3px 6px;border:1.5px solid #B87333;border-radius:4px;resize:vertical;min-height:36px;">' + esc(val) + '</textarea>'
+            : '<input type="text" id="' + id + '" value="' + esc(val).replace(/"/g,'&quot;') + '" style="width:180px;font-size:.78rem;padding:3px 6px;border:1.5px solid #B87333;border-radius:4px;">')
+        + '<button onclick="salvarCampo(\'' + entity + '\',' + entityId + ',\'' + fieldName + '\',\'' + id + '\')" style="background:#059669;color:#fff;border:none;padding:3px 6px;border-radius:4px;font-size:.65rem;cursor:pointer;">✓</button>'
+        + '<button onclick="cancelarEdicao(\'' + id + '\')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.8rem;">✕</button>'
         + '</div>'
-        + inputHtml
-        + '<span id="' + id + '_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600;">✓ Salvo!</span>'
+        + '<span id="' + id + '_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600;">✓</span>'
         + '</div>';
+}
+
+function ativarEdicao(id) {
+    var display = document.getElementById(id + '_display');
+    var edit = document.getElementById(id + '_edit');
+    var input = document.getElementById(id);
+    if (display) display.style.display = 'none';
+    if (edit) edit.style.display = 'flex';
+    if (input) { input.focus(); input.select(); }
+}
+
+function cancelarEdicao(id) {
+    var display = document.getElementById(id + '_display');
+    var edit = document.getElementById(id + '_edit');
+    if (display) display.style.display = '';
+    if (edit) edit.style.display = 'none';
 }
 
 function salvarCampo(entity, entityId, fieldName, inputId) {
@@ -397,6 +413,8 @@ function salvarCampo(entity, entityId, fieldName, inputId) {
     if (!input) return;
     var value = input.value;
     var ok = document.getElementById(inputId + '_ok');
+    var display = document.getElementById(inputId + '_display');
+    var edit = document.getElementById(inputId + '_edit');
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '<?= url("modules/shared/card_actions.php") ?>');
@@ -405,11 +423,11 @@ function salvarCampo(entity, entityId, fieldName, inputId) {
         try {
             var resp = JSON.parse(xhr.responseText);
             if (resp.ok) {
-                input.style.borderColor = '#059669';
+                // Atualizar o texto exibido
+                if (display) { display.textContent = value || '—'; display.style.display = ''; }
+                if (edit) edit.style.display = 'none';
                 if (ok) { ok.style.display = 'inline'; setTimeout(function(){ ok.style.display = 'none'; }, 2000); }
-                setTimeout(function(){ input.style.borderColor = ''; }, 2000);
             } else {
-                input.style.borderColor = '#dc2626';
                 alert(resp.error || 'Erro ao salvar');
             }
         } catch(e) { alert('Erro ao salvar'); }
