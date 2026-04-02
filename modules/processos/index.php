@@ -171,7 +171,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td style="font-size:.78rem;"><?= e($p['case_type'] && $p['case_type'] !== 'outro' ? $p['case_type'] : '—') ?></td>
                     <td style="font-size:.78rem;"><?= e($p['court'] ? $p['court'] : '—') ?></td>
                     <td><span class="badge badge-<?= isset($statusBadge[$p['status']]) ? $statusBadge[$p['status']] : 'gestao' ?>"><?= isset($statusLabels[$p['status']]) ? $statusLabels[$p['status']] : $p['status'] ?></span></td>
-                    <td><span class="badge badge-<?= isset($priorityBadge[$p['priority']]) ? $priorityBadge[$p['priority']] : 'gestao' ?>"><?= e($p['priority']) ?></span></td>
+                    <td>
+                        <select onchange="mudarPrioridade(<?= $p['id'] ?>, this.value, this)" style="font-size:.72rem;padding:2px 4px;border:1px solid #e5e7eb;border-radius:4px;font-weight:600;
+                            <?php
+                            $cores = array('urgente'=>'background:#fef2f2;color:#dc2626;','alta'=>'background:#fffbeb;color:#d97706;','normal'=>'background:#f0fdf4;color:#059669;','baixa'=>'background:#f8fafc;color:#64748b;');
+                            echo isset($cores[$p['priority']]) ? $cores[$p['priority']] : '';
+                            ?>">
+                            <option value="urgente" <?= $p['priority']==='urgente'?'selected':'' ?>>URGENTE</option>
+                            <option value="alta" <?= $p['priority']==='alta'?'selected':'' ?>>ALTA</option>
+                            <option value="normal" <?= $p['priority']==='normal'?'selected':'' ?>>NORMAL</option>
+                            <option value="baixa" <?= $p['priority']==='baixa'?'selected':'' ?>>BAIXA</option>
+                        </select>
+                    </td>
                     <td style="font-size:.78rem;"><?= e($p['responsible_name'] ? explode(' ', $p['responsible_name'])[0] : '—') ?></td>
                     <td style="font-size:.78rem;<?= $isOverdue ? 'color:#ef4444;font-weight:700;' : '' ?>"><?= $p['deadline'] ? date('d/m/Y', strtotime($p['deadline'])) : '—' ?><?= $isOverdue ? ' ⚠️' : '' ?></td>
                 </tr>
@@ -181,4 +192,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 </div>
 
+<?php $extraJs = <<<'JSEOF'
+function mudarPrioridade(caseId, valor, sel) {
+    var cores = {urgente:'background:#fef2f2;color:#dc2626;',alta:'background:#fffbeb;color:#d97706;',normal:'background:#f0fdf4;color:#059669;',baixa:'background:#f8fafc;color:#64748b;'};
+    sel.style.cssText = 'font-size:.72rem;padding:2px 4px;border:1px solid #e5e7eb;border-radius:4px;font-weight:600;' + (cores[valor] || '');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/conecta/modules/shared/card_actions.php');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.error) { alert(r.error); return; }
+            sel.style.outline = '2px solid #059669';
+            setTimeout(function() { sel.style.outline = ''; }, 1500);
+        } catch(e) { alert('Erro ao salvar'); }
+    };
+    xhr.send('action=update_field&entity=case&entity_id=' + caseId + '&field=priority&value=' + valor);
+}
+JSEOF;
+?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
