@@ -83,6 +83,7 @@ $drawerOrigin = isset($drawerOriginKanban) ? $drawerOriginKanban : 'operacional'
 </style>
 
 <script>
+console.log('[CardDrawer] Inicializando...');
 var cdData = null;
 var cdCurrentTab = 'geral';
 
@@ -542,4 +543,5 @@ document.addEventListener('click', function(e) {
         return false;
     }
 }, true); // true = fase de captura (antes do onclick inline)
+console.log('[CardDrawer] Event listener registrado com sucesso');
 </script>
