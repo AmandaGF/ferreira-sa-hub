@@ -776,6 +776,86 @@ tbody tr:last-child td { border-bottom: none; }
     }
 }
 
+/* ─── Mobile: Kanban + Cards + Tabelas ─────────────────── */
+@media (max-width: 768px) {
+    /* Kanban scrollável */
+    .op-board, .pipeline-board, .kanban-board {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 1rem;
+    }
+
+    /* Cards do Kanban menores */
+    .op-card, .lead-card {
+        font-size: .82rem !important;
+    }
+
+    /* KPI cards em 2 colunas */
+    .kpi-grid, .fin-kpi {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: .5rem !important;
+    }
+
+    /* Tabelas scrolláveis */
+    .table-wrapper, table {
+        display: block;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Drawer ocupa tela toda no mobile */
+    #cdPn {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        right: -100vw !important;
+    }
+
+    /* Botões em coluna */
+    .dash-welcome {
+        flex-direction: column !important;
+        text-align: center !important;
+    }
+
+    /* Header do caso responsivo */
+    .caso-header {
+        padding: 1rem !important;
+    }
+
+    .caso-header h2 {
+        font-size: 1rem !important;
+    }
+
+    /* Formulários */
+    .form-novo-caso .form-row,
+    .form-row {
+        flex-direction: column !important;
+    }
+
+    .form-novo-caso .form-col {
+        min-width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    /* Bottom navigation hint */
+    .bottom-nav-hint {
+        display: flex !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid, .fin-kpi {
+        grid-template-columns: 1fr !important;
+    }
+
+    .page-content {
+        padding: .5rem !important;
+    }
+
+    .card-body {
+        padding: .75rem !important;
+    }
+}
+
 /* ─── Overlay do sidebar mobile ───────────────────────── */
 .sidebar-overlay {
     display: none;

@@ -1,18 +1,45 @@
 {
     "name": "Ferreira & Sá Hub",
-    "short_name": "FS Hub",
+    "short_name": "F&S Hub",
     "description": "Sistema interno do escritório Ferreira & Sá Advocacia",
     "start_url": "/conecta/modules/dashboard/",
+    "scope": "/conecta/",
     "display": "standalone",
     "background_color": "#052228",
     "theme_color": "#052228",
     "orientation": "any",
+    "categories": ["business", "productivity"],
+    "lang": "pt-BR",
     "icons": [
         {
             "src": "/conecta/assets/img/logo.png",
             "sizes": "192x192",
             "type": "image/png",
-            "purpose": "any maskable"
+            "purpose": "any"
+        },
+        {
+            "src": "/conecta/assets/img/logo.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ],
+    "screenshots": [],
+    "shortcuts": [
+        {
+            "name": "Dashboard",
+            "url": "/conecta/modules/dashboard/",
+            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
+        },
+        {
+            "name": "Kanban Operacional",
+            "url": "/conecta/modules/operacional/",
+            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
+        },
+        {
+            "name": "Pipeline Comercial",
+            "url": "/conecta/modules/pipeline/",
+            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
         }
     ]
 }
