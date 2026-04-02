@@ -14,7 +14,7 @@ html += '<div id="cdBd" style="flex:1;overflow-y:auto;padding:1rem 1.25rem;font-
 html += '</div>';
 
 var st = document.createElement('style');
-st.textContent = '.ct{padding:.5rem .8rem;font-size:.74rem;font-weight:600;color:#94a3b8;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}.ct:hover{color:#052228}.ct.on{color:#052228;border-bottom-color:#B87333}.cr{display:flex;justify-content:space-between;padding:.25rem 0;border-bottom:1px solid #f3f4f6;min-height:24px;align-items:center}.cr .l{color:#6b7280;font-size:.73rem}.cr .v{font-weight:600;color:#052228;font-size:.77rem;text-align:right;max-width:60%}.cs{margin-bottom:.8rem}.cs h5{font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;font-weight:700;margin-bottom:.3rem}.cb{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.64rem;font-weight:700;color:#fff}';
+st.textContent = '.cr:hover .cd-pencil{opacity:1!important}.cd-pencil:hover{color:#052228!important}.ct{padding:.5rem .8rem;font-size:.74rem;font-weight:600;color:#94a3b8;background:none;border:none;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}.ct:hover{color:#052228}.ct.on{color:#052228;border-bottom-color:#B87333}.cr{display:flex;justify-content:space-between;padding:.25rem 0;border-bottom:1px solid #f3f4f6;min-height:24px;align-items:center}.cr .l{color:#6b7280;font-size:.73rem}.cr .v{font-weight:600;color:#052228;font-size:.77rem;text-align:right;max-width:60%}.cs{margin-bottom:.8rem}.cs h5{font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:#94a3b8;font-weight:700;margin-bottom:.3rem}.cb{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.64rem;font-weight:700;color:#fff}';
 document.head.appendChild(st);
 
 var wrap = document.createElement('div');
@@ -36,22 +36,27 @@ function FD(s){if(!s)return'\u2014';var p=s.split(/[-T :]/);if(p.length>=5)retur
 function R(l,v){return'<div class="cr"><span class="l">'+l+'</span><span class="v">'+E(v)+'</span></div>'}
 function RE(l,v,ent,eid,fld){
 var id='e_'+ent+'_'+fld;
+var dv=v||'';
 return'<div class="cr"><span class="l">'+l+'</span>'
-+'<span class="v" id="'+id+'_v" onclick="cdEdit(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="cursor:pointer;border-bottom:1px dashed transparent" onmouseover="this.style.borderBottomColor=\'#B87333\'" onmouseout="this.style.borderBottomColor=\'transparent\'" title="Clique para editar">'+E(v)+'</span>'
-+'<span id="'+id+'_i" style="display:none"><input id="'+id+'" value="'+(v||'').replace(/"/g,'&quot;')+'" style="width:140px;font-size:.77rem;padding:2px 5px;border:1.5px solid #B87333;border-radius:4px">'
-+'<button onclick="cdSave(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="background:#059669;color:#fff;border:none;padding:2px 6px;border-radius:3px;font-size:.62rem;cursor:pointer;margin-left:3px">OK</button>'
-+'<button onclick="cdCancelEdit(\''+id+'\')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.75rem;margin-left:2px">x</button></span>'
-+'<span id="'+id+'_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600;margin-left:4px">Salvo</span>'
-+'</div>'
++'<span style="display:flex;align-items:center;gap:4px;max-width:60%;justify-content:flex-end">'
++'<span class="v" id="'+id+'_v" onclick="cdEdit(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="cursor:pointer" title="Clique para editar">'+E(v)+'</span>'
++'<span onclick="cdEdit(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="cursor:pointer;font-size:.65rem;color:#B87333;opacity:.5" class="cd-pencil" title="Editar">&#9998;</span>'
++'<span id="'+id+'_i" style="display:none;align-items:center;gap:3px"><input id="'+id+'" value="'+dv.replace(/"/g,'&quot;')+'" style="width:150px;font-size:.77rem;padding:3px 6px;border:1.5px solid #B87333;border-radius:4px" onkeydown="if(event.key===\'Enter\')cdSave(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')">'
++'<button onclick="cdSave(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="background:#059669;color:#fff;border:none;padding:3px 8px;border-radius:4px;font-size:.65rem;cursor:pointer;font-weight:600">Salvar</button>'
++'<button onclick="cdCancelEdit(\''+id+'\')" style="background:#f3f4f6;border:none;color:#6b7280;cursor:pointer;font-size:.65rem;padding:3px 6px;border-radius:4px">Cancelar</button></span>'
++'<span id="'+id+'_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600">Salvo!</span>'
++'</span></div>'
 }
-window.cdEdit=function(id,ent,eid,fld){
-document.getElementById(id+'_v').style.display='none';
-document.getElementById(id+'_i').style.display='inline';
-var inp=document.getElementById(id);if(inp){inp.focus();inp.select()}
+window.cdEdit=function(id){
+var v=document.getElementById(id+'_v');if(v)v.style.display='none';
+var p=v?v.nextElementSibling:null;if(p&&p.classList.contains('cd-pencil'))p.style.display='none';
+var i=document.getElementById(id+'_i');if(i)i.style.display='flex';
+var inp=document.getElementById(id);if(inp)setTimeout(function(){inp.focus();inp.select()},50);
 };
 window.cdCancelEdit=function(id){
-document.getElementById(id+'_v').style.display='';
-document.getElementById(id+'_i').style.display='none';
+var v=document.getElementById(id+'_v');if(v)v.style.display='';
+var p=v?v.nextElementSibling:null;if(p&&p.classList.contains('cd-pencil'))p.style.display='';
+var i=document.getElementById(id+'_i');if(i)i.style.display='none';
 };
 window.cdSave=function(id,ent,eid,fld){
 var inp=document.getElementById(id);if(!inp)return;
