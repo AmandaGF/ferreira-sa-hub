@@ -214,7 +214,7 @@ if ($voltarCaso > 0): ?>
             <?php if (has_min_role('gestao')): ?>
             <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">Importar CSV</a>
             <?php endif; ?>
-            <a href="https://balcaovirtual.tjrj.jus.br/" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcao Virtual</a>
+            <a href="https://www.tjrj.jus.br/web/guest/balcao-virtual" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcao Virtual</a>
             <button class="btn btn-primary btn-sm" onclick="abrirModal()" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
