@@ -797,6 +797,7 @@ function chamarGerarMeet(evId, btn) {
     xhr.onload = function() {
         try {
             var r = JSON.parse(xhr.responseText);
+            if (r.csrf) CSRF = r.csrf;
             if (r.error) { alert('Erro: ' + r.error); btn.textContent = 'Gerar Meet'; btn.disabled = false; return; }
             document.getElementById('agMeetLink').value = r.meet_link;
             btn.textContent = 'Gerado!';
@@ -860,6 +861,7 @@ function salvarEvento() {
     xhr.onload = function() {
         try {
             var r = JSON.parse(xhr.responseText);
+            if (r.csrf) CSRF = r.csrf;
             if (r.error) { alert(r.error); return; }
             fecharModal();
             recarregarEventos();
@@ -879,7 +881,8 @@ function marcarRealizado(id, btn) {
     xhr.open('POST', API);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        btn.textContent = '✓ Concluído';
+        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+        btn.textContent = 'Concluido';
         btn.style.background = '#888';
         btn.style.borderColor = '#888';
         btn.disabled = true;
@@ -898,7 +901,7 @@ function excluirEvento(id) {
     xhr.open('POST', API);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        try { var r = JSON.parse(xhr.responseText); if (r.error) { alert(r.error); return; } }
+        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; if (r.error) { alert(r.error); return; } }
         catch(e) {}
         recarregarEventos();
     };
@@ -917,7 +920,7 @@ function excluirEventoModal() {
     xhr.open('POST', API);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        try { var r = JSON.parse(xhr.responseText); if (r.error) { alert(r.error); return; } }
+        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; if (r.error) { alert(r.error); return; } }
         catch(e) {}
         fecharModal();
         recarregarEventos();

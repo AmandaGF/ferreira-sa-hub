@@ -96,10 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { exit; }
 header('Content-Type: application/json; charset=utf-8');
 
 if (!validate_csrf()) {
-    echo json_encode(array('error' => 'Token CSRF inválido'));
+    echo json_encode(array('error' => 'Token CSRF inválido', 'csrf' => generate_csrf_token()));
     exit;
 }
 
+// Após validar, o token foi regenerado — incluir novo em todas as respostas
+$newCsrf = generate_csrf_token();
 $action = $_POST['action'] ?? '';
 
 // ── CRIAR / EDITAR ──
@@ -157,7 +159,7 @@ if ($action === 'salvar') {
             $id
         ));
         audit_log('AGENDA_EDITADO', 'agenda', $id, $titulo);
-        echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado'));
+        echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf));
     } else {
         // Criar
         $stmt = $pdo->prepare(
@@ -210,7 +212,7 @@ if ($action === 'status') {
 
     $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
     audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status);
-    echo json_encode(array('ok' => true));
+    echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }
 
@@ -231,7 +233,7 @@ if ($action === 'excluir') {
 
     $pdo->prepare("UPDATE agenda_eventos SET status='cancelado', updated_at=NOW() WHERE id=?")->execute(array($id));
     audit_log('AGENDA_CANCELADO', 'agenda', $id, '');
-    echo json_encode(array('ok' => true));
+    echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }
 
@@ -317,7 +319,7 @@ if ($action === 'gerar_meet') {
         ->execute(array($meetLink, $googleEventId, $id));
 
     audit_log('MEET_GERADO', 'agenda', $id, $meetLink);
-    echo json_encode(array('ok' => true, 'meet_link' => $meetLink, 'google_event_id' => $googleEventId));
+    echo json_encode(array('ok' => true, 'meet_link' => $meetLink, 'google_event_id' => $googleEventId, 'csrf' => $newCsrf));
     exit;
 }
 
