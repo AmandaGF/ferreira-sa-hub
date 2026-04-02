@@ -4,6 +4,30 @@ Registro de todas as alterações significativas no sistema.
 
 ---
 
+## [2026-04-02c] — Interface de Permissões por Usuário
+
+### Adicionado
+- **modules/admin/permissoes.php** — Página de gerenciamento de permissões (Admin only)
+  - Tabela com todos os usuários ativos (nome, perfil, botão Gerenciar)
+  - Modal com grid de todos os módulos, mostrando padrão do perfil e override
+  - Override: Liberar (acima do padrão) ou Bloquear (abaixo do padrão)
+  - Botão Resetar para padrão do perfil (apaga overrides)
+- **modules/admin/permissoes_api.php** — API REST para save/reset
+  - GET ?action=get&user_id=X → retorna overrides atuais
+  - POST { user_id, overrides } → salva (DELETE + INSERT dos que diferem do padrão)
+  - POST { user_id, action: "reset" } → apaga todos os overrides
+  - Cria tabela user_permissions automaticamente se não existir
+- **Sidebar** — Link "Permissões" no menu Sistema (admin only)
+
+### Arquivos tocados
+```
+conecta/modules/admin/permissoes.php       (NOVO)
+conecta/modules/admin/permissoes_api.php   (NOVO)
+conecta/templates/sidebar.php              (ALTERADO — novo item menu)
+```
+
+---
+
 ## [2026-04-02b] — Fix espelhamento doc_faltante no Drawer (Comercial)
 
 ### Problema
