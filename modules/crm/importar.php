@@ -4,7 +4,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
-require_min_role('gestao');
+require_access('crm');
 
 $pageTitle = 'Importar Contatos';
 $pdo = db();

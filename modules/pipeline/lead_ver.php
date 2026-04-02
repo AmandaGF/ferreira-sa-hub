@@ -3,7 +3,7 @@
  * Ferreira & Sá Hub — Detalhe do Lead (edição inline + formulários + campos comerciais)
  */
 require_once __DIR__ . '/../../core/middleware.php';
-require_min_role('gestao');
+require_access('pipeline');
 
 $pdo = db();
 $leadId = (int)($_GET['id'] ?? 0);

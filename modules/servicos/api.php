@@ -4,7 +4,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
-require_min_role('gestao');
+require_access('operacional');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('servicos')); }
 if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('servicos')); }
