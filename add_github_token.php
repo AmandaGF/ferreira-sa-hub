@@ -83,6 +83,22 @@ if ($action === 'fix_deploy') {
     exit;
 }
 
+// Ler arquivo do servidor
+if ($action === 'readfile') {
+    $path = isset($_GET['path']) ? $_GET['path'] : '';
+    if (!$path) { die("Passe &path=caminho\n"); }
+    // Segurança: só permite ler dentro de public_html
+    $realPath = realpath($path);
+    if (!$realPath || strpos($realPath, '/home/ferre315') !== 0) {
+        // Tentar caminho relativo a public_html
+        $realPath = realpath('/home/ferre315/public_html/' . $path);
+    }
+    if (!$realPath || !file_exists($realPath)) { die("Arquivo não encontrado: $path\n"); }
+    echo "=== " . basename($realPath) . " ===\n\n";
+    echo file_get_contents($realPath);
+    exit;
+}
+
 // Query livre
 if ($action === 'query') {
     require_once __DIR__ . '/core/config.php';
