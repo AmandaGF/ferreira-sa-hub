@@ -282,8 +282,11 @@ if ($voltarCaso > 0): ?>
 
         <div class="ag-fg" id="agMeetBox" style="display:none;">
             <div class="ag-meet-box">
-                <p>Gerar link Google Meet automaticamente</p>
-                <button type="button" class="ag-btn-meet" disabled title="Disponível em breve (fase 2)">Gerar Meet</button>
+                <div style="flex:1;">
+                    <p>Link Google Meet</p>
+                    <input type="text" class="ag-fi" id="agMeetLink" placeholder="Gerado automaticamente ou cole aqui" style="margin-top:5px;font-size:12px;">
+                </div>
+                <button type="button" class="ag-btn-meet" id="btnGerarMeet" onclick="gerarMeet()">Gerar Meet</button>
             </div>
         </div>
 
@@ -635,6 +638,9 @@ function abrirModal(dataStr) {
     document.getElementById('agCasoBusca').value = '';
     document.getElementById('agCasoId').value = '';
     document.getElementById('agModalidade').value = 'presencial';
+    document.getElementById('agMeetLink').value = '';
+    document.getElementById('btnGerarMeet').textContent = 'Gerar Meet';
+    document.getElementById('btnGerarMeet').disabled = false;
     toggleMeet();
 
     var agora = new Date();
@@ -665,6 +671,14 @@ function abrirModalEditar(id) {
             document.getElementById('agLocal').value = ev.local || '';
             document.getElementById('agDescricao').value = ev.descricao || '';
             document.getElementById('agModalidade').value = ev.modalidade || 'presencial';
+            document.getElementById('agMeetLink').value = ev.meet_link || '';
+            if (ev.meet_link) {
+                document.getElementById('btnGerarMeet').textContent = 'Gerado';
+                document.getElementById('btnGerarMeet').disabled = true;
+            } else {
+                document.getElementById('btnGerarMeet').textContent = 'Gerar Meet';
+                document.getElementById('btnGerarMeet').disabled = false;
+            }
             toggleMeet();
             document.getElementById('agDtInicio').value = (ev.data_inicio || '').replace(' ', 'T').substring(0,16);
             document.getElementById('agDtFim').value = (ev.data_fim || '').replace(' ', 'T').substring(0,16);
@@ -706,6 +720,89 @@ function toggleMeet() {
     document.getElementById('agMeetBox').style.display = document.getElementById('agModalidade').value === 'online' ? 'block' : 'none';
 }
 
+function gerarMeet() {
+    var evId = document.getElementById('agEvId').value;
+    var btn = document.getElementById('btnGerarMeet');
+
+    // Se evento ainda não foi salvo, salvar primeiro
+    if (!evId || evId === '0') {
+        // Precisa salvar o evento antes de gerar Meet
+        var titulo = document.getElementById('agTitulo').value.trim();
+        var dtInicio = document.getElementById('agDtInicio').value;
+        if (!titulo || !dtInicio) { alert('Preencha o título e a data antes de gerar o Meet.'); return; }
+
+        btn.textContent = 'Salvando...';
+        btn.disabled = true;
+
+        // Salvar primeiro, depois gerar meet
+        var fd = new FormData();
+        fd.append('action', 'salvar');
+        fd.append('csrf_token', CSRF);
+        fd.append('id', '0');
+        fd.append('titulo', titulo);
+        fd.append('tipo', tipoSelecionado);
+        fd.append('modalidade', 'online');
+        fd.append('data_inicio', dtInicio.replace('T', ' '));
+        fd.append('data_fim', (document.getElementById('agDtFim').value || dtInicio).replace('T', ' '));
+        fd.append('local', document.getElementById('agLocal').value);
+        fd.append('meet_link', '');
+        fd.append('descricao', document.getElementById('agDescricao').value);
+        fd.append('client_id', document.getElementById('agClienteId').value);
+        fd.append('case_id', document.getElementById('agCasoId').value);
+        fd.append('responsavel_id', document.getElementById('agResponsavel').value);
+        fd.append('msg_cliente', document.getElementById('agMsgCliente').value);
+        fd.append('lembrete_email', '1');
+        fd.append('lembrete_whatsapp', '1');
+        fd.append('lembrete_portal', '1');
+        fd.append('lembrete_cliente', '1');
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            try {
+                var r = JSON.parse(xhr.responseText);
+                if (r.error) { alert(r.error); btn.textContent = 'Gerar Meet'; btn.disabled = false; return; }
+                // Atualizar CSRF (foi consumido pelo salvar)
+                CSRF = r.csrf || CSRF;
+                document.getElementById('agEvId').value = r.id;
+                // Agora gerar o meet com o ID criado
+                chamarGerarMeet(r.id, btn);
+            } catch(ex) { alert('Erro ao salvar evento'); btn.textContent = 'Gerar Meet'; btn.disabled = false; }
+        };
+        xhr.send(fd);
+        return;
+    }
+
+    btn.textContent = 'Gerando...';
+    btn.disabled = true;
+    chamarGerarMeet(evId, btn);
+}
+
+function chamarGerarMeet(evId, btn) {
+    var fd = new FormData();
+    fd.append('action', 'gerar_meet');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', evId);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.error) { alert('Erro: ' + r.error); btn.textContent = 'Gerar Meet'; btn.disabled = false; return; }
+            document.getElementById('agMeetLink').value = r.meet_link;
+            btn.textContent = 'Gerado!';
+            btn.disabled = true;
+            btn.style.background = '#059669';
+            atualizarPreview();
+        } catch(ex) { alert('Erro ao gerar Meet'); btn.textContent = 'Gerar Meet'; btn.disabled = false; }
+    };
+    xhr.onerror = function() { alert('Erro de rede'); btn.textContent = 'Gerar Meet'; btn.disabled = false; };
+    xhr.send(fd);
+}
+
 function atualizarPreview() {
     var msg = document.getElementById('agMsgCliente').value;
     var prev = document.getElementById('agMsgPreview');
@@ -714,7 +811,8 @@ function atualizarPreview() {
     var dtVal = document.getElementById('agDtInicio').value;
     var data = dtVal ? new Date(dtVal).toLocaleDateString('pt-BR') : '[data]';
     var hora = dtVal ? new Date(dtVal).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '[hora]';
-    var txt = msg.replace(/\[nome\]/g, nome).replace(/\[data\]/g, data).replace(/\[hora\]/g, hora).replace(/\[link_meet\]/g, '(link meet)');
+    var meetVal = document.getElementById('agMeetLink').value || '(link meet)';
+    var txt = msg.replace(/\[nome\]/g, nome).replace(/\[data\]/g, data).replace(/\[hora\]/g, hora).replace(/\[link_meet\]/g, meetVal);
     prev.innerHTML = '📱 <strong>Preview:</strong> ' + esc(txt);
     prev.style.display = 'block';
 }
@@ -739,6 +837,7 @@ function salvarEvento() {
     fd.append('data_inicio', dtInicio.replace('T', ' '));
     fd.append('data_fim', (document.getElementById('agDtFim').value || dtInicio).replace('T', ' '));
     fd.append('local', document.getElementById('agLocal').value);
+    fd.append('meet_link', document.getElementById('agMeetLink').value);
     fd.append('descricao', document.getElementById('agDescricao').value);
     fd.append('client_id', document.getElementById('agClienteId').value);
     fd.append('case_id', document.getElementById('agCasoId').value);

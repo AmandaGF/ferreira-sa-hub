@@ -182,7 +182,7 @@ if ($action === 'salvar') {
         }
 
         audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
-        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado'));
+        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => generate_csrf_token()));
     }
     exit;
 }
@@ -232,6 +232,92 @@ if ($action === 'excluir') {
     $pdo->prepare("UPDATE agenda_eventos SET status='cancelado', updated_at=NOW() WHERE id=?")->execute(array($id));
     audit_log('AGENDA_CANCELADO', 'agenda', $id, '');
     echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── GERAR MEET ──
+if ($action === 'gerar_meet') {
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(array('error' => 'ID do evento obrigatório')); exit; }
+
+    // Buscar evento
+    $stmt = $pdo->prepare("SELECT * FROM agenda_eventos WHERE id = ?");
+    $stmt->execute(array($id));
+    $ev = $stmt->fetch();
+    if (!$ev) { echo json_encode(array('error' => 'Evento não encontrado')); exit; }
+
+    // Se já tem meet_link, retornar
+    if ($ev['meet_link']) {
+        echo json_encode(array('ok' => true, 'meet_link' => $ev['meet_link'], 'already' => true));
+        exit;
+    }
+
+    // URL do webhook Google Apps Script
+    $webhookUrl = 'https://script.google.com/macros/s/AKfycbwl7gPg8Z1aSWW_FS7p_2NwGUSjCFKrRTCqNTQ9ieJ65Dv4NP-YYDZaDUlG5ui-Fwz-/exec';
+
+    // Buscar nome do cliente se vinculado
+    $clientName = '';
+    if ($ev['client_id']) {
+        $cs = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $cs->execute(array($ev['client_id']));
+        $cr = $cs->fetch();
+        if ($cr) $clientName = $cr['name'];
+    }
+
+    // Montar payload
+    $payload = json_encode(array(
+        'key'           => 'fsa-meet-2026',
+        'titulo'        => $ev['titulo'] . ($clientName ? ' — ' . $clientName : ''),
+        'inicio'        => date('c', strtotime($ev['data_inicio'])),
+        'fim'           => $ev['data_fim'] ? date('c', strtotime($ev['data_fim'])) : null,
+        'descricao'     => $ev['descricao'] ?: 'Ferreira & Sá Advocacia',
+        'participantes' => array(), // futuramente: emails dos participantes
+    ), JSON_UNESCAPED_UNICODE);
+
+    // Chamar webhook
+    $ch = curl_init($webhookUrl);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ));
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlErr  = curl_error($ch);
+    curl_close($ch);
+
+    if ($curlErr) {
+        error_log('[agenda/gerar_meet] cURL error: ' . $curlErr);
+        echo json_encode(array('error' => 'Erro de conexão com Google: ' . $curlErr));
+        exit;
+    }
+
+    $respData = json_decode($response, true);
+    if (!$respData || !isset($respData['ok']) || !$respData['ok']) {
+        $errMsg = isset($respData['error']) ? $respData['error'] : 'Resposta inesperada do Google';
+        error_log('[agenda/gerar_meet] Google error: ' . $errMsg . ' | HTTP ' . $httpCode . ' | Body: ' . $response);
+        echo json_encode(array('error' => 'Google Apps Script: ' . $errMsg));
+        exit;
+    }
+
+    $meetLink = $respData['meet_link'] ?? '';
+    $googleEventId = $respData['event_id'] ?? '';
+
+    if (!$meetLink) {
+        echo json_encode(array('error' => 'Google não retornou link do Meet'));
+        exit;
+    }
+
+    // Salvar no banco
+    $pdo->prepare("UPDATE agenda_eventos SET meet_link = ?, google_event_id = ?, updated_at = NOW() WHERE id = ?")
+        ->execute(array($meetLink, $googleEventId, $id));
+
+    audit_log('MEET_GERADO', 'agenda', $id, $meetLink);
+    echo json_encode(array('ok' => true, 'meet_link' => $meetLink, 'google_event_id' => $googleEventId));
     exit;
 }
 
