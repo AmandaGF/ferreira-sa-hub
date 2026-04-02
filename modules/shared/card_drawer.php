@@ -10,7 +10,7 @@ $drawerOrigin = isset($drawerOriginKanban) ? $drawerOriginKanban : 'operacional'
 
 <!-- Overlay + Drawer -->
 <div id="cardDrawerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:998;" onclick="fecharDrawer()"></div>
-<div id="cardDrawer" style="display:none;position:fixed;top:0;right:-520px;width:510px;max-width:95vw;height:100vh;background:#fff;z-index:999;box-shadow:-8px 0 30px rgba(0,0,0,.15);transition:right .3s;overflow:hidden;display:flex;flex-direction:column;">
+<div id="cardDrawer" style="position:fixed;top:0;right:-520px;width:510px;max-width:95vw;height:100vh;background:#fff;z-index:999;box-shadow:-8px 0 30px rgba(0,0,0,.15);transition:right .3s;overflow:hidden;flex-direction:column;visibility:hidden;">
 
     <!-- Header -->
     <div id="cdHeader" style="background:linear-gradient(135deg,#052228,#0d3640);color:#fff;padding:1rem 1.25rem;flex-shrink:0;">
@@ -91,6 +91,7 @@ function abrirDrawer(params) {
     document.getElementById('cardDrawerOverlay').style.display = 'block';
     var drawer = document.getElementById('cardDrawer');
     drawer.style.display = 'flex';
+    drawer.style.visibility = 'visible';
     setTimeout(function(){ drawer.style.right = '0'; }, 10);
 
     document.getElementById('cdLoading').style.display = 'block';
@@ -110,8 +111,13 @@ function abrirDrawer(params) {
 }
 
 function fecharDrawer() {
-    document.getElementById('cardDrawer').style.right = '-520px';
-    setTimeout(function(){ document.getElementById('cardDrawerOverlay').style.display = 'none'; }, 300);
+    var drawer = document.getElementById('cardDrawer');
+    drawer.style.right = '-520px';
+    setTimeout(function(){
+        document.getElementById('cardDrawerOverlay').style.display = 'none';
+        drawer.style.visibility = 'hidden';
+        drawer.style.display = 'none';
+    }, 300);
 }
 
 function cdTab(tab) {
@@ -381,7 +387,7 @@ function editField(label, value, entity, entityId, fieldName, type) {
         + '<span class="label">' + label + '</span>'
         + '<span class="value cd-editable" id="' + id + '_display" onclick="ativarEdicao(\'' + id + '\')" title="Clique para editar" style="cursor:pointer;border-bottom:1px dashed transparent;"'
         + ' onmouseover="this.style.borderBottomColor=\'#B87333\'" onmouseout="this.style.borderBottomColor=\'transparent\'">' + esc(displayVal) + '</span>'
-        + '<div id="' + id + '_edit" style="display:none;position:absolute;right:0;top:0;bottom:0;display:none;align-items:center;gap:4px;">'
+        + '<div id="' + id + '_edit" style="display:none;position:absolute;right:0;top:50%;transform:translateY(-50%);align-items:center;gap:4px;">'
         + (type === 'textarea'
             ? '<textarea id="' + id + '" style="width:200px;font-size:.78rem;padding:3px 6px;border:1.5px solid #B87333;border-radius:4px;resize:vertical;min-height:36px;">' + esc(val) + '</textarea>'
             : '<input type="text" id="' + id + '" value="' + esc(val).replace(/"/g,'&quot;') + '" style="width:180px;font-size:.78rem;padding:3px 6px;border:1.5px solid #B87333;border-radius:4px;">')
@@ -393,12 +399,12 @@ function editField(label, value, entity, entityId, fieldName, type) {
 }
 
 function ativarEdicao(id) {
-    var display = document.getElementById(id + '_display');
-    var edit = document.getElementById(id + '_edit');
-    var input = document.getElementById(id);
-    if (display) display.style.display = 'none';
-    if (edit) edit.style.display = 'flex';
-    if (input) { input.focus(); input.select(); }
+    var displayEl = document.getElementById(id + '_display');
+    var editEl = document.getElementById(id + '_edit');
+    var inputEl = document.getElementById(id);
+    if (displayEl) displayEl.style.display = 'none';
+    if (editEl) editEl.style.display = 'flex';
+    if (inputEl) setTimeout(function(){ inputEl.focus(); inputEl.select(); }, 50);
 }
 
 function cancelarEdicao(id) {
