@@ -32,7 +32,7 @@ var OU = base + '/modules/operacional/api.php';
 var D=null,T='geral';
 
 function E(s){if(!s&&s!==0)return'\u2014';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
-function FD(s){if(!s)return'\u2014';var p=s.split(/[-T ]/);return p.length>=3?p[2]+'/'+p[1]+'/'+p[0]:s}
+function FD(s){if(!s)return'\u2014';var p=s.split(/[-T :]/);if(p.length>=5)return p[2]+'/'+p[1]+'/'+p[0]+' '+p[3]+':'+p[4];if(p.length>=3)return p[2]+'/'+p[1]+'/'+p[0];return s}
 function R(l,v){return'<div class="cr"><span class="l">'+l+'</span><span class="v">'+E(v)+'</span></div>'}
 
 window.cdOpen=function(p){
