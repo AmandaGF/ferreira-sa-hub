@@ -2,28 +2,38 @@
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 
-// Testar inclusão do drawer
-echo "Tentando incluir card_drawer.php...\n";
+// Testar inclusão do drawer com sessão simulada
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
+
+require_once dirname(__FILE__) . '/core/config.php';
+require_once dirname(__FILE__) . '/core/database.php';
+require_once dirname(__FILE__) . '/core/functions.php';
+
+echo "Config OK\n";
+
+// Simular sessão
+if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+$_SESSION['user'] = array('id' => 1, 'name' => 'Test', 'email' => 'test@test.com', 'role' => 'admin');
+$_SESSION[CSRF_TOKEN_NAME] = 'test_token';
+
+require_once dirname(__FILE__) . '/core/auth.php';
+echo "Auth OK\n";
+
+echo "url() funciona: " . url('test') . "\n";
+echo "csrf_token(): " . csrf_token() . "\n";
+
+echo "\nIncluindo drawer...\n";
+$drawerOriginKanban = 'operacional';
 ob_start();
-try {
-    require_once dirname(__FILE__) . '/core/config.php';
-    require_once dirname(__FILE__) . '/core/database.php';
-    require_once dirname(__FILE__) . '/core/functions.php';
-    require_once dirname(__FILE__) . '/core/auth.php';
-    session_start();
-    $drawerOriginKanban = 'operacional';
-    include dirname(__FILE__) . '/modules/shared/card_drawer.php';
-    $output = ob_get_clean();
-    echo "OK! Output: " . strlen($output) . " bytes\n";
-    // Mostrar primeiros 200 chars
-    echo "Primeiros 200: " . substr(strip_tags($output), 0, 200) . "\n";
-} catch (Throwable $e) {
-    ob_end_clean();
-    echo "ERRO: " . $e->getMessage() . "\n";
-    echo "Arquivo: " . $e->getFile() . " linha " . $e->getLine() . "\n";
-}
+include dirname(__FILE__) . '/modules/shared/card_drawer.php';
+$output = ob_get_clean();
+echo "Drawer OK! " . strlen($output) . " bytes\n";
+
+// Verificar se tem a tag <script>
+echo "Tem <script>: " . (strpos($output, '<script>') !== false ? 'SIM' : 'NÃO') . "\n";
+echo "Tem abrirDrawer: " . (strpos($output, 'abrirDrawer') !== false ? 'SIM' : 'NÃO') . "\n";
+echo "Tem cardDrawer: " . (strpos($output, 'cardDrawer') !== false ? 'SIM' : 'NÃO') . "\n";
 
 $root = dirname(__FILE__);
 echo "ROOT: $root\n\n";
