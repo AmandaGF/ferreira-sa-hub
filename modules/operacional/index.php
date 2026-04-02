@@ -892,5 +892,4 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
-<?php include APP_ROOT . '/modules/shared/test_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
