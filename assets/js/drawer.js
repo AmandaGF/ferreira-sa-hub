@@ -34,6 +34,41 @@ var D=null,T='geral';
 function E(s){if(!s&&s!==0)return'\u2014';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 function FD(s){if(!s)return'\u2014';var p=s.split(/[-T :]/);if(p.length>=5)return p[2]+'/'+p[1]+'/'+p[0]+' '+p[3]+':'+p[4];if(p.length>=3)return p[2]+'/'+p[1]+'/'+p[0];return s}
 function R(l,v){return'<div class="cr"><span class="l">'+l+'</span><span class="v">'+E(v)+'</span></div>'}
+function RE(l,v,ent,eid,fld){
+var id='e_'+ent+'_'+fld;
+return'<div class="cr"><span class="l">'+l+'</span>'
++'<span class="v" id="'+id+'_v" onclick="cdEdit(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="cursor:pointer;border-bottom:1px dashed transparent" onmouseover="this.style.borderBottomColor=\'#B87333\'" onmouseout="this.style.borderBottomColor=\'transparent\'" title="Clique para editar">'+E(v)+'</span>'
++'<span id="'+id+'_i" style="display:none"><input id="'+id+'" value="'+(v||'').replace(/"/g,'&quot;')+'" style="width:140px;font-size:.77rem;padding:2px 5px;border:1.5px solid #B87333;border-radius:4px">'
++'<button onclick="cdSave(\''+id+'\',\''+ent+'\','+eid+',\''+fld+'\')" style="background:#059669;color:#fff;border:none;padding:2px 6px;border-radius:3px;font-size:.62rem;cursor:pointer;margin-left:3px">OK</button>'
++'<button onclick="cdCancelEdit(\''+id+'\')" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:.75rem;margin-left:2px">x</button></span>'
++'<span id="'+id+'_ok" style="display:none;font-size:.6rem;color:#059669;font-weight:600;margin-left:4px">Salvo</span>'
++'</div>'
+}
+window.cdEdit=function(id,ent,eid,fld){
+document.getElementById(id+'_v').style.display='none';
+document.getElementById(id+'_i').style.display='inline';
+var inp=document.getElementById(id);if(inp){inp.focus();inp.select()}
+};
+window.cdCancelEdit=function(id){
+document.getElementById(id+'_v').style.display='';
+document.getElementById(id+'_i').style.display='none';
+};
+window.cdSave=function(id,ent,eid,fld){
+var inp=document.getElementById(id);if(!inp)return;
+var val=inp.value;
+var x=new XMLHttpRequest();x.open('POST',XU);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){
+try{var r=JSON.parse(x.responseText);
+if(r.ok){
+document.getElementById(id+'_v').textContent=val||'\u2014';
+document.getElementById(id+'_v').style.display='';
+document.getElementById(id+'_i').style.display='none';
+var ok=document.getElementById(id+'_ok');if(ok){ok.style.display='inline';setTimeout(function(){ok.style.display='none'},2000)}
+}else{alert(r.error||'Erro')}
+}catch(e){alert('Erro ao salvar')}
+};
+x.send('action=update_field&entity='+ent+'&entity_id='+eid+'&field='+fld+'&value='+encodeURIComponent(val))
+};
 
 window.cdOpen=function(p){
 document.getElementById('cdOv').style.display='block';
@@ -80,16 +115,19 @@ window._cdST=function(t){T=t;document.querySelectorAll('.ct').forEach(function(b
 function rtab(){
 var c=D.client||{},l=D.lead,s=D.caso,sl=D.stage_labels||{},stl=D.status_labels||{},h='';
 if(T==='geral'){
-h+='<div class="cs"><h5>Dados do Cliente</h5>'+R('Nome',c.name)+R('CPF',c.cpf)+R('Telefone',c.phone)+R('E-mail',c.email)+R('Endereco',[c.address_street,c.address_city,c.address_state].filter(Boolean).join(', '))+R('CEP',c.address_zip)+'</div>';
+var ci=D.client_id;
+h+='<div class="cs"><h5>Dados do Cliente</h5>'+RE('Nome',c.name,'client',ci,'name')+RE('CPF',c.cpf,'client',ci,'cpf')+RE('Telefone',c.phone,'client',ci,'phone')+RE('E-mail',c.email,'client',ci,'email')+RE('Endereco',c.address_street,'client',ci,'address_street')+RE('Cidade',c.address_city,'client',ci,'address_city')+RE('UF',c.address_state,'client',ci,'address_state')+RE('CEP',c.address_zip,'client',ci,'address_zip')+'</div>';
 if(l||s){h+='<div class="cs"><h5>Status</h5>';if(l)h+=R('Pipeline',sl[l.stage]||l.stage);if(s)h+=R('Operacional',stl[s.status]||s.status)+R('Tipo',s.case_type);h+='</div>'}
 if(D.form_data){h+='<div class="cs"><h5>Formulario</h5>';var sk='nome,name,client_name,client_phone,client_email,email,celular,phone,cpf,form_type,protocol_original,protocol,protocolo,id,created_at,updated_at,ip,ip_address,user_agent,data_envio,payload_json,totais'.split(',');for(var k in D.form_data){if(sk.indexOf(k)>=0)continue;var fv=D.form_data[k];if(fv===null||fv===''||typeof fv==='object')continue;h+=R(k.replace(/_/g,' '),fv)}h+='</div>'}
 h+='<div class="cs"><h5>Comentarios</h5><textarea id="cdCm" style="width:100%;font-size:.8rem;padding:6px;border:1.5px solid #e5e7eb;border-radius:6px;min-height:45px;resize:vertical" placeholder="Escrever..."></textarea><button onclick="window._cdCom()" style="background:#B87333;color:#fff;border:none;padding:3px 12px;border-radius:5px;font-size:.7rem;font-weight:600;cursor:pointer;margin-top:3px">Comentar</button>';
 (D.comments||[]).forEach(function(cm){h+='<div style="padding:5px 0;border-top:1px solid #f3f4f6;margin-top:3px"><strong style="font-size:.73rem">'+E(cm.user_name)+'</strong> <span style="font-size:.6rem;color:#94a3b8">'+FD(cm.created_at)+'</span><div style="font-size:.78rem;margin-top:1px">'+E(cm.message)+'</div></div>'});h+='</div>'
 }else if(T==='comercial'&&l){
-h+='<div class="cs"><h5>Contrato</h5>'+R('Valor',l.valor_acao)+R('Forma Pgto',l.forma_pagamento)+R('Vencimento',l.vencimento_parcela)+R('Pasta',l.nome_pasta)+R('Pendencias',l.pendencias)+R('Convertido',l.converted_at?FD(l.converted_at):null)+'</div>';
+var li=D.lead_id;
+h+='<div class="cs"><h5>Contrato</h5>'+RE('Valor',l.valor_acao,'lead',li,'valor_acao')+RE('Forma Pgto',l.forma_pagamento,'lead',li,'forma_pagamento')+RE('Vencimento',l.vencimento_parcela,'lead',li,'vencimento_parcela')+RE('Pasta',l.nome_pasta,'lead',li,'nome_pasta')+RE('Pendencias',l.pendencias,'lead',li,'pendencias')+R('Convertido',l.converted_at?FD(l.converted_at):null)+'</div>';
 h+='<div class="cs"><h5>Historico Pipeline</h5>';(D.pipeline_history||[]).forEach(function(ph){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+E(ph.user_name?ph.user_name.split(' ')[0]:'')+'</strong> moveu para <strong>'+(sl[ph.to_stage]||ph.to_stage)+'</strong> <span style="color:#94a3b8;font-size:.62rem">'+FD(ph.created_at)+'</span></div>'});if(!(D.pipeline_history||[]).length)h+='<div style="color:#94a3b8">Nenhuma</div>';h+='</div>'
 }else if(T==='operacional'&&s){
-h+='<div class="cs"><h5>Processo</h5>'+R('Pasta',s.title)+R('Nr Processo',s.case_number)+R('Vara',s.court)+R('Comarca',(s.comarca||'')+(s.comarca_uf?'/'+s.comarca_uf:'')+(s.regional?' - Regional '+s.regional:''))+R('Sistema',s.sistema_tribunal)+R('Parte Re',s.parte_re_nome)+'</div>';
+var si=D.case_id;
+h+='<div class="cs"><h5>Processo</h5>'+RE('Pasta',s.title,'case',si,'title')+RE('Nr Processo',s.case_number,'case',si,'case_number')+RE('Vara',s.court,'case',si,'court')+RE('Comarca',s.comarca,'case',si,'comarca')+RE('UF',s.comarca_uf,'case',si,'comarca_uf')+RE('Regional',s.regional,'case',si,'regional')+RE('Sistema',s.sistema_tribunal,'case',si,'sistema_tribunal')+RE('Parte Re',s.parte_re_nome,'case',si,'parte_re_nome')+RE('CPF Parte Re',s.parte_re_cpf_cnpj,'case',si,'parte_re_cpf_cnpj')+RE('Link Drive',s.drive_folder_url,'case',si,'drive_folder_url')+'</div>';
 h+='<div class="cs"><h5>Tarefas ('+(D.tasks||[]).length+')</h5>';(D.tasks||[]).forEach(function(t){var dn=t.status==='feito';h+='<div style="display:flex;align-items:center;gap:5px;padding:2px 0;font-size:.77rem"><span style="color:'+(dn?'#059669':'#d1d5db')+'">'+(dn?'[x]':'[ ]')+'</span><span style="'+(dn?'text-decoration:line-through;color:#94a3b8':'')+'">'+E(t.title)+'</span></div>'});h+='</div>';
 h+='<div class="cs"><h5>Andamentos</h5>';(D.andamentos||[]).slice(0,5).forEach(function(a){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+FD(a.data_andamento)+'</strong> '+E(a.tipo)+' <span style="color:#6b7280">'+E(a.descricao?a.descricao.substring(0,100):'')+'</span></div>'});h+='</div>'
 }else if(T==='docs'){
