@@ -191,4 +191,7 @@ $result['status_labels'] = array(
 $result['can_comercial'] = has_role('admin','gestao','comercial','cx');
 $result['can_financeiro'] = can_access('faturamento');
 
+// CSRF token fresco para ações do drawer
+$result['csrf'] = generate_csrf_token();
+
 echo json_encode($result, JSON_UNESCAPED_UNICODE);
