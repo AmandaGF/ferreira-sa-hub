@@ -153,8 +153,14 @@ window._cdDoc=function(id){if(!confirm('Confirmar recebimento?'))return;var b=do
 var x=new XMLHttpRequest();x.open('POST',OU);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
 x.setRequestHeader('X-Requested-With','XMLHttpRequest');
 x.onload=function(){
+try{var r=JSON.parse(x.responseText);
+if(r.error){alert('Erro: '+r.error);if(b){b.textContent='Recebido';b.disabled=false}return}
+if(!r.ok){alert('Falha ao processar documento. Recarregue a pagina.');if(b){b.textContent='Recebido';b.disabled=false}return}
+console.log('[Drawer] resolve_doc OK: pending='+r.pending+' case_id='+r.case_id+' restored_to='+r.restored_to);
+}catch(e){console.error('[Drawer] resolve_doc parse error',x.responseText);alert('Erro de comunicacao. Atualize a pagina e tente novamente.');if(b){b.textContent='Recebido';b.disabled=false}return}
 var reopen=D.lead_id?'lead_id='+D.lead_id:(D.case_id?'case_id='+D.case_id:'client_id='+D.client_id);
 cdOpen(reopen);setTimeout(function(){T='docs';rtab()},600)};
+x.onerror=function(){alert('Erro de rede. Verifique a conexao.');if(b){b.textContent='Recebido';b.disabled=false}};
 x.send('action=resolve_doc&doc_id='+id+'&case_id='+(D.case_id||0)+'&csrf_token='+(D.csrf||''))};
 
 // ESC fecha

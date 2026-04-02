@@ -20,14 +20,9 @@ if ($leadId) {
     $lr = $r->fetch();
     if ($lr) {
         if (!$clientId) $clientId = (int)$lr['client_id'];
+        // Resolver case_id APENAS pelo linked_case_id — sem fallback por client_id
+        // (fallback por client_id pode pegar o caso errado quando o cliente tem múltiplos)
         if (!$caseId) $caseId = (int)$lr['linked_case_id'];
-        // Fallback: se linked_case_id é NULL, buscar caso pelo client_id
-        if (!$caseId && $clientId) {
-            $r2 = $pdo->prepare("SELECT id FROM cases WHERE client_id = ? ORDER BY created_at DESC LIMIT 1");
-            $r2->execute(array($clientId));
-            $cr2 = $r2->fetch();
-            if ($cr2) $caseId = (int)$cr2['id'];
-        }
     }
 }
 if ($caseId && !$clientId) {

@@ -263,20 +263,23 @@ switch ($action) {
     case 'resolve_doc':
         $docId = (int)($_POST['doc_id'] ?? 0);
         if (!$docId) {
+            error_log('[resolve_doc] ERRO: doc_id vazio');
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'doc_id obrigatório')); exit; }
             break;
         }
 
-        // ═══ PASSO 1: Resolver TODOS os IDs a partir do documento ═══
-        // O documento é a fonte da verdade — não confiar no que o drawer envia
-        $dRow = $pdo->prepare("SELECT id, case_id, client_id, lead_id, status FROM documentos_pendentes WHERE id = ?");
+        // ═══ PASSO 1: Resolver IDs a partir do DOCUMENTO (fonte da verdade) ═══
+        $dRow = $pdo->prepare("SELECT id, case_id, client_id, lead_id, status, descricao FROM documentos_pendentes WHERE id = ?");
         $dRow->execute(array($docId));
         $doc = $dRow->fetch();
+
         if (!$doc) {
+            error_log('[resolve_doc] ERRO: doc_id=' . $docId . ' não encontrado');
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Documento não encontrado')); exit; }
             break;
         }
         if ($doc['status'] !== 'pendente') {
+            error_log('[resolve_doc] SKIP: doc_id=' . $docId . ' já está ' . $doc['status']);
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'message' => 'Já recebido')); exit; }
             break;
         }
@@ -285,9 +288,8 @@ switch ($action) {
         $clientId = (int)$doc['client_id'];
         $docLeadId = (int)$doc['lead_id'];
 
-        // Se o doc não tinha case_id, usar o do POST como fallback
+        // Fallbacks mínimos (sem client_id guessing)
         if (!$caseId) $caseId = (int)($_POST['case_id'] ?? 0);
-        // Resolver client_id pelo caso se faltou
         if ($caseId && !$clientId) {
             $cRow = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
             $cRow->execute(array($caseId));
@@ -295,69 +297,68 @@ switch ($action) {
             if ($cr) $clientId = (int)$cr['client_id'];
         }
 
+        error_log('[resolve_doc] INICIO: doc_id=' . $docId . ' case_id=' . $caseId . ' client_id=' . $clientId . ' lead_id=' . $docLeadId . ' desc=' . ($doc['descricao'] ?? ''));
+
         // ═══ PASSO 2: Marcar documento como recebido ═══
         $pdo->prepare("UPDATE documentos_pendentes SET status = 'recebido', recebido_em = NOW(), recebido_por = ? WHERE id = ?")
             ->execute(array(current_user_id(), $docId));
-        audit_log('doc_received', 'documentos_pendentes', $docId, 'case_id=' . $caseId . ' client_id=' . $clientId);
 
-        // ═══ PASSO 3: Verificar se ainda há docs pendentes ═══
-        // Buscar por case_id E client_id para cobrir docs criados com ou sem case
-        $pendWhere = array();
-        $pendParams = array();
-        if ($caseId) { $pendWhere[] = 'case_id = ?'; $pendParams[] = $caseId; }
-        if ($clientId) { $pendWhere[] = 'client_id = ?'; $pendParams[] = $clientId; }
+        // ═══ PASSO 3: Contar pendentes APENAS pelo case_id (sem OR client_id) ═══
         $numPending = 0;
-        if ($pendWhere) {
-            $pendSql = "SELECT COUNT(*) FROM documentos_pendentes WHERE (" . implode(' OR ', $pendWhere) . ") AND status = 'pendente'";
-            $stillPending = $pdo->prepare($pendSql);
-            $stillPending->execute($pendParams);
+        if ($caseId) {
+            $stillPending = $pdo->prepare("SELECT COUNT(*) FROM documentos_pendentes WHERE case_id = ? AND status = 'pendente'");
+            $stillPending->execute(array($caseId));
             $numPending = (int)$stillPending->fetchColumn();
         }
 
-        // ═══ PASSO 4: Se todos recebidos → atualizar AMBOS os lados ═══
+        error_log('[resolve_doc] PENDENTES: case_id=' . $caseId . ' numPending=' . $numPending);
+
+        // ═══ PASSO 4: Se 0 pendentes E caso está em doc_faltante → restaurar bilateral ═══
+        $restoredTo = null;
         if ($numPending === 0 && $caseId) {
-            // Buscar estado anterior do caso
-            $caseStmt = $pdo->prepare("SELECT status, stage_antes_doc_faltante, client_id FROM cases WHERE id = ?");
+            $caseStmt = $pdo->prepare("SELECT status, stage_antes_doc_faltante FROM cases WHERE id = ?");
             $caseStmt->execute(array($caseId));
             $caseRow = $caseStmt->fetch();
 
+            error_log('[resolve_doc] CASO: id=' . $caseId . ' status=' . ($caseRow ? $caseRow['status'] : 'NULL') . ' stage_antes=' . ($caseRow ? ($caseRow['stage_antes_doc_faltante'] ?: 'NULL') : 'NULL'));
+
             if ($caseRow && $caseRow['status'] === 'doc_faltante') {
                 $anteriorStatus = $caseRow['stage_antes_doc_faltante'] ? $caseRow['stage_antes_doc_faltante'] : 'em_elaboracao';
+                $restoredTo = $anteriorStatus;
 
-                // 4A: Restaurar caso no Operacional → status anterior
+                // 4A: Restaurar caso no Operacional
                 $pdo->prepare("UPDATE cases SET status = ?, stage_antes_doc_faltante = NULL, updated_at = NOW() WHERE id = ?")
                     ->execute(array($anteriorStatus, $caseId));
+                error_log('[resolve_doc] CASO RESTAURADO: case_id=' . $caseId . ' → ' . $anteriorStatus);
                 audit_log('case_doc_restored', 'case', $caseId, 'Voltou para ' . $anteriorStatus);
 
-                // 4B: Atualizar lead no Pipeline
+                // 4B: Restaurar lead no Pipeline
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
+                error_log('[resolve_doc] LEAD VINCULADO: ' . ($leadRow ? 'id=' . $leadRow['id'] . ' stage=' . $leadRow['stage'] : 'NÃO ENCONTRADO'));
+
                 if ($leadRow && $leadRow['stage'] === 'doc_faltante') {
-                    // Se caso voltou para em_andamento → lead finaliza (já está em execução)
-                    if ($anteriorStatus === 'em_andamento') {
-                        $novoStageLead = 'finalizado';
-                    } else {
-                        // Caso volta para status anterior → lead vai para pasta_apta
-                        $novoStageLead = 'pasta_apta';
-                    }
+                    $novoStageLead = ($anteriorStatus === 'em_andamento') ? 'finalizado' : 'pasta_apta';
                     $pdo->prepare("UPDATE pipeline_leads SET stage=?, doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
                         ->execute(array($novoStageLead, $leadRow['id']));
                     $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
                         ->execute(array($leadRow['id'], 'doc_faltante', $novoStageLead, current_user_id(), 'Auto: docs recebidos, caso voltou para ' . $anteriorStatus));
+                    error_log('[resolve_doc] LEAD RESTAURADO: lead_id=' . $leadRow['id'] . ' → ' . $novoStageLead);
                 }
 
-                $cliName = $caseRow['client_id'] ? 'Caso #' . $caseId : 'Caso';
-                notify_gestao('Docs completos!', $cliName . ' — todos documentos recebidos. Voltou para: ' . $anteriorStatus, 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '');
-                // Notificar cliente
+                notify_gestao('Docs completos!', 'Caso #' . $caseId . ' — docs recebidos. Voltou para: ' . $anteriorStatus, 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '');
                 if ($clientId) {
                     notificar_cliente('docs_recebidos', $clientId, array(), $caseId, $docLeadId);
                 }
+            } else {
+                error_log('[resolve_doc] CASO NÃO RESTAURADO: status não é doc_faltante (é ' . ($caseRow ? $caseRow['status'] : 'NULL') . ')');
             }
-            // Se o caso NÃO estava em doc_faltante (ex: docs avulsos), só marca como recebido sem mover nada
         }
+
+        error_log('[resolve_doc] FIM: doc_id=' . $docId . ' restored_to=' . ($restoredTo ?: 'nenhum'));
 
         if ($isAjax) {
             header('Content-Type: application/json');
-            echo json_encode(array('ok' => true, 'pending' => $numPending, 'case_id' => $caseId, 'restored_to' => isset($anteriorStatus) ? $anteriorStatus : null));
+            echo json_encode(array('ok' => true, 'pending' => $numPending, 'case_id' => $caseId, 'restored_to' => $restoredTo));
             exit;
         }
         flash_set('success', $numPending > 0 ? 'Documento recebido. Ainda ' . $numPending . ' pendente(s).' : 'Todos os documentos recebidos!');
