@@ -257,13 +257,33 @@ if ($action === 'gerar_meet') {
     // URL do webhook Google Apps Script
     $webhookUrl = 'https://script.google.com/macros/s/AKfycbwl7gPg8Z1aSWW_FS7p_2NwGUSjCFKrRTCqNTQ9ieJ65Dv4NP-YYDZaDUlG5ui-Fwz-/exec';
 
-    // Buscar nome do cliente se vinculado
+    // Buscar nome do cliente e e-mail
     $clientName = '';
+    $clientEmail = '';
     if ($ev['client_id']) {
-        $cs = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $cs = $pdo->prepare("SELECT name, email FROM clients WHERE id = ?");
         $cs->execute(array($ev['client_id']));
         $cr = $cs->fetch();
-        if ($cr) $clientName = $cr['name'];
+        if ($cr) { $clientName = $cr['name']; $clientEmail = $cr['email'] ?: ''; }
+    }
+
+    // Buscar e-mail do responsável
+    $participantes = array();
+    if ($ev['responsavel_id']) {
+        $rs = $pdo->prepare("SELECT email FROM users WHERE id = ?");
+        $rs->execute(array($ev['responsavel_id']));
+        $rr = $rs->fetch();
+        if ($rr && $rr['email']) $participantes[] = $rr['email'];
+    }
+    // Incluir e-mails extras enviados pelo frontend
+    $extrasEmails = isset($_POST['participantes']) ? $_POST['participantes'] : '';
+    if ($extrasEmails) {
+        foreach (explode(',', $extrasEmails) as $em) {
+            $em = trim($em);
+            if ($em && strpos($em, '@') !== false && !in_array($em, $participantes)) {
+                $participantes[] = $em;
+            }
+        }
     }
 
     // Montar payload
@@ -273,7 +293,7 @@ if ($action === 'gerar_meet') {
         'inicio'        => date('c', strtotime($ev['data_inicio'])),
         'fim'           => $ev['data_fim'] ? date('c', strtotime($ev['data_fim'])) : null,
         'descricao'     => $ev['descricao'] ?: 'Ferreira & Sá Advocacia',
-        'participantes' => array(), // futuramente: emails dos participantes
+        'participantes' => $participantes,
     ), JSON_UNESCAPED_UNICODE);
 
     // Chamar webhook
@@ -320,6 +340,77 @@ if ($action === 'gerar_meet') {
 
     audit_log('MEET_GERADO', 'agenda', $id, $meetLink);
     echo json_encode(array('ok' => true, 'meet_link' => $meetLink, 'google_event_id' => $googleEventId, 'csrf' => $newCsrf));
+    exit;
+}
+
+// ── ENVIAR CONVITE (adicionar participantes ao evento Google) ──
+if ($action === 'enviar_convite') {
+    $id = (int)($_POST['id'] ?? 0);
+    $emails = trim($_POST['emails'] ?? '');
+    if (!$id || !$emails) { echo json_encode(array('error' => 'ID e e-mails obrigatórios', 'csrf' => $newCsrf)); exit; }
+
+    $stmt = $pdo->prepare("SELECT * FROM agenda_eventos WHERE id = ?");
+    $stmt->execute(array($id));
+    $ev = $stmt->fetch();
+    if (!$ev) { echo json_encode(array('error' => 'Evento não encontrado', 'csrf' => $newCsrf)); exit; }
+
+    if (!$ev['google_event_id']) {
+        echo json_encode(array('error' => 'Evento não tem Google Calendar vinculado. Gere o Meet primeiro.', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Buscar nome do cliente
+    $clientName = '';
+    if ($ev['client_id']) {
+        $cs = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $cs->execute(array($ev['client_id']));
+        $cr = $cs->fetch();
+        if ($cr) $clientName = $cr['name'];
+    }
+
+    $emailList = array();
+    foreach (explode(',', $emails) as $em) {
+        $em = trim($em);
+        if ($em && strpos($em, '@') !== false) $emailList[] = $em;
+    }
+    if (!$emailList) { echo json_encode(array('error' => 'Nenhum e-mail válido', 'csrf' => $newCsrf)); exit; }
+
+    $webhookUrl = 'https://script.google.com/macros/s/AKfycbwl7gPg8Z1aSWW_FS7p_2NwGUSjCFKrRTCqNTQ9ieJ65Dv4NP-YYDZaDUlG5ui-Fwz-/exec';
+
+    $payload = json_encode(array(
+        'key'           => 'fsa-meet-2026',
+        'action'        => 'add_guests',
+        'event_id'      => $ev['google_event_id'],
+        'participantes' => $emailList,
+    ), JSON_UNESCAPED_UNICODE);
+
+    $ch = curl_init($webhookUrl);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_SSL_VERIFYPEER => true,
+    ));
+    $response = curl_exec($ch);
+    curl_close($ch);
+
+    $respData = json_decode($response, true);
+    if (!$respData || !isset($respData['ok']) || !$respData['ok']) {
+        $errMsg = isset($respData['error']) ? $respData['error'] : 'Erro ao enviar convites';
+        echo json_encode(array('error' => $errMsg, 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Salvar participantes no banco
+    $existingPart = $ev['participantes'] ? $ev['participantes'] : '';
+    $allPart = $existingPart ? $existingPart . ',' . implode(',', $emailList) : implode(',', $emailList);
+    $pdo->prepare("UPDATE agenda_eventos SET participantes = ?, updated_at = NOW() WHERE id = ?")->execute(array($allPart, $id));
+
+    audit_log('CONVITE_ENVIADO', 'agenda', $id, implode(', ', $emailList));
+    echo json_encode(array('ok' => true, 'enviados' => count($emailList), 'csrf' => $newCsrf));
     exit;
 }
 

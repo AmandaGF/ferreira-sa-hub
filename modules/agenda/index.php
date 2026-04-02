@@ -629,6 +629,7 @@ function renderLista() {
             (ev.client_name ? '<span>📋 ' + esc(ev.client_name) + '</span>' : '') +
             '</div>' +
             '<div class="ag-lc-acoes">' + meetHtml + msgHtml +
+            (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '') +
             '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>' +
             '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>' +
             '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>' +
@@ -972,6 +973,63 @@ function excluirEventoModal() {
         catch(e) {}
         fecharModal();
         recarregarEventos();
+    };
+    xhr.send(fd);
+}
+
+function enviarConvite(id) {
+    var usersHtml = '';
+    <?php foreach ($users as $u): ?>
+    usersHtml += '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;cursor:pointer;">'
+        + '<input type="checkbox" value="<?= e($u['email']) ?>" class="convite-cb"> '
+        + '<?= e($u['name']) ?> <span style="color:#94a3b8;font-size:11px;">(<?= e($u['email']) ?>)</span></label>';
+    <?php endforeach; ?>
+
+    var div = document.createElement('div');
+    div.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center;';
+    div.innerHTML = '<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:420px;width:90%;max-height:80vh;overflow-y:auto;">'
+        + '<h3 style="margin:0 0 .5rem;font-size:1rem;">Enviar convite do Google Calendar</h3>'
+        + '<p style="font-size:.8rem;color:#6b7280;margin:0 0 1rem;">Os selecionados vao receber o compromisso na agenda pessoal.</p>'
+        + '<div id="conviteUsers">' + usersHtml + '</div>'
+        + '<div style="margin-top:.8rem;"><input type="text" id="conviteExtra" placeholder="Outros e-mails (separados por virgula)" style="width:100%;padding:6px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:12px;"></div>'
+        + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">'
+        + '<button onclick="this.closest(\'div[style]\').remove()" style="padding:6px 14px;border:1.5px solid #e5e7eb;border-radius:6px;background:none;cursor:pointer;font-size:13px;">Cancelar</button>'
+        + '<button onclick="confirmarConvite(' + id + ',this)" style="padding:6px 14px;background:#052228;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Enviar</button>'
+        + '</div></div>';
+    div.addEventListener('click', function(e) { if (e.target === div) div.remove(); });
+    document.body.appendChild(div);
+}
+
+function confirmarConvite(evId, btn) {
+    var checks = document.querySelectorAll('.convite-cb:checked');
+    var emails = [];
+    checks.forEach(function(cb) { emails.push(cb.value); });
+    var extra = document.getElementById('conviteExtra').value;
+    if (extra) {
+        extra.split(',').forEach(function(em) { em = em.trim(); if (em) emails.push(em); });
+    }
+    if (!emails.length) { alert('Selecione pelo menos um participante.'); return; }
+
+    btn.textContent = 'Enviando...';
+    btn.disabled = true;
+
+    var fd = new FormData();
+    fd.append('action', 'enviar_convite');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', evId);
+    fd.append('emails', emails.join(','));
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.csrf) CSRF = r.csrf;
+            if (r.error) { alert(r.error); btn.textContent = 'Enviar'; btn.disabled = false; return; }
+            alert('Convites enviados para ' + r.enviados + ' pessoa(s)! Vao receber na agenda pessoal.');
+            btn.closest('div[style*="position:fixed"]').remove();
+        } catch(e) { alert('Erro ao enviar convites'); btn.textContent = 'Enviar'; btn.disabled = false; }
     };
     xhr.send(fd);
 }
