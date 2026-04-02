@@ -404,10 +404,8 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
 }
 
 // ─── Renderizar HTML ────────────────────────────────────
-include __DIR__ . '/../../templates/header.php';
-include __DIR__ . '/../../templates/sidebar.php';
+require_once APP_ROOT . '/templates/layout_start.php';
 ?>
-<div class="page-content">
     <div style="display:flex; align-items:center; gap:1rem; margin-bottom:1.5rem;">
         <h1 style="margin:0;">Health Check</h1>
         <span style="font-size:1.5rem;"><?= $allGreen ? '&#9989;' : '&#10060;' ?></span>
@@ -465,4 +463,4 @@ include __DIR__ . '/../../templates/sidebar.php';
         <a href="<?= url('modules/dashboard/') ?>" class="btn btn-outline" style="margin-left:.5rem;">Voltar ao Dashboard</a>
     </div>
 </div>
-<?php include __DIR__ . '/../../templates/footer.php'; ?>
+<?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

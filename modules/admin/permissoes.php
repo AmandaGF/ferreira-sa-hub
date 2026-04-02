@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 require_role('admin');
 
-$pageTitle = 'Permissões';
+$pageTitle = 'Permissoes';
 $pdo = db();
 
 // Buscar todos os usuários ativos
@@ -21,10 +21,8 @@ $users = $pdo->query("SELECT id, name, email, role, setor FROM users WHERE is_ac
 $moduleLabels = module_permission_labels();
 $defaults = _permission_defaults();
 
-include __DIR__ . '/../../templates/header.php';
-include __DIR__ . '/../../templates/sidebar.php';
+require_once APP_ROOT . '/templates/layout_start.php';
 ?>
-<div class="page-content">
     <h1 style="margin-bottom:1.5rem;">Permissoes por Usuario</h1>
 
     <table>
@@ -55,7 +53,6 @@ include __DIR__ . '/../../templates/sidebar.php';
             <?php endforeach; ?>
         </tbody>
     </table>
-</div>
 
 <!-- Modal de Permissões -->
 <div class="modal-overlay" id="permModal" style="display:none;">
@@ -246,4 +243,4 @@ document.getElementById('permModal').addEventListener('click', function(e) {
 });
 </script>
 
-<?php include __DIR__ . '/../../templates/footer.php'; ?>
+<?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
