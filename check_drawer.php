@@ -2,14 +2,28 @@
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 
-// Testar syntax do drawer
-echo "PHP lint card_drawer.php:\n";
-$output = shell_exec('php -l ' . escapeshellarg(dirname(__FILE__) . '/modules/shared/card_drawer.php') . ' 2>&1');
-echo $output . "\n";
-
-echo "PHP lint card_api.php:\n";
-$output2 = shell_exec('php -l ' . escapeshellarg(dirname(__FILE__) . '/modules/shared/card_api.php') . ' 2>&1');
-echo $output2 . "\n";
+// Testar inclusão do drawer
+echo "Tentando incluir card_drawer.php...\n";
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ob_start();
+try {
+    require_once dirname(__FILE__) . '/core/config.php';
+    require_once dirname(__FILE__) . '/core/database.php';
+    require_once dirname(__FILE__) . '/core/functions.php';
+    require_once dirname(__FILE__) . '/core/auth.php';
+    session_start();
+    $drawerOriginKanban = 'operacional';
+    include dirname(__FILE__) . '/modules/shared/card_drawer.php';
+    $output = ob_get_clean();
+    echo "OK! Output: " . strlen($output) . " bytes\n";
+    // Mostrar primeiros 200 chars
+    echo "Primeiros 200: " . substr(strip_tags($output), 0, 200) . "\n";
+} catch (Throwable $e) {
+    ob_end_clean();
+    echo "ERRO: " . $e->getMessage() . "\n";
+    echo "Arquivo: " . $e->getFile() . " linha " . $e->getLine() . "\n";
+}
 
 $root = dirname(__FILE__);
 echo "ROOT: $root\n\n";
