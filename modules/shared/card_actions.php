@@ -90,6 +90,7 @@ switch ($action) {
             'client' => array('name','cpf','phone','email','address_street','address_city','address_state','address_zip','profession','marital_status','rg','birth_date','pix_key','notes'),
             'lead' => array('name','phone','email','case_type','valor_acao','vencimento_parcela','forma_pagamento','nome_pasta','pendencias','urgencia','observacoes','notes'),
             'case' => array('title','case_type','case_number','court','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','departamento','parte_re_nome','parte_re_cpf_cnpj','drive_folder_url','notes','priority'),
+            'task' => array('status','title','prioridade'),
         );
 
         if (!isset($allowed[$entity]) || !in_array($field, $allowed[$entity])) {
@@ -97,15 +98,22 @@ switch ($action) {
             exit;
         }
 
-        $table = array('client' => 'clients', 'lead' => 'pipeline_leads', 'case' => 'cases');
+        $table = array('client' => 'clients', 'lead' => 'pipeline_leads', 'case' => 'cases', 'task' => 'case_tasks');
         $tbl = $table[$entity];
 
         // Tratar valor vazio
         $dbValue = ($value === '' || $value === '—') ? null : $value;
 
         try {
-            $pdo->prepare("UPDATE $tbl SET $field = ?, updated_at = NOW() WHERE id = ?")
-                ->execute(array($dbValue, $entityId));
+            // Task: campo especial completed_at
+            if ($entity === 'task' && $field === 'status') {
+                $completedAt = ($dbValue === 'concluido') ? date('Y-m-d H:i:s') : null;
+                $pdo->prepare("UPDATE case_tasks SET status = ?, completed_at = COALESCE(?, completed_at) WHERE id = ?")
+                    ->execute(array($dbValue, $completedAt, $entityId));
+            } else {
+                $pdo->prepare("UPDATE $tbl SET $field = ?, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($dbValue, $entityId));
+            }
 
             audit_log('card_edit', $entity, $entityId, "$field = " . ($dbValue ?: 'NULL'));
             echo json_encode(array('ok' => true, 'field' => $field, 'value' => $value));

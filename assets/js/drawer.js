@@ -130,11 +130,24 @@ h+='<div class="cs"><h5>Comentarios</h5><textarea id="cdCm" style="width:100%;fo
 }else if(T==='comercial'&&l){
 var li=D.lead_id;
 h+='<div class="cs"><h5>Contrato</h5>'+RE('Valor',l.valor_acao,'lead',li,'valor_acao')+RE('Forma Pgto',l.forma_pagamento,'lead',li,'forma_pagamento')+RE('Vencimento',l.vencimento_parcela,'lead',li,'vencimento_parcela')+RE('Pasta',l.nome_pasta,'lead',li,'nome_pasta')+RE('Pendencias',l.pendencias,'lead',li,'pendencias')+R('Convertido',l.converted_at?FD(l.converted_at):null)+'</div>';
+// Checklist de documentos (tarefas sem tipo = checklist)
+var chkTasks=(D.tasks||[]).filter(function(t){return !t.tipo});
+if(chkTasks.length){var doneC=chkTasks.filter(function(t){return t.status==='concluido'}).length;
+h+='<div class="cs"><h5>Checklist Documentos ('+doneC+'/'+chkTasks.length+')</h5>';
+chkTasks.forEach(function(t){var dn=t.status==='concluido';
+h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f3f4f6">'
++'<button onclick="event.stopPropagation();window._cdToggleTask('+t.id+',\''+t.status+'\')" style="background:none;border:none;cursor:pointer;font-size:.9rem;padding:0;line-height:1">'+(dn?'<span style="color:#059669">&#9745;</span>':'<span style="color:#d1d5db">&#9744;</span>')+'</button>'
++'<span style="font-size:.77rem;'+(dn?'text-decoration:line-through;color:#94a3b8':'')+'">'+E(t.title)+'</span></div>'});
+h+='</div>'}
 h+='<div class="cs"><h5>Historico Pipeline</h5>';(D.pipeline_history||[]).forEach(function(ph){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+E(ph.user_name?ph.user_name.split(' ')[0]:'')+'</strong> moveu para <strong>'+(sl[ph.to_stage]||ph.to_stage)+'</strong> <span style="color:#94a3b8;font-size:.62rem">'+FD(ph.created_at)+'</span></div>'});if(!(D.pipeline_history||[]).length)h+='<div style="color:#94a3b8">Nenhuma</div>';h+='</div>'
 }else if(T==='operacional'&&s){
 var si=D.case_id;
 h+='<div class="cs"><h5>Processo</h5>'+RE('Pasta',s.title,'case',si,'title')+RE('Nr Processo',s.case_number,'case',si,'case_number')+RE('Vara',s.court,'case',si,'court')+RE('Comarca',s.comarca,'case',si,'comarca')+RE('UF',s.comarca_uf,'case',si,'comarca_uf')+RE('Regional',s.regional,'case',si,'regional')+RE('Sistema',s.sistema_tribunal,'case',si,'sistema_tribunal')+RE('Parte Re',s.parte_re_nome,'case',si,'parte_re_nome')+RE('CPF Parte Re',s.parte_re_cpf_cnpj,'case',si,'parte_re_cpf_cnpj')+RE('Link Drive',s.drive_folder_url,'case',si,'drive_folder_url')+'</div>';
-h+='<div class="cs"><h5>Tarefas ('+(D.tasks||[]).length+')</h5>';(D.tasks||[]).forEach(function(t){var dn=t.status==='feito';h+='<div style="display:flex;align-items:center;gap:5px;padding:2px 0;font-size:.77rem"><span style="color:'+(dn?'#059669':'#d1d5db')+'">'+(dn?'[x]':'[ ]')+'</span><span style="'+(dn?'text-decoration:line-through;color:#94a3b8':'')+'">'+E(t.title)+'</span></div>'});h+='</div>';
+var opTasks=(D.tasks||[]).filter(function(t){return !t.tipo});var opDone=opTasks.filter(function(t){return t.status==='concluido'}).length;
+h+='<div class="cs"><h5>Checklist ('+opDone+'/'+opTasks.length+')</h5>';opTasks.forEach(function(t){var dn=t.status==='concluido';
+h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bottom:1px solid #f3f4f6">'
++'<button onclick="event.stopPropagation();window._cdToggleTask('+t.id+',\''+t.status+'\')" style="background:none;border:none;cursor:pointer;font-size:.9rem;padding:0;line-height:1">'+(dn?'<span style="color:#059669">&#9745;</span>':'<span style="color:#d1d5db">&#9744;</span>')+'</button>'
++'<span style="font-size:.77rem;'+(dn?'text-decoration:line-through;color:#94a3b8':'')+'">'+E(t.title)+'</span></div>'});h+='</div>';
 h+='<div class="cs"><h5>Andamentos</h5>';(D.andamentos||[]).slice(0,5).forEach(function(a){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+FD(a.data_andamento)+'</strong> '+E(a.tipo)+' <span style="color:#6b7280">'+E(a.descricao?a.descricao.substring(0,100):'')+'</span></div>'});h+='</div>'
 }else if(T==='docs'){
 var pend=(D.docs_pendentes||[]).filter(function(x){return x.status==='pendente'}),recv=(D.docs_pendentes||[]).filter(function(x){return x.status!=='pendente'});
@@ -163,6 +176,18 @@ var reopen=D.lead_id?'lead_id='+D.lead_id:(D.case_id?'case_id='+D.case_id:'clien
 cdOpen(reopen);setTimeout(function(){T='docs';rtab()},600)};
 x.onerror=function(){alert('Erro de rede. Verifique a conexao.');if(b){b.textContent='Recebido';b.disabled=false}};
 x.send('action=resolve_doc&doc_id='+id+'&case_id='+(D.case_id||0)+'&csrf_token='+(D.csrf||''))};
+
+window._cdToggleTask=function(taskId,currentStatus){
+var newStatus=(currentStatus==='concluido')?'a_fazer':'concluido';
+var x=new XMLHttpRequest();x.open('POST',XU);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){
+try{var r=JSON.parse(x.responseText);if(r.error){alert(r.error);return;}
+// Atualizar D.tasks localmente
+(D.tasks||[]).forEach(function(t){if(t.id==taskId){t.status=newStatus;if(newStatus==='concluido')t.completed_at=new Date().toISOString()}});
+rtab();
+}catch(e){}
+};
+x.send('action=update_field&entity=task&entity_id='+taskId+'&field=status&value='+newStatus)};
 
 window._cdDelete=function(){
 var msg='Remover este card do fluxo?\n\n';
