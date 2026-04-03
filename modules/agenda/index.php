@@ -817,17 +817,13 @@ function selTipo(tipo, btn) {
 function toggleMeet() {
     var isOnline = document.getElementById('agModalidade').value === 'online';
     document.getElementById('agMeetBox').style.display = isOnline ? 'block' : 'none';
-    // Tipos onde NÃO gera Meet (tribunal manda ou não se aplica) — só mostra campo para colar
-    var semGerar = ['audiencia','mediacao_cejusc'];
+    // Tipos onde tribunal manda o link (não gera Meet)
+    var tribunalManda = ['audiencia','mediacao_cejusc'];
+    var ehTribunal = tribunalManda.indexOf(tipoSelecionado) !== -1;
     var btn = document.getElementById('btnGerarMeet');
-    if (btn) {
-        if (!isOnline || semGerar.indexOf(tipoSelecionado) !== -1) {
-            btn.style.display = 'none';
-        } else {
-            btn.style.display = '';
-            btn.style.removeProperty('display');
-        }
-    }
+    var input = document.getElementById('agMeetLink');
+    if (btn) btn.style.display = (!isOnline || ehTribunal) ? 'none' : '';
+    if (input) input.placeholder = ehTribunal ? 'Cole aqui o link enviado pelo Tribunal' : 'Gerado automaticamente ou cole aqui';
 }
 
 function gerarMeet() {
