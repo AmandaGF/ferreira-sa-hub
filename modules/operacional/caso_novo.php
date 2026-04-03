@@ -112,7 +112,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $newId = (int)$pdo->lastInsertId();
 
     // ═══ Criar partes na tabela case_partes ═══
-    // Autor = cliente
+    // Cliente = papel selecionado (autor, réu ou rep. legal)
+    $clientePapel = isset($_POST['cliente_papel']) ? $_POST['cliente_papel'] : 'autor';
     if ($client_id > 0) {
         try {
             $cl = $pdo->prepare("SELECT name, cpf, rg, birth_date, profession, marital_status, email, phone, address_street, address_city, address_state, address_zip FROM clients WHERE id = ?");
@@ -120,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cliData = $cl->fetch();
             if ($cliData) {
                 $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                    ->execute(array($newId, 'autor', 'fisica', $cliData['name'], $cliData['cpf'], $cliData['rg'], $cliData['birth_date'], $cliData['profession'], $cliData['marital_status'], $cliData['email'], $cliData['phone'], $cliData['address_street'], $cliData['address_city'], $cliData['address_state'], $client_id));
+                    ->execute(array($newId, $clientePapel, 'fisica', $cliData['name'], $cliData['cpf'], $cliData['rg'], $cliData['birth_date'], $cliData['profession'], $cliData['marital_status'], $cliData['email'], $cliData['phone'], $cliData['address_street'], $cliData['address_city'], $cliData['address_state'], $client_id));
             }
         } catch (Exception $e) {}
     }
@@ -256,7 +257,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <!-- Cliente -->
                 <div class="form-row">
                     <div class="form-col" style="flex:2;">
-                        <label>Cliente *</label>
+                        <label>Cliente * (nosso cliente)</label>
                         <div class="busca-cliente-wrap">
                             <input type="text" id="buscaCliente" class="form-input" placeholder="Digite o nome do cliente..." autocomplete="off"<?= $preClient ? ' style="display:none;"' : '' ?>>
                             <div id="buscaResultados" class="busca-cliente-results"></div>
@@ -268,6 +269,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endif; ?>
                         </div>
                     </div>
+                    <div class="form-col" style="max-width:180px;">
+                        <label>Papel do cliente</label>
+                        <select name="cliente_papel" class="form-select">
+                            <option value="autor">Autor</option>
+                            <option value="reu">Réu</option>
+                            <option value="representante_legal">Rep. Legal</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- Partes do Processo -->
@@ -276,7 +285,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label style="font-weight:700;font-size:.85rem;">Partes do Processo</label>
                         <button type="button" onclick="addParteRow()" class="btn btn-outline btn-sm" style="font-size:.72rem;">+ Adicionar Parte</button>
                     </div>
-                    <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem;">O cliente selecionado acima será adicionado automaticamente como Autor.</p>
+                    <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem;">O cliente selecionado acima será vinculado ao processo. Adicione as demais partes abaixo.</p>
                     <div id="partesRows">
                         <!-- Réu padrão -->
                         <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
