@@ -60,11 +60,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <div class="nl-fg">
         <label class="nl-fl">Template</label>
-        <div class="nl-tpl-grid">
+        <div class="nl-tpl-grid" style="grid-template-columns:repeat(3,1fr);">
             <button type="button" class="nl-tpl-btn <?= (!$camp || $camp['template_tipo']==='informativo') ? 'sel' : '' ?>" data-tpl="informativo" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📰</span>Informativo</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='felicitacoes') ? 'sel' : '' ?>" data-tpl="felicitacoes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎉</span>Felicitacoes</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='novidades') ? 'sel' : '' ?>" data-tpl="novidades" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📢</span>Novidades</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='pesquisa') ? 'sel' : '' ?>" data-tpl="pesquisa" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📋</span>Pesquisa</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='natal') ? 'sel' : '' ?>" data-tpl="natal" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎄</span>Natal</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='ano_novo') ? 'sel' : '' ?>" data-tpl="ano_novo" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎆</span>Ano Novo</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='pascoa') ? 'sel' : '' ?>" data-tpl="pascoa" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🐣</span>Pascoa</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='dia_maes') ? 'sel' : '' ?>" data-tpl="dia_maes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">💐</span>Dia das Maes</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='dia_pais') ? 'sel' : '' ?>" data-tpl="dia_pais" onclick="selTemplate(this)"><span class="nl-tpl-emoji">👔</span>Dia dos Pais</button>
         </div>
     </div>
 
@@ -195,7 +200,77 @@ var TEMPLATES = {
         + '<div style="text-align:center;margin:24px 0;">'
         + '<a href="LINK_DO_FORMULARIO" style="background:#052228;color:#fff;padding:14px 40px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Responder Pesquisa</a>'
         + '</div>'
-        + '<p style="font-size:13px;color:#888;">Suas respostas sao confidenciais.</p></div>'
+        + '<p style="font-size:13px;color:#888;">Suas respostas sao confidenciais.</p></div>',
+
+    natal: '<div style="background:linear-gradient(135deg,#0a3d2e,#052228);padding:40px 24px;text-align:center;color:#fff;">'
+        + '<div style="font-size:56px;margin-bottom:8px;">🎄</div>'
+        + '<h1 style="margin:0;font-family:Calibri;color:#D7AB90;font-size:28px;">Feliz Natal!</h1>'
+        + '</div>'
+        + '<div style="padding:32px;font-family:Calibri,sans-serif;color:#1a1a1a;line-height:1.8;text-align:center;">'
+        + '<p style="font-size:16px;">Ola, <strong>[nome]</strong>!</p>'
+        + '<p>Que este Natal traga paz, saude e muitas bencaos para voce e sua familia.</p>'
+        + '<p>Agradecemos pela confianca depositada em nosso trabalho ao longo deste ano.</p>'
+        + '<div style="margin:24px 0;padding:16px;background:#f8f5f0;border-radius:10px;border-left:4px solid #B87333;">'
+        + '<p style="margin:0;font-style:italic;color:#052228;">Que o espirito natalino ilumine seus caminhos e renove suas esperancas.</p>'
+        + '</div>'
+        + '<p style="color:#B87333;font-weight:700;font-size:15px;">Equipe Ferreira &amp; Sa Advocacia</p>'
+        + '<p style="font-size:12px;color:#94a3b8;">Estaremos em recesso de 23/12 a 02/01. Retorno em 03/01.</p>'
+        + '</div>',
+
+    ano_novo: '<div style="background:linear-gradient(135deg,#052228,#1a3a7a);padding:40px 24px;text-align:center;color:#fff;">'
+        + '<div style="font-size:56px;margin-bottom:8px;">🎆</div>'
+        + '<h1 style="margin:0;font-family:Calibri;color:#D7AB90;font-size:28px;">Feliz Ano Novo!</h1>'
+        + '</div>'
+        + '<div style="padding:32px;font-family:Calibri,sans-serif;color:#1a1a1a;line-height:1.8;text-align:center;">'
+        + '<p style="font-size:16px;">Ola, <strong>[nome]</strong>!</p>'
+        + '<p>Desejamos um novo ano repleto de conquistas, saude e prosperidade!</p>'
+        + '<p>Agradecemos por fazer parte da nossa historia. Seguimos juntos nessa caminhada.</p>'
+        + '<div style="margin:24px 0;padding:16px;background:#f0f4ff;border-radius:10px;border-left:4px solid #1a3a7a;">'
+        + '<p style="margin:0;font-style:italic;color:#052228;">Que 2027 seja o ano das grandes realizacoes!</p>'
+        + '</div>'
+        + '<p style="color:#B87333;font-weight:700;font-size:15px;">Equipe Ferreira &amp; Sa Advocacia</p>'
+        + '</div>',
+
+    pascoa: '<div style="background:linear-gradient(135deg,#f5e6d3,#fff);padding:40px 24px;text-align:center;">'
+        + '<div style="font-size:56px;margin-bottom:8px;">🐣</div>'
+        + '<h1 style="margin:0;font-family:Calibri;color:#052228;font-size:28px;">Feliz Pascoa!</h1>'
+        + '</div>'
+        + '<div style="padding:32px;font-family:Calibri,sans-serif;color:#1a1a1a;line-height:1.8;text-align:center;">'
+        + '<p style="font-size:16px;">Ola, <strong>[nome]</strong>!</p>'
+        + '<p>Que esta Pascoa renove suas esperancas e traga momentos de uniao com quem voce ama.</p>'
+        + '<div style="margin:24px 0;padding:16px;background:#fef9f0;border-radius:10px;border-left:4px solid #B87333;">'
+        + '<p style="margin:0;font-style:italic;color:#052228;">A Pascoa nos lembra que sempre ha renascimento apos os desafios.</p>'
+        + '</div>'
+        + '<p style="color:#B87333;font-weight:700;font-size:15px;">Equipe Ferreira &amp; Sa Advocacia</p>'
+        + '</div>',
+
+    dia_maes: '<div style="background:linear-gradient(135deg,#fce4ec,#fff);padding:40px 24px;text-align:center;">'
+        + '<div style="font-size:56px;margin-bottom:8px;">💐</div>'
+        + '<h1 style="margin:0;font-family:Calibri;color:#052228;font-size:28px;">Feliz Dia das Maes!</h1>'
+        + '</div>'
+        + '<div style="padding:32px;font-family:Calibri,sans-serif;color:#1a1a1a;line-height:1.8;text-align:center;">'
+        + '<p style="font-size:16px;">Ola, <strong>[nome]</strong>!</p>'
+        + '<p>Neste dia tao especial, queremos homenagear todas as maes que confiam em nosso trabalho.</p>'
+        + '<p>Voces sao a forca que move o mundo. Obrigado por nos permitir cuidar do que e mais importante para voces.</p>'
+        + '<div style="margin:24px 0;padding:16px;background:#fdf2f8;border-radius:10px;border-left:4px solid #ec4899;">'
+        + '<p style="margin:0;font-style:italic;color:#052228;">Mae: amor que protege, cuida e transforma.</p>'
+        + '</div>'
+        + '<p style="color:#B87333;font-weight:700;font-size:15px;">Equipe Ferreira &amp; Sa Advocacia</p>'
+        + '</div>',
+
+    dia_pais: '<div style="background:linear-gradient(135deg,#e3f2fd,#fff);padding:40px 24px;text-align:center;">'
+        + '<div style="font-size:56px;margin-bottom:8px;">👔</div>'
+        + '<h1 style="margin:0;font-family:Calibri;color:#052228;font-size:28px;">Feliz Dia dos Pais!</h1>'
+        + '</div>'
+        + '<div style="padding:32px;font-family:Calibri,sans-serif;color:#1a1a1a;line-height:1.8;text-align:center;">'
+        + '<p style="font-size:16px;">Ola, <strong>[nome]</strong>!</p>'
+        + '<p>Hoje celebramos os pais que lutam todos os dias pelo melhor para seus filhos.</p>'
+        + '<p>Sabemos o quanto voce se dedica. E uma honra poder ajuda-lo nessa jornada.</p>'
+        + '<div style="margin:24px 0;padding:16px;background:#eff6ff;border-radius:10px;border-left:4px solid #052228;">'
+        + '<p style="margin:0;font-style:italic;color:#052228;">Pai: presenca que faz toda a diferenca.</p>'
+        + '</div>'
+        + '<p style="color:#B87333;font-weight:700;font-size:15px;">Equipe Ferreira &amp; Sa Advocacia</p>'
+        + '</div>'
 };
 
 // Init
