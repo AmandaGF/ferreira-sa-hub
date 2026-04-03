@@ -676,12 +676,13 @@ function irHoje() {
 // ── MODAL ───────────────────────────────────────────────────
 var tipoSelecionado = 'audiencia';
 var msgsPadrao = {
-    audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora]. Qualquer dúvida, estamos à disposição!',
-    reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora]. Te esperamos!',
-    onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!',
-    mediacao_cejusc: 'Olá, [nome]! A mediação está agendada para [data] às [hora]. Contamos com sua presença!',
-    balcao_virtual: 'Olá, [nome]! Seu atendimento no Balcão Virtual está agendado para [data] às [hora].',
-    prazo: '', reuniao_interna: '', ligacao: ''
+    audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora]. Qualquer dúvida, estamos à disposição!\nFerreira e Sá Advocacia',
+    reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora].\n\nLink da reunião: [link_meet]\n\nTe esperamos!\nFerreira e Sá Advocacia',
+    onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!\n\nLink da reunião: [link_meet]\n\nFerreira e Sá Advocacia',
+    mediacao_cejusc: 'Olá, [nome]! A mediação/CEJUSC está agendada para [data] às [hora]. Contamos com sua presença!\nFerreira e Sá Advocacia',
+    balcao_virtual: 'Olá, [nome]! Seu atendimento no Balcão Virtual está agendado para [data] às [hora].\n\nLink: [link_meet]\n\nFerreira e Sá Advocacia',
+    ligacao: 'Olá, [nome]! Vamos entrar em contato com você no dia [data] às [hora].\nFerreira e Sá Advocacia',
+    prazo: '', reuniao_interna: ''
 };
 
 var titulosPadrao = {
@@ -786,9 +787,12 @@ function selTipo(tipo, btn) {
     var titEhPadrao = false;
     for (var k in titulosPadrao) { if (tit.value.trim() === titulosPadrao[k]) { titEhPadrao = true; break; } }
     if ((titVazio || titEhPadrao) && titulosPadrao[tipo]) tit.value = titulosPadrao[tipo];
-    // Preencher msg padrão se vazio
+    // Trocar mensagem padrão ao mudar tipo (se vazia ou se era msg de outro tipo)
     var msg = document.getElementById('agMsgCliente');
-    if (!msg.value && msgsPadrao[tipo]) msg.value = msgsPadrao[tipo];
+    var msgVazia = !msg.value.trim();
+    var msgEhPadrao = false;
+    for (var k in msgsPadrao) { if (msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
+    if ((msgVazia || msgEhPadrao) && msgsPadrao[tipo]) msg.value = msgsPadrao[tipo];
     atualizarPreview();
 }
 
