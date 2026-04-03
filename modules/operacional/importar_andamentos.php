@@ -267,9 +267,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errosCount++;
             } else {
                 try {
+                    // Detectar sigilo: palavras-chave indicam segredo de justiça
+                    $descLower = mb_strtolower($reg['descricao'], 'UTF-8');
+                    $ehSigilo = (strpos($descLower, 'sigilo') !== false || strpos($descLower, 'segredo') !== false || strpos($descLower, 'sigiloso') !== false || strpos($descLower, 'cadeado') !== false || strpos($descLower, 'restrito') !== false) ? 1 : 0;
+                    $visivelCliente = $ehSigilo ? 0 : 1;
+
                     $pdo->prepare(
-                        "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?, ?, ?, ?, ?, NOW())"
-                    )->execute(array($caseId, $reg['data'], $reg['tipo'], $reg['descricao'], $userId));
+                        "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, segredo_justica, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
+                    )->execute(array($caseId, $reg['data'], $reg['tipo'], $reg['descricao'], $visivelCliente, $ehSigilo, $userId));
                     $item['status'] = 'ok';
                     $importados++;
                 } catch (Exception $e) {

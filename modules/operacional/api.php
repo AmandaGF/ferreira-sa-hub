@@ -514,6 +514,20 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'toggle_visibilidade':
+        $andId = (int)($_POST['andamento_id'] ?? 0);
+        $visivel = (int)($_POST['visivel'] ?? 1);
+        if ($andId) {
+            try {
+                $pdo->prepare("UPDATE case_andamentos SET visivel_cliente = ? WHERE id = ?")
+                    ->execute(array($visivel, $andId));
+                audit_log('ANDAMENTO_VISIBILIDADE', 'andamento', $andId, $visivel ? 'visivel' : 'interno');
+            } catch (Exception $e) {}
+        }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        redirect(module_url('operacional'));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('operacional'));

@@ -526,9 +526,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-left:3px solid <?= $cor ?>;">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
-                            <div>
+                            <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;"><?= $lbl ?></span>
-                                <span style="font-size:.7rem;color:var(--text-muted);margin-left:8px;"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
+                                <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
+                                <?php
+                                $visivel = isset($and['visivel_cliente']) ? (int)$and['visivel_cliente'] : 1;
+                                $sigilo = isset($and['segredo_justica']) ? (int)$and['segredo_justica'] : 0;
+                                ?>
+                                <button onclick="toggleVisibilidade(<?= $and['id'] ?>, this)" title="<?= $visivel ? 'Visível ao cliente — clique para ocultar' : 'Oculto do cliente — clique para tornar visível' ?>" style="background:none;border:none;cursor:pointer;font-size:.68rem;padding:1px 5px;border-radius:3px;<?= $visivel ? 'background:#ecfdf5;color:#059669;' : 'background:#fef2f2;color:#dc2626;' ?>" data-vis="<?= $visivel ?>"><?= $visivel ? '&#128065; Visível' : '&#128274; Interno' ?></button>
+                                <?php if ($sigilo): ?><span style="font-size:.6rem;background:#fef2f2;color:#dc2626;padding:1px 4px;border-radius:3px;font-weight:600;">Segredo</span><?php endif; ?>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
@@ -924,6 +930,32 @@ function buscarCnpjParte() {
         setTimeout(function(){st.textContent=''},4000);
     };
     x.send();
+}
+
+function toggleVisibilidade(andId, btn) {
+    var atual = parseInt(btn.getAttribute('data-vis'));
+    var novo = atual ? 0 : 1;
+    var x = new XMLHttpRequest();
+    x.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    x.onload = function() {
+        try { var r = JSON.parse(x.responseText);
+            if (r.ok) {
+                btn.setAttribute('data-vis', novo);
+                if (novo) {
+                    btn.innerHTML = '&#128065; Visível';
+                    btn.style.background = '#ecfdf5'; btn.style.color = '#059669';
+                    btn.title = 'Visível ao cliente — clique para ocultar';
+                } else {
+                    btn.innerHTML = '&#128274; Interno';
+                    btn.style.background = '#fef2f2'; btn.style.color = '#dc2626';
+                    btn.title = 'Oculto do cliente — clique para tornar visível';
+                }
+            }
+        } catch(e) {}
+    };
+    x.send('action=toggle_visibilidade&andamento_id=' + andId + '&visivel=' + novo + '&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
 }
 
 function buscarCepParte() {
