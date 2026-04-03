@@ -778,9 +778,11 @@ document.getElementById('agOverlay').addEventListener('click', function(e) {
 
 function selTipo(tipo, btn) {
     tipoSelecionado = tipo;
-    document.querySelectorAll('.ag-tipo-btn').forEach(function(b) { b.className = 'ag-tipo-btn'; });
-    btn.className = 'ag-tipo-btn sel';
-    btn.setAttribute('data-t', tipo);
+    document.querySelectorAll('.ag-tipo-btn').forEach(function(b) { b.classList.remove('sel'); b.style.background = ''; b.style.color = ''; });
+    btn.classList.add('sel');
+    var corFundo = CORES[tipo] || '#888';
+    btn.style.background = corFundo;
+    btn.style.color = '#fff';
     // Preencher título padrão com nome do cliente
     var tit = document.getElementById('agTitulo');
     var titVazio = !tit.value.trim();
