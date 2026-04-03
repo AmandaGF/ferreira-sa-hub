@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $caseData = null;
 $caseIdDoc = (int)($_GET['case_id'] ?? 0);
 if ($caseIdDoc) {
-    $stmtCase = $pdo->prepare('SELECT case_number, court, comarca, comarca_uf, regional FROM cases WHERE id = ?');
+    $stmtCase = $pdo->prepare('SELECT case_number, court, comarca, comarca_uf, regional, parte_re_nome, parte_re_cpf_cnpj, case_type FROM cases WHERE id = ?');
     $stmtCase->execute(array($caseIdDoc));
     $caseData = $stmtCase->fetch();
 }
@@ -160,9 +160,9 @@ $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
 $reservaManifestacao = $_POST['reserva_manifestacao'] ?? 'sim';
 $nomeGenitor = $_POST['nome_genitor'] ?? '';
 $cpfGenitor = $_POST['cpf_genitor'] ?? '';
-$nomeReu = $_POST['nome_reu'] ?? '';
+$nomeReu = $_POST['nome_reu'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $whatsappReu = $_POST['whatsapp_reu'] ?? '';
-$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? '';
+$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
 $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
@@ -547,21 +547,17 @@ if (!$showEditor) {
                 <div><label>Vara / Juizo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2a Vara de Familia de Resende" required></div>
             </div>
             <div class="row">
-                <div><label>Nome completo do reu/ra</label><input name="nome_reu" value="" placeholder="Nome da parte re" required></div>
-                <div><label>Telefone/WhatsApp do reu/ra</label><input name="whatsapp_reu" value="" placeholder="(00) 00000-0000" required></div>
+                <div><label>Nome completo do reu/ra</label><input name="nome_reu" value="<?= e($nomeReu) ?>" placeholder="Nome da parte re" required></div>
+                <div><label>Telefone/WhatsApp do reu/ra</label><input name="whatsapp_reu" value="<?= e($whatsappReu) ?>" placeholder="(00) 00000-0000" required></div>
             </div>
             <div class="row">
                 <div><label>Tipo de acao</label>
                     <select name="tipo_acao_citacao">
-                        <option value="Alimentos">Alimentos</option>
-                        <option value="Divorcio">Divorcio</option>
-                        <option value="Guarda">Guarda</option>
-                        <option value="Regulamentacao de Convivencia">Regulamentacao de Convivencia</option>
-                        <option value="Execucao de Alimentos">Execucao de Alimentos</option>
-                        <option value="Revisional de Alimentos">Revisional de Alimentos</option>
-                        <option value="Investigacao de Paternidade">Investigacao de Paternidade</option>
-                        <option value="Consumidor">Consumidor</option>
-                        <option value="Indenizacao">Indenizacao</option>
+                        <?php
+                        $opCit = array('Alimentos','Revisional de Alimentos','Execucao de Alimentos','Divorcio','Divorcio Consensual','Divorcio Litigioso','Guarda','Guarda Compartilhada','Regulamentacao de Convivencia','Investigacao de Paternidade','Consumidor','Indenizacao','Obrigacao de Fazer','Cobranca','Usucapiao');
+                        foreach ($opCit as $oc): ?>
+                        <option value="<?= e($oc) ?>" <?= $tipoAcaoCitacao === $oc ? 'selected' : '' ?>><?= e($oc) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div><label>Justificativa (opcional)</label><input name="justificativa_citacao" value="" placeholder="Ex: Reu nao encontrado para citacao pessoal"></div>
