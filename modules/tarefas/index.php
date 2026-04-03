@@ -212,11 +212,13 @@ function reload() {
     var t = document.getElementById('fTipo').value; if(t) params += '&tipo='+t;
     var p = document.getElementById('fPrio').value; if(p) params += '&prioridade='+p;
 
+    var scrollY = window.scrollY || window.pageYOffset;
     var x = new XMLHttpRequest();
     x.open('GET', API + params);
     x.onload = function() {
         try { tarefas = JSON.parse(x.responseText); } catch(e) { tarefas = []; }
         renderBoard();
+        window.scrollTo(0, scrollY);
     };
     x.send();
 }
