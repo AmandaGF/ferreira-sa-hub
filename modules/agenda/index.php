@@ -26,7 +26,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 /* ── VARIÁVEIS ── */
-.ag { --audiencia:#052228;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--ligacao:#888880;--cobre-suave:#F5EDE3; }
+.ag { --audiencia:#052228;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--cobre-suave:#F5EDE3; }
 
 /* ── TOPO ── */
 .ag-topo { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px; }
@@ -51,7 +51,7 @@ body.dark-mode .ag-nav-mes-titulo { color:var(--text); }
 .ag-filtros { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px; }
 .ag-chip { display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--text-muted);transition:all .2s; }
 .ag-chip.ativo { color:#fff;border-color:transparent; }
-.ag-chip[data-tipo="audiencia"].ativo{background:var(--audiencia)}.ag-chip[data-tipo="reuniao_cliente"].ativo{background:var(--reuniao)}.ag-chip[data-tipo="prazo"].ativo{background:var(--prazo)}.ag-chip[data-tipo="onboarding"].ativo{background:var(--onboarding)}.ag-chip[data-tipo="reuniao_interna"].ativo{background:var(--interna)}.ag-chip[data-tipo="mediacao_cejusc"].ativo{background:var(--mediacao)}.ag-chip[data-tipo="ligacao"].ativo{background:var(--ligacao)}
+.ag-chip[data-tipo="audiencia"].ativo{background:var(--audiencia)}.ag-chip[data-tipo="reuniao_cliente"].ativo{background:var(--reuniao)}.ag-chip[data-tipo="prazo"].ativo{background:var(--prazo)}.ag-chip[data-tipo="onboarding"].ativo{background:var(--onboarding)}.ag-chip[data-tipo="reuniao_interna"].ativo{background:var(--interna)}.ag-chip[data-tipo="mediacao_cejusc"].ativo{background:var(--mediacao)}.ag-chip[data-tipo="balcao_virtual"].ativo{background:var(--balcao)}.ag-chip[data-tipo="ligacao"].ativo{background:var(--ligacao)}
 .ag-chip-dot { width:8px;height:8px;border-radius:50%; }
 
 /* ── CALENDÁRIO MENSAL ── */
@@ -131,7 +131,7 @@ body.dark-mode .ag-fi { background:var(--bg-secondary);color:var(--text);border-
 .ag-tipo-btn .te { font-size:16px;display:block;margin-bottom:2px; }
 .ag-tipo-btn:hover { border-color:var(--rose); }
 .ag-tipo-btn.sel { color:#fff;border-color:transparent; }
-.ag-tipo-btn.sel[data-t="audiencia"]{background:var(--audiencia)}.ag-tipo-btn.sel[data-t="reuniao_cliente"]{background:var(--reuniao)}.ag-tipo-btn.sel[data-t="prazo"]{background:var(--prazo)}.ag-tipo-btn.sel[data-t="onboarding"]{background:var(--onboarding)}.ag-tipo-btn.sel[data-t="reuniao_interna"]{background:var(--interna)}.ag-tipo-btn.sel[data-t="mediacao_cejusc"]{background:var(--mediacao)}.ag-tipo-btn.sel[data-t="ligacao"]{background:var(--ligacao)}
+.ag-tipo-btn.sel[data-t="audiencia"]{background:var(--audiencia)}.ag-tipo-btn.sel[data-t="reuniao_cliente"]{background:var(--reuniao)}.ag-tipo-btn.sel[data-t="prazo"]{background:var(--prazo)}.ag-tipo-btn.sel[data-t="onboarding"]{background:var(--onboarding)}.ag-tipo-btn.sel[data-t="reuniao_interna"]{background:var(--interna)}.ag-tipo-btn.sel[data-t="mediacao_cejusc"]{background:var(--mediacao)}.ag-tipo-btn.sel[data-t="balcao_virtual"]{background:var(--balcao)}.ag-tipo-btn.sel[data-t="ligacao"]{background:var(--ligacao)}
 .ag-meet-box { background:var(--cobre-suave);border:1px solid rgba(184,115,51,.2);border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px; }
 body.dark-mode .ag-meet-box { background:rgba(184,115,51,.15); }
 .ag-meet-box p { font-size:12px;color:#5a3a00;margin:0; }
