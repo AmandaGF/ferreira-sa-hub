@@ -109,7 +109,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':notes'              => $notes !== '' ? $notes : null,
     ));
 
-    $newId = $pdo->lastInsertId();
+    $newId = (int)$pdo->lastInsertId();
+
+    // ═══ Criar partes na tabela case_partes ═══
+    // Autor = cliente
+    if ($client_id > 0) {
+        try {
+            $cl = $pdo->prepare("SELECT name, cpf, rg, birth_date, profession, marital_status, email, phone, address_street, address_city, address_state, address_zip FROM clients WHERE id = ?");
+            $cl->execute(array($client_id));
+            $cliData = $cl->fetch();
+            if ($cliData) {
+                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                    ->execute(array($newId, 'autor', 'fisica', $cliData['name'], $cliData['cpf'], $cliData['rg'], $cliData['birth_date'], $cliData['profession'], $cliData['marital_status'], $cliData['email'], $cliData['phone'], $cliData['address_street'], $cliData['address_city'], $cliData['address_state'], $client_id));
+            }
+        } catch (Exception $e) {}
+    }
+    // Réu (se preenchido)
+    if ($parte_re_nome !== '') {
+        try {
+            $tipoReu = (strlen(preg_replace('/\D/', '', $parte_re_cpf_cnpj)) > 11) ? 'juridica' : 'fisica';
+            if ($tipoReu === 'juridica') {
+                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, razao_social, cnpj) VALUES (?,?,?,?,?)")
+                    ->execute(array($newId, 'reu', 'juridica', $parte_re_nome, $parte_re_cpf_cnpj));
+            } else {
+                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf) VALUES (?,?,?,?,?)")
+                    ->execute(array($newId, 'reu', 'fisica', $parte_re_nome, $parte_re_cpf_cnpj));
+            }
+        } catch (Exception $e) {}
+    }
+
     flash_set('success', 'Processo cadastrado com sucesso!');
     redirect(module_url('operacional', 'caso_ver.php?id=' . $newId));
 }
