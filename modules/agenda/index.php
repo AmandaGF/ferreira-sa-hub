@@ -217,7 +217,7 @@ if ($voltarCaso > 0): ?>
             <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">Importar CSV</a>
             <?php endif; ?>
             <a href="https://www.tjrj.jus.br/web/guest/balcao-virtual" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcao Virtual</a>
-            <button class="btn btn-primary btn-sm" onclick="abrirModal()" style="font-size:13px;">+ Novo compromisso</button>
+            <button class="btn btn-primary btn-sm" onclick="abrirModal(getDataSelecionada())" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
 
@@ -817,10 +817,17 @@ function selTipo(tipo, btn) {
 function toggleMeet() {
     var isOnline = document.getElementById('agModalidade').value === 'online';
     document.getElementById('agMeetBox').style.display = isOnline ? 'block' : 'none';
-    // Esconder botão Gerar Meet para tipos onde tribunal manda link (mas mostrar campo para colar)
-    var semGerar = ['audiencia','mediacao_cejusc','balcao_virtual','prazo'];
+    // Tipos onde NÃO gera Meet (tribunal manda ou não se aplica) — só mostra campo para colar
+    var semGerar = ['audiencia','mediacao_cejusc'];
     var btn = document.getElementById('btnGerarMeet');
-    if (btn) btn.style.display = semGerar.indexOf(tipoSelecionado) !== -1 ? 'none' : '';
+    if (btn) {
+        if (!isOnline || semGerar.indexOf(tipoSelecionado) !== -1) {
+            btn.style.display = 'none';
+        } else {
+            btn.style.display = '';
+            btn.style.removeProperty('display');
+        }
+    }
 }
 
 function gerarMeet() {
@@ -1161,6 +1168,14 @@ setupAC('agCasoBusca', 'agCasoList', 'agCasoId', 'busca_caso', function(c) {
 
 // ── UTILS ───────────────────────────────────────────────────
 function pad(n) { return n < 10 ? '0'+n : ''+n; }
+function getDataSelecionada() {
+    // Retorna a data da view atual no formato YYYY-MM-DD
+    if (visAtual === 'lista') return fmtDate(diaLista);
+    // View mensal/semanal: usar dia 1 do mês atual como base, ou hoje se no mês atual
+    var h = new Date();
+    if (h.getMonth() === mesAtual && h.getFullYear() === anoAtual) return fmtDate(h);
+    return anoAtual + '-' + pad(mesAtual+1) + '-01';
+}
 function fmtDate(d) { return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function fmtDatetime(d) { return fmtDate(d)+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function esc(s) { if (!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
