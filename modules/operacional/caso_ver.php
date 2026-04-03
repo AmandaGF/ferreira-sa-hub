@@ -166,23 +166,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $n = $pr['tipo_pessoa'] === 'juridica' ? ($pr['razao_social'] ?: $pr['nome_fantasia']) : $pr['nome'];
             if ($n) $headerReus[] = $n;
         }
-        // Representantes
-        $headerReps = array();
+        // Representantes — descobrir quem cada um representa
+        $repsAutores = array();
+        $repsReus = array();
         foreach ($headerPartes['representantes'] as $prep) {
-            if ($prep['nome']) $headerReps[] = $prep['nome'];
+            if (!$prep['nome']) continue;
+            // Verificar quem este representante representa
+            $repQuem = 'desconhecido';
+            foreach ($headerPartes['todas'] as $pt) {
+                if (isset($pt['representa_parte_id']) && (int)$pt['representa_parte_id'] === (int)$prep['id']) {
+                    if ($pt['papel'] === 'autor' || $pt['papel'] === 'litisconsorte_ativo') { $repQuem = 'autores'; break; }
+                    if ($pt['papel'] === 'reu' || $pt['papel'] === 'litisconsorte_passivo') { $repQuem = 'reus'; break; }
+                }
+            }
+            if ($repQuem === 'autores') $repsAutores[] = $prep['nome'];
+            else $repsReus[] = $prep['nome'];
         }
         ?>
         <?php if (!empty($headerAutores)): ?>
             <?= e(implode(' e ', $headerAutores)) ?>
+            <?php if (!empty($repsAutores)): ?>
+                <span style="font-size:.72rem;opacity:.7;font-style:italic;">(rep. por <?= e(implode(', ', $repsAutores)) ?>)</span>
+            <?php endif; ?>
         <?php else: ?>
             <?= e($case['client_name'] ?? 'Sem cliente') ?>
         <?php endif; ?>
         <?php if (!empty($headerReus)): ?>
             <span style="opacity:.6;margin:0 4px;">×</span>
             <?= e(implode(' e ', $headerReus)) ?>
-        <?php endif; ?>
-        <?php if (!empty($headerReps)): ?>
-            <br><span style="font-size:.72rem;opacity:.7;font-style:italic;">Representado(s) por <?= e(implode(', ', $headerReps)) ?></span>
+            <?php if (!empty($repsReus)): ?>
+                <span style="font-size:.72rem;opacity:.7;font-style:italic;">(rep. por <?= e(implode(', ', $repsReus)) ?>)</span>
+            <?php endif; ?>
         <?php endif; ?>
         <br>
         <span style="font-size:.78rem;opacity:.8;">
