@@ -261,8 +261,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
         <div id="parteRepBox" style="display:none;margin-bottom:.8rem;">
-            <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Representa qual parte?</label>
-            <select id="parteRepId" class="form-select" style="font-size:.85rem;"><option value="">Selecione...</option></select>
+            <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.3rem;">Representa quais partes?</label>
+            <div id="parteRepChecks" style="max-height:150px;overflow-y:auto;border:1.5px solid var(--border);border-radius:8px;padding:.4rem .6rem;"></div>
+            <input type="hidden" id="parteRepId" value="">
         </div>
         <!-- Pessoa Física -->
         <div id="partePF">
@@ -746,10 +747,13 @@ function renderPartes() {
         var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
         var tipo = p.tipo_pessoa === 'juridica' ? 'Jurídica' : 'Física';
         var cor = papelCores[p.papel] || '#888';
-        var rep = p.representa_nome ? ' <span style="font-size:.68rem;color:#6366f1;">(rep. ' + p.representa_nome + ')</span>' : '';
+        var repInfo = '';
+        if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representado_por) + ')</span>';
+        if (p.papel === 'representante_legal' && p.representa_nome) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representa_nome) + ')</span>';
+        var clienteBadge = p.client_id ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
         html += '<tr style="border-bottom:1px solid var(--border);">'
             + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
-            + '<td style="font-weight:600;">' + esc(nome) + rep + '</td>'
+            + '<td style="font-weight:600;">' + esc(nome) + repInfo + clienteBadge + '</td>'
             + '<td style="font-family:monospace;font-size:.78rem;">' + esc(doc) + '</td>'
             + '<td>' + tipo + '</td>'
             + '<td><button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;">Editar</button></td>'
@@ -830,13 +834,19 @@ function mudouPapel() {
     var box = document.getElementById('parteRepBox');
     if (p === 'representante_legal') {
         box.style.display = 'block';
-        var sel = document.getElementById('parteRepId');
-        sel.innerHTML = '<option value="">Selecione a parte representada...</option>';
+        var checks = document.getElementById('parteRepChecks');
+        var html = '';
+        var editId = parseInt(document.getElementById('parteId').value) || 0;
         partesData.forEach(function(pt) {
-            if (pt.papel !== 'representante_legal') {
-                sel.innerHTML += '<option value="' + pt.id + '">' + (papelLabels[pt.papel]||pt.papel) + ': ' + (pt.nome||pt.razao_social||'?') + '</option>';
+            if (pt.papel !== 'representante_legal' && pt.id != editId) {
+                var checked = (pt.representa_parte_id && pt.representa_parte_id == editId) ? ' checked' : '';
+                html += '<label style="display:flex;align-items:center;gap:5px;padding:3px 0;font-size:.82rem;cursor:pointer;">'
+                    + '<input type="checkbox" class="repCheck" value="' + pt.id + '"' + checked + '> '
+                    + '<span style="display:inline-block;padding:0 4px;border-radius:3px;font-size:.62rem;font-weight:700;color:#fff;background:' + (papelCores[pt.papel]||'#888') + ';">' + (papelLabels[pt.papel]||pt.papel) + '</span> '
+                    + (pt.nome || pt.razao_social || '?') + '</label>';
             }
         });
+        checks.innerHTML = html || '<span style="font-size:.78rem;color:var(--text-muted);">Cadastre as partes primeiro</span>';
     } else {
         box.style.display = 'none';
     }
@@ -871,7 +881,10 @@ function salvarParte() {
     fd.append('endereco', document.getElementById('parteEnd').value);
     fd.append('cidade', document.getElementById('parteCid').value);
     fd.append('uf', document.getElementById('parteUf').value);
-    fd.append('representa_parte_id', document.getElementById('parteRepId').value);
+    // Representações múltiplas
+    var repIds = [];
+    document.querySelectorAll('.repCheck:checked').forEach(function(cb) { repIds.push(cb.value); });
+    fd.append('representa_ids', repIds.join(','));
     fd.append('observacoes', document.getElementById('parteObs').value);
 
     var x = new XMLHttpRequest(); x.open('POST', PARTES_API);

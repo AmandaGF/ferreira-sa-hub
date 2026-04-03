@@ -16,7 +16,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $caseId = (int)($_GET['case_id'] ?? 0);
         if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
         $stmt = $pdo->prepare(
-            "SELECT p.*, rep.nome as representa_nome
+            "SELECT p.*,
+                    rep.nome as representa_nome,
+                    (SELECT GROUP_CONCAT(rp.nome SEPARATOR ', ') FROM case_partes rp WHERE rp.representa_parte_id = p.id) as representado_por
              FROM case_partes p
              LEFT JOIN case_partes rep ON rep.id = p.representa_parte_id
              WHERE p.case_id = ?
@@ -168,6 +170,20 @@ if ($action === 'salvar') {
         $pdo->prepare($sql)->execute($params);
         $id = (int)$pdo->lastInsertId();
         audit_log('PARTE_CRIADA', 'case_parte', $id, $papel . ': ' . $nomeExibir);
+    }
+
+    // Se é representante legal, vincular às partes selecionadas
+    if ($papel === 'representante_legal' && $id) {
+        $representaIds = isset($_POST['representa_ids']) ? trim($_POST['representa_ids']) : '';
+        // Limpar vínculos anteriores deste representante
+        try { $pdo->prepare("UPDATE case_partes SET representa_parte_id = NULL WHERE representa_parte_id = ? AND case_id = ?")->execute(array($id, $caseId)); } catch (Exception $e) {}
+        // Vincular novos
+        if ($representaIds) {
+            $ids = array_filter(array_map('intval', explode(',', $representaIds)));
+            foreach ($ids as $repId) {
+                try { $pdo->prepare("UPDATE case_partes SET representa_parte_id = ? WHERE id = ? AND case_id = ?")->execute(array($id, $repId, $caseId)); } catch (Exception $e) {}
+            }
+        }
     }
 
     echo json_encode(array('ok' => true, 'id' => $id, 'csrf' => $newCsrf));
