@@ -680,7 +680,7 @@ var msgsPadrao = {
     reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora].\n\nLink da reunião: [link_meet]\n\nTe esperamos!\nFerreira e Sá Advocacia',
     onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!\n\nLink da reunião: [link_meet]\n\nFerreira e Sá Advocacia',
     mediacao_cejusc: 'Olá, [nome]! A mediação/CEJUSC está agendada para [data] às [hora]. Contamos com sua presença!\nFerreira e Sá Advocacia',
-    balcao_virtual: 'Olá, [nome]! Seu atendimento no Balcão Virtual está agendado para [data] às [hora].\n\nLink: [link_meet]\n\nFerreira e Sá Advocacia',
+    balcao_virtual: '',
     ligacao: 'Olá, [nome]! Vamos entrar em contato com você no dia [data] às [hora].\nFerreira e Sá Advocacia',
     prazo: '', reuniao_interna: ''
 };
@@ -791,8 +791,15 @@ function selTipo(tipo, btn) {
     var msg = document.getElementById('agMsgCliente');
     var msgVazia = !msg.value.trim();
     var msgEhPadrao = false;
-    for (var k in msgsPadrao) { if (msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
-    if ((msgVazia || msgEhPadrao) && msgsPadrao[tipo]) msg.value = msgsPadrao[tipo];
+    for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
+    if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
+
+    // Tipos sem Meet e sem mensagem ao cliente
+    var semMeet = ['balcao_virtual','prazo','reuniao_interna'];
+    if (semMeet.indexOf(tipo) !== -1) {
+        document.getElementById('agModalidade').value = 'nao_aplicavel';
+        toggleMeet();
+    }
     atualizarPreview();
 }
 
