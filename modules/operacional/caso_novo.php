@@ -114,6 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ═══ Criar partes na tabela case_partes ═══
     // Cliente = papel selecionado (autor, réu ou rep. legal)
     $clientePapel = isset($_POST['cliente_papel']) ? $_POST['cliente_papel'] : 'autor';
+    $clienteRepresenta = isset($_POST['cliente_representa']) ? $_POST['cliente_representa'] : '';
+    $clienteParteId = null;
     if ($client_id > 0) {
         try {
             $cl = $pdo->prepare("SELECT name, cpf, rg, birth_date, profession, marital_status, email, phone, address_street, address_city, address_state, address_zip FROM clients WHERE id = ?");
@@ -122,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($cliData) {
                 $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
                     ->execute(array($newId, $clientePapel, 'fisica', $cliData['name'], $cliData['cpf'], $cliData['rg'], $cliData['birth_date'], $cliData['profession'], $cliData['marital_status'], $cliData['email'], $cliData['phone'], $cliData['address_street'], $cliData['address_city'], $cliData['address_state'], $client_id));
+                $clienteParteId = (int)$pdo->lastInsertId();
             }
         } catch (Exception $e) {}
     }
@@ -145,6 +148,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf) VALUES (?,?,?,?,?)")
                     ->execute(array($newId, $pPapel, 'fisica', $pNome, $pDoc));
             }
+        } catch (Exception $e) {}
+    }
+
+    // Se cliente é Rep. Legal, vincular às partes representadas (autores ou réus)
+    if ($clientePapel === 'representante_legal' && $clienteParteId && $clienteRepresenta) {
+        $papelRep = ($clienteRepresenta === 'reus') ? array('reu','litisconsorte_passivo') : array('autor','litisconsorte_ativo');
+        $placeholders = implode(',', array_fill(0, count($papelRep), '?'));
+        $params = array_merge(array($clienteParteId, $newId), $papelRep, array($clienteParteId));
+        try {
+            $pdo->prepare("UPDATE case_partes SET representa_parte_id = NULL WHERE representa_parte_id = ? AND case_id = ?")->execute(array($clienteParteId, $newId));
+            $pdo->prepare("UPDATE case_partes SET representa_parte_id = ? WHERE case_id = ? AND papel IN ($placeholders) AND id != ?")->execute($params);
         } catch (Exception $e) {}
     }
 
@@ -271,10 +285,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div class="form-col" style="max-width:180px;">
                         <label>Papel do cliente</label>
-                        <select name="cliente_papel" class="form-select">
+                        <select name="cliente_papel" id="clientePapel" class="form-select" onchange="mudouPapelCliente()">
                             <option value="autor">Autor</option>
                             <option value="reu">Réu</option>
                             <option value="representante_legal">Rep. Legal</option>
+                        </select>
+                    </div>
+                    <div class="form-col" style="max-width:180px;" id="clienteRepBox" style="display:none;">
+                        <label>Representa</label>
+                        <select name="cliente_representa" id="clienteRepresenta" class="form-select">
+                            <option value="autores">Os Autores</option>
+                            <option value="reus">Os Réus</option>
                         </select>
                     </div>
                 </div>
@@ -702,6 +723,12 @@ function formatarCpfCnpj(el) {
     }
     el.value = v;
 }
+
+function mudouPapelCliente() {
+    var p = document.getElementById('clientePapel').value;
+    document.getElementById('clienteRepBox').style.display = (p === 'representante_legal') ? '' : 'none';
+}
+mudouPapelCliente();
 
 function addParteRow() {
     var html = '<div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">'
