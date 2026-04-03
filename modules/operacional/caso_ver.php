@@ -147,7 +147,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <input type="hidden" name="action" value="update_title">
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
         <div style="display:flex;gap:.35rem;align-items:center;">
-            <input type="text" name="title" id="inputTitulo" value="<?= e($case['title']) ?>" style="flex:1;padding:.4rem .6rem;font-size:1rem;font-weight:700;border:2px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-family:inherit;">
+            <input type="text" name="title" id="inputTitulo" value="<?= e($case['title']) ?>" minlength="5" required onkeydown="if(event.key==='Escape'){cancelarTitulo();event.preventDefault();}" style="flex:1;padding:.4rem .6rem;font-size:1rem;font-weight:700;border:2px solid rgba(255,255,255,.4);border-radius:8px;background:rgba(255,255,255,.15);color:#fff;font-family:inherit;">
             <button type="submit" style="background:#059669;color:#fff;border:none;padding:.4rem .8rem;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;">Salvar</button>
             <button type="button" onclick="cancelarTitulo()" style="background:rgba(255,255,255,.15);color:#fff;border:none;padding:.4rem .6rem;border-radius:8px;font-size:.78rem;cursor:pointer;">✕</button>
         </div>
@@ -672,6 +672,10 @@ function copiarNumero(el) {
 })();
 
 function editarTitulo() {
+    <?php if (!has_min_role('gestao')): ?>
+    alert('Apenas gestão ou admin pode renomear.');
+    return;
+    <?php endif; ?>
     document.getElementById('casoTitulo').parentElement.style.display = 'none';
     document.getElementById('formTitulo').style.display = 'block';
     var input = document.getElementById('inputTitulo');
@@ -682,6 +686,31 @@ function cancelarTitulo() {
     document.getElementById('casoTitulo').parentElement.style.display = 'flex';
     document.getElementById('formTitulo').style.display = 'none';
 }
+
+// Interceptar submit do form título para usar AJAX com confirmação
+document.getElementById('formTitulo').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var input = document.getElementById('inputTitulo');
+    var novoNome = input.value.trim();
+    if (novoNome.length < 5) { alert('Nome deve ter no mínimo 5 caracteres.'); input.focus(); return; }
+    if (!confirm('Isso também vai renomear a pasta no Google Drive. Confirmar?')) return;
+
+    var fd = new FormData(this);
+    var x = new XMLHttpRequest();
+    x.open('POST', this.action);
+    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.error) { alert(r.error); return; }
+            if (r.ok) {
+                document.getElementById('casoTitulo').textContent = r.title;
+                cancelarTitulo();
+            }
+        } catch(ex) { location.reload(); }
+    };
+    x.send(fd);
+});
 
 // ══════════════════════════════════════
 // PARTES DO PROCESSO

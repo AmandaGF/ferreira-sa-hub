@@ -443,13 +443,65 @@ switch ($action) {
         break;
 
     case 'update_title':
+        if (!has_min_role('gestao')) {
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Apenas gestão/admin pode renomear')); exit; }
+            flash_set('error', 'Sem permissão.'); redirect(module_url('operacional')); break;
+        }
         $caseId = (int)($_POST['case_id'] ?? 0);
         $newTitle = trim($_POST['title'] ?? '');
-        if ($caseId && $newTitle) {
-            $pdo->prepare("UPDATE cases SET title = ?, updated_at = NOW() WHERE id = ?")->execute(array($newTitle, $caseId));
-            audit_log('CASE_TITLE_CHANGED', 'case', $caseId, $newTitle);
-            flash_set('success', 'Nome da pasta atualizado.');
+        if (!$newTitle || mb_strlen($newTitle) < 5) {
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Nome deve ter no mínimo 5 caracteres')); exit; }
+            flash_set('error', 'Nome deve ter no mínimo 5 caracteres.'); redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId)); break;
         }
+        if ($caseId) {
+            // Buscar nome antigo e client_id
+            $old = $pdo->prepare("SELECT title, client_id, drive_folder_url FROM cases WHERE id = ?");
+            $old->execute(array($caseId));
+            $oldData = $old->fetch();
+            $oldTitle = $oldData ? $oldData['title'] : '';
+            $clientId = $oldData ? (int)$oldData['client_id'] : 0;
+
+            // 1. Atualizar cases.title
+            $pdo->prepare("UPDATE cases SET title = ?, updated_at = NOW() WHERE id = ?")->execute(array($newTitle, $caseId));
+
+            // 2. Atualizar pipeline_leads.nome_pasta
+            try {
+                $pdo->prepare("UPDATE pipeline_leads SET nome_pasta = ?, updated_at = NOW() WHERE linked_case_id = ?")
+                    ->execute(array($newTitle, $caseId));
+                if ($clientId) {
+                    $pdo->prepare("UPDATE pipeline_leads SET nome_pasta = ?, updated_at = NOW() WHERE client_id = ? AND linked_case_id IS NULL AND nome_pasta = ?")
+                        ->execute(array($newTitle, $clientId, $oldTitle));
+                }
+            } catch (Exception $e) {}
+
+            // 3. Renomear pasta no Google Drive via webhook
+            try {
+                $webhookUrl = '';
+                $wh = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'google_drive_webhook'");
+                $wh->execute();
+                $whRow = $wh->fetch();
+                if ($whRow) $webhookUrl = $whRow['valor'];
+
+                if ($webhookUrl && $oldTitle !== $newTitle) {
+                    $ch = curl_init($webhookUrl);
+                    curl_setopt_array($ch, array(
+                        CURLOPT_POST => true,
+                        CURLOPT_POSTFIELDS => json_encode(array('action' => 'rename', 'old_name' => $oldTitle, 'new_name' => $newTitle)),
+                        CURLOPT_HTTPHEADER => array('Content-Type: application/json'),
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_TIMEOUT => 10,
+                        CURLOPT_FOLLOWLOCATION => true,
+                    ));
+                    curl_exec($ch);
+                    curl_close($ch);
+                }
+            } catch (Exception $e) {}
+
+            // 4. Audit log
+            audit_log('CASE_TITLE_CHANGED', 'case', $caseId, $oldTitle . ' → ' . $newTitle);
+        }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'title' => $newTitle)); exit; }
+        flash_set('success', 'Nome da pasta atualizado.');
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
