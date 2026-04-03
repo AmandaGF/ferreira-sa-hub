@@ -553,6 +553,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 </span>
                                 <?php endif; ?>
                                 <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
+                                <button onclick="editarAndamento(<?= $and['id'] ?>)" style="background:none;border:none;color:#B87333;cursor:pointer;font-size:.68rem;padding:2px 4px;" title="Editar">&#9998;</button>
                                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este andamento?">
                                     <?= csrf_input() ?>
                                     <input type="hidden" name="action" value="delete_andamento">
@@ -563,7 +564,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <p style="font-size:.85rem;margin:0;white-space:pre-wrap;line-height:1.5;"><?= e($and['descricao']) ?></p>
+                        <p id="andDesc<?= $and['id'] ?>" style="font-size:.85rem;margin:0;white-space:pre-wrap;line-height:1.5;"><?= e($and['descricao']) ?></p>
                     </div>
                 </div>
                 <?php endforeach; ?>
@@ -974,6 +975,8 @@ function buscarCnpjParte() {
     x.send();
 }
 
+var andCsrf = '<?= generate_csrf_token() ?>';
+
 function toggleVisibilidade(andId, btn) {
     var atual = parseInt(btn.getAttribute('data-vis'));
     var novo = atual ? 0 : 1;
@@ -983,6 +986,7 @@ function toggleVisibilidade(andId, btn) {
     x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     x.onload = function() {
         try { var r = JSON.parse(x.responseText);
+            if (r.csrf) andCsrf = r.csrf;
             if (r.ok) {
                 btn.setAttribute('data-vis', novo);
                 if (novo) {
@@ -994,10 +998,57 @@ function toggleVisibilidade(andId, btn) {
                     btn.style.background = '#fef2f2'; btn.style.color = '#dc2626';
                     btn.title = 'Oculto do cliente — clique para tornar visível';
                 }
-            }
+            } else if (r.error) { alert(r.error); }
         } catch(e) {}
     };
-    x.send('action=toggle_visibilidade&andamento_id=' + andId + '&visivel=' + novo + '&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
+    x.send('action=toggle_visibilidade&andamento_id=' + andId + '&visivel=' + novo + '&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
+}
+
+function editarAndamento(andId) {
+    var descEl = document.getElementById('andDesc' + andId);
+    var textoAtual = descEl.textContent;
+    var input = document.createElement('textarea');
+    input.value = textoAtual;
+    input.style.cssText = 'width:100%;font-size:.85rem;padding:6px;border:2px solid #B87333;border-radius:6px;min-height:60px;font-family:inherit;resize:vertical;';
+    var btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:4px;margin-top:4px;';
+    btns.innerHTML = '<button onclick="salvarAndamento(' + andId + ')" style="background:#059669;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:600;cursor:pointer;">Salvar</button>'
+        + '<button onclick="cancelarEdicaoAnd(' + andId + ')" style="background:#f3f4f6;border:none;padding:3px 10px;border-radius:4px;font-size:.72rem;cursor:pointer;">Cancelar</button>';
+    descEl.style.display = 'none';
+    descEl.parentNode.insertBefore(input, descEl.nextSibling);
+    descEl.parentNode.insertBefore(btns, input.nextSibling);
+    input.focus();
+    input.id = 'andEdit' + andId;
+    btns.id = 'andBtns' + andId;
+}
+
+function cancelarEdicaoAnd(andId) {
+    var input = document.getElementById('andEdit' + andId);
+    var btns = document.getElementById('andBtns' + andId);
+    if (input) input.remove();
+    if (btns) btns.remove();
+    document.getElementById('andDesc' + andId).style.display = '';
+}
+
+function salvarAndamento(andId) {
+    var input = document.getElementById('andEdit' + andId);
+    if (!input) return;
+    var novoTexto = input.value.trim();
+    if (!novoTexto) { alert('Descrição não pode ser vazia.'); return; }
+    var x = new XMLHttpRequest();
+    x.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    x.onload = function() {
+        try { var r = JSON.parse(x.responseText);
+            if (r.csrf) andCsrf = r.csrf;
+            if (r.ok) {
+                document.getElementById('andDesc' + andId).textContent = novoTexto;
+                cancelarEdicaoAnd(andId);
+            } else if (r.error) { alert(r.error); }
+        } catch(e) { alert('Erro ao salvar'); }
+    };
+    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
 function buscarCepParte() {

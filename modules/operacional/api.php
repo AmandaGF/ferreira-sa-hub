@@ -576,8 +576,38 @@ switch ($action) {
                 audit_log('ANDAMENTO_VISIBILIDADE', 'andamento', $andId, $visivel ? 'visivel' : 'interno');
             } catch (Exception $e) {}
         }
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        $newCsrf = generate_csrf_token();
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'csrf' => $newCsrf)); exit; }
         redirect(module_url('operacional'));
+        break;
+
+    case 'edit_andamento':
+        $andId = (int)($_POST['andamento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $descricao = trim($_POST['descricao'] ?? '');
+        if (!$andId || !$descricao) {
+            $newCsrf = generate_csrf_token();
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados incompletos', 'csrf' => $newCsrf)); exit; }
+            break;
+        }
+        $canEdit = has_min_role('gestao');
+        if (!$canEdit) {
+            $chk = $pdo->prepare("SELECT created_by FROM case_andamentos WHERE id = ?");
+            $chk->execute(array($andId));
+            $row = $chk->fetch();
+            $canEdit = $row && (int)$row['created_by'] === current_user_id();
+        }
+        if (!$canEdit) {
+            $newCsrf = generate_csrf_token();
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Sem permissão', 'csrf' => $newCsrf)); exit; }
+            break;
+        }
+        $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?")->execute(array($descricao, $andId));
+        audit_log('ANDAMENTO_EDITADO', 'andamento', $andId, mb_substr($descricao, 0, 80, 'UTF-8'));
+        $newCsrf = generate_csrf_token();
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'csrf' => $newCsrf)); exit; }
+        flash_set('success', 'Andamento atualizado.');
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
     default:
