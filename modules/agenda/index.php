@@ -800,22 +800,27 @@ function selTipo(tipo, btn) {
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
 
-    // Tipos sem Meet (tribunal manda link ou não se aplica)
-    var semMeet = ['balcao_virtual','prazo','audiencia','mediacao_cejusc'];
-    if (semMeet.indexOf(tipo) !== -1) {
-        document.getElementById('agModalidade').value = 'nao_aplicavel';
-        toggleMeet();
-    }
-    // Reunião interna: sem mensagem ao cliente mas permite Meet
-    if (tipo === 'reuniao_interna') {
+    // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
+    var sugerirOnline = ['reuniao_interna','reuniao_cliente','onboarding'];
+    // Balcão/prazo: sugerir "não se aplica"
+    var sugerirNA = ['balcao_virtual','prazo'];
+    if (sugerirOnline.indexOf(tipo) !== -1) {
         document.getElementById('agModalidade').value = 'online';
-        toggleMeet();
+    } else if (sugerirNA.indexOf(tipo) !== -1) {
+        document.getElementById('agModalidade').value = 'nao_aplicavel';
     }
+    // Audiência, mediação, ligação: não forçar (usuário escolhe)
+    toggleMeet();
     atualizarPreview();
 }
 
 function toggleMeet() {
-    document.getElementById('agMeetBox').style.display = document.getElementById('agModalidade').value === 'online' ? 'block' : 'none';
+    var isOnline = document.getElementById('agModalidade').value === 'online';
+    document.getElementById('agMeetBox').style.display = isOnline ? 'block' : 'none';
+    // Esconder botão Gerar Meet para tipos onde tribunal manda link (mas mostrar campo para colar)
+    var semGerar = ['audiencia','mediacao_cejusc','balcao_virtual','prazo'];
+    var btn = document.getElementById('btnGerarMeet');
+    if (btn) btn.style.display = semGerar.indexOf(tipoSelecionado) !== -1 ? 'none' : '';
 }
 
 function gerarMeet() {
