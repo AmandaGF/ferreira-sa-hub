@@ -173,17 +173,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
         ?>
         <?php if (!empty($headerAutores)): ?>
-            <span style="color:#fff;">
             <?= e(implode(' e ', $headerAutores)) ?>
-            <?php if (!empty($headerReps)): ?>
-                <span style="font-size:.72rem;opacity:.7;">representado(s) por <?= e(implode(', ', $headerReps)) ?></span>
-            <?php endif; ?>
-            </span>
         <?php else: ?>
             <?= e($case['client_name'] ?? 'Sem cliente') ?>
         <?php endif; ?>
         <?php if (!empty($headerReus)): ?>
-            <span style="opacity:.7;">×</span> <?= e(implode(' e ', $headerReus)) ?>
+            <span style="opacity:.6;margin:0 4px;">×</span>
+            <?= e(implode(' e ', $headerReus)) ?>
+        <?php endif; ?>
+        <?php if (!empty($headerReps)): ?>
+            <br><span style="font-size:.72rem;opacity:.7;font-style:italic;">Representado(s) por <?= e(implode(', ', $headerReps)) ?></span>
         <?php endif; ?>
         <br>
         <span style="font-size:.78rem;opacity:.8;">
