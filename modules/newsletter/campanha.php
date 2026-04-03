@@ -54,7 +54,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- PASSO 1: Configurar -->
 <div class="wiz-panel ativo" id="passo1">
     <div class="nl-fr">
-        <div class="nl-fg"><label class="nl-fl">Titulo interno</label><input type="text" class="nl-fi" id="nlTitulo" value="<?= e($camp ? $camp['titulo'] : '') ?>" placeholder="Ex: Newsletter Abril 2026"></div>
+        <div class="nl-fg"><label class="nl-fl">Título interno</label><input type="text" class="nl-fi" id="nlTitulo" value="<?= e($camp ? $camp['titulo'] : '') ?>" placeholder="Ex: Newsletter Abril 2026"></div>
         <div class="nl-fg"><label class="nl-fl">Assunto do e-mail</label><input type="text" class="nl-fi" id="nlAssunto" value="<?= e($camp ? $camp['assunto'] : '') ?>" placeholder="Ex: Novidades jurídicas - Abril"></div>
     </div>
 
@@ -62,20 +62,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <label class="nl-fl">Template</label>
         <div class="nl-tpl-grid" style="grid-template-columns:repeat(3,1fr);">
             <button type="button" class="nl-tpl-btn <?= (!$camp || $camp['template_tipo']==='informativo') ? 'sel' : '' ?>" data-tpl="informativo" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📰</span>Informativo</button>
-            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='felicitacoes') ? 'sel' : '' ?>" data-tpl="felicitacoes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎉</span>Felicitacoes</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='felicitacoes') ? 'sel' : '' ?>" data-tpl="felicitacoes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎉</span>Felicitações</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='novidades') ? 'sel' : '' ?>" data-tpl="novidades" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📢</span>Novidades</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='pesquisa') ? 'sel' : '' ?>" data-tpl="pesquisa" onclick="selTemplate(this)"><span class="nl-tpl-emoji">📋</span>Pesquisa</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='natal') ? 'sel' : '' ?>" data-tpl="natal" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎄</span>Natal</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='ano_novo') ? 'sel' : '' ?>" data-tpl="ano_novo" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🎆</span>Ano Novo</button>
-            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='pascoa') ? 'sel' : '' ?>" data-tpl="pascoa" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🐣</span>Pascoa</button>
-            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='dia_maes') ? 'sel' : '' ?>" data-tpl="dia_maes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">💐</span>Dia das Maes</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='pascoa') ? 'sel' : '' ?>" data-tpl="pascoa" onclick="selTemplate(this)"><span class="nl-tpl-emoji">🐣</span>Páscoa</button>
+            <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='dia_maes') ? 'sel' : '' ?>" data-tpl="dia_maes" onclick="selTemplate(this)"><span class="nl-tpl-emoji">💐</span>Dia das Mães</button>
             <button type="button" class="nl-tpl-btn <?= ($camp && $camp['template_tipo']==='dia_pais') ? 'sel' : '' ?>" data-tpl="dia_pais" onclick="selTemplate(this)"><span class="nl-tpl-emoji">👔</span>Dia dos Pais</button>
         </div>
     </div>
 
     <div class="nl-fr">
         <div class="nl-fg">
-            <label class="nl-fl">Conteudo do e-mail (HTML)</label>
+            <label class="nl-fl">Conteúdo do e-mail (HTML)</label>
             <div style="display:flex;gap:.5rem;margin-bottom:.4rem;">
                 <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#052228;color:#fff;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;">
                     <input type="file" id="nlUploadImg" accept="image/*" style="display:none;" onchange="uploadImagem(this)"> Inserir imagem
@@ -407,7 +407,7 @@ function verLista() {
 function salvarRascunho() {
     var titulo = document.getElementById('nlTitulo').value.trim();
     var assunto = document.getElementById('nlAssunto').value.trim();
-    if (!titulo) { alert('Preencha o titulo.'); return; }
+    if (!titulo) { alert('Preencha o título.'); return; }
     if (!assunto) { alert('Preencha o assunto.'); return; }
     var fd = new FormData();
     fd.append('action', 'salvar');

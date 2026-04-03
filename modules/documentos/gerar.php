@@ -554,9 +554,25 @@ if (!$showEditor) {
                 <div><label>Tipo de acao</label>
                     <select name="tipo_acao_citacao">
                         <?php
-                        $opCit = array('Alimentos','Revisional de Alimentos','Execucao de Alimentos','Divorcio','Divorcio Consensual','Divorcio Litigioso','Guarda','Guarda Compartilhada','Regulamentacao de Convivencia','Investigacao de Paternidade','Consumidor','Indenizacao','Obrigacao de Fazer','Cobranca','Usucapiao');
-                        foreach ($opCit as $oc): ?>
-                        <option value="<?= e($oc) ?>" <?= $tipoAcaoCitacao === $oc ? 'selected' : '' ?>><?= e($oc) ?></option>
+                        $opCit = array(
+                            'Alimentos' => 'Alimentos',
+                            'Revisional de Alimentos' => 'Revisional de Alimentos',
+                            'Execucao de Alimentos' => 'Execução de Alimentos',
+                            'Divorcio' => 'Divórcio',
+                            'Divorcio Consensual' => 'Divórcio Consensual',
+                            'Divorcio Litigioso' => 'Divórcio Litigioso',
+                            'Guarda' => 'Guarda',
+                            'Guarda Compartilhada' => 'Guarda Compartilhada',
+                            'Regulamentacao de Convivencia' => 'Regulamentação de Convivência',
+                            'Investigacao de Paternidade' => 'Investigação de Paternidade',
+                            'Consumidor' => 'Consumidor',
+                            'Indenizacao' => 'Indenização',
+                            'Obrigacao de Fazer' => 'Obrigação de Fazer',
+                            'Cobranca' => 'Cobrança',
+                            'Usucapiao' => 'Usucapião',
+                        );
+                        foreach ($opCit as $oc => $ocLabel): ?>
+                        <option value="<?= e($oc) ?>" <?= $tipoAcaoCitacao === $oc ? 'selected' : '' ?>><?= e($ocLabel) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

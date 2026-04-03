@@ -97,7 +97,7 @@ echo voltar_ao_processo_html();
         <select id="fPrio" onchange="reload()"><option value="">Prioridade</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></select>
     </div>
     <div style="display:flex;gap:.5rem;">
-        <button class="btn btn-outline btn-sm" style="font-size:.78rem;" onclick="toggleHistorico()">Historico</button>
+        <button class="btn btn-outline btn-sm" style="font-size:.78rem;" onclick="toggleHistorico()">Histórico</button>
         <button class="btn btn-primary btn-sm" style="font-size:.82rem;" onclick="abrirModal()">+ Nova Tarefa</button>
     </div>
 </div>
@@ -142,15 +142,15 @@ echo voltar_ao_processo_html();
                 <option value="">Selecione...</option>
                 <option value="Contestacao">Contestacao</option>
                 <option value="Replica">Replica</option>
-                <option value="Memoriais">Memoriais / Alegacoes Finais</option>
+                <option value="Memoriais">Memoriais / Alegações Finais</option>
                 <option value="Apelacao">Apelacao</option>
                 <option value="Embargos de Declaracao">Embargos de Declaracao</option>
                 <option value="Contrarrazoes">Contrarrazoes</option>
             </select>
         </div>
 
-        <div class="tk-fg"><label class="tk-fl">Titulo</label>
-            <input type="text" class="tk-fi" id="tkTitulo" placeholder="Ex: Elaborar contestacao do caso Silva">
+        <div class="tk-fg"><label class="tk-fl">Título</label>
+            <input type="text" class="tk-fi" id="tkTitulo" placeholder="Ex: Elaborar contestação do caso Silva">
         </div>
 
         <div class="tk-fg"><label class="tk-fl">Processo vinculado</label>
@@ -159,7 +159,7 @@ echo voltar_ao_processo_html();
             <div style="position:relative;"><div id="tkCasoList" style="display:none;position:absolute;top:0;left:0;right:0;z-index:10;background:#fff;border:1.5px solid var(--border);border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div></div>
         </div>
 
-        <div class="tk-fg"><label class="tk-fl">Descricao</label>
+        <div class="tk-fg"><label class="tk-fl">Descrição</label>
             <textarea class="tk-fi" id="tkDesc" rows="2" placeholder="Detalhes opcionais..."></textarea>
         </div>
 

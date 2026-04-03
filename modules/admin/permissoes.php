@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 require_role('admin');
 
-$pageTitle = 'Permissoes';
+$pageTitle = 'Permissões';
 $pdo = db();
 
 // Buscar todos os usuários ativos
@@ -23,15 +23,15 @@ $defaults = _permission_defaults();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
-    <h1 style="margin-bottom:1.5rem;">Permissoes por Usuario</h1>
+    <h1 style="margin-bottom:1.5rem;">Permissões por Usuário</h1>
 
     <table>
         <thead>
             <tr>
-                <th>Usuario</th>
+                <th>Usuário</th>
                 <th>Perfil</th>
                 <th>E-mail</th>
-                <th style="width:180px;">Acoes</th>
+                <th style="width:180px;">Ações</th>
             </tr>
         </thead>
         <tbody>
@@ -45,7 +45,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <span style="font-size:.8rem;color:#94a3b8;">Acesso total</span>
                     <?php else: ?>
                         <button class="btn btn-outline" style="font-size:.8rem;padding:4px 12px;" onclick="openPerms(<?= $u['id'] ?>, '<?= e($u['name']) ?>', '<?= e($u['role']) ?>')">
-                            Gerenciar Permissoes
+                            Gerenciar Permissões
                         </button>
                     <?php endif; ?>
                 </td>
@@ -60,7 +60,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="background:linear-gradient(135deg,#052228,#0d3640);color:#fff;padding:1.2rem 1.5rem;border-radius:12px 12px 0 0;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
                 <div>
-                    <h2 style="margin:0;font-size:1.1rem;" id="pmTitle">Permissoes</h2>
+                    <h2 style="margin:0;font-size:1.1rem;" id="pmTitle">Permissões</h2>
                     <div style="font-size:.8rem;opacity:.7;margin-top:.2rem;" id="pmRole"></div>
                 </div>
                 <button onclick="closePerms()" style="background:none;border:none;color:#fff;font-size:1.4rem;cursor:pointer;">X</button>
@@ -77,7 +77,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div style="display:flex;gap:.5rem;margin-top:1.5rem;justify-content:space-between;">
                 <button onclick="resetPerms()" class="btn btn-outline" style="font-size:.8rem;color:#dc2626;border-color:#dc2626;">
-                    Resetar para padrao do perfil
+                    Resetar para padrão do perfil
                 </button>
                 <div style="display:flex;gap:.5rem;">
                     <button onclick="closePerms()" class="btn btn-outline" style="font-size:.8rem;">Cancelar</button>
@@ -101,7 +101,7 @@ var pmApiUrl = '<?= url('modules/admin/permissoes_api.php') ?>';
 function openPerms(userId, userName, userRole) {
     pmUserId = userId;
     pmUserRole = userRole;
-    document.getElementById('pmTitle').textContent = 'Permissoes — ' + userName;
+    document.getElementById('pmTitle').textContent = 'Permissões — ' + userName;
     document.getElementById('pmRole').textContent = 'Perfil: ' + userRole.charAt(0).toUpperCase() + userRole.slice(1);
     document.getElementById('pmMsg').style.display = 'none';
 
@@ -125,8 +125,8 @@ function closePerms() {
 
 function renderGrid() {
     var html = '<table style="width:100%;font-size:.82rem;"><thead><tr>'
-        + '<th style="text-align:left;">Modulo</th>'
-        + '<th style="width:80px;text-align:center;">Padrao</th>'
+        + '<th style="text-align:left;">Módulo</th>'
+        + '<th style="width:80px;text-align:center;">Padrão</th>'
         + '<th style="width:120px;text-align:center;">Override</th>'
         + '</tr></thead><tbody>';
 
@@ -143,7 +143,7 @@ function renderGrid() {
         // Select de override
         var sel = '<select id="ov_' + mod + '" onchange="markChanged(\'' + mod + '\')" '
             + 'style="font-size:.78rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;width:110px;">';
-        sel += '<option value="default"' + (overrideVal === null ? ' selected' : '') + '>Padrao</option>';
+        sel += '<option value="default"' + (overrideVal === null ? ' selected' : '') + '>Padrão</option>';
 
         if (defaultAllowed) {
             // Já é permitido → override só pode bloquear
@@ -194,7 +194,7 @@ function savePerms() {
             var r = JSON.parse(x.responseText);
             var msg = document.getElementById('pmMsg');
             if (r.ok) {
-                msg.textContent = 'Permissoes salvas com sucesso!';
+                msg.textContent = 'Permissões salvas com sucesso!';
                 msg.style.background = '#ecfdf5';
                 msg.style.color = '#059669';
                 msg.style.display = 'block';
@@ -206,14 +206,14 @@ function savePerms() {
                 msg.style.display = 'block';
             }
         } catch(e) {
-            alert('Erro ao salvar permissoes');
+            alert('Erro ao salvar permissões');
         }
     };
     x.send(JSON.stringify(data));
 }
 
 function resetPerms() {
-    if (!confirm('Resetar todas as permissoes para o padrao do perfil?')) return;
+    if (!confirm('Resetar todas as permissões para o padrão do perfil?')) return;
 
     var x = new XMLHttpRequest();
     x.open('POST', pmApiUrl);
@@ -225,7 +225,7 @@ function resetPerms() {
                 pmOverrides = {};
                 renderGrid();
                 var msg = document.getElementById('pmMsg');
-                msg.textContent = 'Permissoes resetadas para padrao do perfil!';
+                msg.textContent = 'Permissões resetadas para padrão do perfil!';
                 msg.style.background = '#ecfdf5';
                 msg.style.color = '#059669';
                 msg.style.display = 'block';

@@ -139,7 +139,7 @@ h+='<div style="display:flex;align-items:center;gap:6px;padding:3px 0;border-bot
 +'<button onclick="event.stopPropagation();window._cdToggleTask('+t.id+',\''+t.status+'\')" style="background:none;border:none;cursor:pointer;font-size:.9rem;padding:0;line-height:1">'+(dn?'<span style="color:#059669">&#9745;</span>':'<span style="color:#d1d5db">&#9744;</span>')+'</button>'
 +'<span style="font-size:.77rem;'+(dn?'text-decoration:line-through;color:#94a3b8':'')+'">'+E(t.title)+'</span></div>'});
 h+='</div>'}
-h+='<div class="cs"><h5>Historico Pipeline</h5>';(D.pipeline_history||[]).forEach(function(ph){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+E(ph.user_name?ph.user_name.split(' ')[0]:'')+'</strong> moveu para <strong>'+(sl[ph.to_stage]||ph.to_stage)+'</strong> <span style="color:#94a3b8;font-size:.62rem">'+FD(ph.created_at)+'</span></div>'});if(!(D.pipeline_history||[]).length)h+='<div style="color:#94a3b8">Nenhuma</div>';h+='</div>'
+h+='<div class="cs"><h5>Histórico Pipeline</h5>';(D.pipeline_history||[]).forEach(function(ph){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+E(ph.user_name?ph.user_name.split(' ')[0]:'')+'</strong> moveu para <strong>'+(sl[ph.to_stage]||ph.to_stage)+'</strong> <span style="color:#94a3b8;font-size:.62rem">'+FD(ph.created_at)+'</span></div>'});if(!(D.pipeline_history||[]).length)h+='<div style="color:#94a3b8">Nenhuma</div>';h+='</div>'
 }else if(T==='operacional'&&s){
 var si=D.case_id;
 h+='<div class="cs"><h5>Processo</h5>'+RE('Pasta',s.title,'case',si,'title')+RE('Nr Processo',s.case_number,'case',si,'case_number')+RE('Vara',s.court,'case',si,'court')+RE('Comarca',s.comarca,'case',si,'comarca')+RE('UF',s.comarca_uf,'case',si,'comarca_uf')+RE('Regional',s.regional,'case',si,'regional')+RE('Sistema',s.sistema_tribunal,'case',si,'sistema_tribunal')+RE('Parte Re',s.parte_re_nome,'case',si,'parte_re_nome')+RE('CPF Parte Re',s.parte_re_cpf_cnpj,'case',si,'parte_re_cpf_cnpj')+RE('Link Drive',s.drive_folder_url,'case',si,'drive_folder_url')+'</div>';
@@ -174,7 +174,7 @@ console.log('[Drawer] resolve_doc OK: pending='+r.pending+' case_id='+r.case_id+
 }catch(e){console.error('[Drawer] resolve_doc parse error',x.responseText);alert('Erro de comunicacao. Atualize a pagina e tente novamente.');if(b){b.textContent='Recebido';b.disabled=false}return}
 var reopen=D.lead_id?'lead_id='+D.lead_id:(D.case_id?'case_id='+D.case_id:'client_id='+D.client_id);
 cdOpen(reopen);setTimeout(function(){T='docs';rtab()},600)};
-x.onerror=function(){alert('Erro de rede. Verifique a conexao.');if(b){b.textContent='Recebido';b.disabled=false}};
+x.onerror=function(){alert('Erro de rede. Verifique a conexão.');if(b){b.textContent='Recebido';b.disabled=false}};
 x.send('action=resolve_doc&doc_id='+id+'&case_id='+(D.case_id||0)+'&csrf_token='+(D.csrf||''))};
 
 window._cdToggleTask=function(taskId,currentStatus){

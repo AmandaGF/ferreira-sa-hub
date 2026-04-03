@@ -55,7 +55,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Config Brevo -->
 <?php if (has_role('admin')): ?>
 <div class="nl-config">
-    <h4 style="margin:0 0 .5rem;font-size:.85rem;">Configuracao Brevo (e-mail)</h4>
+    <h4 style="margin:0 0 .5rem;font-size:.85rem;">Configuração Brevo (e-mail)</h4>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:end;">
         <div style="flex:1;min-width:200px;"><label style="font-size:.7rem;color:var(--text-muted);">API Key</label><input type="password" id="cfgKey" value="<?= e($brevoKey) ?>" class="form-input" style="font-size:.8rem;" placeholder="xkeysib-..."></div>
         <div style="min-width:180px;"><label style="font-size:.7rem;color:var(--text-muted);">E-mail remetente</label><input type="text" id="cfgEmail" value="<?= e($brevoEmail) ?>" class="form-input" style="font-size:.8rem;"></div>
@@ -80,7 +80,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php else: ?>
     <table>
         <thead><tr>
-            <th>Titulo</th><th>Assunto</th><th>Tipo</th><th>Status</th><th>Destinatarios</th><th>Aberturas</th><th>Data</th><th>Acoes</th>
+            <th>Título</th><th>Assunto</th><th>Tipo</th><th>Status</th><th>Destinatarios</th><th>Aberturas</th><th>Data</th><th>Ações</th>
         </tr></thead>
         <tbody>
         <?php
@@ -126,7 +126,7 @@ function salvarConfig() {
     x.onload = function() {
         try { var r = JSON.parse(x.responseText); if (r.csrf) CSRF = r.csrf;
             var m = document.getElementById('cfgMsg');
-            m.textContent = r.ok ? 'Configuracao salva!' : (r.error || 'Erro');
+            m.textContent = r.ok ? 'Configuração salva!' : (r.error || 'Erro');
             m.style.background = r.ok ? '#ecfdf5' : '#fef2f2';
             m.style.color = r.ok ? '#059669' : '#dc2626';
             m.style.display = 'block';
@@ -141,7 +141,7 @@ function testarBrevo() {
         try { var r = JSON.parse(x.responseText);
             var m = document.getElementById('cfgMsg');
             if (r.error) { m.textContent = 'Erro: ' + r.error; m.style.background='#fef2f2'; m.style.color='#dc2626'; }
-            else { m.textContent = 'Conexao OK! Conta: ' + (r.email || '?'); m.style.background='#ecfdf5'; m.style.color='#059669'; }
+            else { m.textContent = 'Conexão OK! Conta: ' + (r.email || '?'); m.style.background='#ecfdf5'; m.style.color='#059669'; }
             m.style.display = 'block';
         } catch(e) { alert('Erro ao testar'); }
     }; x.send();

@@ -526,7 +526,7 @@ function template_citacao_whatsapp($d) {
     $tipoAcao = isset($d['tipo_acao_citacao']) && $d['tipo_acao_citacao'] ? $d['tipo_acao_citacao'] : '_______________';
     $justificativa = isset($d['justificativa_citacao']) && $d['justificativa_citacao'] ? $d['justificativa_citacao'] : '';
 
-    $html = '<div class="doc-title">PETICAO INTERCORRENTE</div>';
+    $html = '<div class="doc-title">PETIÇÃO INTERCORRENTE</div>';
     $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUIZO DA ' . f($vara) . '</p>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, ja qualificado(a) nos autos do processo em epigrafe, vem, respeitosamente, perante Vossa Excelencia, por intermedio de seus advogados que esta subscrevem, com escritorio profissional indicado no rodape, requerer a</p>';
@@ -539,7 +539,7 @@ function template_citacao_whatsapp($d) {
     $html .= '<p>Dispoe o referido dispositivo legal:</p>';
     $html .= '<div style="margin:12px 0 12px 40px;padding:10px 16px;border-left:4px solid #B87333;background:#f8f8f6;font-style:italic;font-size:11px;color:#333;">&ldquo;Art. 246. A citacao sera feita preferencialmente por meio eletronico, no prazo de ate 2 (dois) dias uteis, contado da decisao que a determinar, por meio dos enderecos eletronicos indicados pelo citando no banco de dados do Poder Judiciario ou, na falta, por meio eletronico, na forma prevista em lei.&rdquo;</div>';
     $html .= '<p>A jurisprudencia dos Tribunais brasileiros tem admitido a citacao por WhatsApp como meio idoneo e eficaz de comunicacao processual, desde que possibilite a <strong>confirmacao de recebimento e leitura</strong> pelo destinatario, em respeito aos principios do contraditorio e da ampla defesa.</p>';
-    $html .= '<p>Nesse sentido, o <strong>Conselho Nacional de Justica (CNJ)</strong>, por meio da <strong>Resolucao n. 354/2020</strong>, regulamentou a comunicacao de atos processuais por meio eletronico, consolidando a possibilidade de utilizacao de aplicativos de mensageria para citacoes e intimacoes.</p>';
+    $html .= '<p>Nesse sentido, o <strong>Conselho Nacional de Justica (CNJ)</strong>, por meio da <strong>Resolução n. 354/2020</strong>, regulamentou a comunicacao de atos processuais por meio eletronico, consolidando a possibilidade de utilizacao de aplicativos de mensageria para citacoes e intimacoes.</p>';
     if ($justificativa) {
         $html .= '<p>Ademais, cabe destacar que: <strong>' . f($justificativa) . '</strong>, o que reforca a necessidade e conveniencia da citacao por meio eletronico.</p>';
     }
