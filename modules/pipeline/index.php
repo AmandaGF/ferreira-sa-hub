@@ -31,7 +31,7 @@ $searchPipeline = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 
 // Buscar leads (exceto finalizados)
-$pipeWhere = "pl.stage NOT IN ('finalizado','perdido')";
+$pipeWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')";
 $pipeParams = array();
 if ($searchPipeline) {
     $pipeWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";

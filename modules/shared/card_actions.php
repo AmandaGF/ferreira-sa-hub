@@ -135,14 +135,20 @@ switch ($action) {
             $removedWhat[] = 'caso #' . $caseId . ' arquivado';
         }
 
-        // Finalizar lead (sai do Kanban Comercial)
+        // Arquivar lead (sai do Kanban Comercial, sem afetar métrica de perdidos)
         if ($leadId) {
-            $pdo->prepare("UPDATE pipeline_leads SET stage = 'perdido', updated_at = NOW() WHERE id = ?")
-                ->execute(array($leadId));
+            $stageAtual = '';
+            $sl = $pdo->prepare("SELECT stage FROM pipeline_leads WHERE id = ?");
+            $sl->execute(array($leadId));
+            $sr = $sl->fetch();
+            if ($sr) $stageAtual = $sr['stage'];
+
+            $pdo->prepare("UPDATE pipeline_leads SET stage = 'arquivado', arquivado_por = ?, arquivado_em = NOW(), updated_at = NOW() WHERE id = ?")
+                ->execute(array($userId, $leadId));
             $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
-                ->execute(array($leadId, 'removido', 'perdido', $userId, 'Removido do fluxo via drawer'));
-            audit_log('lead_removed', 'lead', $leadId, 'Removido do fluxo via drawer por ' . $userName);
-            $removedWhat[] = 'lead #' . $leadId . ' removido';
+                ->execute(array($leadId, $stageAtual, 'arquivado', $userId, 'Arquivado via drawer por ' . $userName));
+            audit_log('lead_archived', 'lead', $leadId, 'Arquivado via drawer por ' . $userName);
+            $removedWhat[] = 'lead #' . $leadId . ' arquivado';
         }
 
         echo json_encode(array('ok' => true, 'removed' => implode(' + ', $removedWhat)));
