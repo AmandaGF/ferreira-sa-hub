@@ -108,7 +108,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
-    <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm">← Voltar</a>
+    <?php
+    $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+    $fromProcessos = (strpos($referer, '/processos') !== false);
+    $voltarUrl = $fromProcessos ? module_url('processos') : module_url('operacional');
+    $voltarLabel = $fromProcessos ? 'Processos' : 'Operacional';
+    ?>
+    <a href="<?= $voltarUrl ?>" class="btn btn-outline btn-sm">&larr; <?= $voltarLabel ?></a>
     <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <?php if ($case['client_id']): ?>

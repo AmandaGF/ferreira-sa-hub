@@ -130,9 +130,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <a href="<?= module_url('processos') ?>" class="btn btn-outline btn-sm">Limpar</a>
         <?php endif; ?>
     </form>
-    <?php if (has_min_role('gestao')): ?>
-        <a href="<?= module_url('crm', 'importar_processos.php') ?>" class="btn btn-outline btn-sm">📥 Importar CSV</a>
-    <?php endif; ?>
+    <div style="display:flex;gap:.5rem;">
+        <?php if (has_min_role('gestao')): ?>
+            <a href="<?= module_url('crm', 'importar_processos.php') ?>" class="btn btn-outline btn-sm">Importar CSV</a>
+        <?php endif; ?>
+        <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Processo</a>
+    </div>
 </div>
 
 <!-- Tabela -->
