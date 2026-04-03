@@ -115,41 +115,37 @@ switch ($action) {
         break;
 
     // ═══════════════════════════════════════
-    // EXCLUIR CARD (lead e/ou caso)
+    // REMOVER CARD DO FLUXO (arquiva, não apaga dados)
     // ═══════════════════════════════════════
     case 'delete_card':
         if (!has_min_role('gestao')) {
-            echo json_encode(array('error' => 'Apenas gestão ou admin pode excluir.'));
+            echo json_encode(array('error' => 'Apenas gestão ou admin pode remover.'));
             break;
         }
 
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
-        $deletedWhat = array();
+        $removedWhat = array();
 
-        // Excluir caso (e desvincula do lead)
+        // Arquivar caso (sai do Kanban Operacional)
         if ($caseId) {
-            $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = NULL WHERE linked_case_id = ?")->execute(array($caseId));
-            $pdo->prepare("DELETE FROM documentos_pendentes WHERE case_id = ?")->execute(array($caseId));
-            $pdo->prepare("DELETE FROM case_tasks WHERE case_id = ?")->execute(array($caseId));
-            try { $pdo->prepare("DELETE FROM case_andamentos WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
-            try { $pdo->prepare("DELETE FROM card_comments WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
-            $pdo->prepare("DELETE FROM cases WHERE id = ?")->execute(array($caseId));
-            audit_log('case_deleted', 'case', $caseId, 'Via drawer por ' . $userName);
-            $deletedWhat[] = 'caso #' . $caseId;
+            $pdo->prepare("UPDATE cases SET status = 'arquivado', closed_at = CURDATE(), updated_at = NOW() WHERE id = ?")
+                ->execute(array($caseId));
+            audit_log('case_archived', 'case', $caseId, 'Removido do fluxo via drawer por ' . $userName);
+            $removedWhat[] = 'caso #' . $caseId . ' arquivado';
         }
 
-        // Excluir lead
+        // Finalizar lead (sai do Kanban Comercial)
         if ($leadId) {
-            $pdo->prepare("DELETE FROM pipeline_history WHERE lead_id = ?")->execute(array($leadId));
-            try { $pdo->prepare("DELETE FROM card_comments WHERE lead_id = ?")->execute(array($leadId)); } catch (Exception $e) {}
-            try { $pdo->prepare("DELETE FROM documentos_pendentes WHERE lead_id = ?")->execute(array($leadId)); } catch (Exception $e) {}
-            $pdo->prepare("DELETE FROM pipeline_leads WHERE id = ?")->execute(array($leadId));
-            audit_log('lead_deleted', 'lead', $leadId, 'Via drawer por ' . $userName);
-            $deletedWhat[] = 'lead #' . $leadId;
+            $pdo->prepare("UPDATE pipeline_leads SET stage = 'perdido', updated_at = NOW() WHERE id = ?")
+                ->execute(array($leadId));
+            $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                ->execute(array($leadId, 'removido', 'perdido', $userId, 'Removido do fluxo via drawer'));
+            audit_log('lead_removed', 'lead', $leadId, 'Removido do fluxo via drawer por ' . $userName);
+            $removedWhat[] = 'lead #' . $leadId . ' removido';
         }
 
-        echo json_encode(array('ok' => true, 'deleted' => implode(' + ', $deletedWhat)));
+        echo json_encode(array('ok' => true, 'removed' => implode(' + ', $removedWhat)));
         break;
 
     default:

@@ -165,20 +165,18 @@ x.onerror=function(){alert('Erro de rede. Verifique a conexao.');if(b){b.textCon
 x.send('action=resolve_doc&doc_id='+id+'&case_id='+(D.case_id||0)+'&csrf_token='+(D.csrf||''))};
 
 window._cdDelete=function(){
-var msg='Tem certeza que deseja EXCLUIR este card?\n\n';
-if(D.lead_id&&D.case_id)msg+='Isso vai apagar o lead do Pipeline E o caso do Operacional.';
-else if(D.lead_id)msg+='Isso vai apagar o lead do Pipeline Comercial.';
-else if(D.case_id)msg+='Isso vai apagar o caso do Operacional.';
-msg+='\n\nEssa ação NÃO pode ser desfeita.';
+var msg='Remover este card do fluxo?\n\n';
+if(D.lead_id&&D.case_id)msg+='O lead sai do Pipeline e o caso é arquivado no Operacional.\nOs dados (processo, documentos, histórico) continuam salvos.';
+else if(D.lead_id)msg+='O lead sai do Pipeline Comercial.\nOs dados do cliente continuam salvos.';
+else if(D.case_id)msg+='O caso é arquivado no Operacional.\nOs dados (processo, documentos, histórico) continuam salvos.';
 if(!confirm(msg))return;
 var x=new XMLHttpRequest();x.open('POST',XU);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
 x.onload=function(){
 try{var r=JSON.parse(x.responseText);
 if(r.error){alert('Erro: '+r.error);return}
 cdClose();
-alert('Excluído: '+r.deleted);
 location.reload();
-}catch(e){alert('Erro ao excluir')}
+}catch(e){alert('Erro ao remover')}
 };
 x.send('action=delete_card&lead_id='+(D.lead_id||0)+'&case_id='+(D.case_id||0))};
 
