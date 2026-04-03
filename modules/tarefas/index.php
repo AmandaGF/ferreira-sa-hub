@@ -15,9 +15,9 @@ $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY na
 // KPIs
 $kpis = array('pendentes' => 0, 'vencidas' => 0, 'concluidas_mes' => 0, 'prazos_7d' => 0);
 try {
-    $kpis['pendentes'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE status IN ('a_fazer','em_andamento')")->fetchColumn();
-    $kpis['vencidas'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE due_date < CURDATE() AND status NOT IN ('concluido')")->fetchColumn();
-    $kpis['concluidas_mes'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND DATE_FORMAT(completed_at,'%Y-%m')='" . date('Y-m') . "'")->fetchColumn();
+    $kpis['pendentes'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE status IN ('a_fazer','em_andamento') AND tipo IS NOT NULL AND tipo != ''")->fetchColumn();
+    $kpis['vencidas'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE due_date < CURDATE() AND status NOT IN ('concluido') AND tipo IS NOT NULL AND tipo != ''")->fetchColumn();
+    $kpis['concluidas_mes'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND DATE_FORMAT(completed_at,'%Y-%m')='" . date('Y-m') . "' AND tipo IS NOT NULL AND tipo != ''")->fetchColumn();
     $kpis['prazos_7d'] = (int)$pdo->query("SELECT COUNT(*) FROM case_tasks WHERE tipo='prazo' AND status NOT IN ('concluido') AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)")->fetchColumn();
 } catch (Exception $e) {}
 

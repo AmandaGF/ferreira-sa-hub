@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $prioridade = $_GET['prioridade'] ?? '';
         $caseFilter = (int)($_GET['case_id'] ?? 0);
 
-        $where = array('1=1');
+        $where = array("t.tipo IS NOT NULL AND t.tipo != ''");
         $params = array();
 
         if ($responsavel) { $where[] = 't.assigned_to = ?'; $params[] = $responsavel; }
