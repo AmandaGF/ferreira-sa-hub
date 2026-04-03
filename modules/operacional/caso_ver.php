@@ -430,7 +430,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
                             <div>
                                 <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;"><?= $lbl ?></span>
-                                <span style="font-size:.7rem;color:var(--text-muted);margin-left:8px;"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?></span>
+                                <span style="font-size:.7rem;color:var(--text-muted);margin-left:8px;"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
@@ -441,7 +441,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>
                                 <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;">
-                                    <a href="#" onclick="enviarWhatsApp(<?= $and['id'] ?>, &quot;<?= htmlspecialchars($waFullUrl, ENT_QUOTES, 'UTF-8') ?>&quot;); return false;" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">Enviar</a>
+                                    <a href="<?= e($waFullUrl) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">Enviar</a>
                                     <?php if ($jaEnviou): ?>
                                         <span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span>
                                     <?php endif; ?>
@@ -483,36 +483,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <script>
-function enviarWhatsApp(andamentoId, waUrl) {
-    // 1. Abrir WhatsApp
-    window.open(waUrl, '_blank');
-
-    // 2. Registrar envio via AJAX
+function logWhatsApp(andamentoId) {
+    // Registrar envio via AJAX (o link href já abre o WhatsApp)
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
     xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        // Atualizar visual
-        var wrap = document.getElementById('waBtnWrap' + andamentoId);
-        if (wrap) {
-            var existing = wrap.querySelector('span[style*="059669"]');
-            if (!existing) {
-                var badge = document.createElement('span');
-                badge.style.cssText = 'font-size:.65rem;color:#059669;font-weight:600;';
-                var agora = new Date();
-                badge.textContent = '✓ ' + agora.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
-                wrap.appendChild(badge);
-            }
-        }
         var btn = document.getElementById('waBtn' + andamentoId);
         if (btn) {
-            btn.textContent = '✓ Enviado';
+            btn.textContent = 'Enviado';
             btn.style.background = '#047857';
-            setTimeout(function() { btn.innerHTML = '💬 Reenviar'; btn.style.background = '#25D366'; }, 3000);
+            setTimeout(function() { btn.textContent = 'Reenviar'; btn.style.background = '#25D366'; }, 3000);
+        }
+        var wrap = document.getElementById('waBtnWrap' + andamentoId);
+        if (wrap && !wrap.querySelector('span[style*="059669"]')) {
+            var badge = document.createElement('span');
+            badge.style.cssText = 'font-size:.65rem;color:#059669;font-weight:600;';
+            var agora = new Date();
+            badge.textContent = 'ok ' + agora.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+            wrap.appendChild(badge);
         }
     };
-    xhr.send('action=log_whatsapp_andamento&andamento_id=' + andamentoId + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= csrf_token() ?>');
+    xhr.send('action=log_whatsapp_andamento&andamento_id=' + andamentoId + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
 }
 
 function copiarNumero(el) {
