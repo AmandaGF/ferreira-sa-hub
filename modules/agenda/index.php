@@ -926,7 +926,16 @@ function atualizarPreview() {
     prev.style.display = 'block';
 }
 document.getElementById('agMsgCliente').addEventListener('input', atualizarPreview);
-document.getElementById('agDtInicio').addEventListener('change', atualizarPreview);
+document.getElementById('agDtInicio').addEventListener('change', function() {
+    atualizarPreview();
+    // Auto-preencher data/hora fim = início + 1 hora
+    var val = this.value;
+    if (val) {
+        var dt = new Date(val);
+        dt.setHours(dt.getHours() + 1);
+        document.getElementById('agDtFim').value = fmtDatetime(dt);
+    }
+});
 document.getElementById('agClienteBusca').addEventListener('input', atualizarPreview);
 
 // ── SALVAR ──────────────────────────────────────────────────
