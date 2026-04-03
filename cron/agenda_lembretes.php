@@ -113,4 +113,58 @@ foreach ($eventos2h as $ev) {
 }
 
 echo "\nTotal 1d: " . count($eventos1d) . " | Total 2h: " . count($eventos2h) . "\n";
+
+// ── 3. Alertas de prazos processuais (tarefas tipo=prazo) ──
+echo "\n--- Alertas de Prazos ---\n";
+try {
+    $amanha = (new DateTime())->modify('+1 day')->format('Y-m-d');
+    $stmtPrazos = $pdo->prepare(
+        "SELECT t.id, t.title, t.due_date, t.prazo_alerta, t.case_id, t.assigned_to,
+                cs.title as case_title, u.name as assigned_name
+         FROM case_tasks t
+         LEFT JOIN cases cs ON cs.id = t.case_id
+         LEFT JOIN users u ON u.id = t.assigned_to
+         WHERE t.tipo = 'prazo'
+           AND t.status NOT IN ('concluido')
+           AND t.alerta_enviado = 0
+           AND t.prazo_alerta IS NOT NULL
+           AND t.prazo_alerta <= ?"
+    );
+    $stmtPrazos->execute(array($amanha));
+    $prazosAlert = $stmtPrazos->fetchAll();
+
+    // Buscar todos admin + operacional para notificar
+    $opUsers = $pdo->query("SELECT id FROM users WHERE role IN ('admin','gestao','operacional') AND is_active = 1")->fetchAll();
+
+    foreach ($prazosAlert as $pr) {
+        $dataFmt = date('d/m/Y', strtotime($pr['due_date']));
+        $titulo = 'Prazo: ' . ($pr['title'] ?: 'Tarefa #' . $pr['id']);
+        $msg = 'Prazo fatal em ' . $dataFmt . ' — ' . ($pr['case_title'] ?: 'Processo #' . $pr['case_id']);
+
+        // Notificar todos os operacionais + admin
+        foreach ($opUsers as $ou) {
+            try {
+                notify(
+                    (int)$ou['id'],
+                    $titulo,
+                    $msg,
+                    'urgencia',
+                    '/conecta/modules/tarefas/',
+                    ''
+                );
+            } catch (Exception $ex) {}
+        }
+
+        // Marcar alerta como enviado
+        $pdo->prepare("UPDATE case_tasks SET alerta_enviado = 1 WHERE id = ?")
+            ->execute(array($pr['id']));
+
+        echo "  [PRAZO] #" . $pr['id'] . " — " . $pr['title'] . " (fatal: " . $dataFmt . ") => " . count($opUsers) . " notificados\n";
+    }
+
+    echo "Total prazos alertados: " . count($prazosAlert) . "\n";
+} catch (Exception $e) {
+    echo "  [ERRO PRAZOS] " . $e->getMessage() . "\n";
+}
+
 echo "=== FIM ===\n";
