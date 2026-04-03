@@ -90,7 +90,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('clientes') ?>" class="text-sm text-muted" style="display:inline-block;margin-bottom:.25rem;">← Voltar aos Clientes</a>
         <div class="cli-profile-name"><?= e($client['name']) ?></div>
         <div class="cli-profile-meta">
-            <?php if ($client['cpf']): ?>CPF: <?= e($client['cpf']) ?> · <?php endif; ?>
+            <?php if ($client['cpf']): ?><?= strlen(preg_replace('/\D/', '', $client['cpf'])) > 11 ? 'CNPJ' : 'CPF' ?>: <?= e($client['cpf']) ?> · <?php endif; ?>
             <?php if ($client['source']): ?>Origem: <?= e($client['source']) ?> · <?php endif; ?>
             Cadastrado em <?= $client['created_at'] ? date('d/m/Y', strtotime($client['created_at'])) : '—' ?>
         </div>
@@ -118,7 +118,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="card-body">
         <div class="info-grid">
             <div class="info-item"><label>Nome</label><span><?= e($client['name']) ?></span></div>
-            <div class="info-item"><label>CPF</label><span><?= e($client['cpf'] ? $client['cpf'] : '—') ?></span></div>
+            <div class="info-item"><label>CPF / CNPJ</label><span><?= e($client['cpf'] ? $client['cpf'] : '—') ?></span></div>
             <div class="info-item"><label>RG</label><span><?= e(isset($client['rg']) && $client['rg'] ? $client['rg'] : '—') ?></span></div>
             <div class="info-item"><label>Nascimento</label><span><?= $client['birth_date'] ? date('d/m/Y', strtotime($client['birth_date'])) : '—' ?></span></div>
             <div class="info-item"><label>Telefone</label><span><?= e($client['phone'] ? $client['phone'] : '—') ?></span></div>
@@ -130,6 +130,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php if (isset($client['children_names']) && $client['children_names']): ?>
                 <div class="info-item" style="grid-column:1/-1;"><label>Nome(s) dos filhos</label><span><?= e($client['children_names']) ?></span></div>
             <?php endif; ?>
+            <div class="info-item"><label>Nacionalidade</label><span><?= e(isset($client['nacionalidade']) && $client['nacionalidade'] ? $client['nacionalidade'] : '—') ?></span></div>
             <div class="info-item"><label>Chave PIX</label><span><?= e(isset($client['pix_key']) && $client['pix_key'] ? $client['pix_key'] : '—') ?></span></div>
         </div>
     </div>

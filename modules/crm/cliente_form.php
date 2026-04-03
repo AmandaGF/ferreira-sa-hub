@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $f = [
         'name'           => clean_str($_POST['name'] ?? '', 150),
-        'cpf'            => clean_str($_POST['cpf'] ?? '', 14),
+        'cpf'            => clean_str($_POST['cpf'] ?? '', 18),
         'rg'             => clean_str($_POST['rg'] ?? '', 20),
         'birth_date'     => $_POST['birth_date'] ?? null,
         'email'          => trim($_POST['email'] ?? ''),
@@ -41,6 +41,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'address_zip'    => clean_str($_POST['address_zip'] ?? '', 10),
         'profession'     => clean_str($_POST['profession'] ?? '', 100),
         'marital_status' => clean_str($_POST['marital_status'] ?? '', 30),
+        'gender'         => clean_str($_POST['gender'] ?? '', 20),
+        'has_children'   => isset($_POST['has_children']) ? (int)$_POST['has_children'] : null,
+        'children_names' => clean_str($_POST['children_names'] ?? '', 500),
+        'pix_key'        => clean_str($_POST['pix_key'] ?? '', 100),
+        'nacionalidade'  => clean_str($_POST['nacionalidade'] ?? '', 50),
         'source'         => $_POST['source'] ?? 'outro',
         'notes'          => clean_str($_POST['notes'] ?? '', 2000),
     ];
@@ -60,13 +65,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare(
                 'UPDATE clients SET name=?, cpf=?, rg=?, birth_date=?, email=?, phone=?, phone2=?,
                  address_street=?, address_city=?, address_state=?, address_zip=?,
-                 profession=?, marital_status=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
+                 profession=?, marital_status=?, gender=?, has_children=?, children_names=?,
+                 pix_key=?, nacionalidade=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
             )->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
                 $f['address_street'] ?: null, $f['address_city'] ?: null,
                 $f['address_state'] ?: null, $f['address_zip'] ?: null,
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
+                $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
+                $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, $editId
             ]);
             audit_log('client_updated', 'client', $editId);
@@ -75,14 +83,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare(
                 'INSERT INTO clients (name, cpf, rg, birth_date, email, phone, phone2,
                  address_street, address_city, address_state, address_zip,
-                 profession, marital_status, source, notes, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                 profession, marital_status, gender, has_children, children_names,
+                 pix_key, nacionalidade, source, notes, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
                 $f['address_street'] ?: null, $f['address_city'] ?: null,
                 $f['address_state'] ?: null, $f['address_zip'] ?: null,
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
+                $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
+                $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, current_user_id()
             ]);
             $newId = (int)$pdo->lastInsertId();
@@ -107,6 +118,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'address_zip'    => $client['address_zip'] ?? '',
         'profession'     => $client['profession'] ?? '',
         'marital_status' => $client['marital_status'] ?? '',
+        'gender'         => $client['gender'] ?? '',
+        'has_children'   => $client['has_children'] ?? null,
+        'children_names' => $client['children_names'] ?? '',
+        'pix_key'        => $client['pix_key'] ?? '',
+        'nacionalidade'  => $client['nacionalidade'] ?? '',
         'source'         => $client['source'] ?? 'outro',
         'notes'          => $client['notes'] ?? '',
     ];
@@ -137,7 +153,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">CPF</label>
+                        <label class="form-label">CPF / CNPJ</label>
                         <input type="text" name="cpf" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)">
                     </div>
                     <div class="form-group">
@@ -218,6 +234,41 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <option value="calculadora" <?= $f['source'] === 'calculadora' ? 'selected' : '' ?>>Calculadora</option>
                             <option value="presencial" <?= $f['source'] === 'presencial' ? 'selected' : '' ?>>Presencial</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Sexo</label>
+                        <select name="gender" class="form-select">
+                            <option value="">—</option>
+                            <option value="masculino" <?= $f['gender'] === 'masculino' ? 'selected' : '' ?>>Masculino</option>
+                            <option value="feminino" <?= $f['gender'] === 'feminino' ? 'selected' : '' ?>>Feminino</option>
+                            <option value="outro" <?= $f['gender'] === 'outro' ? 'selected' : '' ?>>Outro</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nacionalidade</label>
+                        <input type="text" name="nacionalidade" class="form-input" value="<?= e($f['nacionalidade']) ?>" placeholder="Brasileiro(a)">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Chave PIX</label>
+                        <input type="text" name="pix_key" class="form-input" value="<?= e($f['pix_key']) ?>" placeholder="CPF, e-mail, telefone ou chave aleatória">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Tem filhos?</label>
+                        <select name="has_children" class="form-select">
+                            <option value="">—</option>
+                            <option value="1" <?= $f['has_children'] === 1 || $f['has_children'] === '1' ? 'selected' : '' ?>>Sim</option>
+                            <option value="0" <?= $f['has_children'] === 0 || $f['has_children'] === '0' ? 'selected' : '' ?>>Não</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="grid-column: span 2;">
+                        <label class="form-label">Nome(s) dos filhos</label>
+                        <input type="text" name="children_names" class="form-input" value="<?= e($f['children_names']) ?>" placeholder="Ex: João (5 anos), Maria (3 anos)">
                     </div>
                 </div>
 
