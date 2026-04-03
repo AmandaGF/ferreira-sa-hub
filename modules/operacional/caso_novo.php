@@ -124,16 +124,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } catch (Exception $e) {}
     }
-    // Réu (se preenchido)
-    if ($parte_re_nome !== '') {
+
+    // Partes adicionadas no formulário (múltiplas)
+    $partesNomes = isset($_POST['partes_nome']) ? $_POST['partes_nome'] : array();
+    $partesDocs = isset($_POST['partes_doc']) ? $_POST['partes_doc'] : array();
+    $partesPapeis = isset($_POST['partes_papel']) ? $_POST['partes_papel'] : array();
+    $partesTipos = isset($_POST['partes_tipo']) ? $_POST['partes_tipo'] : array();
+    for ($pi = 0; $pi < count($partesNomes); $pi++) {
+        $pNome = trim($partesNomes[$pi]);
+        if ($pNome === '') continue;
+        $pDoc = isset($partesDocs[$pi]) ? trim($partesDocs[$pi]) : '';
+        $pPapel = isset($partesPapeis[$pi]) ? $partesPapeis[$pi] : 'reu';
+        $pTipo = isset($partesTipos[$pi]) ? $partesTipos[$pi] : 'fisica';
         try {
-            $tipoReu = (strlen(preg_replace('/\D/', '', $parte_re_cpf_cnpj)) > 11) ? 'juridica' : 'fisica';
-            if ($tipoReu === 'juridica') {
+            if ($pTipo === 'juridica') {
                 $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, razao_social, cnpj) VALUES (?,?,?,?,?)")
-                    ->execute(array($newId, 'reu', 'juridica', $parte_re_nome, $parte_re_cpf_cnpj));
+                    ->execute(array($newId, $pPapel, 'juridica', $pNome, $pDoc));
             } else {
                 $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf) VALUES (?,?,?,?,?)")
-                    ->execute(array($newId, 'reu', 'fisica', $parte_re_nome, $parte_re_cpf_cnpj));
+                    ->execute(array($newId, $pPapel, 'fisica', $pNome, $pDoc));
             }
         } catch (Exception $e) {}
     }
@@ -261,18 +270,49 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
 
-                <!-- Parte Ré -->
-                <div class="form-row">
-                    <div class="form-col" style="max-width:220px;">
-                        <label>CPF/CNPJ da Parte Ré</label>
-                        <input type="text" id="parteReCpfCnpj" name="parte_re_cpf_cnpj" class="form-input" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarCpfCnpj()">
-                        <span id="parteReLoading" style="display:none;font-size:.72rem;color:var(--text-muted);">Buscando...</span>
+                <!-- Partes do Processo -->
+                <div style="background:#f8f9fa;border:1.5px solid var(--border);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+                        <label style="font-weight:700;font-size:.85rem;">Partes do Processo</label>
+                        <button type="button" onclick="addParteRow()" class="btn btn-outline btn-sm" style="font-size:.72rem;">+ Adicionar Parte</button>
                     </div>
-                    <div class="form-col">
-                        <label>Nome da Parte Ré</label>
-                        <input type="text" id="parteReNome" name="parte_re_nome" class="form-input" placeholder="Nome da parte contrária">
+                    <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem;">O cliente selecionado acima será adicionado automaticamente como Autor.</p>
+                    <div id="partesRows">
+                        <!-- Réu padrão -->
+                        <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
+                            <div style="width:140px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
+                                <select name="partes_papel[]" class="form-select" style="font-size:.82rem;">
+                                    <option value="reu" selected>Réu</option>
+                                    <option value="autor">Autor</option>
+                                    <option value="representante_legal">Rep. Legal</option>
+                                    <option value="terceiro_interessado">3º Interessado</option>
+                                    <option value="litisconsorte_ativo">Litis. Ativo</option>
+                                    <option value="litisconsorte_passivo">Litis. Passivo</option>
+                                </select>
+                            </div>
+                            <div style="width:100px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>
+                                <select name="partes_tipo[]" class="form-select" style="font-size:.82rem;">
+                                    <option value="fisica">PF</option>
+                                    <option value="juridica">PJ</option>
+                                </select>
+                            </div>
+                            <div style="width:150px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18">
+                            </div>
+                            <div style="flex:1;min-width:180px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
+                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte">
+                            </div>
+                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
+                        </div>
                     </div>
                 </div>
+                <!-- Campos legados (hidden, para backward compatibility) -->
+                <input type="hidden" name="parte_re_nome" id="parteReNomeHidden" value="">
+                <input type="hidden" name="parte_re_cpf_cnpj" id="parteReCpfHidden" value="">
 
                 <!-- Filhos (aparece para alimentos) -->
                 <div id="secaoFilhos" style="display:none;margin-bottom:.85rem;padding:1rem;background:rgba(184,115,51,.06);border:1.5px solid rgba(184,115,51,.2);border-radius:10px;">
@@ -654,11 +694,41 @@ function formatarCpfCnpj(el) {
     el.value = v;
 }
 
+function addParteRow() {
+    var html = '<div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">'
+        + '<div style="width:140px;"><label style="font-size:.68rem;color:var(--text-muted);">Papel</label>'
+        + '<select name="partes_papel[]" class="form-select" style="font-size:.82rem;">'
+        + '<option value="reu">Réu</option><option value="autor">Autor</option>'
+        + '<option value="representante_legal">Rep. Legal</option><option value="terceiro_interessado">3º Interessado</option>'
+        + '<option value="litisconsorte_ativo">Litis. Ativo</option><option value="litisconsorte_passivo">Litis. Passivo</option></select></div>'
+        + '<div style="width:100px;"><label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>'
+        + '<select name="partes_tipo[]" class="form-select" style="font-size:.82rem;"><option value="fisica">PF</option><option value="juridica">PJ</option></select></div>'
+        + '<div style="width:150px;"><label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>'
+        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18"></div>'
+        + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>'
+        + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
+        + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
+    document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
+}
+
+// Preencher campos legados antes de submeter (backward compatibility)
+document.getElementById('formNovoCaso').addEventListener('submit', function() {
+    var nomes = document.querySelectorAll('input[name="partes_nome[]"]');
+    var docs = document.querySelectorAll('input[name="partes_doc[]"]');
+    var papeis = document.querySelectorAll('select[name="partes_papel[]"]');
+    // Pegar o primeiro réu para campos legados
+    for (var i = 0; i < papeis.length; i++) {
+        if (papeis[i].value === 'reu' && nomes[i] && nomes[i].value.trim()) {
+            document.getElementById('parteReNomeHidden').value = nomes[i].value;
+            document.getElementById('parteReCpfHidden').value = docs[i] ? docs[i].value : '';
+            break;
+        }
+    }
+});
+
 function buscarCpfCnpj() {
-    var input = document.getElementById('parteReCpfCnpj');
-    var nomeInput = document.getElementById('parteReNome');
-    var loading = document.getElementById('parteReLoading');
-    var doc = input.value.replace(/\D/g, '');
+    // Legacy — mantida para compatibilidade mas não mais usada
+    return;
 
     // Se nome já está preenchido, não buscar
     if (nomeInput.value.trim() !== '') return;
