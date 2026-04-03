@@ -296,33 +296,51 @@ if ($action === 'gerar_meet') {
         'participantes' => $participantes,
     ), JSON_UNESCAPED_UNICODE);
 
-    // Chamar webhook
-    $ch = curl_init($webhookUrl);
-    curl_setopt_array($ch, array(
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ));
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlErr  = curl_error($ch);
-    curl_close($ch);
+    // Chamar webhook com retry (Google pode dar Rate Limit)
+    $respData = null;
+    $lastErr = '';
+    for ($tentativa = 1; $tentativa <= 3; $tentativa++) {
+        $ch = curl_init($webhookUrl);
+        curl_setopt_array($ch, array(
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr  = curl_error($ch);
+        curl_close($ch);
 
-    if ($curlErr) {
-        error_log('[agenda/gerar_meet] cURL error: ' . $curlErr);
-        echo json_encode(array('error' => 'Erro de conexão com Google: ' . $curlErr));
-        exit;
+        if ($curlErr) {
+            $lastErr = 'cURL: ' . $curlErr;
+            error_log('[agenda/gerar_meet] Tentativa ' . $tentativa . ' cURL error: ' . $curlErr);
+            sleep(2);
+            continue;
+        }
+
+        $respData = json_decode($response, true);
+        if ($respData && isset($respData['ok']) && $respData['ok']) {
+            break; // Sucesso
+        }
+
+        $lastErr = isset($respData['error']) ? $respData['error'] : 'Resposta inesperada';
+        error_log('[agenda/gerar_meet] Tentativa ' . $tentativa . ': ' . $lastErr);
+
+        // Se for Rate Limit, esperar e tentar de novo
+        if (strpos($lastErr, 'Rate Limit') !== false || strpos($lastErr, 'rate limit') !== false || $httpCode === 429) {
+            sleep(3);
+            continue;
+        }
+
+        break; // Outro erro, não tentar de novo
     }
 
-    $respData = json_decode($response, true);
     if (!$respData || !isset($respData['ok']) || !$respData['ok']) {
-        $errMsg = isset($respData['error']) ? $respData['error'] : 'Resposta inesperada do Google';
-        error_log('[agenda/gerar_meet] Google error: ' . $errMsg . ' | HTTP ' . $httpCode . ' | Body: ' . $response);
-        echo json_encode(array('error' => 'Google Apps Script: ' . $errMsg));
+        echo json_encode(array('error' => 'Google Apps Script: ' . $lastErr, 'csrf' => $newCsrf));
         exit;
     }
 
