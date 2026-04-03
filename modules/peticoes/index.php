@@ -541,8 +541,15 @@ function copiarPeticao() {
 }
 
 // Timbrado HTML para exportação (logo + rodapé)
+<?php
+$logoPath = APP_ROOT . '/assets/img/logo.png';
+$logoB64 = '';
+if (file_exists($logoPath)) {
+    $logoB64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+}
+?>
 var timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
-    + '<img src="<?= url("assets/img/logo.png") ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá">'
+    + '<img src="<?= $logoB64 ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá">'
     + '</div>'
     + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
 
