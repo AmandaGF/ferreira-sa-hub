@@ -350,7 +350,7 @@ function template_juntada($d) {
     $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
 
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . '</p>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
@@ -418,7 +418,7 @@ function template_prevjud($d) {
     $cpfGenitor = isset($d['cpf_genitor']) && $d['cpf_genitor'] ? $d['cpf_genitor'] : '___.___.___-__';
 
     // Cabeçalho
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">JUÍZO DA ' . f($vara) . '</p>';
     $html .= '<br>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<br>';
@@ -489,7 +489,7 @@ function template_ciencia($d) {
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'r. decisão/despacho de id. _______________';
 
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . '</p>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
@@ -527,7 +527,7 @@ function template_citacao_whatsapp($d) {
     $justificativa = isset($d['justificativa_citacao']) && $d['justificativa_citacao'] ? $d['justificativa_citacao'] : '';
 
     $html = '<div class="doc-title">PETICAO INTERCORRENTE</div>';
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTISSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUIZO DA ' . f($vara) . '</p>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, ja qualificado(a) nos autos do processo em epigrafe, vem, respeitosamente, perante Vossa Excelencia, por intermedio de seus advogados que esta subscrevem, com escritorio profissional indicado no rodape, requerer a</p>';
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITACAO DO(A) REU/RA POR MEIO ELETRONICO (WHATSAPP)</div>';
