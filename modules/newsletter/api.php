@@ -331,9 +331,9 @@ function montar_html_final($conteudo, $nome, $email) {
     $html .= '<div style="max-width:600px;margin:0 auto;background:#fff;">';
     $html .= $conteudo;
     $html .= '<div style="background:#052228;color:#fff;padding:20px;text-align:center;font-size:12px;line-height:1.6;">';
-    $html .= '<p style="margin:0 0 8px;">Ferreira &amp; Sa Advocacia Especializada</p>';
+    $html .= '<p style="margin:0 0 8px;">Ferreira &amp; S\u00e1 Advocacia Especializada</p>';
     $html .= '<p style="margin:0 0 8px;opacity:.7;">Rua Dr. Aldrovando de Oliveira, 140, Ano Bom, Barra Mansa/RJ</p>';
-    $html .= '<p style="margin:0;"><a href="' . $descadastroUrl . '" style="color:#D7AB90;">Cancelar inscricao</a></p>';
+    $html .= '<p style="margin:0;"><a href="' . $descadastroUrl . '" style="color:#D7AB90;">Cancelar inscri\u00e7\u00e3o</a></p>';
     $html .= '</div></div></body></html>';
     return str_replace(array('[nome]', '[NOME]'), $nome, $html);
 }
