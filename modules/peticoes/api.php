@@ -225,6 +225,33 @@ FIXO;
     $userPrompt = $promptFixo . "\n\n";
     $userPrompt .= "Tipo de peça: $labelPeca\nTipo de ação: $labelAcao\n\n";
     $userPrompt .= "DADOS DO CLIENTE (PARTE AUTORA):\n$dadosCliente\n\n";
+
+    // Partes do processo (se houver case_id)
+    $papelLabels = array('autor'=>'Autor','reu'=>'Réu','representante_legal'=>'Representante Legal','terceiro_interessado'=>'Terceiro Interessado','litisconsorte_ativo'=>'Litisconsorte Ativo','litisconsorte_passivo'=>'Litisconsorte Passivo');
+    if ($caseId) {
+        $partes = buscar_partes_caso($caseId);
+        if (!empty($partes['todas'])) {
+            $userPrompt .= "PARTES DO PROCESSO:\n";
+            foreach ($partes['todas'] as $pt) {
+                $nomeP = $pt['tipo_pessoa'] === 'juridica' ? ($pt['razao_social'] ?: $pt['nome_fantasia']) : $pt['nome'];
+                $docP = $pt['tipo_pessoa'] === 'juridica' ? ($pt['cnpj'] ?: '') : ($pt['cpf'] ?: '');
+                $papelP = isset($papelLabels[$pt['papel']]) ? $papelLabels[$pt['papel']] : $pt['papel'];
+                $repP = $pt['representa_nome'] ? ' (representado por ' . $pt['representa_nome'] . ')' : '';
+                $qualif = '- ' . strtoupper($papelP) . ': ' . $nomeP . $repP;
+                if ($docP) $qualif .= ', ' . ($pt['tipo_pessoa'] === 'juridica' ? 'CNPJ' : 'CPF') . ': ' . $docP;
+                if ($pt['rg']) $qualif .= ', RG: ' . $pt['rg'];
+                if ($pt['nascimento']) $qualif .= ', Nascimento: ' . date('d/m/Y', strtotime($pt['nascimento']));
+                if ($pt['profissao']) $qualif .= ', ' . $pt['profissao'];
+                if ($pt['estado_civil']) $qualif .= ', ' . $pt['estado_civil'];
+                if ($pt['endereco']) $qualif .= ', End: ' . $pt['endereco'];
+                if ($pt['cidade']) $qualif .= ', ' . $pt['cidade'];
+                if ($pt['uf']) $qualif .= '/' . $pt['uf'];
+                $userPrompt .= $qualif . "\n";
+            }
+            $userPrompt .= "\n";
+        }
+    }
+
     $userPrompt .= "OPÇÕES PROCESSUAIS:\n$opcoesProc\n";
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";

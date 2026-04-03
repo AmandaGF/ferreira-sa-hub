@@ -222,6 +222,101 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
 </div>
 
+<!-- Partes do Processo -->
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>Partes do Processo</h3>
+        <button onclick="abrirModalParte()" class="btn btn-primary btn-sm" style="font-size:.75rem;">+ Adicionar Parte</button>
+    </div>
+    <div class="card-body" id="partesLista" style="padding:.5rem .85rem;">
+        <div style="text-align:center;color:var(--text-muted);padding:.5rem;">Carregando...</div>
+    </div>
+</div>
+
+<!-- Modal Parte -->
+<div id="parteOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+<div style="background:#fff;border-radius:14px;max-width:600px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);">
+    <div style="background:linear-gradient(135deg,#052228,#0d3640);color:#fff;padding:1rem 1.2rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;">
+        <h3 style="margin:0;font-size:1rem;" id="parteTitModal">Adicionar Parte</h3>
+        <button onclick="fecharModalParte()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer">X</button>
+    </div>
+    <div style="padding:1.2rem;">
+        <input type="hidden" id="parteId" value="0">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem;">
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Papel</label>
+                <select id="partePapel" class="form-select" style="font-size:.85rem;" onchange="mudouPapel()">
+                    <option value="autor">Autor</option>
+                    <option value="reu">Réu</option>
+                    <option value="representante_legal">Representante Legal</option>
+                    <option value="terceiro_interessado">Terceiro Interessado</option>
+                    <option value="litisconsorte_ativo">Litisconsorte Ativo</option>
+                    <option value="litisconsorte_passivo">Litisconsorte Passivo</option>
+                </select>
+            </div>
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Tipo</label>
+                <select id="parteTipo" class="form-select" style="font-size:.85rem;" onchange="mudouTipoPessoa()">
+                    <option value="fisica">Pessoa Física</option>
+                    <option value="juridica">Pessoa Jurídica</option>
+                </select>
+            </div>
+        </div>
+        <div id="parteRepBox" style="display:none;margin-bottom:.8rem;">
+            <label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Representa qual parte?</label>
+            <select id="parteRepId" class="form-select" style="font-size:.85rem;"><option value="">Selecione...</option></select>
+        </div>
+        <!-- Pessoa Física -->
+        <div id="partePF">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CPF</label><input id="parteCpf" class="form-input" style="font-size:.85rem;" placeholder="000.000.000-00" onblur="buscarCpfParte()"><span id="parteCpfStatus" style="font-size:.65rem;"></span></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nome Completo</label><input id="parteNome" class="form-input" style="font-size:.85rem;"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-top:.5rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">RG</label><input id="parteRg" class="form-input" style="font-size:.85rem;"></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nascimento</label><input type="date" id="parteNasc" class="form-input" style="font-size:.85rem;"></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Estado Civil</label><input id="parteEC" class="form-input" style="font-size:.85rem;" placeholder="Solteiro(a)"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.5rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Profissão</label><input id="parteProf" class="form-input" style="font-size:.85rem;"></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">E-mail</label><input id="parteEmail" class="form-input" style="font-size:.85rem;"></div>
+            </div>
+        </div>
+        <!-- Pessoa Jurídica -->
+        <div id="partePJ" style="display:none;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CNPJ</label><input id="parteCnpj" class="form-input" style="font-size:.85rem;" placeholder="00.000.000/0000-00" onblur="buscarCnpjParte()"><span id="parteCnpjStatus" style="font-size:.65rem;"></span></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Razão Social</label><input id="parteRazao" class="form-input" style="font-size:.85rem;"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.5rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nome Fantasia</label><input id="parteFantasia" class="form-input" style="font-size:.85rem;"></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">E-mail</label><input id="parteEmailPJ" class="form-input" style="font-size:.85rem;"></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.5rem;">
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Representante Legal</label><input id="parteRepNome" class="form-input" style="font-size:.85rem;"></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CPF do Representante</label><input id="parteRepCpf" class="form-input" style="font-size:.85rem;"></div>
+            </div>
+        </div>
+        <!-- Contato -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.5rem;">
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Telefone</label><input id="parteTel" class="form-input" style="font-size:.85rem;"></div>
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CEP</label><input id="parteCep" class="form-input" style="font-size:.85rem;" placeholder="00000-000" onblur="buscarCepParte()"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.6rem;margin-top:.5rem;">
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Endereço</label><input id="parteEnd" class="form-input" style="font-size:.85rem;"></div>
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Cidade</label><input id="parteCid" class="form-input" style="font-size:.85rem;"></div>
+            <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">UF</label><input id="parteUf" class="form-input" style="font-size:.85rem;" maxlength="2"></div>
+        </div>
+        <div style="margin-top:.5rem;"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Observações</label><textarea id="parteObs" class="form-input" style="font-size:.85rem;" rows="2"></textarea></div>
+    </div>
+    <div style="padding:.8rem 1.2rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
+        <button id="parteBtnDel" onclick="excluirParte()" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#dc2626;display:none;">Excluir</button>
+        <div style="display:flex;gap:.5rem;margin-left:auto;">
+            <button onclick="fecharModalParte()" class="btn btn-outline btn-sm">Cancelar</button>
+            <button onclick="salvarParte()" class="btn btn-primary btn-sm">Salvar</button>
+        </div>
+    </div>
+</div>
+</div>
+
 <!-- Documentos Pendentes / Recebidos -->
 <?php if (!empty($docsPendentes) || !empty($docsRecebidos)): ?>
 <div class="card mb-2">
@@ -580,6 +675,269 @@ function editarTitulo() {
 function cancelarTitulo() {
     document.getElementById('casoTitulo').parentElement.style.display = 'flex';
     document.getElementById('formTitulo').style.display = 'none';
+}
+
+// ══════════════════════════════════════
+// PARTES DO PROCESSO
+// ══════════════════════════════════════
+var PARTES_API = '<?= url("modules/shared/partes_api.php") ?>';
+var PARTES_CSRF = '<?= generate_csrf_token() ?>';
+var PARTES_CASE = <?= $caseId ?>;
+var partesData = [];
+var papelLabels = {autor:'Autor',reu:'Réu',representante_legal:'Rep. Legal',terceiro_interessado:'3º Interessado',litisconsorte_ativo:'Litis. Ativo',litisconsorte_passivo:'Litis. Passivo'};
+var papelCores = {autor:'#059669',reu:'#dc2626',representante_legal:'#6366f1',terceiro_interessado:'#d97706',litisconsorte_ativo:'#0d9488',litisconsorte_passivo:'#8b5cf6'};
+
+carregarPartes();
+
+function carregarPartes() {
+    var x = new XMLHttpRequest();
+    x.open('GET', PARTES_API + '?action=listar&case_id=' + PARTES_CASE);
+    x.onload = function() {
+        try { partesData = JSON.parse(x.responseText); } catch(e) { partesData = []; }
+        renderPartes();
+    };
+    x.send();
+}
+
+function renderPartes() {
+    var el = document.getElementById('partesLista');
+    if (!partesData.length) {
+        el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:.8rem;font-size:.85rem;">Nenhuma parte cadastrada. Clique em "+ Adicionar Parte".</div>';
+        return;
+    }
+    var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:100px;">Ações</th></tr></thead><tbody>';
+    partesData.forEach(function(p) {
+        var nome = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '—') : (p.nome || '—');
+        var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
+        var tipo = p.tipo_pessoa === 'juridica' ? 'Jurídica' : 'Física';
+        var cor = papelCores[p.papel] || '#888';
+        var rep = p.representa_nome ? ' <span style="font-size:.68rem;color:#6366f1;">(rep. ' + p.representa_nome + ')</span>' : '';
+        html += '<tr style="border-bottom:1px solid var(--border);">'
+            + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
+            + '<td style="font-weight:600;">' + esc(nome) + rep + '</td>'
+            + '<td style="font-family:monospace;font-size:.78rem;">' + esc(doc) + '</td>'
+            + '<td>' + tipo + '</td>'
+            + '<td><button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;">Editar</button></td>'
+            + '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+}
+
+function esc(s) { if(!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+function abrirModalParte() {
+    document.getElementById('parteTitModal').textContent = 'Adicionar Parte';
+    document.getElementById('parteId').value = '0';
+    document.getElementById('partePapel').value = 'reu';
+    document.getElementById('parteTipo').value = 'fisica';
+    document.getElementById('parteBtnDel').style.display = 'none';
+    ['parteNome','parteCpf','parteRg','parteNasc','parteEC','parteProf','parteEmail','parteCnpj','parteRazao','parteFantasia','parteRepNome','parteRepCpf','parteTel','parteCep','parteEnd','parteCid','parteUf','parteObs','parteEmailPJ'].forEach(function(id) {
+        var el = document.getElementById(id); if(el) el.value = '';
+    });
+    document.getElementById('parteRepId').value = '';
+    mudouTipoPessoa();
+    mudouPapel();
+    document.getElementById('parteOverlay').style.display = 'flex';
+}
+
+function editarParte(id) {
+    var x = new XMLHttpRequest();
+    x.open('GET', PARTES_API + '?action=get&id=' + id);
+    x.onload = function() {
+        try {
+            var p = JSON.parse(x.responseText);
+            if (p.error) { alert(p.error); return; }
+            document.getElementById('parteTitModal').textContent = 'Editar Parte';
+            document.getElementById('parteId').value = p.id;
+            document.getElementById('partePapel').value = p.papel;
+            document.getElementById('parteTipo').value = p.tipo_pessoa;
+            document.getElementById('parteNome').value = p.nome || '';
+            document.getElementById('parteCpf').value = p.cpf || '';
+            document.getElementById('parteRg').value = p.rg || '';
+            document.getElementById('parteNasc').value = p.nascimento || '';
+            document.getElementById('parteEC').value = p.estado_civil || '';
+            document.getElementById('parteProf').value = p.profissao || '';
+            document.getElementById('parteEmail').value = p.email || '';
+            document.getElementById('parteCnpj').value = p.cnpj || '';
+            document.getElementById('parteRazao').value = p.razao_social || '';
+            document.getElementById('parteFantasia').value = p.nome_fantasia || '';
+            document.getElementById('parteRepNome').value = p.representante_nome || '';
+            document.getElementById('parteRepCpf').value = p.representante_cpf || '';
+            document.getElementById('parteEmailPJ').value = p.email || '';
+            document.getElementById('parteTel').value = p.telefone || '';
+            document.getElementById('parteCep').value = p.cep || '';
+            document.getElementById('parteEnd').value = p.endereco || '';
+            document.getElementById('parteCid').value = p.cidade || '';
+            document.getElementById('parteUf').value = p.uf || '';
+            document.getElementById('parteObs').value = p.observacoes || '';
+            document.getElementById('parteRepId').value = p.representa_parte_id || '';
+            document.getElementById('parteBtnDel').style.display = 'inline-block';
+            mudouTipoPessoa();
+            mudouPapel();
+            document.getElementById('parteOverlay').style.display = 'flex';
+        } catch(e) { alert('Erro ao carregar'); }
+    };
+    x.send();
+}
+
+function fecharModalParte() { document.getElementById('parteOverlay').style.display = 'none'; }
+document.getElementById('parteOverlay').addEventListener('click', function(e) { if(e.target===this) fecharModalParte(); });
+
+function mudouTipoPessoa() {
+    var t = document.getElementById('parteTipo').value;
+    document.getElementById('partePF').style.display = t === 'fisica' ? 'block' : 'none';
+    document.getElementById('partePJ').style.display = t === 'juridica' ? 'block' : 'none';
+}
+
+function mudouPapel() {
+    var p = document.getElementById('partePapel').value;
+    var box = document.getElementById('parteRepBox');
+    if (p === 'representante_legal') {
+        box.style.display = 'block';
+        var sel = document.getElementById('parteRepId');
+        sel.innerHTML = '<option value="">Selecione a parte representada...</option>';
+        partesData.forEach(function(pt) {
+            if (pt.papel !== 'representante_legal') {
+                sel.innerHTML += '<option value="' + pt.id + '">' + (papelLabels[pt.papel]||pt.papel) + ': ' + (pt.nome||pt.razao_social||'?') + '</option>';
+            }
+        });
+    } else {
+        box.style.display = 'none';
+    }
+}
+
+function salvarParte() {
+    var tipo = document.getElementById('parteTipo').value;
+    var nome = tipo === 'juridica' ? document.getElementById('parteRazao').value : document.getElementById('parteNome').value;
+    if (!nome.trim()) { alert('Preencha o nome/razão social.'); return; }
+
+    var fd = new FormData();
+    fd.append('action', 'salvar');
+    fd.append('csrf_token', PARTES_CSRF);
+    fd.append('id', document.getElementById('parteId').value);
+    fd.append('case_id', PARTES_CASE);
+    fd.append('papel', document.getElementById('partePapel').value);
+    fd.append('tipo_pessoa', tipo);
+    fd.append('nome', document.getElementById('parteNome').value);
+    fd.append('cpf', document.getElementById('parteCpf').value);
+    fd.append('rg', document.getElementById('parteRg').value);
+    fd.append('nascimento', document.getElementById('parteNasc').value);
+    fd.append('estado_civil', document.getElementById('parteEC').value);
+    fd.append('profissao', document.getElementById('parteProf').value);
+    fd.append('email', tipo === 'juridica' ? document.getElementById('parteEmailPJ').value : document.getElementById('parteEmail').value);
+    fd.append('razao_social', document.getElementById('parteRazao').value);
+    fd.append('cnpj', document.getElementById('parteCnpj').value);
+    fd.append('nome_fantasia', document.getElementById('parteFantasia').value);
+    fd.append('representante_nome', document.getElementById('parteRepNome').value);
+    fd.append('representante_cpf', document.getElementById('parteRepCpf').value);
+    fd.append('telefone', document.getElementById('parteTel').value);
+    fd.append('cep', document.getElementById('parteCep').value);
+    fd.append('endereco', document.getElementById('parteEnd').value);
+    fd.append('cidade', document.getElementById('parteCid').value);
+    fd.append('uf', document.getElementById('parteUf').value);
+    fd.append('representa_parte_id', document.getElementById('parteRepId').value);
+    fd.append('observacoes', document.getElementById('parteObs').value);
+
+    var x = new XMLHttpRequest(); x.open('POST', PARTES_API);
+    x.onload = function() {
+        try { var r = JSON.parse(x.responseText); if(r.csrf) PARTES_CSRF=r.csrf;
+            if(r.error) { alert(r.error); return; }
+            fecharModalParte(); carregarPartes();
+        } catch(e) { alert('Erro ao salvar'); }
+    };
+    x.send(fd);
+}
+
+function excluirParte() {
+    if (!confirm('Remover esta parte do processo?')) return;
+    var fd = new FormData();
+    fd.append('action', 'excluir'); fd.append('csrf_token', PARTES_CSRF);
+    fd.append('id', document.getElementById('parteId').value);
+    var x = new XMLHttpRequest(); x.open('POST', PARTES_API);
+    x.onload = function() {
+        try { var r = JSON.parse(x.responseText); if(r.csrf) PARTES_CSRF=r.csrf; }
+        catch(e) {}
+        fecharModalParte(); carregarPartes();
+    };
+    x.send(fd);
+}
+
+function buscarCpfParte() {
+    var cpf = document.getElementById('parteCpf').value.replace(/\D/g,'');
+    if (cpf.length < 11) return;
+    var st = document.getElementById('parteCpfStatus');
+    st.textContent = 'Buscando...'; st.style.color = '#d97706';
+    var x = new XMLHttpRequest();
+    x.open('GET', PARTES_API + '?action=buscar_cpf&q=' + cpf);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.found) {
+                var d = r.data;
+                if (d.name || d.nome) document.getElementById('parteNome').value = d.name || d.nome || '';
+                if (d.rg) document.getElementById('parteRg').value = d.rg || '';
+                if (d.birth_date || d.nascimento) document.getElementById('parteNasc').value = d.birth_date || d.nascimento || '';
+                if (d.profession || d.profissao) document.getElementById('parteProf').value = d.profession || d.profissao || '';
+                if (d.marital_status || d.estado_civil) document.getElementById('parteEC').value = d.marital_status || d.estado_civil || '';
+                if (d.email) document.getElementById('parteEmail').value = d.email || '';
+                if (d.phone || d.telefone) document.getElementById('parteTel').value = d.phone || d.telefone || '';
+                if (d.address_street || d.endereco) document.getElementById('parteEnd').value = d.address_street || d.endereco || '';
+                if (d.address_city || d.cidade) document.getElementById('parteCid').value = d.address_city || d.cidade || '';
+                if (d.address_state || d.uf) document.getElementById('parteUf').value = d.address_state || d.uf || '';
+                if (d.address_zip || d.cep) document.getElementById('parteCep').value = d.address_zip || d.cep || '';
+                st.textContent = 'Dados encontrados! (' + r.source + ')'; st.style.color = '#059669';
+            } else {
+                st.textContent = 'Não encontrado. Preencha manualmente.'; st.style.color = '#94a3b8';
+            }
+        } catch(e) { st.textContent = ''; }
+        setTimeout(function(){st.textContent=''},4000);
+    };
+    x.send();
+}
+
+function buscarCnpjParte() {
+    var cnpj = document.getElementById('parteCnpj').value.replace(/\D/g,'');
+    if (cnpj.length < 14) return;
+    var st = document.getElementById('parteCnpjStatus');
+    st.textContent = 'Buscando na Receita...'; st.style.color = '#d97706';
+    var x = new XMLHttpRequest();
+    x.open('GET', PARTES_API + '?action=buscar_cnpj&q=' + cnpj);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.found) {
+                var d = r.data;
+                if (d.razao_social) document.getElementById('parteRazao').value = d.razao_social;
+                if (d.nome_fantasia) document.getElementById('parteFantasia').value = d.nome_fantasia;
+                if (d.email) document.getElementById('parteEmailPJ').value = d.email;
+                if (d.telefone) document.getElementById('parteTel').value = d.telefone;
+                if (d.endereco) document.getElementById('parteEnd').value = d.endereco;
+                if (d.cidade) document.getElementById('parteCid').value = d.cidade;
+                if (d.uf) document.getElementById('parteUf').value = d.uf;
+                if (d.cep) document.getElementById('parteCep').value = d.cep;
+                st.textContent = 'Dados encontrados!'; st.style.color = '#059669';
+            } else {
+                st.textContent = 'CNPJ não encontrado.'; st.style.color = '#94a3b8';
+            }
+        } catch(e) { st.textContent = ''; }
+        setTimeout(function(){st.textContent=''},4000);
+    };
+    x.send();
+}
+
+function buscarCepParte() {
+    var cep = document.getElementById('parteCep').value.replace(/\D/g,'');
+    if (cep.length !== 8) return;
+    fetch('https://viacep.com.br/ws/' + cep + '/json/')
+        .then(function(r){return r.json()})
+        .then(function(d){
+            if (!d.erro) {
+                document.getElementById('parteEnd').value = d.logradouro || '';
+                document.getElementById('parteCid').value = d.localidade || '';
+                document.getElementById('parteUf').value = d.uf || '';
+            }
+        }).catch(function(){});
 }
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

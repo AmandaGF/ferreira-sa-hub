@@ -6,6 +6,36 @@
  * geração de tarefas para processos jurídicos.
  */
 
+// ─── Partes do Processo ────────────────────────────────
+
+/**
+ * Busca todas as partes de um caso, organizadas por papel.
+ * Retorna array com chaves: autores, reus, representantes, terceiros, todas
+ */
+function buscar_partes_caso(int $caseId): array
+{
+    $result = array('autores' => array(), 'reus' => array(), 'representantes' => array(), 'terceiros' => array(), 'todas' => array());
+    try {
+        $stmt = db()->prepare(
+            "SELECT p.*, rep.nome as representa_nome
+             FROM case_partes p
+             LEFT JOIN case_partes rep ON rep.id = p.representa_parte_id
+             WHERE p.case_id = ?
+             ORDER BY FIELD(p.papel,'autor','reu','representante_legal','terceiro_interessado','litisconsorte_ativo','litisconsorte_passivo'), p.id"
+        );
+        $stmt->execute(array($caseId));
+        $all = $stmt->fetchAll();
+        $result['todas'] = $all;
+        foreach ($all as $p) {
+            if ($p['papel'] === 'autor' || $p['papel'] === 'litisconsorte_ativo') $result['autores'][] = $p;
+            elseif ($p['papel'] === 'reu' || $p['papel'] === 'litisconsorte_passivo') $result['reus'][] = $p;
+            elseif ($p['papel'] === 'representante_legal') $result['representantes'][] = $p;
+            else $result['terceiros'][] = $p;
+        }
+    } catch (Exception $e) {}
+    return $result;
+}
+
 // ─── Agenda de Contatos (anti-duplicação) ─────────────
 
 /**
