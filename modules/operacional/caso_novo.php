@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $title              = trim($_POST['title'] ?? '');
     $case_type          = trim($_POST['case_type'] ?? '');
+    if ($case_type === 'outro') $case_type = trim($_POST['case_type_outro'] ?? 'Outro');
     $case_number        = trim($_POST['case_number'] ?? '');
     $court              = trim($_POST['court'] ?? '');
     $comarca            = trim($_POST['comarca'] ?? '');
@@ -283,7 +284,75 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-col">
                         <label>Tipo de Acao</label>
-                        <input type="text" name="case_type" class="form-input" placeholder="Ex: Divorcio Consensual">
+                        <select name="case_type" class="form-select" id="selCaseType" onchange="document.getElementById('caseTypeOutro').style.display=this.value==='outro'?'block':'none'">
+                            <option value="">Selecione...</option>
+                            <optgroup label="Familia">
+                                <option value="Alimentos">Alimentos</option>
+                                <option value="Revisional de Alimentos">Revisional de Alimentos</option>
+                                <option value="Execucao de Alimentos">Execucao de Alimentos</option>
+                                <option value="Exoneracao de Alimentos">Exoneracao de Alimentos</option>
+                                <option value="Oferta de Alimentos">Oferta de Alimentos</option>
+                                <option value="Divorcio Consensual">Divorcio Consensual</option>
+                                <option value="Divorcio Litigioso">Divorcio Litigioso</option>
+                                <option value="Dissolucao de Uniao Estavel">Dissolucao de Uniao Estavel</option>
+                                <option value="Reconhecimento de Uniao Estavel">Reconhecimento de Uniao Estavel</option>
+                                <option value="Guarda">Guarda</option>
+                                <option value="Guarda Compartilhada">Guarda Compartilhada</option>
+                                <option value="Regulamentacao de Convivencia">Regulamentacao de Convivencia</option>
+                                <option value="Modificacao de Guarda">Modificacao de Guarda</option>
+                                <option value="Busca e Apreensao de Menor">Busca e Apreensao de Menor</option>
+                                <option value="Investigacao de Paternidade">Investigacao de Paternidade</option>
+                                <option value="Negatoria de Paternidade">Negatoria de Paternidade</option>
+                                <option value="Adocao">Adocao</option>
+                                <option value="Tutela / Curatela">Tutela / Curatela</option>
+                                <option value="Interdicao">Interdicao</option>
+                                <option value="Alienacao Parental">Alienacao Parental</option>
+                            </optgroup>
+                            <optgroup label="Sucessoes">
+                                <option value="Inventario Judicial">Inventario Judicial</option>
+                                <option value="Inventario Extrajudicial">Inventario Extrajudicial</option>
+                                <option value="Alvara Judicial">Alvara Judicial</option>
+                                <option value="Arrolamento de Bens">Arrolamento de Bens</option>
+                                <option value="Testamento">Testamento</option>
+                            </optgroup>
+                            <optgroup label="Civel">
+                                <option value="Consumidor">Consumidor</option>
+                                <option value="Indenizacao / Danos Morais">Indenizacao / Danos Morais</option>
+                                <option value="Indenizacao / Danos Materiais">Indenizacao / Danos Materiais</option>
+                                <option value="Obrigacao de Fazer">Obrigacao de Fazer</option>
+                                <option value="Cobranca">Cobranca</option>
+                                <option value="Execucao de Titulo Extrajudicial">Execucao de Titulo Extrajudicial</option>
+                                <option value="Cumprimento de Sentenca">Cumprimento de Sentenca</option>
+                                <option value="Revisao Contratual">Revisao Contratual</option>
+                                <option value="Fraude Bancaria">Fraude Bancaria</option>
+                                <option value="Negativacao Indevida">Negativacao Indevida</option>
+                            </optgroup>
+                            <optgroup label="Imobiliario">
+                                <option value="Usucapiao">Usucapiao</option>
+                                <option value="Despejo">Despejo</option>
+                                <option value="Reintegracao de Posse">Reintegracao de Posse</option>
+                                <option value="Imissao na Posse">Imissao na Posse</option>
+                                <option value="Adjudicacao Compulsoria">Adjudicacao Compulsoria</option>
+                            </optgroup>
+                            <optgroup label="Trabalhista">
+                                <option value="Reclamacao Trabalhista">Reclamacao Trabalhista</option>
+                                <option value="Execucao Trabalhista">Execucao Trabalhista</option>
+                            </optgroup>
+                            <optgroup label="Previdenciario">
+                                <option value="Aposentadoria">Aposentadoria</option>
+                                <option value="Auxilio-Doenca / Incapacidade">Auxilio-Doenca / Incapacidade</option>
+                                <option value="BPC / LOAS">BPC / LOAS</option>
+                                <option value="Pensao por Morte">Pensao por Morte</option>
+                                <option value="Revisao de Beneficio">Revisao de Beneficio</option>
+                            </optgroup>
+                            <optgroup label="Outros">
+                                <option value="Medida Protetiva">Medida Protetiva</option>
+                                <option value="Habeas Corpus">Habeas Corpus</option>
+                                <option value="Mandado de Seguranca">Mandado de Seguranca</option>
+                                <option value="outro">Outro (especificar)</option>
+                            </optgroup>
+                        </select>
+                        <input type="text" name="case_type_outro" id="caseTypeOutro" class="form-input" placeholder="Especifique o tipo..." style="display:none;margin-top:4px;">
                     </div>
                     <div class="form-col" style="max-width:220px;">
                         <label>Categoria</label>

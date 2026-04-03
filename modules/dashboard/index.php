@@ -124,6 +124,9 @@ $rankingAcoes = qrows($pdo, "SELECT case_type, COUNT(*) as total, IFNULL(SUM(est
 // MÉTRICAS OPERACIONAL
 // ═══════════════════════════════════════════════════════════
 
+// Processos por tipo de ação (para aba Operacional)
+$processosPorTipo = qrows($pdo, "SELECT case_type, COUNT(*) as total FROM cases WHERE case_type IS NOT NULL AND case_type != '' AND status NOT IN ('cancelado','arquivado') GROUP BY case_type ORDER BY total DESC LIMIT 15");
+
 $casosEmAndamento = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'em_andamento'");
 $casosSuspensos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'suspenso'");
 $casosDocFaltante = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'doc_faltante'");
@@ -446,6 +449,21 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     <div class="dash-card"><h4>📊 Distribuídos × Pendentes (6 meses)</h4><canvas id="chartDP"></canvas></div>
     <div class="dash-card"><h4>👷 Carga por Responsável</h4><canvas id="chartCarga"></canvas></div>
 </div>
+
+<!-- Processos por Tipo de Ação -->
+<?php if (!empty($processosPorTipo)): ?>
+<div class="dash-card" style="margin-bottom:1.25rem;">
+    <h4>Processos por Tipo de Acao</h4>
+    <table><thead><tr><th>Tipo de Acao</th><th style="text-align:center;">Qtd</th><th style="width:40%;">Proporcao</th></tr></thead><tbody>
+    <?php $maxTipo = $processosPorTipo[0]['total']; foreach ($processosPorTipo as $pt): $pct = $maxTipo > 0 ? round(($pt['total'] / $maxTipo) * 100) : 0; ?>
+    <tr>
+        <td style="font-weight:600;"><?= e($pt['case_type']) ?></td>
+        <td style="text-align:center;font-weight:700;"><?= $pt['total'] ?></td>
+        <td><div style="background:#e5e7eb;border-radius:4px;height:18px;overflow:hidden;"><div style="background:linear-gradient(90deg,#052228,#B87333);height:100%;width:<?= $pct ?>%;border-radius:4px;"></div></div></td>
+    </tr>
+    <?php endforeach; ?></tbody></table>
+</div>
+<?php endif; ?>
 
 <!-- Prazos vencendo -->
 <?php if (!empty($prazosLista)): ?>
