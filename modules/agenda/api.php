@@ -125,7 +125,7 @@ if ($action === 'salvar') {
     $lembretePortal= isset($_POST['lembrete_portal']) ? 1 : 0;
     $lembreteCliente = isset($_POST['lembrete_cliente']) ? 1 : 0;
 
-    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','ligacao');
+    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao');
     $modalidadesValidas = array('presencial','online','nao_aplicavel');
 
     if (!$titulo) { echo json_encode(array('error' => 'Título é obrigatório')); exit; }

@@ -17,6 +17,7 @@ $tiposMapa = array(
     'onboarding'       => array('cor' => '#2D7A4F', 'icon' => "\u{1F3AF}", 'label' => 'Onboarding'),
     'reuniao_interna'  => array('cor' => '#1a3a7a', 'icon' => "\u{1F465}", 'label' => 'Reunião interna'),
     'mediacao_cejusc'  => array('cor' => '#6B4C9A', 'icon' => "\u{1F91D}", 'label' => 'Mediação / CEJUSC'),
+    'balcao_virtual'   => array('cor' => '#0d9488', 'icon' => "\u{1F3DB}", 'label' => 'Balcão Virtual'),
     'ligacao'          => array('cor' => '#888880', 'icon' => "\u{1F4DE}", 'label' => 'Ligação / Retorno'),
 );
 
@@ -266,8 +267,8 @@ if ($voltarCaso > 0): ?>
             <label class="ag-fl">Tipo de compromisso</label>
             <div class="ag-tipo-grid">
                 <?php
-                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'ligacao'=>"\u{1F4DE}");
-                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','ligacao'=>'Ligação');
+                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}");
+                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação');
                 foreach ($labels as $k => $lb): ?>
                 <button type="button" class="ag-tipo-btn" data-t="<?= $k ?>" onclick="selTipo('<?= $k ?>',this)">
                     <span class="te"><?= $emojis[$k] ?></span><?= $lb ?>
@@ -370,9 +371,9 @@ var hoje = new Date();
 var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-var CORES = {audiencia:'#052228',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',ligacao:'#888880'};
-var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',ligacao:'Ligação'};
-var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",ligacao:"\u{1F4DE}"};
+var CORES = {audiencia:'#052228',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880'};
+var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação'};
+var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}"};
 
 // ── INIT ────────────────────────────────────────────────────
 mesAtual = hoje.getMonth();
@@ -677,7 +678,20 @@ var msgsPadrao = {
     audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora]. Qualquer dúvida, estamos à disposição!',
     reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora]. Te esperamos!',
     onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!',
-    prazo: '', reuniao_interna: '', mediacao_cejusc: 'Olá, [nome]! A mediação está agendada para [data] às [hora]. Contamos com sua presença!', ligacao: ''
+    mediacao_cejusc: 'Olá, [nome]! A mediação está agendada para [data] às [hora]. Contamos com sua presença!',
+    balcao_virtual: 'Olá, [nome]! Seu atendimento no Balcão Virtual está agendado para [data] às [hora].',
+    prazo: '', reuniao_interna: '', ligacao: ''
+};
+
+var titulosPadrao = {
+    audiencia: 'Audiência',
+    reuniao_cliente: 'Reunião com cliente',
+    prazo: 'Prazo processual',
+    onboarding: 'Onboarding',
+    reuniao_interna: 'Reunião interna',
+    mediacao_cejusc: 'Mediação / CEJUSC',
+    ligacao: 'Ligação / Retorno',
+    balcao_virtual: 'Balcão Virtual TJRJ'
 };
 
 function abrirModal(dataStr) {
@@ -765,6 +779,12 @@ function selTipo(tipo, btn) {
     document.querySelectorAll('.ag-tipo-btn').forEach(function(b) { b.className = 'ag-tipo-btn'; });
     btn.className = 'ag-tipo-btn sel';
     btn.setAttribute('data-t', tipo);
+    // Preencher título padrão se vazio ou se é o título de outro tipo
+    var tit = document.getElementById('agTitulo');
+    var titVazio = !tit.value.trim();
+    var titEhPadrao = false;
+    for (var k in titulosPadrao) { if (tit.value.trim() === titulosPadrao[k]) { titEhPadrao = true; break; } }
+    if ((titVazio || titEhPadrao) && titulosPadrao[tipo]) tit.value = titulosPadrao[tipo];
     // Preencher msg padrão se vazio
     var msg = document.getElementById('agMsgCliente');
     if (!msg.value && msgsPadrao[tipo]) msg.value = msgsPadrao[tipo];
