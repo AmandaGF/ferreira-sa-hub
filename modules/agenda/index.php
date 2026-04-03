@@ -781,12 +781,18 @@ function selTipo(tipo, btn) {
     document.querySelectorAll('.ag-tipo-btn').forEach(function(b) { b.className = 'ag-tipo-btn'; });
     btn.className = 'ag-tipo-btn sel';
     btn.setAttribute('data-t', tipo);
-    // Preencher título padrão se vazio ou se é o título de outro tipo
+    // Preencher título padrão com nome do cliente
     var tit = document.getElementById('agTitulo');
     var titVazio = !tit.value.trim();
     var titEhPadrao = false;
-    for (var k in titulosPadrao) { if (tit.value.trim() === titulosPadrao[k]) { titEhPadrao = true; break; } }
-    if ((titVazio || titEhPadrao) && titulosPadrao[tipo]) tit.value = titulosPadrao[tipo];
+    for (var k in titulosPadrao) {
+        var base = titulosPadrao[k];
+        if (tit.value.trim() === base || tit.value.trim().indexOf(base + ' — ') === 0) { titEhPadrao = true; break; }
+    }
+    if ((titVazio || titEhPadrao) && titulosPadrao[tipo]) {
+        var clienteNome = document.getElementById('agClienteBusca').value.trim();
+        tit.value = titulosPadrao[tipo] + (clienteNome ? ' — ' + clienteNome : '');
+    }
     // Trocar mensagem padrão ao mudar tipo (se vazia ou se era msg de outro tipo)
     var msg = document.getElementById('agMsgCliente');
     var msgVazia = !msg.value.trim();
@@ -794,10 +800,15 @@ function selTipo(tipo, btn) {
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
 
-    // Tipos sem Meet e sem mensagem ao cliente
-    var semMeet = ['balcao_virtual','prazo','reuniao_interna'];
+    // Tipos sem Meet (tribunal manda link ou não se aplica)
+    var semMeet = ['balcao_virtual','prazo','audiencia','mediacao_cejusc'];
     if (semMeet.indexOf(tipo) !== -1) {
         document.getElementById('agModalidade').value = 'nao_aplicavel';
+        toggleMeet();
+    }
+    // Reunião interna: sem mensagem ao cliente mas permite Meet
+    if (tipo === 'reuniao_interna') {
+        document.getElementById('agModalidade').value = 'online';
         toggleMeet();
     }
     atualizarPreview();
@@ -1084,7 +1095,17 @@ function enviarMsgCliente(id) {
 }
 
 // ── AUTOCOMPLETE ────────────────────────────────────────────
-function setupAC(inputId, listId, hiddenId, acaoUrl, renderFn) {
+function atualizarTituloComCliente() {
+    var tit = document.getElementById('agTitulo');
+    if (!titulosPadrao[tipoSelecionado]) return;
+    var titBase = titulosPadrao[tipoSelecionado];
+    // Só atualizar se o título é padrão (com ou sem nome anterior)
+    if (tit.value.trim().indexOf(titBase) !== 0 && tit.value.trim() !== '') return;
+    var clienteNome = document.getElementById('agClienteBusca').value.trim();
+    tit.value = titBase + (clienteNome ? ' \u2014 ' + clienteNome : '');
+}
+
+function setupAC(inputId, listId, hiddenId, acaoUrl, renderFn, onSelect) {
     var input = document.getElementById(inputId);
     var list = document.getElementById(listId);
     var hidden = document.getElementById(hiddenId);
@@ -1110,6 +1131,7 @@ function setupAC(inputId, listId, hiddenId, acaoUrl, renderFn) {
                             input.value = el.getAttribute('data-label');
                             list.style.display = 'none';
                             atualizarPreview();
+                            if (onSelect) onSelect();
                         });
                     });
                 } catch(ex) { list.style.display = 'none'; }
@@ -1124,6 +1146,9 @@ function setupAC(inputId, listId, hiddenId, acaoUrl, renderFn) {
 
 setupAC('agClienteBusca', 'agClienteList', 'agClienteId', 'busca_cliente', function(c) {
     return '<div class="ag-ac-item" data-id="' + c.id + '" data-label="' + esc(c.name) + '"><strong>' + esc(c.name) + '</strong>' + (c.phone ? ' — ' + esc(c.phone) : '') + '</div>';
+}, function() {
+    // Ao selecionar cliente, atualizar título com nome
+    atualizarTituloComCliente();
 });
 setupAC('agCasoBusca', 'agCasoList', 'agCasoId', 'busca_caso', function(c) {
     return '<div class="ag-ac-item" data-id="' + c.id + '" data-label="' + esc(c.title) + '">' + esc(c.title) + (c.case_number ? ' — ' + esc(c.case_number) : '') + (c.client_name ? ' (' + esc(c.client_name) + ')' : '') + '</div>';
