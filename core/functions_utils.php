@@ -138,6 +138,32 @@ function is_current_module(string $module): bool
     return strpos($_SERVER['REQUEST_URI'] ?? '', '/modules/' . $module) !== false;
 }
 
+/**
+ * Exibe botão "Voltar ao processo" se o usuário veio de um caso.
+ * Usar no topo das páginas de destino (financeiro, helpdesk, agenda).
+ */
+function voltar_ao_processo_html(): string
+{
+    // Prioridade: param URL > sessão (se referer veio do processo)
+    $fromCase = (int)($_GET['from_case'] ?? 0);
+    if (!$fromCase) {
+        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+        $veioDoProcesso = (strpos($referer, 'caso_ver') !== false || strpos($referer, 'from_case') !== false);
+        if ($veioDoProcesso) $fromCase = (int)($_SESSION['origem_case_id'] ?? 0);
+    }
+    if (!$fromCase) return '';
+    try {
+        $stmt = db()->prepare("SELECT title, case_number FROM cases WHERE id = ?");
+        $stmt->execute(array($fromCase));
+        $c = $stmt->fetch();
+        if (!$c) return '';
+        $label = $c['title'] ?: ($c['case_number'] ?: 'Processo #' . $fromCase);
+        return '<div style="margin-bottom:.75rem;">'
+            . '<a href="' . module_url('operacional', 'caso_ver.php?id=' . $fromCase) . '" class="btn btn-outline btn-sm" style="font-size:.82rem;">'
+            . '&larr; Voltar ao processo: <strong>' . e($label) . '</strong></a></div>';
+    } catch (Exception $e) { return ''; }
+}
+
 // ─── Auditoria ──────────────────────────────────────────
 function audit_log(string $action, ?string $entityType = null, ?int $entityId = null, ?string $details = null): void
 {

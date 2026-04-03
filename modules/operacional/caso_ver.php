@@ -11,6 +11,9 @@ $caseId = (int)($_GET['id'] ?? 0);
 $userId = current_user_id();
 $isColaborador = has_role('colaborador');
 
+// Salvar origem para "Voltar ao processo" nas outras páginas
+$_SESSION['origem_case_id'] = $caseId;
+
 $stmt = $pdo->prepare(
     'SELECT cs.*, c.name as client_name, c.phone as client_phone, c.id as client_id, u.name as responsible_name
      FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -120,9 +123,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['client_id']): ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">+ Novo Processo</a>
     <?php endif; ?>
-    <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId) ?>" class="btn btn-outline btn-sm">🎫 Abrir Chamado</a>
+    <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Abrir Chamado</a>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
-        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
+        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
     <?php endif; ?>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>

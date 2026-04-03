@@ -39,6 +39,7 @@ $statusLabels = ['aberto' => 'Aberto', 'em_andamento' => 'Em andamento', 'aguard
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
+echo voltar_ao_processo_html();
 ?>
 
 <style>

@@ -55,6 +55,7 @@ $tiposAcao = array(
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
+echo voltar_ao_processo_html();
 ?>
 
 <style>

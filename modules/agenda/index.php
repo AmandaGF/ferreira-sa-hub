@@ -159,7 +159,8 @@ body.dark-mode .ag-ac-list { background:var(--bg-card); }
 </style>
 
 <?php
-$voltarCaso = (int)($_GET['voltar_caso'] ?? $_GET['case_id'] ?? 0);
+$voltarCaso = (int)($_GET['voltar_caso'] ?? $_GET['case_id'] ?? $_GET['from_case'] ?? 0);
+if (!$voltarCaso) $voltarCaso = (int)($_SESSION['origem_case_id'] ?? 0);
 $preClientId = (int)($_GET['client_id'] ?? 0);
 $preCaseId = (int)($_GET['case_id'] ?? 0);
 $preNovo = isset($_GET['novo']);

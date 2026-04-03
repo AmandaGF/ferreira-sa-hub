@@ -84,10 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 require_once APP_ROOT . '/templates/layout_start.php';
+echo voltar_ao_processo_html();
 ?>
 
 <div style="max-width:650px;">
-    <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm mb-2">← Voltar</a>
+    <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar</a>
 
     <?php if (!empty($errors)): ?>
         <div class="alert alert-error"><span class="alert-icon">✕</span><div><?= implode('<br>', array_map('e', $errors)) ?></div></div>
