@@ -255,7 +255,7 @@ if ($action === 'gerar_meet') {
     }
 
     // URL do webhook Google Apps Script
-    $webhookUrl = 'https://script.google.com/macros/s/AKfycbwl7gPg8Z1aSWW_FS7p_2NwGUSjCFKrRTCqNTQ9ieJ65Dv4NP-YYDZaDUlG5ui-Fwz-/exec';
+    $webhookUrl = 'https://script.google.com/macros/s/AKfycbzSOi9FIJCdRcInFwxAMy2sgOAqxnI7L5XwXXzMUGw1jmRqV4HcH5231itDYAhy8Qac/exec';
 
     // Buscar nome do cliente e e-mail
     $clientName = '';
@@ -393,7 +393,7 @@ if ($action === 'enviar_convite') {
     }
     if (!$emailList) { echo json_encode(array('error' => 'Nenhum e-mail válido', 'csrf' => $newCsrf)); exit; }
 
-    $webhookUrl = 'https://script.google.com/macros/s/AKfycbwl7gPg8Z1aSWW_FS7p_2NwGUSjCFKrRTCqNTQ9ieJ65Dv4NP-YYDZaDUlG5ui-Fwz-/exec';
+    $webhookUrl = 'https://script.google.com/macros/s/AKfycbzSOi9FIJCdRcInFwxAMy2sgOAqxnI7L5XwXXzMUGw1jmRqV4HcH5231itDYAhy8Qac/exec';
 
     $payload = json_encode(array(
         'key'           => 'fsa-meet-2026',
