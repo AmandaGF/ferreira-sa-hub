@@ -105,7 +105,8 @@ hd+='<div style="margin-top:.4rem">'+bg+'</div>';
 var bt='';
 if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">WhatsApp</a> ';
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';
-bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a>';
+bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
+bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Excluir</button>';
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
 var tabs=['geral','comercial','operacional','docs','agenda','historico'];
@@ -162,6 +163,24 @@ var reopen=D.lead_id?'lead_id='+D.lead_id:(D.case_id?'case_id='+D.case_id:'clien
 cdOpen(reopen);setTimeout(function(){T='docs';rtab()},600)};
 x.onerror=function(){alert('Erro de rede. Verifique a conexao.');if(b){b.textContent='Recebido';b.disabled=false}};
 x.send('action=resolve_doc&doc_id='+id+'&case_id='+(D.case_id||0)+'&csrf_token='+(D.csrf||''))};
+
+window._cdDelete=function(){
+var msg='Tem certeza que deseja EXCLUIR este card?\n\n';
+if(D.lead_id&&D.case_id)msg+='Isso vai apagar o lead do Pipeline E o caso do Operacional.';
+else if(D.lead_id)msg+='Isso vai apagar o lead do Pipeline Comercial.';
+else if(D.case_id)msg+='Isso vai apagar o caso do Operacional.';
+msg+='\n\nEssa ação NÃO pode ser desfeita.';
+if(!confirm(msg))return;
+var x=new XMLHttpRequest();x.open('POST',XU);x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){
+try{var r=JSON.parse(x.responseText);
+if(r.error){alert('Erro: '+r.error);return}
+cdClose();
+alert('Excluído: '+r.deleted);
+location.reload();
+}catch(e){alert('Erro ao excluir')}
+};
+x.send('action=delete_card&lead_id='+(D.lead_id||0)+'&case_id='+(D.case_id||0))};
 
 // ESC fecha
 document.addEventListener('keydown',function(e){if(e.key==='Escape')cdClose()});
