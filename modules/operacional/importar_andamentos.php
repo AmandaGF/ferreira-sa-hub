@@ -202,7 +202,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($descricao === '') continue;
 
-            $registros[] = array('data' => $data, 'tipo' => $tipo, 'descricao' => $descricao, 'origem' => $origem);
+            // Ler campo Confidencial do CSV (primeira coluna LegalOne)
+            $confidencial = isset($colIdx['confidencial']) && isset($row[$colIdx['confidencial']]) ? trim($row[$colIdx['confidencial']]) : 'Não';
+
+            $registros[] = array('data' => $data, 'tipo' => $tipo, 'descricao' => $descricao, 'origem' => $origem, 'confidencial' => $confidencial);
         }
         fclose($handle);
         @unlink($tmpFile);
@@ -267,14 +270,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errosCount++;
             } else {
                 try {
-                    // Detectar sigilo: palavras-chave indicam segredo de justiça
+                    // 1. Campo Confidencial do CSV (LegalOne)
+                    $confCsv = isset($reg['confidencial']) ? $reg['confidencial'] : 'Não';
+                    $ehConfidencial = (mb_strtolower(trim($confCsv)) === 'sim') ? 1 : 0;
+
+                    // 2. Detectar sigilo pelo conteúdo (publicações do tribunal)
                     $descLower = mb_strtolower($reg['descricao'], 'UTF-8');
-                    $ehSigilo = (strpos($descLower, 'sigilo') !== false || strpos($descLower, 'segredo') !== false || strpos($descLower, 'sigiloso') !== false || strpos($descLower, 'cadeado') !== false || strpos($descLower, 'restrito') !== false) ? 1 : 0;
-                    $visivelCliente = $ehSigilo ? 0 : 1;
+                    $ehSigiloPorConteudo = (strpos($descLower, 'em segredo de justi') !== false || strpos($descLower, 'sigilo') !== false || strpos($descLower, 'sigiloso') !== false) ? 1 : 0;
+
+                    // Resultado: confidencial OU sigilo por conteúdo → oculto
+                    $segredoJustica = ($ehConfidencial || $ehSigiloPorConteudo) ? 1 : 0;
+                    $visivelCliente = $segredoJustica ? 0 : 1;
 
                     $pdo->prepare(
                         "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, segredo_justica, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
-                    )->execute(array($caseId, $reg['data'], $reg['tipo'], $reg['descricao'], $visivelCliente, $ehSigilo, $userId));
+                    )->execute(array($caseId, $reg['data'], $reg['tipo'], $reg['descricao'], $visivelCliente, $segredoJustica, $userId));
                     $item['status'] = 'ok';
                     $importados++;
                 } catch (Exception $e) {
