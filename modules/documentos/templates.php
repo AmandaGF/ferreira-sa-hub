@@ -347,7 +347,7 @@ function template_juntada($d) {
     $esc = escritorioData();
     $html = '<div class="doc-title">PETIÇÃO DE JUNTADA DE DOCUMENTOS</div>';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
 
     $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
@@ -412,13 +412,13 @@ function template_prevjud($d) {
     $esc = escritorioData();
     $html = '';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $nomeGenitor = isset($d['nome_genitor']) && $d['nome_genitor'] ? $d['nome_genitor'] : '_______________';
     $cpfGenitor = isset($d['cpf_genitor']) && $d['cpf_genitor'] ? $d['cpf_genitor'] : '___.___.___-__';
 
     // Cabeçalho
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DO JUÍZO DA ' . f($vara) . '</p>';
+    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">EXCELENTÍSSIMO(A) SENHOR(A) DOUTOR(A) JUIZ(A) DE DIREITO DA ' . f($vara) . '</p>';
     $html .= '<br>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<br>';
@@ -485,7 +485,7 @@ function template_ciencia($d) {
     $esc = escritorioData();
     $html = '<div class="doc-title">PETIÇÃO DE CIÊNCIA</div>';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________';
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'r. decisão/despacho de id. _______________';
 
