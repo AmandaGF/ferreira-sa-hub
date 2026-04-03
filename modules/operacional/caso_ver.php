@@ -321,11 +321,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <input type="hidden" name="action" value="toggle_task">
                         <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
                         <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                        <button type="submit" class="task-check <?= $task['status'] === 'feito' ? 'done' : '' ?>" title="<?= $task['status'] === 'feito' ? 'Desfazer' : 'Concluir' ?>">
-                            <?= $task['status'] === 'feito' ? '✓' : '' ?>
+                        <?php $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito'); ?>
+                        <button type="submit" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>">
+                            <?= $isDone ? '✓' : '' ?>
                         </button>
                     </form>
-                    <span class="task-text <?= $task['status'] === 'feito' ? 'done' : '' ?>"><?= e($task['title']) ?></span>
+                    <span class="task-text <?= $isDone ? 'done' : '' ?>"><?= e($task['title']) ?></span>
                     <span class="task-meta">
                         <?php if ($task['assigned_name']): ?><?= e($task['assigned_name']) ?><?php endif; ?>
                         <?php if ($task['due_date']): ?> · <?= data_br($task['due_date']) ?><?php endif; ?>

@@ -62,8 +62,8 @@ if ($filterMonth) {
 $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'pendente') as pending_tasks,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status = 'feito') as done_tasks,
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
         (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id

@@ -405,8 +405,8 @@ switch ($action) {
             $stmt->execute(array($taskId));
             $task = $stmt->fetch();
             if ($task) {
-                $newStatus = $task['status'] === 'pendente' ? 'feito' : 'pendente';
-                $completedAt = $newStatus === 'feito' ? date('Y-m-d H:i:s') : null;
+                $newStatus = ($task['status'] === 'concluido' || $task['status'] === 'feito') ? 'a_fazer' : 'concluido';
+                $completedAt = $newStatus === 'concluido' ? date('Y-m-d H:i:s') : null;
                 $pdo->prepare('UPDATE case_tasks SET status=?, completed_at=? WHERE id=?')
                     ->execute(array($newStatus, $completedAt, $taskId));
             }
