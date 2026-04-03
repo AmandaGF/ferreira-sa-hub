@@ -280,7 +280,7 @@ function renderCard(t, hoje) {
         + '<option value="aguardando">Aguardando</option>'
         + '<option value="concluido">Concluido</option></select>';
 
-    return '<div class="tk-card" style="border-left-color:'+tipoCor+'" onclick="editarTarefa('+t.id+')">'
+    return '<div class="tk-card" style="border-left-color:'+tipoCor+'" draggable="true" ondragstart="dragStart(event,'+t.id+')" onclick="editarTarefa('+t.id+')">'
         + '<div style="display:flex;justify-content:space-between;align-items:start">'
         + '<div class="tk-card-titulo">'+esc(t.title)+'</div>'
         + '<div class="tk-avatar" title="'+(t.assigned_name||'')+'">'+initials+'</div>'
@@ -311,6 +311,46 @@ function mover(id, novoStatus, sel) {
 }
 
 function toggleHistorico() { showHistorico = !showHistorico; renderBoard(); }
+
+// ── DRAG AND DROP ──
+var dragTaskId = null;
+
+function dragStart(e, taskId) {
+    dragTaskId = taskId;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', taskId);
+    e.target.style.opacity = '.5';
+    setTimeout(function() { e.target.style.opacity = '.5'; }, 0);
+}
+
+// Inicializar drop zones nas colunas
+document.querySelectorAll('.tk-col-bd').forEach(function(col) {
+    col.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        col.style.background = 'rgba(184,115,51,.08)';
+        col.style.outline = '2px dashed #B87333';
+        col.style.outlineOffset = '-2px';
+    });
+    col.addEventListener('dragleave', function(e) {
+        col.style.background = '';
+        col.style.outline = '';
+    });
+    col.addEventListener('drop', function(e) {
+        e.preventDefault();
+        col.style.background = '';
+        col.style.outline = '';
+        if (!dragTaskId) return;
+        var novoStatus = col.id.replace('col_', '');
+        mover(dragTaskId, novoStatus);
+        dragTaskId = null;
+    });
+});
+
+document.addEventListener('dragend', function(e) {
+    document.querySelectorAll('.tk-card').forEach(function(c) { c.style.opacity = ''; });
+    document.querySelectorAll('.tk-col-bd').forEach(function(c) { c.style.background = ''; c.style.outline = ''; });
+});
 
 // ── MODAL ──
 function abrirModal(caseId, caseTitle) {
