@@ -27,6 +27,7 @@ $docTypes = array(
     'juntada' => array('label' => 'Pet. Juntada de Docs', 'icon' => '📎', 'color' => '#059669', 'desc' => 'Juntada de documentos ao processo'),
     'ciencia' => array('label' => 'Petição de Ciência', 'icon' => '👁️', 'color' => '#4f46e5', 'desc' => 'Ciência de decisão/despacho/intimação'),
     'prevjud' => array('label' => 'Pesquisa PREVJUD', 'icon' => '🔍', 'color' => '#052228', 'desc' => 'Pesquisa de vínculo empregatício via PREVJUD'),
+    'citacao_whatsapp' => array('label' => 'Citação por WhatsApp', 'icon' => '💬', 'color' => '#25D366', 'desc' => 'Petição requerendo citação do réu via WhatsApp — Art. 246, V, CPC'),
 );
 
 // Histórico de documentos gerados

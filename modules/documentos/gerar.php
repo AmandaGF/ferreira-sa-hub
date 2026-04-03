@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -35,6 +35,7 @@ $typeLabels = array(
     'juntada' => 'Petição de Juntada de Documentos',
     'ciencia' => 'Petição de Ciência',
     'prevjud' => 'Pesquisa PREVJUD',
+    'citacao_whatsapp' => 'Petição de Citação por WhatsApp',
 );
 
 $acaoLabels = array(
@@ -159,11 +160,15 @@ $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
 $reservaManifestacao = $_POST['reserva_manifestacao'] ?? 'sim';
 $nomeGenitor = $_POST['nome_genitor'] ?? '';
 $cpfGenitor = $_POST['cpf_genitor'] ?? '';
+$nomeReu = $_POST['nome_reu'] ?? '';
+$whatsappReu = $_POST['whatsapp_reu'] ?? '';
+$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? '';
+$justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -534,6 +539,36 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'citacao_whatsapp'): ?>
+        <div class="section">
+            <h4>Dados para Citacao por WhatsApp</h4>
+            <div class="row">
+                <div><label>Nr do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" required></div>
+                <div><label>Vara / Juizo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2a Vara de Familia de Resende" required></div>
+            </div>
+            <div class="row">
+                <div><label>Nome completo do reu/ra</label><input name="nome_reu" value="" placeholder="Nome da parte re" required></div>
+                <div><label>Telefone/WhatsApp do reu/ra</label><input name="whatsapp_reu" value="" placeholder="(00) 00000-0000" required></div>
+            </div>
+            <div class="row">
+                <div><label>Tipo de acao</label>
+                    <select name="tipo_acao_citacao">
+                        <option value="Alimentos">Alimentos</option>
+                        <option value="Divorcio">Divorcio</option>
+                        <option value="Guarda">Guarda</option>
+                        <option value="Regulamentacao de Convivencia">Regulamentacao de Convivencia</option>
+                        <option value="Execucao de Alimentos">Execucao de Alimentos</option>
+                        <option value="Revisional de Alimentos">Revisional de Alimentos</option>
+                        <option value="Investigacao de Paternidade">Investigacao de Paternidade</option>
+                        <option value="Consumidor">Consumidor</option>
+                        <option value="Indenizacao">Indenizacao</option>
+                    </select>
+                </div>
+                <div><label>Justificativa (opcional)</label><input name="justificativa_citacao" value="" placeholder="Ex: Reu nao encontrado para citacao pessoal"></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -580,6 +615,10 @@ if (!$showEditor) {
         'reserva_manifestacao' => $reservaManifestacao,
         'nome_genitor' => $nomeGenitor,
         'cpf_genitor' => $cpfGenitor,
+        'nome_reu' => $nomeReu,
+        'whatsapp_reu' => $whatsappReu,
+        'tipo_acao_citacao' => $tipoAcaoCitacao,
+        'justificativa_citacao' => $justificativaCitacao,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -592,6 +631,7 @@ if (!$showEditor) {
     elseif ($tipo === 'juntada') echo template_juntada($d);
     elseif ($tipo === 'ciencia') echo template_ciencia($d);
     elseif ($tipo === 'prevjud') echo template_prevjud($d);
+    elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     ?>
     </div>
 
