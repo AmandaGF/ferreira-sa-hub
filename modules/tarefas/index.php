@@ -280,9 +280,14 @@ function renderCard(t, hoje) {
         + '<option value="aguardando">Aguardando</option>'
         + '<option value="concluido">Concluido</option></select>';
 
-    return '<div class="tk-card" style="border-left-color:'+tipoCor+'" draggable="true" ondragstart="dragStart(event,'+t.id+')" onclick="editarTarefa('+t.id+')">'
-        + '<div style="display:flex;justify-content:space-between;align-items:start">'
-        + '<div class="tk-card-titulo">'+esc(t.title)+'</div>'
+    var isDone = (t.status === 'concluido');
+    var checkBtn = '<button onclick="event.stopPropagation();marcarConcluido('+t.id+',this)" style="background:none;border:none;cursor:pointer;font-size:1.1rem;padding:0;line-height:1;flex-shrink:0" title="'+(isDone?'Reabrir':'Concluir')+'">'
+        + (isDone ? '<span style="color:#059669">&#9745;</span>' : '<span style="color:#d1d5db">&#9744;</span>') + '</button>';
+
+    return '<div class="tk-card" style="border-left-color:'+tipoCor+(isDone?';opacity:.6':'')+'" draggable="true" ondragstart="dragStart(event,'+t.id+')" onclick="editarTarefa('+t.id+')">'
+        + '<div style="display:flex;gap:6px;align-items:start">'
+        + checkBtn
+        + '<div style="flex:1"><div class="tk-card-titulo" style="'+(isDone?'text-decoration:line-through;color:#94a3b8':'')+'">'+esc(t.title)+'</div></div>'
         + '<div class="tk-avatar" title="'+(t.assigned_name||'')+'">'+initials+'</div>'
         + '</div>'
         + '<div class="tk-card-meta">'
@@ -308,6 +313,13 @@ function mover(id, novoStatus, sel) {
         reload();
     };
     x.send(fd);
+}
+
+function marcarConcluido(id, btn) {
+    // Descobrir status atual
+    var task = tarefas.filter(function(t){return t.id==id})[0];
+    var novoStatus = (task && task.status === 'concluido') ? 'a_fazer' : 'concluido';
+    mover(id, novoStatus);
 }
 
 function toggleHistorico() { showHistorico = !showHistorico; renderBoard(); }
