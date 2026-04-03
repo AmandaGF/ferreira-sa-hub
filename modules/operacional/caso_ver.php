@@ -154,26 +154,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </form>
     <div class="meta">
         <?php
-        // Filhos como requerentes (processos de alimentos)
-        $filhos = array();
-        if (isset($case['filhos_json']) && $case['filhos_json']) {
-            $filhos = json_decode($case['filhos_json'], true);
-            if (!is_array($filhos)) $filhos = array();
+        // Buscar partes do processo para o header
+        $headerPartes = buscar_partes_caso($caseId);
+        $headerAutores = array();
+        $headerReus = array();
+        foreach ($headerPartes['autores'] as $pa) {
+            $n = $pa['tipo_pessoa'] === 'juridica' ? ($pa['razao_social'] ?: $pa['nome_fantasia']) : $pa['nome'];
+            if ($n) $headerAutores[] = $n;
         }
-        if (!empty($filhos)):
-            $nomesFilhos = array();
-            foreach ($filhos as $f) { if (isset($f['nome']) && $f['nome']) $nomesFilhos[] = $f['nome']; }
+        foreach ($headerPartes['reus'] as $pr) {
+            $n = $pr['tipo_pessoa'] === 'juridica' ? ($pr['razao_social'] ?: $pr['nome_fantasia']) : $pr['nome'];
+            if ($n) $headerReus[] = $n;
+        }
+        // Representantes
+        $headerReps = array();
+        foreach ($headerPartes['representantes'] as $prep) {
+            if ($prep['nome']) $headerReps[] = $prep['nome'];
+        }
         ?>
-        👶 <?= e(implode(' e ', $nomesFilhos)) ?> <span style="font-size:.72rem;opacity:.7;">representado(s) por</span> <?= e($case['client_name'] ?? 'Sem cliente') ?>
+        <?php if (!empty($headerAutores)): ?>
+            <span style="color:#fff;">
+            <?= e(implode(' e ', $headerAutores)) ?>
+            <?php if (!empty($headerReps)): ?>
+                <span style="font-size:.72rem;opacity:.7;">representado(s) por <?= e(implode(', ', $headerReps)) ?></span>
+            <?php endif; ?>
+            </span>
         <?php else: ?>
-        👤 <?= e($case['client_name'] ?? 'Sem cliente') ?>
+            <?= e($case['client_name'] ?? 'Sem cliente') ?>
         <?php endif; ?>
-        <?php if (isset($case['parte_re_nome']) && $case['parte_re_nome']): ?>
-            × <?= e($case['parte_re_nome']) ?><?php if (isset($case['parte_re_cpf_cnpj']) && $case['parte_re_cpf_cnpj']): ?> <span style="font-size:.72rem;opacity:.7;">(<?= e($case['parte_re_cpf_cnpj']) ?>)</span><?php endif; ?>
+        <?php if (!empty($headerReus)): ?>
+            <span style="opacity:.7;">×</span> <?= e(implode(' e ', $headerReus)) ?>
         <?php endif; ?>
-        · <?= e($case['case_type']) ?>
+        <br>
+        <span style="font-size:.78rem;opacity:.8;">
+        <?= e($case['case_type'] ?: '') ?>
         · <?= e($case['responsible_name'] ?: 'Sem responsável') ?>
         <?php if ($case['deadline']): ?> · Prazo: <?= data_br($case['deadline']) ?><?php endif; ?>
+        </span>
     </div>
     <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || (isset($case['comarca']) && $case['comarca'])): ?>
     <div style="margin-top:.5rem;font-size:.82rem;color:rgba(255,255,255,.8);">
@@ -697,13 +714,16 @@ document.getElementById('formTitulo').addEventListener('submit', function(e) {
     if (novoNome.length < 5) { alert('Nome deve ter no mínimo 5 caracteres.'); input.focus(); return; }
     if (!confirm('Isso também vai renomear a pasta no Google Drive. Confirmar?')) return;
 
+    // Usar CSRF atualizado (andCsrf é renovado por outras chamadas na página)
     var fd = new FormData(this);
+    fd.set('<?= CSRF_TOKEN_NAME ?>', andCsrf);
     var x = new XMLHttpRequest();
     x.open('POST', this.action);
     x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     x.onload = function() {
         try {
             var r = JSON.parse(x.responseText);
+            if (r.csrf) andCsrf = r.csrf;
             if (r.error) { alert(r.error); return; }
             if (r.ok) {
                 document.getElementById('casoTitulo').textContent = r.title;

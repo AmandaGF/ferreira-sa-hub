@@ -500,7 +500,8 @@ switch ($action) {
             // 4. Audit log
             audit_log('CASE_TITLE_CHANGED', 'case', $caseId, $oldTitle . ' → ' . $newTitle);
         }
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'title' => $newTitle)); exit; }
+        $newCsrfTitle = generate_csrf_token();
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'title' => $newTitle, 'csrf' => $newCsrfTitle)); exit; }
         flash_set('success', 'Nome da pasta atualizado.');
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
