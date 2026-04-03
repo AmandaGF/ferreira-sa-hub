@@ -268,6 +268,36 @@ if ($action === 'salvar_config') {
     exit;
 }
 
+// ── UPLOAD IMAGEM ──
+if ($action === 'upload_imagem') {
+    if (!isset($_FILES['imagem']) || $_FILES['imagem']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Nenhuma imagem enviada', 'csrf' => $newCsrf));
+        exit;
+    }
+    $file = $_FILES['imagem'];
+    $allowed = array('image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp');
+    $mime = $file['type'];
+    if (!isset($allowed[$mime])) {
+        echo json_encode(array('error' => 'Tipo nao permitido. Use JPG, PNG, GIF ou WebP.', 'csrf' => $newCsrf));
+        exit;
+    }
+    if ($file['size'] > 2 * 1024 * 1024) {
+        echo json_encode(array('error' => 'Imagem muito grande. Maximo 2MB.', 'csrf' => $newCsrf));
+        exit;
+    }
+    $ext = $allowed[$mime];
+    $filename = 'nl_' . date('YmdHis') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    $destDir = APP_ROOT . '/assets/img/newsletter/';
+    if (!is_dir($destDir)) mkdir($destDir, 0755, true);
+    if (!move_uploaded_file($file['tmp_name'], $destDir . $filename)) {
+        echo json_encode(array('error' => 'Erro ao salvar imagem', 'csrf' => $newCsrf));
+        exit;
+    }
+    $url = 'https://ferreiraesa.com.br/conecta/assets/img/newsletter/' . $filename;
+    echo json_encode(array('ok' => true, 'url' => $url, 'filename' => $filename, 'csrf' => $newCsrf));
+    exit;
+}
+
 echo json_encode(array('error' => 'Ação inválida'));
 
 // ══════════════════════════════════════

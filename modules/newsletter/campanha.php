@@ -76,7 +76,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="nl-fr">
         <div class="nl-fg">
             <label class="nl-fl">Conteudo do e-mail (HTML)</label>
+            <div style="display:flex;gap:.5rem;margin-bottom:.4rem;">
+                <label style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:#052228;color:#fff;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;">
+                    <input type="file" id="nlUploadImg" accept="image/*" style="display:none;" onchange="uploadImagem(this)"> Inserir imagem
+                </label>
+                <span id="nlUploadStatus" style="font-size:.7rem;color:var(--text-muted);display:flex;align-items:center;"></span>
+            </div>
             <textarea class="nl-fi" id="nlConteudo" rows="12" style="font-family:monospace;font-size:.78rem;" placeholder="Escreva o conteúdo aqui..."><?= e($camp ? $camp['conteudo_html'] : '') ?></textarea>
+            <p style="font-size:.65rem;color:var(--text-muted);margin-top:.2rem;">Tamanho ideal para banner: 600x250px (Canva: dimensao personalizada). Max 2MB.</p>
         </div>
         <div class="nl-fg">
             <label class="nl-fl">Preview</label>
@@ -279,6 +286,38 @@ if (!document.getElementById('nlConteudo').value && TEMPLATES[tplSel]) {
 }
 atualizarPreview();
 mudouSegmento();
+
+function uploadImagem(input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    if (file.size > 2 * 1024 * 1024) { alert('Imagem muito grande. Maximo 2MB.'); return; }
+    var status = document.getElementById('nlUploadStatus');
+    status.textContent = 'Enviando...';
+    var fd = new FormData();
+    fd.append('action', 'upload_imagem');
+    fd.append('csrf_token', CSRF);
+    fd.append('imagem', file);
+    var x = new XMLHttpRequest(); x.open('POST', API);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.csrf) CSRF = r.csrf;
+            if (r.ok) {
+                var tag = '<div style="text-align:center;"><img src="' + r.url + '" style="width:100%;max-width:600px;" alt=""></div>\n';
+                var ta = document.getElementById('nlConteudo');
+                var pos = ta.selectionStart || 0;
+                ta.value = ta.value.substring(0, pos) + tag + ta.value.substring(pos);
+                atualizarPreview();
+                status.innerHTML = '<span style="color:#059669;">Inserida!</span>';
+                setTimeout(function(){status.textContent=''},3000);
+            } else {
+                status.innerHTML = '<span style="color:#dc2626;">' + (r.error || 'Erro') + '</span>';
+            }
+        } catch(e) { status.innerHTML = '<span style="color:#dc2626;">Erro ao enviar</span>'; }
+        input.value = '';
+    };
+    x.send(fd);
+}
 
 function selTemplate(btn) {
     document.querySelectorAll('.nl-tpl-btn').forEach(function(b){b.classList.remove('sel')});
