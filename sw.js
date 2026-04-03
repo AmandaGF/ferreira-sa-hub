@@ -1,5 +1,5 @@
 // Ferreira & Sá Hub — Service Worker
-var CACHE_NAME = 'fshub-v2';
+var CACHE_NAME = 'fshub-v3';
 var urlsToCache = [
     '/conecta/assets/css/conecta.css',
     '/conecta/assets/js/conecta.js',
