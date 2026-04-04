@@ -313,6 +313,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option>
                                 <?php endif; ?>
                             <?php endforeach; ?>
+                            <option value="arquivado" style="color:#6b7280;">📦 Arquivar</option>
                         </select>
                     </form>
                 </div>
@@ -432,6 +433,7 @@ sort($opTipos);
                 <?php foreach ($columns as $csk => $csv): if ($csk !== $sk): ?>
                     <option value="<?= $csk ?>"><?= $csv['icon'] ?> <?= $csv['label'] ?></option>
                 <?php endif; endforeach; ?>
+                <option value="arquivado" style="color:#6b7280;">📦 Arquivar</option>
             </select>
         </form>
     </td>
@@ -577,6 +579,15 @@ function handleOpMove(select) {
         _pendingOpForm = form;
         document.getElementById('parceiroModal').style.display = 'flex';
         select.value = '';
+        return;
+    }
+
+    if (status === 'arquivado') {
+        if (!confirm('Arquivar este processo? Ele sairá do Kanban mas continuará acessível na listagem de Processos.')) {
+            select.value = '';
+            return;
+        }
+        form.submit();
         return;
     }
 
