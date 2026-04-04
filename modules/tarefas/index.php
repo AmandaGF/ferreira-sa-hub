@@ -146,7 +146,9 @@ echo voltar_ao_processo_html();
                 <option value="Apelacao">Apelacao</option>
                 <option value="Embargos de Declaracao">Embargos de Declaracao</option>
                 <option value="Contrarrazoes">Contrarrazoes</option>
+                <option value="outro">Outro prazo</option>
             </select>
+            <input type="text" class="tk-fi" id="tkSubtipoOutro" style="display:none;margin-top:.4rem;" placeholder="Descreva o prazo...">
         </div>
 
         <div class="tk-fg"><label class="tk-fl">Título</label>
@@ -377,6 +379,8 @@ function abrirModal(caseId, caseTitle) {
     document.getElementById('tkPrazoAlerta').value = '';
     document.getElementById('tkTipoOutro').value = '';
     document.getElementById('tkSubtipo').value = '';
+    document.getElementById('tkSubtipoOutro').value = '';
+    document.getElementById('tkSubtipoOutro').style.display = 'none';
     document.getElementById('tkPrio').value = 'normal';
     document.getElementById('tkBtnDel').style.display = 'none';
     tipoSel = '';
@@ -440,7 +444,14 @@ function selTipo(btn) {
     btn.classList.add('sel');
     document.getElementById('tkOutroBox').style.display = tipoSel==='outros'?'block':'none';
     document.getElementById('tkSubtipoBox').style.display = tipoSel==='prazo'?'block':'none';
+    document.getElementById('tkSubtipoOutro').style.display = 'none';
     document.getElementById('tkAlertaBox').style.display = tipoSel==='prazo'?'block':'none';
+
+    // Toggle campo "Outro prazo"
+    document.getElementById('tkSubtipo').onchange = function() {
+        document.getElementById('tkSubtipoOutro').style.display = this.value === 'outro' ? 'block' : 'none';
+        if (this.value === 'outro') document.getElementById('tkSubtipoOutro').focus();
+    };
 
     // Auto-preencher alerta = data fatal - 3 dias
     if (tipoSel==='prazo') {
@@ -469,7 +480,9 @@ function salvar() {
     fd.append('title', titulo);
     fd.append('tipo', tipoSel);
     fd.append('tipo_outro', document.getElementById('tkTipoOutro').value);
-    fd.append('subtipo', document.getElementById('tkSubtipo').value);
+    var subtipoVal = document.getElementById('tkSubtipo').value;
+    if (subtipoVal === 'outro') subtipoVal = document.getElementById('tkSubtipoOutro').value.trim() || 'Outro';
+    fd.append('subtipo', subtipoVal);
     fd.append('descricao', document.getElementById('tkDesc').value);
     fd.append('assigned_to', document.getElementById('tkResp').value);
     fd.append('prioridade', document.getElementById('tkPrio').value);
