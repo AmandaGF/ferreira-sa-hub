@@ -17,16 +17,50 @@ switch ($action) {
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         $status = $_POST['status'] ?? '';
         $priority = $_POST['priority'] ?? '';
+        $category = clean_str($_POST['category'] ?? '', 60);
+        $department = clean_str($_POST['department'] ?? '', 60);
+        $dueDate = $_POST['due_date'] ?? null;
+        if ($dueDate === '') $dueDate = null;
 
         $validStatuses = ['aberto','em_andamento','aguardando','resolvido','cancelado'];
         $validPriorities = ['baixa','normal','urgente'];
 
         if ($ticketId && in_array($status, $validStatuses) && in_array($priority, $validPriorities)) {
             $resolvedAt = ($status === 'resolvido') ? date('Y-m-d H:i:s') : null;
-            $pdo->prepare('UPDATE tickets SET status=?, priority=?, resolved_at=COALESCE(?,resolved_at), updated_at=NOW() WHERE id=?')
-                ->execute([$status, $priority, $resolvedAt, $ticketId]);
+            $pdo->prepare('UPDATE tickets SET status=?, priority=?, category=?, department=?, due_date=?, resolved_at=COALESCE(?,resolved_at), updated_at=NOW() WHERE id=?')
+                ->execute([$status, $priority, $category ?: null, $department ?: null, $dueDate, $resolvedAt, $ticketId]);
+
+            // Atualizar responsáveis
+            $newAssignees = $_POST['assignees'] ?? array();
+            $pdo->prepare('DELETE FROM ticket_assignees WHERE ticket_id = ?')->execute(array($ticketId));
+            if (!empty($newAssignees)) {
+                $stmtA = $pdo->prepare('INSERT INTO ticket_assignees (ticket_id, user_id) VALUES (?, ?)');
+                foreach ($newAssignees as $uid) {
+                    $uid = (int)$uid;
+                    if ($uid > 0) $stmtA->execute(array($ticketId, $uid));
+                }
+            }
+
             audit_log('ticket_updated', 'ticket', $ticketId, "status:$status priority:$priority");
             flash_set('success', 'Chamado atualizado.');
+        }
+        redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
+        break;
+
+    case 'update_links':
+        $ticketId = (int)($_POST['ticket_id'] ?? 0);
+        if ($ticketId) {
+            $clientId = (int)($_POST['client_id'] ?? 0) ?: null;
+            $caseId = (int)($_POST['case_id'] ?? 0) ?: null;
+            $clientName = clean_str($_POST['client_name'] ?? '', 150);
+            $clientContact = clean_str($_POST['client_contact'] ?? '', 100);
+            $caseNumber = clean_str($_POST['case_number'] ?? '', 30);
+
+            $pdo->prepare('UPDATE tickets SET client_id=?, case_id=?, client_name=?, client_contact=?, case_number=?, updated_at=NOW() WHERE id=?')
+                ->execute(array($clientId, $caseId, $clientName ?: null, $clientContact ?: null, $caseNumber ?: null, $ticketId));
+
+            audit_log('ticket_links_updated', 'ticket', $ticketId);
+            flash_set('success', 'Vínculos atualizados.');
         }
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
         break;
