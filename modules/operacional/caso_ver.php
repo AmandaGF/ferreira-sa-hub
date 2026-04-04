@@ -719,41 +719,13 @@ function cancelarTitulo() {
     document.getElementById('formTitulo').style.display = 'none';
 }
 
-// Interceptar submit do form título para usar AJAX com confirmação
+// Submit do form título — form normal (sem AJAX para evitar problemas de CSRF)
 document.getElementById('formTitulo').addEventListener('submit', function(e) {
-    e.preventDefault();
     var input = document.getElementById('inputTitulo');
     var novoNome = input.value.trim();
-    if (novoNome.length < 5) { alert('Nome deve ter no mínimo 5 caracteres.'); input.focus(); return; }
-    if (!confirm('Isso também vai renomear a pasta no Google Drive. Confirmar?')) return;
-
-    // Usar CSRF atualizado
-    var fd = new FormData(this);
-    fd.set('<?= CSRF_TOKEN_NAME ?>', typeof andCsrf !== 'undefined' ? andCsrf : fd.get('<?= CSRF_TOKEN_NAME ?>'));
-    var x = new XMLHttpRequest();
-    x.open('POST', this.action);
-    x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    x.onload = function() {
-        try {
-            var r = JSON.parse(x.responseText);
-            if (r.csrf) andCsrf = r.csrf;
-            if (r.error) {
-                if (r.error.indexOf('oken') !== -1) {
-                    // CSRF expirado — submeter via form normal
-                    e.target.submit();
-                    return;
-                }
-                alert(r.error); return;
-            }
-            if (r.ok) {
-                document.getElementById('casoTitulo').textContent = r.title;
-                cancelarTitulo();
-                // Atualizar título na tab do navegador
-                document.title = r.title + ' — Ferreira & Sá Hub';
-            }
-        } catch(ex) { location.reload(); }
-    };
-    x.send(fd);
+    if (novoNome.length < 5) { e.preventDefault(); alert('Nome deve ter no mínimo 5 caracteres.'); input.focus(); return; }
+    if (!confirm('Renomear a pasta? Confirmar?')) { e.preventDefault(); return; }
+    // Segue o submit normal do form
 });
 
 // ══════════════════════════════════════
