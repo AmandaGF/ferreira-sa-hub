@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -36,6 +36,7 @@ $typeLabels = array(
     'ciencia' => 'Petição de Ciência',
     'prevjud' => 'Pesquisa PREVJUD',
     'citacao_whatsapp' => 'Petição de Citação por WhatsApp',
+    'habilitacao' => 'Petição de Habilitação nos Autos',
 );
 
 $acaoLabels = array(
@@ -154,6 +155,30 @@ if ($caseData) {
     }
 }
 $varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? $varaFromCase);
+$comarcaDoc = $_POST['comarca_doc'] ?? ($caseData ? ($caseData['comarca'] ?: '') : '');
+$comarcaUfDoc = $_POST['comarca_uf_doc'] ?? ($caseData ? ($caseData['comarca_uf'] ?: 'RJ') : 'RJ');
+
+// Campos habilitação
+$tipoAcaoHab = $_POST['tipo_acao_hab'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
+$repLegal = $_POST['rep_legal'] ?? 'nao';
+$nomeParteContraria = $_POST['nome_parte_contraria'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
+$papelCliente = $_POST['papel_cliente'] ?? 'autor';
+
+// Buscar partes do processo para preencher dados automaticamente
+if ($caseIdDoc && function_exists('buscar_partes_caso')) {
+    $partesDoc = buscar_partes_caso($caseIdDoc);
+    if (!empty($partesDoc)) {
+        foreach ($partesDoc as $p) {
+            if (isset($p['client_id']) && $p['client_id'] == $clientId) {
+                $papelCliente = $p['papel'] ?: $papelCliente;
+            }
+            if (in_array($p['papel'], array('reu')) && !$nomeParteContraria) {
+                $nomeParteContraria = $p['nome'] ?: '';
+            }
+        }
+    }
+}
+
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
@@ -168,7 +193,7 @@ $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -581,6 +606,87 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'habilitacao'): ?>
+        <div class="section">
+            <h4>Dados da Habilitação</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família"></div>
+            </div>
+            <div class="row">
+                <div><label>Comarca</label><input name="comarca_doc" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende"></div>
+                <div><label>UF</label><input name="comarca_uf_doc" value="<?= e($comarcaUfDoc ?: 'RJ') ?>" placeholder="RJ" maxlength="2" style="text-transform:uppercase;"></div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>Tipo de ação</label>
+                    <select name="tipo_acao_hab">
+                        <option value="">— Selecionar —</option>
+                        <?php
+                        $opHab = array(
+                            'AÇÃO DE ALIMENTOS' => 'Alimentos',
+                            'AÇÃO REVISIONAL DE ALIMENTOS' => 'Revisional de Alimentos',
+                            'AÇÃO DE EXECUÇÃO DE ALIMENTOS' => 'Execução de Alimentos',
+                            'AÇÃO DE DIVÓRCIO' => 'Divórcio',
+                            'AÇÃO DE DIVÓRCIO CONSENSUAL' => 'Divórcio Consensual',
+                            'AÇÃO DE DIVÓRCIO LITIGIOSO' => 'Divórcio Litigioso',
+                            'AÇÃO DE GUARDA' => 'Guarda',
+                            'AÇÃO DE GUARDA COMPARTILHADA' => 'Guarda Compartilhada',
+                            'AÇÃO DE REGULAMENTAÇÃO DE CONVIVÊNCIA' => 'Regulamentação de Convivência',
+                            'AÇÃO DE INVESTIGAÇÃO DE PATERNIDADE' => 'Investigação de Paternidade',
+                            'AÇÃO DE ABANDONO AFETIVO' => 'Abandono Afetivo',
+                            'AÇÃO INDENIZATÓRIA' => 'Indenização',
+                            'AÇÃO DO CONSUMIDOR' => 'Consumidor',
+                            'AÇÃO DE OBRIGAÇÃO DE FAZER' => 'Obrigação de Fazer',
+                            'AÇÃO DE COBRANÇA' => 'Cobrança',
+                            'AÇÃO DE USUCAPIÃO' => 'Usucapião',
+                            'INVENTÁRIO E PARTILHA' => 'Inventário',
+                            'CURATELA' => 'Curatela',
+                        );
+                        foreach ($opHab as $ohVal => $ohLabel): ?>
+                        <option value="<?= e($ohVal) ?>" <?= strtoupper($tipoAcaoHab) === $ohVal ? 'selected' : '' ?>><?= e($ohLabel) ?></option>
+                        <?php endforeach; ?>
+                        <option value="outro">Outro (digitar)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Papel do cliente</label>
+                    <select name="papel_cliente">
+                        <option value="autor" <?= $papelCliente === 'autor' ? 'selected' : '' ?>>Autor / Requerente</option>
+                        <option value="reu" <?= $papelCliente === 'reu' ? 'selected' : '' ?>>Réu / Requerido</option>
+                        <option value="representante_legal" <?= $papelCliente === 'representante_legal' ? 'selected' : '' ?>>Representante Legal</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div><label>Nome da parte contrária</label><input name="nome_parte_contraria" value="<?= e($nomeParteContraria) ?>" placeholder="Nome do réu ou autor"></div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>É representante legal de menor?</label>
+                    <select name="rep_legal" onchange="document.getElementById('filhosHab').style.display=this.value==='sim'?'block':'none';">
+                        <option value="nao" <?= $repLegal === 'nao' ? 'selected' : '' ?>>Não</option>
+                        <option value="sim" <?= $repLegal === 'sim' ? 'selected' : '' ?>>Sim</option>
+                    </select>
+                </div>
+                <div id="filhosHab" style="<?= $repLegal === 'sim' ? '' : 'display:none;' ?>">
+                    <label>Nome(s) dos filhos</label>
+                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: JOÃO DA SILVA E MARIA DA SILVA">
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($isIntercorrente && $tipo !== 'habilitacao'): ?>
+        <div class="section">
+            <h4>Comarca</h4>
+            <div class="row">
+                <div><label>Comarca</label><input name="comarca_doc" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende"></div>
+                <div><label>UF</label><input name="comarca_uf_doc" value="<?= e($comarcaUfDoc ?: 'RJ') ?>" placeholder="RJ" maxlength="2" style="text-transform:uppercase;"></div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -631,6 +737,13 @@ if (!$showEditor) {
         'whatsapp_reu' => $whatsappReu,
         'tipo_acao_citacao' => $tipoAcaoCitacao,
         'justificativa_citacao' => $justificativaCitacao,
+        'comarca' => $comarcaDoc,
+        'comarca_uf' => $comarcaUfDoc,
+        'tipo_acao_hab' => $tipoAcaoHab,
+        'rep_legal' => $repLegal,
+        'nome_parte_contraria' => $nomeParteContraria,
+        'papel_cliente' => $papelCliente,
+        'nacionalidade' => $client['nacionalidade'] ?? '',
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -644,6 +757,7 @@ if (!$showEditor) {
     elseif ($tipo === 'ciencia') echo template_ciencia($d);
     elseif ($tipo === 'prevjud') echo template_prevjud($d);
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
+    elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
     ?>
     </div>
 

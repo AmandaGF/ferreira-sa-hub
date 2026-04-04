@@ -23,6 +23,16 @@ function escritorioData() {
 
 function f($v, $ph = '_______________') { return $v ? htmlspecialchars($v, ENT_QUOTES, 'UTF-8') : $ph; }
 
+/**
+ * Gera endereçamento padrão: JUÍZO DA [vara] DA COMARCA DE [comarca]/[UF]
+ */
+function enderecamento($d) {
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA';
+    $comarca = isset($d['comarca']) && $d['comarca'] ? strtoupper($d['comarca']) : '_______________';
+    $uf = isset($d['comarca_uf']) && $d['comarca_uf'] ? strtoupper($d['comarca_uf']) : 'RJ';
+    return '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . ' DA COMARCA DE ' . f($comarca) . '/' . f($uf) . '</p>';
+}
+
 // ═══════════════════════════════════════════════════════
 // PROCURAÇÃO
 // ═══════════════════════════════════════════════════════
@@ -347,10 +357,9 @@ function template_juntada($d) {
     $esc = escritorioData();
     $html = '<div class="doc-title">PETIÇÃO DE JUNTADA DE DOCUMENTOS</div>';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
 
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . '</p>';
+    $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
@@ -412,13 +421,12 @@ function template_prevjud($d) {
     $esc = escritorioData();
     $html = '';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $nomeGenitor = isset($d['nome_genitor']) && $d['nome_genitor'] ? $d['nome_genitor'] : '_______________';
     $cpfGenitor = isset($d['cpf_genitor']) && $d['cpf_genitor'] ? $d['cpf_genitor'] : '___.___.___-__';
 
     // Cabeçalho
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;font-size:12px;line-height:1.8;">JUÍZO DA ' . f($vara) . '</p>';
+    $html .= enderecamento($d);
     $html .= '<br>';
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<br>';
@@ -485,11 +493,10 @@ function template_ciencia($d) {
     $esc = escritorioData();
     $html = '<div class="doc-title">PETIÇÃO DE CIÊNCIA</div>';
 
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA DA COMARCA DE _______________/RJ';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'r. decisão/despacho de id. _______________';
 
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . '</p>';
+    $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
@@ -519,7 +526,6 @@ function template_ciencia($d) {
 // ═══════════════════════════════════════════════════════════
 function template_citacao_whatsapp($d) {
     $esc = escritorioData();
-    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___a VARA DE FAMILIA DA COMARCA DE _______________';
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
     $nomeReu = isset($d['nome_reu']) && $d['nome_reu'] ? $d['nome_reu'] : '_______________';
     $whatsappReu = isset($d['whatsapp_reu']) && $d['whatsapp_reu'] ? $d['whatsapp_reu'] : '(__)_____-____';
@@ -527,7 +533,7 @@ function template_citacao_whatsapp($d) {
     $justificativa = isset($d['justificativa_citacao']) && $d['justificativa_citacao'] ? $d['justificativa_citacao'] : '';
 
     $html = '<div class="doc-title">PETIÇÃO INTERCORRENTE</div>';
-    $html .= '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUIZO DA ' . f($vara) . '</p>';
+    $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<p><strong>' . f($d['nome']) . '</strong>, ja qualificado(a) nos autos do processo em epigrafe, vem, respeitosamente, perante Vossa Excelencia, por intermedio de seus advogados que esta subscrevem, com escritorio profissional indicado no rodape, requerer a</p>';
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITACAO DO(A) REU/RA POR MEIO ELETRONICO (WHATSAPP)</div>';
@@ -563,5 +569,98 @@ function template_citacao_whatsapp($d) {
     $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
     $html .= '</div>';
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════════
+// PETIÇÃO DE HABILITAÇÃO (Procuração em anexo)
+// ═══════════════════════════════════════════════════════════
+function template_habilitacao($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $tipoAcaoHab = isset($d['tipo_acao_hab']) && $d['tipo_acao_hab'] ? strtoupper($d['tipo_acao_hab']) : 'AÇÃO DE _______________';
+    $isRepLegal = isset($d['rep_legal']) && $d['rep_legal'] === 'sim';
+    $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
+    $nomeParteContraria = isset($d['nome_parte_contraria']) && $d['nome_parte_contraria'] ? $d['nome_parte_contraria'] : '_______________';
+    $papelCliente = isset($d['papel_cliente']) && $d['papel_cliente'] ? $d['papel_cliente'] : 'autor';
+
+    $html = '<div class="doc-title">PETIÇÃO DE HABILITAÇÃO</div>';
+
+    // Endereçamento
+    $html .= enderecamento($d);
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+
+    // Qualificação
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
+
+    if ($isRepLegal && $nomeFilhos) {
+        // Representante legal dos filhos
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) impúbere(s), representado(s) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>';
+    } else {
+        $html .= '<strong>' . f($d['nome']) . '</strong>';
+    }
+
+    // Dados de qualificação
+    $quals = array();
+    if (isset($d['nacionalidade']) && $d['nacionalidade']) $quals[] = f($d['nacionalidade']);
+    if (isset($d['estado_civil']) && $d['estado_civil']) $quals[] = f($d['estado_civil']);
+    if (isset($d['profissao']) && $d['profissao']) $quals[] = f($d['profissao']);
+    if (!empty($quals)) $html .= ', ' . implode(', ', $quals);
+
+    $html .= ', inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>';
+    if (isset($d['rg']) && $d['rg']) $html .= ', RG n. <strong>' . f($d['rg']) . '</strong>';
+    $html .= ', residente e domiciliado(a) na ' . f($d['endereco'], '_______________');
+    if (isset($d['email']) && $d['email']) $html .= ', e-mail: ' . f($d['email']);
+    if (isset($d['phone']) && $d['phone']) $html .= ', telefone: ' . f($d['phone']);
+
+    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer a</p>';
+
+    // Destaque
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">HABILITAÇÃO NOS AUTOS</div>';
+
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogado(s) constituído(s) da parte ';
+
+    // Polo do cliente
+    if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
+        $html .= '<strong>AUTORA/REQUERENTE</strong>';
+    } elseif ($papelCliente === 'reu' || $papelCliente === 'requerido') {
+        $html .= '<strong>RÉ/REQUERIDA</strong>';
+    } else {
+        $html .= '<strong>' . strtoupper(f($papelCliente)) . '</strong>';
+    }
+
+    $html .= ' nos autos da <strong>' . f($tipoAcaoHab) . '</strong>';
+
+    // Parte contrária
+    $html .= ', movida ';
+    if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
+        $html .= 'em face de <strong>' . f($nomeParteContraria) . '</strong>';
+    } else {
+        $html .= 'por <strong>' . f($nomeParteContraria) . '</strong>';
+    }
+    $html .= ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+
+    // Fundamentação
+    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Nos termos do art. 105 do Código de Processo Civil, a parte é representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil, devendo juntar instrumento de mandato quando do primeiro ato processual.</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+
+    // Pedido
+    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS PEDIDOS</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ante o exposto, requer a Vossa Excelência:</p>';
+    $html .= '<div style="margin:12px 0;">';
+    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
+    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>c)</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
+    $html .= '</div>';
+
+    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
     return $html;
 }
