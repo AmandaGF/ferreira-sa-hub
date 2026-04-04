@@ -60,6 +60,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             exit;
         }
 
+        // 3. Buscar na API externa (cpfcnpj.com.br)
+        $token = '9320d4099cf4099528cce511241c48a0';
+        $ch = curl_init("https://api.cpfcnpj.com.br/$token/1/$cpf");
+        curl_setopt_array($ch, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 10,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_USERAGENT => 'FES-Hub/1.0',
+        ));
+        $resp = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($httpCode === 200 && $resp) {
+            $extData = json_decode($resp, true);
+            if (isset($extData['nome']) && $extData['nome']) {
+                $nascimento = isset($extData['nascimento']) ? $extData['nascimento'] : null;
+                // Converter dd/mm/yyyy para yyyy-mm-dd
+                if ($nascimento && preg_match('#(\d{2})/(\d{2})/(\d{4})#', $nascimento, $nm)) {
+                    $nascimento = $nm[3] . '-' . $nm[2] . '-' . $nm[1];
+                }
+                echo json_encode(array('found' => true, 'source' => 'api_externa', 'data' => array(
+                    'name' => $extData['nome'],
+                    'birth_date' => $nascimento,
+                )));
+                exit;
+            }
+        }
+
         echo json_encode(array('found' => false, 'source' => 'none'));
         exit;
     }

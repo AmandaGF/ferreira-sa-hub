@@ -114,22 +114,48 @@ function buscarCPF(cpfInput, opts) {
             } catch(e) {}
         };
         xhr.send();
-    } else if (doc.length === 11 && opts.searchUrl) {
-        // CPF — base interna
+    } else if (doc.length === 11) {
+        // CPF — 1º base interna, 2º API externa
         var cpfFormatado = doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-        var xhr2 = new XMLHttpRequest();
-        xhr2.open('GET', opts.searchUrl + '?q=' + encodeURIComponent(cpfFormatado));
-        xhr2.onload = function() {
-            try {
-                var clientes = JSON.parse(xhr2.responseText);
-                if (clientes.length > 0 && nomeEl) {
-                    nomeEl.value = clientes[0].name;
-                    nomeEl.style.borderColor = '#059669';
-                    setTimeout(function(){ nomeEl.style.borderColor = ''; }, 2000);
-                }
-            } catch(e) {}
-        };
-        xhr2.send();
+        var found = false;
+
+        function tryExternalCPF() {
+            var xhr3 = new XMLHttpRequest();
+            xhr3.open('GET', '/conecta/publico/api_cpf.php?cpf=' + doc);
+            xhr3.timeout = 10000;
+            xhr3.onload = function() {
+                try {
+                    var data = JSON.parse(xhr3.responseText);
+                    if (data.status === 'OK' && data.nome && nomeEl) {
+                        nomeEl.value = data.nome;
+                        nomeEl.style.borderColor = '#059669';
+                        setTimeout(function(){ nomeEl.style.borderColor = ''; }, 2000);
+                    }
+                } catch(e) {}
+            };
+            xhr3.send();
+        }
+
+        if (opts.searchUrl) {
+            var xhr2 = new XMLHttpRequest();
+            xhr2.open('GET', opts.searchUrl + '?q=' + encodeURIComponent(cpfFormatado));
+            xhr2.onload = function() {
+                try {
+                    var clientes = JSON.parse(xhr2.responseText);
+                    if (clientes.length > 0 && nomeEl) {
+                        nomeEl.value = clientes[0].name;
+                        nomeEl.style.borderColor = '#059669';
+                        setTimeout(function(){ nomeEl.style.borderColor = ''; }, 2000);
+                        found = true;
+                    }
+                } catch(e) {}
+                if (!found) tryExternalCPF();
+            };
+            xhr2.onerror = function() { tryExternalCPF(); };
+            xhr2.send();
+        } else {
+            tryExternalCPF();
+        }
     }
 }
 
