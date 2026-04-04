@@ -41,55 +41,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $cpf = preg_replace('/\D/', '', $_GET['q'] ?? '');
         if (strlen($cpf) < 11) { echo json_encode(array('found' => false)); exit; }
 
-        // 1. Buscar no portal (clients)
-        $stmt = $pdo->prepare("SELECT id, name, cpf, rg, birth_date, profession, marital_status, email, phone, address_street, address_city, address_state, address_zip FROM clients WHERE REPLACE(REPLACE(cpf,'.',''),'-','') = ? LIMIT 1");
-        $stmt->execute(array($cpf));
-        $client = $stmt->fetch();
-        if ($client) {
-            echo json_encode(array('found' => true, 'source' => 'portal', 'data' => $client));
-            exit;
+        // Usar helper centralizado
+        $resultado = buscar_cpf($cpf);
+        if (isset($resultado['erro'])) {
+            echo json_encode(array('found' => false, 'source' => 'none'));
+        } else {
+            echo json_encode(array('found' => true, 'source' => $resultado['fonte'], 'data' => $resultado['dados']));
         }
-
-        // 2. Buscar em partes já cadastradas
-        $cpfFmt = substr($cpf,0,3).'.'.substr($cpf,3,3).'.'.substr($cpf,6,3).'-'.substr($cpf,9,2);
-        $stmt = $pdo->prepare("SELECT nome, cpf, rg, profissao, estado_civil, email, telefone, endereco, cidade, uf, cep FROM case_partes WHERE cpf = ? OR cpf = ? LIMIT 1");
-        $stmt->execute(array($cpf, $cpfFmt));
-        $parte = $stmt->fetch();
-        if ($parte) {
-            echo json_encode(array('found' => true, 'source' => 'partes', 'data' => $parte));
-            exit;
-        }
-
-        // 3. Buscar na API externa (cpfcnpj.com.br)
-        $token = '9320d4099cf4099528cce511241c48a0';
-        $ch = curl_init("https://api.cpfcnpj.com.br/$token/1/$cpf");
-        curl_setopt_array($ch, array(
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 10,
-            CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_USERAGENT => 'FES-Hub/1.0',
-        ));
-        $resp = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode === 200 && $resp) {
-            $extData = json_decode($resp, true);
-            if (isset($extData['nome']) && $extData['nome']) {
-                $nascimento = isset($extData['nascimento']) ? $extData['nascimento'] : null;
-                // Converter dd/mm/yyyy para yyyy-mm-dd
-                if ($nascimento && preg_match('#(\d{2})/(\d{2})/(\d{4})#', $nascimento, $nm)) {
-                    $nascimento = $nm[3] . '-' . $nm[2] . '-' . $nm[1];
-                }
-                echo json_encode(array('found' => true, 'source' => 'api_externa', 'data' => array(
-                    'name' => $extData['nome'],
-                    'birth_date' => $nascimento,
-                )));
-                exit;
-            }
-        }
-
-        echo json_encode(array('found' => false, 'source' => 'none'));
         exit;
     }
 

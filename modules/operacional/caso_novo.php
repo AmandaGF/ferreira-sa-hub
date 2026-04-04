@@ -330,7 +330,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <div style="width:150px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
-                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarDocParte(this)">
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" data-busca-doc>
                             </div>
                             <div style="flex:1;min-width:180px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
@@ -740,7 +740,7 @@ function addParteRow() {
         + '<div style="width:100px;"><label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>'
         + '<select name="partes_tipo[]" class="form-select" style="font-size:.82rem;"><option value="fisica">PF</option><option value="juridica">PJ</option></select></div>'
         + '<div style="width:150px;"><label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>'
-        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarDocParte(this)"></div>'
+        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" data-busca-doc></div>'
         + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>'
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
         + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';

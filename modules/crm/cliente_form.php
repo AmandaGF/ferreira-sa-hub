@@ -154,7 +154,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">CPF / CNPJ</label>
-                        <input type="text" name="cpf" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarCPF(this,{nome:'[name=name]'})">
+                        <input type="text" name="cpf" class="form-input" value="<?= e($f['cpf']) ?>" placeholder="000.000.000-00" maxlength="18" data-busca-doc data-nome="[name=name]" data-nascimento="[name=birth_date]" data-email="[name=email]" data-telefone="[name=phone]" data-endereco="[name=address_street]" data-cidade="[name=address_city]" data-uf="[name=address_state]" data-cep="[name=address_zip]" data-rg="[name=rg]" data-profissao="[name=profession]" data-estado-civil="[name=marital_status]">
                     </div>
                     <div class="form-group">
                         <label class="form-label">RG</label>
