@@ -646,6 +646,50 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'vincular_incidental':
+        $principalId = (int)($_POST['principal_id'] ?? 0);
+        $incidentalId = (int)($_POST['incidental_id'] ?? 0);
+        $tipoRelacao = clean_str($_POST['tipo_relacao'] ?? '', 50);
+
+        if ($principalId && $incidentalId && $principalId !== $incidentalId) {
+            $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, is_incidental = 1, updated_at = NOW() WHERE id = ?")
+                ->execute(array($principalId, $tipoRelacao ?: null, $incidentalId));
+            audit_log('incidental_vinculado', 'case', $incidentalId, "Principal: #$principalId, Tipo: $tipoRelacao");
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+            flash_set('success', 'Processo incidental vinculado.');
+        } else {
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados inválidos')); exit; }
+            flash_set('error', 'Dados inválidos.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
+        break;
+
+    case 'desvincular_incidental':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            $pdo->prepare("UPDATE cases SET processo_principal_id = NULL, tipo_relacao = NULL, is_incidental = 0, updated_at = NOW() WHERE id = ?")
+                ->execute(array($caseId));
+            audit_log('incidental_desvinculado', 'case', $caseId);
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+            flash_set('success', 'Processo desvinculado.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
+    case 'buscar_casos_cliente':
+        // AJAX: buscar casos do mesmo cliente para vincular
+        $clientId = (int)($_GET['client_id'] ?? $_POST['client_id'] ?? 0);
+        $excludeId = (int)($_GET['exclude_id'] ?? $_POST['exclude_id'] ?? 0);
+        header('Content-Type: application/json');
+        if ($clientId) {
+            $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status FROM cases WHERE client_id = ? AND id != ? AND is_incidental = 0 ORDER BY created_at DESC LIMIT 20");
+            $stmt->execute(array($clientId, $excludeId));
+            echo json_encode($stmt->fetchAll());
+        } else {
+            echo json_encode(array());
+        }
+        exit;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('operacional'));

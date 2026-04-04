@@ -252,6 +252,26 @@ FIXO;
         }
     }
 
+    // Contexto de processo incidental
+    if ($caseId) {
+        try {
+            $stmtInc = $pdo->prepare("SELECT is_incidental, tipo_relacao, processo_principal_id FROM cases WHERE id = ?");
+            $stmtInc->execute(array($caseId));
+            $incData = $stmtInc->fetch();
+            if ($incData && $incData['is_incidental'] && $incData['processo_principal_id']) {
+                $stmtPrinc = $pdo->prepare("SELECT title, case_number FROM cases WHERE id = ?");
+                $stmtPrinc->execute(array($incData['processo_principal_id']));
+                $princData = $stmtPrinc->fetch();
+                if ($princData) {
+                    $userPrompt .= "PROCESSO INCIDENTAL:\nEste é um processo incidental de " . ($incData['tipo_relacao'] ?: 'tipo não especificado');
+                    $userPrompt .= " vinculado ao processo principal: " . $princData['title'];
+                    if ($princData['case_number']) $userPrompt .= " (Nº " . $princData['case_number'] . ")";
+                    $userPrompt .= ". Contextualize a peça considerando esta relação.\n\n";
+                }
+            }
+        } catch (Exception $e) {}
+    }
+
     $userPrompt .= "OPÇÕES PROCESSUAIS:\n$opcoesProc\n";
     $userPrompt .= "DADOS ESPECÍFICOS DA AÇÃO:\n$camposEspecificos\n\n";
     $userPrompt .= "Data atual: " . date('d/m/Y') . "\n";

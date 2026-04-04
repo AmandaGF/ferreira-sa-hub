@@ -114,7 +114,17 @@ if ($caseId) {
     $result['andamentos'] = $stmt->fetchAll();
 }
 
-// ── 7. DOCUMENTOS PENDENTES ──
+// ── 7. PROCESSOS INCIDENTAIS ──
+$result['incidentais'] = array();
+if ($caseId) {
+    try {
+        $stmtInc = $pdo->prepare("SELECT id, title, case_number, case_type, status, tipo_relacao FROM cases WHERE processo_principal_id = ? ORDER BY created_at DESC");
+        $stmtInc->execute(array($caseId));
+        $result['incidentais'] = $stmtInc->fetchAll();
+    } catch (Exception $e) {}
+}
+
+// ── 8. DOCUMENTOS PENDENTES ──
 // Busca por case_id OU lead_id OU client_id para garantir que documentos
 // apareçam mesmo quando o lead não tem linked_case_id
 $result['docs_pendentes'] = array();

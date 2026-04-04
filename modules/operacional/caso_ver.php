@@ -90,6 +90,30 @@ $statusCores = array(
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
 $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 
+// Processos incidentais
+$incidentais = array();
+$processoPrincipal = null;
+try {
+    // Se este é o principal → buscar incidentais vinculados
+    $stmtInc = $pdo->prepare("SELECT id, title, case_number, case_type, status, tipo_relacao FROM cases WHERE processo_principal_id = ? ORDER BY created_at DESC");
+    $stmtInc->execute(array($caseId));
+    $incidentais = $stmtInc->fetchAll();
+
+    // Se este é incidental → buscar o principal
+    if (!empty($case['processo_principal_id'])) {
+        $stmtPrinc = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE id = ?");
+        $stmtPrinc->execute(array($case['processo_principal_id']));
+        $processoPrincipal = $stmtPrinc->fetch();
+    }
+} catch (Exception $e) {}
+
+$tiposRelacao = array(
+    'Execução de Alimentos', 'Revisional de Alimentos', 'Exoneração de Alimentos',
+    'Tutela de Urgência', 'Medida Protetiva', 'Busca e Apreensão de Menor',
+    'Modificação de Guarda', 'Alienação Parental', 'Arrolamento de Bens',
+    'Cumprimento de Sentença', 'Embargos à Execução', 'Outros',
+);
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -244,12 +268,106 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<?php if ($processoPrincipal): ?>
+<!-- Banner: Este é um processo incidental -->
+<div style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-radius:var(--radius-lg);padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+    <span style="font-size:1.1rem;">🔗</span>
+    <div style="flex:1;">
+        <span style="font-size:.82rem;font-weight:700;">Processo incidental de:</span>
+        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $processoPrincipal['id']) ?>" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:.3rem;">
+            <?= e($processoPrincipal['title']) ?>
+        </a>
+        <?php if ($case['tipo_relacao']): ?>
+            <span style="background:rgba(255,255,255,.2);padding:1px 8px;border-radius:4px;font-size:.72rem;font-weight:600;margin-left:.5rem;"><?= e($case['tipo_relacao']) ?></span>
+        <?php endif; ?>
+    </div>
+    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $processoPrincipal['id']) ?>" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;font-size:.75rem;">Ver processo principal</a>
+</div>
+<?php endif; ?>
+
 <!-- Atalhos rápidos -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
+</div>
+
+<!-- Processos Incidentais -->
+<?php if (!empty($incidentais) || !$case['is_incidental']): ?>
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>📎 Processos Incidentais (<?= count($incidentais) ?>)</h3>
+        <?php if (has_min_role('gestao')): ?>
+        <button onclick="document.getElementById('modalIncidental').style.display='flex'" class="btn btn-primary btn-sm" style="font-size:.72rem;">+ Vincular processo incidental</button>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <?php if (empty($incidentais)): ?>
+            <p class="text-muted text-sm">Nenhum processo incidental vinculado.</p>
+        <?php else: ?>
+            <?php foreach ($incidentais as $inc):
+                $incStatusLabel = isset($statusLabels[$inc['status']]) ? $statusLabels[$inc['status']] : ucfirst($inc['status']);
+                $incStatusCor = isset($statusCores[$inc['status']]) ? $statusCores[$inc['status']] : '#6b7280';
+            ?>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:1rem;">⚖️</span>
+                <div style="flex:1;">
+                    <div style="font-weight:700;font-size:.88rem;color:var(--petrol-900);">
+                        <?= e($inc['tipo_relacao'] ?: $inc['case_type'] ?: 'Processo Incidental') ?>
+                    </div>
+                    <div style="font-size:.75rem;color:var(--text-muted);">
+                        <?= $inc['case_number'] ? 'Nº ' . e($inc['case_number']) : 'Sem número' ?>
+                        · <span style="color:<?= $incStatusCor ?>;font-weight:600;"><?= e($incStatusLabel) ?></span>
+                    </div>
+                </div>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $inc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir processo</a>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: Vincular Processo Incidental -->
+<div id="modalIncidental" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:1rem;">📎 Vincular Processo Incidental</h3>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Tipo de relação *</label>
+            <select id="incTipoRelacao" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Selecione...</option>
+                <?php foreach ($tiposRelacao as $tr): ?>
+                <option value="<?= e($tr) ?>"><?= e($tr) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <!-- Tab: Vincular existente / Criar novo -->
+        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;margin-bottom:1rem;">
+            <button type="button" id="btnIncExistente" onclick="toggleIncTab('existente')" style="flex:1;padding:6px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;">Vincular existente</button>
+            <button type="button" id="btnIncNovo" onclick="toggleIncTab('novo')" style="flex:1;padding:6px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);">Criar novo</button>
+        </div>
+
+        <!-- Vincular existente -->
+        <div id="incTabExistente">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Buscar processo do mesmo cliente</label>
+            <select id="incCasoSelect" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Carregando...</option>
+            </select>
+        </div>
+
+        <!-- Criar novo -->
+        <div id="incTabNovo" style="display:none;">
+            <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem;">Será criado um novo processo vinculado a este como incidental.</p>
+        </div>
+
+        <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
+            <button onclick="document.getElementById('modalIncidental').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
+            <button id="btnIncConfirmar" onclick="confirmarIncidental()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
+        </div>
+    </div>
 </div>
 
 <!-- Partes do Processo -->
@@ -1077,6 +1195,76 @@ function buscarCepParte() {
                 document.getElementById('parteUf').value = d.uf || '';
             }
         }).catch(function(){});
+}
+
+// ══════════════════════════════════════
+// PROCESSOS INCIDENTAIS
+// ══════════════════════════════════════
+var _incTab = 'existente';
+
+function toggleIncTab(tab) {
+    _incTab = tab;
+    document.getElementById('incTabExistente').style.display = tab === 'existente' ? 'block' : 'none';
+    document.getElementById('incTabNovo').style.display = tab === 'novo' ? 'block' : 'none';
+    document.getElementById('btnIncExistente').style.background = tab === 'existente' ? 'var(--petrol-900)' : '#fff';
+    document.getElementById('btnIncExistente').style.color = tab === 'existente' ? '#fff' : 'var(--petrol-900)';
+    document.getElementById('btnIncNovo').style.background = tab === 'novo' ? 'var(--petrol-900)' : '#fff';
+    document.getElementById('btnIncNovo').style.color = tab === 'novo' ? '#fff' : 'var(--petrol-900)';
+    document.getElementById('btnIncConfirmar').textContent = tab === 'existente' ? 'Vincular →' : 'Criar novo →';
+}
+
+// Carregar casos do mesmo cliente
+(function() {
+    var clientId = <?= (int)$case['client_id'] ?>;
+    if (!clientId) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_casos_cliente&client_id=' + clientId + '&exclude_id=<?= $caseId ?>');
+    xhr.onload = function() {
+        try {
+            var casos = JSON.parse(xhr.responseText);
+            var sel = document.getElementById('incCasoSelect');
+            sel.innerHTML = '<option value="">— Selecione um processo —</option>';
+            casos.forEach(function(c) {
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.title + (c.case_number ? ' — ' + c.case_number : '') + ' (' + c.status + ')';
+                sel.appendChild(opt);
+            });
+            if (casos.length === 0) sel.innerHTML = '<option value="">Nenhum outro processo deste cliente</option>';
+        } catch(e) {}
+    };
+    xhr.send();
+})();
+
+function confirmarIncidental() {
+    var tipo = document.getElementById('incTipoRelacao').value;
+    if (!tipo) { document.getElementById('incTipoRelacao').style.borderColor = '#ef4444'; return; }
+
+    if (_incTab === 'existente') {
+        var casoId = document.getElementById('incCasoSelect').value;
+        if (!casoId) { document.getElementById('incCasoSelect').style.borderColor = '#ef4444'; return; }
+
+        // Vincular existente via AJAX
+        var fd = new FormData();
+        fd.append('action', 'vincular_incidental');
+        fd.append('principal_id', '<?= $caseId ?>');
+        fd.append('incidental_id', casoId);
+        fd.append('tipo_relacao', tipo);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', andCsrf);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            try { var r = JSON.parse(xhr.responseText); if (r.csrf) andCsrf = r.csrf; } catch(e){}
+            location.reload();
+        };
+        xhr.send(fd);
+    } else {
+        // Criar novo → redirecionar para caso_novo com pré-vínculo
+        var url = '<?= module_url("operacional", "caso_novo.php") ?>?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo);
+        window.location.href = url;
+    }
 }
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

@@ -282,6 +282,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
                             <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
                         <?php endif; ?>
+                        <?php if (!empty($cs['is_incidental']) && $cs['processo_principal_id']): ?>
+                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['processo_principal_id']) ?>" onclick="event.stopPropagation();" class="op-card-badge" style="background:#6366f1;text-decoration:none;cursor:pointer;" title="Ver processo principal">📎 Incidental</a>
+                        <?php endif; ?>
                     </div>
                     <div class="op-card-footer">
                         <span class="op-card-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></span>

@@ -44,6 +44,9 @@ if ($search) {
     $where[] = "(cs.title LIKE ? OR cs.case_number LIKE ? OR c.name LIKE ? OR cs.court LIKE ?)";
     $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
+$filterVinculo = isset($_GET['vinculo']) ? $_GET['vinculo'] : '';
+if ($filterVinculo === 'principais') { $where[] = "(cs.is_incidental = 0 OR cs.is_incidental IS NULL)"; }
+elseif ($filterVinculo === 'incidentais') { $where[] = "cs.is_incidental = 1"; }
 
 $whereStr = implode(' AND ', $where);
 $stmt = $pdo->prepare(
@@ -125,8 +128,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php endforeach; ?>
         </select>
         <?php endif; ?>
+        <select name="vinculo" class="form-select" style="font-size:.75rem;padding:.35rem;" onchange="this.form.submit()">
+            <option value="">Vínculos</option>
+            <option value="principais" <?= $filterVinculo === 'principais' ? 'selected' : '' ?>>Só principais</option>
+            <option value="incidentais" <?= $filterVinculo === 'incidentais' ? 'selected' : '' ?>>Só incidentais</option>
+        </select>
         <button type="submit" class="btn btn-outline btn-sm">🔍</button>
-        <?php if ($filterStatus || $filterType || $filterUser || $search): ?>
+        <?php if ($filterStatus || $filterType || $filterUser || $search || $filterVinculo): ?>
             <a href="<?= module_url('processos') ?>" class="btn btn-outline btn-sm">Limpar</a>
         <?php endif; ?>
     </form>
@@ -157,6 +165,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <th>Status</th>
                 <th>Prioridade</th>
                 <th>Responsável</th>
+                <th>Vínculos</th>
                 <th>Prazo</th>
             </tr></thead>
             <tbody>
@@ -187,6 +196,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </td>
                     <td style="font-size:.78rem;"><?= e($p['responsible_name'] ? explode(' ', $p['responsible_name'])[0] : '—') ?></td>
+                    <td style="font-size:.75rem;text-align:center;">
+                        <?php if (!empty($p['is_incidental']) && $p['processo_principal_id']): ?>
+                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['processo_principal_id']) ?>" title="Processo incidental" style="text-decoration:none;">🔗</a>
+                        <?php else:
+                            $cntInc = (int)$pdo->prepare("SELECT COUNT(*) FROM cases WHERE processo_principal_id = ?")->execute(array($p['id']));
+                            $stmtCntInc = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE processo_principal_id = ?");
+                            $stmtCntInc->execute(array($p['id']));
+                            $cntInc = (int)$stmtCntInc->fetchColumn();
+                            if ($cntInc > 0): ?>
+                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" title="<?= $cntInc ?> incidental(is)" style="text-decoration:none;">📎 <?= $cntInc ?></a>
+                        <?php else: ?>—<?php endif; endif; ?>
+                    </td>
                     <td style="font-size:.78rem;<?= $isOverdue ? 'color:#ef4444;font-weight:700;' : '' ?>"><?= $p['deadline'] ? date('d/m/Y', strtotime($p['deadline'])) : '—' ?><?= $isOverdue ? ' ⚠️' : '' ?></td>
                 </tr>
                 <?php endforeach; ?>

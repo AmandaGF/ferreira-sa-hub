@@ -176,7 +176,18 @@ function cdRenderTab() {
         h += _row('Pasta', cs.title) + _row('Nr Processo', cs.case_number) + _row('Vara', cs.court);
         h += _row('Comarca', (cs.comarca||'') + (cs.comarca_uf ? '/'+cs.comarca_uf : '') + (cs.regional ? ' - Regional de '+cs.regional : ''));
         h += _row('Sistema', cs.sistema_tribunal) + _row('Parte Re', cs.parte_re_nome);
+        if (cs.is_incidental && cs.processo_principal_id) {
+            h += '<div style="margin-top:6px;padding:6px 10px;background:#eef2ff;border-radius:6px;font-size:.75rem;"><span style="color:#6366f1;font-weight:700;">🔗 Incidental</span> ' + (cs.tipo_relacao||'') + ' <a href="' + _base + '/modules/operacional/caso_ver.php?id=' + cs.processo_principal_id + '" style="color:#4f46e5;font-weight:600;">Ver principal</a></div>';
+        }
         h += '</div>';
+        // Incidentais vinculados
+        if (d.incidentais && d.incidentais.length) {
+            h += '<div class="cd-s"><h5>📎 Incidentais (' + d.incidentais.length + ')</h5>';
+            d.incidentais.forEach(function(inc) {
+                h += '<div style="padding:4px 0;border-bottom:1px solid #f3f4f6;font-size:.78rem;"><a href="' + _base + '/modules/operacional/caso_ver.php?id=' + inc.id + '" style="color:#4f46e5;font-weight:600;">' + _e(inc.tipo_relacao || inc.case_type || 'Incidental') + '</a> <span style="color:#94a3b8;font-size:.68rem;">' + (inc.case_number || 'Sem nº') + '</span></div>';
+            });
+            h += '</div>';
+        }
         h += '<div class="cd-s"><h5>Tarefas (' + (d.tasks||[]).length + ')</h5>';
         (d.tasks||[]).forEach(function(t) {
             var done = t.status === 'feito';
