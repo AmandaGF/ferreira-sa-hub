@@ -155,6 +155,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </form>
     <?php if (has_min_role('gestao')): ?>
     <div style="display:flex;gap:.5rem;">
+        <a href="<?= module_url('clientes', 'mesclar.php') ?>" class="btn btn-outline btn-sm" style="color:var(--rose);">🔗 Mesclar Duplicados</a>
         <a href="<?= module_url('crm', 'importar.php') ?>" class="btn btn-outline btn-sm">📥 Importar CSV</a>
         <a href="<?= module_url('crm', 'cliente_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Cliente</a>
     </div>
