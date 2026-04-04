@@ -330,7 +330,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <div style="width:150px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
-                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18">
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarDocParte(this)">
                             </div>
                             <div style="flex:1;min-width:180px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
@@ -740,7 +740,7 @@ function addParteRow() {
         + '<div style="width:100px;"><label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>'
         + '<select name="partes_tipo[]" class="form-select" style="font-size:.82rem;"><option value="fisica">PF</option><option value="juridica">PJ</option></select></div>'
         + '<div style="width:150px;"><label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>'
-        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18"></div>'
+        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" oninput="formatarCpfCnpj(this)" onblur="buscarDocParte(this)"></div>'
         + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>'
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
         + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
@@ -761,6 +761,51 @@ document.getElementById('formNovoCaso').addEventListener('submit', function() {
         }
     }
 });
+
+function buscarDocParte(el) {
+    var doc = el.value.replace(/\D/g, '');
+    var row = el.closest('.parte-row');
+    if (!row) return;
+    var nomeInput = row.querySelector('input[name="partes_nome[]"]');
+    if (!nomeInput || nomeInput.value.trim() !== '') return;
+
+    if (doc.length === 14) {
+        // CNPJ — ReceitaWS
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', 'https://www.receitaws.com.br/v1/cnpj/' + doc);
+        xhr.timeout = 8000;
+        xhr.onload = function() {
+            try {
+                var data = JSON.parse(xhr.responseText);
+                if (data.nome) {
+                    nomeInput.value = data.nome;
+                    nomeInput.style.borderColor = '#059669';
+                    setTimeout(function(){ nomeInput.style.borderColor = ''; }, 2000);
+                }
+            } catch(e) {}
+        };
+        xhr.send();
+    } else if (doc.length === 11) {
+        // CPF — base interna + API externa
+        var cpfFmt = doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('GET', '<?= url("modules/shared/partes_api.php") ?>?action=buscar_cpf&q=' + doc);
+        xhr2.onload = function() {
+            try {
+                var r = JSON.parse(xhr2.responseText);
+                if (r.found && r.data) {
+                    var nome = r.data.name || r.data.nome || '';
+                    if (nome) {
+                        nomeInput.value = nome;
+                        nomeInput.style.borderColor = '#059669';
+                        setTimeout(function(){ nomeInput.style.borderColor = ''; }, 2000);
+                    }
+                }
+            } catch(e) {}
+        };
+        xhr2.send();
+    }
+}
 
 function buscarCpfCnpj() {
     // Legacy — mantida para compatibilidade mas não mais usada
