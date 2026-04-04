@@ -274,7 +274,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;">📂</a>
-                            <button onclick="event.stopPropagation();arquivarCard(<?= $cs['id'] ?>,'<?= e(addslashes($cs['title'])) ?>')" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
+                            <button type="button" onclick="event.stopPropagation();event.preventDefault();arquivarCard(<?= $cs['id'] ?>)" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
                         </div>
                     </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
@@ -565,12 +565,15 @@ sort($opTipos);
 var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
 
-function arquivarCard(caseId, title) {
-    if (!confirm('Arquivar "' + title + '"?\nO processo sairá do Kanban mas continuará acessível na listagem.')) return;
+function arquivarCard(caseId) {
+    if (!confirm('Arquivar este processo?\nEle sairá do Kanban mas continuará acessível na listagem.')) return;
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = '<?= module_url("operacional", "api.php") ?>';
-    form.innerHTML = '<input name="csrf_token" value="' + csrfToken + '"><input name="action" value="update_status"><input name="case_id" value="' + caseId + '"><input name="new_status" value="arquivado">';
+    var f1 = document.createElement('input'); f1.type='hidden'; f1.name='csrf_token'; f1.value=csrfToken; form.appendChild(f1);
+    var f2 = document.createElement('input'); f2.type='hidden'; f2.name='action'; f2.value='update_status'; form.appendChild(f2);
+    var f3 = document.createElement('input'); f3.type='hidden'; f3.name='case_id'; f3.value=caseId; form.appendChild(f3);
+    var f4 = document.createElement('input'); f4.type='hidden'; f4.name='new_status'; f4.value='arquivado'; form.appendChild(f4);
     document.body.appendChild(form);
     form.submit();
 }
