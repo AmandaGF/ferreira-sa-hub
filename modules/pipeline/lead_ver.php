@@ -29,6 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inlin
     if (in_array($field, $allowed)) {
         if ($field === 'assigned_to') $value = (int)$value ?: null;
         $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));
+        // Sincronizar valor_acao → estimated_value_cents
+        if ($field === 'valor_acao') { sync_estimated_value($pdo, $leadId, $value ?: null); }
         if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
             header('Content-Type: application/json');
             echo json_encode(array('ok' => true));

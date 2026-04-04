@@ -115,6 +115,11 @@ switch ($action) {
                     ->execute(array($dbValue, $entityId));
             }
 
+            // Sincronizar valor_acao → estimated_value_cents
+            if ($entity === 'lead' && $field === 'valor_acao') {
+                sync_estimated_value($pdo, $entityId, $dbValue);
+            }
+
             audit_log('card_edit', $entity, $entityId, "$field = " . ($dbValue ?: 'NULL'));
             echo json_encode(array('ok' => true, 'field' => $field, 'value' => $value));
         } catch (Exception $e) {

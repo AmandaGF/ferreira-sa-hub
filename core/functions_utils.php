@@ -164,6 +164,41 @@ function voltar_ao_processo_html(): string
     } catch (Exception $e) { return ''; }
 }
 
+// ─── Parsing de valor monetário ─────────────────────────
+/**
+ * Extrai valor numérico em centavos de texto livre.
+ * Ex: "R$ 3.108" → 310800, "5000" → 500000, "500+30%" → 50000, "Risco" → null
+ */
+function parse_valor_reais(?string $texto): ?int
+{
+    if ($texto === null || $texto === '') return null;
+    // Remove "R$", espaços, e caracteres não numéricos exceto . , -
+    $limpo = preg_replace('/[rR]\$\s*/', '', trim($texto));
+    // Pega apenas a primeira sequência numérica (antes de +, /, etc.)
+    if (!preg_match('/^[\s]*([\d.,]+)/', $limpo, $m)) return null;
+    $num = $m[1];
+    // Detecta formato BR: 3.108,00 ou 3.108 (ponto como milhar)
+    if (preg_match('/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/', $num)) {
+        // Formato BR: remove pontos de milhar, troca vírgula por ponto
+        $num = str_replace('.', '', $num);
+        $num = str_replace(',', '.', $num);
+    } elseif (strpos($num, ',') !== false) {
+        // Vírgula como decimal: 3108,50
+        $num = str_replace(',', '.', $num);
+    }
+    $valor = (float)$num;
+    if ($valor <= 0) return null;
+    return (int)round($valor * 100);
+}
+
+// ─── Sincronizar valor_acao → estimated_value_cents ─────
+function sync_estimated_value(PDO $pdo, int $leadId, ?string $valorAcao): void
+{
+    $cents = parse_valor_reais($valorAcao);
+    $pdo->prepare("UPDATE pipeline_leads SET estimated_value_cents = ? WHERE id = ?")
+        ->execute(array($cents, $leadId));
+}
+
 // ─── Auditoria ──────────────────────────────────────────
 function audit_log(string $action, ?string $entityType = null, ?int $entityId = null, ?string $details = null): void
 {

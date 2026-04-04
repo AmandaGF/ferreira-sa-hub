@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'email'     => trim($_POST['email'] ?? ''),
         'source'    => $_POST['source'] ?? 'outro',
         'case_type' => clean_str($_POST['case_type'] ?? '', 60),
-        'estimated_value' => (int)str_replace(['.', ','], ['', ''], $_POST['estimated_value'] ?? '0'),
+        'estimated_value' => parse_valor_reais($_POST['estimated_value'] ?? ''),
         'assigned_to' => (int)($_POST['assigned_to'] ?? 0) ?: null,
         'notes'     => clean_str($_POST['notes'] ?? '', 2000),
     ];
@@ -140,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $f = [
             'name' => $lead['name'] ?? '', 'phone' => $lead['phone'] ?? '',
             'email' => $lead['email'] ?? '', 'source' => $lead['source'] ?? 'outro',
-            'case_type' => $lead['case_type'] ?? '', 'estimated_value' => $lead['estimated_value_cents'] ?? '',
+            'case_type' => $lead['case_type'] ?? '', 'estimated_value' => ($lead['estimated_value_cents'] ? number_format($lead['estimated_value_cents'] / 100, 2, ',', '.') : ''),
             'assigned_to' => $lead['assigned_to'] ?? '', 'notes' => $lead['notes'] ?? '',
         ];
     }
@@ -212,9 +212,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Valor estimado (centavos)</label>
-                    <input type="number" name="estimated_value" class="form-input" value="<?= e($f['estimated_value']) ?>" placeholder="0">
-                    <span class="form-hint">Em centavos. Ex: 500000 = R$ 5.000,00</span>
+                    <label class="form-label">Valor estimado (R$)</label>
+                    <input type="text" name="estimated_value" class="form-input" value="<?= e($f['estimated_value']) ?>" placeholder="Ex: 5.000,00">
+                    <span class="form-hint">Valor em reais. Ex: 5.000,00 ou 3108</span>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Responsável</label>
