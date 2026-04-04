@@ -501,6 +501,42 @@ sort($opTipos);
                     <input type="date" id="procData" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" value="<?= date('Y-m-d') ?>">
                 </div>
             </div>
+            <div style="display:grid;grid-template-columns:2fr 1fr;gap:.5rem;">
+                <div>
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Comarca</label>
+                    <input type="text" id="procComarca" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Ex: Resende">
+                </div>
+                <div>
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">UF</label>
+                    <select id="procComarcaUf" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                        <option value="">—</option>
+                        <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $uf): ?>
+                        <option value="<?= $uf ?>" <?= $uf === 'RJ' ? 'selected' : '' ?>><?= $uf ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+                <div>
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Regional</label>
+                    <input type="text" id="procRegional" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Ex: Volta Redonda">
+                </div>
+                <div>
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Sistema do Tribunal</label>
+                    <select id="procSistema" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                        <option value="">—</option>
+                        <option value="PROJUDI">PROJUDI</option>
+                        <option value="PJe">PJe</option>
+                        <option value="e-SAJ">e-SAJ</option>
+                        <option value="EPROC">EPROC</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.5rem;">
+                <input type="checkbox" id="procSegredo" value="1">
+                <label for="procSegredo" style="font-size:.82rem;color:#6b7280;cursor:pointer;">Segredo de justiça</label>
+            </div>
         </div>
 
         <!-- Campos Extrajudiciais -->
@@ -751,6 +787,11 @@ function confirmProcesso() {
                 'proc_vara': vara,
                 'proc_tipo': document.getElementById('procTipo').value,
                 'proc_data': document.getElementById('procData').value,
+                'proc_comarca': document.getElementById('procComarca').value,
+                'proc_comarca_uf': document.getElementById('procComarcaUf').value,
+                'proc_regional': document.getElementById('procRegional').value,
+                'proc_sistema': document.getElementById('procSistema').value,
+                'proc_segredo': document.getElementById('procSegredo').checked ? '1' : '0',
                 'proc_category': 'judicial'
             };
             for (var k in fields) {

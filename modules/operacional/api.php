@@ -108,9 +108,33 @@ switch ($action) {
                 $procData = $_POST['proc_data'] ?? null;
                 if ($procData === '') $procData = null;
                 $procCategory = ($_POST['proc_category'] ?? 'judicial') === 'extrajudicial' ? 'extrajudicial' : 'judicial';
+                $procComarca = clean_str($_POST['proc_comarca'] ?? '', 100);
+                $procComarcaUf = clean_str($_POST['proc_comarca_uf'] ?? '', 2);
+                $procRegional = clean_str($_POST['proc_regional'] ?? '', 100);
+                $procSistema = clean_str($_POST['proc_sistema'] ?? '', 30);
+                $procSegredo = (int)($_POST['proc_segredo'] ?? 0);
 
-                $pdo->prepare('UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type), distribution_date=?, category=?, updated_at=NOW() WHERE id=?')
-                    ->execute(array($status, $procNumero ?: null, $procVara ?: null, $procTipo, $procData, $procCategory, $caseId));
+                $pdo->prepare(
+                    'UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type),
+                     distribution_date=?, category=?, comarca=?, comarca_uf=?, regional=?,
+                     sistema_tribunal=?, segredo_justica=?, opened_at=COALESCE(opened_at, CURDATE()),
+                     updated_at=NOW() WHERE id=?'
+                )->execute(array(
+                    $status, $procNumero ?: null, $procVara ?: null, $procTipo,
+                    $procData, $procCategory, $procComarca ?: null, $procComarcaUf ?: null,
+                    $procRegional ?: null, $procSistema ?: null, $procSegredo, $caseId
+                ));
+
+                // Gerar checklist de tarefas (se ainda não existir)
+                $stmtCk = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE case_id = ?");
+                $stmtCk->execute(array($caseId));
+                $existingTasks = (int)$stmtCk->fetchColumn();
+                if ($existingTasks === 0) {
+                    $caseType = $procTipo ?: ($currentCase['case_type'] ?? '');
+                    if ($caseType) {
+                        generate_case_checklist($caseId, $caseType);
+                    }
+                }
 
                 audit_log($procCategory === 'extrajudicial' ? 'extrajudicial' : 'processo_distribuido', 'case', $caseId, ($procCategory === 'extrajudicial' ? 'Extrajudicial: ' : 'Processo: ') . ($procNumero ?: $procVara));
                 notify_gestao('Processo distribuído!', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . $procNumero . ' (' . $procVara . ')', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '🏛️');
