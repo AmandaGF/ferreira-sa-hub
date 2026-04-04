@@ -272,7 +272,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                      onclick="if(!event.target.closest('select,form,.op-card-move'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
-                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;flex-shrink:0;margin-left:4px;">📂</a>
+                        <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
+                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;">📂</a>
+                            <button onclick="event.stopPropagation();arquivarCard(<?= $cs['id'] ?>,'<?= e(addslashes($cs['title'])) ?>')" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
+                        </div>
                     </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
                     <div class="op-card-badges">
@@ -561,6 +564,16 @@ sort($opTipos);
 <script>
 var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
+
+function arquivarCard(caseId, title) {
+    if (!confirm('Arquivar "' + title + '"?\nO processo sairá do Kanban mas continuará acessível na listagem.')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+    form.innerHTML = '<input name="csrf_token" value="' + csrfToken + '"><input name="action" value="update_status"><input name="case_id" value="' + caseId + '"><input name="new_status" value="arquivado">';
+    document.body.appendChild(form);
+    form.submit();
+}
 
 function handleOpMove(select) {
     var status = select.value;
