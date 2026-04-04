@@ -269,7 +269,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
                 ?>
                 <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" style="border-left-color:<?= $pColor ?>;"
-                     onclick="if(!event.target.closest('select,form,.op-card-move'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
+                     onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
