@@ -15,8 +15,8 @@ $queries = array(
         INDEX idx_consultado (consultado_em)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-    "INSERT IGNORE INTO configuracoes (chave, valor, descricao) VALUES ('cpfcnpj_api_token', '9320d4099cf4099528cce511241c48a0', 'Token da API cpfcnpj.com.br')",
-    "INSERT IGNORE INTO configuracoes (chave, valor, descricao) VALUES ('cpfcnpj_pacote', '1', 'Pacote da API cpfcnpj.com.br (1=básico)')",
+    "INSERT IGNORE INTO configuracoes (chave, valor) VALUES ('cpfcnpj_api_token', '9320d4099cf4099528cce511241c48a0')",
+    "INSERT IGNORE INTO configuracoes (chave, valor) VALUES ('cpfcnpj_pacote', '1')",
 );
 
 foreach ($queries as $q) {
