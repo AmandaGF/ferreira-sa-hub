@@ -106,6 +106,7 @@ var bt='';
 if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">WhatsApp</a> ';
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';
 bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
+if(s)bt+='<button onclick="window._cdArchive()" style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Arquivar</button> ';
 bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Excluir</button>';
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
@@ -188,6 +189,14 @@ rtab();
 }catch(e){}
 };
 x.send('action=update_field&entity=task&entity_id='+taskId+'&field=status&value='+newStatus)};
+
+window._cdArchive=function(){
+if(!D.case_id){alert('Este card não tem processo vinculado.');return}
+if(!confirm('Arquivar este processo?\nEle sairá do Kanban mas continuará acessível na listagem.'))return;
+var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){cdClose();location.reload()};
+x.send('action=update_status&case_id='+D.case_id+'&new_status=arquivado&csrf_token='+(D.csrf||''))};
+
 
 window._cdDelete=function(){
 var msg='Remover este card do fluxo?\n\n';
