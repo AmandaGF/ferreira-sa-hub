@@ -771,6 +771,7 @@ function buscarDocParte(el) {
 
     if (doc.length === 14) {
         // CNPJ — ReceitaWS
+        nomeInput.placeholder = 'Buscando CNPJ...';
         var xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://www.receitaws.com.br/v1/cnpj/' + doc);
         xhr.timeout = 8000;
@@ -781,28 +782,33 @@ function buscarDocParte(el) {
                     nomeInput.value = data.nome;
                     nomeInput.style.borderColor = '#059669';
                     setTimeout(function(){ nomeInput.style.borderColor = ''; }, 2000);
+                } else {
+                    nomeInput.placeholder = 'Nome da parte';
                 }
-            } catch(e) {}
+            } catch(e) { nomeInput.placeholder = 'Nome da parte'; }
         };
+        xhr.onerror = function() { nomeInput.placeholder = 'Nome da parte'; };
         xhr.send();
     } else if (doc.length === 11) {
-        // CPF — base interna + API externa
-        var cpfFmt = doc.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        // CPF — busca unificada (base interna + API externa)
+        nomeInput.placeholder = 'Buscando CPF...';
         var xhr2 = new XMLHttpRequest();
-        xhr2.open('GET', '<?= url("modules/shared/partes_api.php") ?>?action=buscar_cpf&q=' + doc);
+        xhr2.open('GET', '<?= url("publico/api_cpf.php") ?>?cpf=' + doc);
+        xhr2.timeout = 12000;
         xhr2.onload = function() {
             try {
                 var r = JSON.parse(xhr2.responseText);
-                if (r.found && r.data) {
-                    var nome = r.data.name || r.data.nome || '';
-                    if (nome) {
-                        nomeInput.value = nome;
-                        nomeInput.style.borderColor = '#059669';
-                        setTimeout(function(){ nomeInput.style.borderColor = ''; }, 2000);
-                    }
+                if (r.status === 'OK' && r.nome) {
+                    nomeInput.value = r.nome;
+                    nomeInput.style.borderColor = '#059669';
+                    setTimeout(function(){ nomeInput.style.borderColor = ''; }, 2000);
+                } else {
+                    nomeInput.placeholder = 'Não encontrado. Digite manualmente.';
+                    setTimeout(function(){ nomeInput.placeholder = 'Nome da parte'; }, 3000);
                 }
-            } catch(e) {}
+            } catch(e) { nomeInput.placeholder = 'Nome da parte'; }
         };
+        xhr2.onerror = function() { nomeInput.placeholder = 'Nome da parte'; };
         xhr2.send();
     }
 }
