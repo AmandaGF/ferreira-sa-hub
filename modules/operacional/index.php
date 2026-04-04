@@ -68,7 +68,7 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
-        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado')
+        WHERE $whereStr AND cs.status NOT IN ('concluido','arquivado') AND IFNULL(cs.kanban_oculto, 0) = 0
         ORDER BY FIELD(cs.priority, 'urgente','alta','normal','baixa'), cs.deadline ASC, cs.created_at DESC";
 
 $stmt = $pdo->prepare($sql);
@@ -316,7 +316,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option>
                                 <?php endif; ?>
                             <?php endforeach; ?>
-                            <option value="arquivado" style="color:#6b7280;">📦 Arquivar</option>
+                            <option value="concluido" style="color:#059669;">✅ Concluído</option>
                         </select>
                     </form>
                 </div>
@@ -602,14 +602,13 @@ var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
 
 function arquivarCard(caseId) {
-    if (!confirm('Arquivar este processo?\nEle sairá do Kanban mas continuará acessível na listagem.')) return;
+    if (!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.')) return;
     var form = document.createElement('form');
     form.method = 'POST';
     form.action = '<?= module_url("operacional", "api.php") ?>';
     var f1 = document.createElement('input'); f1.type='hidden'; f1.name='csrf_token'; f1.value=csrfToken; form.appendChild(f1);
-    var f2 = document.createElement('input'); f2.type='hidden'; f2.name='action'; f2.value='update_status'; form.appendChild(f2);
+    var f2 = document.createElement('input'); f2.type='hidden'; f2.name='action'; f2.value='ocultar_kanban'; form.appendChild(f2);
     var f3 = document.createElement('input'); f3.type='hidden'; f3.name='case_id'; f3.value=caseId; form.appendChild(f3);
-    var f4 = document.createElement('input'); f4.type='hidden'; f4.name='new_status'; f4.value='arquivado'; form.appendChild(f4);
     document.body.appendChild(form);
     form.submit();
 }
@@ -631,15 +630,6 @@ function handleOpMove(select) {
         _pendingOpForm = form;
         document.getElementById('parceiroModal').style.display = 'flex';
         select.value = '';
-        return;
-    }
-
-    if (status === 'arquivado') {
-        if (!confirm('Arquivar este processo? Ele sairá do Kanban mas continuará acessível na listagem de Processos.')) {
-            select.value = '';
-            return;
-        }
-        form.submit();
         return;
     }
 

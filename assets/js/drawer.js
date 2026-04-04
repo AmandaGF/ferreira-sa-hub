@@ -192,10 +192,10 @@ x.send('action=update_field&entity=task&entity_id='+taskId+'&field=status&value=
 
 window._cdArchive=function(){
 if(!D.case_id){alert('Este card não tem processo vinculado.');return}
-if(!confirm('Arquivar este processo?\nEle sairá do Kanban mas continuará acessível na listagem.'))return;
+if(!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.'))return;
 var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
 x.onload=function(){cdClose();location.reload()};
-x.send('action=update_status&case_id='+D.case_id+'&new_status=arquivado&csrf_token='+(D.csrf||''))};
+x.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''))};
 
 
 window._cdDelete=function(){

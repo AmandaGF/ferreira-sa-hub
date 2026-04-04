@@ -35,6 +35,17 @@ function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
 }
 
 switch ($action) {
+    case 'ocultar_kanban':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            $pdo->prepare("UPDATE cases SET kanban_oculto = 1 WHERE id = ?")->execute(array($caseId));
+            audit_log('kanban_oculto', 'case', $caseId);
+        }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        flash_set('success', 'Processo ocultado do Kanban.');
+        redirect(module_url('operacional'));
+        break;
+
     case 'update_status':
         if (!has_min_role('gestao') && !has_role('colaborador')) { break; }
         $caseId = (int)($_POST['case_id'] ?? 0);
