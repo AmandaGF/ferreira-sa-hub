@@ -129,7 +129,7 @@ h+='<div class="cs"><h5>Comentarios</h5><textarea id="cdCm" style="width:100%;fo
 (D.comments||[]).forEach(function(cm){h+='<div style="padding:5px 0;border-top:1px solid #f3f4f6;margin-top:3px"><strong style="font-size:.73rem">'+E(cm.user_name)+'</strong> <span style="font-size:.6rem;color:#94a3b8">'+FD(cm.created_at)+'</span><div style="font-size:.78rem;margin-top:1px">'+E(cm.message)+'</div></div>'});h+='</div>'
 }else if(T==='comercial'&&l){
 var li=D.lead_id;
-h+='<div class="cs"><h5>Contrato</h5>'+RE('Valor',l.valor_acao,'lead',li,'valor_acao')+RE('Forma Pgto',l.forma_pagamento,'lead',li,'forma_pagamento')+RE('Vencimento',l.vencimento_parcela,'lead',li,'vencimento_parcela')+RE('Pasta',l.nome_pasta,'lead',li,'nome_pasta')+RE('Pendencias',l.pendencias,'lead',li,'pendencias')+R('Convertido',l.converted_at?FD(l.converted_at):null)+'</div>';
+h+='<div class="cs"><h5>Contrato</h5>'+RE('Honorários (R$)',l.honorarios_cents?'R$ '+(l.honorarios_cents/100).toLocaleString('pt-BR',{minimumFractionDigits:2}):l.valor_acao,'lead',li,'valor_acao')+RE('Êxito (%)',l.exito_percentual?l.exito_percentual+'%':null,'lead',li,'exito_percentual')+RE('Forma Pgto',l.forma_pagamento,'lead',li,'forma_pagamento')+RE('Vencimento',l.vencimento_parcela,'lead',li,'vencimento_parcela')+RE('Pasta',l.nome_pasta,'lead',li,'nome_pasta')+RE('Pendencias',l.pendencias,'lead',li,'pendencias')+R('Convertido',l.converted_at?FD(l.converted_at):null)+'</div>';
 // Checklist de documentos (tarefas sem tipo = checklist)
 var chkTasks=(D.tasks||[]).filter(function(t){return !t.tipo});
 if(chkTasks.length){var doneC=chkTasks.filter(function(t){return t.status==='concluido'}).length;

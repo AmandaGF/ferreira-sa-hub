@@ -242,13 +242,14 @@ if ($step === '3' && validate_csrf()) {
                     }
                 }
 
+                $honCents = parse_valor_reais($valorAcao);
                 $pdo->prepare(
-                    "INSERT INTO pipeline_leads (client_id, name, phone, stage, case_type, assigned_to, notes, source, created_at, valor_acao, vencimento_parcela, forma_pagamento, urgencia, observacoes, nome_pasta, pendencias) VALUES (?,?,?,?,?,?,?,'outro',?,?,?,?,?,?,?,?)"
+                    "INSERT INTO pipeline_leads (client_id, name, phone, stage, case_type, assigned_to, notes, source, created_at, valor_acao, honorarios_cents, estimated_value_cents, vencimento_parcela, forma_pagamento, urgencia, observacoes, nome_pasta, pendencias) VALUES (?,?,?,?,?,?,?,'outro',?,?,?,?,?,?,?,?,?)"
                 )->execute(array(
                     $clientId, $title, $phone ?: null, $finalStage,
                     $caseType ?: null, $respId, $obs ?: null,
                     $parsedDate ?: date('Y-m-d H:i:s'),
-                    $valorAcao ?: null, $vencimento ?: null, $formaPgto ?: null,
+                    $valorAcao ?: null, $honCents, $honCents, $vencimento ?: null, $formaPgto ?: null,
                     $urgenciaVal ?: null, $obs ?: null, $nomePasta ?: null, $pendenciasVal ?: null
                 ));
                 $inserted++;

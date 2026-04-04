@@ -191,12 +191,17 @@ function parse_valor_reais(?string $texto): ?int
     return (int)round($valor * 100);
 }
 
-// ─── Sincronizar valor_acao → estimated_value_cents ─────
+// ─── Sincronizar honorários → estimated_value_cents ─────
+function sync_honorarios(PDO $pdo, int $leadId, ?string $valorTexto): void
+{
+    $cents = parse_valor_reais($valorTexto);
+    $pdo->prepare("UPDATE pipeline_leads SET honorarios_cents = ?, estimated_value_cents = ? WHERE id = ?")
+        ->execute(array($cents, $cents, $leadId));
+}
+
 function sync_estimated_value(PDO $pdo, int $leadId, ?string $valorAcao): void
 {
-    $cents = parse_valor_reais($valorAcao);
-    $pdo->prepare("UPDATE pipeline_leads SET estimated_value_cents = ? WHERE id = ?")
-        ->execute(array($cents, $leadId));
+    sync_honorarios($pdo, $leadId, $valorAcao);
 }
 
 // ─── Auditoria ──────────────────────────────────────────

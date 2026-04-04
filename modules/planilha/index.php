@@ -56,7 +56,7 @@ if ($tab === 'clientes') {
         'stage' => 'Etapa',
         'case_type' => 'Tipo Ação',
         'assigned_user' => 'Responsável',
-        'estimated_value' => 'Valor',
+        'estimated_value' => 'Honorários',
         'created_at' => 'Cadastro',
     );
     $where = '1=1';

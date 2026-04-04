@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inlin
     $field = $_POST['field'] ?? '';
     $value = $_POST['value'] ?? '';
     $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
-        'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes',
+        'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes',
         'nome_pasta','pendencias');
     if (in_array($field, $allowed)) {
         if ($field === 'assigned_to') $value = (int)$value ?: null;
@@ -186,9 +186,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="section-title">💰 Financeiro</div>
                 <div class="fin-card">
                     <div class="fin-item">
-                        <span class="fl">Valor da Ação</span>
-                        <span class="fe" contenteditable="true" data-field="valor_acao" data-id="<?= $leadId ?>" style="font-weight:700;color:var(--petrol-900);font-size:.95rem;"><?= e($lead['valor_acao'] ?: '—') ?></span>
+                        <span class="fl">Honorários (R$)</span>
+                        <span class="fe" contenteditable="true" data-field="valor_acao" data-id="<?= $leadId ?>" style="font-weight:700;color:var(--petrol-900);font-size:.95rem;"><?= $lead['honorarios_cents'] ? 'R$ ' . number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?: '—') ?></span>
                         <span class="sv" id="save-valor_acao">Salvo!</span>
+                    </div>
+                    <div class="fin-item">
+                        <span class="fl">Êxito (%)</span>
+                        <span class="fe" contenteditable="true" data-field="exito_percentual" data-id="<?= $leadId ?>"><?= $lead['exito_percentual'] ? e($lead['exito_percentual']) . '%' : '—' ?></span>
+                        <span class="sv" id="save-exito_percentual">Salvo!</span>
                     </div>
                     <div class="fin-item">
                         <span class="fl">Vencto 1ª Parcela</span>

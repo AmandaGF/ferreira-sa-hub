@@ -74,6 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'source'    => $_POST['source'] ?? 'outro',
         'case_type' => clean_str($_POST['case_type'] ?? '', 60),
         'estimated_value' => parse_valor_reais($_POST['estimated_value'] ?? ''),
+        'exito_percentual' => ($_POST['exito_percentual'] ?? '') !== '' ? (float)$_POST['exito_percentual'] : null,
         'assigned_to' => (int)($_POST['assigned_to'] ?? 0) ?: null,
         'notes'     => clean_str($_POST['notes'] ?? '', 2000),
     ];
@@ -86,11 +87,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($editId) {
             $pdo->prepare(
                 'UPDATE pipeline_leads SET name=?, phone=?, email=?, source=?, case_type=?,
-                 estimated_value_cents=?, assigned_to=?, notes=?, updated_at=NOW() WHERE id=?'
+                 estimated_value_cents=?, honorarios_cents=?, exito_percentual=?, assigned_to=?, notes=?, updated_at=NOW() WHERE id=?'
             )->execute([
                 $f['name'], $f['phone'] ?: null, $f['email'] ?: null, $f['source'],
-                $f['case_type'] ?: null, $f['estimated_value'] ?: null,
-                $f['assigned_to'], $f['notes'] ?: null, $editId
+                $f['case_type'] ?: null, $f['estimated_value'] ?: null, $f['estimated_value'] ?: null,
+                $f['exito_percentual'], $f['assigned_to'], $f['notes'] ?: null, $editId
             ]);
             audit_log('lead_updated', 'lead', $editId);
             flash_set('success', 'Lead atualizado.');
@@ -98,12 +99,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $clientIdFromPost = (int)($_POST['client_id'] ?? 0);
 
             $pdo->prepare(
-                'INSERT INTO pipeline_leads (client_id, name, phone, email, source, stage, case_type, estimated_value_cents, assigned_to, notes)
-                 VALUES (?,?,?,?,?,?,?,?,?,?)'
+                'INSERT INTO pipeline_leads (client_id, name, phone, email, source, stage, case_type, estimated_value_cents, honorarios_cents, exito_percentual, assigned_to, notes)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $clientIdFromPost ?: null,
                 $f['name'], $f['phone'] ?: null, $f['email'] ?: null, $f['source'],
                 'cadastro_preenchido', $f['case_type'] ?: null, $f['estimated_value'] ?: null,
+                $f['estimated_value'] ?: null, $f['exito_percentual'],
                 $f['assigned_to'], $f['notes'] ?: null
             ]);
             $newId = (int)$pdo->lastInsertId();
@@ -127,20 +129,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $f = [
             'name' => $preClient['name'] ?? '', 'phone' => $preClient['phone'] ?? '',
             'email' => $preClient['email'] ?? '', 'source' => 'outro', 'case_type' => '',
-            'estimated_value' => '', 'assigned_to' => '', 'notes' => '',
+            'estimated_value' => '', 'exito_percentual' => '', 'assigned_to' => '', 'notes' => '',
         ];
     } elseif ($preDuplicate) {
         $f = [
             'name' => $preDuplicate['name'] ?? '', 'phone' => $preDuplicate['phone'] ?? '',
             'email' => $preDuplicate['email'] ?? '', 'source' => $preDuplicate['source'] ?? 'outro',
-            'case_type' => '', 'estimated_value' => '', 'assigned_to' => $preDuplicate['assigned_to'] ?? '',
+            'case_type' => '', 'estimated_value' => '', 'exito_percentual' => '',
+            'assigned_to' => $preDuplicate['assigned_to'] ?? '',
             'notes' => 'Nova ação (duplicado de lead #' . $duplicateId . ')',
         ];
     } else {
         $f = [
             'name' => $lead['name'] ?? '', 'phone' => $lead['phone'] ?? '',
             'email' => $lead['email'] ?? '', 'source' => $lead['source'] ?? 'outro',
-            'case_type' => $lead['case_type'] ?? '', 'estimated_value' => ($lead['estimated_value_cents'] ? number_format($lead['estimated_value_cents'] / 100, 2, ',', '.') : ''),
+            'case_type' => $lead['case_type'] ?? '',
+            'estimated_value' => ($lead['honorarios_cents'] ? number_format($lead['honorarios_cents'] / 100, 2, ',', '.') : ($lead['estimated_value_cents'] ? number_format($lead['estimated_value_cents'] / 100, 2, ',', '.') : '')),
+            'exito_percentual' => $lead['exito_percentual'] ?? '',
             'assigned_to' => $lead['assigned_to'] ?? '', 'notes' => $lead['notes'] ?? '',
         ];
     }
@@ -212,9 +217,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div class="form-row">
                 <div class="form-group">
-                    <label class="form-label">Valor estimado (R$)</label>
+                    <label class="form-label">Honorários (R$)</label>
                     <input type="text" name="estimated_value" class="form-input" value="<?= e($f['estimated_value']) ?>" placeholder="Ex: 5.000,00">
-                    <span class="form-hint">Valor em reais. Ex: 5.000,00 ou 3108</span>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Êxito (%)</label>
+                    <input type="number" name="exito_percentual" class="form-input" value="<?= e($f['exito_percentual']) ?>" placeholder="Ex: 30" min="0" max="100" step="1">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Responsável</label>

@@ -88,7 +88,7 @@ switch ($action) {
         // Campos editáveis por entidade (whitelist de segurança)
         $allowed = array(
             'client' => array('name','cpf','phone','email','address_street','address_city','address_state','address_zip','profession','marital_status','rg','birth_date','pix_key','notes'),
-            'lead' => array('name','phone','email','case_type','valor_acao','vencimento_parcela','forma_pagamento','nome_pasta','pendencias','urgencia','observacoes','notes'),
+            'lead' => array('name','phone','email','case_type','valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','nome_pasta','pendencias','urgencia','observacoes','notes'),
             'case' => array('title','case_type','case_number','court','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','departamento','parte_re_nome','parte_re_cpf_cnpj','drive_folder_url','notes','priority'),
             'task' => array('status','title','prioridade'),
         );

@@ -160,7 +160,7 @@ function cdRenderTab() {
 
     } else if (_cdTab === 'comercial' && l) {
         h += '<div class="cd-s"><h5>Contrato</h5>';
-        h += _row('Valor', l.valor_acao) + _row('Forma Pagamento', l.forma_pagamento) + _row('Vencimento Parcela', l.vencimento_parcela);
+        h += _row('Honorários (R$)', l.honorarios_cents ? 'R$ ' + (l.honorarios_cents/100).toLocaleString('pt-BR',{minimumFractionDigits:2}) : l.valor_acao) + _row('Êxito (%)', l.exito_percentual ? l.exito_percentual + '%' : null) + _row('Forma Pagamento', l.forma_pagamento) + _row('Vencimento Parcela', l.vencimento_parcela);
         h += _row('Nome Pasta', l.nome_pasta) + _row('Pendencias', l.pendencias);
         h += _row('Convertido em', l.converted_at ? _d(l.converted_at) : null);
         h += '</div>';

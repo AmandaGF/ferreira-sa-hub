@@ -325,15 +325,16 @@ sort($tipos);
     <th onclick="sortTbl('pipelineTableBody',2)">Contato</th>
     <th onclick="sortTbl('pipelineTableBody',3)">Data Fech.</th>
     <th onclick="sortTbl('pipelineTableBody',4)">Tipo de Ação</th>
-    <th onclick="sortTbl('pipelineTableBody',5)">Valor</th>
-    <th onclick="sortTbl('pipelineTableBody',6)">Vencto 1ª</th>
-    <th onclick="sortTbl('pipelineTableBody',7)">Pgto</th>
-    <th onclick="sortTbl('pipelineTableBody',8)">Responsável</th>
-    <th onclick="sortTbl('pipelineTableBody',9)">Urgência</th>
-    <th onclick="sortTbl('pipelineTableBody',10)">Observações</th>
-    <th onclick="sortTbl('pipelineTableBody',11)">Nome Pasta</th>
-    <th onclick="sortTbl('pipelineTableBody',12)">Estado</th>
-    <th onclick="sortTbl('pipelineTableBody',13)">Pendências</th>
+    <th onclick="sortTbl('pipelineTableBody',5)">Honorários (R$)</th>
+    <th onclick="sortTbl('pipelineTableBody',6)">Êxito (%)</th>
+    <th onclick="sortTbl('pipelineTableBody',7)">Vencto 1ª</th>
+    <th onclick="sortTbl('pipelineTableBody',8)">Pgto</th>
+    <th onclick="sortTbl('pipelineTableBody',9)">Responsável</th>
+    <th onclick="sortTbl('pipelineTableBody',10)">Urgência</th>
+    <th onclick="sortTbl('pipelineTableBody',11)">Observações</th>
+    <th onclick="sortTbl('pipelineTableBody',12)">Nome Pasta</th>
+    <th onclick="sortTbl('pipelineTableBody',13)">Estado</th>
+    <th onclick="sortTbl('pipelineTableBody',14)">Pendências</th>
     <th style="cursor:default;">Mover</th>
 </tr></thead>
 <tbody>
@@ -349,7 +350,8 @@ sort($tipos);
     <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
     <td style="font-size:.72rem;"><?= $lead['created_at'] ? date('d/m/Y', strtotime($lead['created_at'])) : '' ?></td>
     <td class="editable" style="min-width:100px;"><input value="<?= e($lead['case_type'] ?? '') ?>" data-id="<?= $lid ?>" data-field="case_type" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:90px;"><input value="<?= e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:100px;"><input type="text" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorarios(this)" placeholder="0,00"></td>
+    <td class="editable" style="min-width:60px;"><input type="number" value="<?= e($lead['exito_percentual'] ?? '') ?>" data-id="<?= $lid ?>" data-field="exito_percentual" onchange="saveCell(this)" placeholder="%" step="1" min="0" max="100" style="width:55px;"></td>
     <td class="editable" style="min-width:80px;"><input value="<?= e($lead['vencimento_parcela'] ?? '') ?>" data-id="<?= $lid ?>" data-field="vencimento_parcela" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:70px;"><input value="<?= e($lead['forma_pagamento'] ?? '') ?>" data-id="<?= $lid ?>" data-field="forma_pagamento" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:80px;">
@@ -589,6 +591,17 @@ function saveCell(el) {
         if (td) { td.classList.add('saved'); setTimeout(function() { td.classList.remove('saved'); }, 1500); }
     };
     xhr.send(formData);
+}
+function saveHonorarios(el) {
+    // Formatar como moeda BR e salvar via valor_acao (sync automático no backend)
+    var raw = el.value.replace(/[^\d.,]/g, '');
+    if (raw) {
+        var num = parseFloat(raw.replace(/\./g, '').replace(',', '.'));
+        if (!isNaN(num) && num > 0) {
+            el.value = num.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        }
+    }
+    saveCell(el);
 }
 
 function toggleView(view) {

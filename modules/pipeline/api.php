@@ -281,7 +281,7 @@ switch ($action) {
         $value = $_POST['value'] ?? '';
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
-            'valor_acao','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
+            'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
             'data_agendamento','onboard_realizado','origem_lead');
         if ($leadId && in_array($field, $allowed)) {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
