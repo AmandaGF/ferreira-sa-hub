@@ -727,9 +727,9 @@ document.getElementById('formTitulo').addEventListener('submit', function(e) {
     if (novoNome.length < 5) { alert('Nome deve ter no mínimo 5 caracteres.'); input.focus(); return; }
     if (!confirm('Isso também vai renomear a pasta no Google Drive. Confirmar?')) return;
 
-    // Usar CSRF atualizado (andCsrf é renovado por outras chamadas na página)
+    // Usar CSRF atualizado
     var fd = new FormData(this);
-    fd.set('<?= CSRF_TOKEN_NAME ?>', andCsrf);
+    fd.set('<?= CSRF_TOKEN_NAME ?>', typeof andCsrf !== 'undefined' ? andCsrf : fd.get('<?= CSRF_TOKEN_NAME ?>'));
     var x = new XMLHttpRequest();
     x.open('POST', this.action);
     x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -737,10 +737,19 @@ document.getElementById('formTitulo').addEventListener('submit', function(e) {
         try {
             var r = JSON.parse(x.responseText);
             if (r.csrf) andCsrf = r.csrf;
-            if (r.error) { alert(r.error); return; }
+            if (r.error) {
+                if (r.error.indexOf('oken') !== -1) {
+                    // CSRF expirado — submeter via form normal
+                    e.target.submit();
+                    return;
+                }
+                alert(r.error); return;
+            }
             if (r.ok) {
                 document.getElementById('casoTitulo').textContent = r.title;
                 cancelarTitulo();
+                // Atualizar título na tab do navegador
+                document.title = r.title + ' — Ferreira & Sá Hub';
             }
         } catch(ex) { location.reload(); }
     };
