@@ -698,6 +698,7 @@ if (!$showEditor) {
         <a href="<?= module_url('documentos') ?>">← Voltar</a>
         <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante)) ?>">✏️ Editar</a>
         <button onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.doc)</button>
         <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
         <?php if ($phone): ?>
             <a href="https://wa.me/55<?= preg_replace('/\D/', '', $phone) ?>" target="_blank" class="btn-zap">💬 WhatsApp</a>
@@ -791,6 +792,52 @@ function copiarConteudo() {
             setTimeout(function() { b.innerHTML = original; b.style.background = '#059669'; }, 2000);
         }
     });
+}
+
+<?php
+// Logo base64 para exportação Word
+$logoPathDoc = APP_ROOT . '/assets/img/logo.png';
+$logoB64Doc = '';
+if (file_exists($logoPathDoc)) {
+    $logoB64Doc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPathDoc));
+}
+$docFileName = str_replace(' ', '_', strtolower($typeLabels[$tipo] ?? $tipo)) . '_' . preg_replace('/\s+/', '_', strtolower($nome));
+?>
+
+var _timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
+    + '<?php if ($logoB64Doc): ?><img src="<?= $logoB64Doc ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá"><?php else: ?><h2 style="color:#052228;font-family:Calibri,sans-serif;">FERREIRA &amp; SÁ</h2><p style="font-size:10px;color:#6b7280;">ADVOCACIA ESPECIALIZADA</p><?php endif; ?>'
+    + '</div>'
+    + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
+
+var _timbradoRodape = '<div style="border-top:2px solid #B87333;margin-top:48px;padding-top:10px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
+    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; São Paulo / SP</strong></div>'
+    + '<div>(24) 9.9205-0096 / (11) 2110-5438</div>'
+    + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
+    + '</div>';
+
+function baixarWord() {
+    var conteudo = document.querySelector('.doc-body').innerHTML;
+    var fullHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+        + '<head><meta charset="utf-8">'
+        + '<style>'
+        + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
+        + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;text-align:justify;}'
+        + 'p{text-indent:4em;margin-bottom:8pt;}'
+        + '.doc-title{text-align:center;font-weight:700;font-size:14pt;margin:20px 0;text-indent:0;}'
+        + '.local-data{text-align:right;margin:24pt 0 16pt;text-indent:0;}'
+        + '.assinatura{text-align:center;margin-top:20pt;}'
+        + '.assinatura .linha{border-bottom:1px solid #333;width:80%;margin:0 auto 4pt;}'
+        + '.nome-ass{font-weight:700;font-size:10pt;}'
+        + 'table{border-collapse:collapse;width:100%;}'
+        + 'td,th{border:none;padding:4pt 8pt;}'
+        + '</style></head>'
+        + '<body>' + _timbradoTopo + conteudo + _timbradoRodape + '</body></html>';
+    var blob = new Blob(['\ufeff' + fullHtml], {type: 'application/msword'});
+    var link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = '<?= addslashes($docFileName) ?>.doc';
+    link.click();
+    URL.revokeObjectURL(link.href);
 }
 </script>
 
