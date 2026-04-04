@@ -146,7 +146,7 @@ $links = array(
 
     array('Informações do Escritório', 'Advogados', '', '', '', "Luiz Eduardo de Sá Silva Marcelino - OAB/RJ 248.755 e OAB/SP 523.473\nAmanda Guedes Ferreira - OAB/RJ 163.260", 'internal', 1, 1),
 
-    array('Informações do Escritório', 'Sede - Resende/RJ', '', '', '', "Av. Albino de Almeida, nº 119 - Salas 201 e 202\nCampos Elíseos - Resende - RJ\nCEP: 27542-070", 'internal', 1, 2),
+    array('Informações do Escritório', 'Sede - Barra Mansa/RJ', '', '', '', "Rua Dr. Aldrovando de Oliveira, n. 140\nAno Bom - Barra Mansa - RJ", 'internal', 1, 2),
 
     array('Informações do Escritório', 'Filial - São Paulo/SP', '', '', '', "Av. Paulista, 1636, Sala 1105/543\nPaulista Corporate - Cerqueira César\nSão Paulo - SP, CEP: 01310-200", 'internal', 0, 3),
 

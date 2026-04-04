@@ -60,7 +60,7 @@ $templates = array(
     // ── ONBOARDING ──
     array('onboarding', 'Boas-vindas - Novo cliente', "Olá, {nome}! 🎉\n\nSeja muito bem-vindo(a) ao escritório Ferreira & Sá Advocacia!\n\nA partir de agora, nossa equipe estará acompanhando o seu caso. Vamos trabalhar juntos para o melhor resultado possível.\n\nEm breve entraremos em contato para coletar os documentos necessários e agendar uma reunião inicial.\n\nQualquer dúvida, pode nos chamar por aqui!\n\nAtt,\nEquipe Ferreira & Sá\n(24) 99205-0096", '{nome}', 1, 0, 0),
 
-    array('onboarding', 'Agendamento de reunião', "Olá, {nome}!\n\nGostaríamos de agendar uma reunião para alinharmos os próximos passos do seu caso.\n\nQual o melhor dia e horário para você?\n\nNossa sede fica na Av. Albino de Almeida, 119 - Salas 201/202, Campos Elíseos, Resende/RJ.\n\nCaso prefira, podemos realizar por videochamada.\n\nAguardamos seu retorno!\n\nAtt,\nEquipe Ferreira & Sá", '{nome}', 1, 0, 1),
+    array('onboarding', 'Agendamento de reunião', "Olá, {nome}!\n\nGostaríamos de agendar uma reunião para alinharmos os próximos passos do seu caso.\n\nQual o melhor dia e horário para você?\n\nNossa sede fica na Rua Dr. Aldrovando de Oliveira, 140 - Ano Bom, Barra Mansa/RJ.\n\nCaso prefira, podemos realizar por videochamada.\n\nAguardamos seu retorno!\n\nAtt,\nEquipe Ferreira & Sá", '{nome}', 1, 0, 1),
 
     // ── CONTRATO ──
     array('contrato', 'Envio de contrato para assinatura', "Olá, {nome}!\n\nSegue em anexo o contrato de honorários para sua análise e assinatura.\n\nApós a assinatura, daremos início imediato ao seu caso.\n\nQualquer dúvida sobre as cláusulas, estamos à disposição para esclarecer.\n\nAtt,\nEquipe Ferreira & Sá", '{nome}', 1, 0, 0),

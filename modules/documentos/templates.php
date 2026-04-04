@@ -9,7 +9,7 @@ function escritorioData() {
     return array(
         'cnpj' => '51.294.223/0001-40',
         'oab_sociedade' => '5.987/2023',
-        'endereco' => 'Avenida Albino de Almeida, n. 119, salas 201 e 202, 2º andar – Campos Elíseos – Resende – RJ',
+        'endereco' => 'Rua Dr. Aldrovando de Oliveira, n. 140 – Ano Bom – Barra Mansa – RJ',
         'email' => 'contato@ferreiraesa.com.br',
         'whatsapp' => '(24) 99205-0096',
         'website' => 'www.ferreiraesa.com.br',

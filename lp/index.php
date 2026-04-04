@@ -254,7 +254,7 @@
             <div class="contact-item">
                 <div class="icon">📍</div>
                 <h4>Escritório Principal</h4>
-                <p>Av. Albino de Almeida, 119<br>Salas 201/202, 2º andar<br>Campos Elíseos — Resende/RJ</p>
+                <p>Rua Dr. Aldrovando de Oliveira, 140<br>Ano Bom — Barra Mansa/RJ</p>
             </div>
             <div class="contact-item">
                 <div class="icon">📱</div>
