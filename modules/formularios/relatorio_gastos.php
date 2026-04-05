@@ -13,7 +13,7 @@ $stmt = $pdo->prepare(
     "SELECT fs.*, c.name as linked_client_name
      FROM form_submissions fs
      LEFT JOIN clients c ON c.id = fs.linked_client_id
-     WHERE fs.id = ? AND fs.form_type = 'gastos_pensao'"
+     WHERE fs.id = ? AND fs.form_type IN ('gastos_pensao', 'despesas_mensais')"
 );
 $stmt->execute(array($id));
 $form = $stmt->fetch();
@@ -23,9 +23,12 @@ if (!$form) { flash_set('error', 'Formulário não encontrado.'); redirect(modul
 $payload = json_decode($form['payload_json'], true);
 if (!is_array($payload)) $payload = array();
 
+// Compatibilidade: novo formulário (despesas_mensais) usa nomes de campos diferentes
+$isDespesasMensais = ($form['form_type'] === 'despesas_mensais');
+
 // Extrair dados
-$nomeResp = isset($payload['nome_responsavel']) ? $payload['nome_responsavel'] : ($form['client_name'] ?: '—');
-$cpfResp = isset($payload['cpf_responsavel']) ? $payload['cpf_responsavel'] : '—';
+$nomeResp = isset($payload['nome_responsavel']) ? $payload['nome_responsavel'] : (isset($payload['nome_completo']) ? $payload['nome_completo'] : ($form['client_name'] ?: '—'));
+$cpfResp = isset($payload['cpf_responsavel']) ? $payload['cpf_responsavel'] : (isset($payload['cpf']) ? $payload['cpf'] : '—');
 $whatsapp = isset($payload['whatsapp']) ? $payload['whatsapp'] : ($form['client_phone'] ?: '—');
 $nomeFilho = isset($payload['nome_filho_referente']) ? $payload['nome_filho_referente'] : '—';
 $teaStatus = isset($payload['tea_status']) ? $payload['tea_status'] : '—';
@@ -53,8 +56,47 @@ if (isset($payload['payload_json']) && is_string($payload['payload_json'])) {
 // Totais podem estar em $payload['totais'] (app) ou no nível raiz (migrado)
 $totais = isset($payload['totais']) ? $payload['totais'] : $payload;
 
+// Compatibilidade com novo formulário (despesas_mensais)
+// Mapear total_moradia → moradia_rateada_cents, total_alim → alimentacao_cents, etc.
+if ($isDespesasMensais) {
+    $mapTotais = array(
+        'total_moradia' => 'moradia_rateada_cents',
+        'total_alim' => 'alimentacao_cents',
+        'total_saude' => 'saude_cents',
+        'total_edu' => 'educacao_cents',
+        'total_transp' => 'transporte_cents',
+        'total_vest' => 'vestuario_cents',
+        'total_lazer' => 'lazer_cents',
+        'total_tech' => 'tecnologia_cents',
+        'total_care' => 'cuidados_cents',
+        'total_outros' => 'outros_cents',
+    );
+    foreach ($mapTotais as $novo => $antigo) {
+        if (isset($payload[$novo]) && !isset($totais[$antigo])) {
+            $totais[$antigo] = (int)$payload[$novo];
+        }
+    }
+    if (isset($payload['total_geral']) && !isset($totais['total_geral_cents'])) {
+        $totais['total_geral_cents'] = (int)$payload['total_geral'];
+    }
+    // Moradia total (para nota de rateio)
+    if (!isset($totais['moradia_total_cents'])) {
+        // Somar todos os campos moradia_ do payload
+        $moradiaSoma = 0;
+        foreach ($payload as $k => $v) {
+            if (strpos($k, 'moradia_') === 0 && is_numeric($v)) $moradiaSoma += (int)$v;
+        }
+        if ($moradiaSoma > 0) $totais['moradia_total_cents'] = $moradiaSoma;
+    }
+}
+
 // Detalhamento individual dos gastos (subcategorias)
+// O novo formulário salva campos com prefixo por categoria no raiz do payload
 $stored = isset($payload['stored']) ? $payload['stored'] : array();
+if (empty($stored) && $isDespesasMensais) {
+    // Usar o próprio payload como stored (campos individuais estão no raiz)
+    $stored = $payload;
+}
 
 // Se stored é string JSON (aninhado), decodificar
 if (is_string($stored)) {
@@ -104,19 +146,60 @@ $storedLabels = array(
     'outros_lazer'=>'Outros lazer','cinema'=>'Cinema','parque'=>'Parques',
     'higiene'=>'Higiene pessoal','fraldas'=>'Fraldas','cabelo'=>'Corte de cabelo',
     'celular'=>'Celular','tablet'=>'Tablet','jogos'=>'Jogos/Apps',
+    // Novo formulário (despesas_mensais) — prefixo por categoria
+    'moradia_aluguel'=>'Aluguel','moradia_condominio'=>'Condomínio','moradia_iptu'=>'IPTU',
+    'moradia_agua'=>'Água','moradia_luz'=>'Luz/Energia','moradia_gas'=>'Gás',
+    'moradia_internet'=>'Internet','moradia_telefone'=>'Telefone','moradia_tv'=>'TV/Streaming',
+    'moradia_manutencao'=>'Manutenção',
+    'alim_supermercado'=>'Supermercado','alim_feira'=>'Feira/Hortifruti','alim_carnes'=>'Açougue/Carnes',
+    'alim_padaria'=>'Padaria','alim_lanche'=>'Lanche escolar','alim_refeicoes'=>'Refeições fora',
+    'alim_leite'=>'Leite/Fórmula','alim_agua'=>'Água mineral','alim_especial'=>'Alimentação especial',
+    'alim_suplementos'=>'Suplementos','alim_outros'=>'Outros alimentação',
+    'saude_plano'=>'Plano de saúde','saude_copart'=>'Coparticipação','saude_medicamentos'=>'Medicamentos',
+    'saude_consultas'=>'Consultas','saude_exames'=>'Exames','saude_odonto'=>'Odontologia',
+    'saude_psico'=>'Psicólogo','saude_fono'=>'Fonoaudiologia','saude_terapias'=>'Terapias',
+    'saude_fisio'=>'Fisioterapia','saude_oculos'=>'Óculos/Lentes','saude_vacinas'=>'Vacinas',
+    'saude_outros'=>'Outros saúde',
+    'edu_mensalidade'=>'Mensalidade escolar','edu_matricula'=>'Matrícula','edu_transp'=>'Transporte escolar',
+    'edu_material'=>'Material escolar','edu_uniforme'=>'Uniforme','edu_livros'=>'Livros/Apostilas',
+    'edu_reforco'=>'Reforço escolar','edu_idiomas'=>'Idiomas/Cursos','edu_passeios'=>'Passeios escola',
+    'edu_outros'=>'Outros educação',
+    'transp_publico'=>'Transporte público','transp_uber'=>'Uber/App','transp_combustivel'=>'Combustível',
+    'transp_manutencao'=>'Manutenção veículo','transp_seguro'=>'Seguro','transp_ipva'=>'IPVA',
+    'transp_estacionamento'=>'Estacionamento','transp_outros'=>'Outros transporte',
+    'vest_roupas'=>'Roupas','vest_calcados'=>'Calçados','vest_higiene'=>'Higiene pessoal',
+    'vest_fraldas'=>'Fraldas','vest_cabelo'=>'Corte de cabelo','vest_derma'=>'Itens dermatológicos',
+    'vest_outros'=>'Outros vestuário',
+    'lazer_esportes'=>'Esportes','lazer_atividades'=>'Atividades','lazer_passeios'=>'Passeios',
+    'lazer_aniversarios'=>'Aniversários','lazer_brinquedos'=>'Brinquedos','lazer_streaming'=>'Streaming',
+    'lazer_outros'=>'Outros lazer',
+    'tech_celular'=>'Celular','tech_aparelho'=>'Aparelho','tech_notebook'=>'Notebook/Tablet',
+    'tech_apps'=>'Apps educacionais','tech_internet'=>'Internet estudo','tech_outros'=>'Outros tecnologia',
+    'care_baba'=>'Babá','care_cuidador'=>'Cuidador','care_acompanhante'=>'Acompanhante',
+    'care_diarista'=>'Diarista','care_outros'=>'Outros cuidados',
+    'outros_gerais'=>'Outros gerais','contribuicao_atual'=>'Contribuição atual genitor',
 );
 
 // Agrupar campos do stored por categoria
 $storedPorCategoria = array(
-    'moradia' => array('agua','internet','telefone','tv','manutencao','aluguel','condominio','luz','gas','iptu'),
-    'alimentacao' => array('supermercado','feira','carnes','padaria','lanche_escolar','lanche','refeicoes_fora','leite_formula','leite','agua_mineral','suplementos'),
-    'saude' => array('plano_saude','plano','consultas','odontologia','oculos','medicamentos','terapia','fisioterapia','fonoaudiologia'),
-    'educacao' => array('escola','material_escolar','uniforme','cursos','natacao','ballet','futebol','musica','reforco','ingles'),
-    'transporte' => array('transporte_escolar','uber','combustivel','onibus','estacionamento'),
-    'vestuario' => array('roupas','calcados'),
-    'lazer' => array('passeios','aniversarios','brinquedos','outros_lazer','cinema','parque'),
-    'cuidados' => array('higiene','fraldas','cabelo'),
-    'tecnologia' => array('celular','tablet','jogos'),
+    'moradia' => array('agua','internet','telefone','tv','manutencao','aluguel','condominio','luz','gas','iptu',
+        'moradia_aluguel','moradia_condominio','moradia_iptu','moradia_agua','moradia_luz','moradia_gas','moradia_internet','moradia_telefone','moradia_tv','moradia_manutencao'),
+    'alimentacao' => array('supermercado','feira','carnes','padaria','lanche_escolar','lanche','refeicoes_fora','leite_formula','leite','agua_mineral','suplementos',
+        'alim_supermercado','alim_feira','alim_carnes','alim_padaria','alim_lanche','alim_refeicoes','alim_leite','alim_agua','alim_especial','alim_suplementos','alim_outros'),
+    'saude' => array('plano_saude','plano','consultas','odontologia','oculos','medicamentos','terapia','fisioterapia','fonoaudiologia',
+        'saude_plano','saude_copart','saude_medicamentos','saude_consultas','saude_exames','saude_odonto','saude_psico','saude_fono','saude_terapias','saude_fisio','saude_oculos','saude_vacinas','saude_outros'),
+    'educacao' => array('escola','material_escolar','uniforme','cursos','natacao','ballet','futebol','musica','reforco','ingles',
+        'edu_mensalidade','edu_matricula','edu_transp','edu_material','edu_uniforme','edu_livros','edu_reforco','edu_idiomas','edu_passeios','edu_outros'),
+    'transporte' => array('transporte_escolar','uber','combustivel','onibus','estacionamento',
+        'transp_publico','transp_uber','transp_combustivel','transp_manutencao','transp_seguro','transp_ipva','transp_estacionamento','transp_outros'),
+    'vestuario' => array('roupas','calcados',
+        'vest_roupas','vest_calcados','vest_higiene','vest_fraldas','vest_cabelo','vest_derma','vest_outros'),
+    'lazer' => array('passeios','aniversarios','brinquedos','outros_lazer','cinema','parque',
+        'lazer_esportes','lazer_atividades','lazer_passeios','lazer_aniversarios','lazer_brinquedos','lazer_streaming','lazer_outros'),
+    'cuidados' => array('higiene','fraldas','cabelo',
+        'care_baba','care_cuidador','care_acompanhante','care_diarista','care_outros'),
+    'tecnologia' => array('celular','tablet','jogos',
+        'tech_celular','tech_aparelho','tech_notebook','tech_apps','tech_internet','tech_outros'),
 );
 
 $totalGeral = isset($totais['total_geral_cents']) ? (int)$totais['total_geral_cents'] : 0;
