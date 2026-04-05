@@ -17,6 +17,10 @@ $firstName = explode(' ', $user['name'])[0];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'marcar_aniversario') {
     $clientBday = (int)($_POST['client_id'] ?? 0);
     if ($clientBday) {
+        try {
+            $pdo->prepare("INSERT IGNORE INTO birthday_greetings (client_id, year, sent_by) VALUES (?, ?, ?)")
+                ->execute(array($clientBday, (int)date('Y'), current_user_id()));
+        } catch (Exception $e) {}
         audit_log('aniversario_enviado', 'client', $clientBday, 'WhatsApp');
     }
     if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
@@ -390,8 +394,8 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
         $bdayMsg = "Ola, {$bdayNome}!\n\nA equipe Ferreira e Sa Advocacia deseja a voce um FELIZ ANIVERSARIO!\n\nQue este novo ano seja repleto de conquistas, saude e muitas bencaos!\n\nUm grande abraco,\nEquipe Ferreira e Sa";
         $bdaySent = false;
         try {
-            $stmtBday = $pdo->prepare("SELECT id FROM audit_log WHERE action = 'aniversario_enviado' AND entity_id = ? AND DATE(created_at) = CURDATE() LIMIT 1");
-            $stmtBday->execute(array($b['id']));
+            $stmtBday = $pdo->prepare("SELECT 1 FROM birthday_greetings WHERE client_id = ? AND year = ? LIMIT 1");
+            $stmtBday->execute(array($b['id'], (int)date('Y')));
             $bdaySent = (bool)$stmtBday->fetch();
         } catch (Exception $e) {}
         ?>

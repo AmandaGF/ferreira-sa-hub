@@ -258,6 +258,66 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </div>
 
+        <!-- Datas Comemorativas do mês -->
+        <?php
+        $datasComem = array(
+            1 => array('01/01' => 'Confraternização Universal', '06/01' => 'Dia de Reis'),
+            2 => array('14/02' => 'Valentine\'s Day (internacional)'),
+            3 => array('08/03' => 'Dia Internacional da Mulher', '15/03' => 'Dia do Consumidor', '19/03' => 'Dia de São José', '21/03' => 'Início do Outono'),
+            4 => array('07/04' => 'Dia do Jornalista', '13/04' => 'Dia do Hino Nacional', '19/04' => 'Dia do Índio', '21/04' => 'Tiradentes', '22/04' => 'Descobrimento do Brasil', '23/04' => 'Dia de São Jorge'),
+            5 => array('01/05' => 'Dia do Trabalho', '13/05' => 'Abolição da Escravatura', '25/05' => 'Dia da Indústria'),
+            6 => array('05/06' => 'Dia do Meio Ambiente', '12/06' => 'Dia dos Namorados', '21/06' => 'Início do Inverno', '24/06' => 'São João', '29/06' => 'Dia de São Pedro'),
+            7 => array('02/07' => 'Independência da Bahia', '09/07' => 'Rev. Constitucionalista (SP)', '20/07' => 'Dia do Amigo', '25/07' => 'Dia do Escritor', '28/07' => 'Dia do Agricultor'),
+            8 => array('05/08' => 'Dia Nacional da Saúde', '11/08' => 'Dia do Advogado', '15/08' => 'Dia da Informática', '22/08' => 'Dia do Folclore', '25/08' => 'Dia do Soldado'),
+            9 => array('07/09' => 'Independência do Brasil', '21/09' => 'Dia da Árvore / Início da Primavera', '22/09' => 'Dia do Contador'),
+            10 => array('01/10' => 'Dia do Idoso', '04/10' => 'Dia de São Francisco / Dia dos Animais', '11/10' => 'Dia da Criança (compras)', '12/10' => 'Dia das Crianças / N.S. Aparecida', '15/10' => 'Dia do Professor', '28/10' => 'Dia do Servidor Público', '31/10' => 'Halloween'),
+            11 => array('02/11' => 'Finados', '15/11' => 'Proclamação da República', '19/11' => 'Dia da Bandeira', '20/11' => 'Consciência Negra'),
+            12 => array('08/12' => 'N.S. da Conceição', '21/12' => 'Início do Verão', '24/12' => 'Véspera de Natal', '25/12' => 'Natal', '31/12' => 'Véspera de Ano Novo'),
+        );
+        // Dia das Mães (2º domingo de maio) e Dia dos Pais (2º domingo de agosto) — calcular
+        $diadasMaes = date('d/m', strtotime('second sunday of may ' . $currentYear));
+        $diadosPais = date('d/m', strtotime('second sunday of august ' . $currentYear));
+        $datasComem[5][$diadasMaes] = 'Dia das Maes';
+        $datasComem[8][$diadosPais] = 'Dia dos Pais';
+        // Carnaval (47 dias antes da Páscoa) e Páscoa (variável)
+        $pascoa = date('d/m', easter_date($currentYear));
+        $carnaval = date('d/m', easter_date($currentYear) - 47 * 86400);
+        $sextaSanta = date('d/m', easter_date($currentYear) - 2 * 86400);
+        $corpusChristi = date('d/m', easter_date($currentYear) + 60 * 86400);
+        $mesCarnaval = (int)date('n', easter_date($currentYear) - 47 * 86400);
+        $mesPascoa = (int)date('n', easter_date($currentYear));
+        $mesSexta = (int)date('n', easter_date($currentYear) - 2 * 86400);
+        $mesCorpus = (int)date('n', easter_date($currentYear) + 60 * 86400);
+        if (!isset($datasComem[$mesCarnaval])) $datasComem[$mesCarnaval] = array();
+        $datasComem[$mesCarnaval][$carnaval] = 'Carnaval';
+        if (!isset($datasComem[$mesPascoa])) $datasComem[$mesPascoa] = array();
+        $datasComem[$mesPascoa][$pascoa] = 'Pascoa';
+        if (!isset($datasComem[$mesSexta])) $datasComem[$mesSexta] = array();
+        $datasComem[$mesSexta][$sextaSanta] = 'Sexta-feira Santa';
+        if (!isset($datasComem[$mesCorpus])) $datasComem[$mesCorpus] = array();
+        $datasComem[$mesCorpus][$corpusChristi] = 'Corpus Christi';
+
+        $comemorativasMes = isset($datasComem[$filtroMes]) ? $datasComem[$filtroMes] : array();
+        ksort($comemorativasMes);
+        ?>
+        <?php if (!empty($comemorativasMes)): ?>
+        <div style="margin-top:1rem;">
+            <div style="font-size:.72rem;font-weight:700;color:var(--petrol-900);text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;padding-bottom:.35rem;border-bottom:1px solid var(--border);">Datas Comemorativas — <?= $meses[$filtroMes] ?></div>
+            <?php foreach ($comemorativasMes as $dataC => $nomeC):
+                $diaC = (int)substr($dataC, 0, 2);
+                $isCToday = ($filtroMes === $currentMonth && $diaC === $currentDay);
+                $isCPast = ($filtroMes < $currentMonth) || ($filtroMes === $currentMonth && $diaC < $currentDay);
+            ?>
+            <div style="display:flex;align-items:center;gap:.6rem;padding:.45rem .6rem;margin-bottom:.3rem;border-radius:var(--radius);background:<?= $isCToday ? 'rgba(5,150,105,.08)' : ($isCPast ? 'transparent' : 'var(--bg-card)') ?>;border:1px solid <?= $isCToday ? '#059669' : 'var(--border)' ?>;<?= $isCPast ? 'opacity:.5;' : '' ?>">
+                <span style="font-size:.78rem;font-weight:700;color:<?= $isCToday ? '#059669' : 'var(--petrol-900)' ?>;min-width:35px;"><?= $dataC ?></span>
+                <span style="font-size:.8rem;color:var(--petrol-900);flex:1;"><?= e($nomeC) ?></span>
+                <?php if ($isCToday): ?><span style="font-size:.6rem;font-weight:700;background:#059669;color:#fff;padding:1px 6px;border-radius:4px;">HOJE</span><?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+
     <!-- Sidebar: mensagem + calendário -->
     <div>
         <!-- Mensagem do mês -->
