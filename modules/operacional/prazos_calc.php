@@ -572,9 +572,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 <?php endif; ?>
 
+                <!-- DATA SEGURANÇA destaque -->
+                <div style="background:#059669;border-radius:12px;padding:1rem;text-align:center;margin-bottom:.75rem;">
+                    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.8);">Prazo Interno (seguranca)</div>
+                    <div style="font-size:1.8rem;font-weight:800;color:#fff;"><?= date('d/m/Y', strtotime($resultado['data_seguranca'])) ?></div>
+                    <div style="font-size:.78rem;color:rgba(255,255,255,.7);"><?= e($resultado['dia_semana_seg']) ?></div>
+                    <div style="font-size:.68rem;color:rgba(255,255,255,.6);margin-top:.3rem;">1 dia util ANTES do termino — para evitar perda de prazo</div>
+                </div>
+
                 <!-- DATA FATAL destaque -->
                 <div class="data-fatal-box">
-                    <div class="label-fatal">Data Fatal</div>
+                    <div class="label-fatal">Data Fatal (termino legal)</div>
                     <div class="data-fatal-valor" id="dataFatalValor"><?= date('d/m/Y', strtotime($resultado['data_fatal'])) ?></div>
                     <div class="dia-semana"><?= e($resultado['dia_semana_fatal']) ?></div>
                 </div>
@@ -600,6 +608,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
                 ?>
                 <div class="dias-ate-box <?= $diasClass ?>"><?= e($diasTexto) ?></div>
+                <?php $diasSeg = (int)$resultado['dias_ate_seguranca']; ?>
+                <?php if ($diasSeg >= 0 && $diasSeg !== $diasAte): ?>
+                <div style="text-align:center;font-size:.72rem;color:#059669;font-weight:700;margin-top:.3rem;">Prazo interno (seguranca): <?= $diasSeg ?> dia<?= $diasSeg !== 1 ? 's' : '' ?></div>
+                <?php endif; ?>
 
                 <!-- Botoes -->
                 <div class="resultado-acoes">
@@ -824,8 +836,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         lines.push('Inicio contagem: <?= $resultado ? data_br($resultado['inicio_contagem']) : '' ?>');
         lines.push('Prazo: <?= $resultado ? (int)$resultado['quantidade'] . ' ' . ($resultado['unidade'] === 'meses' ? 'meses' : 'dias uteis') : '' ?>');
         lines.push('');
-        lines.push('DATA FATAL: ' + el.textContent);
-        lines.push('<?= $resultado ? e($resultado['dia_semana_fatal']) : '' ?>');
+        lines.push('PRAZO INTERNO (seguranca): <?= $resultado ? date('d/m/Y', strtotime($resultado['data_seguranca'])) . ' (' . $resultado['dia_semana_seg'] . ')' : '' ?>');
+        lines.push('DATA FATAL (termino legal): ' + el.textContent + ' (<?= $resultado ? $resultado['dia_semana_fatal'] : '' ?>)');
+        lines.push('OBS: Considere protocolar ate a data de seguranca para evitar perda de prazo.');
         <?php if ($resultado && !empty($resultado['suspensoes'])): ?>
         lines.push('');
         lines.push('Suspensoes no periodo:');

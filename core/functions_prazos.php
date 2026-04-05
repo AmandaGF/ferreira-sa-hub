@@ -137,10 +137,16 @@ function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade =
     // Contar dias suspensos no período
     $suspensoes = get_suspensoes_periodo($inicio, $fatal, $comarca);
 
-    // Dias corridos e úteis até o prazo
+    // Data de segurança: 1 dia útil ANTES da data fatal
+    $seguranca = _dia_util_anterior($fatal, $comarca);
+
+    // Dias corridos até o prazo
     $hoje = new DateTime();
     $fatalDt = new DateTime($fatal);
     $diasAte = (int)$hoje->diff($fatalDt)->format('%r%a');
+
+    $segDt = new DateTime($seguranca);
+    $diasAteSeg = (int)$hoje->diff($segDt)->format('%r%a');
 
     return array(
         'disponibilizacao' => $data_disponibilizacao,
@@ -151,7 +157,10 @@ function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade =
         'comarca'          => $comarca,
         'data_fatal'       => $fatal,
         'dia_semana_fatal' => _dia_semana_pt($fatal),
+        'data_seguranca'   => $seguranca,
+        'dia_semana_seg'   => _dia_semana_pt($seguranca),
         'dias_ate_prazo'   => $diasAte,
+        'dias_ate_seguranca' => $diasAteSeg,
         'suspensoes'       => $suspensoes,
     );
 }
@@ -203,6 +212,21 @@ function get_dias_suspensos_expandidos($data_inicio, $data_fim, $comarca = null)
     }
 
     return $dias;
+}
+
+/**
+ * Retorna o dia útil imediatamente anterior a uma data
+ */
+function _dia_util_anterior($data, $comarca = null)
+{
+    $dt = new DateTime($data);
+    $dt->modify('-1 day');
+    $max = 10; $i = 0;
+    while (!is_dia_util($dt->format('Y-m-d'), $comarca) && $i < $max) {
+        $dt->modify('-1 day');
+        $i++;
+    }
+    return $dt->format('Y-m-d');
 }
 
 /**
