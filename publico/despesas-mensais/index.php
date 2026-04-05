@@ -117,6 +117,26 @@ textarea{resize:vertical;min-height:70px}
 .semFilhosNote{background:rgba(230,126,34,.1);border-left:3px solid var(--warn);padding:8px 12px;border-radius:8px;font-size:.8rem;color:var(--warn);margin-top:6px;display:none}
 /* hide utility */
 .hidden{display:none!important}
+
+/* ===== PERSISTENT SUMMARY ===== */
+.summaryWrap{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 20px;margin-bottom:16px}
+.summaryTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.summaryInfo .badge{display:inline-block;padding:5px 10px;border-radius:999px;background:rgba(215,171,144,.2);border:1px solid rgba(106,60,44,.2);color:var(--cobre);font-size:.75rem;font-weight:600}
+.summaryInfo .helpText{font-size:.78rem;color:var(--muted);margin-top:6px;line-height:1.5}
+.totalBox{border-radius:14px;padding:12px 16px;background:rgba(5,34,40,.06);border:1px solid rgba(5,34,40,.12);text-align:right;min-width:200px}
+.totalBox strong{display:block;font-size:.78rem;color:var(--muted)}
+.totalBox .totalVal{font-size:1.4rem;font-weight:800;color:var(--g1)}
+.kpiGrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+@media(max-width:900px){.kpiGrid{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.kpiGrid{grid-template-columns:repeat(2,1fr)}}
+.kpiCard{background:rgba(5,34,40,.03);border:1px solid rgba(5,34,40,.08);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:8px}
+.kpiIcon{font-size:1.2rem;flex-shrink:0}
+.kpiLabel{font-size:.7rem;color:var(--muted);line-height:1.3}
+.kpiVal{font-size:.95rem;font-weight:700;color:var(--g1)}
+.summaryChart{margin-top:10px}
+.summaryChart h3{font-size:.85rem;color:var(--g1);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.chartActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chartActions button{font-size:.75rem;padding:6px 12px}
 </style>
 </head>
 <body>
@@ -134,6 +154,42 @@ textarea{resize:vertical;min-height:70px}
 
 <!-- ====== MAIN CONTAINER ====== -->
 <div class="container" id="formArea">
+
+<!-- ===== PERSISTENT SUMMARY (visible on all steps) ===== -->
+<div class="summaryWrap" id="summaryWrap">
+  <div class="summaryTop">
+    <div class="summaryInfo">
+      <span class="badge">Resumo das despesas</span>
+      <p class="helpText">Os valores são atualizados conforme você preenche. Em <strong>Moradia</strong>, o sistema divide automaticamente pelo número de moradores.</p>
+    </div>
+    <div class="totalBox">
+      <strong>Total mensal estimado</strong>
+      <div class="totalVal" id="totalGeral">R$ 0,00</div>
+    </div>
+  </div>
+
+  <div class="kpiGrid">
+    <div class="kpiCard"><span class="kpiIcon">🏠</span><div><div class="kpiLabel">Moradia (rateada)</div><div class="kpiVal" id="kpi_moradia">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">🍽️</span><div><div class="kpiLabel">Alimentação</div><div class="kpiVal" id="kpi_alim">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">❤️</span><div><div class="kpiLabel">Saúde</div><div class="kpiVal" id="kpi_saude">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">📚</span><div><div class="kpiLabel">Educação</div><div class="kpiVal" id="kpi_edu">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">🚗</span><div><div class="kpiLabel">Transporte</div><div class="kpiVal" id="kpi_transp">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">👕</span><div><div class="kpiLabel">Vestuário</div><div class="kpiVal" id="kpi_vest">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">🎮</span><div><div class="kpiLabel">Lazer</div><div class="kpiVal" id="kpi_lazer">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">💻</span><div><div class="kpiLabel">Tecnologia</div><div class="kpiVal" id="kpi_tech">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">🧸</span><div><div class="kpiLabel">Cuidados</div><div class="kpiVal" id="kpi_care">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">📦</span><div><div class="kpiLabel">Outros</div><div class="kpiVal" id="kpi_outros">R$ 0,00</div></div></div>
+  </div>
+
+  <div class="summaryChart">
+    <h3>📊 Gráfico das categorias</h3>
+    <canvas id="summaryChartCanvas" style="max-height:260px;"></canvas>
+    <div class="chartActions">
+      <button class="btn btnSecondary" onclick="downloadChart()">Baixar gráfico (PNG)</button>
+      <button class="btn btnSecondary" onclick="downloadCSV()">Baixar dados (CSV)</button>
+    </div>
+  </div>
+</div>
 
 <!-- ===== STEP 0 — Identificação ===== -->
 <div class="card" data-step="0">
@@ -596,6 +652,7 @@ const STORE_KEY = 'despesas_mensais_form_v1';
 const TOTAL_STEPS = 12; // 0..11
 let currentStep = 0;
 let chartInstance = null;
+let summaryChartInstance = null;
 let _protocoloSalvo = ''; // Para atualização
 
 /* ---- Category map for grouping money fields ---- */
@@ -620,6 +677,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSemFilhos();
   loadFromStorage();
   goStep(0);
+  updateSummaryKPIs();
   autoSaveLoop();
 });
 
@@ -701,6 +759,7 @@ function handleMoneyInput(e){
   const cents=parseInt(raw,10);
   e.target.dataset.cents=cents;
   e.target.value=formatBRL(cents);
+  updateSummaryKPIs();
 }
 
 function formatBRL(cents){
@@ -802,6 +861,80 @@ function loadFromStorage(){
 
 function autoSaveLoop(){
   setInterval(saveToStorage,15000);
+}
+
+/* ========== UPDATE PERSISTENT SUMMARY KPIs ========== */
+function updateSummaryKPIs(){
+  const moradores=Math.max(1,+(document.querySelector('[name="moradores"]')?.value||1));
+  let grandTotal=0;
+  const catTotals=[];
+  const kpiIdMap={moradia:'kpi_moradia',alim:'kpi_alim',saude:'kpi_saude',educ:'kpi_edu',transp:'kpi_transp',vest:'kpi_vest',lazer:'kpi_lazer',tech:'kpi_tech',cuid:'kpi_care',outros:'kpi_outros'};
+
+  CATEGORIES.forEach(cat=>{
+    let total=0;
+    document.querySelectorAll(`.money[name^="${cat.prefix}"]`).forEach(m=>{
+      total+=+(m.dataset.cents||0);
+    });
+    const perPerson=(cat.key==='moradia')?Math.round(total/moradores):total;
+    grandTotal+=perPerson;
+    catTotals.push({label:cat.label,cents:perPerson});
+    const el=document.getElementById(kpiIdMap[cat.key]);
+    if(el) el.textContent=formatBRL(perPerson);
+  });
+
+  const totalEl=document.getElementById('totalGeral');
+  if(totalEl) totalEl.textContent=formatBRL(grandTotal);
+
+  // Update summary chart
+  buildSummaryChart(catTotals);
+}
+
+function buildSummaryChart(catTotals){
+  const filtered=catTotals.filter(c=>c.cents>0);
+  const labels=filtered.map(c=>c.label);
+  const values=filtered.map(c=>c.cents/100);
+  const colors=['#052228','#173d46','#6a3c2c','#d7ab90','#27ae60','#e67e22','#2980b9','#8e44ad','#c0392b','#16a085'];
+
+  const canvas=document.getElementById('summaryChartCanvas');
+  if(!canvas) return;
+
+  if(summaryChartInstance){summaryChartInstance.destroy()}
+  const ctx=canvas.getContext('2d');
+  if(labels.length===0) return;
+
+  summaryChartInstance=new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:labels,
+      datasets:[{
+        label:'Valor (R$)',
+        data:values,
+        backgroundColor:colors.slice(0,labels.length),
+        borderRadius:8,
+        maxBarThickness:48
+      }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          callbacks:{
+            label:ctx=>'R$ '+ctx.parsed.y.toLocaleString('pt-BR',{minimumFractionDigits:2})
+          }
+        }
+      },
+      scales:{
+        y:{
+          beginAtZero:true,
+          ticks:{
+            callback:v=>'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:0})
+          }
+        }
+      }
+    }
+  });
 }
 
 /* ========== BUILD REVIEW ========== */
@@ -943,6 +1076,7 @@ async function submitForm(){
       document.getElementById('protoDisplay').textContent='Protocolo: '+out.protocolo;
       if(out.atualizado) document.getElementById('protoDisplay').textContent += ' (atualizado)';
       document.querySelector('.progressWrap').style.display='none';
+      document.getElementById('summaryWrap').style.display='none';
       // NÃO remover localStorage — o cliente pode querer alterar de novo
       toast(out.atualizado ? 'Dados atualizados!' : 'Enviado com sucesso!','ok');
       window.scrollTo({top:0,behavior:'smooth'});
@@ -976,7 +1110,7 @@ function downloadCSV(){
 
 /* ========== DOWNLOAD CHART ========== */
 function downloadChart(){
-  const canvas=document.getElementById('chartCanvas');
+  const canvas=document.getElementById('summaryChartCanvas')||document.getElementById('chartCanvas');
   if(!canvas) return;
   const a=document.createElement('a');
   a.href=canvas.toDataURL('image/png');
@@ -996,13 +1130,14 @@ function toast(msg,type='ok'){
 function voltarParaRevisao(){
   // Esconder tela de sucesso
   document.querySelector('.card[data-step="success"]').style.display='none';
-  // Mostrar progress bar
+  // Mostrar progress bar e summary
   document.querySelector('.progressWrap').style.display='';
+  document.getElementById('summaryWrap').style.display='';
   // Habilitar botão de enviar
   const btn=document.getElementById('submitBtn');
   if(btn){btn.disabled=false;btn.textContent='Atualizar e reenviar';}
   // Ir para a primeira etapa
-  goTo(0);
+  goStep(0);
   toast('Altere os valores e envie novamente. Os dados serão atualizados.','ok');
 }
 </script>
