@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Conecta — Suspensoes de Prazos
+ * Ferreira & Sa Conecta — Suspensões de Prazos
  * Gerenciamento de feriados, recessos e suspensoes forenses.
  */
 
@@ -12,7 +12,7 @@ $pdo = db();
 $currentYear = (int)date('Y');
 $filtroAno = (int)($_GET['ano'] ?? $currentYear);
 $filtroMes = isset($_GET['mes']) ? (int)$_GET['mes'] : 0; // 0 = todos
-$meses = array('','Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro');
+$meses = array('','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro');
 
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
@@ -388,15 +388,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="susp-stats">
     <div class="susp-stat-card">
         <div class="stat-value"><?= $totalSusp ?></div>
-        <div class="stat-label">Suspensoes</div>
+        <div class="stat-label">Suspensões</div>
     </div>
     <div class="susp-stat-card">
         <div class="stat-value"><?= $totalDias ?></div>
-        <div class="stat-label">Dias suspensos</div>
+        <div class="stat-label">Dias suspensões</div>
     </div>
     <div class="susp-stat-card">
         <div class="stat-value"><?= $filtroMes > 0 ? e($meses[$filtroMes]) : 'Todos' ?></div>
-        <div class="stat-label">Periodo filtrado</div>
+        <div class="stat-label">Período filtrado</div>
     </div>
 </div>
 
@@ -504,7 +504,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Suspensions table -->
 <div class="card" style="margin-bottom: 24px;">
     <div class="card-header">
-        <strong>Suspensoes <?= $filtroAno ?></strong>
+        <strong>Suspensões <?= $filtroAno ?></strong>
         <?php if ($filtroMes > 0): ?>
             <span style="color:#64748b; font-weight:400;"> &mdash; <?= e($meses[$filtroMes]) ?></span>
         <?php endif; ?>
@@ -568,7 +568,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Visual calendar -->
 <div class="card">
     <div class="card-header">
-        <strong>Calendario de Suspensoes <?= $filtroAno ?></strong>
+        <strong>Calendário de Suspensões <?= $filtroAno ?></strong>
     </div>
     <div class="card-body">
         <div class="calendar-grid">
