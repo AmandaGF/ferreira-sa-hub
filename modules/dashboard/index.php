@@ -13,6 +13,20 @@ $role = current_user_role();
 $pdo = db();
 $firstName = explode(' ', $user['name'])[0];
 
+// POST: marcar aniversário enviado
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'marcar_aniversario') {
+    $clientBday = (int)($_POST['client_id'] ?? 0);
+    if ($clientBday) {
+        audit_log('aniversario_enviado', 'client', $clientBday, 'WhatsApp');
+    }
+    if (!empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+        header('Content-Type: application/json');
+        echo json_encode(array('ok' => true));
+        exit;
+    }
+    redirect(module_url('dashboard'));
+}
+
 $mesAtual = date('Y-m');
 $mesAnterior = date('Y-m', strtotime('-1 month'));
 $ML = array('','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez');
@@ -183,7 +197,7 @@ $traducoes = array(
 );
 
 // Aniversariantes
-$aniversariantes = qrows($pdo, "SELECT name, phone, birth_date, TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) as idade FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') = DATE_FORMAT(CURDATE(),'%m-%d') ORDER BY name");
+$aniversariantes = qrows($pdo, "SELECT id, name, phone, birth_date, TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) as idade FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') = DATE_FORMAT(CURDATE(),'%m-%d') ORDER BY name");
 $proxAniversarios = qrows($pdo, "SELECT name, DATE_FORMAT(birth_date,'%d/%m') as data_fmt, DATEDIFF(DATE_ADD(birth_date, INTERVAL TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) + IF(DATE_FORMAT(birth_date,'%m%d') <= DATE_FORMAT(CURDATE(),'%m%d'),1,0) YEAR), CURDATE()) as dias_faltam FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') != DATE_FORMAT(CURDATE(),'%m-%d') HAVING dias_faltam BETWEEN 1 AND 7 ORDER BY dias_faltam LIMIT 5");
 
 // ═══════════════════════════════════════════════════════════
@@ -370,7 +384,30 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
         <h4>🎂 Aniversariantes</h4>
         <?php if (!empty($aniversariantes)): ?><div style="font-size:.68rem;color:var(--rose);font-weight:700;text-transform:uppercase;margin-bottom:.4rem;">Hoje</div>
         <?php foreach ($aniversariantes as $b): ?>
-        <div class="bday-item"><div class="bday-avatar"><?= mb_substr($b['name'],0,2,'UTF-8') ?></div><div style="flex:1;"><div style="font-size:.8rem;font-weight:700;color:var(--petrol-900);"><?= e($b['name']) ?></div><div style="font-size:.65rem;color:var(--text-muted);"><?= $b['idade'] ? $b['idade'].' anos' : '' ?></div></div><span class="bday-tag today">HOJE</span></div>
+        <?php
+        $bdayPhone = $b['phone'] ? preg_replace('/\D/', '', $b['phone']) : '';
+        $bdayNome = explode(' ', $b['name'])[0];
+        $bdayMsg = "Olá, {$bdayNome}! 🎂🎉\n\nA equipe Ferreira & Sá Advocacia deseja a você um FELIZ ANIVERSÁRIO! 🥳\n\nQue este novo ano seja repleto de conquistas, saúde e muitas bênçãos!\n\nUm grande abraço,\nEquipe Ferreira & Sá 💛";
+        $bdaySent = false;
+        try {
+            $stmtBday = $pdo->prepare("SELECT id FROM audit_log WHERE action = 'aniversario_enviado' AND entity_id = ? AND DATE(created_at) = CURDATE() LIMIT 1");
+            $stmtBday->execute(array($b['id']));
+            $bdaySent = (bool)$stmtBday->fetch();
+        } catch (Exception $e) {}
+        ?>
+        <div class="bday-item" id="bday-<?= $b['id'] ?>">
+            <div class="bday-avatar"><?= mb_substr($b['name'],0,2,'UTF-8') ?></div>
+            <div style="flex:1;">
+                <div style="font-size:.8rem;font-weight:700;color:var(--petrol-900);"><?= e($b['name']) ?></div>
+                <div style="font-size:.65rem;color:var(--text-muted);"><?= $b['idade'] ? $b['idade'].' anos' : '' ?></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;">
+                <?php if ($bdayPhone): ?>
+                <a href="https://wa.me/55<?= $bdayPhone ?>?text=<?= urlencode($bdayMsg) ?>" target="_blank" onclick="marcarAniversario(<?= $b['id'] ?>,this)" title="Enviar parabéns via WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:.65rem;font-weight:700;text-decoration:none;cursor:pointer;<?= $bdaySent ? 'opacity:.5;' : '' ?>"><?= $bdaySent ? '✓ Enviado' : '💬 Parabéns' ?></a>
+                <?php endif; ?>
+                <span class="bday-tag today">HOJE</span>
+            </div>
+        </div>
         <?php endforeach; endif; ?>
         <?php if (!empty($proxAniversarios)): ?><div style="font-size:.68rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;margin:<?= !empty($aniversariantes) ? '.6rem' : '0' ?> 0 .4rem;">Próximos 7 dias</div>
         <?php foreach ($proxAniversarios as $p): ?>
@@ -542,6 +579,15 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     // Auto-refresh a cada 5 minutos
     setTimeout(function(){ location.reload(); }, 300000);
 })();
+
+function marcarAniversario(clientId, btn) {
+    btn.textContent = '✓ Enviado';
+    btn.style.opacity = '.5';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("dashboard", "index.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.send('action=marcar_aniversario&client_id=' + clientId + '&csrf_token=<?= generate_csrf_token() ?>');
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
