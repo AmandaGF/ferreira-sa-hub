@@ -7,12 +7,13 @@ $pdo = db();
 
 echo "=== Limpando importações erradas ===\n\n";
 
-$stmt = $pdo->query("SELECT COUNT(*) FROM prazos_suspensoes WHERE fonte_pdf = 'Importação texto PDF'");
+// Limpar TODAS as importações (texto PDF e TJRJ)
+$stmt = $pdo->query("SELECT COUNT(*) FROM prazos_suspensoes WHERE fonte_pdf IS NOT NULL");
 $count = (int)$stmt->fetchColumn();
-echo "Registros com fonte 'Importação texto PDF': $count\n";
+echo "Registros importados: $count\n";
 
 if ($count > 0) {
-    $pdo->exec("DELETE FROM prazos_suspensoes WHERE fonte_pdf = 'Importação texto PDF'");
+    $pdo->exec("DELETE FROM prazos_suspensoes WHERE fonte_pdf IS NOT NULL");
     echo "[OK] $count registros removidos\n";
 }
 
