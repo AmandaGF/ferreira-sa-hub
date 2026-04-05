@@ -26,7 +26,7 @@ try {
         responder(false, 'Dados invalidos.');
     }
 
-    $nome = trim($dados['nome_responsavel'] ?? '');
+    $nome = trim($dados['nome_responsavel'] ?? $dados['nome_completo'] ?? '');
     $whatsapp = trim($dados['whatsapp'] ?? '');
     $fonte_renda = trim($dados['fonte_renda'] ?? '');
 
