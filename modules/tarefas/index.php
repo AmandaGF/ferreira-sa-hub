@@ -193,7 +193,7 @@ echo voltar_ao_processo_html();
             <div style="font-size:.78rem;font-weight:700;color:#6366f1;margin-bottom:.6rem;">Calculadora de Prazo</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
                 <div>
-                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data de disponibilizacao</label>
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data de disponibilização</label>
                     <input type="date" class="tk-fi" id="calcDataDisp">
                 </div>
                 <div>
@@ -214,7 +214,7 @@ echo voltar_ao_processo_html();
                 <div>
                     <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Unidade</label>
                     <select class="tk-fi" id="calcUnidade">
-                        <option value="dias">Dias uteis</option>
+                        <option value="dias">Dias úteis</option>
                         <option value="meses">Meses</option>
                     </select>
                 </div>
@@ -635,7 +635,7 @@ function executarCalcPrazo() {
     var unidade = document.getElementById('calcUnidade').value;
     var comarca = document.getElementById('calcComarca').value;
 
-    if (!dataDisp) { alert('Preencha a data de disponibilizacao.'); return; }
+    if (!dataDisp) { alert('Preencha a data de disponibilização.'); return; }
     if (!qtd || parseInt(qtd) < 1) { alert('Preencha a quantidade do prazo.'); return; }
 
     var resultBox = document.getElementById('calcResultado');
@@ -650,29 +650,29 @@ function executarCalcPrazo() {
             if (r.erro) { resultBox.innerHTML = '<div style="color:#dc2626;font-size:.78rem;">' + r.erro + '</div>'; return; }
 
             var html = '<div style="background:#fff;border-radius:8px;padding:.75rem;border:1px solid #e5e7eb;">';
-            html += '<div style="font-size:.7rem;color:var(--text-muted);">Publicacao: ' + r.publicacao_fmt + ' | Inicio: ' + r.inicio_fmt + '</div>';
+            html += '<div style="font-size:.7rem;color:var(--text-muted);">Publicação:' + r.publicacao_fmt + ' | Início:' + r.inicio_fmt + '</div>';
 
             // Prazo de segurança (verde)
             html += '<div style="background:#059669;color:#fff;border-radius:8px;padding:.6rem;text-align:center;margin:.5rem 0;">';
-            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Prazo Interno (seguranca)</div>';
+            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Prazo Interno (segurança)</div>';
             html += '<div style="font-size:1.3rem;font-weight:800;">' + r.seguranca_fmt + '</div>';
-            html += '<div style="font-size:.65rem;opacity:.7;">' + r.dia_semana_seg + ' — 1 dia util antes</div>';
+            html += '<div style="font-size:.65rem;opacity:.7;">' + r.dia_semana_seg + ' — 1 dia útil antes</div>';
             html += '</div>';
 
             // Data fatal (vermelho)
             html += '<div style="background:#dc2626;color:#fff;border-radius:8px;padding:.5rem;text-align:center;">';
-            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Data Fatal (termino legal)</div>';
+            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Data Fatal (término legal)</div>';
             html += '<div style="font-size:1.1rem;font-weight:800;">' + r.fatal_fmt + '</div>';
             html += '<div style="font-size:.65rem;opacity:.7;">' + r.dia_semana_fatal + '</div>';
             html += '</div>';
 
             if (r.suspensoes_count > 0) {
-                html += '<div style="font-size:.68rem;color:#d97706;margin-top:.4rem;">Suspensoes no periodo: ' + r.suspensoes_count + ' dia(s)</div>';
+                html += '<div style="font-size:.68rem;color:#d97706;margin-top:.4rem;">Suspensões no período: ' + r.suspensoes_count + ' dia(s)</div>';
             }
 
             // Botão confirmar
             html += '<div style="display:flex;gap:.35rem;margin-top:.6rem;">';
-            html += '<button type="button" onclick="confirmarPrazoCalc(\'' + r.data_seguranca + '\',\'' + r.data_fatal + '\')" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:.72rem;font-weight:700;cursor:pointer;flex:1;">Usar prazo de seguranca</button>';
+            html += '<button type="button" onclick="confirmarPrazoCalc(\'' + r.data_seguranca + '\',\'' + r.data_fatal + '\')" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:.72rem;font-weight:700;cursor:pointer;flex:1;">Usar prazo de segurança</button>';
             html += '<button type="button" onclick="confirmarPrazoCalc(\'' + r.data_fatal + '\',\'' + r.data_fatal + '\')" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:.72rem;font-weight:700;cursor:pointer;">Usar data fatal</button>';
             html += '</div>';
 
@@ -690,12 +690,12 @@ function confirmarPrazoCalc(dataDue, dataFatal) {
     var fatalFmt = dataFatal.split('-').reverse().join('/');
     var msg = 'Confirmar prazo?\n\n';
     if (dataDue !== dataFatal) {
-        msg += 'Data da tarefa (seguranca): ' + segFmt + '\n';
-        msg += 'Data fatal (termino legal): ' + fatalFmt + '\n\n';
-        msg += 'A tarefa sera criada com a data de SEGURANCA.\nO prazo real (fatal) sera registrado na agenda.';
+        msg += 'Data da tarefa (segurança): ' + segFmt + '\n';
+        msg += 'Data fatal (término legal): ' + fatalFmt + '\n\n';
+        msg += 'A tarefa será criada com a data de SEGURANÇA.\nO prazo real (fatal) será registrado na agenda.';
     } else {
         msg += 'Data fatal: ' + fatalFmt + '\n\n';
-        msg += 'ATENCAO: Sera usada a data FATAL como prazo da tarefa.';
+        msg += 'ATENÇÃO: Será usada a data FATAL como prazo da tarefa.';
     }
 
     if (!confirm(msg)) return;

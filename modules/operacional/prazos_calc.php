@@ -4,7 +4,7 @@
  *
  * Calcula prazos com base nas regras do CPC:
  *   Disponibilizacao (D) -> Publicacao (D+1 util) -> Inicio contagem (D+2 util)
- *   Conta dias uteis, exclui fins de semana e suspensoes (feriados/recesso)
+ *   Conta dias úteis, exclui fins de semana e suspensoes (feriados/recesso)
  *   Data fatal em dia nao util -> avanca para proximo util
  *
  * PHP 7.4 — array() syntax, no match(), no str_contains()
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             flash_set('success', 'Prazo salvo com sucesso! Data fatal: ' . date('d/m/Y', strtotime($resultado['data_fatal'])));
         }
     } else {
-        flash_set('error', 'Preencha a data de disponibilizacao e a quantidade de dias/meses.');
+        flash_set('error', 'Preencha a data de disponibilização e a quantidade de dias/meses.');
     }
 }
 
@@ -478,7 +478,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <!-- Preview auto-calculado -->
                 <div class="preview-row" id="previewRow" style="display:none;">
                     <div class="preview-item">
-                        <strong>Publicacao (D+1):</strong><br>
+                        <strong>Publicação (D+1):</strong><br>
                         <span id="previewPub">--</span>
                     </div>
                     <div class="preview-item">
@@ -515,10 +515,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="card" style="margin-top:1rem; padding:1rem; font-size:.82rem; color:#6b7280; line-height:1.6;">
             <strong style="color:#374151;">Como funciona:</strong><br>
             1. <strong>Disponibilizacao</strong> = data da publicacao no DJe<br>
-            2. <strong>Publicacao</strong> = D+1 dia util<br>
-            3. <strong>Inicio da contagem</strong> = primeiro dia util apos a publicacao<br>
-            4. O prazo conta apenas <strong>dias uteis</strong> (exceto se em meses)<br>
-            5. Se a data fatal cair em dia nao util, avanca para o proximo dia util<br>
+            2. <strong>Publicacao</strong> = D+1 dia útil<br>
+            3. <strong>Inicio da contagem</strong> = primeiro dia útil apos a publicacao<br>
+            4. O prazo conta apenas <strong>dias úteis</strong> (exceto se em meses)<br>
+            5. Se a data fatal cair em dia nao util, avanca para o proximo dia útil<br>
             6. Sao excluidos: sabados, domingos, feriados e suspensoes do TJRJ
         </div>
     </div>
@@ -537,7 +537,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <span class="resultado-valor"><?= data_br($resultado['disponibilizacao']) ?></span>
                 </div>
                 <div class="resultado-linha">
-                    <span class="resultado-label">Publicacao (D+1)</span>
+                    <span class="resultado-label">Publicação (D+1)</span>
                     <span class="resultado-valor"><?= data_br($resultado['publicacao']) ?></span>
                 </div>
                 <div class="resultado-linha">
@@ -546,13 +546,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <div class="resultado-linha">
                     <span class="resultado-label">Prazo</span>
-                    <span class="resultado-valor"><?= (int)$resultado['quantidade'] ?> <?= $resultado['unidade'] === 'meses' ? 'meses' : 'dias uteis' ?></span>
+                    <span class="resultado-valor"><?= (int)$resultado['quantidade'] ?> <?= $resultado['unidade'] === 'meses' ? 'meses' : 'dias úteis' ?></span>
                 </div>
 
                 <!-- Suspensoes encontradas -->
                 <?php if (!empty($resultado['suspensoes'])): ?>
                     <div style="margin-top:.75rem;">
-                        <span class="resultado-label" style="font-size:.85rem;">Suspensoes encontradas:</span>
+                        <span class="resultado-label" style="font-size:.85rem;">Suspensões encontradas:</span>
                         <ul class="suspensoes-lista">
                             <?php foreach ($resultado['suspensoes'] as $susp): ?>
                                 <li>
@@ -574,15 +574,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                 <!-- DATA SEGURANÇA destaque -->
                 <div style="background:#059669;border-radius:12px;padding:1rem;text-align:center;margin-bottom:.75rem;">
-                    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.8);">Prazo Interno (seguranca)</div>
+                    <div style="font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.8);">Prazo Interno (segurança)</div>
                     <div style="font-size:1.8rem;font-weight:800;color:#fff;"><?= date('d/m/Y', strtotime($resultado['data_seguranca'])) ?></div>
                     <div style="font-size:.78rem;color:rgba(255,255,255,.7);"><?= e($resultado['dia_semana_seg']) ?></div>
-                    <div style="font-size:.68rem;color:rgba(255,255,255,.6);margin-top:.3rem;">1 dia util ANTES do termino — para evitar perda de prazo</div>
+                    <div style="font-size:.68rem;color:rgba(255,255,255,.6);margin-top:.3rem;">1 dia útil ANTES do término — para evitar perda de prazo</div>
                 </div>
 
                 <!-- DATA FATAL destaque -->
                 <div class="data-fatal-box">
-                    <div class="label-fatal">Data Fatal (termino legal)</div>
+                    <div class="label-fatal">Data Fatal (término legal)</div>
                     <div class="data-fatal-valor" id="dataFatalValor"><?= date('d/m/Y', strtotime($resultado['data_fatal'])) ?></div>
                     <div class="dia-semana"><?= e($resultado['dia_semana_fatal']) ?></div>
                 </div>
@@ -610,7 +610,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="dias-ate-box <?= $diasClass ?>"><?= e($diasTexto) ?></div>
                 <?php $diasSeg = (int)$resultado['dias_ate_seguranca']; ?>
                 <?php if ($diasSeg >= 0 && $diasSeg !== $diasAte): ?>
-                <div style="text-align:center;font-size:.72rem;color:#059669;font-weight:700;margin-top:.3rem;">Prazo interno (seguranca): <?= $diasSeg ?> dia<?= $diasSeg !== 1 ? 's' : '' ?></div>
+                <div style="text-align:center;font-size:.72rem;color:#059669;font-weight:700;margin-top:.3rem;">Prazo interno (segurança): <?= $diasSeg ?> dia<?= $diasSeg !== 1 ? 's' : '' ?></div>
                 <?php endif; ?>
 
                 <!-- Botoes -->
@@ -743,7 +743,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="cal-legenda-item"><span class="cal-legenda-dot dot-suspenso"></span> Suspensao</div>
                     <div class="cal-legenda-item"><span class="cal-legenda-dot dot-fds"></span> Fim de semana</div>
                     <div class="cal-legenda-item"><span class="cal-legenda-dot dot-contado"></span> Dia contado</div>
-                    <div class="cal-legenda-item"><span class="cal-legenda-dot dot-inicio"></span> Inicio / Publicacao</div>
+                    <div class="cal-legenda-item"><span class="cal-legenda-dot dot-inicio"></span> Início / Publicação</div>
                 </div>
             </div>
 
@@ -831,14 +831,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         var lines = [];
         lines.push('=== CALCULO DE PRAZO ===');
-        lines.push('Disponibilizacao: <?= $resultado ? data_br($resultado['disponibilizacao']) : '' ?>');
-        lines.push('Publicacao: <?= $resultado ? data_br($resultado['publicacao']) : '' ?>');
+        lines.push('Disponibilização: <?= $resultado ? data_br($resultado['disponibilizacao']) : '' ?>');
+        lines.push('Publicação: <?= $resultado ? data_br($resultado['publicacao']) : '' ?>');
         lines.push('Inicio contagem: <?= $resultado ? data_br($resultado['inicio_contagem']) : '' ?>');
-        lines.push('Prazo: <?= $resultado ? (int)$resultado['quantidade'] . ' ' . ($resultado['unidade'] === 'meses' ? 'meses' : 'dias uteis') : '' ?>');
+        lines.push('Prazo: <?= $resultado ? (int)$resultado['quantidade'] . ' ' . ($resultado['unidade'] === 'meses' ? 'meses' : 'dias úteis') : '' ?>');
         lines.push('');
-        lines.push('PRAZO INTERNO (seguranca): <?= $resultado ? date('d/m/Y', strtotime($resultado['data_seguranca'])) . ' (' . $resultado['dia_semana_seg'] . ')' : '' ?>');
-        lines.push('DATA FATAL (termino legal): ' + el.textContent + ' (<?= $resultado ? $resultado['dia_semana_fatal'] : '' ?>)');
-        lines.push('OBS: Considere protocolar ate a data de seguranca para evitar perda de prazo.');
+        lines.push('PRAZO INTERNO (segurança): <?= $resultado ? date('d/m/Y', strtotime($resultado['data_seguranca'])) . ' (' . $resultado['dia_semana_seg'] . ')' : '' ?>');
+        lines.push('DATA FATAL (término legal): ' + el.textContent + ' (<?= $resultado ? $resultado['dia_semana_fatal'] : '' ?>)');
+        lines.push('OBS: Considere protocolar até a data de segurança para evitar perda de prazo.');
         <?php if ($resultado && !empty($resultado['suspensoes'])): ?>
         lines.push('');
         lines.push('Suspensoes no periodo:');

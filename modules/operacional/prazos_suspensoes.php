@@ -7,7 +7,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_access('operacional');
 
-$pageTitle = 'Suspensoes de Prazos';
+$pageTitle = 'Suspensões de Prazos';
 $pdo = db();
 $currentYear = (int)date('Y');
 $filtroAno = (int)($_GET['ano'] ?? $currentYear);
@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         if ($dataInicio && $dataFim && $motivo) {
             $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, criado_por) VALUES (?,?,?,?,?,?,?,?)")
                 ->execute(array($dataInicio, $dataFim, $tipo, $abrangencia, $comarca, $motivo, $ato ? $ato : null, current_user_id()));
-            flash_set('success', 'Suspensao adicionada!');
+            flash_set('success', 'Suspensão adicionada!');
         }
         redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
     }
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $id = (int)($_POST['id'] ?? 0);
         if ($id) {
             $pdo->prepare("DELETE FROM prazos_suspensoes WHERE id = ?")->execute(array($id));
-            flash_set('success', 'Suspensao removida.');
+            flash_set('success', 'Suspensão removida.');
         }
         redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
     }
@@ -73,9 +73,9 @@ $tipoLabels = array(
     'feriado_estadual' => 'Feriado Estadual',
     'feriado_municipal' => 'Feriado Municipal',
     'recesso' => 'Recesso Forense',
-    'suspensao_chuvas' => 'Suspensao (Chuvas)',
-    'suspensao_energia' => 'Suspensao (Energia)',
-    'suspensao_sistema' => 'Suspensao (Sistema)',
+    'suspensao_chuvas' => 'Suspensão (Chuvas)',
+    'suspensao_energia' => 'Suspensão (Energia)',
+    'suspensao_sistema' => 'Suspensão (Sistema)',
     'ponto_facultativo' => 'Ponto Facultativo',
     'carnaval' => 'Carnaval',
     'semana_santa' => 'Semana Santa',
@@ -231,8 +231,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </select>
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Abrangencia</label>
-                    <select name="abrangencia" id="selAbrangencia" class="form-select" onchange="toggleComarca()">
+                    <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Abrangência</label>
+                    <select name="abrangencia" id="selAbrangência" class="form-select" onchange="toggleComarca()">
                         <option value="todo_estado">Todo o Estado</option>
                         <option value="capital">Capital</option>
                         <option value="comarca_especifica">Comarca Especifica</option>
@@ -252,8 +252,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <input type="text" name="motivo" class="form-input" required maxlength="300" placeholder="Ex: Natal, Recesso Forense...">
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Ato / Legislacao</label>
-                    <input type="text" name="ato_legislacao" class="form-input" maxlength="200" placeholder="Ex: Resolucao TJ 123/2026">
+                    <label style="display:block; font-size:0.85rem; font-weight:600; margin-bottom:4px;">Ato / Legislação</label>
+                    <input type="text" name="ato_legislacao" class="form-input" maxlength="200" placeholder="Ex: Resolução TJ 123/2026">
                 </div>
             </div>
             <div style="margin-top: 16px;">
@@ -284,7 +284,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr>
                         <th>Periodo</th>
                         <th>Tipo</th>
-                        <th>Abrangencia</th>
+                        <th>Abrangência</th>
                         <th>Comarca</th>
                         <th>Motivo</th>
                         <th>Ato/Legislacao</th>
@@ -366,7 +366,7 @@ function toggleForm() {
 }
 
 function toggleComarca() {
-    var sel = document.getElementById('selAbrangencia');
+    var sel = document.getElementById('selAbrangência');
     var wrapper = document.getElementById('comarcaWrapper');
     if (sel.value === 'comarca_especifica') {
         wrapper.style.display = '';
