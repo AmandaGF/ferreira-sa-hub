@@ -39,93 +39,192 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $texto = $_POST['texto_pdf'] ?? '';
         $importados = 0;
         $erros = array();
+        $preview = array();
 
         if ($texto) {
-            // Parser: detectar padrões de datas e suspensões do TJRJ
-            // Formatos esperados:
-            //   "02/04/2026 a 03/04/2026 - Semana Santa - Ato Executivo 123"
-            //   "21/04/2026 - Tiradentes"
-            //   "Período: 02/04 a 03/04/2026 | Motivo: Semana Santa | Ato: TJ 123"
-            //   "02 e 03 de abril de 2026 - Semana Santa"
+            // ═══ PARSER INTELIGENTE PARA TEXTO DO TJRJ ═══
+            // O texto do TJRJ tem formato de blocos:
+            //   [Período/Datas]
+            //   [Ato Legislativo]
+            //   [Publicação]
+            //   [Motivo/Ementa]
+            //
+            // Estratégia: juntar tudo em texto corrido, depois extrair blocos
+            // usando regex que identifica o padrão real do TJRJ
+
+            // 1. Limpar lixo
             $linhas = preg_split('/\r?\n/', $texto);
+            $linhasLimpas = array();
+            foreach ($linhas as $l) {
+                $l = trim($l);
+                // Ignorar linhas de lixo
+                if ($l === '' || $l === 'Índice' || $l === 'PJERJ') continue;
+                if (strpos($l, 'Todo conteúdo disponível') !== false) continue;
+                if (strpos($l, 'Portal do Conhecimento') !== false) continue;
+                if (strpos($l, 'Poder Judiciário do Estado') !== false) continue;
+                if (strpos($l, 'Secretaria Geral') !== false) continue;
+                if (strpos($l, 'Departamento de Gestão') !== false) continue;
+                if (strpos($l, 'Divisão de Organização') !== false) continue;
+                if (strpos($l, 'Pesquisa elaborada') !== false) continue;
+                if (strpos($l, 'Para sugestões') !== false) continue;
+                if (strpos($l, 'seesc@tjrj') !== false) continue;
+                if (strpos($l, 'CONSULTA POR') !== false) continue;
+                if (strpos($l, 'COMARCAS E REGIONAIS') !== false) continue;
+                if (strpos($l, 'MOTIVO SERVENTIA') !== false) continue;
+                if (strpos($l, 'ATO ADMINISTRATIVO') !== false) continue;
+                if (strpos($l, 'PUBLICAÇÃO DJERJ') !== false) continue;
+                if (preg_match('/^SÁBADOS:\s/', $l)) continue;
+                if (preg_match('/^DOMINGOS:\s/', $l)) continue;
+                if (preg_match('/^▪/', $l)) continue;
+                if (preg_match('/^•/', $l)) continue;
+                if (preg_match('/^(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+Período/', $l)) continue;
+                if ($l === 'Período Ato /Legislação Publicação Motivo da Suspensão / Ementa do Ato PJERJ') continue;
+                if ($l === 'Período Ato Publicação Ementa') continue;
+                if (preg_match('/^(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)$/', $l)) continue;
+                // Ignorar linhas que são só nomes de comarca (sem data)
+                if (preg_match('/^[A-ZÀ-Ú][a-záéíóúàãõâêîôû\s]+$/', $l) && strlen($l) < 40 && !preg_match('/\d/', $l)) continue;
+                // Ignorar cabeçalhos de seção
+                if ($l === 'Chuvas' || $l === 'Energia Elétrica' || $l === 'Feriados' || $l === 'Ponto Facultativo' || $l === 'Recesso Forense') continue;
+                if (strpos($l, 'Plantão Judiciário') !== false && strpos($l, 'suspender') === false) continue;
+                if (strpos($l, 'Data da atualização') !== false) continue;
+                if (strpos($l, 'SUSPENSÃO DE PRAZOS') !== false) continue;
+                if (strpos($l, 'CALENDÁRIO DE FERIADOS') !== false) continue;
+                if (preg_match('/^\d{4}$/', $l)) continue; // ano isolado
+                $linhasLimpas[] = $l;
+            }
 
-            foreach ($linhas as $linha) {
-                $linha = trim($linha);
-                if (strlen($linha) < 5) continue;
+            // 2. Juntar em blocos usando datas como separador
+            $textoLimpo = implode("\n", $linhasLimpas);
 
-                $dataInicio = null;
-                $dataFim = null;
-                $motivo = '';
+            // 3. Extrair blocos: cada bloco começa com uma data
+            // Padrão de data TJRJ: dd/mm, dd/mm/aaaa, dd/mm e dd/mm, dd/mm a dd/mm,
+            //   dd/mm, dd/mm, dd/mm e dd/mm, "Período de dd/mm/aaaa a dd/mm/aaaa"
+            $blocos = preg_split(
+                '/(?=(?:^|\n)(?:(?:Período de\s+)?\d{2}\/\d{2}(?:\/\d{4})?(?:\s*(?:,\s*\d{2}\/\d{2}(?:\/\d{4})?)*\s*(?:e\s+\d{2}\/\d{2}(?:\/\d{4})?)?)(?:\s*a\s+\d{2}\/\d{2}(?:\/\d{4})?)?))/m',
+                $textoLimpo
+            );
+
+            foreach ($blocos as $bloco) {
+                $bloco = trim($bloco);
+                if (strlen($bloco) < 8) continue;
+
+                // Extrair datas do início do bloco
+                $datas = array();
                 $ato = '';
+                $motivo = '';
                 $comarca = null;
                 $abrangencia = 'todo_estado';
-                $tipo = 'outros';
 
-                // Padrão 1: dd/mm/aaaa a dd/mm/aaaa — motivo — ato
-                if (preg_match('#(\d{2}/\d{2}/\d{4})\s*(?:a|até|ate|-)\s*(\d{2}/\d{2}/\d{4})#i', $linha, $m)) {
-                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1]);
-                    $dataFim = DateTime::createFromFormat('d/m/Y', $m[2]);
-                    $resto = trim(preg_replace('#\d{2}/\d{2}/\d{4}\s*(?:a|até|ate|-)\s*\d{2}/\d{2}/\d{4}#i', '', $linha));
+                // Período dd/mm/aaaa a dd/mm/aaaa
+                if (preg_match('#(?:Período de\s+)?(\d{2}/\d{2}/\d{4})\s*a\s*(\d{2}/\d{2}/\d{4})#', $bloco, $m)) {
+                    $d1 = DateTime::createFromFormat('d/m/Y', $m[1]);
+                    $d2 = DateTime::createFromFormat('d/m/Y', $m[2]);
+                    if ($d1 && $d2) $datas[] = array($d1, $d2);
                 }
-                // Padrão 2: dd/mm/aaaa — motivo (data única)
-                elseif (preg_match('#(\d{2}/\d{2}/\d{4})#', $linha, $m)) {
-                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1]);
-                    $dataFim = $dataInicio ? clone $dataInicio : null;
-                    $resto = trim(preg_replace('#\d{2}/\d{2}/\d{4}#', '', $linha));
+                // dd/mm a dd/mm (sem ano)
+                elseif (preg_match('#(\d{2}/\d{2})\s*a\s*(\d{2}/\d{2})(?!\d)#', $bloco, $m)) {
+                    $d1 = DateTime::createFromFormat('d/m/Y', $m[1] . '/' . $filtroAno);
+                    $d2 = DateTime::createFromFormat('d/m/Y', $m[2] . '/' . $filtroAno);
+                    if ($d1 && $d2) $datas[] = array($d1, $d2);
                 }
-                // Padrão 3: dd/mm a dd/mm (sem ano, assume ano do filtro)
-                elseif (preg_match('#(\d{2}/\d{2})\s*(?:a|até|ate|-)\s*(\d{2}/\d{2})#i', $linha, $m)) {
-                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1] . '/' . $filtroAno);
-                    $dataFim = DateTime::createFromFormat('d/m/Y', $m[2] . '/' . $filtroAno);
-                    $resto = trim(preg_replace('#\d{2}/\d{2}\s*(?:a|até|ate|-)\s*\d{2}/\d{2}#i', '', $linha));
+                // dd/mm/aaaa, dd/mm/aaaa e dd/mm/aaaa (datas individuais com ano)
+                elseif (preg_match_all('#(\d{2}/\d{2}/\d{4})#', $bloco, $m)) {
+                    // Pegar só as datas do início (não as de publicação)
+                    $primeiraLinha = strtok($bloco, "\n");
+                    preg_match_all('#(\d{2}/\d{2}/\d{4})#', $primeiraLinha, $mFirst);
+                    foreach ($mFirst[1] as $dStr) {
+                        $d = DateTime::createFromFormat('d/m/Y', $dStr);
+                        if ($d) $datas[] = array($d, clone $d);
+                    }
                 }
-                else {
-                    continue; // linha sem data reconhecível
+                // dd/mm, dd/mm e dd/mm (sem ano)
+                elseif (preg_match('#^(\d{2}/\d{2}(?:\s*,\s*\d{2}/\d{2})*(?:\s*e\s+\d{2}/\d{2})?)#', $bloco, $m)) {
+                    preg_match_all('#(\d{2}/\d{2})#', $m[1], $mDates);
+                    foreach ($mDates[1] as $dStr) {
+                        $d = DateTime::createFromFormat('d/m/Y', $dStr . '/' . $filtroAno);
+                        if ($d) $datas[] = array($d, clone $d);
+                    }
+                }
+                // dd/mm (data única sem ano)
+                elseif (preg_match('#^(\d{2}/\d{2})(?!\d)#', $bloco, $m)) {
+                    $d = DateTime::createFromFormat('d/m/Y', $m[1] . '/' . $filtroAno);
+                    if ($d) $datas[] = array($d, clone $d);
                 }
 
-                if (!$dataInicio || !$dataFim) continue;
+                if (empty($datas)) continue;
 
-                // Extrair motivo e ato do resto
-                $resto = preg_replace('/^[\s\-–—|:,]+/', '', $resto);
-                $partes = preg_split('/\s*[-–—|]\s*/', $resto, 3);
-                $motivo = isset($partes[0]) ? trim($partes[0]) : '';
-                $ato = isset($partes[1]) ? trim($partes[1]) : '';
-                if (!$motivo) $motivo = $linha; // usar linha inteira se não parseou
+                // Extrair ato legislativo
+                if (preg_match('/(?:ATO EXECUTIVO|LEI (?:FEDERAL|ESTADUAL)|ART\.\s*\d+|DECRETO|AVISO)[^\n]*/i', $bloco, $mAto)) {
+                    $ato = trim($mAto[0]);
+                }
 
-                // Detectar tipo pelo motivo
-                $motivoLower = mb_strtolower($motivo);
-                if (strpos($motivoLower, 'carnaval') !== false) $tipo = 'carnaval';
-                elseif (strpos($motivoLower, 'santa') !== false || strpos($motivoLower, 'pascoa') !== false || strpos($motivoLower, 'páscoa') !== false) $tipo = 'semana_santa';
-                elseif (strpos($motivoLower, 'recesso') !== false) $tipo = 'recesso';
-                elseif (strpos($motivoLower, 'chuva') !== false || strpos($motivoLower, 'temporal') !== false || strpos($motivoLower, 'alagamento') !== false) $tipo = 'suspensao_chuvas';
-                elseif (strpos($motivoLower, 'energia') !== false) $tipo = 'suspensao_energia';
-                elseif (strpos($motivoLower, 'sistema') !== false || strpos($motivoLower, 'pje') !== false) $tipo = 'suspensao_sistema';
-                elseif (strpos($motivoLower, 'ponto facultativo') !== false) $tipo = 'ponto_facultativo';
-                elseif (strpos($motivoLower, 'nacional') !== false || strpos($motivoLower, 'tiradentes') !== false || strpos($motivoLower, 'independ') !== false || strpos($motivoLower, 'natal') !== false || strpos($motivoLower, 'trabalho') !== false || strpos($motivoLower, 'finados') !== false || strpos($motivoLower, 'aparecida') !== false || strpos($motivoLower, 'republica') !== false || strpos($motivoLower, 'república') !== false) $tipo = 'feriado_nacional';
-                elseif (strpos($motivoLower, 'estadual') !== false || strpos($motivoLower, 'jorge') !== false || strpos($motivoLower, 'consciencia') !== false || strpos($motivoLower, 'consciência') !== false) $tipo = 'feriado_estadual';
-                elseif (strpos($motivoLower, 'municipal') !== false) $tipo = 'feriado_municipal';
+                // Extrair motivo: última frase significativa do bloco
+                $linhasBloco = preg_split('/\r?\n/', $bloco);
+                $motivoCandidatos = array();
+                foreach ($linhasBloco as $lb) {
+                    $lb = trim($lb);
+                    // Motivos conhecidos do TJRJ (geralmente frases curtas no final)
+                    if (preg_match('/^(Dia de|Tiradentes|Semana|Confraternização|Carnaval|Natal|Finados|Independ|Consciência|Feriado)/i', $lb)) {
+                        $motivo = $lb;
+                        break;
+                    }
+                    // "Resolve suspender..." = ementa
+                    if (preg_match('/^Resolve\s+(suspender|prorrogar)/i', $lb)) {
+                        $motivo = mb_substr($lb, 0, 250);
+                        break;
+                    }
+                    // Frases que parecem motivo
+                    if (strlen($lb) > 5 && strlen($lb) < 200 && !preg_match('/^\d{2}/', $lb) && !preg_match('/^(ATO|LEI|ART|DECRETO|AVISO|DORJ|DJERJ|DOU)/i', $lb) && strpos($lb, '_') === false) {
+                        $motivoCandidatos[] = $lb;
+                    }
+                }
+                if (!$motivo && !empty($motivoCandidatos)) {
+                    $motivo = end($motivoCandidatos);
+                }
+                if (!$motivo) $motivo = 'Suspensão de prazos';
 
-                // Detectar comarca
-                if (preg_match('/comarca\s+(?:de\s+)?([A-ZÀ-Ú][a-záéíóúàãõâêîôû\s]+)/i', $linha, $mc)) {
+                // Detectar comarca no bloco
+                if (preg_match('/Comarca\s+d[eao]\s+([A-ZÀ-Úa-záéíóúàãõâêîôû\s]+?)(?:,|\.|no dia|nos dias|\))/i', $bloco, $mc)) {
                     $comarca = trim($mc[1]);
                     $abrangencia = 'comarca_especifica';
                 }
+                // Capital
+                if (preg_match('/Comarca da Capital/i', $bloco)) {
+                    $comarca = 'Capital (Rio de Janeiro)';
+                    $abrangencia = 'capital';
+                }
 
-                // Inserir
-                try {
-                    $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)")
-                        ->execute(array(
-                            $dataInicio->format('Y-m-d'),
-                            $dataFim->format('Y-m-d'),
-                            $tipo, $abrangencia, $comarca,
-                            clean_str($motivo, 300),
-                            $ato ? clean_str($ato, 200) : null,
-                            'Importação texto PDF',
-                            current_user_id()
-                        ));
-                    $importados++;
-                } catch (Exception $e) {
-                    $erros[] = mb_substr($linha, 0, 50) . ': ' . $e->getMessage();
+                // Detectar tipo
+                $blocoLower = mb_strtolower($bloco);
+                if (strpos($blocoLower, 'carnaval') !== false) $tipo = 'carnaval';
+                elseif (strpos($blocoLower, 'semana santa') !== false) $tipo = 'semana_santa';
+                elseif (strpos($blocoLower, 'recesso') !== false) $tipo = 'recesso';
+                elseif (strpos($blocoLower, 'chuva') !== false || strpos($blocoLower, 'temporal') !== false) $tipo = 'suspensao_chuvas';
+                elseif (strpos($blocoLower, 'energia') !== false) $tipo = 'suspensao_energia';
+                elseif (strpos($blocoLower, 'indisponibilidade') !== false || strpos($blocoLower, 'normalização do serviço') !== false) $tipo = 'suspensao_sistema';
+                elseif (strpos($blocoLower, 'ponto facultativo') !== false) $tipo = 'ponto_facultativo';
+                elseif (strpos($blocoLower, 'confraternização') !== false || strpos($blocoLower, 'tiradentes') !== false || strpos($blocoLower, 'independência') !== false || strpos($blocoLower, 'natal') !== false || strpos($blocoLower, 'trabalho') !== false || strpos($blocoLower, 'finados') !== false || strpos($blocoLower, 'aparecida') !== false || strpos($blocoLower, 'república') !== false || strpos($blocoLower, 'lei federal') !== false) $tipo = 'feriado_nacional';
+                elseif (strpos($blocoLower, 'são jorge') !== false || strpos($blocoLower, 'são sebastião') !== false || strpos($blocoLower, 'consciência negra') !== false || strpos($blocoLower, 'lei estadual') !== false) $tipo = 'feriado_estadual';
+                elseif (strpos($blocoLower, 'municipal') !== false || strpos($blocoLower, 'lei orgânica') !== false) $tipo = 'feriado_municipal';
+                else $tipo = 'outros';
+
+                // Inserir cada data/range
+                foreach ($datas as $dataPar) {
+                    $di = $dataPar[0]->format('Y-m-d');
+                    $df = $dataPar[1]->format('Y-m-d');
+
+                    // Verificar duplicidade
+                    $dupCheck = $pdo->prepare("SELECT COUNT(*) FROM prazos_suspensoes WHERE data_inicio = ? AND data_fim = ? AND motivo = ?");
+                    $dupCheck->execute(array($di, $df, clean_str($motivo, 300)));
+                    if ((int)$dupCheck->fetchColumn() > 0) continue;
+
+                    try {
+                        $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)")
+                            ->execute(array($di, $df, $tipo, $abrangencia, $comarca, clean_str($motivo, 300), $ato ? clean_str($ato, 200) : null, 'Importação TJRJ', current_user_id()));
+                        $importados++;
+                    } catch (Exception $e) {
+                        $erros[] = $di . ': ' . $e->getMessage();
+                    }
                 }
             }
         }
@@ -137,7 +236,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             flash_set('error', 'Erros: ' . implode('; ', array_slice($erros, 0, 3)));
         }
         if ($importados === 0 && empty($erros)) {
-            flash_set('error', 'Nenhuma suspensão encontrada no texto. Verifique o formato (datas dd/mm/aaaa).');
+            flash_set('error', 'Nenhuma suspensão nova encontrada. Pode ser que já estejam cadastradas ou o formato não foi reconhecido.');
         }
         redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
     }
@@ -378,14 +477,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <div class="card-body" id="importCollapse" style="display:none;">
         <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem;">
-            Abra o PDF de suspensões do TJRJ, selecione todo o texto (Ctrl+A), copie (Ctrl+C) e cole abaixo.
-            O sistema vai detectar automaticamente as datas, motivos e atos legislativos.
+            Acesse o <a href="https://www.tjrj.jus.br/web/guest/informativo-de-suspensao-dos-prazos-processuais-e-expediente-forense" target="_blank" style="color:var(--rose);font-weight:600;">site do TJRJ</a>, selecione todo o texto da página (Ctrl+A), copie (Ctrl+C) e cole abaixo.
+            O sistema filtra automaticamente o lixo e extrai apenas as suspensões reais.
         </p>
-        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius);padding:.6rem .8rem;margin-bottom:.75rem;font-size:.78rem;color:#92400e;">
-            <strong>Formatos aceitos:</strong><br>
-            02/04/2026 a 03/04/2026 - Semana Santa - Ato Executivo 123<br>
-            21/04/2026 - Tiradentes<br>
-            20/12 a 06/01 - Recesso Forense - Ato TJ 168/2025
+        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius);padding:.6rem .8rem;margin-bottom:.75rem;font-size:.78rem;color:#166534;">
+            <strong>O parser inteligente detecta:</strong><br>
+            - Feriados nacionais e estaduais com ato legislativo<br>
+            - Suspensões por comarca (chuvas, energia, sistema)<br>
+            - Recesso forense, Carnaval, Semana Santa<br>
+            - Ignora cabeçalhos, rodapés, índices e textos repetidos<br>
+            - Verifica duplicidade (não importa o que já existe)
         </div>
         <form method="POST">
             <?= csrf_input() ?>
