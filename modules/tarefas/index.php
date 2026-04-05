@@ -175,13 +175,55 @@ echo voltar_ao_processo_html();
         </div>
 
         <div class="tk-fr">
-            <div class="tk-fg"><label class="tk-fl">Data Fatal / Prazo</label>
-                <input type="date" class="tk-fi" id="tkDueDate">
+            <div class="tk-fg">
+                <label class="tk-fl">Data Fatal / Prazo</label>
+                <div style="display:flex;gap:.35rem;align-items:center;">
+                    <input type="date" class="tk-fi" id="tkDueDate" style="flex:1;">
+                    <button type="button" id="btnCalcPrazo" style="display:none;background:#6366f1;color:#fff;border:none;border-radius:6px;padding:5px 10px;font-size:.7rem;font-weight:700;cursor:pointer;white-space:nowrap;" onclick="abrirCalcPrazo()">Calcular</button>
+                </div>
             </div>
             <div class="tk-fg" id="tkAlertaBox" style="display:none;">
                 <label class="tk-fl">Data de Alerta</label>
                 <input type="date" class="tk-fi" id="tkPrazoAlerta">
             </div>
+        </div>
+
+        <!-- Mini calculadora de prazo inline -->
+        <div id="calcPrazoBox" style="display:none;background:#f0f4ff;border:2px solid #6366f1;border-radius:10px;padding:1rem;margin-top:.5rem;">
+            <div style="font-size:.78rem;font-weight:700;color:#6366f1;margin-bottom:.6rem;">Calculadora de Prazo</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;">
+                <div>
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data de disponibilizacao</label>
+                    <input type="date" class="tk-fi" id="calcDataDisp">
+                </div>
+                <div>
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Comarca</label>
+                    <select class="tk-fi" id="calcComarca" style="font-size:.8rem;">
+                        <option value="">Todo o Estado</option>
+                        <?php foreach (comarcas_rj() as $cRj): ?>
+                        <option value="<?= e($cRj) ?>"><?= e($cRj) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:.5rem;">
+                <div>
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Quantidade</label>
+                    <input type="number" class="tk-fi" id="calcQtd" value="15" min="1" max="365">
+                </div>
+                <div>
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Unidade</label>
+                    <select class="tk-fi" id="calcUnidade">
+                        <option value="dias">Dias uteis</option>
+                        <option value="meses">Meses</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display:flex;gap:.35rem;margin-top:.6rem;">
+                <button type="button" onclick="executarCalcPrazo()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:.75rem;font-weight:700;cursor:pointer;flex:1;">Calcular</button>
+                <button type="button" onclick="document.getElementById('calcPrazoBox').style.display='none'" style="background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-size:.75rem;cursor:pointer;">Fechar</button>
+            </div>
+            <div id="calcResultado" style="display:none;margin-top:.6rem;"></div>
         </div>
     </div>
     <div class="tk-modal-ft">
@@ -388,6 +430,9 @@ function abrirModal(caseId, caseTitle) {
     document.getElementById('tkOutroBox').style.display = 'none';
     document.getElementById('tkSubtipoBox').style.display = 'none';
     document.getElementById('tkAlertaBox').style.display = 'none';
+    document.getElementById('btnCalcPrazo').style.display = 'none';
+    document.getElementById('calcPrazoBox').style.display = 'none';
+    document.getElementById('calcResultado').style.display = 'none';
 
     if (caseId) {
         document.getElementById('tkCaseId').value = caseId;
@@ -427,6 +472,8 @@ function editarTarefa(id) {
             document.getElementById('tkOutroBox').style.display = tipoSel==='outros'?'block':'none';
             document.getElementById('tkSubtipoBox').style.display = tipoSel==='prazo'?'block':'none';
             document.getElementById('tkAlertaBox').style.display = tipoSel==='prazo'?'block':'none';
+            document.getElementById('btnCalcPrazo').style.display = tipoSel==='prazo'?'inline-block':'none';
+            document.getElementById('calcPrazoBox').style.display = 'none';
 
             document.getElementById('tkOverlay').classList.add('aberto');
         } catch(e) { alert('Erro ao carregar tarefa'); }
@@ -446,6 +493,8 @@ function selTipo(btn) {
     document.getElementById('tkSubtipoBox').style.display = tipoSel==='prazo'?'block':'none';
     document.getElementById('tkSubtipoOutro').style.display = 'none';
     document.getElementById('tkAlertaBox').style.display = tipoSel==='prazo'?'block':'none';
+    document.getElementById('btnCalcPrazo').style.display = tipoSel==='prazo'?'inline-block':'none';
+    document.getElementById('calcPrazoBox').style.display = 'none';
 
     // Toggle campo "Outro prazo"
     document.getElementById('tkSubtipo').onchange = function() {
@@ -557,6 +606,116 @@ if ($preCaseId):
 ?>
 setTimeout(function() { abrirModal(<?= $preCaseId ?>, <?= json_encode($preCase ? $preCase['title'] : '') ?>); }, 300);
 <?php endif; ?>
+
+// ══════════════════════════════════════
+// CALCULADORA DE PRAZO INLINE
+// ══════════════════════════════════════
+function abrirCalcPrazo() {
+    var box = document.getElementById('calcPrazoBox');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    document.getElementById('calcResultado').style.display = 'none';
+    // Pré-preencher comarca do processo se disponível
+    var caseId = document.getElementById('tkCaseId').value;
+    if (caseId) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '<?= module_url("tarefas", "api.php") ?>?action=buscar_comarca&case_id=' + caseId);
+        xhr.onload = function() {
+            try {
+                var r = JSON.parse(xhr.responseText);
+                if (r.comarca) document.getElementById('calcComarca').value = r.comarca;
+            } catch(e) {}
+        };
+        xhr.send();
+    }
+}
+
+function executarCalcPrazo() {
+    var dataDisp = document.getElementById('calcDataDisp').value;
+    var qtd = document.getElementById('calcQtd').value;
+    var unidade = document.getElementById('calcUnidade').value;
+    var comarca = document.getElementById('calcComarca').value;
+
+    if (!dataDisp) { alert('Preencha a data de disponibilizacao.'); return; }
+    if (!qtd || parseInt(qtd) < 1) { alert('Preencha a quantidade do prazo.'); return; }
+
+    var resultBox = document.getElementById('calcResultado');
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = '<div style="text-align:center;color:#6366f1;font-size:.78rem;">Calculando...</div>';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= module_url("tarefas", "api.php") ?>?action=calcular_prazo&data_disp=' + dataDisp + '&qtd=' + qtd + '&unidade=' + unidade + '&comarca=' + encodeURIComponent(comarca));
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.erro) { resultBox.innerHTML = '<div style="color:#dc2626;font-size:.78rem;">' + r.erro + '</div>'; return; }
+
+            var html = '<div style="background:#fff;border-radius:8px;padding:.75rem;border:1px solid #e5e7eb;">';
+            html += '<div style="font-size:.7rem;color:var(--text-muted);">Publicacao: ' + r.publicacao_fmt + ' | Inicio: ' + r.inicio_fmt + '</div>';
+
+            // Prazo de segurança (verde)
+            html += '<div style="background:#059669;color:#fff;border-radius:8px;padding:.6rem;text-align:center;margin:.5rem 0;">';
+            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Prazo Interno (seguranca)</div>';
+            html += '<div style="font-size:1.3rem;font-weight:800;">' + r.seguranca_fmt + '</div>';
+            html += '<div style="font-size:.65rem;opacity:.7;">' + r.dia_semana_seg + ' — 1 dia util antes</div>';
+            html += '</div>';
+
+            // Data fatal (vermelho)
+            html += '<div style="background:#dc2626;color:#fff;border-radius:8px;padding:.5rem;text-align:center;">';
+            html += '<div style="font-size:.6rem;font-weight:700;text-transform:uppercase;opacity:.8;">Data Fatal (termino legal)</div>';
+            html += '<div style="font-size:1.1rem;font-weight:800;">' + r.fatal_fmt + '</div>';
+            html += '<div style="font-size:.65rem;opacity:.7;">' + r.dia_semana_fatal + '</div>';
+            html += '</div>';
+
+            if (r.suspensoes_count > 0) {
+                html += '<div style="font-size:.68rem;color:#d97706;margin-top:.4rem;">Suspensoes no periodo: ' + r.suspensoes_count + ' dia(s)</div>';
+            }
+
+            // Botão confirmar
+            html += '<div style="display:flex;gap:.35rem;margin-top:.6rem;">';
+            html += '<button type="button" onclick="confirmarPrazoCalc(\'' + r.data_seguranca + '\',\'' + r.data_fatal + '\')" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:.72rem;font-weight:700;cursor:pointer;flex:1;">Usar prazo de seguranca</button>';
+            html += '<button type="button" onclick="confirmarPrazoCalc(\'' + r.data_fatal + '\',\'' + r.data_fatal + '\')" style="background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:.72rem;font-weight:700;cursor:pointer;">Usar data fatal</button>';
+            html += '</div>';
+
+            html += '</div>';
+            resultBox.innerHTML = html;
+        } catch(e) {
+            resultBox.innerHTML = '<div style="color:#dc2626;font-size:.78rem;">Erro no calculo.</div>';
+        }
+    };
+    xhr.send();
+}
+
+function confirmarPrazoCalc(dataDue, dataFatal) {
+    var segFmt = dataDue.split('-').reverse().join('/');
+    var fatalFmt = dataFatal.split('-').reverse().join('/');
+    var msg = 'Confirmar prazo?\n\n';
+    if (dataDue !== dataFatal) {
+        msg += 'Data da tarefa (seguranca): ' + segFmt + '\n';
+        msg += 'Data fatal (termino legal): ' + fatalFmt + '\n\n';
+        msg += 'A tarefa sera criada com a data de SEGURANCA.\nO prazo real (fatal) sera registrado na agenda.';
+    } else {
+        msg += 'Data fatal: ' + fatalFmt + '\n\n';
+        msg += 'ATENCAO: Sera usada a data FATAL como prazo da tarefa.';
+    }
+
+    if (!confirm(msg)) return;
+
+    // Preencher campos
+    document.getElementById('tkDueDate').value = dataDue;
+
+    // Calcular alerta = 3 dias antes da data de segurança
+    var dt = new Date(dataDue + 'T12:00:00');
+    dt.setDate(dt.getDate() - 3);
+    document.getElementById('tkPrazoAlerta').value = dt.toISOString().substring(0, 10);
+
+    // Fechar calculadora
+    document.getElementById('calcPrazoBox').style.display = 'none';
+    document.getElementById('calcResultado').style.display = 'none';
+
+    // Feedback
+    document.getElementById('tkDueDate').style.borderColor = '#059669';
+    setTimeout(function() { document.getElementById('tkDueDate').style.borderColor = ''; }, 3000);
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

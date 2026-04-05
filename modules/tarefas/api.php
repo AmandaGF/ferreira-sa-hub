@@ -70,6 +70,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    if ($action === 'calcular_prazo') {
+        $dataDisp = $_GET['data_disp'] ?? '';
+        $qtd = (int)($_GET['qtd'] ?? 15);
+        $unidade = ($_GET['unidade'] ?? 'dias') === 'meses' ? 'meses' : 'dias';
+        $comarca = $_GET['comarca'] ?? null;
+        if (!$comarca) $comarca = null;
+
+        if (!$dataDisp || $qtd < 1) {
+            echo json_encode(array('erro' => 'Dados incompletos'));
+            exit;
+        }
+
+        $r = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca);
+
+        echo json_encode(array(
+            'publicacao_fmt'    => date('d/m/Y', strtotime($r['publicacao'])),
+            'inicio_fmt'        => date('d/m/Y', strtotime($r['inicio_contagem'])),
+            'data_fatal'        => $r['data_fatal'],
+            'fatal_fmt'         => date('d/m/Y', strtotime($r['data_fatal'])),
+            'dia_semana_fatal'  => $r['dia_semana_fatal'],
+            'data_seguranca'    => $r['data_seguranca'],
+            'seguranca_fmt'     => date('d/m/Y', strtotime($r['data_seguranca'])),
+            'dia_semana_seg'    => $r['dia_semana_seg'],
+            'dias_ate_prazo'    => $r['dias_ate_prazo'],
+            'suspensoes_count'  => count($r['suspensoes']),
+        ));
+        exit;
+    }
+
+    if ($action === 'buscar_comarca') {
+        $caseId = (int)($_GET['case_id'] ?? 0);
+        $comarca = '';
+        if ($caseId) {
+            $stmt = $pdo->prepare("SELECT comarca FROM cases WHERE id = ?");
+            $stmt->execute(array($caseId));
+            $comarca = $stmt->fetchColumn() ?: '';
+        }
+        echo json_encode(array('comarca' => $comarca));
+        exit;
+    }
+
     echo json_encode(array('error' => 'Ação GET inválida'));
     exit;
 }
