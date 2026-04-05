@@ -27,14 +27,15 @@ a:hover{text-decoration:underline}
 .header p{font-size:.85rem;opacity:.85;max-width:480px;margin:0 auto}
 
 /* ========== PROGRESS ========== */
-.progressWrap{background:#fff;border-bottom:1px solid var(--border);padding:12px 8px;position:sticky;top:0;z-index:100}
-.progressBar{display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap;max-width:640px;margin:0 auto}
-.pill{width:28px;height:28px;border-radius:50%;border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;transition:.2s;flex-shrink:0}
-.pill.active{border-color:var(--cobre);color:#fff;background:var(--cobre)}
-.pill.done{border-color:var(--ok);color:#fff;background:var(--ok)}
-.pill.done::after{content:"\2713";font-size:13px}
-.pill.done span{display:none}
-.progLine{width:16px;height:2px;background:var(--border);flex-shrink:0}
+.progressWrap{background:#fff;border-bottom:1px solid var(--border);padding:10px 12px;position:sticky;top:0;z-index:100;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.progressBar{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:max-content;padding-bottom:4px}
+.pill{padding:6px 12px;border-radius:999px;border:1.5px solid var(--border);display:flex;align-items:center;gap:5px;font-size:.75rem;font-weight:500;color:var(--muted);cursor:pointer;transition:.2s;flex-shrink:0;background:#fff;white-space:nowrap}
+.pill:hover{border-color:rgba(5,34,40,.3);transform:translateY(-1px)}
+.pill.active{border-color:var(--cobre);color:var(--cobre);background:rgba(106,60,44,.08);font-weight:700}
+.pill.done{border-color:var(--ok);color:var(--ok);background:rgba(39,174,96,.08);font-weight:600}
+.pill .pillIcon{font-size:.9rem;line-height:1}
+.pill .pillCheck{display:none;font-size:.7rem;margin-left:2px}
+.pill.done .pillCheck{display:inline}
 
 /* ========== CONTAINER ========== */
 .container{max-width:680px;margin:0 auto;padding:16px}
@@ -684,13 +685,25 @@ document.addEventListener('DOMContentLoaded', () => {
 /* ========== PROGRESS BAR ========== */
 function buildProgressBar(){
   const bar = document.getElementById('progressBar');
-  const labels = ['ID','Mor','Ali','Saú','Edu','Tra','Ves','Laz','Tec','Cui','Out','Rev'];
+  const steps = [
+    {icon:'📋',label:'Identificação'},
+    {icon:'🏠',label:'Moradia'},
+    {icon:'🍽️',label:'Alimentação'},
+    {icon:'❤️',label:'Saúde'},
+    {icon:'📚',label:'Educação'},
+    {icon:'🚗',label:'Transporte'},
+    {icon:'👕',label:'Vestuário'},
+    {icon:'🎮',label:'Lazer'},
+    {icon:'💻',label:'Tecnologia'},
+    {icon:'🧸',label:'Cuidados'},
+    {icon:'📦',label:'Outros'},
+    {icon:'✅',label:'Enviar'}
+  ];
   for(let i=0;i<TOTAL_STEPS;i++){
-    if(i>0){const ln=document.createElement('div');ln.className='progLine';bar.appendChild(ln)}
     const p=document.createElement('div');
     p.className='pill';
     p.dataset.idx=i;
-    p.innerHTML=`<span>${labels[i]}</span>`;
+    p.innerHTML='<span class="pillIcon">'+steps[i].icon+'</span> '+(i+1)+'. '+steps[i].label+'<span class="pillCheck"> ✓</span>';
     p.onclick=()=>goStep(i);
     bar.appendChild(p);
   }
@@ -703,6 +716,9 @@ function updatePills(){
     if(idx===currentStep) p.classList.add('active');
     else if(isStepDone(idx)) p.classList.add('done');
   });
+  // Scroll pill ativa para visível
+  const activePill = document.querySelector('.pill.active');
+  if(activePill) activePill.scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});
 }
 
 function isStepDone(idx){
