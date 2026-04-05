@@ -7,14 +7,25 @@ $pdo = db();
 
 echo "=== Limpando importações erradas ===\n\n";
 
-// Limpar TODAS as importações (texto PDF e TJRJ)
-$stmt = $pdo->query("SELECT COUNT(*) FROM prazos_suspensoes WHERE fonte_pdf IS NOT NULL");
-$count = (int)$stmt->fetchColumn();
-echo "Registros importados: $count\n";
+// Limpar TUDO e manter só os feriados base
+$total = (int)$pdo->query("SELECT COUNT(*) FROM prazos_suspensoes")->fetchColumn();
+echo "Total de registros: $total\n\n";
 
-if ($count > 0) {
-    $pdo->exec("DELETE FROM prazos_suspensoes WHERE fonte_pdf IS NOT NULL");
-    echo "[OK] $count registros removidos\n";
+// Listar todos para diagnóstico
+$all = $pdo->query("SELECT id, data_inicio, data_fim, motivo, tipo, abrangencia, comarca, fonte_pdf FROM prazos_suspensoes ORDER BY data_inicio")->fetchAll();
+foreach ($all as $r) {
+    echo "#{$r['id']} | {$r['data_inicio']} a {$r['data_fim']} | {$r['tipo']} | " . mb_substr($r['motivo'],0,50) . " | fonte: " . ($r['fonte_pdf'] ?: 'manual') . ($r['comarca'] ? " | {$r['comarca']}" : '') . "\n";
+}
+
+// Apagar TODOS exceto os 15 feriados base (criado_por IS NULL = migração inicial)
+echo "\n--- Limpando tudo exceto feriados base ---\n";
+$pdo->exec("DELETE FROM prazos_suspensoes WHERE criado_por IS NOT NULL");
+$restante = (int)$pdo->query("SELECT COUNT(*) FROM prazos_suspensoes")->fetchColumn();
+echo "Restantes após limpeza: $restante\n";
+
+if ($restante === 0) {
+    echo "Nenhum restante - limpando tudo\n";
+    $pdo->exec("DELETE FROM prazos_suspensoes");
 }
 
 echo "\n--- Registros restantes ---\n";
