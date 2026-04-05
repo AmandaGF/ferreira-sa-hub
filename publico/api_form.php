@@ -55,7 +55,7 @@ if (!$formType) {
 
 // Tipos válidos
 $tiposValidos = array(
-    'convivencia', 'gastos_pensao', 'calculadora_lead', 'cadastro_cliente',
+    'convivencia', 'gastos_pensao', 'despesas_mensais', 'calculadora_lead', 'cadastro_cliente',
     'divorcio', 'alimentos', 'resp_civil', 'usucapiao', 'inventario',
     'investigacao_paternidade'
 );
