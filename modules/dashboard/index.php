@@ -387,7 +387,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
         <?php
         $bdayPhone = $b['phone'] ? preg_replace('/\D/', '', $b['phone']) : '';
         $bdayNome = explode(' ', $b['name'])[0];
-        $bdayMsg = "Olá, {$bdayNome}! 🎂🎉\n\nA equipe Ferreira & Sá Advocacia deseja a você um FELIZ ANIVERSÁRIO! 🥳\n\nQue este novo ano seja repleto de conquistas, saúde e muitas bênçãos!\n\nUm grande abraço,\nEquipe Ferreira & Sá 💛";
+        $bdayMsg = "Ola, {$bdayNome}!\n\nA equipe Ferreira e Sa Advocacia deseja a voce um FELIZ ANIVERSARIO!\n\nQue este novo ano seja repleto de conquistas, saude e muitas bencaos!\n\nUm grande abraco,\nEquipe Ferreira e Sa";
         $bdaySent = false;
         try {
             $stmtBday = $pdo->prepare("SELECT id FROM audit_log WHERE action = 'aniversario_enviado' AND entity_id = ? AND DATE(created_at) = CURDATE() LIMIT 1");
@@ -403,7 +403,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
                 <?php if ($bdayPhone): ?>
-                <a href="https://wa.me/55<?= $bdayPhone ?>?text=<?= urlencode($bdayMsg) ?>" target="_blank" onclick="marcarAniversario(<?= $b['id'] ?>,this)" title="Enviar parabéns via WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:.65rem;font-weight:700;text-decoration:none;cursor:pointer;<?= $bdaySent ? 'opacity:.5;' : '' ?>"><?= $bdaySent ? '✓ Enviado' : '💬 Parabéns' ?></a>
+                <a href="https://wa.me/55<?= $bdayPhone ?>?text=<?= urlencode($bdayMsg) ?>" target="_blank" onclick="marcarAniversario(<?= $b['id'] ?>,this)" title="Enviar parabéns via WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:.65rem;font-weight:700;text-decoration:none;cursor:pointer;<?= $bdaySent ? 'opacity:.5;' : '' ?>"><?= $bdaySent ? 'Enviado' : 'Parabens' ?></a>
                 <?php endif; ?>
                 <span class="bday-tag today">HOJE</span>
             </div>
