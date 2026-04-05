@@ -38,12 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $resultado = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
 
         if (isset($_POST['salvar']) && $_POST['salvar']) {
+            if (!$caseId) {
+                flash_set('error', 'Selecione um processo para salvar o prazo.');
+            } else {
             try {
                 $pdo->prepare(
                     "INSERT INTO prazos_calculos (case_id, tipo_prazo, data_disponibilizacao, data_publicacao, data_inicio_contagem, quantidade, unidade, comarca, data_fatal, calculado_por)
                      VALUES (?,?,?,?,?,?,?,?,?,?)"
                 )->execute(array(
-                    $caseId ? $caseId : null,
+                    $caseId,
                     $tipoPrazo ? $tipoPrazo : null,
                     $resultado['disponibilizacao'],
                     $resultado['publicacao'],
@@ -83,7 +86,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             }
 
             $salvoComSucesso = true;
-            flash_set('success', 'Prazo salvo! Data fatal: ' . date('d/m/Y', strtotime($resultado['data_fatal'])));
+            flash_set('success', 'Prazo salvo no processo! Data fatal: ' . date('d/m/Y', strtotime($resultado['data_fatal'])));
+            } // fecha else do if(!$caseId)
         }
     } else {
         flash_set('error', 'Preencha a data de disponibilização e a quantidade.');
@@ -1259,6 +1263,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.salvarPrazo = function() {
         var form = document.getElementById('prazoForm');
         if (!form) return;
+        var caseSelect = form.querySelector('[name="case_id"]');
+        var caseId = caseSelect ? caseSelect.value : '';
+        if (!caseId || caseId === '0' || caseId === '') {
+            alert('Selecione um processo para salvar o prazo.\n\nO prazo será vinculado ao processo, criará uma tarefa e um evento na agenda.');
+            if (caseSelect) { caseSelect.style.borderColor = '#dc2626'; caseSelect.focus(); }
+            return;
+        }
+        if (!confirm('Salvar prazo no processo selecionado?\n\nIsso vai:\n- Registrar o cálculo no histórico\n- Criar um prazo processual\n- Criar um evento na agenda')) return;
         var input = document.createElement('input');
         input.type = 'hidden';
         input.name = 'salvar';
