@@ -748,9 +748,9 @@ function goStep(n){
     }
   }
   currentStep=n;
-  document.querySelectorAll('.card').forEach(c=>c.classList.remove('visible'));
+  document.querySelectorAll('.card').forEach(c=>{c.classList.remove('visible');c.style.display=''});
   const target=document.querySelector(`.card[data-step="${n}"]`);
-  if(target){target.classList.add('visible');target.style.display='block'}
+  if(target) target.classList.add('visible');
   updatePills();
   window.scrollTo({top:0,behavior:'smooth'});
   saveToStorage();
