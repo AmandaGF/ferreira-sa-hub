@@ -35,6 +35,113 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
     }
 
+    if ($action === 'importar_texto') {
+        $texto = $_POST['texto_pdf'] ?? '';
+        $importados = 0;
+        $erros = array();
+
+        if ($texto) {
+            // Parser: detectar padrões de datas e suspensões do TJRJ
+            // Formatos esperados:
+            //   "02/04/2026 a 03/04/2026 - Semana Santa - Ato Executivo 123"
+            //   "21/04/2026 - Tiradentes"
+            //   "Período: 02/04 a 03/04/2026 | Motivo: Semana Santa | Ato: TJ 123"
+            //   "02 e 03 de abril de 2026 - Semana Santa"
+            $linhas = preg_split('/\r?\n/', $texto);
+
+            foreach ($linhas as $linha) {
+                $linha = trim($linha);
+                if (strlen($linha) < 5) continue;
+
+                $dataInicio = null;
+                $dataFim = null;
+                $motivo = '';
+                $ato = '';
+                $comarca = null;
+                $abrangencia = 'todo_estado';
+                $tipo = 'outros';
+
+                // Padrão 1: dd/mm/aaaa a dd/mm/aaaa — motivo — ato
+                if (preg_match('#(\d{2}/\d{2}/\d{4})\s*(?:a|até|ate|-)\s*(\d{2}/\d{2}/\d{4})#i', $linha, $m)) {
+                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1]);
+                    $dataFim = DateTime::createFromFormat('d/m/Y', $m[2]);
+                    $resto = trim(preg_replace('#\d{2}/\d{2}/\d{4}\s*(?:a|até|ate|-)\s*\d{2}/\d{2}/\d{4}#i', '', $linha));
+                }
+                // Padrão 2: dd/mm/aaaa — motivo (data única)
+                elseif (preg_match('#(\d{2}/\d{2}/\d{4})#', $linha, $m)) {
+                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1]);
+                    $dataFim = $dataInicio ? clone $dataInicio : null;
+                    $resto = trim(preg_replace('#\d{2}/\d{2}/\d{4}#', '', $linha));
+                }
+                // Padrão 3: dd/mm a dd/mm (sem ano, assume ano do filtro)
+                elseif (preg_match('#(\d{2}/\d{2})\s*(?:a|até|ate|-)\s*(\d{2}/\d{2})#i', $linha, $m)) {
+                    $dataInicio = DateTime::createFromFormat('d/m/Y', $m[1] . '/' . $filtroAno);
+                    $dataFim = DateTime::createFromFormat('d/m/Y', $m[2] . '/' . $filtroAno);
+                    $resto = trim(preg_replace('#\d{2}/\d{2}\s*(?:a|até|ate|-)\s*\d{2}/\d{2}#i', '', $linha));
+                }
+                else {
+                    continue; // linha sem data reconhecível
+                }
+
+                if (!$dataInicio || !$dataFim) continue;
+
+                // Extrair motivo e ato do resto
+                $resto = preg_replace('/^[\s\-–—|:,]+/', '', $resto);
+                $partes = preg_split('/\s*[-–—|]\s*/', $resto, 3);
+                $motivo = isset($partes[0]) ? trim($partes[0]) : '';
+                $ato = isset($partes[1]) ? trim($partes[1]) : '';
+                if (!$motivo) $motivo = $linha; // usar linha inteira se não parseou
+
+                // Detectar tipo pelo motivo
+                $motivoLower = mb_strtolower($motivo);
+                if (strpos($motivoLower, 'carnaval') !== false) $tipo = 'carnaval';
+                elseif (strpos($motivoLower, 'santa') !== false || strpos($motivoLower, 'pascoa') !== false || strpos($motivoLower, 'páscoa') !== false) $tipo = 'semana_santa';
+                elseif (strpos($motivoLower, 'recesso') !== false) $tipo = 'recesso';
+                elseif (strpos($motivoLower, 'chuva') !== false || strpos($motivoLower, 'temporal') !== false || strpos($motivoLower, 'alagamento') !== false) $tipo = 'suspensao_chuvas';
+                elseif (strpos($motivoLower, 'energia') !== false) $tipo = 'suspensao_energia';
+                elseif (strpos($motivoLower, 'sistema') !== false || strpos($motivoLower, 'pje') !== false) $tipo = 'suspensao_sistema';
+                elseif (strpos($motivoLower, 'ponto facultativo') !== false) $tipo = 'ponto_facultativo';
+                elseif (strpos($motivoLower, 'nacional') !== false || strpos($motivoLower, 'tiradentes') !== false || strpos($motivoLower, 'independ') !== false || strpos($motivoLower, 'natal') !== false || strpos($motivoLower, 'trabalho') !== false || strpos($motivoLower, 'finados') !== false || strpos($motivoLower, 'aparecida') !== false || strpos($motivoLower, 'republica') !== false || strpos($motivoLower, 'república') !== false) $tipo = 'feriado_nacional';
+                elseif (strpos($motivoLower, 'estadual') !== false || strpos($motivoLower, 'jorge') !== false || strpos($motivoLower, 'consciencia') !== false || strpos($motivoLower, 'consciência') !== false) $tipo = 'feriado_estadual';
+                elseif (strpos($motivoLower, 'municipal') !== false) $tipo = 'feriado_municipal';
+
+                // Detectar comarca
+                if (preg_match('/comarca\s+(?:de\s+)?([A-ZÀ-Ú][a-záéíóúàãõâêîôû\s]+)/i', $linha, $mc)) {
+                    $comarca = trim($mc[1]);
+                    $abrangencia = 'comarca_especifica';
+                }
+
+                // Inserir
+                try {
+                    $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)")
+                        ->execute(array(
+                            $dataInicio->format('Y-m-d'),
+                            $dataFim->format('Y-m-d'),
+                            $tipo, $abrangencia, $comarca,
+                            clean_str($motivo, 300),
+                            $ato ? clean_str($ato, 200) : null,
+                            'Importação texto PDF',
+                            current_user_id()
+                        ));
+                    $importados++;
+                } catch (Exception $e) {
+                    $erros[] = mb_substr($linha, 0, 50) . ': ' . $e->getMessage();
+                }
+            }
+        }
+
+        if ($importados > 0) {
+            flash_set('success', $importados . ' suspensão(ões) importada(s) com sucesso!');
+        }
+        if (!empty($erros)) {
+            flash_set('error', 'Erros: ' . implode('; ', array_slice($erros, 0, 3)));
+        }
+        if ($importados === 0 && empty($erros)) {
+            flash_set('error', 'Nenhuma suspensão encontrada no texto. Verifique o formato (datas dd/mm/aaaa).');
+        }
+        redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
+    }
+
     if ($action === 'excluir' && has_role('admin')) {
         $id = (int)($_POST['id'] ?? 0);
         if ($id) {
@@ -207,7 +314,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card" style="margin-bottom: 20px;">
     <div class="card-header form-toggle" onclick="toggleForm()">
         <span class="toggle-icon" id="toggleIcon">&#9654;</span>
-        <strong>Adicionar Suspensao</strong>
+        <strong>Adicionar Suspensão</strong>
     </div>
     <div class="card-body form-collapse" id="formCollapse">
         <form method="POST" action="<?= e(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno)) ?>">
@@ -258,6 +365,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <div style="margin-top: 16px;">
                 <button type="submit" class="btn btn-primary">Adicionar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Importar do PDF do TJRJ -->
+<div class="card" style="margin-bottom: 20px;">
+    <div class="card-header form-toggle" onclick="toggleImport()">
+        <span class="toggle-icon" id="toggleImportIcon">&#9654;</span>
+        <strong>Importar do PDF do TJRJ</strong>
+    </div>
+    <div class="card-body" id="importCollapse" style="display:none;">
+        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem;">
+            Abra o PDF de suspensões do TJRJ, selecione todo o texto (Ctrl+A), copie (Ctrl+C) e cole abaixo.
+            O sistema vai detectar automaticamente as datas, motivos e atos legislativos.
+        </p>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius);padding:.6rem .8rem;margin-bottom:.75rem;font-size:.78rem;color:#92400e;">
+            <strong>Formatos aceitos:</strong><br>
+            02/04/2026 a 03/04/2026 - Semana Santa - Ato Executivo 123<br>
+            21/04/2026 - Tiradentes<br>
+            20/12 a 06/01 - Recesso Forense - Ato TJ 168/2025
+        </div>
+        <form method="POST">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="importar_texto">
+            <textarea name="texto_pdf" class="form-textarea" rows="10" style="font-size:.82rem;font-family:monospace;width:100%;" placeholder="Cole aqui o texto copiado do PDF..."></textarea>
+            <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+                <button type="submit" class="btn btn-primary">Importar suspensões</button>
+                <span style="font-size:.72rem;color:var(--text-muted);align-self:center;">O sistema vai detectar e cadastrar as suspensões automaticamente</span>
             </div>
         </form>
     </div>
@@ -362,6 +498,18 @@ function toggleForm() {
     } else {
         el.className += ' open';
         icon.className += ' open';
+    }
+}
+
+function toggleImport() {
+    var el = document.getElementById('importCollapse');
+    var icon = document.getElementById('toggleImportIcon');
+    if (el.style.display === 'none') {
+        el.style.display = 'block';
+        icon.innerHTML = '&#9660;';
+    } else {
+        el.style.display = 'none';
+        icon.innerHTML = '&#9654;';
     }
 }
 
