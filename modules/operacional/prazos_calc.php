@@ -786,7 +786,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <span class="nav-separator">|</span>
     <a href="<?= module_url('operacional', 'prazos_suspensoes.php') ?>" class="nav-link">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        Gerenciar Suspensoes
+        Gerenciar Suspensões
     </a>
 </div>
 
@@ -872,7 +872,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <!-- Data de disponibilizacao -->
                     <div class="field-group">
-                        <label class="field-label" for="dataDisp">Data de Disponibilizacao (DJe)</label>
+                        <label class="field-label" for="dataDisp">Data de Disponibilização (DJe)</label>
                         <input type="date" name="data_disponibilizacao" id="dataDisp"
                                class="field-input"
                                value="<?= e(isset($_POST['data_disponibilizacao']) ? $_POST['data_disponibilizacao'] : '') ?>"
@@ -882,11 +882,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="preview-badges" id="previewRow" style="display:none;">
                             <span class="preview-badge">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                Publicacao (D+1): <strong id="previewPub">--</strong>
+                                Publicação (D+1): <strong id="previewPub">--</strong>
                             </span>
                             <span class="preview-badge">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
-                                Inicio contagem: <strong id="previewInicio">--</strong>
+                                Início contagem: <strong id="previewInicio">--</strong>
                             </span>
                         </div>
                     </div>
@@ -903,7 +903,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <div class="field-group">
                                 <select name="unidade" id="unidade" class="field-select">
-                                    <option value="dias"<?php if (!isset($_POST['unidade']) || $_POST['unidade'] === 'dias') echo ' selected'; ?>>Dias uteis</option>
+                                    <option value="dias"<?php if (!isset($_POST['unidade']) || $_POST['unidade'] === 'dias') echo ' selected'; ?>>Dias úteis</option>
                                     <option value="meses"<?php if (isset($_POST['unidade']) && $_POST['unidade'] === 'meses') echo ' selected'; ?>>Meses</option>
                                 </select>
                             </div>
@@ -923,15 +923,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="info-card">
             <div class="info-card-title">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                Como funciona o calculo
+                Como funciona o cálculo
             </div>
             <ol>
-                <li><strong>Disponibilizacao</strong> = data da publicacao no DJe</li>
-                <li><strong>Publicacao</strong> = D+1 dia util</li>
-                <li><strong>Inicio da contagem</strong> = primeiro dia util apos a publicacao</li>
-                <li>O prazo conta apenas <strong>dias uteis</strong> (exceto se em meses)</li>
-                <li>Se a data fatal cair em dia nao util, avanca para o proximo dia util</li>
-                <li>Sao excluidos: sabados, domingos, feriados e suspensoes do TJRJ</li>
+                <li><strong>Disponibilização</strong> = data da publicação no DJe</li>
+                <li><strong>Publicação</strong> = D+1 dia útil</li>
+                <li><strong>Inicio da contagem</strong> = primeiro dia útil após a publicação</li>
+                <li>O prazo conta apenas <strong>dias úteis</strong> (exceto se em meses)</li>
+                <li>Se a data fatal cair em dia não útil, avança para o próximo dia útil</li>
+                <li>São excluídos: sábados, domingos, feriados e suspensões do TJRJ</li>
             </ol>
         </div>
     </div>
@@ -952,11 +952,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <!-- Timeline -->
                     <div class="timeline">
                         <div class="timeline-node">
-                            <div class="timeline-label">Disponibilizacao</div>
+                            <div class="timeline-label">Disponibilização</div>
                             <div class="timeline-value"><?= data_br($resultado['disponibilizacao']) ?></div>
                         </div>
                         <div class="timeline-node node-pub">
-                            <div class="timeline-label">Publicacao (D+1)</div>
+                            <div class="timeline-label">Publicação (D+1)</div>
                             <div class="timeline-value"><?= data_br($resultado['publicacao']) ?></div>
                         </div>
                         <div class="timeline-node node-inicio">
@@ -965,7 +965,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                         <div class="timeline-node">
                             <div class="timeline-label">Prazo</div>
-                            <div class="timeline-value"><?= (int)$resultado['quantidade'] ?> <?= $resultado['unidade'] === 'meses' ? 'meses' : 'dias uteis' ?></div>
+                            <div class="timeline-value"><?= (int)$resultado['quantidade'] ?> <?= $resultado['unidade'] === 'meses' ? 'meses' : 'dias úteis' ?></div>
                         </div>
                     </div>
 
@@ -974,7 +974,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="susp-section">
                             <div class="susp-title">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                                Suspensoes encontradas
+                                Suspensões encontradas
                             </div>
                             <ul class="susp-list">
                                 <?php foreach ($resultado['suspensoes'] as $susp): ?>
@@ -997,15 +997,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <!-- Safety date -->
                     <div class="date-box-seguranca">
-                        <div class="box-label">Prazo Interno (seguranca)</div>
+                        <div class="box-label">Prazo Interno (segurança)</div>
                         <div class="box-date"><?= date('d/m/Y', strtotime($resultado['data_seguranca'])) ?></div>
                         <div class="box-weekday"><?= e($resultado['dia_semana_seg']) ?></div>
-                        <div class="box-hint">1 dia util ANTES do termino &mdash; para evitar perda de prazo</div>
+                        <div class="box-hint">1 dia útil ANTES do término &mdash; para evitar perda de prazo</div>
                     </div>
 
                     <!-- Fatal date -->
                     <div class="date-box-fatal">
-                        <div class="box-label">Data Fatal (termino legal)</div>
+                        <div class="box-label">Data Fatal (término legal)</div>
                         <div class="box-date" id="dataFatalValor"><?= date('d/m/Y', strtotime($resultado['data_fatal'])) ?></div>
                         <div class="box-weekday"><?= e($resultado['dia_semana_fatal']) ?></div>
                     </div>
@@ -1042,7 +1042,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <?php $diasSeg = (int)$resultado['dias_ate_seguranca']; ?>
                     <?php if ($diasSeg >= 0 && $diasSeg !== $diasAte): ?>
-                        <div class="dias-seg-hint">Prazo interno (seguranca): <?= $diasSeg ?> dia<?= $diasSeg !== 1 ? 's' : '' ?></div>
+                        <div class="dias-seg-hint">Prazo interno (segurança): <?= $diasSeg ?> dia<?= $diasSeg !== 1 ? 's' : '' ?></div>
                     <?php endif; ?>
 
                     <!-- Action buttons -->
@@ -1152,10 +1152,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             $title = 'Data de Seguranca';
                         } elseif ($dStr === $dateInicio) {
                             $cls = 'inicio';
-                            $title = 'Inicio da contagem';
+                            $title = 'Início da contagem';
                         } elseif ($dStr === $datePub) {
                             $cls = 'publicacao';
-                            $title = 'Publicacao';
+                            $title = 'Publicação';
                         } elseif (isset($diasSuspensos[$dStr])) {
                             $cls = 'suspenso';
                             $title = e($diasSuspensos[$dStr]);
@@ -1187,7 +1187,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="cal-legend-item"><span class="cal-legend-dot dot-suspenso"></span> Suspensao</div>
                     <div class="cal-legend-item"><span class="cal-legend-dot dot-fds"></span> Fim de semana</div>
                     <div class="cal-legend-item"><span class="cal-legend-dot dot-contado"></span> Dia contado</div>
-                    <div class="cal-legend-item"><span class="cal-legend-dot dot-inicio"></span> Inicio / Publicacao</div>
+                    <div class="cal-legend-item"><span class="cal-legend-dot dot-inicio"></span> Início / Publicação</div>
                     <div class="cal-legend-item"><span class="cal-legend-dot dot-hoje"></span> Hoje</div>
                 </div>
             </div>
@@ -1200,7 +1200,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="empty-state-icon">
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
                     </div>
-                    <h4>Nenhum calculo realizado</h4>
+                    <h4>Nenhum cálculo realizado</h4>
                     <p>Preencha os dados ao lado e clique em <strong>CALCULAR PRAZO</strong> para ver o resultado aqui.</p>
                 </div>
             </div>
@@ -1273,17 +1273,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         var lines = [];
         lines.push('=== CALCULO DE PRAZO ===');
-        lines.push('Disponibilizacao: <?= $resultado ? data_br($resultado['disponibilizacao']) : '' ?>');
-        lines.push('Publicacao: <?= $resultado ? data_br($resultado['publicacao']) : '' ?>');
-        lines.push('Inicio contagem: <?= $resultado ? data_br($resultado['inicio_contagem']) : '' ?>');
-        lines.push('Prazo: <?= $resultado ? (int)$resultado['quantidade'] . ' ' . ($resultado['unidade'] === 'meses' ? 'meses' : 'dias uteis') : '' ?>');
+        lines.push('Disponibilização: <?= $resultado ? data_br($resultado['disponibilizacao']) : '' ?>');
+        lines.push('Publicação: <?= $resultado ? data_br($resultado['publicacao']) : '' ?>');
+        lines.push('Início contagem: <?= $resultado ? data_br($resultado['inicio_contagem']) : '' ?>');
+        lines.push('Prazo: <?= $resultado ? (int)$resultado['quantidade'] . ' ' . ($resultado['unidade'] === 'meses' ? 'meses' : 'dias úteis') : '' ?>');
         lines.push('');
-        lines.push('PRAZO INTERNO (seguranca): <?= $resultado ? date('d/m/Y', strtotime($resultado['data_seguranca'])) . ' (' . $resultado['dia_semana_seg'] . ')' : '' ?>');
-        lines.push('DATA FATAL (termino legal): ' + el.textContent + ' (<?= $resultado ? $resultado['dia_semana_fatal'] : '' ?>)');
-        lines.push('OBS: Considere protocolar ate a data de seguranca para evitar perda de prazo.');
+        lines.push('PRAZO INTERNO (segurança): <?= $resultado ? date('d/m/Y', strtotime($resultado['data_seguranca'])) . ' (' . $resultado['dia_semana_seg'] . ')' : '' ?>');
+        lines.push('DATA FATAL (término legal): ' + el.textContent + ' (<?= $resultado ? $resultado['dia_semana_fatal'] : '' ?>)');
+        lines.push('OBS: Considere protocolar até a data de segurança para evitar perda de prazo.');
         <?php if ($resultado && !empty($resultado['suspensoes'])): ?>
         lines.push('');
-        lines.push('Suspensoes no periodo:');
+        lines.push('Suspensões no período:');
         <?php foreach ($resultado['suspensoes'] as $susp): ?>
         lines.push('  - <?= data_br($susp['data_inicio']) ?><?= ($susp['data_fim'] !== $susp['data_inicio']) ? ' a ' . data_br($susp['data_fim']) : '' ?> - <?= e($susp['motivo']) ?>');
         <?php endforeach; ?>
