@@ -120,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ->execute([$newId, 'cadastro_preenchido', current_user_id()]);
 
             audit_log('lead_created', 'lead', $newId);
+            // GAMIFICAÇÃO: lead cadastrado
+            gamificar(current_user_id(), 'lead_cadastrado', $newId, 'pipeline_leads');
             flash_set('success', 'Lead criado.');
         }
         redirect(module_url('pipeline'));

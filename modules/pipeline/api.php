@@ -112,6 +112,18 @@ switch ($action) {
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline contrato_assinado - lead: ' . $leadId);
                 notify_gestao('Contrato assinado!', $lead['name'] . ' — Caso criado no Operacional.' . ($driveResult['success'] ? ' Pasta criada no Drive!' : ''), 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '✅');
 
+                // GAMIFICAÇÃO: contrato fechado
+                $assignedTo = isset($lead['assigned_to']) ? (int)$lead['assigned_to'] : 0;
+                if ($assignedTo > 0) {
+                    gamificar($assignedTo, 'contrato_fechado', $leadId, 'pipeline_leads');
+                    // Bônus alto valor (>R$2k)
+                    $valorCents = isset($lead['estimated_value_cents']) ? (int)$lead['estimated_value_cents'] : 0;
+                    if (!$valorCents) $valorCents = isset($lead['honorarios_cents']) ? (int)$lead['honorarios_cents'] : 0;
+                    if ($valorCents > 200000) {
+                        gamificar($assignedTo, 'contrato_bonus_alto', $leadId, 'pipeline_leads');
+                    }
+                }
+
                 // BLOCO 4: Notificar cliente — Boas-vindas
                 notificar_cliente('boas_vindas', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $newCaseId, $leadId);
             }
@@ -288,6 +300,13 @@ switch ($action) {
             $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));
             // Sincronizar valor_acao → estimated_value_cents
             if ($field === 'valor_acao') { sync_estimated_value($pdo, $leadId, $value ?: null); }
+            // GAMIFICAÇÃO: onboarding realizado
+            if ($field === 'onboard_realizado' && $value) {
+                $leadAssigned = $pdo->prepare("SELECT assigned_to FROM pipeline_leads WHERE id = ?");
+                $leadAssigned->execute(array($leadId));
+                $assignTo = (int)$leadAssigned->fetchColumn();
+                if ($assignTo) gamificar($assignTo, 'onboarding_realizado', $leadId, 'pipeline_leads');
+            }
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
         }
         redirect(module_url('pipeline'));

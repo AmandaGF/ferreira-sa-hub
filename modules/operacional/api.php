@@ -159,6 +159,10 @@ switch ($action) {
                     ), $caseId);
                 }
 
+                // GAMIFICAÇÃO: processo distribuído
+                $respId = $currentCase ? (int)$currentCase['responsible_user_id'] : 0;
+                if ($respId) gamificar($respId, 'processo_distribuido', $caseId, 'cases');
+
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set('success', 'Processo distribuído! Dados salvos.');
                 redirect(module_url('operacional'));
