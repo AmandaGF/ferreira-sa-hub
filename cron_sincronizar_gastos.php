@@ -86,8 +86,70 @@ if ($sincronizados > 0) {
     clog("Nenhum novo registro");
 }
 
-// Fazer o mesmo para convivência (banco antigo separado, se existir)
-// ... (adicionar depois se necessário)
+// ═══ SINCRONIZAR CONVIVÊNCIA (banco antigo) ═══
+clog("");
+clog("=== Sincronização convivência ===");
+
+try {
+    $pdoConv = new PDO(
+        'mysql:host=localhost;dbname=ferre3151357_bd_convivencia;charset=utf8mb4',
+        'ferre3151357_admin_convivencia',
+        'Ar192114@',
+        array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC)
+    );
+
+    $rowsConv = $pdoConv->query("SELECT * FROM intake_visitas ORDER BY created_at DESC")->fetchAll();
+    $sincConv = 0;
+
+    foreach ($rowsConv as $r) {
+        $protocolo = $r['protocol'] ?? '';
+        $nome = $r['client_name'] ?? '';
+        $data = $r['created_at'] ?? '';
+
+        // Verificar se já existe
+        $check = $pdo->prepare("SELECT id FROM form_submissions WHERE protocol = ? OR (form_type = 'convivencia' AND client_name = ? AND DATE(created_at) = DATE(?))");
+        $check->execute(array($protocolo, $nome, $data));
+        if ($check->fetch()) continue;
+
+        // Montar payload
+        $payload = array();
+        if (isset($r['answers_json']) && $r['answers_json']) {
+            $payload = json_decode($r['answers_json'], true) ?: array();
+        }
+        $payload['child_name'] = $r['child_name'] ?? '';
+        $payload['child_age'] = $r['child_age'] ?? '';
+        $payload['relationship_role'] = $r['relationship_role'] ?? '';
+
+        try {
+            $pdo->prepare(
+                "INSERT INTO form_submissions (form_type, protocol, client_name, client_phone, client_email, status, payload_json, ip_address, created_at)
+                 VALUES (?,?,?,?,?,?,?,?,?)"
+            )->execute(array(
+                'convivencia',
+                $protocolo ?: ('CVV-SYNC-' . substr(md5(uniqid()), 0, 8)),
+                $nome,
+                $r['client_phone'] ?? '',
+                $r['client_email'] ?? '',
+                'novo',
+                json_encode($payload, JSON_UNESCAPED_UNICODE),
+                $r['ip_address'] ?? '',
+                $data ?: date('Y-m-d H:i:s'),
+            ));
+            $sincConv++;
+            clog("OK conv: $nome ($protocolo)");
+        } catch (Exception $e) {
+            clog("ERRO conv: $nome - " . $e->getMessage());
+        }
+    }
+
+    if ($sincConv > 0) {
+        clog("$sincConv novo(s) convivência sincronizado(s)");
+    } else {
+        clog("Nenhum novo registro de convivência");
+    }
+} catch (Exception $e) {
+    clog("ERRO conexão banco convivência: " . $e->getMessage());
+}
 
 clog("=== FIM ===");
 
