@@ -563,6 +563,12 @@ textarea{resize:vertical;min-height:70px}
     <p>Seus dados foram recebidos pelo escritório Ferreira &amp; Sá Advocacia.</p>
     <p>Entraremos em contato pelo WhatsApp informado.</p>
 
+    <div style="background:rgba(5,34,40,.06);border:1px solid rgba(5,34,40,.12);border-radius:14px;padding:14px;margin:16px 0;text-align:left;">
+      <p style="font-size:.85rem;color:var(--text);margin:0 0 8px;"><strong>Percebeu que algum valor está errado?</strong></p>
+      <p style="font-size:.78rem;color:var(--muted);margin:0 0 10px;">Você pode revisar e alterar os valores. Ao enviar novamente, os dados serão atualizados automaticamente.</p>
+      <button class="btn" onclick="voltarParaRevisao()" style="background:var(--cobre);width:100%;">Revisar e alterar valores</button>
+    </div>
+
     <div class="actionBtns">
       <button class="btn btnSecondary" onclick="downloadCSV()">Baixar CSV</button>
       <button class="btn btnSecondary" onclick="downloadChart()">Baixar Gráfico PNG</button>
@@ -590,6 +596,7 @@ const STORE_KEY = 'despesas_mensais_form_v1';
 const TOTAL_STEPS = 12; // 0..11
 let currentStep = 0;
 let chartInstance = null;
+let _protocoloSalvo = ''; // Para atualização
 
 /* ---- Category map for grouping money fields ---- */
 const CATEGORIES = [
@@ -918,6 +925,8 @@ async function submitForm(){
 
   try{
     const payload=buildPayload();
+    // Se já tem protocolo salvo, enviar para UPDATE
+    if(_protocoloSalvo) payload._protocolo = _protocoloSalvo;
     const res=await fetch('submit.php',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
@@ -925,15 +934,17 @@ async function submitForm(){
     });
     const out=await res.json();
     if(out.ok){
+      _protocoloSalvo = out.protocolo;
       // show success
       document.querySelectorAll('.card').forEach(c=>{c.classList.remove('visible');c.style.display='none'});
       const suc=document.querySelector('.card[data-step="success"]');
       suc.style.display='block';
       suc.classList.add('visible');
       document.getElementById('protoDisplay').textContent='Protocolo: '+out.protocolo;
+      if(out.atualizado) document.getElementById('protoDisplay').textContent += ' (atualizado)';
       document.querySelector('.progressWrap').style.display='none';
-      localStorage.removeItem(STORE_KEY);
-      toast('Enviado com sucesso!','ok');
+      // NÃO remover localStorage — o cliente pode querer alterar de novo
+      toast(out.atualizado ? 'Dados atualizados!' : 'Enviado com sucesso!','ok');
       window.scrollTo({top:0,behavior:'smooth'});
     } else {
       toast(out.erro||'Erro ao enviar. Tente novamente.','err');
@@ -979,6 +990,20 @@ function toast(msg,type='ok'){
   t.textContent=msg;
   t.className='toast '+type+' show';
   setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ========== VOLTAR PARA REVISÃO (após envio) ========== */
+function voltarParaRevisao(){
+  // Esconder tela de sucesso
+  document.querySelector('.card[data-step="success"]').style.display='none';
+  // Mostrar progress bar
+  document.querySelector('.progressWrap').style.display='';
+  // Habilitar botão de enviar
+  const btn=document.getElementById('submitBtn');
+  if(btn){btn.disabled=false;btn.textContent='Atualizar e reenviar';}
+  // Ir para a primeira etapa
+  goTo(0);
+  toast('Altere os valores e envie novamente. Os dados serão atualizados.','ok');
 }
 </script>
 </body>
