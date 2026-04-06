@@ -857,10 +857,10 @@ function abrirDistribuicaoInteligente(card) {
                     for (var j = 0; j < comNumero.length; j++) {
                         var c = comNumero[j];
                         body += '<label style="display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:.15s;" onmouseover="this.style.borderColor=\'#059669\'" onmouseout="this.style.borderColor=\'\'">'
-                            + '<input type="radio" name="distSelNum" value="' + esc(c.case_number) + '" data-court="' + esc(c.court || '') + '" style="margin-top:3px;">'
+                            + '<input type="radio" name="distSelNum" value="' + esc(c.case_number) + '" data-court="' + esc(c.court || '') + '" data-comarca="' + esc(c.comarca || '') + '" data-uf="' + esc(c.comarca_uf || '') + '" data-sistema="' + esc(c.sistema_tribunal || '') + '" data-regional="' + esc(c.regional || '') + '" style="margin-top:3px;">'
                             + '<div><div style="font-size:.82rem;font-weight:700;color:#052228;">' + esc(c.title || '') + '</div>'
                             + '<div style="font-size:.85rem;font-weight:600;font-family:monospace;color:#374151;">' + esc(c.case_number) + '</div>'
-                            + '<div style="font-size:.72rem;color:var(--text-muted);">' + esc(c.case_type || '') + (c.court ? ' — ' + esc(c.court) : '') + '</div></div></label>';
+                            + '<div style="font-size:.72rem;color:var(--text-muted);">' + esc(c.case_type || '') + (c.court ? ' — ' + esc(c.court) : '') + (c.comarca ? ' — ' + esc(c.comarca) : '') + '</div></div></label>';
                     }
                     body += '<label style="display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border:1px dashed var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;">'
                         + '<input type="radio" name="distSelNum" value="_novo" style="margin-top:1px;">'
@@ -953,10 +953,25 @@ function submitDistConfirm() {
         inp.type = 'hidden'; inp.name = name; inp.value = value;
         _pendingOpForm.appendChild(inp);
     }
+    // Pegar comarca/UF/sistema do radio selecionado (se veio de lista)
+    var comarca = '', uf = '', sistema = '', regional = '';
+    var selRadio = document.querySelector('input[name="distSelNum"]:checked');
+    if (selRadio && selRadio.value !== '_novo') {
+        comarca = selRadio.dataset.comarca || '';
+        uf = selRadio.dataset.uf || '';
+        sistema = selRadio.dataset.sistema || '';
+        regional = selRadio.dataset.regional || '';
+        if (!court) court = selRadio.dataset.court || '';
+    }
+
     addH('new_status', 'distribuido');
     addH('proc_numero', numero);
     addH('proc_vara', court);
     addH('proc_data', '<?= date("Y-m-d") ?>');
+    if (comarca) addH('proc_comarca', comarca);
+    if (uf) addH('proc_comarca_uf', uf);
+    if (sistema) addH('proc_sistema', sistema);
+    if (regional) addH('proc_regional', regional);
     // Atualizar CSRF no form (pode ter sido consumido pelo AJAX de buscar_casos_cliente)
     var csrfInput = _pendingOpForm.querySelector('input[name="<?= CSRF_TOKEN_NAME ?>"]');
     if (csrfInput) {

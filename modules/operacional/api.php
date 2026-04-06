@@ -913,7 +913,7 @@ switch ($action) {
             if ($rowC) { $clientId = (int)$rowC['client_id']; $excludeId = $fromCaseId; }
         }
         if ($clientId) {
-            $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status FROM cases WHERE client_id = ? AND id != ? ORDER BY created_at DESC LIMIT 20");
+            $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status, court, comarca, comarca_uf, regional, sistema_tribunal FROM cases WHERE client_id = ? AND id != ? ORDER BY created_at DESC LIMIT 20");
             $stmt->execute(array($clientId, $excludeId));
             echo json_encode(array('casos' => $stmt->fetchAll(), 'csrf' => generate_csrf_token()));
         } else {
