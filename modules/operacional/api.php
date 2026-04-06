@@ -740,20 +740,29 @@ switch ($action) {
         exit;
 
     case 'confirmar_prazo_publicacao':
-        $pubId = (int)($_POST['pub_id'] ?? 0);
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+        $pubId  = (int)($_POST['pub_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
-        if ($pubId) {
-            try {
-                $pdo->prepare("UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ?")
-                    ->execute(array($pubId));
-                audit_log('PUBLICACAO_PRAZO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
-                flash_set('success', 'Prazo confirmado.');
-            } catch (Exception $e) {
-                flash_set('error', 'Erro ao confirmar prazo.');
+        if ($pubId && $caseId) {
+            $pdo->prepare(
+                "UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ? AND case_id = ?"
+            )->execute(array($pubId, $caseId));
+
+            // Atualizar tarefa vinculada para subtipo confirmado
+            $pub = $pdo->prepare("SELECT task_id, data_prazo_fim, tipo_publicacao FROM case_publicacoes WHERE id = ?");
+            $pub->execute(array($pubId));
+            $pubRow = $pub->fetch();
+            if ($pubRow && $pubRow['task_id']) {
+                $pdo->prepare(
+                    "UPDATE case_tasks SET subtipo = 'prazo_confirmado', updated_at = NOW() WHERE id = ?"
+                )->execute(array($pubRow['task_id']));
             }
+
+            audit_log('PRAZO_PUBLICACAO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
+            flash_set('success', 'Prazo confirmado.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
-        break;
+        exit;
 
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);

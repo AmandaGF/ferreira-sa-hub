@@ -347,6 +347,204 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
 
 </div>
 
+<!-- Aba Publicacoes -->
+<div style="margin-top:1.5rem;">
+    <div class="card" style="padding:1.2rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
+            <h3 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:.4rem;">
+                Publicacoes Processuais
+                <span style="font-size:.65rem;font-weight:400;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;border:1px solid #fca5a5;">Prazos</span>
+            </h3>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+                <form method="GET" style="display:contents;">
+                    <input type="hidden" name="periodo" value="<?= $dias ?>">
+                    <input type="hidden" name="status" value="<?= e($status_filtro) ?>">
+                    <input type="hidden" name="busca" value="<?= e($busca) ?>">
+                    <select name="pub_status" onchange="this.form.submit()" style="font-size:.78rem;padding:.3rem .6rem;border:1px solid var(--border);border-radius:6px;">
+                        <?php $pubStatus = $_GET['pub_status'] ?? 'todos'; ?>
+                        <option value="todos" <?= $pubStatus==='todos'?'selected':'' ?>>Todos os prazos</option>
+                        <option value="pendente" <?= $pubStatus==='pendente'?'selected':'' ?>>Pendentes</option>
+                        <option value="confirmado" <?= $pubStatus==='confirmado'?'selected':'' ?>>Confirmados</option>
+                        <option value="vencendo" <?= $pubStatus==='vencendo'?'selected':'' ?>>Vencendo em 7d</option>
+                        <option value="vencidos" <?= $pubStatus==='vencidos'?'selected':'' ?>>Vencidos</option>
+                    </select>
+                </form>
+            </div>
+        </div>
+
+        <?php
+        // Query publicacoes com filtro
+        $pubWhere = 'WHERE 1=1';
+        $pubParams = array();
+
+        if ($pubStatus === 'pendente') {
+            $pubWhere .= " AND cp.status_prazo = 'pendente'";
+        } elseif ($pubStatus === 'confirmado') {
+            $pubWhere .= " AND cp.status_prazo = 'confirmado'";
+        } elseif ($pubStatus === 'vencendo') {
+            $pubWhere .= " AND cp.data_prazo_fim BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)";
+            $pubWhere .= " AND cp.status_prazo != 'descartado'";
+        } elseif ($pubStatus === 'vencidos') {
+            $pubWhere .= " AND cp.data_prazo_fim < CURDATE()";
+            $pubWhere .= " AND cp.status_prazo != 'descartado'";
+        }
+
+        $listaPubs = array();
+        $kpPub = array('total' => 0, 'pendentes' => 0, 'vencidos' => 0, 'vencendo' => 0);
+        try {
+            $stmtPubs = $pdo->prepare("
+                SELECT cp.id, cp.case_id, cp.data_disponibilizacao, cp.data_prazo_fim,
+                       cp.tipo_publicacao, cp.status_prazo, cp.prazo_dias, cp.fonte,
+                       cp.conteudo,
+                       cs.title as case_title, cs.case_number,
+                       c.name as client_name,
+                       u.name as criado_por_nome
+                FROM case_publicacoes cp
+                JOIN cases cs ON cs.id = cp.case_id
+                LEFT JOIN clients c ON c.id = cs.client_id
+                LEFT JOIN users u ON u.id = cp.criado_por
+                $pubWhere
+                ORDER BY
+                    CASE cp.status_prazo WHEN 'pendente' THEN 0 WHEN 'confirmado' THEN 1 ELSE 2 END,
+                    cp.data_prazo_fim ASC
+                LIMIT 100
+            ");
+            $stmtPubs->execute($pubParams);
+            $listaPubs = $stmtPubs->fetchAll();
+
+            $kpiPubs = $pdo->query("
+                SELECT
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status_prazo = 'pendente' THEN 1 ELSE 0 END) as pendentes,
+                    SUM(CASE WHEN data_prazo_fim < CURDATE() AND status_prazo != 'descartado' THEN 1 ELSE 0 END) as vencidos,
+                    SUM(CASE WHEN data_prazo_fim BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) AND status_prazo != 'descartado' THEN 1 ELSE 0 END) as vencendo
+                FROM case_publicacoes
+            ");
+            $kpPub = $kpiPubs->fetch();
+        } catch (Exception $e) {}
+        ?>
+
+        <!-- Mini KPIs publicacoes -->
+        <div style="display:flex;gap:.8rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div style="background:#fff8f8;border:1px solid #fca5a5;border-radius:8px;padding:.6rem 1rem;min-width:100px;">
+                <div style="font-size:1.4rem;font-weight:800;color:#dc2626;"><?= (int)$kpPub['pendentes'] ?></div>
+                <div style="font-size:.68rem;color:var(--text-muted);">Pendentes</div>
+            </div>
+            <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.6rem 1rem;min-width:100px;">
+                <div style="font-size:1.4rem;font-weight:800;color:#d97706;"><?= (int)$kpPub['vencendo'] ?></div>
+                <div style="font-size:.68rem;color:var(--text-muted);">Vencendo em 7d</div>
+            </div>
+            <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.6rem 1rem;min-width:100px;">
+                <div style="font-size:1.4rem;font-weight:800;color:#dc2626;"><?= (int)$kpPub['vencidos'] ?></div>
+                <div style="font-size:.68rem;color:var(--text-muted);">Vencidos</div>
+            </div>
+            <div style="background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:.6rem 1rem;min-width:100px;">
+                <div style="font-size:1.4rem;font-weight:800;color:var(--text-muted);"><?= (int)$kpPub['total'] ?></div>
+                <div style="font-size:.68rem;color:var(--text-muted);">Total</div>
+            </div>
+        </div>
+
+        <?php if (empty($listaPubs)): ?>
+            <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhuma publicacao encontrada.</p>
+        <?php else: ?>
+        <div style="overflow-x:auto;">
+            <table class="dj-table">
+                <thead>
+                    <tr>
+                        <th>Processo / Cliente</th>
+                        <th>Tipo</th>
+                        <th>Disponibilizacao</th>
+                        <th>Prazo</th>
+                        <th>Vencimento</th>
+                        <th>Status</th>
+                        <th>Fonte</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($listaPubs as $pb):
+                    $diasR = null;
+                    $corVence = '#052228';
+                    $bgVence = '#f8fafc';
+                    if ($pb['data_prazo_fim']) {
+                        $diasR = (int)((strtotime($pb['data_prazo_fim']) - strtotime(date('Y-m-d'))) / 86400);
+                        if ($diasR < 0) { $corVence = '#dc2626'; $bgVence = '#fef2f2'; }
+                        elseif ($diasR <= 3) { $corVence = '#d97706'; $bgVence = '#fef3c7'; }
+                        else { $corVence = '#059669'; $bgVence = '#ecfdf5'; }
+                    }
+                    $tipoLabelPub = array(
+                        'intimacao'=>'Intimacao','citacao'=>'Citacao','despacho'=>'Despacho',
+                        'decisao'=>'Decisao','sentenca'=>'Sentenca','acordao'=>'Acordao',
+                        'edital'=>'Edital','outro'=>'Outro'
+                    );
+                ?>
+                <tr>
+                    <td>
+                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $pb['case_id']) ?>"
+                           style="font-weight:600;color:var(--petrol-900);text-decoration:none;font-size:.82rem;">
+                            <?= e($pb['case_title'] ?: 'Caso #' . $pb['case_id']) ?>
+                        </a>
+                        <div style="font-size:.7rem;color:var(--text-muted);">
+                            <?= e($pb['client_name'] ?? '') ?>
+                            <?php if ($pb['case_number']): ?>
+                                &middot; <span style="font-family:monospace;"><?= e($pb['case_number']) ?></span>
+                            <?php endif; ?>
+                        </div>
+                    </td>
+                    <td>
+                        <span style="font-size:.75rem;font-weight:600;color:#dc2626;">
+                            <?= e(isset($tipoLabelPub[$pb['tipo_publicacao']]) ? $tipoLabelPub[$pb['tipo_publicacao']] : $pb['tipo_publicacao']) ?>
+                        </span>
+                    </td>
+                    <td style="font-size:.75rem;white-space:nowrap;">
+                        <?= date('d/m/Y', strtotime($pb['data_disponibilizacao'])) ?>
+                    </td>
+                    <td style="font-size:.75rem;text-align:center;">
+                        <?= $pb['prazo_dias'] ? $pb['prazo_dias'] . 'du' : '—' ?>
+                    </td>
+                    <td style="white-space:nowrap;">
+                        <?php if ($pb['data_prazo_fim']): ?>
+                            <span style="font-size:.75rem;font-weight:700;color:<?= $corVence ?>;background:<?= $bgVence ?>;padding:2px 7px;border-radius:4px;">
+                                <?= date('d/m/Y', strtotime($pb['data_prazo_fim'])) ?>
+                                <?php if ($diasR !== null): ?>
+                                    (<?= $diasR < 0 ? abs($diasR) . 'd atraso' : $diasR . 'd' ?>)
+                                <?php endif; ?>
+                            </span>
+                        <?php else: ?>
+                            <span style="color:var(--text-muted);font-size:.75rem;">—</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <?php
+                        $badgePub = array(
+                            'pendente'   => array('bg'=>'#fef3c7','color'=>'#d97706','txt'=>'Pendente'),
+                            'confirmado' => array('bg'=>'#ecfdf5','color'=>'#059669','txt'=>'Confirmado'),
+                            'descartado' => array('bg'=>'#f1f5f9','color'=>'#94a3b8','txt'=>'Descartado'),
+                        );
+                        $bp = isset($badgePub[$pb['status_prazo']]) ? $badgePub[$pb['status_prazo']] : $badgePub['pendente'];
+                        ?>
+                        <span style="font-size:.68rem;font-weight:700;background:<?= $bp['bg'] ?>;color:<?= $bp['color'] ?>;padding:2px 7px;border-radius:4px;">
+                            <?= $bp['txt'] ?>
+                        </span>
+                    </td>
+                    <td style="font-size:.68rem;color:var(--text-muted);">
+                        <?= e(strtoupper($pb['fonte'])) ?>
+                    </td>
+                    <td>
+                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $pb['case_id']) ?>"
+                           style="font-size:.7rem;color:#052228;font-weight:600;text-decoration:none;border:1px solid #052228;border-radius:6px;padding:2px 7px;">
+                            Ver
+                        </a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
 <script>
 var _djCsrf = '<?= generate_csrf_token() ?>';
 
