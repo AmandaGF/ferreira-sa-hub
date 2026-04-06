@@ -10,12 +10,17 @@ require_login();
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional')); }
-if (!validate_csrf()) {
+
+$action = $_POST['action'] ?? '';
+
+// Ações de leitura AJAX: não consomem CSRF (evita invalidar token para o próximo submit)
+$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case');
+$skipCsrf = $isAjax && in_array($action, $readOnlyActions);
+
+if (!$skipCsrf && !validate_csrf()) {
     if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Token inválido')); exit; }
     flash_set('error', 'Token inválido.'); redirect(module_url('operacional'));
 }
-
-$action = $_POST['action'] ?? '';
 $pdo = db();
 
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
