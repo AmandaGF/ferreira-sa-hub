@@ -307,7 +307,8 @@ textarea{resize:vertical;min-height:70px}
     </div>
   </div>
 
-  <div class="btnRow">
+  <div class="btnRow" style="justify-content:space-between">
+    <button class="btn" onclick="apagarDados()" style="background:#dc2626;color:#fff;">Apagar dados preenchidos</button>
     <button class="btn btnPrimary" onclick="goStep(1)">Próximo &rarr;</button>
   </div>
 </div>
@@ -1140,6 +1141,14 @@ function toast(msg,type='ok'){
   t.textContent=msg;
   t.className='toast '+type+' show';
   setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ========== APAGAR DADOS ========== */
+function apagarDados(){
+  if(!confirm('Tem certeza que deseja apagar TODOS os dados preenchidos?\n\nEsta ação não pode ser desfeita.')) return;
+  localStorage.removeItem(STORE_KEY);
+  _protocoloSalvo = '';
+  window.location.reload();
 }
 
 /* ========== VOLTAR PARA REVISÃO (após envio) ========== */
