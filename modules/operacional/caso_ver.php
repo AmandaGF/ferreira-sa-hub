@@ -696,7 +696,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <?php
                                 $tipoOrigem = isset($and['tipo_origem']) ? $and['tipo_origem'] : 'manual';
                                 if ($tipoOrigem === 'datajud'): ?>
-                                    <span style="font-size:.58rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:700;">DataJud</span>
+                                    <span
+                                        class="dj-origem-badge"
+                                        title="Importado automaticamente do DataJud (CNJ)<?= !empty($and['created_at']) ? ' em ' . date('d/m/Y \à\s H:i', strtotime($and['created_at'])) : '' ?>"
+                                        style="display:inline-flex;align-items:center;gap:3px;font-size:.62rem;background:#eff6ff;color:#3b82f6;padding:2px 6px;border-radius:4px;font-weight:700;cursor:default;border:1px solid #bfdbfe;"
+                                    >
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                                        CNJ
+                                    </span>
                                 <?php elseif ($and['tipo'] === 'chamado'): ?>
                                     <span style="font-size:.58rem;background:#fef3c7;color:#d97706;padding:1px 5px;border-radius:3px;font-weight:700;">Chamado</span>
                                 <?php endif; ?>
