@@ -156,8 +156,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pub['client_name']  = $caso ? $caso['client_name'] : null;
             $pub['client_id']    = $caso ? (int)$caso['client_id'] : null;
             $pub['responsavel']  = $caso ? (int)$caso['responsible_user_id'] : $userId;
-            $pub['prazo_dias']   = prazo_sugerido_djen($pub['tipo_comunicacao']);
-            $pub['data_fim']     = calcular_data_fim_djen($pub['data_disp'], $pub['prazo_dias'], $pdo);
+            $pub['prazo_dias'] = prazo_sugerido_djen($pub['tipo_comunicacao']);
+            $pub['data_fim']   = calcular_data_fim_djen($pub['data_disp'], $pub['prazo_dias'], $pdo);
+
+            // Verificar duplicata
+            $pub['ja_importada'] = false;
+            $pub['pub_id_existente'] = null;
+            if ($pub['case_id']) {
+                try {
+                    $stmtDup = $pdo->prepare(
+                        "SELECT id FROM case_publicacoes
+                         WHERE case_id = ? AND data_disponibilizacao = ? AND tipo_publicacao = ?
+                         AND LEFT(conteudo, 100) = LEFT(?, 100)
+                         LIMIT 1"
+                    );
+                    $stmtDup->execute(array(
+                        $pub['case_id'],
+                        $pub['data_disp'],
+                        $pub['tipo_comunicacao'],
+                        $pub['conteudo']
+                    ));
+                    $dup = $stmtDup->fetch();
+                    if ($dup) {
+                        $pub['ja_importada'] = true;
+                        $pub['pub_id_existente'] = $dup['id'];
+                    }
+                } catch (Exception $e) {}
+            }
             $parsed[] = $pub;
         }
         $resultado = $parsed;
@@ -211,17 +236,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 continue;
             }
 
-            // Verificar duplicata
-            try {
-                $stmtDup = $pdo->prepare(
-                    "SELECT id FROM case_publicacoes WHERE case_id = ? AND data_disponibilizacao = ? AND tipo_publicacao = ? AND LEFT(conteudo, 100) = LEFT(?, 100)"
-                );
-                $stmtDup->execute(array($caseId, $dataDisp, $tipoPub, $conteudo));
-                if ($stmtDup->fetch()) {
-                    $erros[] = 'Processo ' . $numero . ' — publicacao ja importada.';
-                    continue;
-                }
-            } catch (Exception $e) {}
+            // Verificar duplicata — so bloqueia se nao veio flag de forcar reimport
+            $forcar = !empty($item['forcar_reimport']) && $item['forcar_reimport'] === '1';
+            if (!$forcar) {
+                try {
+                    $stmtDup = $pdo->prepare(
+                        "SELECT id FROM case_publicacoes WHERE case_id = ? AND data_disponibilizacao = ? AND tipo_publicacao = ? AND LEFT(conteudo, 100) = LEFT(?, 100) LIMIT 1"
+                    );
+                    $stmtDup->execute(array($caseId, $dataDisp, $tipoPub, $conteudo));
+                    if ($stmtDup->fetch()) {
+                        $erros[] = 'ignorada:' . $numero;
+                        continue;
+                    }
+                } catch (Exception $e) {}
+            }
 
             // Recalcular data_fim com feriados no backend
             if ($prazoDias > 0) {
@@ -340,6 +368,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .stat-pill.verde { background:#ecfdf5; color:#059669; }
 .stat-pill.amarelo { background:#fef3c7; color:#d97706; }
 .stat-pill.cinza { background:#f1f5f9; color:#6b7280; }
+.pub-row.ja-importada { display:none; opacity:.55; }
+.pub-row.ja-importada.visivel-dup { display:block; opacity:1; }
 </style>
 
 <div class="djen-wrap">
@@ -351,14 +381,30 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('admin', 'datajud_monitor.php') ?>" class="btn btn-outline btn-sm">Monitor DataJud</a>
     </div>
 
-    <?php if (!empty($_SESSION['djen_erros'])): ?>
-    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:1rem;">
-        <div style="font-size:.8rem;font-weight:700;color:#dc2626;margin-bottom:.4rem;">Avisos da importacao:</div>
-        <?php foreach ($_SESSION['djen_erros'] as $err): ?>
-            <div style="font-size:.75rem;color:#dc2626;"><?= e($err) ?></div>
-        <?php endforeach; unset($_SESSION['djen_erros']); ?>
+    <?php
+    if (!empty($_SESSION['djen_erros'])) {
+        $ignoradas = array_filter($_SESSION['djen_erros'], function($e){ return strpos($e, 'ignorada:') === 0; });
+        $errosReais = array_filter($_SESSION['djen_erros'], function($e){ return strpos($e, 'ignorada:') !== 0; });
+        if (!empty($ignoradas)):
+    ?>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:.8rem;">
+        <div style="font-size:.8rem;font-weight:700;color:#3b82f6;margin-bottom:.3rem;">
+            <?= count($ignoradas) ?> publicacao(oes) ja existiam e foram ignoradas:
+        </div>
+        <?php foreach ($ignoradas as $ig): ?>
+            <div style="font-size:.72rem;color:#3b82f6;"><?= e(str_replace('ignorada:', '', $ig)) ?></div>
+        <?php endforeach; ?>
     </div>
-    <?php endif; ?>
+    <?php endif; if (!empty($errosReais)): ?>
+    <div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:.8rem;">
+        <div style="font-size:.8rem;font-weight:700;color:#dc2626;margin-bottom:.3rem;">Erros:</div>
+        <?php foreach ($errosReais as $err): ?>
+            <div style="font-size:.75rem;color:#dc2626;"><?= e($err) ?></div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif;
+        unset($_SESSION['djen_erros']);
+    } ?>
 
     <!-- Etapa 1: Colar texto -->
     <div class="djen-card">
@@ -380,7 +426,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php
     $qtdEncontrados = count(array_filter($resultado, function($p){ return $p['case_id']; }));
     $qtdNaoEncontrados = count(array_filter($resultado, function($p){ return !$p['case_id']; }));
-    $qtdSegredo = count(array_filter($resultado, function($p){ return $p['segredo']; }));
+    $qtdSegredo      = count(array_filter($resultado, function($p){ return $p['segredo']; }));
+    $qtdJaImportadas = count(array_filter($resultado, function($p){ return !empty($p['ja_importada']); }));
     ?>
     <div class="djen-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.6rem;">
@@ -389,6 +436,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <span class="stat-pill verde"><?= $qtdEncontrados ?> com pasta</span>
                 <span class="stat-pill amarelo"><?= $qtdNaoEncontrados ?> sem pasta</span>
                 <?php if ($qtdSegredo): ?><span class="stat-pill cinza"><?= $qtdSegredo ?> segredo</span><?php endif; ?>
+                <?php if ($qtdJaImportadas): ?>
+                    <button type="button" class="stat-pill" id="btnMostrarDups"
+                        style="background:#eff6ff;color:#3b82f6;border:none;cursor:pointer;font-family:inherit;"
+                        onclick="toggleDuplicatas()">
+                        <?= $qtdJaImportadas ?> ja importada(s) — clique para ver
+                    </button>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -405,17 +459,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <?php foreach ($resultado as $idx => $pub):
                 $encontrado = !empty($pub['case_id']);
+                $jaImportada = !empty($pub['ja_importada']);
                 $rowClass = $pub['segredo'] ? 'segredo' : ($encontrado ? 'encontrado' : 'nao-encontrado');
+                if ($jaImportada) $rowClass .= ' ja-importada';
             ?>
             <div class="pub-row <?= $rowClass ?>" id="pubRow<?= $idx ?>">
                 <div style="display:flex;align-items:flex-start;gap:.7rem;">
                     <input type="checkbox" name="itens[<?= $idx ?>][_sel]" value="1"
-                           class="cb-pub" onchange="contSel()"
-                           <?= $encontrado ? 'checked' : '' ?>
+                           class="cb-pub <?= $jaImportada ? 'cb-dup' : '' ?>"
+                           onchange="contSel()"
+                           <?= ($encontrado && !$jaImportada) ? 'checked' : '' ?>
                            style="margin-top:3px;width:16px;height:16px;flex-shrink:0;">
+                    <?php if ($jaImportada): ?>
+                        <input type="hidden" name="itens[<?= $idx ?>][forcar_reimport]" class="inp-reimport" value="0">
+                    <?php endif; ?>
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
                             <span class="numero"><?= e($pub['numero_processo']) ?></span>
+                            <?php if ($jaImportada): ?>
+                                <span class="case-badge" style="background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;">Ja importada</span>
+                            <?php endif; ?>
                             <?php if ($encontrado): ?>
                                 <span class="case-badge ok"><?= e($pub['case_title']) ?> — <?= e($pub['client_name']) ?></span>
                             <?php elseif ($pub['segredo']): ?>
@@ -549,6 +612,33 @@ function confImport() {
     if (!sel) { alert('Selecione ao menos uma publicacao.'); return false; }
     return confirm('Importar ' + sel + ' publicacao(oes)?\nPrazos e tarefas serao criados automaticamente.');
 }
+
+// Duplicatas
+var dupsVisiveis = false;
+function toggleDuplicatas() {
+    dupsVisiveis = !dupsVisiveis;
+    document.querySelectorAll('.pub-row.ja-importada').forEach(function(el) {
+        el.classList.toggle('visivel-dup', dupsVisiveis);
+    });
+    var btn = document.getElementById('btnMostrarDups');
+    if (btn) {
+        btn.textContent = dupsVisiveis
+            ? 'Ocultar ja importadas'
+            : document.querySelectorAll('.pub-row.ja-importada').length + ' ja importada(s) — clique para ver';
+    }
+}
+
+// Ao marcar uma duplicata, ativa o forcar_reimport
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('cb-dup')) {
+        var row = e.target.closest('.pub-row');
+        if (row) {
+            var inp = row.querySelector('.inp-reimport');
+            if (inp) inp.value = e.target.checked ? '1' : '0';
+        }
+        contSel();
+    }
+});
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
