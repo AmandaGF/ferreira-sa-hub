@@ -543,34 +543,64 @@ function copiarPeticao() {
 // Timbrado HTML para exportação (logo + rodapé)
 <?php
 $logoPath = APP_ROOT . '/assets/img/logo.png';
-$logoB64 = '';
+$logoB64Raw = '';
+$logoB64Src = '';
 if (file_exists($logoPath)) {
-    $logoB64 = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPath));
+    $logoB64Raw = base64_encode(file_get_contents($logoPath));
+    $logoB64Src = 'data:image/png;base64,' . $logoB64Raw;
 }
 ?>
+var logoB64Src = '<?= $logoB64Src ?>';
+var logoB64Raw = '<?= $logoB64Raw ?>';
+
 var timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
-    + '<img src="<?= $logoB64 ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá">'
+    + '<img src="' + logoB64Src + '" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sa">'
     + '</div>'
     + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
 
 var timbradoRodape = '<div style="border-top:1px solid #888;margin-top:48px;padding-top:10px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
-    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; São Paulo / SP</strong></div>'
+    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; S\u00e3o Paulo / SP</strong></div>'
     + '<div>(24) 9.9205.0096 / (11) 2110-5438</div>'
     + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
     + '</div>';
 
 function baixarWord() {
     var html = document.getElementById('peticaoHTML').innerHTML;
-    var fullHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+
+    // Word precisa de formato MHTML para renderizar imagens base64
+    var boundary = '----=_NextPart_000';
+    var imgCid = 'logo001.png@FSA';
+
+    var timbradoTopoWord = '<div style="text-align:center;margin-bottom:16px;">'
+        + '<img src="cid:' + imgCid + '" width="380" style="max-width:380px;height:auto;" alt="Ferreira e Sa">'
+        + '</div>'
+        + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
+
+    var htmlPart = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
         + '<head><meta charset="utf-8">'
+        + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
         + '<style>'
         + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
         + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;}'
         + 'table{border-collapse:collapse;}'
         + 'td,th{border:none;}'
         + '</style></head>'
-        + '<body>' + timbradoTopo + html + timbradoRodape + '</body></html>';
-    var blob = new Blob(['\ufeff' + fullHtml], {type: 'application/msword'});
+        + '<body>' + timbradoTopoWord + html + timbradoRodape + '</body></html>';
+
+    var mhtml = 'MIME-Version: 1.0\r\n'
+        + 'Content-Type: multipart/related; boundary="' + boundary + '"\r\n\r\n'
+        + '--' + boundary + '\r\n'
+        + 'Content-Type: text/html; charset="utf-8"\r\n'
+        + 'Content-Transfer-Encoding: 8bit\r\n\r\n'
+        + htmlPart + '\r\n\r\n'
+        + '--' + boundary + '\r\n'
+        + 'Content-Type: image/png\r\n'
+        + 'Content-Transfer-Encoding: base64\r\n'
+        + 'Content-ID: <' + imgCid + '>\r\n\r\n'
+        + logoB64Raw + '\r\n\r\n'
+        + '--' + boundary + '--';
+
+    var blob = new Blob([mhtml], {type: 'application/msword'});
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'peticao_' + new Date().toISOString().slice(0,10) + '.doc';

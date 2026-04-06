@@ -798,27 +798,43 @@ function copiarConteudo() {
 // Logo base64 para exportação Word
 $logoPathDoc = APP_ROOT . '/assets/img/logo.png';
 $logoB64Doc = '';
+$logoB64RawDoc = '';
 if (file_exists($logoPathDoc)) {
-    $logoB64Doc = 'data:image/png;base64,' . base64_encode(file_get_contents($logoPathDoc));
+    $logoB64RawDoc = base64_encode(file_get_contents($logoPathDoc));
+    $logoB64Doc = 'data:image/png;base64,' . $logoB64RawDoc;
 }
 $docFileName = str_replace(' ', '_', strtolower($typeLabels[$tipo] ?? $tipo)) . '_' . preg_replace('/\s+/', '_', strtolower($nome));
 ?>
 
+var _logoB64Raw = '<?= $logoB64RawDoc ?>';
+var _logoB64Src = '<?= $logoB64Doc ?>';
+
 var _timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
-    + '<?php if ($logoB64Doc): ?><img src="<?= $logoB64Doc ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sá"><?php else: ?><h2 style="color:#052228;font-family:Calibri,sans-serif;">FERREIRA &amp; SÁ</h2><p style="font-size:10px;color:#6b7280;">ADVOCACIA ESPECIALIZADA</p><?php endif; ?>'
+    + '<?php if ($logoB64Doc): ?><img src="<?= $logoB64Doc ?>" style="max-width:380px;height:auto;" alt="Ferreira &amp; Sa"><?php else: ?><h2 style="color:#052228;font-family:Calibri,sans-serif;">FERREIRA &amp; SA</h2><p style="font-size:10px;color:#6b7280;">ADVOCACIA ESPECIALIZADA</p><?php endif; ?>'
     + '</div>'
     + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
 
 var _timbradoRodape = '<div style="border-top:2px solid #B87333;margin-top:48px;padding-top:10px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
-    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; São Paulo / SP</strong></div>'
+    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; S\u00e3o Paulo / SP</strong></div>'
     + '<div>(24) 9.9205-0096 / (11) 2110-5438</div>'
     + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
     + '</div>';
 
 function baixarWord() {
     var conteudo = document.querySelector('.doc-body').innerHTML;
-    var fullHtml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+
+    // Word precisa MHTML para renderizar imagens base64
+    var boundary = '----=_NextPart_DOC';
+    var imgCid = 'logo001.png@FSA';
+
+    var timbradoTopoWord = '<div style="text-align:center;margin-bottom:16px;">'
+        + (_logoB64Raw ? '<img src="cid:' + imgCid + '" width="380" style="max-width:380px;height:auto;" alt="Ferreira e Sa">' : '<h2 style="color:#052228;font-family:Calibri,sans-serif;">FERREIRA &amp; SA</h2>')
+        + '</div>'
+        + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
+
+    var htmlPart = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
         + '<head><meta charset="utf-8">'
+        + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
         + '<style>'
         + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
         + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;text-align:justify;}'
@@ -831,8 +847,22 @@ function baixarWord() {
         + 'table{border-collapse:collapse;width:100%;}'
         + 'td,th{border:none;padding:4pt 8pt;}'
         + '</style></head>'
-        + '<body>' + _timbradoTopo + conteudo + _timbradoRodape + '</body></html>';
-    var blob = new Blob(['\ufeff' + fullHtml], {type: 'application/msword'});
+        + '<body>' + timbradoTopoWord + conteudo + _timbradoRodape + '</body></html>';
+
+    var mhtml = 'MIME-Version: 1.0\r\n'
+        + 'Content-Type: multipart/related; boundary="' + boundary + '"\r\n\r\n'
+        + '--' + boundary + '\r\n'
+        + 'Content-Type: text/html; charset="utf-8"\r\n'
+        + 'Content-Transfer-Encoding: 8bit\r\n\r\n'
+        + htmlPart + '\r\n\r\n'
+        + '--' + boundary + '\r\n'
+        + 'Content-Type: image/png\r\n'
+        + 'Content-Transfer-Encoding: base64\r\n'
+        + 'Content-ID: <' + imgCid + '>\r\n\r\n'
+        + _logoB64Raw + '\r\n\r\n'
+        + '--' + boundary + '--';
+
+    var blob = new Blob([mhtml], {type: 'application/msword'});
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = '<?= addslashes($docFileName) ?>.doc';
