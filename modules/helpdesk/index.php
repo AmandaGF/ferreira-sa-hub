@@ -25,10 +25,14 @@ if (has_role('colaborador') || has_role('estagiario')) {
 }
 if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
 if ($filterPriority) { $where[] = "t.priority = ?"; $params[] = $filterPriority; }
+$filterCategory = $_GET['category'] ?? '';
+$filterAssignee = (int)($_GET['assignee'] ?? 0);
+if ($filterCategory) { $where[] = "t.category = ?"; $params[] = $filterCategory; }
+if ($filterAssignee) { $where[] = "ta.user_id = ?"; $params[] = $filterAssignee; }
 if ($search) {
     $where[] = "(t.title LIKE ? OR t.client_name LIKE ? OR t.case_number LIKE ?)";
     $like = '%' . $search . '%';
-    $params = array_merge($params, [$like, $like, $like]);
+    $params = array_merge($params, array($like, $like, $like));
 }
 
 $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -56,51 +60,132 @@ $kpi = $pdo->query("SELECT
     SUM(CASE WHEN status = 'resolvido' AND MONTH(resolved_at) = MONTH(NOW()) THEN 1 ELSE 0 END) as resolvidos_mes
     FROM tickets")->fetch();
 
-$statusLabels = ['aberto' => 'Aberto', 'em_andamento' => 'Em andamento', 'aguardando' => 'Aguardando', 'resolvido' => 'Resolvido', 'cancelado' => 'Cancelado'];
-$statusBadge = ['aberto' => 'warning', 'em_andamento' => 'info', 'aguardando' => 'gestao', 'resolvido' => 'success', 'cancelado' => 'danger'];
-$priorityBadge = ['urgente' => 'danger', 'normal' => 'gestao', 'baixa' => 'colaborador'];
+$statusLabels = array('aberto' => 'Aberto', 'em_andamento' => 'Em andamento', 'aguardando' => 'Aguardando', 'resolvido' => 'Resolvido', 'cancelado' => 'Cancelado');
+$statusBadge = array('aberto' => 'warning', 'em_andamento' => 'info', 'aguardando' => 'gestao', 'resolvido' => 'success', 'cancelado' => 'danger');
+$statusIcons = array('aberto' => '🟡', 'em_andamento' => '🔵', 'aguardando' => '🟠', 'resolvido' => '✅', 'cancelado' => '❌');
+$priorityBadge = array('urgente' => 'danger', 'normal' => 'gestao', 'baixa' => 'colaborador');
+
+// Contadores por status
+$statusCounts = array();
+try {
+    $scRows = $pdo->query("SELECT status, COUNT(*) as cnt FROM tickets GROUP BY status")->fetchAll();
+    foreach ($scRows as $sc) $statusCounts[$sc['status']] = (int)$sc['cnt'];
+} catch (Exception $e) {}
+$totalTickets = array_sum($statusCounts);
+
+// Categorias existentes
+$categorias = array();
+try { $categorias = $pdo->query("SELECT DISTINCT category FROM tickets WHERE category IS NOT NULL AND category != '' ORDER BY category")->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
+
+// Usuários para filtro de responsável
+$users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
-<!-- KPIs -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div class="stat-icon warning">🎫</div>
-        <div class="stat-info"><div class="stat-value"><?= $kpi['abertos'] ?? 0 ?></div><div class="stat-label">Abertos</div></div>
+<style>
+.hd-topbar { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:.75rem; margin-bottom:1rem; }
+.hd-filters { display:flex; flex-direction:column; gap:.6rem; margin-bottom:1.25rem; }
+.hd-filter-row { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
+.hd-filter-label { font-size:.68rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; min-width:70px; }
+.hd-pill { display:inline-flex; align-items:center; gap:4px; padding:5px 12px; border-radius:100px; font-size:.75rem; font-weight:500; border:1.5px solid var(--border); background:var(--bg-card); color:var(--text-muted); cursor:pointer; text-decoration:none; transition:all .15s; white-space:nowrap; }
+.hd-pill:hover { border-color:var(--petrol-300); color:var(--petrol-900); }
+.hd-pill.active { background:var(--petrol-900); color:#fff; border-color:var(--petrol-900); }
+.hd-pill .cnt { background:rgba(0,0,0,.1); padding:1px 6px; border-radius:100px; font-size:.65rem; font-weight:700; }
+.hd-pill.active .cnt { background:rgba(255,255,255,.25); }
+.hd-search { display:flex; gap:.4rem; align-items:center; }
+.hd-search input { font-size:.82rem; padding:.45rem .75rem; border:1.5px solid var(--border); border-radius:var(--radius); width:220px; }
+.hd-search input:focus { border-color:var(--rose); outline:none; }
+</style>
+
+<!-- Top bar -->
+<div class="hd-topbar">
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <div style="font-size:.82rem;color:var(--text-muted);"><?= $totalTickets ?> chamado<?= $totalTickets !== 1 ? 's' : '' ?></div>
+        <?php if ($filterStatus || $filterPriority || $filterCategory || $filterAssignee || $search): ?>
+            <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Limpar filtros</a>
+        <?php endif; ?>
     </div>
-    <?php if (($kpi['urgentes'] ?? 0) > 0): ?>
-    <div class="stat-card">
-        <div class="stat-icon danger">🔴</div>
-        <div class="stat-info"><div class="stat-value"><?= $kpi['urgentes'] ?></div><div class="stat-label">Urgentes</div></div>
+    <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Chamado</a>
+</div>
+
+<!-- Filtros -->
+<div class="hd-filters">
+    <!-- Status -->
+    <div class="hd-filter-row">
+        <span class="hd-filter-label">Status</span>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= !$filterStatus ? 'active' : '' ?>">Todos <span class="cnt"><?= $totalTickets ?></span></a>
+        <?php foreach ($statusLabels as $sk => $sv): ?>
+            <?php $cnt = $statusCounts[$sk] ?? 0; if ($cnt === 0 && $sk !== $filterStatus) continue; ?>
+            <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('status'=>$sk,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= $filterStatus === $sk ? 'active' : '' ?>"><?= $statusIcons[$sk] ?? '' ?> <?= $sv ?> <span class="cnt"><?= $cnt ?></span></a>
+        <?php endforeach; ?>
     </div>
-    <?php endif; ?>
-    <div class="stat-card">
-        <div class="stat-icon success">✅</div>
-        <div class="stat-info"><div class="stat-value"><?= $kpi['resolvidos_mes'] ?? 0 ?></div><div class="stat-label">Resolvidos este mês</div></div>
+
+    <!-- Prioridade -->
+    <div class="hd-filter-row">
+        <span class="hd-filter-label">Prioridade</span>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('status'=>$filterStatus,'q'=>$search,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= !$filterPriority ? 'active' : '' ?>">Todas</a>
+        <?php foreach (array('urgente'=>'🔴 Urgente','normal'=>'🟢 Normal','baixa'=>'⚪ Baixa') as $pk => $pv): ?>
+            <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('status'=>$filterStatus,'priority'=>$pk,'q'=>$search,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= $filterPriority === $pk ? 'active' : '' ?>"><?= $pv ?></a>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Categoria + Responsável + Busca -->
+    <div class="hd-filter-row">
+        <span class="hd-filter-label">Mais</span>
+        <?php if (!empty($categorias)): ?>
+        <select onchange="filtrarHelpdesk('category',this.value)" style="font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:100px;background:var(--bg-card);cursor:pointer;">
+            <option value="">Categoria</option>
+            <?php foreach ($categorias as $cat): ?>
+                <option value="<?= e($cat) ?>" <?= $filterCategory === $cat ? 'selected' : '' ?>><?= e($cat) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <?php endif; ?>
+        <select onchange="filtrarHelpdesk('assignee',this.value)" style="font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:100px;background:var(--bg-card);cursor:pointer;">
+            <option value="">Responsável</option>
+            <?php foreach ($users as $u): ?>
+                <option value="<?= $u['id'] ?>" <?= $filterAssignee === (int)$u['id'] ? 'selected' : '' ?>><?= e(explode(' ',$u['name'])[0]) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <div class="hd-search">
+            <form method="GET">
+                <?php if ($filterStatus): ?><input type="hidden" name="status" value="<?= e($filterStatus) ?>"><?php endif; ?>
+                <?php if ($filterPriority): ?><input type="hidden" name="priority" value="<?= e($filterPriority) ?>"><?php endif; ?>
+                <?php if ($filterCategory): ?><input type="hidden" name="category" value="<?= e($filterCategory) ?>"><?php endif; ?>
+                <?php if ($filterAssignee): ?><input type="hidden" name="assignee" value="<?= $filterAssignee ?>"><?php endif; ?>
+                <input type="text" name="q" value="<?= e($search) ?>" placeholder="Buscar título, cliente, processo...">
+                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;">🔍</button>
+            </form>
+        </div>
     </div>
 </div>
 
-<!-- Ações + Filtros -->
-<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:1.5rem;">
-    <form method="GET" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
-        <input type="text" name="q" class="form-input" style="font-size:.8rem;padding:.4rem .6rem;width:180px;" value="<?= e($search) ?>" placeholder="Buscar...">
-        <select name="status" class="form-select" style="font-size:.8rem;padding:.4rem;">
-            <option value="">Status</option>
-            <?php foreach ($statusLabels as $k => $v): ?>
-                <option value="<?= $k ?>" <?= $filterStatus === $k ? 'selected' : '' ?>><?= $v ?></option>
-            <?php endforeach; ?>
-        </select>
-        <select name="priority" class="form-select" style="font-size:.8rem;padding:.4rem;">
-            <option value="">Prioridade</option>
-            <option value="urgente" <?= $filterPriority === 'urgente' ? 'selected' : '' ?>>Urgente</option>
-            <option value="normal" <?= $filterPriority === 'normal' ? 'selected' : '' ?>>Normal</option>
-            <option value="baixa" <?= $filterPriority === 'baixa' ? 'selected' : '' ?>>Baixa</option>
-        </select>
-        <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
-    </form>
-    <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Chamado</a>
+<!-- KPIs rápidos -->
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;">
+        <span style="font-size:1.1rem;">🎫</span>
+        <div><div style="font-size:1.2rem;font-weight:800;color:var(--petrol-900);"><?= $kpi['abertos'] ?? 0 ?></div><div style="font-size:.65rem;color:var(--text-muted);">Abertos</div></div>
+    </div>
+    <?php if (($kpi['urgentes'] ?? 0) > 0): ?>
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:var(--radius);padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;">
+        <span style="font-size:1.1rem;">🔴</span>
+        <div><div style="font-size:1.2rem;font-weight:800;color:#dc2626;"><?= $kpi['urgentes'] ?></div><div style="font-size:.65rem;color:#dc2626;">Urgentes</div></div>
+    </div>
+    <?php endif; ?>
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;">
+        <span style="font-size:1.1rem;">✅</span>
+        <div><div style="font-size:1.2rem;font-weight:800;color:#059669;"><?= $kpi['resolvidos_mes'] ?? 0 ?></div><div style="font-size:.65rem;color:var(--text-muted);">Resolvidos mês</div></div>
+    </div>
 </div>
+
+<script>
+function filtrarHelpdesk(param, value) {
+    var url = new URL(window.location.href);
+    if (value) url.searchParams.set(param, value);
+    else url.searchParams.delete(param);
+    window.location.href = url.toString();
+}
+</script>
 
 <!-- Lista -->
 <div class="card">
