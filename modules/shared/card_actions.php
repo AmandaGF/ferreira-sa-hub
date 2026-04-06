@@ -47,8 +47,9 @@ switch ($action) {
     case 'get_comments':
         $clientId = (int)($_GET['client_id'] ?? 0);
         $caseId = (int)($_GET['case_id'] ?? 0);
+        $leadId = (int)($_GET['lead_id'] ?? 0);
 
-        if (!$clientId && !$caseId) { echo '[]'; exit; }
+        if (!$clientId && !$caseId && !$leadId) { echo '[]'; exit; }
 
         if ($caseId) {
             $stmt = $pdo->prepare(
@@ -57,6 +58,13 @@ switch ($action) {
                  WHERE cc.case_id = ? ORDER BY cc.created_at DESC LIMIT 50"
             );
             $stmt->execute(array($caseId));
+        } elseif ($leadId) {
+            $stmt = $pdo->prepare(
+                "SELECT cc.*, u.name as user_name FROM card_comments cc
+                 LEFT JOIN users u ON u.id = cc.user_id
+                 WHERE cc.lead_id = ? ORDER BY cc.created_at DESC LIMIT 50"
+            );
+            $stmt->execute(array($leadId));
         } else {
             $stmt = $pdo->prepare(
                 "SELECT cc.*, u.name as user_name FROM card_comments cc

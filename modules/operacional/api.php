@@ -803,8 +803,45 @@ switch ($action) {
         // 8. Migrar cobrancas financeiras
         try { $pdo->prepare("UPDATE contratos_financeiros SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
 
-        // 9. Atualizar lead vinculado
-        try { $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = ? WHERE linked_case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+        // 9. Espelhar no Pipeline: redirecionar lead do absorvido → principal, arquivar lead órfão
+        try {
+            // Buscar lead vinculado ao caso principal (destino)
+            $leadPrincipal = null;
+            $stmtLP = $pdo->prepare("SELECT id FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
+            $stmtLP->execute(array($principalId));
+            $lpRow = $stmtLP->fetch();
+            if ($lpRow) $leadPrincipal = (int)$lpRow['id'];
+
+            // Buscar lead vinculado ao caso absorvido
+            $stmtLA = $pdo->prepare("SELECT id, stage FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
+            $stmtLA->execute(array($absorvidoId));
+            $laRow = $stmtLA->fetch();
+
+            if ($laRow) {
+                $leadAbsorvido = (int)$laRow['id'];
+
+                // Migrar comentários do lead absorvido para o lead principal (se existir)
+                if ($leadPrincipal) {
+                    $pdo->prepare("UPDATE card_comments SET lead_id = ? WHERE lead_id = ?")->execute(array($leadPrincipal, $leadAbsorvido));
+                }
+
+                // Migrar comentários que só tinham client_id (sem case_id) para o caso principal
+                $clientIdAbsorvido = (int)($caseAbsorvido['client_id'] ?? 0);
+                if ($clientIdAbsorvido) {
+                    $pdo->prepare("UPDATE card_comments SET case_id = ? WHERE client_id = ? AND (case_id IS NULL OR case_id = 0 OR case_id = ?)")
+                        ->execute(array($principalId, $clientIdAbsorvido, $absorvidoId));
+                }
+
+                // Arquivar o lead do caso absorvido
+                $pdo->prepare("UPDATE pipeline_leads SET stage = 'arquivado', arquivado_por = ?, arquivado_em = NOW(), updated_at = NOW() WHERE id = ?")
+                    ->execute(array(current_user_id(), $leadAbsorvido));
+                $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                    ->execute(array($leadAbsorvido, $laRow['stage'], 'arquivado', current_user_id(), 'Auto: caso unificado ao #' . $principalId));
+            } else {
+                // Sem lead do absorvido — redirecionar qualquer lead que aponte para ele
+                $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = ? WHERE linked_case_id = ?")->execute(array($principalId, $absorvidoId));
+            }
+        } catch (Exception $e) {}
 
         // 10. Migrar processos incidentais
         try { $pdo->prepare("UPDATE cases SET processo_principal_id = ? WHERE processo_principal_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
