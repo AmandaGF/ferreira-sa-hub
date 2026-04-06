@@ -27,6 +27,7 @@ $columns = array(
     'em_elaboracao'          => array('label' => 'Pasta Apta',                  'color' => '#059669', 'icon' => '✔️'),
     'em_andamento'           => array('label' => 'Em Execução',                 'color' => '#0ea5e9', 'icon' => '⚙️'),
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
+    'suspenso'               => array('label' => 'Suspenso',                   'color' => '#5B2D8E', 'icon' => '⏸️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
@@ -332,6 +333,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endforeach; ?>
                         </div>
                     <?php endif; ?>
+                    <?php if ($cs['status'] === 'suspenso'):
+                        $diasSusp = !empty($cs['data_suspensao']) ? (int)((time() - strtotime($cs['data_suspensao'])) / 86400) : 0;
+                        $motivoSusp = isset($cs['suspensao_motivo']) ? $cs['suspensao_motivo'] : '';
+                        $retornoPrev = isset($cs['suspensao_retorno_previsto']) ? $cs['suspensao_retorno_previsto'] : '';
+                        $retornoAtrasado = ($retornoPrev && $retornoPrev < date('Y-m-d'));
+                        $procSuspId = isset($cs['suspensao_processo_id']) ? (int)$cs['suspensao_processo_id'] : 0;
+                    ?>
+                        <div style="background:#f3e8ff;border:1px solid #d8b4fe;border-radius:6px;padding:.3rem .4rem;font-size:.6rem;color:#5B2D8E;margin-top:.25rem;" onclick="event.stopPropagation();">
+                            <div style="font-weight:700;"><?= $motivoSusp ? e($motivoSusp) : 'Suspenso' ?> (<?= $diasSusp ?>d)</div>
+                            <?php if ($retornoPrev): ?>
+                                <div style="color:<?= $retornoAtrasado ? '#dc2626' : '#5B2D8E' ?>;font-weight:<?= $retornoAtrasado ? '700' : '400' ?>;"><?= $retornoAtrasado ? 'Retorno atrasado: ' : 'Retorno: ' ?><?= date('d/m', strtotime($retornoPrev)) ?></div>
+                            <?php endif; ?>
+                            <?php if ($procSuspId): ?>
+                                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $procSuspId) ?>" style="color:#5B2D8E;font-weight:600;text-decoration:underline;" onclick="event.stopPropagation();">Ver processo vinculado</a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- Mover rápido -->
                     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onclick="event.stopPropagation();">
@@ -391,6 +409,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid tbody tr[data-status="em_elaboracao"] { border-left:4px solid #059669; background:rgba(5,150,105,.04) !important; }
 .tbl-grid tbody tr[data-status="em_andamento"] { border-left:4px solid #0ea5e9; background:rgba(14,165,233,.04) !important; }
 .tbl-grid tbody tr[data-status="doc_faltante"] { border-left:4px solid #dc2626; background:rgba(220,38,38,.06) !important; }
+.tbl-grid tbody tr[data-status="suspenso"] { border-left:4px solid #5B2D8E; background:rgba(91,45,142,.06) !important; }
 .tbl-grid tbody tr[data-status="aguardando_prazo"] { border-left:4px solid #8b5cf6; }
 .tbl-grid tbody tr[data-status="distribuido"] { border-left:4px solid #15803d; background:rgba(21,128,61,.04) !important; }
 .tbl-grid tbody tr[data-status="parceria_previdenciario"] { border-left:4px solid #06b6d4; }
@@ -496,6 +515,49 @@ sort($opTipos);
         <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
             <button onclick="closeDocModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
             <button onclick="confirmDocFaltante()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Sinalizar ⚠️</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Suspensão -->
+<div id="suspensoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">
+        <h3 style="font-size:1rem;font-weight:700;color:#5B2D8E;margin-bottom:.75rem;">⏸️ Suspender Processo</h3>
+
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Motivo da suspensão *</label>
+            <select id="suspMotivo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" onchange="toggleSuspVinculo()">
+                <option value="">— Selecionar —</option>
+                <option value="Aguardando processo prejudicial">Aguardando processo prejudicial</option>
+                <option value="Aguardando documento">Aguardando documento</option>
+                <option value="Suspensão judicial">Suspensão judicial</option>
+                <option value="Acordo em andamento">Acordo em andamento</option>
+                <option value="Solicitação do cliente">Solicitação do cliente</option>
+                <option value="Outros">Outros</option>
+            </select>
+        </div>
+
+        <div id="suspVinculoBox" style="display:none;margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Processo prejudicial vinculado</label>
+            <select id="suspProcessoId" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">— Nenhum —</option>
+            </select>
+            <span style="font-size:.65rem;color:#6b7280;">Processos do mesmo cliente</span>
+        </div>
+
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Data de retorno prevista (opcional)</label>
+            <input type="date" id="suspRetorno" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+        </div>
+
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Observação interna</label>
+            <textarea id="suspObs" rows="2" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;resize:vertical;" placeholder="Motivo detalhado..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+            <button onclick="closeSuspModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmSuspenso()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Suspender ⏸️</button>
         </div>
     </div>
 </div>
@@ -663,6 +725,18 @@ function handleOpMove(select) {
         return;
     }
 
+    if (status === 'suspenso') {
+        _pendingOpForm = form;
+        // Carregar processos do mesmo cliente para vínculo
+        var card = select.closest('.op-card') || select.closest('tr');
+        var caseId = card ? card.dataset.caseId : '';
+        if (caseId) carregarProcessosSusp(caseId);
+        document.getElementById('suspensoModal').style.display = 'flex';
+        document.getElementById('suspMotivo').focus();
+        select.value = '';
+        return;
+    }
+
     if (status === 'distribuido') {
         _pendingOpForm = form;
         var card = select.closest('.op-card') || select.closest('tr');
@@ -702,6 +776,67 @@ function confirmDocFaltante() {
         var statusInput = document.createElement('input');
         statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'doc_faltante';
         _pendingOpForm.appendChild(statusInput);
+        _pendingOpForm.submit();
+    }
+}
+
+// Suspensão
+function closeSuspModal() {
+    document.getElementById('suspensoModal').style.display = 'none';
+    _pendingOpForm = null;
+}
+
+function toggleSuspVinculo() {
+    var motivo = document.getElementById('suspMotivo').value;
+    document.getElementById('suspVinculoBox').style.display = (motivo === 'Aguardando processo prejudicial') ? 'block' : 'none';
+}
+
+function carregarProcessosSusp(caseId) {
+    var select = document.getElementById('suspProcessoId');
+    select.innerHTML = '<option value="">— Carregando... —</option>';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            select.innerHTML = '<option value="">— Nenhum —</option>';
+            if (r.casos && r.casos.length) {
+                for (var i = 0; i < r.casos.length; i++) {
+                    var c = r.casos[i];
+                    var opt = document.createElement('option');
+                    opt.value = c.id;
+                    opt.textContent = c.title + (c.case_number ? ' — ' + c.case_number : '');
+                    select.appendChild(opt);
+                }
+            }
+        } catch(e) { select.innerHTML = '<option value="">— Erro —</option>'; }
+    };
+    xhr.send('action=buscar_casos_cliente&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
+}
+
+function confirmSuspenso() {
+    var motivo = document.getElementById('suspMotivo').value;
+    if (!motivo) { document.getElementById('suspMotivo').style.borderColor = '#ef4444'; return; }
+
+    document.getElementById('suspensoModal').style.display = 'none';
+
+    if (_pendingOpForm) {
+        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (sel) sel.removeAttribute('name');
+
+        function addHidden(name, value) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = name; inp.value = value;
+            _pendingOpForm.appendChild(inp);
+        }
+
+        addHidden('new_status', 'suspenso');
+        addHidden('suspensao_motivo', motivo);
+        addHidden('suspensao_processo_id', document.getElementById('suspProcessoId').value || '');
+        addHidden('suspensao_retorno_previsto', document.getElementById('suspRetorno').value || '');
+        addHidden('suspensao_observacao', document.getElementById('suspObs').value || '');
         _pendingOpForm.submit();
     }
 }
@@ -856,11 +991,19 @@ function confirmProcesso() {
             if (!dragCard || !caseId || !newStatus) return;
 
             if (newStatus === 'doc_faltante') {
-                // Simular clique no select para abrir modal
                 var form = dragCard.querySelector('form');
                 _pendingOpForm = form;
                 document.getElementById('docFaltanteModal').style.display = 'flex';
                 document.getElementById('docFaltanteDesc').focus();
+                return;
+            }
+
+            if (newStatus === 'suspenso') {
+                var form = dragCard.querySelector('form');
+                _pendingOpForm = form;
+                carregarProcessosSusp(caseId);
+                document.getElementById('suspensoModal').style.display = 'flex';
+                document.getElementById('suspMotivo').focus();
                 return;
             }
 

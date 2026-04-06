@@ -176,21 +176,23 @@ switch ($action) {
                 exit;
             }
 
-            // ── SUSPENSO: só Admin + bilateral com memória de estado ──
+            // ── SUSPENSO: bilateral com memória de estado + motivo detalhado ──
             if ($status === 'suspenso') {
-                if (!has_role('admin')) {
-                    $msg = 'Apenas administradores podem suspender.';
-                    if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => $msg)); exit; }
-                    flash_set('error', $msg);
-                    redirect(module_url('operacional'));
-                    exit;
-                }
                 $prazoSusp = isset($_POST['prazo_suspensao']) ? $_POST['prazo_suspensao'] : null;
                 if ($prazoSusp === '') $prazoSusp = null;
 
-                // Salvar status anterior + data da suspensão
-                $pdo->prepare('UPDATE cases SET status=?, coluna_antes_suspensao=?, data_suspensao=NOW(), prazo_suspensao=?, updated_at=NOW() WHERE id=?')
-                    ->execute(array('suspenso', $oldStatus, $prazoSusp, $caseId));
+                // Novos campos de suspensão
+                $suspMotivo = clean_str($_POST['suspensao_motivo'] ?? '', 100);
+                $suspProcessoId = (int)($_POST['suspensao_processo_id'] ?? 0) ?: null;
+                $suspRetorno = ($_POST['suspensao_retorno_previsto'] ?? '') ?: null;
+                $suspObs = clean_str($_POST['suspensao_observacao'] ?? '', 1000);
+
+                // Se veio retorno previsto mas não prazo_suspensao, usar como prazo
+                if (!$prazoSusp && $suspRetorno) $prazoSusp = $suspRetorno;
+
+                // Salvar status anterior + data da suspensão + campos detalhados
+                $pdo->prepare('UPDATE cases SET status=?, coluna_antes_suspensao=?, data_suspensao=NOW(), prazo_suspensao=?, suspensao_motivo=?, suspensao_processo_id=?, suspensao_retorno_previsto=?, suspensao_observacao=?, updated_at=NOW() WHERE id=?')
+                    ->execute(array('suspenso', $oldStatus, $prazoSusp, $suspMotivo ?: null, $suspProcessoId, $suspRetorno, $suspObs ?: null, $caseId));
 
                 // Espelhar no Pipeline
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
@@ -203,9 +205,10 @@ switch ($action) {
                 }
 
                 $caseTitle = $currentCase ? $currentCase['title'] : 'Caso #' . $caseId;
-                notify_gestao('Caso suspenso', $caseTitle . ' foi suspenso.' . ($leadRow ? ' Lead também suspenso.' : '') . ($prazoSusp ? ' Prazo: ' . $prazoSusp : ''), 'alerta', url('modules/operacional/'), '⏸️');
+                $motivoMsg = $suspMotivo ? ' Motivo: ' . $suspMotivo : '';
+                notify_gestao('Caso suspenso', $caseTitle . ' foi suspenso.' . $motivoMsg . ($leadRow ? ' Lead também suspenso.' : '') . ($suspRetorno ? ' Retorno: ' . $suspRetorno : ''), 'alerta', url('modules/operacional/caso_ver.php?id=' . $caseId), '⏸️');
 
-                audit_log('case_suspended', 'case', $caseId, 'Anterior: ' . $oldStatus . ($prazoSusp ? ' Prazo: ' . $prazoSusp : ''));
+                audit_log('case_suspended', 'case', $caseId, 'Anterior: ' . $oldStatus . $motivoMsg . ($suspRetorno ? ' Retorno: ' . $suspRetorno : ''));
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set('success', 'Caso suspenso.');
                 redirect(module_url('operacional'));
@@ -225,7 +228,7 @@ switch ($action) {
                     audit_log('lead_auto_reactivated', 'lead', $leadRow['id'], 'Operacional reativou caso #' . $caseId);
                 }
                 // Limpar dados de suspensão do caso
-                $pdo->prepare('UPDATE cases SET coluna_antes_suspensao=NULL, data_suspensao=NULL, prazo_suspensao=NULL WHERE id=?')
+                $pdo->prepare('UPDATE cases SET coluna_antes_suspensao=NULL, data_suspensao=NULL, prazo_suspensao=NULL, suspensao_motivo=NULL, suspensao_processo_id=NULL, suspensao_retorno_previsto=NULL, suspensao_observacao=NULL WHERE id=?')
                     ->execute(array($caseId));
                 notify_gestao('Caso reativado!', ($currentCase ? $currentCase['title'] : 'Caso') . ' saiu do Suspenso.', 'sucesso', url('modules/operacional/'), '▶️');
             }
