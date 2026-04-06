@@ -585,6 +585,62 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- Dados do Processo (editável inline) -->
+<div class="card mb-2">
+    <div class="card-header">
+        <h3>Dados do Processo</h3>
+        <span style="font-size:.68rem;color:var(--text-muted);">Clique em qualquer campo para editar</span>
+    </div>
+    <div class="card-body" style="padding:.75rem 1rem;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+            <?php
+            $camposProcesso = array(
+                array('label' => 'Número do Processo', 'field' => 'case_number', 'value' => $case['case_number'] ?? '', 'type' => 'text', 'placeholder' => '0000000-00.0000.0.00.0000'),
+                array('label' => 'Tipo de Ação', 'field' => 'case_type', 'value' => $case['case_type'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: Alimentos, Divórcio...'),
+                array('label' => 'Vara / Juízo', 'field' => 'court', 'value' => $case['court'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: 1ª Vara de Família'),
+                array('label' => 'Comarca', 'field' => 'comarca', 'value' => $case['comarca'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: Barra Mansa'),
+                array('label' => 'UF', 'field' => 'comarca_uf', 'value' => $case['comarca_uf'] ?? '', 'type' => 'text', 'placeholder' => 'RJ'),
+                array('label' => 'Regional', 'field' => 'regional', 'value' => $case['regional'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: Barra Mansa'),
+                array('label' => 'Sistema Tribunal', 'field' => 'sistema_tribunal', 'value' => $case['sistema_tribunal'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: PJe TJRJ'),
+                array('label' => 'Data Distribuição', 'field' => 'distribution_date', 'value' => $case['distribution_date'] ?? '', 'type' => 'date', 'placeholder' => ''),
+                array('label' => 'Prazo / Deadline', 'field' => 'deadline', 'value' => $case['deadline'] ?? '', 'type' => 'date', 'placeholder' => ''),
+                array('label' => 'Link Google Drive', 'field' => 'drive_folder_url', 'value' => $case['drive_folder_url'] ?? '', 'type' => 'url', 'placeholder' => 'https://drive.google.com/...'),
+            );
+            foreach ($camposProcesso as $cp):
+            ?>
+            <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row">
+                <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;"><?= $cp['label'] ?></label>
+                <input type="<?= $cp['type'] ?>" value="<?= e($cp['value']) ?>"
+                       data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
+                       onchange="salvarCampoProcesso(this)"
+                       placeholder="<?= e($cp['placeholder']) ?>"
+                       style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
+                       onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
+                       onblur="this.style.background='transparent'">
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <!-- Segredo de justiça -->
+        <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">Segredo de Justiça</label>
+            <input type="checkbox" <?= !empty($case['segredo_justica']) ? 'checked' : '' ?>
+                   onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.checked?'1':'0'})"
+                   style="width:16px;height:16px;">
+            <span style="font-size:.72rem;color:var(--text-muted);"><?= !empty($case['segredo_justica']) ? 'Sim' : 'Não' ?></span>
+        </div>
+        <!-- Observações -->
+        <div style="padding:.45rem .6rem;border-top:1px solid var(--border);">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.3rem;">Observações</label>
+            <textarea data-id="<?= $caseId ?>" data-field="notes"
+                      onchange="salvarCampoProcesso(this)"
+                      placeholder="Observações internas..."
+                      style="width:100%;border:1px solid var(--border);background:transparent;font-size:.82rem;color:var(--text);padding:.4rem .6rem;font-family:inherit;border-radius:6px;resize:vertical;min-height:40px;"
+                      onfocus="this.style.borderColor='#3b82f6'"
+                      onblur="this.style.borderColor='var(--border)'"><?= e($case['notes'] ?? '') ?></textarea>
+        </div>
+    </div>
+</div>
+
 <!-- Checklist de Tarefas -->
 <div class="card mb-2">
     <div class="card-header">
@@ -938,15 +994,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Observações -->
-<?php if ($case['notes']): ?>
-<div class="card">
-    <div class="card-header"><h3>Observações</h3></div>
-    <div class="card-body">
-        <p style="white-space:pre-wrap;font-size:.88rem;"><?= e($case['notes']) ?></p>
-    </div>
-</div>
-<?php endif; ?>
 
 <script>
 
@@ -1025,6 +1072,38 @@ function logWhatsApp(andamentoId) {
         }
     };
     xhr.send('action=log_whatsapp_andamento&andamento_id=' + andamentoId + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
+}
+
+// ── Edição inline campos do processo ──
+var _cvCsrf = '<?= generate_csrf_token() ?>';
+function salvarCampoProcesso(el) {
+    var id = el.dataset ? el.dataset.id : el.id;
+    var field = el.dataset ? el.dataset.field : '';
+    var value = el.value !== undefined ? el.value : '';
+    if (!id || !field) return;
+
+    var fd = new FormData();
+    fd.append('action', 'inline_edit_case');
+    fd.append('case_id', id);
+    fd.append('field', field);
+    fd.append('value', value);
+    fd.append('<?= CSRF_TOKEN_NAME ?>', _cvCsrf);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.csrf) _cvCsrf = r.csrf;
+            if (r.ok) {
+                if (el.style) { el.style.background = '#ecfdf5'; setTimeout(function(){ el.style.background = 'transparent'; }, 1000); }
+            } else if (r.error) {
+                alert('Erro: ' + r.error);
+            }
+        } catch(e) {}
+    };
+    xhr.send(fd);
 }
 
 // ── Publicacoes ──
