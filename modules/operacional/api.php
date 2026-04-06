@@ -586,6 +586,159 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'add_publicacao':
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+
+        $caseId    = (int)($_POST['case_id'] ?? 0);
+        $dataDisp  = $_POST['data_disponibilizacao'] ?? date('Y-m-d');
+        $dataPub   = $_POST['data_publicacao'] ?? null;
+        $conteudo  = trim($_POST['conteudo'] ?? '');
+        $caderno   = trim($_POST['caderno'] ?? '');
+        $tribunal  = trim($_POST['tribunal'] ?? '');
+        $tipoPub   = $_POST['tipo_publicacao'] ?? 'intimacao';
+        $prazoDias = (int)($_POST['prazo_dias'] ?? 0);
+        $visivel   = (int)($_POST['visivel_cliente'] ?? 0);
+        $userId    = current_user_id();
+
+        if (!$caseId || !$conteudo) {
+            flash_set('error', 'Preencha o conteudo da publicacao.');
+            redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+            exit;
+        }
+
+        // 1. Calcular prazo_fim em dias uteis
+        $dataFim = null;
+        if ($prazoDias > 0) {
+            try {
+                // Usar funcao do sistema se disponivel
+                if (function_exists('calcular_prazo_completo')) {
+                    $resCalc = calcular_prazo_completo($dataDisp, $prazoDias, 'dias', null);
+                    $dataFim = isset($resCalc['data_fatal']) ? $resCalc['data_fatal'] : null;
+                } else {
+                    // Fallback: contar dias uteis manualmente
+                    $atual = new DateTime($dataDisp);
+                    $atual->modify('+1 day');
+                    $contagem = 0;
+                    while ($contagem < $prazoDias) {
+                        $diaSemana = (int)$atual->format('N');
+                        if ($diaSemana < 6) {
+                            $contagem++;
+                        }
+                        if ($contagem < $prazoDias) {
+                            $atual->modify('+1 day');
+                        }
+                    }
+                    $dataFim = $atual->format('Y-m-d');
+                }
+            } catch (Exception $e) {
+                $dataFim = null;
+            }
+        }
+
+        // 2. Salvar publicacao
+        $stmtPub = $pdo->prepare(
+            "INSERT INTO case_publicacoes
+             (case_id, data_disponibilizacao, data_publicacao, conteudo, caderno, tribunal,
+              tipo_publicacao, fonte, prazo_dias, data_prazo_fim, status_prazo,
+              visivel_cliente, criado_por, created_at)
+             VALUES (?,?,?,?,?,?,?,'manual',?,?,?,?,?,NOW())"
+        );
+        $stmtPub->execute(array(
+            $caseId,
+            $dataDisp,
+            ($dataPub && $dataPub !== '') ? $dataPub : null,
+            $conteudo,
+            $caderno ? $caderno : null,
+            $tribunal ? $tribunal : null,
+            $tipoPub,
+            $prazoDias ? $prazoDias : null,
+            $dataFim,
+            $dataFim ? 'pendente' : 'descartado',
+            $visivel,
+            $userId
+        ));
+        $pubId = (int)$pdo->lastInsertId();
+
+        // 3. Criar tarefa automatica "PRAZO — PUBLICACAO"
+        $taskId = null;
+        if ($dataFim) {
+            try {
+                $stmtCase = $pdo->prepare("SELECT title, responsible_user_id FROM cases WHERE id = ?");
+                $stmtCase->execute(array($caseId));
+                $caso = $stmtCase->fetch();
+                $responsavel = $caso ? (int)$caso['responsible_user_id'] : $userId;
+                $tituloCase  = $caso ? $caso['title'] : 'Caso #' . $caseId;
+
+                $tipoLabel = array(
+                    'intimacao' => 'Intimacao', 'citacao' => 'Citacao',
+                    'despacho' => 'Despacho', 'decisao' => 'Decisao',
+                    'sentenca' => 'Sentenca', 'acordao' => 'Acordao',
+                    'edital' => 'Edital', 'outro' => 'Publicacao',
+                );
+                $labelTipo = isset($tipoLabel[$tipoPub]) ? $tipoLabel[$tipoPub] : 'Publicacao';
+
+                $tituloTask = 'PRAZO — ' . mb_strtoupper($labelTipo, 'UTF-8') . ' | ' . $tituloCase;
+                $descTask   = 'Prazo de ' . $prazoDias . ' dia(s) util(eis) a partir da publicacao em '
+                            . date('d/m/Y', strtotime($dataDisp))
+                            . '. Vencimento: ' . date('d/m/Y', strtotime($dataFim))
+                            . "\n\nPublicacao: " . mb_substr($conteudo, 0, 300, 'UTF-8');
+
+                // Alerta 3 dias antes
+                $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
+
+                $pdo->prepare(
+                    "INSERT INTO case_tasks (case_id, title, descricao, tipo, subtipo, due_date, prazo_alerta, status, prioridade, assigned_to, created_at)
+                     VALUES (?,?,?,'prazo','prazo_publicacao',?,?,'a_fazer','alta',?,NOW())"
+                )->execute(array($caseId, $tituloTask, $descTask, $dataFim, $prazoAlerta, $responsavel));
+                $taskId = (int)$pdo->lastInsertId();
+
+                $pdo->prepare("UPDATE case_publicacoes SET task_id = ? WHERE id = ?")
+                    ->execute(array($taskId, $pubId));
+
+                // Notificar responsavel
+                if ($responsavel && $responsavel !== $userId) {
+                    notify($responsavel, 'Novo prazo: ' . $labelTipo,
+                        'Prazo vence em ' . date('d/m/Y', strtotime($dataFim)) . ' — ' . $tituloCase,
+                        'warning', module_url('operacional', 'caso_ver.php?id=' . $caseId), '');
+                }
+                notify_gestao('Publicacao lancada: ' . $labelTipo,
+                    'Prazo ate ' . date('d/m/Y', strtotime($dataFim)) . ' — ' . $tituloCase,
+                    'warning', module_url('operacional', 'caso_ver.php?id=' . $caseId), '');
+
+            } catch (Exception $e) { /* tarefa nao criada — nao bloqueia */ }
+        }
+
+        // 4. Criar evento na agenda
+        $agendaId = null;
+        try {
+            if (!isset($caso)) {
+                $stmtCase = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
+                $stmtCase->execute(array($caseId));
+                $caso = $stmtCase->fetch();
+            }
+            $labelTipo = isset($tipoLabel[$tipoPub]) ? $tipoLabel[$tipoPub] : 'Publicacao';
+            $tituloEvento = 'Publicacao: ' . $labelTipo . ' | ' . ($caso ? $caso['title'] : 'Caso #' . $caseId);
+
+            $pdo->prepare(
+                "INSERT INTO agenda_eventos (case_id, titulo, descricao, data_inicio, data_fim, dia_todo, tipo, responsavel_id, created_by, created_at)
+                 VALUES (?,?,?,?,?,1,'prazo',?,?,NOW())"
+            )->execute(array(
+                $caseId, $tituloEvento, mb_substr($conteudo, 0, 500, 'UTF-8'),
+                $dataDisp, $dataDisp, $userId, $userId
+            ));
+            $agendaId = (int)$pdo->lastInsertId();
+
+            $pdo->prepare("UPDATE case_publicacoes SET agenda_id = ? WHERE id = ?")
+                ->execute(array($agendaId, $pubId));
+        } catch (Exception $e) { /* evento nao criado — nao bloqueia */ }
+
+        // 5. Audit log
+        audit_log('PUBLICACAO_CRIADA', 'case', $caseId, 'pub_id=' . $pubId . ' tipo=' . $tipoPub . ' prazo=' . $prazoDias . ' vence=' . ($dataFim ?: 'sem'));
+
+        flash_set('success', 'Publicacao registrada.' . ($dataFim ? ' Prazo criado para ' . date('d/m/Y', strtotime($dataFim)) . '.' : ''));
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
