@@ -288,9 +288,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;">📂</a>
-                            <?php if (has_min_role('gestao')): ?>
-                            <button type="button" onclick="event.stopPropagation();event.preventDefault();abrirMergeModal(<?= $cs['id'] ?>,'<?= e(addslashes($cs['title'])) ?>')" title="Juntar com outra pasta" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">🔗</button>
-                            <?php endif; ?>
                             <button type="button" onclick="event.stopPropagation();event.preventDefault();arquivarCard(<?= $cs['id'] ?>)" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
                         </div>
                     </div>
@@ -367,6 +364,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <?php endif; ?>
                             <?php endforeach; ?>
                             <option value="concluido" style="color:#059669;">✅ Concluído</option>
+                            <?php if (has_min_role('gestao')): ?>
+                            <option disabled>──────────</option>
+                            <option value="_merge">🔗 Juntar com outra pasta</option>
+                            <?php endif; ?>
                         </select>
                     </form>
                 </div>
@@ -760,6 +761,15 @@ function handleOpMove(select) {
     if (status === 'parceria_previdenciario') {
         _pendingOpForm = form;
         document.getElementById('parceiroModal').style.display = 'flex';
+        select.value = '';
+        return;
+    }
+
+    if (status === '_merge') {
+        var card = select.closest('.op-card') || select.closest('tr');
+        var caseId = card ? card.dataset.caseId : '';
+        var caseName = card ? card.querySelector('.op-card-name').textContent.trim() : '';
+        abrirMergeModal(caseId, caseName);
         select.value = '';
         return;
     }
