@@ -48,7 +48,7 @@ function _permission_defaults()
         'pipeline_mover_comercial' => array('admin','gestao','comercial'),
         'pipeline_mover_cx'   => array('admin','gestao','cx'),
         'operacional'         => array('admin','gestao','operacional','comercial','cx'),
-        'operacional_mover'   => array('admin','gestao','operacional'),
+        'operacional_mover'   => array('admin','gestao','operacional','comercial','cx'),
         'processos'           => array('admin','gestao','operacional','comercial','cx'),
         'prazos'              => array('admin','gestao','operacional'),
         'documentos'          => array('admin','gestao','operacional'),
