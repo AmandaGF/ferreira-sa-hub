@@ -52,7 +52,7 @@ switch ($action) {
         break;
 
     case 'update_status':
-        if (!has_min_role('gestao') && !has_role('colaborador')) { break; }
+        // Qualquer usuário logado pode mover cards no operacional
         $caseId = (int)($_POST['case_id'] ?? 0);
         $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
         $validStatuses = array('em_andamento','suspenso','arquivado','renunciamos',
@@ -452,7 +452,7 @@ switch ($action) {
         exit;
 
     case 'update_case_info':
-        if (!has_min_role('gestao')) { break; }
+        // Qualquer usuário logado pode atualizar prioridade/responsável
         $caseId = (int)($_POST['case_id'] ?? 0);
         $priority = $_POST['priority'] ?? 'normal';
         $responsibleId = (int)($_POST['responsible_user_id'] ?? 0) ?: null;
