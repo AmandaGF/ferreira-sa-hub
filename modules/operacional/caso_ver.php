@@ -133,6 +133,33 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .task-text.done { text-decoration:line-through; color:var(--text-muted); }
 .task-meta { font-size:.72rem; color:var(--text-muted); flex-shrink:0; }
 @keyframes spin { to { transform:rotate(360deg); } }
+/* Publicacoes processuais */
+.pub-item { border-left-color: #dc2626 !important; background: #fff8f8 !important; }
+.pub-item .pub-badge {
+    font-size:.58rem; background:#fef2f2; color:#dc2626;
+    padding:2px 7px; border-radius:4px; font-weight:700;
+    border:1px solid #fca5a5; display:inline-flex; align-items:center; gap:3px;
+}
+.pub-item .prazo-badge {
+    font-size:.58rem; padding:2px 7px; border-radius:4px; font-weight:700; display:inline-flex; align-items:center; gap:3px;
+}
+.pub-item .prazo-badge.pendente { background:#fef3c7; color:#d97706; border:1px solid #fcd34d; }
+.pub-item .prazo-badge.confirmado { background:#ecfdf5; color:#059669; border:1px solid #6ee7b7; }
+.pub-item .prazo-badge.descartado { background:#f1f5f9; color:#94a3b8; border:1px solid #cbd5e1; }
+.pub-item .prazo-vence {
+    font-size:.72rem; font-weight:700; color:#dc2626;
+    background:#fef2f2; padding:2px 8px; border-radius:4px;
+}
+.pub-item .prazo-vence.ok { color:#059669; background:#ecfdf5; }
+.pub-item .prazo-vence.alerta { color:#d97706; background:#fef3c7; }
+.filtro-andamentos { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:.8rem; }
+.filtro-andamentos button {
+    font-size:.72rem; padding:3px 10px; border-radius:20px;
+    border:1px solid var(--border); background:#fff; cursor:pointer;
+    transition:.15s; color:var(--text-muted); font-family:inherit;
+}
+.filtro-andamentos button.ativo { background:#052228; color:#fff; border-color:#052228; }
+.filtro-andamentos button.ativo-pub { background:#dc2626; color:#fff; border-color:#dc2626; }
 </style>
 
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
@@ -630,7 +657,76 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
     <div class="card-body">
-        <!-- Formulário de novo andamento -->
+        <!-- Formulario de publicacao -->
+        <?php if (has_min_role('operacional') || has_min_role('gestao')): ?>
+        <div style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:2px dashed #fca5a5;">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;cursor:pointer;" onclick="togglePubForm()">
+                <span style="font-size:.8rem;font-weight:700;color:#dc2626;">Lancar Publicacao / Intimacao</span>
+                <span id="pubFormArrow" style="font-size:.7rem;color:#dc2626;">&#9660;</span>
+            </div>
+            <div id="pubFormWrap" style="display:none;">
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="add_publicacao">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Disponibilizacao *</label>
+                            <input type="date" name="data_disponibilizacao" class="form-input" value="<?= date('Y-m-d') ?>" required style="width:160px;">
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Publicacao</label>
+                            <input type="date" name="data_publicacao" class="form-input" style="width:160px;">
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Tipo</label>
+                            <select name="tipo_publicacao" class="form-select" style="width:150px;" id="tipoPubSelect" onchange="sugerirPrazo(this.value)">
+                                <option value="intimacao">Intimacao</option>
+                                <option value="citacao">Citacao</option>
+                                <option value="despacho">Despacho</option>
+                                <option value="decisao">Decisao</option>
+                                <option value="sentenca">Sentenca</option>
+                                <option value="acordao">Acordao</option>
+                                <option value="edital">Edital</option>
+                                <option value="outro">Outro</option>
+                            </select>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Prazo (dias uteis)</label>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <input type="number" name="prazo_dias" id="prazoDiasInput" class="form-input" min="0" max="365" style="width:80px;" placeholder="0">
+                                <span id="prazoSugestao" style="font-size:.65rem;color:#d97706;font-weight:600;"></span>
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Tribunal</label>
+                            <input type="text" name="tribunal" class="form-input" placeholder="Ex: TJRJ" style="width:120px;" value="<?= e($case['sistema_tribunal'] ?? '') ?>">
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:2px;">
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Caderno</label>
+                            <input type="text" name="caderno" class="form-input" placeholder="Ex: Civel" style="width:120px;">
+                        </div>
+                    </div>
+                    <textarea name="conteudo" class="form-input" rows="3"
+                        placeholder="Cole aqui o texto completo da publicacao/intimacao..."
+                        required style="width:100%;font-size:.83rem;margin-bottom:.5rem;border-color:#fca5a5;"></textarea>
+                    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+                        <label style="font-size:.75rem;display:flex;align-items:center;gap:4px;cursor:pointer;">
+                            <input type="checkbox" name="visivel_cliente" value="1"> Visivel ao cliente
+                        </label>
+                        <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;">
+                            Registrar Publicacao
+                        </button>
+                        <span style="font-size:.68rem;color:var(--text-muted);">
+                            A data de disponibilizacao e o marco legal do prazo (art. 224 CPC)
+                        </span>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Formulario de novo andamento -->
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_andamento">
@@ -657,7 +753,93 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <textarea name="descricao" class="form-input" rows="2" placeholder="Descreva o andamento..." required style="width:100%;font-size:.85rem;"></textarea>
         </form>
 
-        <?php if (empty($andamentos)): ?>
+        <?php
+        // Buscar publicacoes do caso
+        $publicacoes = array();
+        try {
+            $stmtPubs = $pdo->prepare(
+                "SELECT cp.*, u.name as criado_por_nome
+                 FROM case_publicacoes cp
+                 LEFT JOIN users u ON u.id = cp.criado_por
+                 WHERE cp.case_id = ?
+                 ORDER BY cp.data_disponibilizacao DESC, cp.created_at DESC"
+            );
+            $stmtPubs->execute(array($caseId));
+            $publicacoes = $stmtPubs->fetchAll();
+        } catch (Exception $e) {}
+        ?>
+
+        <!-- Filtros da timeline -->
+        <div class="filtro-andamentos" id="filtroAndamentos">
+            <button class="ativo" onclick="filtrarTimeline('todos', this)">Todos (<?= count($andamentos) + count($publicacoes) ?>)</button>
+            <button onclick="filtrarTimeline('andamentos', this)">Andamentos (<?= count($andamentos) ?>)</button>
+            <button onclick="filtrarTimeline('publicacoes', this)" style="<?= count($publicacoes) > 0 ? 'border-color:#dc2626;color:#dc2626;' : '' ?>">
+                Publicacoes (<?= count($publicacoes) ?>)
+            </button>
+        </div>
+
+        <!-- Publicacoes na timeline -->
+        <?php if (!empty($publicacoes)): ?>
+        <div id="blocoPublicacoes" style="position:relative;padding-left:24px;">
+            <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:#fca5a5;"></div>
+            <?php foreach ($publicacoes as $pub):
+                $diasRestantes = null;
+                $classeVence = 'ok';
+                if ($pub['data_prazo_fim'] && $pub['status_prazo'] !== 'descartado') {
+                    $diasRestantes = (int)((strtotime($pub['data_prazo_fim']) - strtotime(date('Y-m-d'))) / 86400);
+                    if ($diasRestantes < 0) $classeVence = 'vencido';
+                    elseif ($diasRestantes <= 3) $classeVence = 'alerta';
+                    else $classeVence = 'ok';
+                }
+            ?>
+            <div class="andamento-item pub-item" data-tipo="publicacao" style="position:relative;margin-bottom:16px;padding-left:20px;">
+                <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:#dc2626;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;color:#fff;">P</div>
+                <div style="background:#fff8f8;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;border-left:3px solid #dc2626;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                            <span class="pub-badge"><?= e(ucfirst($pub['tipo_publicacao'])) ?></span>
+                            <span class="prazo-badge <?= e($pub['status_prazo']) ?>"><?= e(ucfirst($pub['status_prazo'])) ?></span>
+                            <?php if ($pub['data_prazo_fim'] && $pub['status_prazo'] !== 'descartado'): ?>
+                                <span class="prazo-vence <?= $classeVence ?>">
+                                    <?php if ($classeVence === 'vencido'): ?>
+                                        Vencido ha <?= abs($diasRestantes) ?> dia(s)
+                                    <?php elseif ($classeVence === 'alerta'): ?>
+                                        Vence em <?= $diasRestantes ?> dia(s)
+                                    <?php else: ?>
+                                        Vence <?= date('d/m/Y', strtotime($pub['data_prazo_fim'])) ?>
+                                    <?php endif; ?>
+                                </span>
+                            <?php endif; ?>
+                            <span style="font-size:.7rem;color:var(--text-muted);">
+                                Disponibilizado: <?= date('d/m/Y', strtotime($pub['data_disponibilizacao'])) ?>
+                                <?php if ($pub['tribunal']): ?> &middot; <?= e($pub['tribunal']) ?><?php endif; ?>
+                                <?php if ($pub['caderno']): ?> &middot; <?= e($pub['caderno']) ?><?php endif; ?>
+                            </span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            <span style="font-size:.68rem;color:var(--text-muted);"><?= e($pub['criado_por_nome'] ?? '') ?></span>
+                            <?php if ($pub['status_prazo'] === 'pendente' && (has_min_role('operacional') || has_min_role('gestao'))): ?>
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                                <input type="hidden" name="pub_id" value="<?= $pub['id'] ?>">
+                                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                                <button type="submit" style="font-size:.65rem;background:#059669;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;">Confirmar prazo</button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <p style="font-size:.83rem;margin:0;white-space:pre-wrap;line-height:1.5;color:#374151;"><?= e($pub['conteudo']) ?></p>
+                    <?php if ($pub['fonte'] !== 'manual'): ?>
+                    <div style="margin-top:4px;font-size:.65rem;color:#94a3b8;">Fonte: <?= e(strtoupper($pub['fonte'])) ?></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (empty($andamentos) && empty($publicacoes)): ?>
             <p class="text-muted text-sm" style="text-align:center;padding:1rem;">Nenhum andamento registrado.</p>
         <?php else: ?>
             <div style="position:relative;padding-left:24px;">
@@ -844,6 +1026,54 @@ function logWhatsApp(andamentoId) {
     };
     xhr.send('action=log_whatsapp_andamento&andamento_id=' + andamentoId + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
 }
+
+// ── Publicacoes ──
+function togglePubForm() {
+    var wrap = document.getElementById('pubFormWrap');
+    var arrow = document.getElementById('pubFormArrow');
+    if (wrap.style.display === 'none') {
+        wrap.style.display = 'block';
+        arrow.innerHTML = '&#9650;';
+    } else {
+        wrap.style.display = 'none';
+        arrow.innerHTML = '&#9660;';
+    }
+}
+
+var prazosSugeridos = {
+    'intimacao': 15, 'citacao': 15, 'despacho': 5,
+    'decisao': 15, 'sentenca': 15, 'acordao': 15,
+    'edital': 20, 'outro': 0
+};
+
+function sugerirPrazo(tipo) {
+    var dias = prazosSugeridos[tipo] || 0;
+    var input = document.getElementById('prazoDiasInput');
+    var sugestao = document.getElementById('prazoSugestao');
+    if (dias > 0 && input) {
+        input.value = dias;
+        sugestao.textContent = 'Sugerido: ' + dias + 'du (CPC)';
+    } else if (sugestao) {
+        sugestao.textContent = '';
+    }
+}
+
+function filtrarTimeline(filtro, btn) {
+    var btns = document.querySelectorAll('.filtro-andamentos button');
+    btns.forEach(function(b) { b.classList.remove('ativo', 'ativo-pub'); });
+    if (filtro === 'publicacoes') { btn.classList.add('ativo-pub'); }
+    else { btn.classList.add('ativo'); }
+
+    var andItems = document.querySelectorAll('.andamento-item:not(.pub-item)');
+    var pubItems = document.querySelectorAll('.andamento-item.pub-item');
+
+    andItems.forEach(function(el) { el.style.display = (filtro === 'publicacoes') ? 'none' : ''; });
+    pubItems.forEach(function(el) { el.style.display = (filtro === 'andamentos') ? 'none' : ''; });
+}
+
+// Inicializar sugestao de prazo
+var tipoPubEl = document.getElementById('tipoPubSelect');
+if (tipoPubEl) sugerirPrazo(tipoPubEl.value);
 
 function copiarNumero(el) {
     var texto = el.textContent.trim();

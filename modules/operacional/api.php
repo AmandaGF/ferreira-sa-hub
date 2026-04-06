@@ -739,6 +739,22 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'confirmar_prazo_publicacao':
+        $pubId = (int)($_POST['pub_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($pubId) {
+            try {
+                $pdo->prepare("UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ?")
+                    ->execute(array($pubId));
+                audit_log('PUBLICACAO_PRAZO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
+                flash_set('success', 'Prazo confirmado.');
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao confirmar prazo.');
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
