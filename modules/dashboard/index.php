@@ -205,6 +205,40 @@ $aniversariantes = qrows($pdo, "SELECT id, name, phone, birth_date, TIMESTAMPDIF
 $proxAniversarios = qrows($pdo, "SELECT name, DATE_FORMAT(birth_date,'%d/%m') as data_fmt, DATEDIFF(DATE_ADD(birth_date, INTERVAL TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) + IF(DATE_FORMAT(birth_date,'%m%d') <= DATE_FORMAT(CURDATE(),'%m%d'),1,0) YEAR), CURDATE()) as dias_faltam FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') != DATE_FORMAT(CURDATE(),'%m-%d') HAVING dias_faltam BETWEEN 1 AND 7 ORDER BY dias_faltam LIMIT 5");
 
 // ═══════════════════════════════════════════════════════════
+// DATAJUD: KPIs para widget
+// ═══════════════════════════════════════════════════════════
+$djKpi = array('casos_com_novidade' => 0, 'total_movimentos' => 0, 'casos_erro' => 0, 'ultima_importacao' => null);
+$djMovRecentes = array();
+try {
+    $djKpis = $pdo->prepare("
+        SELECT
+            COUNT(DISTINCT ca.case_id) as casos_com_novidade,
+            COUNT(*) as total_movimentos,
+            (SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != ''
+             AND status NOT IN ('arquivado','cancelado') AND datajud_erro IS NOT NULL AND datajud_sincronizado = 0) as casos_erro,
+            (SELECT MAX(created_at) FROM case_andamentos WHERE tipo_origem = 'datajud') as ultima_importacao
+        FROM case_andamentos ca
+        WHERE ca.tipo_origem = 'datajud'
+        AND ca.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+    ");
+    $djKpis->execute(array());
+    $djKpi = $djKpis->fetch();
+
+    $djFeed = $pdo->prepare("
+        SELECT ca.case_id, ca.tipo, ca.descricao, ca.created_at,
+               cs.title as case_title, c.name as client_name
+        FROM case_andamentos ca
+        JOIN cases cs ON cs.id = ca.case_id
+        LEFT JOIN clients c ON c.id = cs.client_id
+        WHERE ca.tipo_origem = 'datajud'
+        ORDER BY ca.created_at DESC
+        LIMIT 3
+    ");
+    $djFeed->execute(array());
+    $djMovRecentes = $djFeed->fetchAll();
+} catch (Exception $e) {}
+
+// ═══════════════════════════════════════════════════════════
 require_once APP_ROOT . '/templates/layout_start.php';
 
 // Helper: barra de comparativo
@@ -421,6 +455,37 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
     </div>
 </div>
 
+<?php if (!empty($djMovRecentes)): ?>
+<div class="dash-card" style="margin-top:.25rem;">
+    <h4 style="display:flex;align-items:center;justify-content:space-between;">
+        <span style="display:flex;align-items:center;gap:.4rem;">
+            Ultimas Movimentacoes DataJud
+            <span style="font-size:.6rem;font-weight:400;background:#eff6ff;color:#3b82f6;padding:1px 6px;border-radius:4px;">CNJ</span>
+        </span>
+        <a href="<?= module_url('admin', 'datajud_monitor.php') ?>" style="font-size:.72rem;color:#052228;font-weight:600;text-decoration:none;">Ver tudo</a>
+    </h4>
+    <?php
+    $djTipoIcons = array('movimentacao'=>'📋','despacho'=>'📤','decisao'=>'⚖️','sentenca'=>'🏛️',
+        'audiencia'=>'🎤','peticao_juntada'=>'📎','intimacao'=>'📬','citacao'=>'📨',
+        'acordo'=>'🤝','recurso'=>'📑','cumprimento'=>'✅','diligencia'=>'🔍');
+    foreach ($djMovRecentes as $dm):
+        $djIc = isset($djTipoIcons[$dm['tipo']]) ? $djTipoIcons[$dm['tipo']] : '📋';
+        $djDesc = mb_strlen($dm['descricao']) > 100 ? mb_substr($dm['descricao'], 0, 100) . '...' : $dm['descricao'];
+    ?>
+    <div style="display:flex;gap:.7rem;align-items:flex-start;padding:.6rem 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:1.1rem;line-height:1;"><?= $djIc ?></span>
+        <div style="flex:1;min-width:0;">
+            <div style="font-size:.78rem;">
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $dm['case_id']) ?>" style="font-weight:700;color:var(--petrol-900);text-decoration:none;"><?= e($dm['case_title'] ?: 'Caso #' . $dm['case_id']) ?></a>
+                <span style="color:var(--text-muted);"> &middot; <?= e($dm['client_name'] ?? '') ?></span>
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:.1rem;"><?= e($djDesc) ?> &middot; <span style="color:#3b82f6;font-weight:600;"><?= date('d/m H:i', strtotime($dm['created_at'])) ?></span></div>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <?php elseif ($tab === 'comercial'): ?>
 <!-- ═══════════════ ABA COMERCIAL ═══════════════ -->
 <div class="kpi-grid">
@@ -484,6 +549,21 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon orange">🏛️</div><div><div class="kpi-value"><?= $distribuidos ?></div><div class="kpi-label">Distribuídos <?= $mesNome ?></div><?= comparativo($distribuidos, $distribuidosAnt) ?><?= metaBar($distribuidos, $metas['distribuicoes_mes'], '100px') ?></div></a>
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">📦</div><div><div class="kpi-value"><?= $entregasMes ?></div><div class="kpi-label">Finalizados <?= $mesNome ?></div></div></a>
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">📂</div><div><div class="kpi-value"><?= $pastasAptas ?></div><div class="kpi-label">Pastas Aptas</div></div></a>
+    <a href="<?= module_url('admin', 'datajud_monitor.php') ?>" class="kpi-card" style="<?= (int)$djKpi['casos_com_novidade'] > 0 ? 'border-color:#3b82f6;' : '' ?>">
+        <div class="kpi-icon" style="background:#eff6ff;color:#3b82f6;">🔍</div>
+        <div>
+            <div class="kpi-value" style="color:#3b82f6;"><?= (int)$djKpi['casos_com_novidade'] ?></div>
+            <div class="kpi-label">Processos c/ novidade (7d)</div>
+            <?php if ((int)$djKpi['total_movimentos'] > 0): ?>
+                <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem;">
+                    <?= (int)$djKpi['total_movimentos'] ?> movimentos &middot; ultimo: <?= $djKpi['ultima_importacao'] ? date('d/m H:i', strtotime($djKpi['ultima_importacao'])) : '—' ?>
+                </div>
+            <?php endif; ?>
+            <?php if ((int)$djKpi['casos_erro'] > 0): ?>
+                <div style="font-size:.65rem;color:#dc2626;margin-top:.15rem;font-weight:600;"><?= $djKpi['casos_erro'] ?> com erro</div>
+            <?php endif; ?>
+        </div>
+    </a>
 </div>
 
 <div class="dash-grid2">
