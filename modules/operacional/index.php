@@ -858,7 +858,8 @@ function abrirDistribuicaoInteligente(card) {
                         var c = comNumero[j];
                         body += '<label style="display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:.15s;" onmouseover="this.style.borderColor=\'#059669\'" onmouseout="this.style.borderColor=\'\'">'
                             + '<input type="radio" name="distSelNum" value="' + esc(c.case_number) + '" data-court="' + esc(c.court || '') + '" style="margin-top:3px;">'
-                            + '<div><div style="font-size:.88rem;font-weight:700;font-family:monospace;color:#052228;">' + esc(c.case_number) + '</div>'
+                            + '<div><div style="font-size:.82rem;font-weight:700;color:#052228;">' + esc(c.title || '') + '</div>'
+                            + '<div style="font-size:.85rem;font-weight:600;font-family:monospace;color:#374151;">' + esc(c.case_number) + '</div>'
                             + '<div style="font-size:.72rem;color:var(--text-muted);">' + esc(c.case_type || '') + (c.court ? ' — ' + esc(c.court) : '') + '</div></div></label>';
                     }
                     body += '<label style="display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border:1px dashed var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;">'
