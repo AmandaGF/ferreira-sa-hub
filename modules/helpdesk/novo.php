@@ -77,6 +77,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Andamento automático no processo vinculado
+        if ($caseId) {
+            try {
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())"
+                )->execute(array(
+                    $caseId,
+                    date('Y-m-d'),
+                    'chamado',
+                    'CHAMADO INTERNO ABERTO - Chamado #' . $ticketId . ': ' . $title,
+                    current_user_id()
+                ));
+            } catch (Exception $e) { /* tabela pode não existir */ }
+        }
+
         audit_log('ticket_created', 'ticket', $ticketId);
         flash_set('success', 'Chamado #' . $ticketId . ' criado!');
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));

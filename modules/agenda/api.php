@@ -38,7 +38,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $sql .= " ORDER BY e.data_inicio ASC";
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        echo json_encode($stmt->fetchAll());
+        $resultados = $stmt->fetchAll();
+
+        // Incluir tarefas (case_tasks) na agenda
+        $incluirTarefas = ($_GET['incluir_tarefas'] ?? '1') !== '0';
+        if ($incluirTarefas) { try {
+            $hoje = date('Y-m-d');
+            $hojeNoIntervalo = ($hoje >= $inicio && $hoje <= $fim);
+
+            // Busca todas as tarefas ativas (não concluídas)
+            $sqlT = "SELECT ct.id as task_id, ct.title, ct.tipo as task_tipo, ct.status as task_status,
+                            ct.due_date, ct.prioridade, ct.assigned_to,
+                            ct.case_id, cs.title as case_title, cs.case_number,
+                            cl.name as client_name, cl.phone as client_phone,
+                            u.name as responsavel_name
+                     FROM case_tasks ct
+                     LEFT JOIN cases cs ON cs.id = ct.case_id
+                     LEFT JOIN clients cl ON cl.id = cs.client_id
+                     LEFT JOIN users u ON u.id = ct.assigned_to
+                     WHERE ct.status != 'concluido'
+                       AND ct.tipo IS NOT NULL AND ct.tipo != ''";
+            $paramsT = array();
+
+            if ($responsavel) {
+                $sqlT .= " AND ct.assigned_to = ?";
+                $paramsT[] = $responsavel;
+            }
+
+            $sqlT .= " ORDER BY ct.due_date ASC";
+            $stmtT = $pdo->prepare($sqlT);
+            $stmtT->execute($paramsT);
+            $todasTarefas = $stmtT->fetchAll();
+
+            // Filtrar e posicionar tarefas no calendario
+            foreach ($todasTarefas as $t) {
+                $dataExibir = $t['due_date'];
+                $atrasada = false;
+
+                if (!$dataExibir) {
+                    // Sem prazo: mostra em hoje (se hoje estiver no intervalo)
+                    if (!$hojeNoIntervalo) continue;
+                    $dataExibir = $hoje;
+                } elseif ($dataExibir < $hoje) {
+                    // Atrasada: mostra em hoje (se hoje estiver no intervalo)
+                    if (!$hojeNoIntervalo) continue;
+                    $atrasada = true;
+                    $dataExibir = $hoje;
+                } else {
+                    // Com prazo futuro: só mostra se o prazo estiver no intervalo
+                    if ($dataExibir < $inicio || $dataExibir > $fim) continue;
+                }
+
+                $tituloExibir = $t['title'];
+                if ($atrasada) {
+                    $tituloExibir = 'ATRASADA: ' . $t['title'] . ' (prazo: ' . date('d/m', strtotime($t['due_date'])) . ')';
+                } elseif (!$t['due_date']) {
+                    $tituloExibir = $t['title'] . ' (sem prazo)';
+                }
+
+                $resultados[] = array(
+                    'id' => 'task_' . $t['task_id'],
+                    'is_task' => true,
+                    'task_id' => $t['task_id'],
+                    'titulo' => $tituloExibir,
+                    'tipo' => 'tarefa',
+                    'task_tipo' => $t['task_tipo'],
+                    'task_status' => $t['task_status'],
+                    'prioridade' => $t['prioridade'],
+                    'atrasada' => $atrasada,
+                    'modalidade' => 'nao_aplicavel',
+                    'data_inicio' => $dataExibir . ' 09:00:00',
+                    'data_fim' => $dataExibir . ' 09:00:00',
+                    'dia_todo' => 1,
+                    'local' => null,
+                    'meet_link' => null,
+                    'descricao' => null,
+                    'client_id' => null,
+                    'client_name' => $t['client_name'],
+                    'client_phone' => $t['client_phone'],
+                    'case_id' => $t['case_id'],
+                    'case_title' => $t['case_title'],
+                    'case_number' => $t['case_number'],
+                    'responsavel_id' => $t['assigned_to'],
+                    'responsavel_name' => $t['responsavel_name'],
+                    'msg_cliente' => null,
+                    'status' => 'agendado',
+                    'google_event_id' => null,
+                    'participantes' => null,
+                    'created_at' => null,
+                    'updated_at' => null,
+                );
+            }
+        } catch (Exception $e) { /* tabela case_tasks pode não ter todos os campos */ } }
+
+        echo json_encode($resultados);
         exit;
     }
 

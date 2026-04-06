@@ -41,6 +41,29 @@ switch ($action) {
                 }
             }
 
+            // Andamento automático no processo vinculado ao resolver/cancelar
+            if (in_array($status, array('resolvido', 'cancelado'))) {
+                $stmtT = $pdo->prepare('SELECT title, case_id FROM tickets WHERE id = ?');
+                $stmtT->execute(array($ticketId));
+                $ticketData = $stmtT->fetch();
+                if ($ticketData && $ticketData['case_id']) {
+                    $descAndamento = ($status === 'resolvido')
+                        ? 'CHAMADO INTERNO CONCLUÍDO - Chamado #' . $ticketId . ': ' . $ticketData['title']
+                        : 'CHAMADO INTERNO CANCELADO - Chamado #' . $ticketId . ': ' . $ticketData['title'];
+                    try {
+                        $pdo->prepare(
+                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())"
+                        )->execute(array(
+                            $ticketData['case_id'],
+                            date('Y-m-d'),
+                            'chamado',
+                            $descAndamento,
+                            current_user_id()
+                        ));
+                    } catch (Exception $e) { /* tabela pode não existir */ }
+                }
+            }
+
             audit_log('ticket_updated', 'ticket', $ticketId, "status:$status priority:$priority");
             flash_set('success', 'Chamado atualizado.');
         }

@@ -19,6 +19,7 @@ $tiposMapa = array(
     'mediacao_cejusc'  => array('cor' => '#6B4C9A', 'icon' => "\u{1F91D}", 'label' => 'Mediação / CEJUSC'),
     'balcao_virtual'   => array('cor' => '#0d9488', 'icon' => "\u{1F3DB}", 'label' => 'Balcão Virtual'),
     'ligacao'          => array('cor' => '#888880', 'icon' => "\u{1F4DE}", 'label' => 'Ligação / Retorno'),
+    'tarefa'           => array('cor' => '#6366f1', 'icon' => "\u{2705}", 'label' => 'Tarefa'),
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -26,7 +27,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 /* ── VARIÁVEIS ── */
-.ag { --audiencia:#052228;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--cobre-suave:#F5EDE3; }
+.ag { --audiencia:#052228;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--tarefa:#6366f1;--cobre-suave:#F5EDE3; }
 
 /* ── TOPO ── */
 .ag-topo { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px; }
@@ -51,7 +52,7 @@ body.dark-mode .ag-nav-mes-titulo { color:var(--text); }
 .ag-filtros { display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px; }
 .ag-chip { display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--text-muted);transition:all .2s; }
 .ag-chip.ativo { color:#fff;border-color:transparent; }
-.ag-chip[data-tipo="audiencia"].ativo{background:var(--audiencia)}.ag-chip[data-tipo="reuniao_cliente"].ativo{background:var(--reuniao)}.ag-chip[data-tipo="prazo"].ativo{background:var(--prazo)}.ag-chip[data-tipo="onboarding"].ativo{background:var(--onboarding)}.ag-chip[data-tipo="reuniao_interna"].ativo{background:var(--interna)}.ag-chip[data-tipo="mediacao_cejusc"].ativo{background:var(--mediacao)}.ag-chip[data-tipo="balcao_virtual"].ativo{background:var(--balcao)}.ag-chip[data-tipo="ligacao"].ativo{background:var(--ligacao)}
+.ag-chip[data-tipo="audiencia"].ativo{background:var(--audiencia)}.ag-chip[data-tipo="reuniao_cliente"].ativo{background:var(--reuniao)}.ag-chip[data-tipo="prazo"].ativo{background:var(--prazo)}.ag-chip[data-tipo="onboarding"].ativo{background:var(--onboarding)}.ag-chip[data-tipo="reuniao_interna"].ativo{background:var(--interna)}.ag-chip[data-tipo="mediacao_cejusc"].ativo{background:var(--mediacao)}.ag-chip[data-tipo="balcao_virtual"].ativo{background:var(--balcao)}.ag-chip[data-tipo="ligacao"].ativo{background:var(--ligacao)}.ag-chip[data-tipo="tarefa"].ativo{background:var(--tarefa)}
 .ag-chip-dot { width:8px;height:8px;border-radius:50%; }
 
 /* ── CALENDÁRIO MENSAL ── */
@@ -131,7 +132,7 @@ body.dark-mode .ag-fi { background:var(--bg-secondary);color:var(--text);border-
 .ag-tipo-btn .te { font-size:16px;display:block;margin-bottom:2px; }
 .ag-tipo-btn:hover { border-color:var(--rose); }
 .ag-tipo-btn.sel { color:#fff;border-color:transparent; }
-.ag-tipo-btn.sel[data-t="audiencia"]{background:var(--audiencia)}.ag-tipo-btn.sel[data-t="reuniao_cliente"]{background:var(--reuniao)}.ag-tipo-btn.sel[data-t="prazo"]{background:var(--prazo)}.ag-tipo-btn.sel[data-t="onboarding"]{background:var(--onboarding)}.ag-tipo-btn.sel[data-t="reuniao_interna"]{background:var(--interna)}.ag-tipo-btn.sel[data-t="mediacao_cejusc"]{background:var(--mediacao)}.ag-tipo-btn.sel[data-t="balcao_virtual"]{background:var(--balcao)}.ag-tipo-btn.sel[data-t="ligacao"]{background:var(--ligacao)}
+.ag-tipo-btn.sel[data-t="audiencia"]{background:var(--audiencia)}.ag-tipo-btn.sel[data-t="reuniao_cliente"]{background:var(--reuniao)}.ag-tipo-btn.sel[data-t="prazo"]{background:var(--prazo)}.ag-tipo-btn.sel[data-t="onboarding"]{background:var(--onboarding)}.ag-tipo-btn.sel[data-t="reuniao_interna"]{background:var(--interna)}.ag-tipo-btn.sel[data-t="mediacao_cejusc"]{background:var(--mediacao)}.ag-tipo-btn.sel[data-t="balcao_virtual"]{background:var(--balcao)}.ag-tipo-btn.sel[data-t="ligacao"]{background:var(--ligacao)}.ag-tipo-btn.sel[data-t="tarefa"]{background:var(--tarefa)}
 .ag-meet-box { background:var(--cobre-suave);border:1px solid rgba(184,115,51,.2);border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px; }
 body.dark-mode .ag-meet-box { background:rgba(184,115,51,.15); }
 .ag-meet-box p { font-size:12px;color:#5a3a00;margin:0; }
@@ -372,9 +373,9 @@ var hoje = new Date();
 var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-var CORES = {audiencia:'#052228',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880'};
-var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação'};
-var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}"};
+var CORES = {audiencia:'#052228',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1'};
+var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa'};
+var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705"};
 
 // ── INIT ────────────────────────────────────────────────────
 mesAtual = hoje.getMonth();
@@ -497,11 +498,18 @@ function renderCalendario() {
             evsDia.slice(0, max).forEach(function(ev) {
                 var evDiv = document.createElement('div');
                 evDiv.className = 'ag-cal-ev';
-                evDiv.style.background = CORES[ev.tipo] || '#888';
+                evDiv.style.background = (ev.atrasada ? '#dc2626' : CORES[ev.tipo]) || '#888';
                 var hr = ev.dia_todo == 1 ? '' : ev.data_inicio.substring(11,16) + ' ';
                 evDiv.textContent = hr + ev.titulo;
                 evDiv.title = ev.titulo;
-                evDiv.onclick = function(e) { e.stopPropagation(); abrirModalEditar(ev.id); };
+                evDiv.onclick = function(e) {
+                    e.stopPropagation();
+                    if (ev.is_task) {
+                        window.location.href = '<?= module_url("tarefas") ?>';
+                    } else {
+                        abrirModalEditar(ev.id);
+                    }
+                };
                 div.appendChild(evDiv);
             });
             if (evsDia.length > max) {
@@ -565,12 +573,18 @@ function renderSemanal() {
                 var durMin = (evFim - evDt) / 60000;
                 var evDiv = document.createElement('div');
                 evDiv.className = 'ag-sem-ev';
-                evDiv.style.background = CORES[ev.tipo] || '#888';
+                evDiv.style.background = (ev.atrasada ? '#dc2626' : CORES[ev.tipo]) || '#888';
                 evDiv.style.top = '2px';
                 evDiv.style.height = Math.min(Math.max(durMin / 60 * 56 - 4, 16), 112) + 'px';
                 evDiv.textContent = ev.titulo;
                 evDiv.title = ev.titulo + ' (' + ev.data_inicio.substring(11,16) + ')';
-                evDiv.onclick = function() { abrirModalEditar(ev.id); };
+                evDiv.onclick = function() {
+                    if (ev.is_task) {
+                        window.location.href = '<?= module_url("tarefas") ?>';
+                    } else {
+                        abrirModalEditar(ev.id);
+                    }
+                };
                 cel.appendChild(evDiv);
             });
 
@@ -614,28 +628,57 @@ function renderLista() {
         var fimObj = ev.data_fim ? new Date(ev.data_fim.replace(' ', 'T')) : null;
         var durMin = fimObj ? Math.round((fimObj - dtObj) / 60000) : '';
         var durStr = durMin ? durMin + 'min' : '';
+        var isTask = ev.is_task || false;
+        var isAtrasada = ev.atrasada || false;
+        if (isAtrasada) cor = '#dc2626';
         var meetHtml = ev.meet_link ? '<button class="ag-btn-acao meet" onclick="window.open(\'' + ev.meet_link + '\',\'_blank\')">Entrar no Meet</button>' : '';
         var msgHtml = ev.client_id ? '<button class="ag-btn-acao" onclick="enviarMsgCliente(' + ev.id + ')">Mensagem cliente</button>' : '';
+
+        var acoesHtml = '';
+        if (isTask) {
+            var taskUrl = '<?= module_url("tarefas") ?>';
+            acoesHtml = '<button class="ag-btn-acao" onclick="window.location.href=\'' + taskUrl + '\'">Abrir Tarefas</button>';
+            if (ev.case_id) {
+                var casoUrl = '<?= module_url("operacional", "caso_ver.php?id=") ?>' + ev.case_id;
+                acoesHtml += '<button class="ag-btn-acao" onclick="window.location.href=\'' + casoUrl + '\'">Ver Processo</button>';
+            }
+        } else {
+            acoesHtml = meetHtml + msgHtml
+                + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
+                + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>'
+                + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
+                + '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>';
+        }
+
+        var prioHtml = '';
+        if (isTask && ev.prioridade) {
+            var prioCores = {urgente:'#dc2626',alta:'#f59e0b',normal:'#6b7280',baixa:'#94a3b8'};
+            var prioLabels = {urgente:'Urgente',alta:'Alta',normal:'Normal',baixa:'Baixa'};
+            prioHtml = '<span style="color:' + (prioCores[ev.prioridade]||'#6b7280') + ';">' + (prioLabels[ev.prioridade]||ev.prioridade) + '</span>';
+        }
+
+        var statusHtml = '';
+        if (isTask && ev.task_status) {
+            var stLabels = {a_fazer:'A fazer',em_andamento:'Em andamento',aguardando:'Aguardando'};
+            statusHtml = '<span>' + (stLabels[ev.task_status]||ev.task_status) + '</span>';
+        }
 
         return '<div class="ag-lista-item">' +
             '<div class="ag-lista-hora">' + hr + '</div>' +
             '<div class="ag-lista-linha"><div class="ag-lista-dot" style="background:' + cor + '"></div>' +
             (i < evsFilt.length-1 ? '<div class="ag-lista-fio"></div>' : '') + '</div>' +
             '<div class="ag-lista-card" style="border-left-color:' + cor + '">' +
-            '<div class="ag-lc-topo"><div class="ag-lc-titulo">' + esc(ev.titulo) + '</div>' +
+            '<div class="ag-lc-topo"><div class="ag-lc-titulo">' + (isTask ? '\u2705 ' : '') + esc(ev.titulo) + '</div>' +
             '<div class="ag-lc-badge" style="background:' + cor + '">' + label + '</div></div>' +
             '<div class="ag-lc-info">' +
-            (ev.dia_todo != 1 ? '<span>🕐 ' + hr + (durStr ? ' · ' + durStr : '') + '</span>' : '') +
-            (ev.meet_link ? '<span>🎥 Google Meet</span>' : '') +
-            (ev.responsavel_name ? '<span>👤 ' + esc(ev.responsavel_name) + '</span>' : '') +
-            (ev.client_name ? '<span>📋 ' + esc(ev.client_name) + '</span>' : '') +
+            (ev.dia_todo != 1 ? '<span>\uD83D\uDD50 ' + hr + (durStr ? ' \u00b7 ' + durStr : '') + '</span>' : '') +
+            (ev.meet_link ? '<span>\uD83C\uDFA5 Google Meet</span>' : '') +
+            (ev.responsavel_name ? '<span>\uD83D\uDC64 ' + esc(ev.responsavel_name) + '</span>' : '') +
+            (ev.client_name ? '<span>\uD83D\uDCCB ' + esc(ev.client_name) + '</span>' : '') +
+            (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + '</span>' : '') +
+            prioHtml + statusHtml +
             '</div>' +
-            '<div class="ag-lc-acoes">' + meetHtml + msgHtml +
-            (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '') +
-            '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>' +
-            '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>' +
-            '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>' +
-            '</div></div></div>';
+            '<div class="ag-lc-acoes">' + acoesHtml + '</div></div></div>';
     }).join('');
 }
 
