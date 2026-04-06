@@ -331,7 +331,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         }
 
-        flash_set('success', $importados . ' publicacao(oes) importada(s).' . (!empty($erros) ? ' ' . count($erros) . ' ignorada(s).' : ''));
+        flash_set('success', $importados . ' publicação(ões) importada(s).' . (!empty($erros) ? ' ' . count($erros) . ' ignorada(s).' : ''));
         if (!empty($erros)) { $_SESSION['djen_erros'] = $erros; }
         redirect(module_url('admin', 'djen_importar.php'));
         exit;
@@ -342,7 +342,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 $clientes = array();
 try { $clientes = $pdo->query("SELECT id, name, cpf FROM clients ORDER BY name")->fetchAll(); } catch (Exception $e) {}
 
-$pageTitle = 'Importar Publicacoes DJen';
+$pageTitle = 'Importar Publicações DJen';
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -375,7 +375,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="djen-wrap">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.2rem;flex-wrap:wrap;gap:.8rem;">
         <div>
-            <h2 style="margin:0;font-size:1.3rem;color:var(--petrol-900);">Importar Publicacoes DJen</h2>
+            <h2 style="margin:0;font-size:1.3rem;color:var(--petrol-900);">Importar Publicações DJen</h2>
             <p style="margin:.2rem 0 0;font-size:.8rem;color:var(--text-muted);">Cole o texto copiado do portal DJen — o sistema identifica e vincula automaticamente</p>
         </div>
         <a href="<?= module_url('admin', 'datajud_monitor.php') ?>" class="btn btn-outline btn-sm">Monitor DataJud</a>
@@ -389,7 +389,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     ?>
     <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:.8rem;">
         <div style="font-size:.8rem;font-weight:700;color:#3b82f6;margin-bottom:.3rem;">
-            <?= count($ignoradas) ?> publicacao(oes) ja existiam e foram ignoradas:
+            <?= count($ignoradas) ?> publicação(ões) já existiam e foram ignoradas:
         </div>
         <?php foreach ($ignoradas as $ig): ?>
             <div style="font-size:.72rem;color:#3b82f6;"><?= e(str_replace('ignorada:', '', $ig)) ?></div>
@@ -415,9 +415,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 rows="10" style="width:100%;font-size:.78rem;font-family:monospace;resize:vertical;"
                 placeholder="Cole aqui o texto completo copiado do portal comunica.pje.jus.br..."></textarea>
             <div style="display:flex;gap:.6rem;align-items:center;margin-top:.6rem;flex-wrap:wrap;">
-                <button type="submit" class="btn btn-primary btn-sm">Identificar Publicacoes</button>
+                <button type="submit" class="btn btn-primary btn-sm">Identificar Publicações</button>
                 <button type="button" onclick="document.getElementById('textoDjen').value=''" class="btn btn-outline btn-sm">Limpar</button>
-                <span style="font-size:.72rem;color:var(--text-muted);">O sistema vai identificar cada processo e vincular as pastas automaticamente</span>
+                <span style="font-size:.72rem;color:var(--text-muted);">O sistema vai identificar cada processo e vincular às pastas automaticamente</span>
             </div>
         </form>
     </div>
@@ -431,7 +431,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     ?>
     <div class="djen-card">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.6rem;">
-            <h3 style="margin:0;font-size:.95rem;">2. Revisar e Importar (<?= count($resultado) ?> publicacoes)</h3>
+            <h3 style="margin:0;font-size:.95rem;">2. Revisar e Importar (<?= count($resultado) ?> publicações)</h3>
             <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
                 <span class="stat-pill verde"><?= $qtdEncontrados ?> com pasta</span>
                 <span class="stat-pill amarelo"><?= $qtdNaoEncontrados ?> sem pasta</span>
@@ -440,7 +440,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <button type="button" class="stat-pill" id="btnMostrarDups"
                         style="background:#eff6ff;color:#3b82f6;border:none;cursor:pointer;font-family:inherit;"
                         onclick="toggleDuplicatas()">
-                        <?= $qtdJaImportadas ?> ja importada(s) — clique para ver
+                        <?= $qtdJaImportadas ?> já importada(s) — clique para ver
                     </button>
                 <?php endif; ?>
             </div>
@@ -477,14 +477,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
                             <span class="numero"><?= e($pub['numero_processo']) ?></span>
                             <?php if ($jaImportada): ?>
-                                <span class="case-badge" style="background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;">Ja importada</span>
+                                <span class="case-badge" style="background:#eff6ff;color:#3b82f6;border:1px solid #bfdbfe;">Já importada</span>
                             <?php endif; ?>
                             <?php if ($encontrado): ?>
                                 <span class="case-badge ok"><?= e($pub['case_title']) ?> — <?= e($pub['client_name']) ?></span>
                             <?php elseif ($pub['segredo']): ?>
-                                <span class="case-badge seg">Segredo de Justica</span>
+                                <span class="case-badge seg">Segredo de Justiça</span>
                             <?php else: ?>
-                                <span class="case-badge warn">Pasta nao encontrada</span>
+                                <span class="case-badge warn">Pasta não encontrada</span>
                             <?php endif; ?>
                             <span style="font-size:.68rem;color:var(--text-muted);">
                                 <?= e(ucfirst($pub['tipo_comunicacao'])) ?> &middot; <?= date('d/m/Y', strtotime($pub['data_disp'])) ?>
@@ -512,7 +512,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <span style="font-size:.72rem;font-weight:700;color:<?= $pub['data_fim'] ? '#dc2626' : 'var(--text-muted)' ?>;" id="labelFim<?= $idx ?>">
                                 <?= $pub['data_fim'] ? 'Vence: ' . date('d/m/Y', strtotime($pub['data_fim'])) : 'Sem prazo' ?>
                             </span>
-                            <label style="font-size:.72rem;color:var(--text-muted);font-weight:600;margin-left:.5rem;">Responsavel:</label>
+                            <label style="font-size:.72rem;color:var(--text-muted);font-weight:600;margin-left:.5rem;">Responsável:</label>
                             <select name="itens[<?= $idx ?>][responsavel]" style="font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;">
                                 <?php foreach ($usuarios as $u): ?>
                                 <option value="<?= $u['id'] ?>" <?= ($u['id'] == ($pub['responsavel'] ?? $userId)) ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option>
@@ -559,7 +559,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div style="display:flex;gap:.8rem;align-items:center;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
                 <button type="submit" class="btn btn-primary" onclick="return confImport()">Importar Selecionados</button>
-                <span style="font-size:.78rem;color:var(--text-muted);">Prazos e tarefas serao criados automaticamente</span>
+                <span style="font-size:.78rem;color:var(--text-muted);">Prazos e tarefas serão criados automaticamente</span>
             </div>
         </form>
     </div>
@@ -609,8 +609,8 @@ function recalcFim(idx, dias, dataInicio) {
 }
 function confImport() {
     var sel = document.querySelectorAll('.cb-pub:checked').length;
-    if (!sel) { alert('Selecione ao menos uma publicacao.'); return false; }
-    return confirm('Importar ' + sel + ' publicacao(oes)?\nPrazos e tarefas serao criados automaticamente.');
+    if (!sel) { alert('Selecione ao menos uma publica\u00e7\u00e3o.'); return false; }
+    return confirm('Importar ' + sel + ' publica\u00e7\u00e3o(\u00f5es)?\nPrazos e tarefas serão criados automaticamente.');
 }
 
 // Duplicatas
@@ -623,8 +623,8 @@ function toggleDuplicatas() {
     var btn = document.getElementById('btnMostrarDups');
     if (btn) {
         btn.textContent = dupsVisiveis
-            ? 'Ocultar ja importadas'
-            : document.querySelectorAll('.pub-row.ja-importada').length + ' ja importada(s) — clique para ver';
+            ? 'Ocultar já importadas'
+            : document.querySelectorAll('.pub-row.ja-importada').length + ' já importada(s) — clique para ver';
     }
 }
 
