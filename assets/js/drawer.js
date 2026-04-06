@@ -107,6 +107,7 @@ if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';
 bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
 if(s)bt+='<button onclick="window._cdArchive()" style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Arquivar</button> ';
+if(s&&D.can_comercial)bt+='<button onclick="window._cdMerge()" style="background:#5B2D8E;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Juntar</button> ';
 bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Excluir</button>';
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
@@ -197,6 +198,53 @@ var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');x.
 x.onload=function(){cdClose();location.reload()};
 x.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''))};
 
+
+window._cdMerge=function(){
+if(!D.case_id){alert('Este card nao tem processo vinculado.');return}
+// Buscar outros casos do mesmo cliente
+var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');
+x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){
+try{
+var r=JSON.parse(x.responseText);
+var casos=r.casos||[];
+if(!casos.length){alert('Nenhum outro caso deste cliente para juntar.');return}
+// Montar modal inline
+var opts='';
+for(var i=0;i<casos.length;i++){
+var c=casos[i];
+opts+='<option value="'+c.id+'">'+c.title+(c.case_number?' — '+c.case_number:'')+ ' ['+c.status+']</option>';
+}
+var caseTitulo=D.caso?D.caso.title:'Caso #'+D.case_id;
+var html='<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center" id="mergeOverlay">'
++'<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
++'<h3 style="font-size:1rem;font-weight:700;color:#5B2D8E;margin:0 0 .5rem">Juntar com outra pasta</h3>'
++'<p style="font-size:.78rem;color:#6b7280;margin:0 0 .5rem">O caso selecionado sera <b>absorvido</b> por: <b>'+caseTitulo+'</b></p>'
++'<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Caso a ser absorvido</label>'
++'<select id="mergeSelDr" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"><option value="">— Selecionar —</option>'+opts+'</select></div>'
++'<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Novo titulo (opcional)</label>'
++'<input type="text" id="mergeTitDr" value="'+caseTitulo+'" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"></div>'
++'<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.4rem .6rem;margin-bottom:.6rem;font-size:.72rem;color:#dc2626;font-weight:600">Esta acao nao pode ser desfeita.</div>'
++'<div style="display:flex;gap:.4rem;justify-content:flex-end">'
++'<button onclick="document.getElementById(\'mergeOverlay\').remove()" style="padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem">Cancelar</button>'
++'<button onclick="window._cdMergeConfirm()" style="padding:.4rem 1rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:700">Confirmar</button>'
++'</div></div></div>';
+document.body.insertAdjacentHTML('beforeend',html);
+}catch(e){alert('Erro ao carregar casos')}
+};
+x.send('action=buscar_casos_cliente&case_id='+D.case_id+'&csrf_token='+(D.csrf||''));
+};
+
+window._cdMergeConfirm=function(){
+var sel=document.getElementById('mergeSelDr');
+var tit=document.getElementById('mergeTitDr');
+if(!sel||!sel.value){if(sel)sel.style.borderColor='#ef4444';return}
+if(!confirm('Tem certeza? O caso selecionado sera absorvido e arquivado. Esta acao NAO pode ser desfeita.'))return;
+var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
+function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
+af('csrf_token',D.csrf||'');af('action','merge_cases');af('case_principal',D.case_id);af('case_absorvido',sel.value);af('novo_titulo',tit?tit.value:'');
+document.body.appendChild(form);form.submit();
+};
 
 window._cdDelete=function(){
 var msg='Remover este card do fluxo?\n\n';
