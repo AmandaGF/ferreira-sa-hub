@@ -37,6 +37,23 @@ if ($search) {
 
 $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+// Ordenação
+$sortParam = $_GET['sort'] ?? '';
+$sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
+$validSorts = array(
+    'id' => 't.id',
+    'titulo' => 't.title',
+    'prioridade' => "FIELD(t.priority,'urgente','normal','baixa')",
+    'status' => "FIELD(t.status,'aberto','em_andamento','aguardando','resolvido','cancelado')",
+    'data' => 't.created_at',
+    'atualizado' => 't.updated_at',
+);
+if ($sortParam && isset($validSorts[$sortParam])) {
+    $orderBy = $validSorts[$sortParam] . ' ' . $sortDir;
+} else {
+    $orderBy = "FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC";
+}
+
 $stmt = $pdo->prepare(
     "SELECT t.*, u.name as requester_name,
      GROUP_CONCAT(u2.name SEPARATOR ', ') as assignees,
@@ -47,7 +64,7 @@ $stmt = $pdo->prepare(
      LEFT JOIN users u2 ON u2.id = ta.user_id
      $whereStr
      GROUP BY t.id
-     ORDER BY FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC
+     ORDER BY $orderBy
      LIMIT 100"
 );
 $stmt->execute($params);
@@ -191,10 +208,31 @@ function filtrarHelpdesk(param, value) {
 <div class="card">
     <div class="table-wrapper">
         <table>
-            <thead><tr><th>#</th><th>Título</th><th>Categoria</th><th>Prioridade</th><th>Status</th><th>Solicitante</th><th>Responsáveis</th><th>Msgs</th><th>Data</th></tr></thead>
+            <thead><tr>
+                <?php
+                function sortLink($col, $label, $currentSort, $currentDir, $params) {
+                    $newDir = ($currentSort === $col && $currentDir === 'ASC') ? 'desc' : 'asc';
+                    $arrow = '';
+                    if ($currentSort === $col) $arrow = $currentDir === 'ASC' ? ' ▲' : ' ▼';
+                    $p = array_merge($params, array('sort' => $col, 'dir' => $newDir));
+                    return '<a href="?' . http_build_query(array_filter($p)) . '" style="color:inherit;text-decoration:none;white-space:nowrap;">' . $label . $arrow . '</a>';
+                }
+                $sp = array('status'=>$filterStatus,'priority'=>$filterPriority,'q'=>$search,'category'=>$filterCategory,'assignee'=>$filterAssignee);
+                ?>
+                <th><?= sortLink('id','#',$sortParam,$sortDir,$sp) ?></th>
+                <th><?= sortLink('titulo','Título',$sortParam,$sortDir,$sp) ?></th>
+                <th>Categoria</th>
+                <th><?= sortLink('prioridade','Prioridade',$sortParam,$sortDir,$sp) ?></th>
+                <th><?= sortLink('status','Status',$sortParam,$sortDir,$sp) ?></th>
+                <th>Solicitante</th>
+                <th>Responsáveis</th>
+                <th>Msgs</th>
+                <th><?= sortLink('data','Abertura',$sortParam,$sortDir,$sp) ?></th>
+                <th><?= sortLink('atualizado','Atualizado',$sortParam,$sortDir,$sp) ?></th>
+            </tr></thead>
             <tbody>
                 <?php if (empty($tickets)): ?>
-                    <tr><td colspan="9" class="text-center text-muted" style="padding:2rem;">Nenhum chamado encontrado.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted" style="padding:2rem;">Nenhum chamado encontrado.</td></tr>
                 <?php else: ?>
                     <?php foreach ($tickets as $t): ?>
                     <tr>
@@ -207,6 +245,7 @@ function filtrarHelpdesk(param, value) {
                         <td class="text-sm"><?= e($t['assignees'] ?: '—') ?></td>
                         <td class="text-sm text-center"><?= $t['msg_count'] ?></td>
                         <td class="text-sm text-muted"><?= data_br($t['created_at']) ?></td>
+                        <td class="text-sm text-muted"><?= data_br($t['updated_at']) ?></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>
