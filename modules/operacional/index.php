@@ -282,7 +282,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $isOverdue = $cs['deadline'] && $cs['deadline'] < date('Y-m-d');
                     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
                 ?>
-                <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" style="border-left-color:<?= $pColor ?>;"
+                <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
@@ -480,7 +480,7 @@ sort($opTipos);
     $pLabel = isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'];
     $cid = (int)$cs['id'];
 ?>
-<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>">
+<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" data-case-id="<?= $cid ?>" data-case-number="<?= e($cs['case_number'] ?? '') ?>" data-court="<?= e($cs['court'] ?? '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>">
     <td style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cid) ?>" style="color:#999;text-decoration:none;" title="Abrir pasta"><?= $n++ ?></a>
     </td>
@@ -627,6 +627,22 @@ sort($opTipos);
         <div style="display:flex;gap:.5rem;justify-content:flex-end;">
             <button onclick="closeSuspModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
             <button onclick="confirmSuspenso()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Suspender ⏸️</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Confirmar Distribuição (caso já tem número) -->
+<div id="distConfirmModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#15803d;margin-bottom:.75rem;">Confirmar Distribuição</h3>
+        <div id="distConfirmBody"></div>
+        <div id="distConfirmCorrigir" style="display:none;margin-top:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Corrigir número do processo</label>
+            <input type="text" id="distConfirmNumero" class="form-input" style="width:100%;" placeholder="0000000-00.0000.0.00.0000">
+        </div>
+        <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
+            <button onclick="closeDistConfirm()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="submitDistConfirm()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#15803d;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar Distribuição</button>
         </div>
     </div>
 </div>
@@ -789,6 +805,162 @@ function saveCaseCell(el) {
     xhr.send(formData);
 }
 
+// ── Distribuição inteligente ──
+var _distConfirmData = {};
+
+function abrirDistribuicaoInteligente(card) {
+    if (!card) { abrirModalDistOriginal(null); return; }
+
+    var caseNumber = card.dataset.caseNumber || '';
+    var court = card.dataset.court || '';
+    var caseType = card.dataset.caseType || '';
+    var clientId = card.dataset.clientId || '0';
+    var caseId = card.dataset.caseId || '0';
+
+    // Se já tem número cadastrado → modal de confirmação
+    if (caseNumber && caseNumber.length > 5) {
+        _distConfirmData = { caseNumber: caseNumber, court: court, caseType: caseType, caseId: caseId, modo: 'confirmar' };
+        var body = '<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:1rem;margin-bottom:.75rem;">'
+            + '<div style="font-size:.8rem;font-weight:700;color:#059669;margin-bottom:.4rem;">Processo já cadastrado</div>'
+            + '<div style="font-size:1rem;font-weight:800;color:#052228;font-family:monospace;">' + esc(caseNumber) + '</div>'
+            + (court ? '<div style="font-size:.82rem;color:var(--text-muted);margin-top:.2rem;">' + esc(court) + '</div>' : '')
+            + '</div>'
+            + '<p style="font-size:.82rem;color:#374151;">Deseja confirmar a distribuição deste processo?</p>'
+            + '<a href="#" onclick="mostrarCorrigir();return false;" style="font-size:.72rem;color:#3b82f6;">Corrigir número</a>';
+        document.getElementById('distConfirmBody').innerHTML = body;
+        document.getElementById('distConfirmCorrigir').style.display = 'none';
+        document.getElementById('distConfirmModal').style.display = 'flex';
+        return;
+    }
+
+    // Se não tem número → buscar outros processos do mesmo cliente
+    if (clientId && clientId !== '0') {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            try {
+                var r = JSON.parse(xhr.responseText);
+                if (r.csrf) _opCsrf = r.csrf;
+                var casos = r.casos || [];
+                // Filtrar só os que têm número
+                var comNumero = [];
+                for (var i = 0; i < casos.length; i++) {
+                    if (casos[i].case_number && casos[i].case_number.length > 5) comNumero.push(casos[i]);
+                }
+
+                if (comNumero.length > 0) {
+                    // Mostrar lista para selecionar
+                    _distConfirmData = { caseId: caseId, modo: 'selecionar', casos: comNumero };
+                    var body = '<div style="font-size:.82rem;color:#374151;margin-bottom:.6rem;">Selecione o processo distribuído:</div>';
+                    for (var j = 0; j < comNumero.length; j++) {
+                        var c = comNumero[j];
+                        body += '<label style="display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:.15s;" onmouseover="this.style.borderColor=\'#059669\'" onmouseout="this.style.borderColor=\'\'">'
+                            + '<input type="radio" name="distSelNum" value="' + esc(c.case_number) + '" data-court="' + esc(c.court || '') + '" style="margin-top:3px;">'
+                            + '<div><div style="font-size:.88rem;font-weight:700;font-family:monospace;color:#052228;">' + esc(c.case_number) + '</div>'
+                            + '<div style="font-size:.72rem;color:var(--text-muted);">' + esc(c.case_type || '') + (c.court ? ' — ' + esc(c.court) : '') + '</div></div></label>';
+                    }
+                    body += '<label style="display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border:1px dashed var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;">'
+                        + '<input type="radio" name="distSelNum" value="_novo" style="margin-top:1px;">'
+                        + '<span style="font-size:.78rem;color:var(--text-muted);">Nenhum dos acima — digitar novo número</span></label>';
+                    document.getElementById('distConfirmBody').innerHTML = body;
+                    document.getElementById('distConfirmCorrigir').style.display = 'none';
+                    document.getElementById('distConfirmModal').style.display = 'flex';
+
+                    // Listener para mostrar campo se "novo"
+                    var radios = document.querySelectorAll('input[name="distSelNum"]');
+                    for (var k = 0; k < radios.length; k++) {
+                        radios[k].addEventListener('change', function() {
+                            document.getElementById('distConfirmCorrigir').style.display = this.value === '_novo' ? 'block' : 'none';
+                        });
+                    }
+                } else {
+                    // Nenhum processo com número → modal original
+                    abrirModalDistOriginal(card);
+                }
+            } catch(e) {
+                abrirModalDistOriginal(card);
+            }
+        };
+        xhr.send('action=buscar_casos_cliente&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=' + _opCsrf);
+    } else {
+        abrirModalDistOriginal(card);
+    }
+}
+
+function abrirModalDistOriginal(card) {
+    if (card && card.dataset.caseType) {
+        document.getElementById('procTipo').value = card.dataset.caseType;
+    }
+    toggleProcType('judicial');
+    document.getElementById('processoModal').style.display = 'flex';
+    document.getElementById('procNumero').focus();
+}
+
+function mostrarCorrigir() {
+    var el = document.getElementById('distConfirmCorrigir');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') {
+        document.getElementById('distConfirmNumero').value = _distConfirmData.caseNumber || '';
+        document.getElementById('distConfirmNumero').focus();
+    }
+}
+
+function closeDistConfirm() {
+    document.getElementById('distConfirmModal').style.display = 'none';
+    _pendingOpForm = null;
+}
+
+function submitDistConfirm() {
+    if (!_pendingOpForm) return;
+
+    var numero = '';
+    var court = '';
+
+    if (_distConfirmData.modo === 'selecionar') {
+        var sel = document.querySelector('input[name="distSelNum"]:checked');
+        if (!sel) { alert('Selecione um processo.'); return; }
+        if (sel.value === '_novo') {
+            var novoNum = document.getElementById('distConfirmNumero').value.trim();
+            if (!novoNum) { document.getElementById('distConfirmNumero').style.borderColor = '#ef4444'; return; }
+            numero = novoNum;
+        } else {
+            numero = sel.value;
+            court = sel.dataset.court || '';
+        }
+    } else {
+        // Modo confirmar (já tinha número)
+        var corrigirEl = document.getElementById('distConfirmCorrigir');
+        if (corrigirEl && corrigirEl.style.display !== 'none') {
+            numero = document.getElementById('distConfirmNumero').value.trim();
+            if (!numero) { document.getElementById('distConfirmNumero').style.borderColor = '#ef4444'; return; }
+        } else {
+            numero = _distConfirmData.caseNumber;
+            court = _distConfirmData.court || '';
+        }
+    }
+
+    document.getElementById('distConfirmModal').style.display = 'none';
+
+    // Submeter via form
+    var sel2 = _pendingOpForm.querySelector('select[name="new_status"]');
+    if (sel2) sel2.removeAttribute('name');
+
+    function addH(name, value) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = name; inp.value = value;
+        _pendingOpForm.appendChild(inp);
+    }
+    addH('new_status', 'distribuido');
+    addH('proc_numero', numero);
+    addH('proc_vara', court);
+    addH('proc_data', '<?= date("Y-m-d") ?>');
+    _pendingOpForm.submit();
+}
+
+function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
 function arquivarCard(caseId) {
     if (!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.')) return;
     var form = document.createElement('form');
@@ -845,14 +1017,8 @@ function handleOpMove(select) {
     if (status === 'distribuido') {
         _pendingOpForm = form;
         var card = select.closest('.op-card') || select.closest('tr');
-        if (card && card.dataset.caseType) {
-            document.getElementById('procTipo').value = card.dataset.caseType;
-        }
-        // Reset para judicial por padrão
-        toggleProcType('judicial');
-        document.getElementById('processoModal').style.display = 'flex';
-        document.getElementById('procNumero').focus();
         select.value = '';
+        abrirDistribuicaoInteligente(card);
         return;
     }
 
@@ -1198,9 +1364,7 @@ function confirmProcesso() {
             if (newStatus === 'distribuido') {
                 var form = dragCard.querySelector('form');
                 _pendingOpForm = form;
-                if (dragCard.dataset.caseType) document.getElementById('procTipo').value = dragCard.dataset.caseType;
-                document.getElementById('processoModal').style.display = 'flex';
-                document.getElementById('procNumero').focus();
+                abrirDistribuicaoInteligente(dragCard);
                 return;
             }
 
