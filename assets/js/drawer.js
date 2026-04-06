@@ -112,7 +112,7 @@ bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;p
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
 var tabs=['geral','comercial','operacional','docs','agenda','historico'];
-var tl={geral:'Geral',comercial:'Comercial',operacional:'Operacional',docs:'Docs',agenda:'Agenda',historico:'Hist.'};
+var tl={geral:'Geral',comercial:'Comercial',operacional:'Operacional',docs:'Doc. Faltantes',agenda:'Agenda',historico:'Hist.'};
 var th='';tabs.forEach(function(t){if(t==='comercial'&&!D.can_comercial)return;th+='<button class="ct'+(t===T?' on':'')+'" onclick="window._cdST(\''+t+'\')">'+tl[t]+'</button>'});
 document.getElementById('cdTb').innerHTML=th;
 rtab()
