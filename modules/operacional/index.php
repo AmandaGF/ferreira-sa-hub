@@ -956,6 +956,9 @@ function submitDistConfirm() {
     addH('proc_numero', numero);
     addH('proc_vara', court);
     addH('proc_data', '<?= date("Y-m-d") ?>');
+    // Atualizar CSRF no form (pode ter sido consumido pelo AJAX de buscar_casos_cliente)
+    var csrfInput = _pendingOpForm.querySelector('input[name="<?= CSRF_TOKEN_NAME ?>"]');
+    if (csrfInput) csrfInput.value = _opCsrf;
     _pendingOpForm.submit();
 }
 
