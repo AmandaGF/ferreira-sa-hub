@@ -152,9 +152,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
     <?php endif; ?>
-    <?php if (has_min_role('gestao')): ?>
-    <button onclick="abrirMergeModal()" class="btn btn-outline btn-sm" style="border-color:#5B2D8E;color:#5B2D8E;">🔗 Juntar com outra pasta</button>
-    <?php endif; ?>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="delete_case">
@@ -762,111 +759,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 <?php endif; ?>
 
-<?php if (has_min_role('gestao')): ?>
-<!-- Modal: Juntar Pastas -->
-<div id="mergeModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-        <h3 style="font-size:1rem;font-weight:700;color:#5B2D8E;margin-bottom:.75rem;">🔗 Juntar com outra pasta</h3>
-        <p style="font-size:.78rem;color:#6b7280;margin-bottom:.75rem;">Selecione o caso que sera <strong>absorvido</strong> por este. Todos os dados (andamentos, tarefas, comentarios, documentos) serao migrados para ca.</p>
-
-        <div style="margin-bottom:.75rem;">
-            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Caso a ser absorvido</label>
-            <select id="mergeAbsorvido" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" onchange="mergePreview()">
-                <option value="">— Carregando... —</option>
-            </select>
-        </div>
-
-        <div style="margin-bottom:.75rem;">
-            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Novo titulo (opcional)</label>
-            <input type="text" id="mergeTitulo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" value="<?= e($case['title']) ?>" placeholder="Titulo atualizado">
-        </div>
-
-        <div id="mergePreviewBox" style="display:none;background:#f3e8ff;border:1px solid #d8b4fe;border-radius:8px;padding:.6rem .8rem;margin-bottom:.75rem;font-size:.8rem;color:#5B2D8E;">
-        </div>
-
-        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .8rem;margin-bottom:.75rem;font-size:.72rem;color:#dc2626;font-weight:600;">
-            Esta acao nao pode ser desfeita. O caso absorvido sera arquivado permanentemente.
-        </div>
-
-        <div style="display:flex;gap:.5rem;justify-content:flex-end;">
-            <button onclick="document.getElementById('mergeModal').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
-            <button onclick="confirmarMerge()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar unificacao</button>
-        </div>
-    </div>
-</div>
-<?php endif; ?>
-
 <script>
-<?php if (has_min_role('gestao')): ?>
-// ── Merge de Pastas ──
-function abrirMergeModal() {
-    document.getElementById('mergeModal').style.display = 'flex';
-    var select = document.getElementById('mergeAbsorvido');
-    select.innerHTML = '<option value="">— Carregando... —</option>';
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
-    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    xhr.onload = function() {
-        try {
-            var r = JSON.parse(xhr.responseText);
-            select.innerHTML = '<option value="">— Selecionar caso —</option>';
-            var casos = r.casos || r || [];
-            if (Array.isArray(casos)) {
-                for (var i = 0; i < casos.length; i++) {
-                    var c = casos[i];
-                    var opt = document.createElement('option');
-                    opt.value = c.id;
-                    opt.textContent = c.title + (c.case_number ? ' — ' + c.case_number : '') + ' [' + (c.status || '') + ']';
-                    opt.dataset.title = c.title;
-                    select.appendChild(opt);
-                }
-            }
-            if (select.options.length <= 1) {
-                select.innerHTML = '<option value="">Nenhum outro caso deste cliente</option>';
-            }
-        } catch(e) { select.innerHTML = '<option value="">Erro ao carregar</option>'; }
-    };
-    xhr.send('action=buscar_casos_cliente&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
-}
-
-function mergePreview() {
-    var sel = document.getElementById('mergeAbsorvido');
-    var box = document.getElementById('mergePreviewBox');
-    if (!sel.value) { box.style.display = 'none'; return; }
-    var opt = sel.options[sel.selectedIndex];
-    var absorvido = opt.dataset.title || opt.textContent;
-    var principal = document.getElementById('mergeTitulo').value || '<?= e($case['title']) ?>';
-    box.innerHTML = '<strong>Juntar:</strong> [' + absorvido + '] → [' + principal + ']';
-    box.style.display = 'block';
-}
-
-function confirmarMerge() {
-    var absorvido = document.getElementById('mergeAbsorvido').value;
-    if (!absorvido) { document.getElementById('mergeAbsorvido').style.borderColor = '#ef4444'; return; }
-    if (!confirm('Tem certeza? Esta acao NAO pode ser desfeita. O caso selecionado sera absorvido e arquivado.')) return;
-
-    var form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '<?= module_url("operacional", "api.php") ?>';
-
-    function addField(name, value) {
-        var inp = document.createElement('input');
-        inp.type = 'hidden'; inp.name = name; inp.value = value;
-        form.appendChild(inp);
-    }
-
-    addField('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
-    addField('action', 'merge_cases');
-    addField('case_principal', '<?= $caseId ?>');
-    addField('case_absorvido', absorvido);
-    addField('novo_titulo', document.getElementById('mergeTitulo').value);
-
-    document.body.appendChild(form);
-    form.submit();
-}
-<?php endif; ?>
 
 // ── DataJud Sync ──
 function syncDataJud(btn) {

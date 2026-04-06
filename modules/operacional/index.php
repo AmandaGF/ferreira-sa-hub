@@ -288,6 +288,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;">📂</a>
+                            <?php if (has_min_role('gestao')): ?>
+                            <button type="button" onclick="event.stopPropagation();event.preventDefault();abrirMergeModal(<?= $cs['id'] ?>,'<?= e(addslashes($cs['title'])) ?>')" title="Juntar com outra pasta" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">🔗</button>
+                            <?php endif; ?>
                             <button type="button" onclick="event.stopPropagation();event.preventDefault();arquivarCard(<?= $cs['id'] ?>)" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
                         </div>
                     </div>
@@ -518,6 +521,42 @@ sort($opTipos);
         </div>
     </div>
 </div>
+
+<?php if (has_min_role('gestao')): ?>
+<!-- Modal: Juntar Pastas -->
+<div id="mergeModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#5B2D8E;margin-bottom:.75rem;">🔗 Juntar com outra pasta</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem;">O caso selecionado sera <strong>absorvido</strong> pelo caso principal. Todos os dados serao migrados.</p>
+        <div id="mergePrincipalInfo" style="background:#f3e8ff;border:1px solid #d8b4fe;border-radius:8px;padding:.5rem .8rem;margin-bottom:.75rem;font-size:.8rem;color:#5B2D8E;font-weight:600;"></div>
+
+        <input type="hidden" id="mergePrincipalId" value="">
+
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Caso a ser absorvido (vai desaparecer)</label>
+            <select id="mergeAbsorvido" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" onchange="mergePreview()">
+                <option value="">— Carregando... —</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Novo titulo (opcional)</label>
+            <input type="text" id="mergeTitulo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Titulo atualizado apos a unificacao">
+        </div>
+
+        <div id="mergePreviewBox" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.6rem .8rem;margin-bottom:.75rem;font-size:.8rem;color:#1e40af;"></div>
+
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.5rem .8rem;margin-bottom:.75rem;font-size:.72rem;color:#dc2626;font-weight:600;">
+            Esta acao nao pode ser desfeita. O caso absorvido sera arquivado permanentemente.
+        </div>
+
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+            <button onclick="closeMergeModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmarMerge()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar unificacao</button>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Modal: Suspensão -->
 <div id="suspensoModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
@@ -778,6 +817,82 @@ function confirmDocFaltante() {
         _pendingOpForm.appendChild(statusInput);
         _pendingOpForm.submit();
     }
+}
+
+// Merge de Pastas
+function abrirMergeModal(caseId, caseTitle) {
+    document.getElementById('mergePrincipalId').value = caseId;
+    document.getElementById('mergePrincipalInfo').textContent = 'Principal (permanece): ' + caseTitle;
+    document.getElementById('mergeTitulo').value = caseTitle;
+    document.getElementById('mergePreviewBox').style.display = 'none';
+    document.getElementById('mergeModal').style.display = 'flex';
+
+    var select = document.getElementById('mergeAbsorvido');
+    select.innerHTML = '<option value="">— Carregando... —</option>';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            select.innerHTML = '<option value="">— Selecionar caso —</option>';
+            var casos = r.casos || [];
+            for (var i = 0; i < casos.length; i++) {
+                var c = casos[i];
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.title + (c.case_number ? ' — ' + c.case_number : '') + ' [' + (c.status || '') + ']';
+                opt.dataset.title = c.title;
+                select.appendChild(opt);
+            }
+            if (select.options.length <= 1) {
+                select.innerHTML = '<option value="">Nenhum outro caso deste cliente</option>';
+            }
+        } catch(e) { select.innerHTML = '<option value="">Erro ao carregar</option>'; }
+    };
+    xhr.send('action=buscar_casos_cliente&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=<?= generate_csrf_token() ?>');
+}
+
+function closeMergeModal() {
+    document.getElementById('mergeModal').style.display = 'none';
+}
+
+function mergePreview() {
+    var sel = document.getElementById('mergeAbsorvido');
+    var box = document.getElementById('mergePreviewBox');
+    if (!sel.value) { box.style.display = 'none'; return; }
+    var opt = sel.options[sel.selectedIndex];
+    var absorvido = opt.dataset.title || opt.textContent;
+    var principal = document.getElementById('mergeTitulo').value || 'Caso principal';
+    box.innerHTML = '<strong>Juntar:</strong> [' + absorvido + '] → [' + principal + ']';
+    box.style.display = 'block';
+}
+
+function confirmarMerge() {
+    var absorvido = document.getElementById('mergeAbsorvido').value;
+    if (!absorvido) { document.getElementById('mergeAbsorvido').style.borderColor = '#ef4444'; return; }
+    if (!confirm('Tem certeza? Esta acao NAO pode ser desfeita. O caso selecionado sera absorvido e arquivado.')) return;
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+
+    function addField(name, value) {
+        var inp = document.createElement('input');
+        inp.type = 'hidden'; inp.name = name; inp.value = value;
+        form.appendChild(inp);
+    }
+
+    addField('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addField('action', 'merge_cases');
+    addField('case_principal', document.getElementById('mergePrincipalId').value);
+    addField('case_absorvido', absorvido);
+    addField('novo_titulo', document.getElementById('mergeTitulo').value);
+
+    document.body.appendChild(form);
+    form.submit();
 }
 
 // Suspensão
