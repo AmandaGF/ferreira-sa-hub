@@ -402,6 +402,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff; }
 .tbl-badge-sm { display:inline-block;padding:2px 8px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff; }
 .tbl-grid .cell-proc { font-size:.78rem;color:var(--petrol-500);font-weight:600; }
+.tbl-grid td.editable { cursor:text;position:relative; }
+.tbl-grid td.editable:hover { background:rgba(215,171,144,.1);outline:1px dashed var(--rose); }
+.tbl-grid td.editable:focus-within { background:#fff;outline:2px solid var(--rose); }
+.tbl-grid td.editable input, .tbl-grid td.editable select { width:100%;border:none;background:transparent;font:inherit;padding:0;outline:none; }
+.tbl-grid td.saved::after { content:'ok';position:absolute;right:4px;top:50%;transform:translateY(-50%);color:var(--success);font-size:.6rem;font-weight:700;animation:fadeout 1.5s forwards; }
+@keyframes fadeout { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
 .tbl-grid .cell-move select { font-size:.78rem;padding:4px 8px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text); }
 .tbl-grid .cell-move select:hover { border-color:var(--rose); }
 .tbl-pag { display:flex;justify-content:center;gap:4px;margin-top:1rem; }
@@ -453,14 +459,18 @@ sort($opTipos);
 <div class="tbl-wrap" style="max-height:72vh;overflow-y:auto;">
 <table class="tbl-grid" id="opTableBody">
 <thead><tr>
-    <th onclick="sortTbl('opTableBody',0)" style="width:40px;text-align:center;">#</th>
+    <th onclick="sortTbl('opTableBody',0)" style="width:30px;text-align:center;">#</th>
     <th onclick="sortTbl('opTableBody',1)">Caso</th>
-    <th onclick="sortTbl('opTableBody',2)">Tipo de Ação</th>
-    <th onclick="sortTbl('opTableBody',3)">Responsável</th>
-    <th onclick="sortTbl('opTableBody',4)">Status</th>
-    <th onclick="sortTbl('opTableBody',5)">Prioridade</th>
-    <th onclick="sortTbl('opTableBody',6)">Nº Processo</th>
-    <th onclick="sortTbl('opTableBody',7)">Cadastro</th>
+    <th onclick="sortTbl('opTableBody',2)">Cliente</th>
+    <th onclick="sortTbl('opTableBody',3)">Tipo de Acao</th>
+    <th onclick="sortTbl('opTableBody',4)">Responsavel</th>
+    <th onclick="sortTbl('opTableBody',5)">Status</th>
+    <th onclick="sortTbl('opTableBody',6)">Prioridade</th>
+    <th onclick="sortTbl('opTableBody',7)">N Processo</th>
+    <th onclick="sortTbl('opTableBody',8)">Vara / Juizo</th>
+    <th onclick="sortTbl('opTableBody',9)">Prazo</th>
+    <th onclick="sortTbl('opTableBody',10)">Observacoes</th>
+    <th onclick="sortTbl('opTableBody',11)">Cadastro</th>
     <th style="cursor:default;">Mover</th>
 </tr></thead>
 <tbody>
@@ -468,23 +478,42 @@ sort($opTipos);
     $sk = $cs['_status_key']; $ci = $columns[$sk];
     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
     $pLabel = isset($priorityLabels[$cs['priority']]) ? $priorityLabels[$cs['priority']] : $cs['priority'];
+    $cid = (int)$cs['id'];
 ?>
-<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" onclick="if(!event.target.closest('select,form'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
-    <td style="text-align:center;color:#999;font-size:.75rem;"><?= $n++ ?></td>
-    <td class="cell-name"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></td>
-    <td><?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?></td>
-    <td class="cell-resp"><?= e($cs['responsible_name'] ? explode(' ', $cs['responsible_name'])[0] : '—') ?></td>
+<tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>">
+    <td style="text-align:center;color:#999;font-size:.7rem;">
+        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cid) ?>" style="color:#999;text-decoration:none;" title="Abrir pasta"><?= $n++ ?></a>
+    </td>
+    <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)"></td>
+    <td style="font-size:.78rem;"><?= e($cs['client_name'] ?: '—') ?></td>
+    <td class="editable" style="min-width:100px;"><input value="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>" data-id="<?= $cid ?>" data-field="case_type" onchange="saveCaseCell(this)"></td>
+    <td class="editable" style="min-width:90px;">
+        <select data-id="<?= $cid ?>" data-field="responsible_user_id" onchange="saveCaseCell(this)">
+            <option value="">—</option>
+            <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= (int)$cs['responsible_user_id'] === (int)$u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
+        </select>
+    </td>
     <td><span class="tbl-badge" style="background:<?= $ci['color'] ?>;"><?= $ci['icon'] ?> <?= $ci['label'] ?></span></td>
-    <td><span class="tbl-badge-sm" style="background:<?= $pColor ?>;"><?= $pLabel ?></span></td>
-    <td class="cell-proc"><?php if (!empty($cs['case_number'])): ?><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" style="color:var(--petrol-900);text-decoration:none;"><?= e($cs['case_number']) ?></a><?php endif; ?></td>
-    <td><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
+    <td class="editable" style="min-width:80px;">
+        <select data-id="<?= $cid ?>" data-field="priority" onchange="saveCaseCell(this)">
+            <option value="normal" <?= $cs['priority'] === 'normal' ? 'selected' : '' ?>>Normal</option>
+            <option value="baixa" <?= $cs['priority'] === 'baixa' ? 'selected' : '' ?>>Baixa</option>
+            <option value="alta" <?= $cs['priority'] === 'alta' ? 'selected' : '' ?>>Alta</option>
+            <option value="urgente" <?= $cs['priority'] === 'urgente' ? 'selected' : '' ?>>Urgente</option>
+        </select>
+    </td>
+    <td class="editable" style="min-width:140px;"><input value="<?= e($cs['case_number'] ?? '') ?>" data-id="<?= $cid ?>" data-field="case_number" onchange="saveCaseCell(this)" placeholder="0000000-00.0000.0.00.0000"></td>
+    <td class="editable" style="min-width:120px;"><input value="<?= e($cs['court'] ?? '') ?>" data-id="<?= $cid ?>" data-field="court" onchange="saveCaseCell(this)" placeholder="Vara / Juizo"></td>
+    <td class="editable" style="min-width:90px;"><input type="date" value="<?= e($cs['deadline'] ?? '') ?>" data-id="<?= $cid ?>" data-field="deadline" onchange="saveCaseCell(this)"></td>
+    <td class="editable" style="min-width:130px;max-width:200px;"><input value="<?= e($cs['notes'] ?? '') ?>" data-id="<?= $cid ?>" data-field="notes" onchange="saveCaseCell(this)" placeholder="Observacoes..." title="<?= e($cs['notes'] ?? '') ?>"></td>
+    <td style="font-size:.72rem;"><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
     <td class="cell-move" onclick="event.stopPropagation();">
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="update_status">
-            <input type="hidden" name="case_id" value="<?= $cs['id'] ?>">
+            <input type="hidden" name="case_id" value="<?= $cid ?>">
             <select name="new_status" onchange="handleOpMove(this)">
-                <option value="">Mover →</option>
+                <option value="">Mover</option>
                 <?php foreach ($columns as $csk => $csv): if ($csk !== $sk): ?>
                     <option value="<?= $csk ?>"><?= $csv['icon'] ?> <?= $csv['label'] ?></option>
                 <?php endif; endforeach; ?>
@@ -732,6 +761,31 @@ sort($opTipos);
 <script>
 var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
+
+// Edição inline na tabela operacional
+function saveCaseCell(el) {
+    var id = el.dataset.id;
+    var field = el.dataset.field;
+    var value = el.value;
+    var td = el.closest('td');
+    var formData = new FormData();
+    formData.append('action', 'inline_edit_case');
+    formData.append('case_id', id);
+    formData.append('field', field);
+    formData.append('value', value);
+    formData.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.ok && td) { td.classList.add('saved'); setTimeout(function() { td.classList.remove('saved'); }, 1500); }
+            else if (r.error) { alert('Erro: ' + r.error); }
+        } catch(e) {}
+    };
+    xhr.send(formData);
+}
 
 function arquivarCard(caseId) {
     if (!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.')) return;

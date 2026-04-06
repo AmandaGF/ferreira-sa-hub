@@ -415,6 +415,37 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'inline_edit_case':
+        header('Content-Type: application/json');
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $field = $_POST['field'] ?? '';
+        $value = $_POST['value'] ?? '';
+
+        if (!$caseId || !$field) {
+            echo json_encode(array('error' => 'Dados incompletos'));
+            exit;
+        }
+
+        // Whitelist de campos editáveis
+        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','segredo_justica');
+
+        if (!in_array($field, $allowed)) {
+            echo json_encode(array('error' => 'Campo nao editavel: ' . $field));
+            exit;
+        }
+
+        $dbValue = ($value === '' || $value === '—') ? null : $value;
+
+        try {
+            $pdo->prepare("UPDATE cases SET $field = ?, updated_at = NOW() WHERE id = ?")
+                ->execute(array($dbValue, $caseId));
+            audit_log('case_inline_edit', 'case', $caseId, "$field = " . ($dbValue ?: 'NULL'));
+            echo json_encode(array('ok' => true, 'field' => $field));
+        } catch (Exception $e) {
+            echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+        }
+        exit;
+
     case 'update_case_info':
         if (!has_min_role('gestao')) { break; }
         $caseId = (int)($_POST['case_id'] ?? 0);
