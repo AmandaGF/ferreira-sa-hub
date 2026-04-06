@@ -63,21 +63,28 @@ switch ($action) {
 
             // ── DOC FALTANTE: espelhar no Pipeline Comercial/CX ──
             if ($status === 'doc_faltante') {
-                $docDesc = clean_str($_POST['doc_faltante_desc'] ?? 'Documento não especificado', 300);
+                $docDescRaw = clean_str($_POST['doc_faltante_desc'] ?? 'Documento não especificado', 1000);
+
+                // Separar por ; para criar um registro por documento
+                $docItens = array_filter(array_map('trim', explode(';', $docDescRaw)));
+                if (empty($docItens)) $docItens = array($docDescRaw);
+                $docDesc = implode('; ', $docItens); // versão limpa para espelhamento/notificação
 
                 // Salvar status anterior para retorno
                 $pdo->prepare('UPDATE cases SET status=?, stage_antes_doc_faltante=?, updated_at=NOW() WHERE id=?')
                     ->execute(array($status, $oldStatus, $caseId));
 
-                // Registrar documento pendente
+                // Registrar CADA documento pendente separadamente
                 $clientId = $currentCase ? (int)$currentCase['client_id'] : 0;
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 $leadId = $leadRow ? (int)$leadRow['id'] : null;
 
                 try {
                     if ($clientId > 0) {
-                        $pdo->prepare("INSERT INTO documentos_pendentes (client_id, case_id, lead_id, descricao, solicitado_por) VALUES (?,?,?,?,?)")
-                            ->execute(array($clientId, $caseId, $leadId, $docDesc, current_user_id()));
+                        $stmtDoc = $pdo->prepare("INSERT INTO documentos_pendentes (client_id, case_id, lead_id, descricao, solicitado_por) VALUES (?,?,?,?,?)");
+                        foreach ($docItens as $docItem) {
+                            $stmtDoc->execute(array($clientId, $caseId, $leadId, $docItem, current_user_id()));
+                        }
                     }
                 } catch (Exception $e) { /* silenciar FK errors */ }
 

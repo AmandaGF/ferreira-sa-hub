@@ -63,8 +63,7 @@ $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
-        (SELECT descricao FROM documentos_pendentes WHERE case_id = cs.id AND status = 'pendente' ORDER BY solicitado_em DESC LIMIT 1) as doc_faltante_desc
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -74,6 +73,17 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $allCases = $stmt->fetchAll();
+
+// Buscar documentos pendentes por caso (lista completa para checklist)
+$docsPendentes = array();
+try {
+    $stmtDocs = $pdo->query("SELECT id, case_id, descricao, status FROM documentos_pendentes WHERE case_id IS NOT NULL ORDER BY solicitado_em ASC");
+    foreach ($stmtDocs->fetchAll() as $doc) {
+        $cid = (int)$doc['case_id'];
+        if (!isset($docsPendentes[$cid])) $docsPendentes[$cid] = array();
+        $docsPendentes[$cid][] = $doc;
+    }
+} catch (Exception $e) { /* tabela pode não existir */ }
 
 // Agrupar por status
 // Regra: "distribuido" só aparece no Kanban no mês da distribuição.
@@ -163,7 +173,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card-deadline { font-size:.55rem; margin-top:.2rem; }
 .op-card-deadline.overdue { color:#ef4444; font-weight:700; }
 .op-card-process { font-size:.58rem; color:var(--petrol-500); font-weight:600; margin-top:.2rem; }
-.op-card-doc-alert { background:#fef2f2; border:1px solid #fecaca; border-radius:4px; padding:.2rem .4rem; font-size:.55rem; color:#dc2626; font-weight:600; margin-top:.2rem; }
+.op-card-doc-alert { background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:.3rem .4rem; font-size:.6rem; color:#dc2626; margin-top:.25rem; }
+.op-doc-item { display:flex; align-items:flex-start; gap:.2rem; padding:.1rem 0; font-weight:600; line-height:1.3; }
+.op-doc-item.recebido { color:#059669; text-decoration:none; }
+.op-doc-item.recebido s { font-weight:400; }
 
 .op-card-move { margin-top:.3rem; width:100%; font-size:.6rem; padding:.2rem .25rem; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); cursor:pointer; }
 .op-empty { text-align:center; padding:1rem .5rem; color:var(--text-muted); font-size:.7rem; }
@@ -303,8 +316,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($cs['deadline']): ?>
                         <div class="op-card-deadline <?= $isOverdue ? 'overdue' : '' ?>"><?= $isOverdue ? '⚠️ Vencido ' : '📅 ' ?><?= date('d/m', strtotime($cs['deadline'])) ?></div>
                     <?php endif; ?>
-                    <?php if ($cs['doc_faltante_desc']): ?>
-                        <div class="op-card-doc-alert">⚠️ Falta: <?= e($cs['doc_faltante_desc']) ?></div>
+                    <?php
+                    $caseDocs = isset($docsPendentes[$cs['id']]) ? $docsPendentes[$cs['id']] : array();
+                    if (!empty($caseDocs)):
+                    ?>
+                        <div class="op-card-doc-alert" onclick="event.stopPropagation();">
+                            <?php foreach ($caseDocs as $doc): ?>
+                                <div class="op-doc-item <?= $doc['status'] === 'recebido' ? 'recebido' : '' ?>">
+                                    <?php if ($doc['status'] === 'recebido'): ?>
+                                        <span title="Recebido">&#9745;</span> <s><?= e($doc['descricao']) ?></s>
+                                    <?php else: ?>
+                                        <span title="Pendente">&#9744;</span> <?= e($doc['descricao']) ?>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
                     <?php endif; ?>
 
                     <!-- Mover rápido -->
@@ -465,7 +491,8 @@ sort($opTipos);
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
         <h3 style="font-size:1rem;font-weight:700;color:#dc2626;margin-bottom:.5rem;">⚠️ Documento Faltante</h3>
         <p style="font-size:.78rem;color:#6b7280;margin-bottom:.75rem;">Descreva qual documento está faltando. O CX será notificado para providenciar.</p>
-        <textarea id="docFaltanteDesc" rows="3" style="width:100%;padding:.6rem .8rem;font-size:.88rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;resize:vertical;" placeholder="Ex: Certidão de nascimento do menor, comprovante de renda..."></textarea>
+        <p style="font-size:.7rem;color:#0ea5e9;margin-bottom:.5rem;background:#eff6ff;padding:.35rem .5rem;border-radius:6px;">Separe com <strong>;</strong> (ponto e vírgula) para criar um checklist. Ex: <em>Certidão de nascimento ; Comprovante de renda</em></p>
+        <textarea id="docFaltanteDesc" rows="3" style="width:100%;padding:.6rem .8rem;font-size:.88rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;resize:vertical;" placeholder="Ex: Certidão de nascimento ; Comprovante de renda ; RG do menor"></textarea>
         <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
             <button onclick="closeDocModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
             <button onclick="confirmDocFaltante()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Sinalizar ⚠️</button>
