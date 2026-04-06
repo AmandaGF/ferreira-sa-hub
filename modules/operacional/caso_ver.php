@@ -132,6 +132,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .task-text { flex:1; font-size:.88rem; }
 .task-text.done { text-decoration:line-through; color:var(--text-muted); }
 .task-meta { font-size:.72rem; color:var(--text-muted); flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
 </style>
 
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
@@ -611,7 +612,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card mb-2">
     <div class="card-header">
         <h3>Andamentos (<?= count($andamentos) ?>)</h3>
-        <a href="<?= module_url('operacional', 'importar_andamentos.php?case_id=' . $caseId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar LegalOne</a>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <?php if ($case['case_number']): ?>
+            <button onclick="syncDataJud(this)" class="btn btn-outline btn-sm" style="font-size:.72rem;border-color:#052228;color:#052228;" id="btnSyncDJ">Sincronizar DataJud</button>
+            <span id="djSyncStatus" style="font-size:.68rem;color:var(--text-muted);">
+                <?php if ($case['datajud_ultima_sync']): ?>
+                    Ultima sync: <?= date('d/m/Y H:i', strtotime($case['datajud_ultima_sync'])) ?>
+                <?php else: ?>
+                    Nunca sincronizado
+                <?php endif; ?>
+            </span>
+            <?php else: ?>
+            <button class="btn btn-outline btn-sm" style="font-size:.72rem;opacity:.5;" disabled title="Cadastre o numero do processo primeiro">Sincronizar DataJud</button>
+            <span style="font-size:.68rem;color:#d97706;">Cadastre o numero do processo</span>
+            <?php endif; ?>
+            <a href="<?= module_url('operacional', 'importar_andamentos.php?case_id=' . $caseId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar LegalOne</a>
+        </div>
     </div>
     <div class="card-body">
         <!-- Formulário de novo andamento -->
@@ -677,6 +693,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;"><?= $lbl ?></span>
+                                <?php
+                                $tipoOrigem = isset($and['tipo_origem']) ? $and['tipo_origem'] : 'manual';
+                                if ($tipoOrigem === 'datajud'): ?>
+                                    <span style="font-size:.58rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:700;">DataJud</span>
+                                <?php elseif ($and['tipo'] === 'chamado'): ?>
+                                    <span style="font-size:.58rem;background:#fef3c7;color:#d97706;padding:1px 5px;border-radius:3px;font-weight:700;">Chamado</span>
+                                <?php endif; ?>
                                 <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
                                 <?php
                                 $visivel = isset($and['visivel_cliente']) ? (int)$and['visivel_cliente'] : 1;
@@ -737,6 +760,58 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <script>
+// ── DataJud Sync ──
+function syncDataJud(btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid #052228;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;"></span> Sincronizando...';
+    var statusEl = document.getElementById('djSyncStatus');
+
+    var fd = new FormData();
+    fd.append('case_id', '<?= $caseId ?>');
+    fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= url("api/datajud_sync.php") ?>');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.status === 'sucesso') {
+                if (r.novos > 0) {
+                    statusEl.innerHTML = '<span style="color:#059669;font-weight:700;">' + r.novos + ' movimento(s) novo(s) importado(s)</span>';
+                    btn.innerHTML = 'Sincronizar DataJud';
+                    btn.style.background = '#059669';
+                    btn.style.color = '#fff';
+                    btn.style.borderColor = '#059669';
+                    // Recarregar para ver os novos andamentos
+                    setTimeout(function() { location.reload(); }, 1500);
+                } else {
+                    statusEl.innerHTML = '<span style="color:#3b82f6;">Nenhuma novidade desde a ultima sincronizacao</span>';
+                    btn.innerHTML = 'Sincronizar DataJud';
+                    btn.disabled = false;
+                }
+            } else if (r.status === 'nao_encontrado') {
+                statusEl.innerHTML = '<span style="color:#d97706;">Processo nao encontrado no DataJud — pode ser sigiloso ou tribunal nao coberto. Tentaremos novamente amanha.</span>';
+                btn.innerHTML = 'Sincronizar DataJud';
+                btn.disabled = false;
+            } else {
+                statusEl.innerHTML = '<span style="color:#dc2626;">Erro de comunicacao com DataJud — tente novamente</span>';
+                btn.innerHTML = 'Sincronizar DataJud';
+                btn.disabled = false;
+            }
+        } catch(e) {
+            statusEl.innerHTML = '<span style="color:#dc2626;">Erro ao processar resposta</span>';
+            btn.innerHTML = 'Sincronizar DataJud';
+            btn.disabled = false;
+        }
+    };
+    xhr.onerror = function() {
+        statusEl.innerHTML = '<span style="color:#dc2626;">Erro de rede — tente novamente</span>';
+        btn.innerHTML = 'Sincronizar DataJud';
+        btn.disabled = false;
+    };
+    xhr.send(fd);
+}
+
 function logWhatsApp(andamentoId) {
     // Registrar envio via AJAX (o link href já abre o WhatsApp)
     var xhr = new XMLHttpRequest();
