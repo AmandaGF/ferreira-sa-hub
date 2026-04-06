@@ -694,14 +694,116 @@ switch ($action) {
         // AJAX: buscar casos do mesmo cliente para vincular
         $clientId = (int)($_GET['client_id'] ?? $_POST['client_id'] ?? 0);
         $excludeId = (int)($_GET['exclude_id'] ?? $_POST['exclude_id'] ?? 0);
+        $fromCaseId = (int)($_GET['case_id'] ?? $_POST['case_id'] ?? 0);
         header('Content-Type: application/json');
-        if ($clientId) {
-            $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status FROM cases WHERE client_id = ? AND id != ? AND is_incidental = 0 ORDER BY created_at DESC LIMIT 20");
-            $stmt->execute(array($clientId, $excludeId));
-            echo json_encode($stmt->fetchAll());
-        } else {
-            echo json_encode(array());
+        // Resolver client_id a partir de case_id se necessário
+        if (!$clientId && $fromCaseId) {
+            $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+            $stmtC->execute(array($fromCaseId));
+            $rowC = $stmtC->fetch();
+            if ($rowC) { $clientId = (int)$rowC['client_id']; $excludeId = $fromCaseId; }
         }
+        if ($clientId) {
+            $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status FROM cases WHERE client_id = ? AND id != ? ORDER BY created_at DESC LIMIT 20");
+            $stmt->execute(array($clientId, $excludeId));
+            echo json_encode(array('casos' => $stmt->fetchAll()));
+        } else {
+            echo json_encode(array('casos' => array()));
+        }
+        exit;
+
+    case 'merge_cases':
+        if (!has_min_role('gestao')) {
+            flash_set('error', 'Apenas Admin e Gestao podem unificar pastas.');
+            redirect(module_url('operacional'));
+            exit;
+        }
+        $principalId = (int)($_POST['case_principal'] ?? 0);
+        $absorvidoId = (int)($_POST['case_absorvido'] ?? 0);
+        $novoTitulo = clean_str($_POST['novo_titulo'] ?? '', 200);
+
+        if (!$principalId || !$absorvidoId || $principalId === $absorvidoId) {
+            flash_set('error', 'Dados invalidos para unificacao.');
+            redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
+            exit;
+        }
+
+        // Verificar que ambos existem
+        $stmtP = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+        $stmtP->execute(array($principalId));
+        $casePrincipal = $stmtP->fetch();
+        $stmtA = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+        $stmtA->execute(array($absorvidoId));
+        $caseAbsorvido = $stmtA->fetch();
+
+        if (!$casePrincipal || !$caseAbsorvido) {
+            flash_set('error', 'Caso nao encontrado.');
+            redirect(module_url('operacional'));
+            exit;
+        }
+
+        // 1. Migrar comentarios
+        try { $pdo->prepare("UPDATE card_comments SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 2. Migrar andamentos
+        try { $pdo->prepare("UPDATE case_andamentos SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 3. Migrar tarefas
+        try { $pdo->prepare("UPDATE case_tasks SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 4. Migrar documentos pendentes
+        try { $pdo->prepare("UPDATE documentos_pendentes SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 5. Migrar partes (sem duplicar por CPF)
+        try {
+            $pdo->prepare(
+                "UPDATE case_partes SET case_id = ? WHERE case_id = ? AND NOT EXISTS (SELECT 1 FROM (SELECT cpf FROM case_partes WHERE case_id = ?) t WHERE t.cpf = case_partes.cpf AND case_partes.cpf IS NOT NULL AND case_partes.cpf != '')"
+            )->execute(array($principalId, $absorvidoId, $principalId));
+            // Remover partes restantes do absorvido (duplicatas)
+            $pdo->prepare("DELETE FROM case_partes WHERE case_id = ?")->execute(array($absorvidoId));
+        } catch (Exception $e) {}
+
+        // 6. Migrar prazos
+        try { $pdo->prepare("UPDATE prazos_processuais SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 7. Migrar agenda
+        try { $pdo->prepare("UPDATE agenda_eventos SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 8. Migrar cobrancas financeiras
+        try { $pdo->prepare("UPDATE contratos_financeiros SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 9. Atualizar lead vinculado
+        try { $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = ? WHERE linked_case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 10. Migrar processos incidentais
+        try { $pdo->prepare("UPDATE cases SET processo_principal_id = ? WHERE processo_principal_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 11. Migrar sync DataJud logs
+        try { $pdo->prepare("UPDATE datajud_sync_log SET case_id = ? WHERE case_id = ?")->execute(array($principalId, $absorvidoId)); } catch (Exception $e) {}
+
+        // 12. Atualizar titulo se fornecido
+        if ($novoTitulo) {
+            $pdo->prepare("UPDATE cases SET title = ?, updated_at = NOW() WHERE id = ?")->execute(array($novoTitulo, $principalId));
+        }
+
+        // 13. Arquivar caso absorvido
+        $obsAnterior = $caseAbsorvido['notes'] ?: '';
+        $obsNova = ($obsAnterior ? $obsAnterior . ' | ' : '') . 'Unificado ao caso #' . $principalId . ' em ' . date('d/m/Y H:i');
+        $pdo->prepare("UPDATE cases SET status = 'arquivado', closed_at = CURDATE(), notes = ?, kanban_oculto = 1, updated_at = NOW() WHERE id = ?")
+            ->execute(array($obsNova, $absorvidoId));
+
+        // 14. Registrar andamento no caso principal
+        try {
+            $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())")
+                ->execute(array($principalId, date('Y-m-d'), 'observacao', 'PASTAS UNIFICADAS — Caso "' . $caseAbsorvido['title'] . '" (#' . $absorvidoId . ') foi absorvido por esta pasta.', current_user_id()));
+        } catch (Exception $e) {}
+
+        // 15. Audit log
+        audit_log('merge_cases', 'case', $principalId, 'Absorveu caso #' . $absorvidoId . ' (' . $caseAbsorvido['title'] . ')');
+        audit_log('merge_cases_absorbed', 'case', $absorvidoId, 'Absorvido pelo caso #' . $principalId . ' (' . $casePrincipal['title'] . ')');
+
+        flash_set('success', 'Pastas unificadas com sucesso! "' . $caseAbsorvido['title'] . '" foi arquivado.');
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
         exit;
 
     default:

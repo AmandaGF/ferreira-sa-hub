@@ -173,11 +173,16 @@ try {
     $result['compromissos'] = $stmt->fetchAll();
 } catch (Exception $e) {}
 
-// ── 11. COMENTÁRIOS ──
+// ── 11. COMENTÁRIOS (filtrar por case_id quando disponível, senão client_id) ──
 $result['comments'] = array();
 try {
-    $stmt = $pdo->prepare("SELECT cc.*, u.name as user_name FROM card_comments cc LEFT JOIN users u ON u.id = cc.user_id WHERE cc.client_id = ? ORDER BY cc.created_at DESC LIMIT 30");
-    $stmt->execute(array($clientId));
+    if ($caseId) {
+        $stmt = $pdo->prepare("SELECT cc.*, u.name as user_name FROM card_comments cc LEFT JOIN users u ON u.id = cc.user_id WHERE cc.case_id = ? ORDER BY cc.created_at DESC LIMIT 30");
+        $stmt->execute(array($caseId));
+    } else {
+        $stmt = $pdo->prepare("SELECT cc.*, u.name as user_name FROM card_comments cc LEFT JOIN users u ON u.id = cc.user_id WHERE cc.client_id = ? ORDER BY cc.created_at DESC LIMIT 30");
+        $stmt->execute(array($clientId));
+    }
     $result['comments'] = $stmt->fetchAll();
 } catch (Exception $e) {}
 

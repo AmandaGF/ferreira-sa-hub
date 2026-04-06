@@ -46,14 +46,25 @@ switch ($action) {
 
     case 'get_comments':
         $clientId = (int)($_GET['client_id'] ?? 0);
-        if (!$clientId) { echo '[]'; exit; }
+        $caseId = (int)($_GET['case_id'] ?? 0);
 
-        $stmt = $pdo->prepare(
-            "SELECT cc.*, u.name as user_name FROM card_comments cc
-             LEFT JOIN users u ON u.id = cc.user_id
-             WHERE cc.client_id = ? ORDER BY cc.created_at DESC LIMIT 50"
-        );
-        $stmt->execute(array($clientId));
+        if (!$clientId && !$caseId) { echo '[]'; exit; }
+
+        if ($caseId) {
+            $stmt = $pdo->prepare(
+                "SELECT cc.*, u.name as user_name FROM card_comments cc
+                 LEFT JOIN users u ON u.id = cc.user_id
+                 WHERE cc.case_id = ? ORDER BY cc.created_at DESC LIMIT 50"
+            );
+            $stmt->execute(array($caseId));
+        } else {
+            $stmt = $pdo->prepare(
+                "SELECT cc.*, u.name as user_name FROM card_comments cc
+                 LEFT JOIN users u ON u.id = cc.user_id
+                 WHERE cc.client_id = ? ORDER BY cc.created_at DESC LIMIT 50"
+            );
+            $stmt->execute(array($clientId));
+        }
         echo json_encode($stmt->fetchAll());
         break;
 
