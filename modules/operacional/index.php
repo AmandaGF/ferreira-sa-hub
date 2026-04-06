@@ -944,15 +944,23 @@ function submitDistConfirm() {
 
     document.getElementById('distConfirmModal').style.display = 'none';
 
-    // Submeter via form
-    var sel2 = _pendingOpForm.querySelector('select[name="new_status"]');
-    if (sel2) sel2.removeAttribute('name');
+    // Criar form NOVO com CSRF fresco (evita token expirado após AJAX)
+    var caseIdForm = _pendingOpForm ? _pendingOpForm.querySelector('input[name="case_id"]') : null;
+    var caseIdVal = caseIdForm ? caseIdForm.value : (_distConfirmData.caseId || '');
+
+    var newForm = document.createElement('form');
+    newForm.method = 'POST';
+    newForm.action = '<?= module_url("operacional", "api.php") ?>';
 
     function addH(name, value) {
         var inp = document.createElement('input');
         inp.type = 'hidden'; inp.name = name; inp.value = value;
-        _pendingOpForm.appendChild(inp);
+        newForm.appendChild(inp);
     }
+
+    addH('<?= CSRF_TOKEN_NAME ?>', _opCsrf);
+    addH('action', 'update_status');
+    addH('case_id', caseIdVal);
     // Pegar comarca/UF/sistema do radio selecionado (se veio de lista)
     var comarca = '', uf = '', sistema = '', regional = '';
     var selRadio = document.querySelector('input[name="distSelNum"]:checked');
@@ -972,14 +980,9 @@ function submitDistConfirm() {
     if (uf) addH('proc_comarca_uf', uf);
     if (sistema) addH('proc_sistema', sistema);
     if (regional) addH('proc_regional', regional);
-    // Atualizar CSRF no form (pode ter sido consumido pelo AJAX de buscar_casos_cliente)
-    var csrfInput = _pendingOpForm.querySelector('input[name="<?= CSRF_TOKEN_NAME ?>"]');
-    if (csrfInput) {
-        csrfInput.value = _opCsrf;
-    } else {
-        addH('<?= CSRF_TOKEN_NAME ?>', _opCsrf);
-    }
-    _pendingOpForm.submit();
+
+    document.body.appendChild(newForm);
+    newForm.submit();
 }
 
 function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
