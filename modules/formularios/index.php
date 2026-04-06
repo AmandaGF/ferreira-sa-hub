@@ -9,8 +9,12 @@ require_access('formularios');
 $pageTitle = 'Formulários';
 $pdo = db();
 
-// Tipos existentes
+// Tipos existentes (do banco + tipos fixos que sempre devem aparecer)
 $types = $pdo->query("SELECT DISTINCT form_type FROM form_submissions ORDER BY form_type")->fetchAll(PDO::FETCH_COLUMN);
+$tiposFixos = array('cadastro_cliente', 'calculadora_lead', 'convivencia', 'gastos_pensao', 'despesas_mensais');
+foreach ($tiposFixos as $tf) {
+    if (!in_array($tf, $types)) $types[] = $tf;
+}
 
 // Aba ativa
 $activeType = $_GET['type'] ?? ($types[0] ?? '');
