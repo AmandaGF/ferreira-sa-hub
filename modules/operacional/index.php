@@ -763,6 +763,7 @@ var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
 
 // Edição inline na tabela operacional
+var _opCsrf = '<?= generate_csrf_token() ?>';
 function saveCaseCell(el) {
     var id = el.dataset.id;
     var field = el.dataset.field;
@@ -773,13 +774,14 @@ function saveCaseCell(el) {
     formData.append('case_id', id);
     formData.append('field', field);
     formData.append('value', value);
-    formData.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    formData.append('<?= CSRF_TOKEN_NAME ?>', _opCsrf);
     var xhr = new XMLHttpRequest();
     xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
         try {
             var r = JSON.parse(xhr.responseText);
+            if (r.csrf) _opCsrf = r.csrf;
             if (r.ok && td) { td.classList.add('saved'); setTimeout(function() { td.classList.remove('saved'); }, 1500); }
             else if (r.error) { alert('Erro: ' + r.error); }
         } catch(e) {}

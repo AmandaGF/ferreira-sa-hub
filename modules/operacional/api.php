@@ -440,9 +440,9 @@ switch ($action) {
             $pdo->prepare("UPDATE cases SET $field = ?, updated_at = NOW() WHERE id = ?")
                 ->execute(array($dbValue, $caseId));
             audit_log('case_inline_edit', 'case', $caseId, "$field = " . ($dbValue ?: 'NULL'));
-            echo json_encode(array('ok' => true, 'field' => $field));
+            echo json_encode(array('ok' => true, 'field' => $field, 'csrf' => generate_csrf_token()));
         } catch (Exception $e) {
-            echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+            echo json_encode(array('error' => 'Erro: ' . $e->getMessage(), 'csrf' => generate_csrf_token()));
         }
         exit;
 
