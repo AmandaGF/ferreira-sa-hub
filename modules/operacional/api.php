@@ -796,19 +796,6 @@ switch ($action) {
                 )->execute(array($clientIdDup, $novoTitulo));
                 $newCaseId = (int)$pdo->lastInsertId();
 
-                // Criar lead espelhado
-                try {
-                    $cliData = $pdo->prepare("SELECT name, phone, email FROM clients WHERE id = ?");
-                    $cliData->execute(array($clientIdDup));
-                    $cd = $cliData->fetch();
-                    if ($cd) {
-                        $pdo->prepare(
-                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, assigned_to, notes, created_at)
-                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,NOW())"
-                        )->execute(array($clientIdDup, $newCaseId, $cd['name'], $cd['phone'], $cd['email'], 'duplicado', current_user_id(), 'Nova ação — duplicado'));
-                    }
-                } catch (Exception $e) {}
-
                 audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Novo caso criado por duplicação (sem caso original)');
                 flash_set('success', 'Nova pasta criada! Edite o tipo de ação e o título.');
                 redirect(module_url('operacional', 'caso_ver.php?id=' . $newCaseId));
@@ -864,29 +851,8 @@ switch ($action) {
                     }
                 } catch (Exception $e) {}
 
-                // Criar lead espelhado no Pipeline Comercial
-                try {
-                    $clientData = $pdo->prepare("SELECT name, phone, email FROM clients WHERE id = ?");
-                    $clientData->execute(array($origCase['client_id']));
-                    $cli = $clientData->fetch();
-                    if ($cli) {
-                        $pdo->prepare(
-                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, notes, created_at)
-                             VALUES (?,?,?,?,?,?,'contrato_assinado','',?,?,NOW())"
-                        )->execute(array(
-                            $origCase['client_id'], $newCaseId,
-                            $cli['name'], $cli['phone'], $cli['email'],
-                            'duplicado', $origCase['responsible_user_id'],
-                            'Nova ação — duplicado da pasta #' . $caseId
-                        ));
-                        $newLeadId = (int)$pdo->lastInsertId();
-                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
-                            ->execute(array($newLeadId, 'contrato_assinado', current_user_id(), 'Lead criado por duplicação de pasta'));
-                    }
-                } catch (Exception $e) {}
-
                 audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Duplicado de #' . $caseId . ' (' . $origCase['title'] . ')');
-                flash_set('success', 'Pasta duplicada! Lead criado no Pipeline. Edite o tipo de ação.');
+                flash_set('success', 'Pasta duplicada! Edite o tipo de ação e o título.');
                 redirect(module_url('operacional', 'caso_ver.php?id=' . $newCaseId));
                 exit;
             }
