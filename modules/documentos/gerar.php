@@ -893,16 +893,17 @@ function baixarWord() {
         + '--' + boundary + '\r\n'
         + 'Content-Location: file:///C:/doc.htm\r\n'
         + 'Content-Type: text/html; charset="utf-8"\r\n'
-        + 'Content-Transfer-Encoding: quoted-printable\r\n\r\n'
+        + 'Content-Transfer-Encoding: 8bit\r\n\r\n'
         + htmlPart + '\r\n\r\n'
         + '--' + boundary + '\r\n'
+        + 'Content-Location: file:///C:/logo.png\r\n'
         + 'Content-Type: image/png\r\n'
         + 'Content-Transfer-Encoding: base64\r\n'
         + 'Content-ID: <' + imgCid + '>\r\n\r\n'
         + _logoB64Raw + '\r\n\r\n'
         + '--' + boundary + '--';
 
-    var blob = new Blob(['\ufeff' + mhtml], {type: 'application/msword;charset=utf-8'});
+    var blob = new Blob(['\ufeff' + mhtml], {type: 'application/msword'});
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = '<?= addslashes($docFileName) ?>.doc';
