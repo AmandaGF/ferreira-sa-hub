@@ -193,11 +193,31 @@ rtab();
 x.send('action=update_field&entity=task&entity_id='+taskId+'&field=status&value='+newStatus)};
 
 window._cdArchive=function(){
-if(!D.case_id){alert('Este card não tem processo vinculado.');return}
-if(!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.'))return;
-var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+if(!D.case_id&&!D.lead_id){alert('Nenhum card para arquivar.');return}
+if(!confirm('Arquivar este card?\nO card sai do Kanban mas os dados continuam salvos.'))return;
+// Arquivar lead no Pipeline (se tiver)
+if(D.lead_id){
+var x1=new XMLHttpRequest();x1.open('POST',base+'/modules/shared/card_actions.php');
+x1.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x1.onload=function(){
+// Também ocultar caso no Operacional (se tiver)
+if(D.case_id){
+var x2=new XMLHttpRequest();x2.open('POST',base+'/modules/operacional/api.php');
+x2.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x2.setRequestHeader('X-Requested-With','XMLHttpRequest');
+x2.onload=function(){cdClose();location.reload()};
+x2.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''));
+}else{cdClose();location.reload()}
+};
+x1.send('action=delete_card&lead_id='+D.lead_id+'&case_id='+(D.case_id||0));
+}else if(D.case_id){
+// Só caso, sem lead
+var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');
+x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.setRequestHeader('X-Requested-With','XMLHttpRequest');
 x.onload=function(){cdClose();location.reload()};
-x.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''))};
+x.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''));
+}};
 
 
 window._cdMerge=function(){
