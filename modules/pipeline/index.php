@@ -158,9 +158,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Toggle + Ações -->
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
+<div style="display:flex;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
     <div style="display:flex;align-items:center;gap:1rem;">
-        <h3 style="font-size:1rem;font-weight:700;color:var(--petrol-900);margin:0;">Kanban Comercial II</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:var(--petrol-900);margin:0;">Kanban Comercial</h3>
         <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
             <button onclick="toggleView('kanban')" id="btnKanban" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">📋 Kanban</button>
             <button onclick="toggleView('tabela')" id="btnTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
