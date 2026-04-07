@@ -46,10 +46,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'merge
         }
     }
 
+    // Telefone: se principal já tem phone e duplicado tem phone diferente, guardar no phone2
+    if (!empty($keep['phone']) && !empty($merge['phone']) && $keep['phone'] !== $merge['phone']) {
+        $keepPhone2 = $keep['phone2'] ?? '';
+        if (empty($keepPhone2)) {
+            $updates[] = "phone2 = ?";
+            $updateVals[] = $merge['phone'];
+        }
+    }
+
+    // E-mail: se principal já tem email e duplicado tem email diferente, concatenar nas notas
+    $extraNotes = '';
+    if (!empty($keep['email']) && !empty($merge['email']) && $keep['email'] !== $merge['email']) {
+        $extraNotes .= 'E-mail adicional (mesclado): ' . $merge['email'];
+    }
+
     // Notas: concatenar se ambos têm
+    $notasFinal = '';
     if (!empty($keep['notes']) && !empty($merge['notes']) && $keep['notes'] !== $merge['notes']) {
+        $notasFinal = $keep['notes'] . "\n---\n" . $merge['notes'];
+    }
+    if ($extraNotes) {
+        $notasFinal = ($notasFinal ?: ($keep['notes'] ?: ''));
+        $notasFinal = $notasFinal ? $notasFinal . "\n---\n" . $extraNotes : $extraNotes;
+    }
+    if ($notasFinal && $notasFinal !== ($keep['notes'] ?: '')) {
         $updates[] = "notes = ?";
-        $updateVals[] = $keep['notes'] . "\n---\n" . $merge['notes'];
+        $updateVals[] = $notasFinal;
     }
 
     if (!empty($updates)) {
