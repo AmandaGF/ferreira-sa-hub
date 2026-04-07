@@ -535,32 +535,32 @@ function template_citacao_whatsapp($d) {
     $html = '<div class="doc-title">PETIÇÃO INTERCORRENTE</div>';
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
-    $html .= '<p><strong>' . f($d['nome']) . '</strong>, ja qualificado(a) nos autos do processo em epigrafe, vem, respeitosamente, perante Vossa Excelencia, por intermedio de seus advogados que esta subscrevem, com escritorio profissional indicado no rodape, requerer a</p>';
-    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITACAO DO(A) REU/RA POR MEIO ELETRONICO (WHATSAPP)</div>';
-    $html .= '<p>da parte re <strong>' . f($nomeReu) . '</strong>, nos termos a seguir expostos.</p>';
+    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITAÇÃO DO(A) RÉU/RÉ POR MEIO ELETRÔNICO (WHATSAPP)</div>';
+    $html .= '<p>da parte ré <strong>' . f($nomeReu) . '</strong>, nos termos a seguir expostos.</p>';
 
     $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">I &mdash; DOS FUNDAMENTOS</div>';
-    $html .= '<p>Trata-se de <strong>Acao de ' . f($tipoAcao) . '</strong> em tramite perante este r. Juizo.</p>';
-    $html .= '<p>A parte autora requer que a <strong>citacao do(a) requerido(a)</strong> seja realizada por meio eletronico, especificamente pelo aplicativo <strong>WhatsApp</strong>, com fundamento no <strong>art. 246, V, do Codigo de Processo Civil</strong>, com redacao dada pela <strong>Lei n. 14.195/2021</strong>, que admite expressamente a citacao por meio eletronico.</p>';
-    $html .= '<p>Dispoe o referido dispositivo legal:</p>';
-    $html .= '<div style="margin:12px 0 12px 40px;padding:10px 16px;border-left:4px solid #B87333;background:#f8f8f6;font-style:italic;font-size:11px;color:#333;">&ldquo;Art. 246. A citacao sera feita preferencialmente por meio eletronico, no prazo de ate 2 (dois) dias uteis, contado da decisao que a determinar, por meio dos enderecos eletronicos indicados pelo citando no banco de dados do Poder Judiciario ou, na falta, por meio eletronico, na forma prevista em lei.&rdquo;</div>';
-    $html .= '<p>A jurisprudencia dos Tribunais brasileiros tem admitido a citacao por WhatsApp como meio idoneo e eficaz de comunicacao processual, desde que possibilite a <strong>confirmacao de recebimento e leitura</strong> pelo destinatario, em respeito aos principios do contraditorio e da ampla defesa.</p>';
-    $html .= '<p>Nesse sentido, o <strong>Conselho Nacional de Justica (CNJ)</strong>, por meio da <strong>Resolução n. 354/2020</strong>, regulamentou a comunicacao de atos processuais por meio eletronico, consolidando a possibilidade de utilizacao de aplicativos de mensageria para citacoes e intimacoes.</p>';
+    $html .= '<p>Trata-se de <strong>Ação de ' . f($tipoAcao) . '</strong> em trâmite perante este r. Juízo.</p>';
+    $html .= '<p>A parte autora requer que a <strong>citação do(a) requerido(a)</strong> seja realizada por meio eletrônico, especificamente pelo aplicativo <strong>WhatsApp</strong>, com fundamento no <strong>art. 246, V, do Código de Processo Civil</strong>, com redação dada pela <strong>Lei n. 14.195/2021</strong>, que admite expressamente a citação por meio eletrônico.</p>';
+    $html .= '<p>Dispõe o referido dispositivo legal:</p>';
+    $html .= '<div style="margin:12px 0 12px 40px;padding:10px 16px;border-left:4px solid #B87333;background:#f8f8f6;font-style:italic;font-size:11px;color:#333;">&ldquo;Art. 246. A citação será feita preferencialmente por meio eletrônico, no prazo de até 2 (dois) dias úteis, contado da decisão que a determinar, por meio dos endereços eletrônicos indicados pelo citando no banco de dados do Poder Judiciário ou, na falta, por meio eletrônico, na forma prevista em lei.&rdquo;</div>';
+    $html .= '<p>A jurisprudência dos Tribunais brasileiros tem admitido a citação por WhatsApp como meio idôneo e eficaz de comunicação processual, desde que possibilite a <strong>confirmação de recebimento e leitura</strong> pelo destinatário, em respeito aos princípios do contraditório e da ampla defesa.</p>';
+    $html .= '<p>Nesse sentido, o <strong>Conselho Nacional de Justiça (CNJ)</strong>, por meio da <strong>Resolução n. 354/2020</strong>, regulamentou a comunicação de atos processuais por meio eletrônico, consolidando a possibilidade de utilização de aplicativos de mensageria para citações e intimações.</p>';
     if ($justificativa) {
-        $html .= '<p>Ademais, cabe destacar que: <strong>' . f($justificativa) . '</strong>, o que reforca a necessidade e conveniencia da citacao por meio eletronico.</p>';
+        $html .= '<p>Ademais, cabe destacar que: <strong>' . f($justificativa) . '</strong>, o que reforça a necessidade e conveniência da citação por meio eletrônico.</p>';
     }
 
-    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">II &mdash; DADOS PARA CITACAO</div>';
+    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">II &mdash; DADOS PARA CITAÇÃO</div>';
     $html .= '<table style="width:100%;border-collapse:collapse;margin:12px 0;">';
-    $html .= '<tr><td style="padding:8px 12px;border:1px solid #ddd;font-weight:700;width:200px;background:#f8f8f6;">Nome do(a) reu/ra</td><td style="padding:8px 12px;border:1px solid #ddd;">' . f($nomeReu) . '</td></tr>';
+    $html .= '<tr><td style="padding:8px 12px;border:1px solid #ddd;font-weight:700;width:200px;background:#f8f8f6;">Nome do(a) réu/ré</td><td style="padding:8px 12px;border:1px solid #ddd;">' . f($nomeReu) . '</td></tr>';
     $html .= '<tr><td style="padding:8px 12px;border:1px solid #ddd;font-weight:700;background:#f8f8f6;">Telefone/WhatsApp</td><td style="padding:8px 12px;border:1px solid #ddd;">' . f($whatsappReu) . '</td></tr>';
     $html .= '</table>';
 
     $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">III &mdash; DO PEDIDO</div>';
-    $html .= '<p>Ante o exposto, requer a Vossa Excelencia:</p>';
+    $html .= '<p>Ante o exposto, requer a Vossa Excelência:</p>';
     $html .= '<table style="width:100%;border-collapse:collapse;margin:12px 0;">';
-    $html .= '<tr><td style="padding:8px 12px;background:#052228;color:#fff;font-weight:700;text-align:center;width:40px;vertical-align:top;">a)</td><td style="padding:8px 12px;border:1px solid #ddd;">Que a <strong>citacao do(a) requerido(a) ' . f($nomeReu) . '</strong> seja realizada por meio do aplicativo <strong>WhatsApp</strong>, no numero <strong>' . f($whatsappReu) . '</strong>, nos termos do art. 246, V, do CPC.</td></tr>';
-    $html .= '<tr><td style="padding:8px 12px;background:#052228;color:#fff;font-weight:700;text-align:center;width:40px;vertical-align:top;">b)</td><td style="padding:8px 12px;border:1px solid #ddd;background:#f8f8f6;">Que, apos a confirmacao de leitura da mensagem, seja certificada nos autos a efetivacao da citacao, com a juntada do respectivo comprovante.</td></tr>';
+    $html .= '<tr><td style="padding:8px 12px;background:#052228;color:#fff;font-weight:700;text-align:center;width:40px;vertical-align:top;">a)</td><td style="padding:8px 12px;border:1px solid #ddd;">Que a <strong>citação do(a) requerido(a) ' . f($nomeReu) . '</strong> seja realizada por meio do aplicativo <strong>WhatsApp</strong>, no número <strong>' . f($whatsappReu) . '</strong>, nos termos do art. 246, V, do CPC.</td></tr>';
+    $html .= '<tr><td style="padding:8px 12px;background:#052228;color:#fff;font-weight:700;text-align:center;width:40px;vertical-align:top;">b)</td><td style="padding:8px 12px;border:1px solid #ddd;background:#f8f8f6;">Que, após a confirmação de leitura da mensagem, seja certificada nos autos a efetivação da citação, com a juntada do respectivo comprovante.</td></tr>';
     $html .= '</table>';
 
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
