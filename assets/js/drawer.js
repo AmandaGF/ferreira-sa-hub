@@ -194,24 +194,47 @@ x.send('action=update_field&entity=task&entity_id='+taskId+'&field=status&value=
 
 window._cdArchive=function(){
 if(!D.case_id&&!D.lead_id){alert('Nenhum card para arquivar.');return}
-if(!confirm('Arquivar este card?\nO card sai do Kanban mas os dados continuam salvos.'))return;
-// Arquivar lead no Pipeline (se tiver)
-if(D.lead_id){
+if(D.lead_id&&D.case_id){
+// Tem lead E caso — perguntar o que arquivar
+var opt=prompt('O que deseja arquivar?\n\n1 = S\u00f3 o lead (comercial)\n2 = S\u00f3 a pasta (operacional)\n3 = Ambos\n\nDigite 1, 2 ou 3:');
+if(!opt)return;
+opt=opt.trim();
+if(opt==='1'){
+// Só lead
 var x1=new XMLHttpRequest();x1.open('POST',base+'/modules/shared/card_actions.php');
 x1.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
-x1.onload=function(){
-// Também ocultar caso no Operacional (se tiver)
-if(D.case_id){
+x1.onload=function(){cdClose();location.reload()};
+x1.send('action=delete_card&lead_id='+D.lead_id+'&case_id=0');
+}else if(opt==='2'){
+// Só caso
 var x2=new XMLHttpRequest();x2.open('POST',base+'/modules/operacional/api.php');
 x2.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
 x2.setRequestHeader('X-Requested-With','XMLHttpRequest');
 x2.onload=function(){cdClose();location.reload()};
 x2.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''));
-}else{cdClose();location.reload()}
+}else if(opt==='3'){
+// Ambos
+var x3=new XMLHttpRequest();x3.open('POST',base+'/modules/shared/card_actions.php');
+x3.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x3.onload=function(){
+var x4=new XMLHttpRequest();x4.open('POST',base+'/modules/operacional/api.php');
+x4.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x4.setRequestHeader('X-Requested-With','XMLHttpRequest');
+x4.onload=function(){cdClose();location.reload()};
+x4.send('action=ocultar_kanban&case_id='+D.case_id+'&csrf_token='+(D.csrf||''));
 };
-x1.send('action=delete_card&lead_id='+D.lead_id+'&case_id='+(D.case_id||0));
-}else if(D.case_id){
+x3.send('action=delete_card&lead_id='+D.lead_id+'&case_id=0');
+}
+}else if(D.lead_id){
+// Só lead, sem caso
+if(!confirm('Arquivar este lead do Pipeline?'))return;
+var x=new XMLHttpRequest();x.open('POST',base+'/modules/shared/card_actions.php');
+x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
+x.onload=function(){cdClose();location.reload()};
+x.send('action=delete_card&lead_id='+D.lead_id+'&case_id=0');
+}else{
 // Só caso, sem lead
+if(!confirm('Ocultar esta pasta do Kanban Operacional?'))return;
 var x=new XMLHttpRequest();x.open('POST',base+'/modules/operacional/api.php');
 x.setRequestHeader('Content-Type','application/x-www-form-urlencoded');
 x.setRequestHeader('X-Requested-With','XMLHttpRequest');
