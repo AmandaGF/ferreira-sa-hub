@@ -400,6 +400,20 @@ sort($tipos);
 </div>
 
 <!-- Modal: Nome da Pasta (ao mover para contrato_assinado) -->
+<!-- Modal: Doc Faltante (Pipeline) -->
+<div id="docFaltanteModalPipe" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#dc2626;margin-bottom:.5rem;">Documento Faltante</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:.75rem;">Descreva quais documentos estão faltando. O Operacional será notificado.</p>
+        <p style="font-size:.7rem;color:#0ea5e9;margin-bottom:.5rem;background:#eff6ff;padding:.35rem .5rem;border-radius:6px;">Separe com <strong>;</strong> (ponto e vírgula) para criar um checklist.</p>
+        <textarea id="docFaltanteDescPipe" rows="3" style="width:100%;padding:.6rem .8rem;font-size:.88rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;resize:vertical;" placeholder="Ex: Certidão de nascimento ; Comprovante de renda ; RG do menor"></textarea>
+        <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
+            <button onclick="document.getElementById('docFaltanteModalPipe').style.display='none';_pendingForm=null;" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmDocFaltantePipe()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Sinalizar</button>
+        </div>
+    </div>
+</div>
+
 <div id="folderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
         <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.25rem;">Contrato Assinado</h3>
@@ -439,6 +453,15 @@ function handleStageMove(select) {
     if (!stage) return;
     var form = select.closest('form');
 
+    if (stage === 'doc_faltante') {
+        _pendingForm = form;
+        _pendingDragData = null;
+        document.getElementById('docFaltanteModalPipe').style.display = 'flex';
+        document.getElementById('docFaltanteDescPipe').focus();
+        select.value = '';
+        return;
+    }
+
     if (stage === 'contrato_assinado') {
         var leadName = form.dataset.leadName || '';
         var caseType = form.dataset.caseType || '';
@@ -461,6 +484,19 @@ function handleStageMove(select) {
         _pendingDragData = null;
     } else {
         form.submit();
+    }
+}
+
+function confirmDocFaltantePipe() {
+    var desc = document.getElementById('docFaltanteDescPipe').value.trim();
+    if (!desc) { document.getElementById('docFaltanteDescPipe').style.borderColor = '#ef4444'; return; }
+    document.getElementById('docFaltanteModalPipe').style.display = 'none';
+    if (_pendingForm) {
+        var sel = _pendingForm.querySelector('select[name="to_stage"]');
+        if (sel) sel.removeAttribute('name');
+        var inp1 = document.createElement('input'); inp1.type = 'hidden'; inp1.name = 'to_stage'; inp1.value = 'doc_faltante'; _pendingForm.appendChild(inp1);
+        var inp2 = document.createElement('input'); inp2.type = 'hidden'; inp2.name = 'doc_faltante_desc'; inp2.value = desc; _pendingForm.appendChild(inp2);
+        _pendingForm.submit();
     }
 }
 
@@ -595,6 +631,19 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
             this.classList.remove('drag-over');
             var toStage = this.dataset.stage;
             if (!draggedId || !toStage) return;
+
+            if (toStage === 'doc_faltante') {
+                // Criar form temporário para usar no confirm
+                var tmpForm = document.createElement('form');
+                tmpForm.method = 'POST'; tmpForm.action = apiUrl;
+                tmpForm.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrfToken + '"><input type="hidden" name="action" value="move"><input type="hidden" name="lead_id" value="' + draggedId + '">';
+                document.body.appendChild(tmpForm);
+                _pendingForm = tmpForm;
+                _pendingDragData = null;
+                document.getElementById('docFaltanteModalPipe').style.display = 'flex';
+                document.getElementById('docFaltanteDescPipe').focus();
+                return;
+            }
 
             if (toStage === 'contrato_assinado') {
                 window._folderLeadName = draggedName;

@@ -153,6 +153,50 @@ switch ($action) {
             }
         }
 
+        // ── DOC FALTANTE: espelhar no Operacional ──
+        if ($toStage === 'doc_faltante') {
+            $docDesc = clean_str($_POST['doc_faltante_desc'] ?? 'Documento não especificado', 1000);
+            $docItens = array_filter(array_map('trim', explode(';', $docDesc)));
+            if (empty($docItens)) $docItens = array($docDesc);
+            $docDescLimpo = implode('; ', $docItens);
+
+            // Salvar motivo no lead
+            $pdo->prepare("UPDATE pipeline_leads SET doc_faltante_motivo = ?, stage_antes_doc_faltante = ? WHERE id = ?")
+                ->execute(array($docDescLimpo, $fromStage, $leadId));
+
+            // Espelhar no caso do Operacional
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                $caseStmt = $pdo->prepare("SELECT status FROM cases WHERE id = ?");
+                $caseStmt->execute(array($linkedCaseId));
+                $caseRow = $caseStmt->fetch();
+                $oldCaseStatus = $caseRow ? $caseRow['status'] : '';
+
+                $pdo->prepare("UPDATE cases SET status = 'doc_faltante', stage_antes_doc_faltante = ?, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($oldCaseStatus, $linkedCaseId));
+
+                // Registrar documentos pendentes
+                $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
+                if ($clientId) {
+                    $stmtDoc = $pdo->prepare("INSERT INTO documentos_pendentes (client_id, case_id, lead_id, descricao, solicitado_por) VALUES (?,?,?,?,?)");
+                    foreach ($docItens as $item) {
+                        $stmtDoc->execute(array($clientId, $linkedCaseId, $leadId, $item, current_user_id()));
+                    }
+                }
+
+                // Notificar cliente
+                if ($clientId) {
+                    notificar_cliente('doc_faltante', $clientId, array(
+                        '[descricao_documento]' => $docDescLimpo,
+                        '[tipo_acao]' => $lead['case_type'] ?: '',
+                    ), $linkedCaseId, $leadId);
+                }
+            }
+
+            notify_gestao('Documento faltante!', $lead['name'] . ' — ' . $docDescLimpo, 'alerta', url('modules/pipeline/'), '');
+            audit_log('doc_faltante_pipeline', 'lead', $leadId, $docDescLimpo);
+        }
+
         // ── DOC FALTANTE RESOLVIDO (CX resolve): retornar ao Operacional ──
         if ($fromStage === 'doc_faltante' && $toStage !== 'doc_faltante') {
             $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
