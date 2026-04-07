@@ -176,7 +176,8 @@ switch ($action) {
                 if ($respId) gamificar($respId, 'processo_distribuido', $caseId, 'cases');
 
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-                flash_set('success', 'Processo distribuído! Dados salvos.');
+                flash_set('success', 'Processo distribuído! Dados salvos. 🎉');
+                $_SESSION['efeito_distribuicao'] = true;
                 redirect(module_url('operacional'));
                 exit;
             }

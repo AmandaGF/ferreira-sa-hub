@@ -1499,4 +1499,72 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
+<?php if (!empty($_SESSION['efeito_distribuicao'])): unset($_SESSION['efeito_distribuicao']); ?>
+<script>
+// Efeito de comemoração ao distribuir processo
+setTimeout(function() {
+    // Confetti
+    if (typeof window._gamConfetti === 'function') {
+        window._gamConfetti();
+    } else {
+        // Fallback: confetti simples
+        var canvas = document.createElement('canvas');
+        canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:9999;';
+        document.body.appendChild(canvas);
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        var ctx = canvas.getContext('2d');
+        var particles = [];
+        var cores = ['#e67e22','#059669','#3b82f6','#dc2626','#B87333','#6366f1','#f59e0b','#052228'];
+        for (var i = 0; i < 150; i++) {
+            particles.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                r: Math.random() * 6 + 3,
+                c: cores[Math.floor(Math.random() * cores.length)],
+                vx: (Math.random() - 0.5) * 4,
+                vy: Math.random() * 3 + 2,
+                rot: Math.random() * 360
+            });
+        }
+        function animar() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            var vivos = false;
+            particles.forEach(function(p) {
+                if (p.y < canvas.height + 20) {
+                    vivos = true;
+                    p.x += p.vx; p.y += p.vy; p.vy += 0.05; p.rot += 3;
+                    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot * Math.PI / 180);
+                    ctx.fillStyle = p.c; ctx.fillRect(-p.r/2, -p.r/2, p.r, p.r * 0.6);
+                    ctx.restore();
+                }
+            });
+            if (vivos) requestAnimationFrame(animar);
+            else canvas.remove();
+        }
+        animar();
+    }
+
+    // Som de aplausos
+    try {
+        var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        // Simular aplausos com ruído branco
+        var dur = 2.5;
+        var bufferSize = audioCtx.sampleRate * dur;
+        var buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        var data = buffer.getChannelData(0);
+        for (var i = 0; i < bufferSize; i++) {
+            var env = Math.sin(Math.PI * i / bufferSize) * 0.3;
+            data[i] = (Math.random() * 2 - 1) * env;
+        }
+        var source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        var filter = audioCtx.createBiquadFilter();
+        filter.type = 'bandpass'; filter.frequency.value = 3000; filter.Q.value = 0.5;
+        source.connect(filter); filter.connect(audioCtx.destination);
+        source.start();
+    } catch(e) {}
+}, 500);
+</script>
+<?php endif; ?>
+
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
