@@ -311,6 +311,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <select name="cliente_papel" id="clientePapel" class="form-select" onchange="mudouPapelCliente()">
                             <option value="autor">Autor</option>
                             <option value="reu">Réu</option>
+                            <option value="terceiro_interessado">Terceiro Interessado</option>
                             <option value="representante_legal">Rep. Legal</option>
                         </select>
                     </div>
