@@ -597,6 +597,13 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
             if (!draggedId || !toStage) return;
 
             if (toStage === 'contrato_assinado') {
+                window._folderLeadName = draggedName;
+                var tipoSel = document.getElementById('folderTipoAcao');
+                if (draggedType && tipoSel) {
+                    for (var ti = 0; ti < tipoSel.options.length; ti++) {
+                        if (tipoSel.options[ti].value === draggedType) { tipoSel.selectedIndex = ti; break; }
+                    }
+                } else if (tipoSel) { tipoSel.selectedIndex = 0; }
                 var sugestao = draggedName + (draggedType ? ' x ' + draggedType : '');
                 document.getElementById('folderNameInput').value = sugestao;
                 document.getElementById('folderModal').style.display = 'flex';
