@@ -120,11 +120,11 @@ if ($voltarCaso > 0): ?>
     ?>
     <div class="prazo-card <?= $cardClass ?>">
         <div class="prazo-info">
-            <div class="prazo-desc"><?= $p['concluido'] ? '<s>' : '' ?><?= e($p['descricao_acao']) ?><?= $p['concluido'] ? '</s>' : '' ?></div>
+            <div class="prazo-desc"><?php if ($p['case_id']): ?><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) ?>" style="color:inherit;text-decoration:none;"><?php endif; ?><?= $p['concluido'] ? '<s>' : '' ?><?= e($p['descricao_acao']) ?><?= $p['concluido'] ? '</s>' : '' ?><?php if ($p['case_id']): ?></a><?php endif; ?></div>
             <div class="prazo-meta">
                 <?php if ($p['client_name']): ?>👤 <?= e($p['client_name']) ?> · <?php endif; ?>
                 <?php if ($p['numero_processo']): ?>🏛️ <?= e($p['numero_processo']) ?> · <?php endif; ?>
-                <?php if ($p['case_title']): ?>📂 <?= e($p['case_title']) ?><?php endif; ?>
+                <?php if ($p['case_title'] && $p['case_id']): ?>📂 <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) ?>" style="color:var(--petrol-900);font-weight:600;text-decoration:none;"><?= e($p['case_title']) ?></a><?php elseif ($p['case_title']): ?>📂 <?= e($p['case_title']) ?><?php endif; ?>
             </div>
         </div>
         <div class="prazo-data <?= $dataClass ?>">
