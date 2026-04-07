@@ -643,11 +643,43 @@ function renderLista() {
                 acoesHtml += '<button class="ag-btn-acao" onclick="window.location.href=\'' + casoUrl + '\'">Ver Processo</button>';
             }
         } else {
-            acoesHtml = meetHtml + msgHtml
+            // Botões de acesso rápido: processo e contato
+            var linkProcesso = '';
+            var linkContato = '';
+            if (ev.case_id) {
+                linkProcesso = '<a class="ag-btn-acao" style="color:#052228;border-color:#052228;text-decoration:none;" href="<?= module_url("operacional", "caso_ver.php?id=") ?>' + ev.case_id + '">Pasta do Processo</a>';
+            }
+            if (ev.client_id && ev.client_name) {
+                linkContato = '<a class="ag-btn-acao" style="color:#B87333;border-color:#B87333;text-decoration:none;" href="<?= module_url("clientes", "ver.php?id=") ?>' + ev.client_id + '">Ver Cliente</a>';
+            }
+
+            // Mensagens de lembrete WhatsApp
+            var lembreteHtml = '';
+            if (ev.client_id && ev.client_phone) {
+                var phone = ev.client_phone.replace(/\D/g, '');
+                if (phone.length <= 11) phone = '55' + phone;
+                var primeiroNome = ev.client_name ? ev.client_name.split(' ')[0] : '';
+                var dtEvt = new Date(ev.data_inicio.replace(' ','T'));
+                var dataFmt = ('0'+dtEvt.getDate()).slice(-2) + '/' + ('0'+(dtEvt.getMonth()+1)).slice(-2) + '/' + dtEvt.getFullYear();
+                var horaFmt = ('0'+dtEvt.getHours()).slice(-2) + ':' + ('0'+dtEvt.getMinutes()).slice(-2);
+                var tipoEvt = LABELS[ev.tipo] || 'compromisso';
+                var tipoMinusc = tipoEvt.toLowerCase();
+
+                var msg1 = 'Ol\u00e1, ' + primeiroNome + '! Passando para te lembrar que sua ' + tipoMinusc + ' \u00e9 dia ' + dataFmt + ' \u00e0s ' + horaFmt + '. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
+                var msg2 = 'Oi, ' + primeiroNome + '! Tudo bem?! Te lembrando que sua ' + tipoMinusc + ' \u00e9 amanh\u00e3, \u00e0s ' + horaFmt + 'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
+
+                lembreteHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;padding-top:6px;border-top:1px solid var(--border);">'
+                    + '<a class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;text-decoration:none;font-size:.7rem;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent(msg1) + '" target="_blank">Lembrar data</a>'
+                    + '<a class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;text-decoration:none;font-size:.7rem;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent(msg2) + '" target="_blank">Lembrar amanh\u00e3</a>'
+                    + '</div>';
+            }
+
+            acoesHtml = linkProcesso + linkContato + meetHtml + msgHtml
                 + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
                 + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>'
                 + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
-                + '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>';
+                + '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>'
+                + lembreteHtml;
         }
 
         var prioHtml = '';
