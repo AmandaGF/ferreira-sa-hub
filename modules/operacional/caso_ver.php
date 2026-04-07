@@ -825,7 +825,7 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
         <?php if (has_min_role('operacional') || has_min_role('gestao')): ?>
         <div style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:2px dashed #fca5a5;">
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;cursor:pointer;" onclick="togglePubForm()">
-                <span style="font-size:.8rem;font-weight:700;color:#dc2626;">Lancar Publicacao / Intimacao</span>
+                <span style="font-size:.8rem;font-weight:700;color:#dc2626;">Lançar Publicação / Intimação</span>
                 <span id="pubFormArrow" style="font-size:.7rem;color:#dc2626;">&#9660;</span>
             </div>
             <div id="pubFormWrap" style="display:none;">
@@ -835,28 +835,28 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
                     <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
                         <div style="display:flex;flex-direction:column;gap:2px;">
-                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Disponibilizacao *</label>
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Disponibilização *</label>
                             <input type="date" name="data_disponibilizacao" class="form-input" value="<?= date('Y-m-d') ?>" required style="width:160px;">
                         </div>
                         <div style="display:flex;flex-direction:column;gap:2px;">
-                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Publicacao</label>
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data Publicação</label>
                             <input type="date" name="data_publicacao" class="form-input" style="width:160px;">
                         </div>
                         <div style="display:flex;flex-direction:column;gap:2px;">
                             <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Tipo</label>
                             <select name="tipo_publicacao" class="form-select" style="width:150px;" id="tipoPubSelect" onchange="sugerirPrazo(this.value)">
-                                <option value="intimacao">Intimacao</option>
-                                <option value="citacao">Citacao</option>
+                                <option value="intimacao">Intimação</option>
+                                <option value="citacao">Citação</option>
                                 <option value="despacho">Despacho</option>
-                                <option value="decisao">Decisao</option>
-                                <option value="sentenca">Sentenca</option>
-                                <option value="acordao">Acordao</option>
+                                <option value="decisao">Decisão</option>
+                                <option value="sentenca">Sentença</option>
+                                <option value="acordao">Acórdão</option>
                                 <option value="edital">Edital</option>
                                 <option value="outro">Outro</option>
                             </select>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:2px;">
-                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Prazo (dias uteis)</label>
+                            <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Prazo (dias úteis)</label>
                             <div style="display:flex;align-items:center;gap:4px;">
                                 <input type="number" name="prazo_dias" id="prazoDiasInput" class="form-input" min="0" max="365" style="width:80px;" placeholder="0">
                                 <span id="prazoSugestao" style="font-size:.65rem;color:#d97706;font-weight:600;"></span>
@@ -872,17 +872,17 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
                         </div>
                     </div>
                     <textarea name="conteudo" class="form-input" rows="3"
-                        placeholder="Cole aqui o texto completo da publicacao/intimacao..."
+                        placeholder="Cole aqui o texto completo da publicação/intimação..."
                         required style="width:100%;font-size:.83rem;margin-bottom:.5rem;border-color:#fca5a5;"></textarea>
                     <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
                         <label style="font-size:.75rem;display:flex;align-items:center;gap:4px;cursor:pointer;">
-                            <input type="checkbox" name="visivel_cliente" value="1"> Visivel ao cliente
+                            <input type="checkbox" name="visivel_cliente" value="1"> Visível ao cliente
                         </label>
                         <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;">
-                            Registrar Publicacao
+                            Registrar Publicação
                         </button>
                         <span style="font-size:.68rem;color:var(--text-muted);">
-                            A data de disponibilizacao e o marco legal do prazo (art. 224 CPC)
+                            A data de disponibilização é o marco legal do prazo (art. 224 CPC)
                         </span>
                     </div>
                 </form>
@@ -938,7 +938,7 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
             <button class="ativo" onclick="filtrarTimeline('todos', this)">Todos (<?= count($andamentos) + count($publicacoes) ?>)</button>
             <button onclick="filtrarTimeline('andamentos', this)">Andamentos (<?= count($andamentos) ?>)</button>
             <button onclick="filtrarTimeline('publicacoes', this)" style="<?= count($publicacoes) > 0 ? 'border-color:#dc2626;color:#dc2626;' : '' ?>">
-                Publicacoes (<?= count($publicacoes) ?>)
+                Publicações (<?= count($publicacoes) ?>)
             </button>
         </div>
 

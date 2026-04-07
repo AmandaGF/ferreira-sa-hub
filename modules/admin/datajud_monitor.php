@@ -178,7 +178,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
         <h2 style="margin:0;font-size:1.3rem;color:var(--petrol-900);display:flex;align-items:center;gap:.5rem;">
             Monitoramento DataJud
         </h2>
-        <p style="margin:.2rem 0 0;font-size:.8rem;color:var(--text-muted);">Movimentacoes importadas automaticamente do CNJ</p>
+        <p style="margin:.2rem 0 0;font-size:.8rem;color:var(--text-muted);">Movimentações importadas automaticamente do CNJ</p>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;">
         <a href="<?= module_url('admin', 'datajud.php') ?>" class="btn btn-outline btn-sm">Painel Simples</a>
@@ -192,7 +192,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
 
 <?php if ($msgSync === 'sucesso'): ?>
 <div style="background:#ecfdf5;border:1px solid #059669;border-radius:8px;padding:.8rem 1.2rem;margin-bottom:1rem;font-size:.85rem;color:#059669;font-weight:600;">
-    Sincronizacao disparada com sucesso! Os processos serao atualizados em instantes.
+    Sincronização disparada com sucesso! Os processos serão atualizados em instantes.
 </div>
 <?php endif; ?>
 
@@ -200,11 +200,11 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
 <div class="dj-kpi-grid">
     <div class="dj-kpi azul">
         <span class="valor"><?= $kpi['total_com_numero'] ?></span>
-        <span class="label">Processos com numero</span>
+        <span class="label">Processos com número</span>
     </div>
     <div class="dj-kpi verde">
         <span class="valor"><?= $kpi['ja_sincronizados'] ?></span>
-        <span class="label">Ja sincronizados</span>
+        <span class="label">Já sincronizados</span>
     </div>
     <div class="dj-kpi cobre">
         <span class="valor"><?= $kpi['movimentos_periodo'] ?></span>
@@ -212,7 +212,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
     </div>
     <div class="dj-kpi vermelho">
         <span class="valor"><?= $kpi['com_erro'] ?></span>
-        <span class="label">Com erro / nao encontrado</span>
+        <span class="label">Com erro / não encontrado</span>
     </div>
 </div>
 
@@ -227,10 +227,10 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
         <form method="GET" class="dj-filtros">
             <select name="periodo" onchange="this.form.submit()">
                 <option value="1" <?= $dias==1?'selected':'' ?>>Hoje</option>
-                <option value="7" <?= $dias==7?'selected':'' ?>>Ultimos 7 dias</option>
-                <option value="15" <?= $dias==15?'selected':'' ?>>Ultimos 15 dias</option>
-                <option value="30" <?= $dias==30?'selected':'' ?>>Ultimos 30 dias</option>
-                <option value="90" <?= $dias==90?'selected':'' ?>>Ultimos 90 dias</option>
+                <option value="7" <?= $dias==7?'selected':'' ?>>Últimos 7 dias</option>
+                <option value="15" <?= $dias==15?'selected':'' ?>>Últimos 15 dias</option>
+                <option value="30" <?= $dias==30?'selected':'' ?>>Últimos 30 dias</option>
+                <option value="90" <?= $dias==90?'selected':'' ?>>Últimos 90 dias</option>
             </select>
             <select name="status" onchange="this.form.submit()">
                 <option value="todos" <?= $status_filtro=='todos'?'selected':'' ?>>Todos</option>
@@ -315,7 +315,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
             <span style="font-size:.7rem;font-weight:400;color:var(--text-muted);">(ultimos <?= $dias ?>d)</span>
         </h3>
         <?php if (empty($movimentos)): ?>
-            <p style="color:var(--text-muted);font-size:.82rem;text-align:center;padding:1.5rem 0;">Nenhuma movimentacao importada neste periodo.</p>
+            <p style="color:var(--text-muted);font-size:.82rem;text-align:center;padding:1.5rem 0;">Nenhuma movimentação importada neste período.</p>
         <?php else: ?>
         <div class="dj-feed">
             <?php
@@ -352,7 +352,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
     <div class="card" style="padding:1.2rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:.6rem;">
             <h3 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:.4rem;">
-                Publicacoes Processuais
+                Publicações Processuais
                 <span style="font-size:.65rem;font-weight:400;background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;border:1px solid #fca5a5;">Prazos</span>
             </h3>
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
@@ -445,7 +445,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
         </div>
 
         <?php if (empty($listaPubs)): ?>
-            <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhuma publicacao encontrada.</p>
+            <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhuma publicação encontrada.</p>
         <?php else: ?>
         <div style="overflow-x:auto;">
             <table class="dj-table">
@@ -453,7 +453,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
                     <tr>
                         <th>Processo / Cliente</th>
                         <th>Tipo</th>
-                        <th>Disponibilizacao</th>
+                        <th>Disponibilização</th>
                         <th>Prazo</th>
                         <th>Vencimento</th>
                         <th>Status</th>
@@ -473,8 +473,8 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
                         else { $corVence = '#059669'; $bgVence = '#ecfdf5'; }
                     }
                     $tipoLabelPub = array(
-                        'intimacao'=>'Intimacao','citacao'=>'Citacao','despacho'=>'Despacho',
-                        'decisao'=>'Decisao','sentenca'=>'Sentenca','acordao'=>'Acordao',
+                        'intimacao'=>'Intimação','citacao'=>'Citação','despacho'=>'Despacho',
+                        'decisao'=>'Decisão','sentenca'=>'Sentença','acordao'=>'Acórdão',
                         'edital'=>'Edital','outro'=>'Outro'
                     );
                 ?>
@@ -549,7 +549,7 @@ body.dark-mode .dj-feed-item .case-link { color:var(--text); }
 var _djCsrf = '<?= generate_csrf_token() ?>';
 
 function syncAllMonitor() {
-    if (!confirm('Disparar sincronizacao de todos os processos agora?\n\nIsso pode levar alguns minutos.')) return;
+    if (!confirm('Disparar sincroniza\u00e7\u00e3o de todos os processos agora?\n\nIsso pode levar alguns minutos.')) return;
     var btn = document.getElementById('btnSyncAll');
     btn.disabled = true;
     btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite;vertical-align:middle;margin-right:4px;"></span> Sincronizando...';
