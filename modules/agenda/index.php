@@ -701,13 +701,21 @@ function renderLista() {
             statusHtml = '<span>' + (stLabels[ev.task_status]||ev.task_status) + '</span>';
         }
 
+        var _done = (ev.status === 'realizado');
+        var _nc = (ev.status === 'nao_compareceu');
+        var _cardSt = _done ? 'background:rgba(209,250,229,.45);opacity:.75;' : _nc ? 'background:rgba(254,243,199,.45);opacity:.75;' : '';
+        var _titSt = (_done || _nc) ? 'text-decoration:line-through;color:#6b7280;' : '';
+        var _dotCor = _done ? '#059669' : _nc ? '#b45309' : cor;
+        var _badge = _done ? 'Realizado' : _nc ? 'N\u00e3o compareceu' : label;
+        var _icon = _done ? '\u2705 ' : _nc ? '\u26A0\uFE0F ' : (isTask ? '\u2705 ' : '');
+
         return '<div class="ag-lista-item">' +
-            '<div class="ag-lista-hora">' + hr + '</div>' +
-            '<div class="ag-lista-linha"><div class="ag-lista-dot" style="background:' + cor + '"></div>' +
+            '<div class="ag-lista-hora"' + ((_done||_nc) ? ' style="opacity:.5;"' : '') + '>' + hr + '</div>' +
+            '<div class="ag-lista-linha"><div class="ag-lista-dot" style="background:' + _dotCor + '"></div>' +
             (i < evsFilt.length-1 ? '<div class="ag-lista-fio"></div>' : '') + '</div>' +
-            '<div class="ag-lista-card" style="border-left-color:' + cor + '">' +
-            '<div class="ag-lc-topo"><div class="ag-lc-titulo">' + (isTask ? '\u2705 ' : '') + esc(ev.titulo) + '</div>' +
-            '<div class="ag-lc-badge" style="background:' + cor + '">' + label + '</div></div>' +
+            '<div class="ag-lista-card" style="border-left-color:' + _dotCor + ';' + _cardSt + '">' +
+            '<div class="ag-lc-topo"><div class="ag-lc-titulo" style="' + _titSt + '">' + _icon + esc(ev.titulo) + '</div>' +
+            '<div class="ag-lc-badge" style="background:' + _dotCor + '">' + _badge + '</div></div>' +
             '<div class="ag-lc-info">' +
             (ev.dia_todo != 1 ? '<span>\uD83D\uDD50 ' + hr + (durStr ? ' \u00b7 ' + durStr : '') + '</span>' : '') +
             (ev.meet_link ? '<span>\uD83C\uDFA5 Google Meet</span>' : '') +
