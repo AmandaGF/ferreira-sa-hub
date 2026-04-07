@@ -535,6 +535,18 @@ if (!$showEditor) {
             document.getElementById('campos_fixo').style.display = isRisco ? 'none' : 'block';
             document.getElementById('campos_risco').style.display = isRisco ? 'block' : 'none';
         }
+
+        // Auto-formatar campos ao carregar a página
+        document.addEventListener('DOMContentLoaded', function() {
+            var cpfEl = document.querySelector('input[name="cpf"]');
+            if (cpfEl && cpfEl.value) mascaraCPF(cpfEl);
+            var phoneEl = document.querySelector('input[name="phone"]');
+            if (phoneEl && phoneEl.value) mascaraTelefone(phoneEl);
+            var waEl = document.querySelector('input[name="whatsapp_reu"]');
+            if (waEl && waEl.value) mascaraTelefone(waEl);
+            var procEls = document.querySelectorAll('input[name="numero_processo"]');
+            procEls.forEach(function(el) { if (el.value) mascaraProcesso(el); });
+        });
         </script>
         <?php endif; ?>
 
