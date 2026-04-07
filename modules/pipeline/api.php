@@ -272,79 +272,58 @@ switch ($action) {
             $orig->execute(array($leadId));
             $origLead = $orig->fetch();
             if ($origLead) {
-                // Buscar título da pasta original para compor o nome
-                $origCaseTitle = '';
-                if ($origLead['linked_case_id']) {
-                    $stmtOC = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
-                    $stmtOC->execute(array($origLead['linked_case_id']));
-                    $ocRow = $stmtOC->fetch();
-                    if ($ocRow) $origCaseTitle = $ocRow['title'];
-                }
-
-                // Título da nova pasta
+                $clientId = (int)$origLead['client_id'];
                 $novoTitulo = $dupTitulo ?: ($origLead['name'] . ' x ' . ($dupCaseType ?: 'Nova Ação'));
 
-                // 1. Criar nova pasta no Operacional
-                $newCaseId = null;
-                try {
-                    // Copiar dados da pasta original se existir
-                    if ($origLead['linked_case_id']) {
-                        $origCase = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
-                        $origCase->execute(array($origLead['linked_case_id']));
-                        $oc = $origCase->fetch();
-                        if ($oc) {
-                            $pdo->prepare(
-                                "INSERT INTO cases (client_id, title, case_type, court, comarca, comarca_uf, regional, sistema_tribunal, departamento, category, status, priority, responsible_user_id, notes, created_at, updated_at)
-                                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW(),NOW())"
-                            )->execute(array(
-                                $oc['client_id'], $novoTitulo, $dupCaseType ?: '',
-                                $oc['court'], $oc['comarca'], $oc['comarca_uf'], $oc['regional'],
-                                $oc['sistema_tribunal'], $oc['departamento'] ?: 'operacional',
-                                $oc['category'] ?: 'judicial', $oc['status'], $oc['priority'],
-                                $oc['responsible_user_id'],
-                                'Duplicado da pasta #' . $oc['id'] . ' (' . $origCaseTitle . ')'
-                            ));
-                            $newCaseId = (int)$pdo->lastInsertId();
-
-                            // Copiar partes
-                            $partes = $pdo->prepare("SELECT * FROM case_partes WHERE case_id = ?");
-                            $partes->execute(array($origLead['linked_case_id']));
-                            $stmtP = $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())");
-                            foreach ($partes->fetchAll() as $pt) {
-                                $stmtP->execute(array($newCaseId, $pt['papel'], $pt['tipo_pessoa'], $pt['nome'], $pt['cpf'], $pt['rg'], $pt['nascimento'], $pt['profissao'], $pt['estado_civil'], $pt['email'], $pt['telefone'], $pt['endereco'], $pt['cidade'], $pt['uf'], $pt['client_id']));
-                            }
-                        }
-                    }
-                    // Se não tinha pasta original, criar do zero
-                    if (!$newCaseId && $origLead['client_id']) {
-                        $pdo->prepare(
-                            "INSERT INTO cases (client_id, title, case_type, status, priority, departamento, category, responsible_user_id, created_at, updated_at)
-                             VALUES (?,?,?,'em_andamento','normal','operacional','judicial',?,NOW(),NOW())"
-                        )->execute(array($origLead['client_id'], $novoTitulo, $dupCaseType ?: '', $origLead['assigned_to']));
-                        $newCaseId = (int)$pdo->lastInsertId();
-                    }
-                } catch (Exception $e) {}
-
-                // 2. Criar novo lead no MESMO estágio do original
+                // 1. Criar caso no Operacional (mesma lógica do contrato_assinado)
                 $pdo->prepare(
-                    "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, notes, created_at)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,NOW())"
+                    "INSERT INTO cases (client_id, title, case_type, status, priority, responsible_user_id, opened_at, notes)
+                     VALUES (?,?,?,'aguardando_docs','normal',?,CURDATE(),?)"
                 )->execute(array(
-                    $origLead['client_id'], $newCaseId,
+                    $clientId, $novoTitulo, $dupCaseType ?: 'outro', $origLead['assigned_to'],
+                    'Duplicado de lead #' . $leadId . '. Origem: Pipeline.'
+                ));
+                $newCaseId = (int)$pdo->lastInsertId();
+
+                // Gerar checklist automática
+                if (function_exists('generate_case_checklist')) {
+                    generate_case_checklist($newCaseId, $dupCaseType ?: 'outro');
+                }
+
+                // Copiar partes da pasta original (se existir)
+                if ($origLead['linked_case_id']) {
+                    $partes = $pdo->prepare("SELECT * FROM case_partes WHERE case_id = ?");
+                    $partes->execute(array($origLead['linked_case_id']));
+                    $stmtP = $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())");
+                    foreach ($partes->fetchAll() as $pt) {
+                        $stmtP->execute(array($newCaseId, $pt['papel'], $pt['tipo_pessoa'], $pt['nome'], $pt['cpf'], $pt['rg'], $pt['nascimento'], $pt['profissao'], $pt['estado_civil'], $pt['email'], $pt['telefone'], $pt['endereco'], $pt['cidade'], $pt['uf'], $pt['client_id']));
+                    }
+                }
+
+                // Criar pasta no Google Drive
+                $driveResult = create_drive_folder($novoTitulo, $dupCaseType ?: 'outro', $newCaseId, $novoTitulo);
+
+                // 2. Criar novo lead no MESMO estágio, vinculado à nova pasta
+                $pdo->prepare(
+                    "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, converted_at, notes, created_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,NOW(),?,NOW())"
+                )->execute(array(
+                    $clientId, $newCaseId,
                     $origLead['name'], $origLead['phone'], $origLead['email'],
                     $origLead['source'], $origLead['stage'],
                     $dupCaseType ?: '', $origLead['assigned_to'],
                     ($dupCaseType ?: 'Nova ação') . ' — duplicado de #' . $leadId
                 ));
-                $newId = (int)$pdo->lastInsertId();
-                $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
-                    ->execute(array($newId, $origLead['stage'], current_user_id(), 'Duplicado para: ' . ($dupCaseType ?: 'nova ação')));
+                $newLeadId = (int)$pdo->lastInsertId();
 
-                if ($newCaseId) {
-                    audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Duplicado via pipeline lead #' . $leadId);
-                }
-                flash_set('success', 'Lead + pasta duplicados! Tipo: ' . ($dupCaseType ?: 'a definir'));
-                redirect(module_url('pipeline', 'lead_ver.php?id=' . $newId));
+                $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
+                    ->execute(array($newLeadId, $origLead['stage'], current_user_id(), 'Duplicado: ' . ($dupCaseType ?: 'nova ação')));
+
+                audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Duplicado via lead #' . $leadId . ' tipo: ' . $dupCaseType);
+                notify_gestao('Nova ação duplicada!', $origLead['name'] . ' — ' . ($dupCaseType ?: 'Nova ação') . '. Pasta + lead criados.', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '📋');
+
+                flash_set('success', 'Lead + pasta criados! ' . $novoTitulo);
+                redirect(module_url('pipeline', 'lead_ver.php?id=' . $newLeadId));
             }
         }
         redirect(module_url('pipeline'));
