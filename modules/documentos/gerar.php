@@ -294,7 +294,7 @@ if (!$showEditor) {
     <form method="POST">
         <div class="row">
             <div><label>Nome completo</label><input name="nome" value="<?= e($nome) ?>" placeholder="Preencha o nome..." style="<?= $nome ? '' : 'border-color:#d97706;' ?>"></div>
-            <div><label>CPF</label><input name="cpf" value="<?= e($cpf) ?>" placeholder="Preencha o CPF..." style="<?= $cpf ? '' : 'border-color:#d97706;' ?>"></div>
+            <div><label>CPF</label><input name="cpf" value="<?= e($cpf) ?>" placeholder="000.000.000-00" oninput="mascaraCPF(this)" maxlength="14" style="<?= $cpf ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
 
         <?php if (!$isDefesa && !$isIntercorrente): ?>
@@ -304,7 +304,7 @@ if (!$showEditor) {
         </div>
         <div class="row">
             <div><label>E-mail</label><input name="email" value="<?= e($email) ?>" placeholder="Preencha o e-mail..." style="<?= $email ? '' : 'border-color:#d97706;' ?>"></div>
-            <div><label>Telefone</label><input name="phone" value="<?= e($phone) ?>" placeholder="Preencha o telefone..." style="<?= $phone ? '' : 'border-color:#d97706;' ?>"></div>
+            <div><label>Telefone</label><input name="phone" value="<?= e($phone) ?>" placeholder="(00) 00000-0000" oninput="mascaraTelefone(this)" maxlength="15" style="<?= $phone ? '' : 'border-color:#d97706;' ?>"></div>
         </div>
         <?php endif; ?>
 
@@ -415,6 +415,33 @@ if (!$showEditor) {
         </div>
 
         <script>
+        function mascaraCPF(el) {
+            var v = el.value.replace(/\D/g, '').substring(0, 11);
+            if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+            else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+            else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+            el.value = v;
+        }
+
+        function mascaraTelefone(el) {
+            var v = el.value.replace(/\D/g, '').substring(0, 11);
+            if (v.length > 6) v = v.replace(/(\d{2})(\d{4,5})(\d{1,4})/, '($1) $2-$3');
+            else if (v.length > 2) v = v.replace(/(\d{2})(\d{1,5})/, '($1) $2');
+            else if (v.length > 0) v = v.replace(/(\d{1,2})/, '($1');
+            el.value = v;
+        }
+
+        function mascaraProcesso(el) {
+            var v = el.value.replace(/\D/g, '').substring(0, 20);
+            // Formato CNJ: 0000000-00.0000.0.00.0000
+            if (v.length > 13) v = v.replace(/(\d{7})(\d{2})(\d{4})(\d{1})(\d{2})(\d{1,4})/, '$1-$2.$3.$4.$5.$6');
+            else if (v.length > 11) v = v.replace(/(\d{7})(\d{2})(\d{4})(\d{1})(\d{1,2})/, '$1-$2.$3.$4.$5');
+            else if (v.length > 10) v = v.replace(/(\d{7})(\d{2})(\d{4})(\d{1,1})/, '$1-$2.$3.$4');
+            else if (v.length > 9) v = v.replace(/(\d{7})(\d{2})(\d{1,4})/, '$1-$2.$3');
+            else if (v.length > 7) v = v.replace(/(\d{7})(\d{1,2})/, '$1-$2');
+            el.value = v;
+        }
+
         function mascaraReal(el) {
             var v = el.value.replace(/\D/g, '');
             if (!v) { el.value = ''; return; }
@@ -515,7 +542,7 @@ if (!$showEditor) {
         <div class="section">
             <h4>Dados da Juntada</h4>
             <div class="row">
-                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
             </div>
             <div style="margin-bottom:.75rem;">
@@ -533,7 +560,7 @@ if (!$showEditor) {
         <div class="section">
             <h4>Dados da Ciência</h4>
             <div class="row">
-                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
             </div>
             <div style="margin-bottom:.75rem;">
@@ -554,7 +581,7 @@ if (!$showEditor) {
         <div class="section">
             <h4>Dados da Pesquisa PREVJUD</h4>
             <div class="row">
-                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2ª Vara de Família de Resende"></div>
             </div>
             <div class="row">
@@ -610,7 +637,7 @@ if (!$showEditor) {
         <div class="section">
             <h4>Dados da Habilitação</h4>
             <div class="row">
-                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000"></div>
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família"></div>
             </div>
             <div class="row">
