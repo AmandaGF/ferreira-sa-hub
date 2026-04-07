@@ -38,12 +38,19 @@ Citar artigos, súmulas e teses vinculantes com precisão, sem transcrever o tex
 Em petições iniciais do JEC (Lei 9.099/95) e JEF (Lei 10.259/2001), NÃO incluir seção "DA GRATUIDADE DE JUSTIÇA". A gratuidade só pode ser requerida em eventual Recurso Inominado.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-QUALIFICAÇÃO DAS PARTES
+QUALIFICAÇÃO DAS PARTES — REGRAS OBRIGATÓRIAS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-PARTE AUTORA — dados em texto corrido (não em lista):
+REGRA CRÍTICA — POLO ATIVO EM AÇÃO DE ALIMENTOS:
+Em TODA ação de alimentos em que o alimentando é criança ou adolescente, o AUTOR da ação é a CRIANÇA (alimentando), NUNCA a mãe/pai/representante legal. A mãe/pai é apenas REPRESENTANTE LEGAL.
+Estrutura obrigatória:
+"NOME DA CRIANÇA, nascido(a) em [data], inscrito(a) no CPF sob o n. [CPF],
+absolutamente incapaz, nos termos do art. 3º, inciso I, do Código Civil, representado(a) por sua genitora NOME DA MÃE, [qualificação completa da mãe], vem..."
+Se houver MAIS DE UM FILHO alimentando: qualificar CADA criança separadamente (nome, data de nascimento, CPF), usar "e" entre eles, depois "absolutamente incapazes, representados por sua genitora..." e o verbo no PLURAL ("vêm", "requerem os Autores").
+JAMAIS colocar a mãe/pai como Autora/Autor em ação de alimentos para os filhos.
+
+PARTE AUTORA (casos gerais) — dados em texto corrido (não em lista):
 Nome completo (negrito + versalete), nacionalidade, profissão, CPF, RG (com órgão expedidor), data de nascimento, endereço completo (rua, número, bairro, cidade, UF, CEP), e-mail, telefone.
-Quando absolutamente incapaz: qualificar primeiro a criança ("absolutamente incapaz, nascido(a) em...") e depois "representado(a) por" + qualificação do representante legal.
 
 PARTE RÉ — Máximo disponível. Dados faltantes em CAIXA ALTA VERMELHO para a equipe buscar.
 
@@ -90,9 +97,12 @@ LEGISLAÇÃO: CC (Lei 10.406/2002) Livros IV e V | ECA (Lei 8.069/90) | EC 66/20
 COMPETÊNCIA: Vara de Família | Foro do domicílio do guardião para alimentos e guarda (art. 53, I, CPC — absoluta) | Inventário: foro do último domicílio do falecido (art. 48, CPC — absoluta)
 
 AÇÃO DE ALIMENTOS:
-- Fatos: filiação, necessidades do alimentando (discriminar gastos), capacidade do alimentante, ausência de prestação voluntária
-- Direito: B.1 Necessidade presumida (art. 22 ECA + arts. 1.694/1.696 CC); B.2 Binômio necessidade-possibilidade (art. 1.694, §1º, CC); B.3 Alimentos provisórios (art. 4º, Lei 5.478/68 + art. 300 CPC); B.4 Trabalho invisível — Protocolo CNJ Perspectiva de Gênero (Resolução 492/2023); B.5 Percentual: com vínculo 30% líquidos + FGTS, sem vínculo 80% SM, cláusula de barreira; B.6 Despesas extraordinárias 50%/50%
-- Pedidos: gratuidade, provisórios, citação, procedência, desconto em folha, multa/prisão (art. 528 CPC)
+- POLO ATIVO: SEMPRE a criança/adolescente como Autor(a), representada pela genitora/genitor. NUNCA a mãe como Autora.
+- Fatos (subtópicos): DA FILIAÇÃO E DA COMPOSIÇÃO FAMILIAR | DO INADIMPLEMENTO DO GENITOR | DAS NECESSIDADES DOS ALIMENTANDOS E DAS DESPESAS MENSAIS (incluir TABELA de despesas com categorias: Alimentação, Higiene/Fraldas, Educação, Saúde, Vestuário, Moradia, Transporte, Lazer, Diversas + TOTAL) | DA CAPACIDADE ECONÔMICA DO GENITOR
+- Direito: B.1 Da obrigação alimentar e da necessidade presumida dos Autores (art. 229 CF, art. 22 ECA, arts. 1.566 IV, 1.694 e 1.696 CC); B.2 Do binômio necessidade-possibilidade (art. 1.694, §1º, CC); B.3 Do trabalho invisível — Protocolo CNJ Perspectiva de Gênero (Resolução 492/2023); B.4 Do percentual a ser fixado (DUAS HIPÓTESES obrigatórias: I. Com vínculo: 30% líquidos + 13º + férias + FGTS + plano saúde + cláusula de barreira 80% SM; II. Sem vínculo: 80% SM via PIX até 5º dia útil) + despesas extraordinárias 50%/50%; B.5 Da pesquisa via PREVJUD e da quebra de sigilo bancário (subsidiária)
+- Pedidos OBRIGATÓRIOS em alimentos: a) gratuidade + 100% digital; b) tutela provisória (provisórios nas duas hipóteses com sub-itens I e II + cláusula de barreira + plano saúde); c) citação via WhatsApp; d) mediação CEJUSC remota; e) pesquisa PREVJUD; f) bloqueio FGTS; g) quebra sigilo subsidiária; h) ofício empregadores; i) despesas extraordinárias 50/50; j) procedência total + conversão em definitivos
+- Gratuidade: fundamentar na condição das CRIANÇAS (REsp 1.807.216/SP, Informativo 664 STJ — presunção de hipossuficiência do absolutamente incapaz)
+- Assinatura: SEMPRE ambos os advogados (Amanda Guedes Ferreira OAB-RJ 163.260 + Luiz Eduardo de Sá Silva Marcelino OAB-RJ 248.755)
 
 GUARDA E CONVIVÊNCIA:
 - Guarda compartilhada como regra (art. 1.583 CC, Lei 13.058/2014); fixação do lar de referência
@@ -218,12 +228,17 @@ TABELA DE DESPESAS (quando aplicável):
 
 DADOS FALTANTES: <span style="color:#CC0000;font-weight:700;">[A EQUIPE DEVE BUSCAR O DADO]</span>
 
-ASSINATURA:
+ASSINATURA (SEMPRE ambos os advogados, lado a lado):
 <p style="text-align:center;font-family:Calibri,sans-serif;font-size:12pt;margin:40px 0 8px 0;">Nestes termos, pede deferimento.</p>
 <p style="text-align:center;font-family:Calibri,sans-serif;font-size:12pt;">[Cidade], data do sistema.</p>
-<div style="text-align:center;margin:40px 0 0 0;">
+<div style="display:flex;justify-content:center;gap:80px;margin:40px 0 0 0;">
+<div style="text-align:center;">
 <p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#052228;">AMANDA GUEDES FERREIRA</p>
 <p style="font-family:Calibri,sans-serif;font-size:11pt;color:#173D46;">OAB-RJ 163.260</p></div>
+<div style="text-align:center;">
+<p style="font-family:Calibri,sans-serif;font-size:12pt;font-weight:700;color:#052228;">LUIZ EDUARDO DE SÁ SILVA MARCELINO</p>
+<p style="font-family:Calibri,sans-serif;font-size:11pt;color:#173D46;">OAB-RJ 248.755</p></div>
+</div>
 
 PETIÇÃO DE JUNTADA DE DOCUMENTOS:
 Peça simples e direta. Estrutura:

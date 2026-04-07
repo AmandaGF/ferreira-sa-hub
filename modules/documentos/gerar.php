@@ -266,8 +266,8 @@ if (!$showEditor) {
         .editor .section h4 { font-size:.85rem; color:#6a3c2c; margin-bottom:.5rem; }
         .btn-gen { width:100%; padding:.8rem; background:linear-gradient(135deg,#052228,#173d46); color:#fff; border:none; border-radius:12px; font-size:.9rem; font-weight:700; cursor:pointer; margin-top:1rem; }
         .page { max-width:210mm; margin:2rem auto; background:#fff; padding:50px 65px; box-shadow:0 4px 20px rgba(0,0,0,.15); line-height:1.7; font-size:12.5px; }
-        .page-header { text-align:center; margin-bottom:1.5rem; padding-bottom:1rem; border-bottom:2px solid #b8956e; }
-        .page-header img { max-width:280px; margin:0 auto .5rem; display:block; }
+        .page-header { text-align:center; margin-bottom:2rem; padding-bottom:.75rem; border-bottom:3px solid #B87333; }
+        .page-header img { max-width:320px; margin:0 auto .75rem; display:block; }
         .doc-title { text-align:center; font-size:14px; font-weight:800; color:#052228; text-decoration:underline; margin-bottom:1.5rem; letter-spacing:1px; }
         .doc-body { text-align:justify; }
         .doc-body p { margin-bottom:.7rem; }
@@ -277,7 +277,7 @@ if (!$showEditor) {
         .assinatura { text-align:center; margin-top:3rem; }
         .assinatura .linha { border-top:1px solid #1a1a1a; width:320px; margin:0 auto .4rem; }
         .assinatura .nome-ass { font-weight:700; font-size:12px; }
-        .page-footer { margin-top:2rem; padding-top:1rem; border-top:2px solid #b8956e; text-align:center; font-size:10px; color:#6b7280; }
+        .page-footer { margin-top:2.5rem; padding-top:.75rem; border-top:2px solid #B87333; text-align:center; font-size:9.5px; color:#555; font-family:Calibri,sans-serif; }
         @page { size:A4; margin:1.5cm 2cm 1.5cm 2cm; }
         @media print { body{background:#fff;} .toolbar,.editor{display:none !important;} .page{box-shadow:none;margin:0;padding:40px 55px;} }
     </style>

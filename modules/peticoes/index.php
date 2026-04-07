@@ -558,10 +558,10 @@ var timbradoTopo = '<div style="text-align:center;margin-bottom:16px;">'
     + '</div>'
     + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
 
-var timbradoRodape = '<div style="border-top:1px solid #888;margin-top:48px;padding-top:10px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
-    + '<div style="margin-bottom:3px;"><strong>Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; S\u00e3o Paulo / SP</strong></div>'
-    + '<div>(24) 9.9205.0096 / (11) 2110-5438</div>'
-    + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
+var timbradoRodape = '<div style="border-top:2px solid #B87333;margin-top:48px;padding-top:12px;text-align:center;font-family:Calibri,sans-serif;font-size:9pt;color:#555;">'
+    + '<div style="margin-bottom:4px;"><strong style="color:#333;">\uD83D\uDCCD Rio de Janeiro / RJ &nbsp;&nbsp;&nbsp; Barra Mansa / RJ &nbsp;&nbsp;&nbsp; Volta Redonda / RJ &nbsp;&nbsp;&nbsp; Resende / RJ &nbsp;&nbsp;&nbsp; S\u00e3o Paulo / SP</strong></div>'
+    + '<div style="margin-bottom:4px;font-weight:700;color:#333;">(24) 9.9205.0096 / (11) 2110-5438</div>'
+    + '<div>\uD83C\uDF10 www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp;&nbsp; \u2709 contato@ferreiraesa.com.br</div>'
     + '</div>';
 
 function baixarWord() {
