@@ -74,17 +74,33 @@ try {
 } catch (Exception $e) {}
 
 $statusLabels = array(
-    'em_andamento' => 'Processo em Andamento',
-    'suspenso'     => 'Processo Suspenso',
-    'arquivado'    => 'Processo Finalizado / Arquivado',
-    'renunciamos'  => 'Renunciamos',
+    'aguardando_docs'  => 'Contrato — Aguardando Docs',
+    'em_elaboracao'    => 'Pasta Apta',
+    'em_andamento'     => 'Em Execução',
+    'doc_faltante'     => 'Doc Faltante',
+    'suspenso'         => 'Suspenso',
+    'aguardando_prazo' => 'Aguard. Distribuição',
+    'distribuido'      => 'Processo Distribuído',
+    'parceria_previdenciario' => 'Parceria',
+    'arquivado'        => 'Finalizado / Arquivado',
+    'renunciamos'      => 'Renunciamos',
+    'cancelado'        => 'Cancelado',
+    'concluido'        => 'Concluído',
 );
 
 $statusCores = array(
-    'em_andamento' => '#059669',  // verde
-    'suspenso'     => '#d97706',  // amarelo/laranja
-    'arquivado'    => '#dc2626',  // vermelho
-    'renunciamos'  => '#6b7280',  // cinza
+    'aguardando_docs'  => '#f59e0b',
+    'em_elaboracao'    => '#059669',
+    'em_andamento'     => '#0ea5e9',
+    'doc_faltante'     => '#dc2626',
+    'suspenso'         => '#5B2D8E',
+    'aguardando_prazo' => '#8b5cf6',
+    'distribuido'      => '#15803d',
+    'parceria_previdenciario' => '#06b6d4',
+    'arquivado'        => '#6b7280',
+    'renunciamos'      => '#6b7280',
+    'cancelado'        => '#6b7280',
+    'concluido'        => '#059669',
 );
 
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
