@@ -341,7 +341,7 @@ foreach ($compromissosCaso as $comp) {
 }
 
 $tipoCompCores = array(
-    'audiencia'=>'#052228','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000',
+    'audiencia'=>'#e67e22','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000',
     'onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A',
     'balcao_virtual'=>'#0d9488','ligacao'=>'#888880','publicacao'=>'#dc2626',
 );

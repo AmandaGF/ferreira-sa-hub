@@ -11,7 +11,7 @@ $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY na
 
 // Mapa tipo → cor / ícone / label
 $tiposMapa = array(
-    'audiencia'        => array('cor' => '#052228', 'icon' => "\u{2696}", 'label' => 'Audiência'),
+    'audiencia'        => array('cor' => '#e67e22', 'icon' => "\u{2696}", 'label' => 'Audiência'),
     'reuniao_cliente'  => array('cor' => '#B87333', 'icon' => "\u{1F464}", 'label' => 'Reunião com cliente'),
     'prazo'            => array('cor' => '#CC0000', 'icon' => "\u{23F0}", 'label' => 'Prazo processual'),
     'onboarding'       => array('cor' => '#2D7A4F', 'icon' => "\u{1F3AF}", 'label' => 'Onboarding'),
@@ -27,7 +27,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 /* ── VARIÁVEIS ── */
-.ag { --audiencia:#052228;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--tarefa:#6366f1;--cobre-suave:#F5EDE3; }
+.ag { --audiencia:#e67e22;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--tarefa:#6366f1;--cobre-suave:#F5EDE3; }
 
 /* ── TOPO ── */
 .ag-topo { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px; }
@@ -373,7 +373,7 @@ var hoje = new Date();
 var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
-var CORES = {audiencia:'#052228',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1'};
+var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1'};
 var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa'};
 var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705"};
 
