@@ -769,6 +769,40 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'add_prazo':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $tipo = clean_str($_POST['tipo'] ?? '', 100);
+        $prazoFatal = $_POST['prazo_fatal'] ?? '';
+        $descricao = clean_str($_POST['descricao'] ?? '', 300);
+        if ($caseId && $prazoFatal) {
+            try {
+                $pdo->prepare(
+                    "INSERT INTO prazos_processuais (case_id, tipo, descricao_acao, prazo_fatal, concluido, usuario_id, created_at) VALUES (?,?,?,?,0,?,NOW())"
+                )->execute(array($caseId, $tipo ?: 'Prazo', $descricao ?: $tipo, $prazoFatal, current_user_id()));
+                audit_log('PRAZO_CRIADO', 'case', $caseId, $tipo . ' — ' . $prazoFatal);
+                flash_set('success', 'Prazo cadastrado: ' . date('d/m/Y', strtotime($prazoFatal)));
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao cadastrar prazo.');
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
+    case 'concluir_prazo':
+        $prazoId = (int)($_POST['prazo_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($prazoId) {
+            try {
+                $pdo->prepare("UPDATE prazos_processuais SET concluido = 1 WHERE id = ?")->execute(array($prazoId));
+                audit_log('PRAZO_CONCLUIDO', 'case', $caseId, 'prazo_id=' . $prazoId);
+                flash_set('success', 'Prazo concluído.');
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao concluir prazo.');
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');

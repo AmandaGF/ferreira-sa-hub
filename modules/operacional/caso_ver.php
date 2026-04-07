@@ -320,6 +320,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
+    <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#dc2626;">Calcular Prazo</a>
 </div>
 
 <!-- Processos Incidentais -->
@@ -639,6 +640,112 @@ require_once APP_ROOT . '/templates/layout_start.php';
                       onfocus="this.style.borderColor='#3b82f6'"
                       onblur="this.style.borderColor='var(--border)'"><?= e($case['notes'] ?? '') ?></textarea>
         </div>
+    </div>
+</div>
+
+<!-- Prazos Processuais -->
+<?php
+$prazosCase = array();
+try {
+    $stmtPrazos = $pdo->prepare(
+        "SELECT pp.*, u.name as user_name FROM prazos_processuais pp
+         LEFT JOIN users u ON u.id = pp.usuario_id
+         WHERE pp.case_id = ? ORDER BY pp.prazo_fatal ASC"
+    );
+    $stmtPrazos->execute(array($caseId));
+    $prazosCase = $stmtPrazos->fetchAll();
+} catch (Exception $e) {}
+
+$prazosAtivos = array_filter($prazosCase, function($p) { return empty($p['concluido']); });
+$prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['concluido']); });
+?>
+<div class="card mb-2">
+    <div class="card-header">
+        <h3>Prazos (<?= count($prazosAtivos) ?> ativo<?= count($prazosAtivos) !== 1 ? 's' : '' ?>)</h3>
+        <div style="display:flex;gap:.5rem;">
+            <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Calculadora de Prazos</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <!-- Formulário novo prazo rápido -->
+        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="add_prazo">
+            <input type="hidden" name="case_id" value="<?= $caseId ?>">
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;">
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Tipo</label>
+                    <input type="text" name="tipo" class="form-input" style="width:180px;" placeholder="Ex: Contestação, Recurso..." required>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Data fatal</label>
+                    <input type="date" name="prazo_fatal" class="form-input" style="width:150px;" required>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:2px;">
+                    <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Descrição (opcional)</label>
+                    <input type="text" name="descricao" class="form-input" style="width:220px;" placeholder="Detalhes do prazo...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm" style="background:#dc2626;">+ Prazo</button>
+            </div>
+        </form>
+
+        <?php if (empty($prazosCase)): ?>
+            <p class="text-muted text-sm" style="text-align:center;padding:.5rem;">Nenhum prazo cadastrado. Use o botão acima ou a Calculadora de Prazos.</p>
+        <?php else: ?>
+            <?php foreach ($prazosAtivos as $pz):
+                $diasFalta = (int)((strtotime($pz['prazo_fatal']) - time()) / 86400);
+                $corPrazo = '#059669'; $bgPrazo = '#ecfdf5';
+                if ($diasFalta < 0) { $corPrazo = '#dc2626'; $bgPrazo = '#fef2f2'; }
+                elseif ($diasFalta <= 3) { $corPrazo = '#d97706'; $bgPrazo = '#fef3c7'; }
+            ?>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .8rem;border-bottom:1px solid var(--border);">
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="concluir_prazo">
+                    <input type="hidden" name="prazo_id" value="<?= $pz['id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <button type="submit" title="Marcar como concluído" style="width:20px;height:20px;border-radius:50%;border:2px solid <?= $corPrazo ?>;background:transparent;cursor:pointer;flex-shrink:0;"></button>
+                </form>
+                <div style="flex:1;min-width:0;">
+                    <div style="font-size:.85rem;font-weight:600;color:var(--text);"><?= e($pz['tipo'] ?: $pz['descricao_acao'] ?: 'Prazo') ?></div>
+                    <?php if ($pz['descricao'] ?: ($pz['descricao_acao'] ?? '')): ?>
+                        <div style="font-size:.72rem;color:var(--text-muted);"><?= e($pz['descricao'] ?: $pz['descricao_acao']) ?></div>
+                    <?php endif; ?>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                    <div style="font-size:.82rem;font-weight:700;color:<?= $corPrazo ?>;background:<?= $bgPrazo ?>;padding:2px 8px;border-radius:4px;">
+                        <?= date('d/m/Y', strtotime($pz['prazo_fatal'])) ?>
+                    </div>
+                    <div style="font-size:.65rem;font-weight:600;color:<?= $corPrazo ?>;margin-top:2px;">
+                        <?php if ($diasFalta < 0): ?>
+                            Vencido há <?= abs($diasFalta) ?>d
+                        <?php elseif ($diasFalta === 0): ?>
+                            HOJE
+                        <?php else: ?>
+                            <?= $diasFalta ?>d restante<?= $diasFalta > 1 ? 's' : '' ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+
+            <?php if (!empty($prazosConcluidos)): ?>
+            <div style="margin-top:.5rem;">
+                <button type="button" onclick="document.getElementById('prazosConcluidos').style.display=document.getElementById('prazosConcluidos').style.display==='none'?'block':'none'" style="background:none;border:none;font-size:.72rem;color:var(--text-muted);cursor:pointer;font-family:inherit;">
+                    Concluídos (<?= count($prazosConcluidos) ?>)
+                </button>
+                <div id="prazosConcluidos" style="display:none;">
+                    <?php foreach ($prazosConcluidos as $pz): ?>
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.4rem .8rem;opacity:.5;">
+                        <span style="width:20px;height:20px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;flex-shrink:0;">&#10003;</span>
+                        <div style="flex:1;font-size:.8rem;text-decoration:line-through;color:var(--text-muted);"><?= e($pz['tipo'] ?: $pz['descricao_acao'] ?: 'Prazo') ?></div>
+                        <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m', strtotime($pz['prazo_fatal'])) ?></span>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php endif; ?>
+        <?php endif; ?>
     </div>
 </div>
 
