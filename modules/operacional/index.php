@@ -681,7 +681,12 @@ sort($opTipos);
             <div style="display:grid;grid-template-columns:2fr 1fr;gap:.5rem;">
                 <div>
                     <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Comarca</label>
-                    <input type="text" id="procComarca" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Ex: Resende">
+                    <input type="text" id="procComarca" list="listaComarcas" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Digite ou selecione...">
+                    <datalist id="listaComarcas">
+                        <?php $comarcasRJ = function_exists('comarcas_rj') ? comarcas_rj() : array(); foreach ($comarcasRJ as $cm): ?>
+                        <option value="<?= e($cm) ?>">
+                        <?php endforeach; ?>
+                    </datalist>
                 </div>
                 <div>
                     <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">UF</label>
