@@ -278,6 +278,7 @@ if (!$showEditor) {
         .assinatura .linha { border-top:1px solid #1a1a1a; width:320px; margin:0 auto .4rem; }
         .assinatura .nome-ass { font-weight:700; font-size:12px; }
         .page-footer { margin-top:2rem; padding-top:1rem; border-top:2px solid #b8956e; text-align:center; font-size:10px; color:#6b7280; }
+        @page { size:A4; margin:1.5cm 2cm 1.5cm 2cm; }
         @media print { body{background:#fff;} .toolbar,.editor{display:none !important;} .page{box-shadow:none;margin:0;padding:40px 55px;} }
     </style>
 </head>
@@ -736,7 +737,7 @@ if (!$showEditor) {
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
         <a href="<?= module_url('documentos') ?>">← Voltar</a>
         <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante)) ?>">✏️ Editar</a>
-        <button onclick="window.print()">🖨️ Imprimir / PDF</button>
+        <button onclick="imprimirLimpo()">🖨️ Imprimir / PDF</button>
         <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.doc)</button>
         <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
         <?php if ($phone): ?>
@@ -858,6 +859,27 @@ var _timbradoRodape = '<div style="border-top:2px solid #B87333;margin-top:48px;
     + '<div>(24) 9.9205-0096 / (11) 2110-5438</div>'
     + '<div>www.ferreiraesa.com.br &nbsp;&nbsp;&nbsp; contato@ferreiraesa.com.br</div>'
     + '</div>';
+
+function imprimirLimpo() {
+    var conteudo = document.querySelector('.doc-body').innerHTML;
+    var win = window.open('', '_blank');
+    win.document.write('<!DOCTYPE html><html><head><meta charset="utf-8"><title>Documento</title>'
+        + '<style>'
+        + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
+        + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;text-align:justify;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
+        + 'p{text-indent:4em;margin-bottom:8pt;}'
+        + '.doc-title{text-align:center;font-weight:700;font-size:14pt;margin:20px 0;text-indent:0;}'
+        + '.local-data{text-align:right;margin:24pt 0 16pt;text-indent:0;}'
+        + '.assinatura{text-align:center;margin-top:20pt;}'
+        + '.assinatura .linha{border-bottom:1px solid #333;width:80%;margin:0 auto 4pt;}'
+        + '.nome-ass{font-weight:700;font-size:10pt;}'
+        + 'table{border-collapse:collapse;width:100%;}'
+        + 'td,th{border:none;padding:4pt 8pt;}'
+        + '</style></head>'
+        + '<body>' + _timbradoTopo + conteudo + _timbradoRodape + '</body></html>');
+    win.document.close();
+    setTimeout(function() { win.print(); }, 500);
+}
 
 function baixarWord() {
     var conteudo = document.querySelector('.doc-body').innerHTML;
