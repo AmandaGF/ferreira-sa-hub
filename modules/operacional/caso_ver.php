@@ -858,17 +858,31 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
     </div>
 </div>
 
-<!-- Checklist de Tarefas -->
+<?php
+// Separar tarefas reais de checklist de documentos
+$tarefasReais = array();
+$checklistDocs = array();
+foreach ($tasks as $t) {
+    if (!empty($t['tipo']) && $t['tipo'] !== '') {
+        $tarefasReais[] = $t;
+    } else {
+        $checklistDocs[] = $t;
+    }
+}
+$checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'] === 'concluido' || $t['status'] === 'feito'; }));
+?>
+
+<!-- Tarefas Operacionais -->
 <div class="card mb-2">
     <div class="card-header">
-        <h3>Tarefas (<?= count($tasks) ?>)</h3>
+        <h3>Tarefas (<?= count($tarefasReais) ?>)</h3>
     </div>
     <div class="card-body">
-        <?php if (empty($tasks)): ?>
-            <p class="text-muted text-sm">Nenhuma tarefa cadastrada.</p>
+        <?php if (empty($tarefasReais)): ?>
+            <p class="text-muted text-sm">Nenhuma tarefa operacional.</p>
         <?php else: ?>
             <ul class="task-list">
-                <?php foreach ($tasks as $task): ?>
+                <?php foreach ($tarefasReais as $task): ?>
                 <li class="task-item">
                     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
@@ -882,7 +896,8 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
                     </form>
                     <span class="task-text <?= $isDone ? 'done' : '' ?>"><?= e($task['title']) ?></span>
                     <span class="task-meta">
-                        <?php if ($task['assigned_name']): ?><?= e($task['assigned_name']) ?><?php endif; ?>
+                        <?php if ($task['tipo']): ?><span style="font-size:.65rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:600;"><?= e($task['tipo']) ?></span><?php endif; ?>
+                        <?php if ($task['assigned_name']): ?><?= e(explode(' ', $task['assigned_name'])[0]) ?><?php endif; ?>
                         <?php if ($task['due_date']): ?> · <?= data_br($task['due_date']) ?><?php endif; ?>
                     </span>
                 </li>
@@ -907,6 +922,38 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
         </form>
     </div>
 </div>
+
+<?php if (!empty($checklistDocs)): ?>
+<!-- Checklist de Documentos (colapsável) -->
+<div class="card mb-2">
+    <div class="card-header" style="cursor:pointer;" onclick="document.getElementById('checkDocsBody').style.display=document.getElementById('checkDocsBody').style.display==='none'?'block':'none';this.querySelector('.chevron').textContent=document.getElementById('checkDocsBody').style.display==='none'?'&#9660;':'&#9650;'">
+        <h3 style="display:flex;align-items:center;gap:.5rem;">
+            Checklist de Documentos
+            <span style="font-size:.75rem;font-weight:400;color:var(--text-muted);">(<?= $checkDone ?>/<?= count($checklistDocs) ?>)</span>
+            <span class="chevron" style="font-size:.7rem;color:var(--text-muted);">&#9660;</span>
+        </h3>
+    </div>
+    <div class="card-body" id="checkDocsBody" style="display:none;">
+        <ul class="task-list">
+            <?php foreach ($checklistDocs as $task): ?>
+            <li class="task-item">
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="toggle_task">
+                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <?php $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito'); ?>
+                    <button type="submit" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>">
+                        <?= $isDone ? '✓' : '' ?>
+                    </button>
+                </form>
+                <span class="task-text <?= $isDone ? 'done' : '' ?>"><?= e($task['title']) ?></span>
+            </li>
+            <?php endforeach; ?>
+        </ul>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Andamentos Processuais -->
 <div class="card mb-2">
