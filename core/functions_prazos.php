@@ -264,11 +264,11 @@ function comarcas_rj()
 function tipos_prazo()
 {
     return array(
-        'Contestacao', 'Replica', 'Memoriais / Alegacoes Finais',
-        'Apelacao', 'Embargos de Declaracao', 'Contrarrazoes',
-        'Agravo de Instrumento', 'Impugnacao ao Cumprimento',
-        'Embargos a Execucao', 'Manifestacao', 'Juntada de Documentos',
-        'Recurso Inominado', 'Cumprimento de Sentenca',
-        'Tutela de Urgencia', 'Outro',
+        'Contestação', 'Réplica', 'Memoriais / Alegações Finais',
+        'Apelação', 'Embargos de Declaração', 'Contrarrazões',
+        'Agravo de Instrumento', 'Impugnação ao Cumprimento',
+        'Embargos à Execução', 'Manifestação', 'Juntada de Documentos',
+        'Recurso Inominado', 'Cumprimento de Sentença',
+        'Tutela de Urgência', 'Outro',
     );
 }
