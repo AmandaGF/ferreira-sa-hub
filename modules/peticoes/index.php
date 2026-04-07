@@ -590,8 +590,9 @@ function baixarWord() {
     var mhtml = 'MIME-Version: 1.0\r\n'
         + 'Content-Type: multipart/related; boundary="' + boundary + '"\r\n\r\n'
         + '--' + boundary + '\r\n'
+        + 'Content-Location: file:///C:/doc.htm\r\n'
         + 'Content-Type: text/html; charset="utf-8"\r\n'
-        + 'Content-Transfer-Encoding: 8bit\r\n\r\n'
+        + 'Content-Transfer-Encoding: quoted-printable\r\n\r\n'
         + htmlPart + '\r\n\r\n'
         + '--' + boundary + '\r\n'
         + 'Content-Type: image/png\r\n'
@@ -600,7 +601,7 @@ function baixarWord() {
         + logoB64Raw + '\r\n\r\n'
         + '--' + boundary + '--';
 
-    var blob = new Blob([mhtml], {type: 'application/msword'});
+    var blob = new Blob(['\ufeff' + mhtml], {type: 'application/msword;charset=utf-8'});
     var link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = 'peticao_' + new Date().toISOString().slice(0,10) + '.doc';
