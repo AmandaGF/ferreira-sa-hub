@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional'))
 $action = $_POST['action'] ?? '';
 
 // Ações de leitura AJAX: não consomem CSRF (evita invalidar token para o próximo submit)
-$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case');
+$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case', 'log_whatsapp_andamento', 'toggle_visibilidade', 'edit_andamento');
 $skipCsrf = $isAjax && in_array($action, $readOnlyActions);
 
 if (!$skipCsrf && !validate_csrf()) {
