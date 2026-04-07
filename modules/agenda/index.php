@@ -1131,7 +1131,12 @@ function marcarNaoCompareceu(id, btn) {
         btn.style.borderColor = '#b45309';
         btn.style.color = '#fff';
         btn.disabled = true;
-        setTimeout(recarregarEventos, 500);
+        // Perguntar se quer remarcar
+        if (confirm('Deseja remarcar para outra data?')) {
+            abrirRemarcar(id);
+        } else {
+            setTimeout(recarregarEventos, 500);
+        }
     };
     xhr.send(fd);
 }
