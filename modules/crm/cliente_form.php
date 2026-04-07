@@ -286,4 +286,122 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<script>
+// ══ Máscara de CPF ══
+var cpfField = document.querySelector('[name=cpf]');
+if (cpfField) {
+    cpfField.addEventListener('input', function() {
+        var v = this.value.replace(/\D/g, '');
+        if (v.length > 14) v = v.substr(0, 14);
+        if (v.length <= 11) {
+            if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+            else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+            else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+        } else {
+            v = v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{1,2})/, '$1.$2.$3/$4-$5');
+        }
+        this.value = v;
+    });
+}
+
+// ══ Máscara de Telefone ══
+document.querySelectorAll('[name=phone],[name=phone2]').forEach(function(el) {
+    el.addEventListener('input', function() {
+        var v = this.value.replace(/\D/g, '');
+        if (v.length > 11) v = v.substr(0, 11);
+        if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+        else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{1,4})/, '($1) $2-$3');
+        else if (v.length > 2) v = v.replace(/(\d{2})(\d{1,5})/, '($1) $2');
+        this.value = v;
+    });
+});
+
+// ══ Busca CEP via ViaCEP ══
+function formatarCEP(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (v.length > 5) v = v.substr(0,5) + '-' + v.substr(5,3);
+    el.value = v;
+}
+function buscarCEP(el, targets) {
+    var cep = el.value.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    var loading = el.parentElement.querySelector('.cep-loading');
+    if (loading) loading.style.display = 'inline';
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://viacep.com.br/ws/' + cep + '/json/', true);
+    xhr.onload = function() {
+        if (loading) loading.style.display = 'none';
+        if (xhr.status === 200) {
+            try {
+                var d = JSON.parse(xhr.responseText);
+                if (!d.erro) {
+                    if (targets.endereco) {
+                        var f = document.querySelector(targets.endereco);
+                        if (f && !f.value) f.value = d.logradouro || '';
+                    }
+                    if (targets.cidade) {
+                        var f = document.querySelector(targets.cidade);
+                        if (f) f.value = d.localidade || '';
+                    }
+                    if (targets.uf) {
+                        var f = document.querySelector(targets.uf);
+                        if (f) f.value = d.uf || '';
+                    }
+                }
+            } catch(e) {}
+        }
+    };
+    xhr.onerror = function() { if (loading) loading.style.display = 'none'; };
+    xhr.send();
+}
+
+// ══ Auto-busca CEP ao digitar ══
+var cepInput = document.getElementById('cepInput');
+if (cepInput) {
+    cepInput.addEventListener('input', function() {
+        formatarCEP(this);
+        if (this.value.replace(/\D/g, '').length === 8) {
+            buscarCEP(this, {
+                endereco: '[name=address_street]',
+                cidade: '[name=address_city]',
+                uf: '[name=address_state]'
+            });
+        }
+    });
+}
+
+// ══ Busca nome por CPF (consulta base interna) ══
+if (cpfField) {
+    var _cpfTimer = null;
+    cpfField.addEventListener('input', function() {
+        clearTimeout(_cpfTimer);
+        var cpf = this.value.replace(/\D/g, '');
+        if (cpf.length === 11) {
+            _cpfTimer = setTimeout(function() { consultarCPFInterno(cpf); }, 500);
+        }
+    });
+}
+function consultarCPFInterno(cpf) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= url("publico/api_cpf.php") ?>?cpf=' + cpf, true);
+    xhr.timeout = 8000;
+    xhr.onload = function() {
+        try {
+            var d = JSON.parse(xhr.responseText);
+            if (d.nome) {
+                var n = document.querySelector('[name=name]');
+                if (n && !n.value) n.value = d.nome;
+            }
+            if (d.nascimento) {
+                var b = document.querySelector('[name=birth_date]');
+                if (b && !b.value) {
+                    var p = d.nascimento.split('/');
+                    if (p.length === 3) b.value = p[2] + '-' + p[1] + '-' + p[0];
+                }
+            }
+        } catch(e) {}
+    };
+    xhr.send();
+}
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

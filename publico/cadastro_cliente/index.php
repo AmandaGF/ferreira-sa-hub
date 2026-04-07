@@ -27,9 +27,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $celular = clean_str($_POST['celular'] ?? '', 40);
     $email = trim($_POST['email'] ?? '');
     $cep = clean_str($_POST['cep'] ?? '', 10);
+    $rua = clean_str($_POST['rua'] ?? '', 300);
+    $numero = clean_str($_POST['numero'] ?? '', 20);
+    $complemento = clean_str($_POST['complemento'] ?? '', 200);
+    $bairro = clean_str($_POST['bairro'] ?? '', 100);
     $endereco = clean_str($_POST['endereco'] ?? '', 500);
     $cidade = clean_str($_POST['cidade'] ?? '', 100);
     $uf = clean_str($_POST['uf'] ?? '', 2);
+    // Montar address_street corretamente: Rua, nº X, Complemento - Bairro
+    $addressParts = array();
+    if ($rua) $addressParts[] = $rua;
+    if ($numero) $addressParts[] = 'nº ' . $numero;
+    if ($complemento) $addressParts[] = $complemento;
+    $addressStreet = implode(', ', $addressParts);
+    if ($bairro) $addressStreet .= ' - ' . $bairro;
     $pix = clean_str($_POST['pix'] ?? '', 100);
     $conta_bancaria = clean_str($_POST['conta_bancaria'] ?? '', 200);
     $imposto_renda = $_POST['imposto_renda'] ?? '';
@@ -51,7 +62,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $payload = array(
             'nome' => $nome, 'cpf' => $cpf, 'nascimento' => $nascimento,
             'profissao' => $profissao, 'estado_civil' => $estado_civil, 'rg' => $rg,
-            'celular' => $celular, 'email' => $email, 'cep' => $cep, 'endereco' => $endereco,
+            'celular' => $celular, 'email' => $email, 'cep' => $cep,
+            'rua' => $rua, 'numero' => $numero, 'complemento' => $complemento,
+            'bairro' => $bairro, 'cidade' => $cidade, 'uf' => $uf,
+            'endereco' => $addressStreet,
             'pix' => $pix, 'conta_bancaria' => $conta_bancaria,
             'imposto_renda' => $imposto_renda, 'clt' => $clt,
             'filhos' => $filhos, 'nome_filhos' => $nome_filhos,
@@ -73,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'birth_date' => $nascimento ?: null,
                     'profession' => $profissao,
                     'marital_status' => $estado_civil,
-                    'address_street' => $endereco,
+                    'address_street' => $addressStreet ?: $endereco,
                     'address_city' => $cidade,
                     'address_state' => $uf,
                     'address_zip' => $cep,
