@@ -156,16 +156,10 @@ switch ($action) {
         }
 
         $leadId = (int)($_POST['lead_id'] ?? 0);
-        $caseId = (int)($_POST['case_id'] ?? 0);
         $removedWhat = array();
 
-        // Arquivar caso (sai do Kanban Operacional)
-        if ($caseId) {
-            $pdo->prepare("UPDATE cases SET status = 'arquivado', closed_at = CURDATE(), updated_at = NOW() WHERE id = ?")
-                ->execute(array($caseId));
-            audit_log('case_archived', 'case', $caseId, 'Removido do fluxo via drawer por ' . $userName);
-            $removedWhat[] = 'caso #' . $caseId . ' arquivado';
-        }
+        // NUNCA arquivar caso/pasta de processo via delete_card
+        // Pastas só podem ser arquivadas explicitamente pelo Kanban Operacional
 
         // Arquivar lead (sai do Kanban Comercial, sem afetar métrica de perdidos)
         if ($leadId) {

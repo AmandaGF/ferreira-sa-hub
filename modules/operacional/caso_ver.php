@@ -201,12 +201,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
         <button type="submit" class="btn btn-outline btn-sm" style="border-color:#6366f1;color:#6366f1;">📋 Duplicar Pasta</button>
     </form>
-    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
-        <?= csrf_input() ?>
-        <input type="hidden" name="action" value="delete_case">
-        <input type="hidden" name="case_id" value="<?= $caseId ?>">
-        <button type="submit" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#dc2626;">🗑️ Excluir Caso</button>
-    </form>
+    <!-- Excluir caso DESABILITADO — pastas não podem ser excluídas -->
 </div>
 
 <!-- Header do caso -->

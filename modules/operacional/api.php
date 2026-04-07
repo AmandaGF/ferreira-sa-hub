@@ -511,7 +511,13 @@ switch ($action) {
         break;
 
     case 'delete_case':
-        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); redirect(module_url('operacional')); }
+        // BLOQUEADO — pastas de processo NUNCA podem ser excluídas
+        // Para arquivar, use o status "Arquivado" no select de status
+        flash_set('error', 'Pastas de processo não podem ser excluídas. Use o status "Arquivado" para finalizar.');
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+        if (false) { // código original mantido mas nunca executa
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId) {
             // Desvincular lead do pipeline
