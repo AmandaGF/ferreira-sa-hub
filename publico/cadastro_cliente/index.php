@@ -80,6 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'gender' => isset($sexo) ? $sexo : null,
                     'has_children' => ($filhos === 'Sim') ? 1 : (($filhos === 'Não') ? 0 : null),
                     'children_names' => $nome_filhos ?: null,
+                    'pix_key' => $pix ?: null,
                 ),
                 json_encode($payload, JSON_UNESCAPED_UNICODE)
             );

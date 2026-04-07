@@ -107,16 +107,51 @@ function process_form_submission($formType, $clientData, $payloadJson)
             }
         }
 
-        // Atualizar dados faltantes no cliente existente
+        // Atualizar dados faltantes no cliente existente (preenche campos vazios)
         if ($clientId) {
+            $current = $pdo->prepare("SELECT * FROM clients WHERE id = ?");
+            $current->execute(array($clientId));
+            $cur = $current->fetch(PDO::FETCH_ASSOC);
+
             $updateFields = array();
             $updateParams = array();
-            if ($hasChildren !== null) { $updateFields[] = 'has_children=?'; $updateParams[] = $hasChildren; }
-            if ($childrenNames) { $updateFields[] = 'children_names=?'; $updateParams[] = $childrenNames; }
-            if ($gender) { $updateFields[] = 'gender=?'; $updateParams[] = $gender; }
+
+            // Preencher campos vazios com dados do formulário
+            $fillMap = array(
+                'cpf' => $cpf,
+                'rg' => $rg,
+                'birth_date' => ($birthDate ?: null),
+                'profession' => $profession,
+                'marital_status' => $maritalStatus,
+                'address_street' => $addressStreet,
+                'address_city' => $addressCity,
+                'address_state' => $addressState,
+                'address_zip' => $addressZip,
+                'gender' => $gender,
+                'pix_key' => (isset($clientData['pix_key']) ? clean_str($clientData['pix_key'], 100) : null),
+                'email' => $email,
+                'phone' => $phone,
+            );
+
+            foreach ($fillMap as $field => $value) {
+                if ($value !== null && $value !== '') {
+                    $curVal = isset($cur[$field]) ? $cur[$field] : null;
+                    if ($curVal === null || $curVal === '') {
+                        $updateFields[] = "$field = ?";
+                        $updateParams[] = $value;
+                    }
+                }
+            }
+
+            // has_children e children_names: sempre atualizar se veio do formulário
+            if ($hasChildren !== null) { $updateFields[] = 'has_children = ?'; $updateParams[] = $hasChildren; }
+            if ($childrenNames) { $updateFields[] = 'children_names = ?'; $updateParams[] = $childrenNames; }
+
             if (!empty($updateFields)) {
+                $updateFields[] = 'updated_at = NOW()';
                 $updateParams[] = $clientId;
-                $pdo->prepare("UPDATE clients SET " . implode(',', $updateFields) . " WHERE id=?")->execute($updateParams);
+                $pdo->prepare("UPDATE clients SET " . implode(', ', $updateFields) . " WHERE id = ?")
+                    ->execute($updateParams);
             }
         }
 
