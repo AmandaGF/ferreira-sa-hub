@@ -48,14 +48,43 @@ $filterVinculo = isset($_GET['vinculo']) ? $_GET['vinculo'] : '';
 if ($filterVinculo === 'principais') { $where[] = "(cs.is_incidental = 0 OR cs.is_incidental IS NULL)"; }
 elseif ($filterVinculo === 'incidentais') { $where[] = "cs.is_incidental = 1"; }
 
+// Filtros especiais
+$filterEspecial = isset($_GET['especial']) ? $_GET['especial'] : '';
+if ($filterEspecial === 'sem_andamento_30d') {
+    $where[] = "cs.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+    $where[] = "cs.status NOT IN ('concluido','arquivado','cancelado')";
+}
+if ($filterEspecial === 'audiencia_marcada') {
+    $where[] = "EXISTS (SELECT 1 FROM agenda_eventos ae WHERE ae.case_id = cs.id AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado')";
+}
+if ($filterEspecial === 'prazo_proximo') {
+    $where[] = "EXISTS (SELECT 1 FROM prazos_processuais pp WHERE pp.case_id = cs.id AND pp.concluido = 0 AND pp.prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 15 DAY))";
+}
+if ($filterEspecial === 'segredo_justica') {
+    $where[] = "cs.segredo_justica = 1";
+}
+if ($filterEspecial === 'doc_faltante') {
+    $where[] = "cs.status = 'doc_faltante'";
+}
+
+// Ordenação
+$orderBy = isset($_GET['ordem']) ? $_GET['ordem'] : 'alfa';
+$orderSql = 'c.name ASC, cs.title ASC';
+if ($orderBy === 'recentes') $orderSql = 'cs.created_at DESC';
+elseif ($orderBy === 'atualizados') $orderSql = 'cs.updated_at DESC';
+elseif ($orderBy === 'prazo') $orderSql = 'cs.deadline ASC, c.name ASC';
+
 $whereStr = implode(' AND ', $where);
 $stmt = $pdo->prepare(
     "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.cpf as client_cpf,
-     u.name as responsible_name
+     u.name as responsible_name,
+     (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) as ultimo_andamento,
+     (SELECT COUNT(*) FROM agenda_eventos ae WHERE ae.case_id = cs.id AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado') as audiencias_futuras,
+     (SELECT MIN(ae2.data_inicio) FROM agenda_eventos ae2 WHERE ae2.case_id = cs.id AND ae2.tipo = 'audiencia' AND ae2.data_inicio >= NOW() AND ae2.status != 'cancelado') as prox_audiencia
      FROM cases cs
      LEFT JOIN clients c ON c.id = cs.client_id
      LEFT JOIN users u ON u.id = cs.responsible_user_id
-     WHERE $whereStr ORDER BY cs.created_at DESC LIMIT 200"
+     WHERE $whereStr ORDER BY $orderSql LIMIT 200"
 );
 $stmt->execute($params);
 $processos = $stmt->fetchAll();
@@ -63,6 +92,8 @@ $processos = $stmt->fetchAll();
 // KPIs
 $totalJudiciais = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != ''")->fetchColumn();
 $ativosJ = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND status NOT IN ('concluido','arquivado')")->fetchColumn();
+$semAndamento30d = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND status NOT IN ('concluido','arquivado','cancelado') AND updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetchColumn();
+$comAudiencia = (int)$pdo->query("SELECT COUNT(DISTINCT ae.case_id) FROM agenda_eventos ae JOIN cases cs ON cs.id = ae.case_id WHERE cs.case_number IS NOT NULL AND cs.case_number != '' AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado'")->fetchColumn();
 
 $tipos = $pdo->query("SELECT DISTINCT case_type FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND case_type IS NOT NULL AND case_type != '' ORDER BY case_type")->fetchAll(PDO::FETCH_COLUMN);
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
@@ -102,6 +133,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <span class="proc-stat-icon">⚙️</span>
         <div><div class="proc-stat-val"><?= $ativosJ ?></div><div class="proc-stat-lbl">Ativos</div></div>
     </div>
+    <a href="?especial=sem_andamento_30d" class="proc-stat" style="text-decoration:none;<?= $filterEspecial === 'sem_andamento_30d' ? 'border-color:#dc2626;background:#fef2f2;' : '' ?>">
+        <span class="proc-stat-icon">⚠️</span>
+        <div><div class="proc-stat-val" style="color:#dc2626;"><?= $semAndamento30d ?></div><div class="proc-stat-lbl">Sem andamento 30d+</div></div>
+    </a>
+    <a href="?especial=audiencia_marcada" class="proc-stat" style="text-decoration:none;<?= $filterEspecial === 'audiencia_marcada' ? 'border-color:#e67e22;background:#fef3c7;' : '' ?>">
+        <span class="proc-stat-icon">🎤</span>
+        <div><div class="proc-stat-val" style="color:#e67e22;"><?= $comAudiencia ?></div><div class="proc-stat-lbl">Com audiência marcada</div></div>
+    </a>
 </div>
 
 <!-- Toolbar -->
@@ -115,7 +154,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php endforeach; ?>
         </select>
         <select name="type" class="proc-filter-sel" onchange="this.form.submit()">
-            <option value="">Tipo</option>
+            <option value="">Tipo de ação</option>
             <?php foreach ($tipos as $t): ?>
                 <option value="<?= e($t) ?>" <?= $filterType === $t ? 'selected' : '' ?>><?= e($t) ?></option>
             <?php endforeach; ?>
@@ -128,13 +167,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php endforeach; ?>
         </select>
         <?php endif; ?>
-        <select name="vinculo" class="form-select" style="font-size:.75rem;padding:.35rem;" onchange="this.form.submit()">
+        <select name="especial" class="proc-filter-sel" onchange="this.form.submit()">
+            <option value="">Filtro especial</option>
+            <option value="sem_andamento_30d" <?= $filterEspecial === 'sem_andamento_30d' ? 'selected' : '' ?>>Sem andamento 30d+</option>
+            <option value="audiencia_marcada" <?= $filterEspecial === 'audiencia_marcada' ? 'selected' : '' ?>>Com audiência marcada</option>
+            <option value="prazo_proximo" <?= $filterEspecial === 'prazo_proximo' ? 'selected' : '' ?>>Prazo nos próximos 15d</option>
+            <option value="segredo_justica" <?= $filterEspecial === 'segredo_justica' ? 'selected' : '' ?>>Segredo de justiça</option>
+            <option value="doc_faltante" <?= $filterEspecial === 'doc_faltante' ? 'selected' : '' ?>>Doc faltante</option>
+        </select>
+        <select name="vinculo" class="proc-filter-sel" onchange="this.form.submit()">
             <option value="">Vínculos</option>
             <option value="principais" <?= $filterVinculo === 'principais' ? 'selected' : '' ?>>Só principais</option>
             <option value="incidentais" <?= $filterVinculo === 'incidentais' ? 'selected' : '' ?>>Só incidentais</option>
         </select>
+        <select name="ordem" class="proc-filter-sel" onchange="this.form.submit()">
+            <option value="alfa" <?= $orderBy === 'alfa' ? 'selected' : '' ?>>A → Z</option>
+            <option value="recentes" <?= $orderBy === 'recentes' ? 'selected' : '' ?>>Mais recentes</option>
+            <option value="atualizados" <?= $orderBy === 'atualizados' ? 'selected' : '' ?>>Último andamento</option>
+            <option value="prazo" <?= $orderBy === 'prazo' ? 'selected' : '' ?>>Por prazo</option>
+        </select>
         <button type="submit" class="btn btn-outline btn-sm">🔍</button>
-        <?php if ($filterStatus || $filterType || $filterUser || $search || $filterVinculo): ?>
+        <?php if ($filterStatus || $filterType || $filterUser || $search || $filterVinculo || $filterEspecial || $orderBy !== 'alfa'): ?>
             <a href="<?= module_url('processos') ?>" class="btn btn-outline btn-sm">Limpar</a>
         <?php endif; ?>
     </form>
@@ -165,7 +218,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <th>Status</th>
                 <th>Prioridade</th>
                 <th>Responsável</th>
-                <th>Vínculos</th>
+                <th>Último Andamento</th>
+                <th>Audiência</th>
                 <th>Prazo</th>
             </tr></thead>
             <tbody>
@@ -196,17 +250,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </td>
                     <td style="font-size:.78rem;"><?= e($p['responsible_name'] ? explode(' ', $p['responsible_name'])[0] : '—') ?></td>
-                    <td style="font-size:.75rem;text-align:center;">
-                        <?php if (!empty($p['is_incidental']) && $p['processo_principal_id']): ?>
-                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['processo_principal_id']) ?>" title="Processo incidental" style="text-decoration:none;">🔗</a>
-                        <?php else:
-                            $cntInc = (int)$pdo->prepare("SELECT COUNT(*) FROM cases WHERE processo_principal_id = ?")->execute(array($p['id']));
-                            $stmtCntInc = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE processo_principal_id = ?");
-                            $stmtCntInc->execute(array($p['id']));
-                            $cntInc = (int)$stmtCntInc->fetchColumn();
-                            if ($cntInc > 0): ?>
-                            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" title="<?= $cntInc ?> incidental(is)" style="text-decoration:none;">📎 <?= $cntInc ?></a>
-                        <?php else: ?>—<?php endif; endif; ?>
+                    <td style="font-size:.75rem;">
+                        <?php if ($p['ultimo_andamento']):
+                            $diasSemAnd = (int)((time() - strtotime($p['ultimo_andamento'])) / 86400);
+                            $corAnd = $diasSemAnd > 30 ? '#dc2626' : ($diasSemAnd > 15 ? '#d97706' : '#059669');
+                        ?>
+                            <span style="color:<?= $corAnd ?>;font-weight:<?= $diasSemAnd > 30 ? '700' : '400' ?>;"><?= date('d/m', strtotime($p['ultimo_andamento'])) ?> (<?= $diasSemAnd ?>d)</span>
+                        <?php else: ?>
+                            <span style="color:#dc2626;font-weight:700;">Sem andamento</span>
+                        <?php endif; ?>
+                    </td>
+                    <td style="font-size:.75rem;">
+                        <?php if ($p['prox_audiencia']): ?>
+                            <span style="color:#e67e22;font-weight:600;"><?= date('d/m/Y', strtotime($p['prox_audiencia'])) ?></span>
+                        <?php else: ?>—<?php endif; ?>
                     </td>
                     <td style="font-size:.78rem;<?= $isOverdue ? 'color:#ef4444;font-weight:700;' : '' ?>"><?= $p['deadline'] ? date('d/m/Y', strtotime($p['deadline'])) : '—' ?><?= $isOverdue ? ' ⚠️' : '' ?></td>
                 </tr>
