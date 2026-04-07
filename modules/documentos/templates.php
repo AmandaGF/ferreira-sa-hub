@@ -24,6 +24,26 @@ function escritorioData() {
 function f($v, $ph = '_______________') { return $v ? htmlspecialchars($v, ENT_QUOTES, 'UTF-8') : $ph; }
 
 /**
+ * Monta qualificação completa do cliente para documentos
+ * Retorna: "brasileiro(a), solteiro(a), estudante, inscrito(a) no CPF sob o n. XXX, RG n. XXX, residente..."
+ */
+function qualificacao_completa($d, $incluirEndereco = true) {
+    $parts = array();
+    if (isset($d['nacionalidade']) && $d['nacionalidade']) $parts[] = f($d['nacionalidade']);
+    if (isset($d['estado_civil']) && $d['estado_civil']) $parts[] = f($d['estado_civil']);
+    if (isset($d['profissao']) && $d['profissao']) $parts[] = f($d['profissao']);
+    $str = !empty($parts) ? implode(', ', $parts) . ', ' : '';
+    $str .= 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>';
+    if (isset($d['rg']) && $d['rg']) $str .= ', RG n. <strong>' . f($d['rg']) . '</strong>';
+    if ($incluirEndereco) {
+        $str .= ', residente e domiciliado(a) na ' . f($d['endereco'], '_______________');
+        if (isset($d['email']) && $d['email']) $str .= ', e-mail: ' . f($d['email']);
+        if (isset($d['phone']) && $d['phone']) $str .= ', telefone: ' . f($d['phone']);
+    }
+    return $str;
+}
+
+/**
  * Gera endereçamento padrão: JUÍZO DA [vara] DA COMARCA DE [comarca]/[UF]
  */
 function enderecamento($d) {
@@ -44,14 +64,22 @@ function template_procuracao($d) {
 
     $html = '<div class="doc-title">PROCURAÇÃO <em>AD JUDICIA ET EXTRA</em></div>';
 
-    // OUTORGANTE
+    // OUTORGANTE — qualificação completa
+    $qualParts = array();
+    if (isset($d['nacionalidade']) && $d['nacionalidade']) $qualParts[] = f($d['nacionalidade']);
+    if (isset($d['estado_civil']) && $d['estado_civil']) $qualParts[] = f($d['estado_civil']);
+    if (isset($d['profissao']) && $d['profissao']) $qualParts[] = f($d['profissao']);
+    $qualStr = !empty($qualParts) ? implode(', ', $qualParts) . ', ' : '';
+
+    $rgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. <strong>' . f($d['rg']) . '</strong>' : '';
+
     if ($isMenor) {
         $filhos = $d['child_names'] ?: f('', '{{NOME DO(A) FILHO(A)}}');
-        $html .= '<p><strong>OUTORGANTE: ' . $filhos . '</strong>, representado(a)/assistido(a) por <strong>' . f($d['nome']) . '</strong>, brasileiro(a), CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>, residente e domiciliada(o) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
+        $html .= '<p><strong>OUTORGANTE: ' . $filhos . '</strong>, representado(a)/assistido(a) por <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
     } elseif ($isDefesa) {
-        $html .= '<p><strong>OUTORGANTE: ' . f($d['nome']) . '</strong>, ' . f($d['estado_civil']) . ', ' . f($d['profissao']) . ', CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>.</p>';
+        $html .= '<p><strong>OUTORGANTE: ' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . '.</p>';
     } else {
-        $html .= '<p><strong>OUTORGANTE: ' . f($d['nome']) . '</strong>, CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>, residente e domiciliada(o) na ' . f($d['endereco']) . ', e-mail n. ' . f($d['email']) . ' e telefone n. ' . f($d['phone']) . '.</p>';
+        $html .= '<p><strong>OUTORGANTE: ' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
     }
 
     // OUTORGADA
@@ -88,8 +116,16 @@ function template_contrato($d) {
 
     // CONTRATANTE E CONTRATADA (lado a lado no CSS)
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
+    // Qualificação completa do contratante
+    $cQualParts = array();
+    if (isset($d['nacionalidade']) && $d['nacionalidade']) $cQualParts[] = f($d['nacionalidade']);
+    if (isset($d['estado_civil']) && $d['estado_civil']) $cQualParts[] = f($d['estado_civil']);
+    if (isset($d['profissao']) && $d['profissao']) $cQualParts[] = f($d['profissao']);
+    $cQualStr = !empty($cQualParts) ? implode(', ', $cQualParts) . ', ' : '';
+    $cRgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. ' . f($d['rg']) : '';
+
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
-    $html .= '<p style="font-size:12px;text-indent:0;">• <strong>' . f($d['nome']) . '</strong>, CPF n. ' . f($d['cpf'], '___.___.___-__') . ', endereço: ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '</p></div>';
+    $html .= '<p style="font-size:12px;text-indent:0;">• <strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . 'inscrito(a) no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '</p></div>';
 
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
     $html .= '<p style="font-size:12px;text-indent:0;">◆ <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, sociedade de advocacia inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, <strong>Registro da Sociedade OAB ' . $esc['oab_sociedade'] . '</strong>, com sede na ' . $esc['endereco'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', website: ' . $esc['website'] . ', neste ato representada por seu administrador que esta assina digitalmente.</p></div>';
@@ -198,7 +234,7 @@ function template_contrato($d) {
 function template_hipossuficiencia($d) {
     $html = '<div class="doc-title" style="font-style:italic;">DECLARAÇÃO DE HIPOSSUFICIÊNCIA</div>';
 
-    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>, residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . ', <strong>DECLARO</strong> que não possuo recursos financeiros para arcar com as custas extrajudiciais ou judiciais sem prejuízo do meu próprio sustento e de minha família, na forma do artigo 98 e seguintes do Código de Processo Civil.</p>';
+    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d) . ', <strong>DECLARO</strong> que não possuo recursos financeiros para arcar com as custas extrajudiciais ou judiciais sem prejuízo do meu próprio sustento e de minha família, na forma do artigo 98 e seguintes do Código de Processo Civil.</p>';
 
     $html .= '<p>DECLARO, por fim, estar ciente de que a falsidade da presente declaração pode implicar na sanção civil consistente no pagamento de até o décuplo das custas judiciais, conforme os mandamentos contidos na Lei n. 1.060/50.</p>';
 
@@ -217,7 +253,7 @@ function template_isencao_ir($d) {
 
     $html = '<div class="doc-title">Declaração de Isenção do Imposto de Renda Pessoa Física (IRPF)</div>';
 
-    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>, residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . ' <strong>DECLARO</strong> ser isento(a) da apresentação da Declaração do Imposto de Renda Pessoa Física (DIRPF) no(s) exercício(s) por não incorrer em nenhuma das hipóteses de obrigatoriedade estabelecidas pelas Instruções Normativas (IN) da Receita Federal do Brasil (RFB).</p>';
+    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d) . ', <strong>DECLARO</strong> ser isento(a) da apresentação da Declaração do Imposto de Renda Pessoa Física (DIRPF) no(s) exercício(s) por não incorrer em nenhuma das hipóteses de obrigatoriedade estabelecidas pelas Instruções Normativas (IN) da Receita Federal do Brasil (RFB).</p>';
 
     $html .= '<p>Esta declaração está em conformidade com a IN RFB nº 1548/2015 e a Lei nº 7.115/83*.</p>';
 
@@ -274,7 +310,7 @@ function template_substabelecimento($d) {
 function template_residencia($d) {
     $html = '<div class="doc-title">DECLARAÇÃO DE RESIDÊNCIA</div>';
 
-    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . f($d['estado_civil']) . ', ' . f($d['profissao']) . ', portador(a) do CPF n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . (isset($d['rg']) && $d['rg'] ? ', RG n. ' . f($d['rg']) : '') . ', <strong>DECLARO</strong>, para os devidos fins de direito e sob as penas da Lei (artigo 2º da Lei 7.115/83), que <strong>RESIDO</strong> no seguinte endereço:</p>';
+    $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d, false) . ', <strong>DECLARO</strong>, para os devidos fins de direito e sob as penas da Lei (artigo 2º da Lei 7.115/83), que <strong>RESIDO</strong> no seguinte endereço:</p>';
 
     $html .= '<div style="background:#f8f9fa;padding:1.25rem;border-radius:10px;border-left:4px solid #0d9488;margin:1.5rem 0;font-size:13px;">';
     $html .= '<strong>' . f($d['endereco']) . '</strong>';
@@ -303,7 +339,7 @@ function template_acordo($d) {
 
     $html .= '<div style="background:#f0f9ff;padding:1rem;border-radius:10px;border-left:4px solid #052228;margin:.75rem 0;">';
     $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.15rem .6rem;border-radius:5px;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 1</div><br>';
-    $html .= '<strong>' . f($d['nome']) . '</strong>, ' . f($d['estado_civil']) . ', ' . f($d['profissao']) . ', CPF n. ' . f($d['cpf'], '___.___.___-__') . ', residente em ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.';
+    $html .= '<strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d) . '.';
     $html .= '</div>';
 
     $html .= '<div style="background:#fdf2f8;padding:1rem;border-radius:10px;border-left:4px solid #d7ab90;margin:.75rem 0;">';
