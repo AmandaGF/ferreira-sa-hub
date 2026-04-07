@@ -402,12 +402,30 @@ sort($tipos);
 <!-- Modal: Nome da Pasta (ao mover para contrato_assinado) -->
 <div id="folderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.25rem;">📂 Nome da Pasta no Drive</h3>
-        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Ao assinar contrato, uma pasta será criada no Drive e o Operacional será notificado.</p>
-        <input type="text" id="folderNameInput" style="width:100%;padding:.65rem .85rem;font-size:.95rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;" placeholder="Ex: Ana Maria Braga x Pensão">
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.25rem;">Contrato Assinado</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Uma pasta será criada no Drive e no Operacional.</p>
+        <div style="margin-bottom:.75rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Tipo de ação</label>
+            <select id="folderTipoAcao" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" onchange="atualizarNomePasta()">
+                <option value="">— Selecione —</option>
+                <?php
+                $tiposAcao = array('Alimentos','Revisão de Alimentos','Execução de Alimentos','Exoneração de Alimentos',
+                    'Divórcio','Divórcio Consensual','Divórcio Litigioso','Guarda','Guarda Compartilhada',
+                    'Regulamentação de Convivência','Convivência','Investigação de Paternidade',
+                    'Medida Protetiva','Tutela de Urgência','Inventário','Usucapião',
+                    'Indenização','Consignatória','Trabalhista','Outro');
+                foreach ($tiposAcao as $ta): ?>
+                <option value="<?= e($ta) ?>"><?= e($ta) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div>
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Nome da pasta</label>
+            <input type="text" id="folderNameInput" style="width:100%;padding:.65rem .85rem;font-size:.95rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;" placeholder="Ex: Ana Maria Braga x Alimentos">
+        </div>
         <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
             <button onclick="closeFolderModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;color:#6b7280;">Cancelar</button>
-            <button onclick="confirmFolder()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Criar Pasta →</button>
+            <button onclick="confirmFolder()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Criar Pasta</button>
         </div>
     </div>
 </div>
@@ -424,6 +442,16 @@ function handleStageMove(select) {
     if (stage === 'contrato_assinado') {
         var leadName = form.dataset.leadName || '';
         var caseType = form.dataset.caseType || '';
+        window._folderLeadName = leadName;
+        var tipoSel = document.getElementById('folderTipoAcao');
+        // Pré-selecionar tipo se já existe
+        if (caseType && tipoSel) {
+            for (var i = 0; i < tipoSel.options.length; i++) {
+                if (tipoSel.options[i].value === caseType) { tipoSel.selectedIndex = i; break; }
+            }
+        } else if (tipoSel) {
+            tipoSel.selectedIndex = 0;
+        }
         var sugestao = leadName + (caseType ? ' x ' + caseType : '');
         document.getElementById('folderNameInput').value = sugestao;
         document.getElementById('folderModal').style.display = 'flex';
@@ -487,9 +515,18 @@ function playCelebration() {
     } catch(e) {}
 }
 
+function atualizarNomePasta() {
+    var tipo = document.getElementById('folderTipoAcao').value;
+    var nome = window._folderLeadName || '';
+    if (tipo && nome) {
+        document.getElementById('folderNameInput').value = nome + ' x ' + tipo;
+    }
+}
+
 function confirmFolder() {
     var folderName = document.getElementById('folderNameInput').value.trim();
     if (!folderName) { document.getElementById('folderNameInput').style.borderColor = '#ef4444'; return; }
+    var tipoAcao = document.getElementById('folderTipoAcao').value;
     document.getElementById('folderModal').style.display = 'none';
 
     // Tocar sino de celebração!
@@ -497,6 +534,12 @@ function confirmFolder() {
 
     if (_pendingForm) {
         _pendingForm.querySelector('input[name="folder_name"]').value = folderName;
+        // Adicionar tipo de ação ao form se selecionado
+        if (tipoAcao) {
+            var inp = document.createElement('input');
+            inp.type = 'hidden'; inp.name = 'case_type_selected'; inp.value = tipoAcao;
+            _pendingForm.appendChild(inp);
+        }
         _pendingForm.submit();
     } else if (_pendingDragData) {
         var form = document.createElement('form');
@@ -506,7 +549,8 @@ function confirmFolder() {
             '<input type="hidden" name="action" value="move">' +
             '<input type="hidden" name="lead_id" value="' + _pendingDragData.leadId + '">' +
             '<input type="hidden" name="to_stage" value="contrato_assinado">' +
-            '<input type="hidden" name="folder_name" value="' + folderName.replace(/"/g, '&quot;') + '">';
+            '<input type="hidden" name="folder_name" value="' + folderName.replace(/"/g, '&quot;') + '">' +
+            (tipoAcao ? '<input type="hidden" name="case_type_selected" value="' + tipoAcao.replace(/"/g, '&quot;') + '">' : '');
         document.body.appendChild(form);
         form.submit();
     }

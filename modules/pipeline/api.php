@@ -60,6 +60,13 @@ switch ($action) {
             $pdo->prepare('UPDATE pipeline_leads SET converted_at=NOW() WHERE id=? AND converted_at IS NULL')
                 ->execute(array($leadId));
 
+            // Atualizar case_type do lead se selecionado no modal
+            $caseTypeSelected = clean_str($_POST['case_type_selected'] ?? '', 60);
+            if ($caseTypeSelected) {
+                $pdo->prepare("UPDATE pipeline_leads SET case_type = ? WHERE id = ?")->execute(array($caseTypeSelected, $leadId));
+                $lead['case_type'] = $caseTypeSelected;
+            }
+
             // Criar/buscar cliente
             $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
             if (!$clientId) {
