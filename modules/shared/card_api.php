@@ -221,7 +221,7 @@ $result['stage_labels'] = array(
 );
 $result['status_labels'] = array(
     'aguardando_docs'=>'Ag. Docs','em_elaboracao'=>'Pasta Apta','em_andamento'=>'Em Andamento',
-    'doc_faltante'=>'Doc Faltante','aguardando_prazo'=>'Ag. Prazo','distribuido'=>'Distribuído',
+    'doc_faltante'=>'Doc Faltante','aguardando_prazo'=>'Aguard. Distribuição','distribuido'=>'Distribuído',
     'suspenso'=>'Suspenso','concluido'=>'Finalizado','arquivado'=>'Arquivado','cancelado'=>'Cancelado','renunciamos'=>'Renunciamos',
 );
 
