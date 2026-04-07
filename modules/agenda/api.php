@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $id = (int)($_GET['id'] ?? 0);
         if (!$id) { echo json_encode(array('error' => 'ID inválido')); exit; }
         $stmt = $pdo->prepare(
-            "SELECT e.*, c.name as client_name, cs.title as case_title, u.name as responsavel_name
+            "SELECT e.*, c.name as client_name, c.phone as client_phone, cs.title as case_title, u.name as responsavel_name
              FROM agenda_eventos e
              LEFT JOIN clients c ON c.id = e.client_id
              LEFT JOIN cases cs ON cs.id = e.case_id

@@ -354,6 +354,10 @@ if ($voltarCaso > 0): ?>
             <textarea class="ag-fi" id="agDescricao" rows="2" placeholder="Notas internas..."></textarea>
         </div>
     </div>
+    <!-- Atalhos rápidos (só aparece ao editar) -->
+    <div id="agAtalhos" style="display:none;padding:10px 24px;border-top:1px solid var(--border);display:none;flex-wrap:wrap;gap:6px;">
+    </div>
+
     <div class="ag-modal-footer" style="display:flex;justify-content:space-between;">
         <button id="agBtnExcluir" class="ag-btn-cancelar" style="color:#dc2626;border-color:#dc2626;display:none;" onclick="excluirEventoModal()">Excluir</button>
         <div style="display:flex;gap:8px;margin-left:auto;">
@@ -786,6 +790,8 @@ function abrirModal(dataStr) {
     document.getElementById('btnGerarMeet').textContent = 'Gerar Meet';
     document.getElementById('btnGerarMeet').disabled = false;
     document.getElementById('agBtnExcluir').style.display = 'none';
+    var atalhos = document.getElementById('agAtalhos');
+    if (atalhos) { atalhos.innerHTML = ''; atalhos.style.display = 'none'; }
     toggleMeet();
 
     var agora = new Date();
@@ -839,6 +845,35 @@ function abrirModalEditar(id) {
             if (btn) selTipo(ev.tipo, btn);
 
             document.getElementById('agBtnExcluir').style.display = 'inline-block';
+
+            // Atalhos rápidos no modal
+            var atalhos = document.getElementById('agAtalhos');
+            var atHtml = '';
+            if (ev.case_id) {
+                atHtml += '<a href="<?= module_url("operacional", "caso_ver.php?id=") ?>' + ev.case_id + '" style="font-size:.75rem;padding:4px 10px;background:#052228;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Pasta do Processo</a>';
+            }
+            if (ev.client_id) {
+                atHtml += '<a href="<?= module_url("clientes", "ver.php?id=") ?>' + ev.client_id + '" style="font-size:.75rem;padding:4px 10px;background:#B87333;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Ver Cliente</a>';
+            }
+            // Lembretes WhatsApp
+            var cPhone = ev.client_phone || '';
+            var cName = ev.client_name || '';
+            if (ev.client_id && cPhone) {
+                var ph = cPhone.replace(/\D/g, '');
+                if (ph.length <= 11) ph = '55' + ph;
+                var pNome = cName.split(' ')[0];
+                var dtE = new Date((ev.data_inicio || '').replace(' ','T'));
+                var dF = ('0'+dtE.getDate()).slice(-2)+'/'+('0'+(dtE.getMonth()+1)).slice(-2)+'/'+dtE.getFullYear();
+                var hF = ('0'+dtE.getHours()).slice(-2)+':'+('0'+dtE.getMinutes()).slice(-2);
+                var tL = (LABELS[ev.tipo]||'compromisso').toLowerCase();
+                var m1 = 'Ol\u00e1, '+pNome+'! Passando para te lembrar que sua '+tL+' \u00e9 dia '+dF+' \u00e0s '+hF+'. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
+                var m2 = 'Oi, '+pNome+'! Tudo bem?! Te lembrando que sua '+tL+' \u00e9 amanh\u00e3, \u00e0s '+hF+'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
+                atHtml += '<a href="https://wa.me/'+ph+'?text='+encodeURIComponent(m1)+'" target="_blank" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Lembrar data</a>';
+                atHtml += '<a href="https://wa.me/'+ph+'?text='+encodeURIComponent(m2)+'" target="_blank" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Lembrar amanh\u00e3</a>';
+            }
+            atalhos.innerHTML = atHtml;
+            atalhos.style.display = atHtml ? 'flex' : 'none';
+
             document.getElementById('agOverlay').classList.add('aberto');
         } catch(ex) { alert('Erro ao carregar evento'); }
     };
