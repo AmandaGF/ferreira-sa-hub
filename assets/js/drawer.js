@@ -108,6 +108,7 @@ if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" s
 bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
 if(s)bt+='<button onclick="window._cdArchive()" style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Arquivar</button> ';
 if(s&&D.can_comercial)bt+='<button onclick="window._cdMerge()" style="background:#5B2D8E;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Juntar</button> ';
+if(s)bt+='<button onclick="window._cdDuplicate()" style="background:#6366f1;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Duplicar</button> ';
 bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Excluir</button>';
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
@@ -244,6 +245,16 @@ if(!confirm('Tem certeza? O caso selecionado ser\u00e1 absorvido e arquivado. Es
 var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
 function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
 af('csrf_token',D.csrf||'');af('action','merge_cases');af('case_principal',D.case_id);af('case_absorvido',sel.value);af('novo_titulo',tit?tit.value:'');
+document.body.appendChild(form);form.submit();
+};
+
+window._cdDuplicate=function(){
+if(!D.case_id){alert('Este card n\u00e3o tem processo vinculado.');return}
+var titulo=D.caso?D.caso.title:'Processo';
+if(!confirm('Duplicar a pasta "'+titulo+'" para uma nova a\u00e7\u00e3o do mesmo cliente?\n\nUma nova pasta ser\u00e1 criada com as mesmas partes e dados.'))return;
+var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
+function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
+af('csrf_token',D.csrf||'');af('action','duplicate_case');af('case_id',D.case_id);
 document.body.appendChild(form);form.submit();
 };
 
