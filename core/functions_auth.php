@@ -36,28 +36,29 @@ function role_badge(string $role): string
 // Módulos e quais roles TÊM acesso por padrão
 function _permission_defaults()
 {
+    $todos = array('admin','gestao','comercial','cx','operacional','estagiario','colaborador');
     return array(
-        'dashboard'           => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
-        'dashboard_comercial' => array('admin','gestao','comercial','cx'),
-        'dashboard_operacional' => array('admin','gestao','operacional'),
-        'portal'              => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
-        'helpdesk'            => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
-        'agenda'              => array('admin','gestao','comercial','cx','operacional','colaborador','estagiario'),
-        'crm'                 => array('admin','gestao','comercial','cx'),
-        'pipeline'            => array('admin','gestao','comercial','cx'),
-        'pipeline_mover_comercial' => array('admin','gestao','comercial'),
-        'pipeline_mover_cx'   => array('admin','gestao','cx'),
-        'operacional'         => array('admin','gestao','operacional','comercial','cx'),
-        'operacional_mover'   => array('admin','gestao','operacional','comercial','cx'),
-        'processos'           => array('admin','gestao','operacional','comercial','cx'),
-        'prazos'              => array('admin','gestao','operacional'),
-        'documentos'          => array('admin','gestao','operacional'),
-        'peticoes'            => array('admin','gestao','operacional'),
-        'formularios'         => array('admin','gestao'),
-        'relatorios'          => array('admin','gestao'),
-        'usuarios'            => array('admin'),
-        'financeiro'          => array('admin','gestao','comercial'),
-        'faturamento'         => array('admin'),
+        'dashboard'           => $todos,
+        'dashboard_comercial' => $todos,
+        'dashboard_operacional' => $todos,
+        'portal'              => $todos,
+        'helpdesk'            => $todos,
+        'agenda'              => $todos,
+        'crm'                 => $todos,
+        'pipeline'            => $todos,
+        'pipeline_mover_comercial' => $todos,
+        'pipeline_mover_cx'   => $todos,
+        'operacional'         => $todos,
+        'operacional_mover'   => $todos,
+        'processos'           => $todos,
+        'prazos'              => $todos,
+        'documentos'          => $todos,
+        'peticoes'            => $todos,
+        'formularios'         => $todos,
+        'relatorios'          => $todos,
+        'usuarios'            => array('admin'), // manter só admin
+        'financeiro'          => $todos,
+        'faturamento'         => $todos,
     );
 }
 
