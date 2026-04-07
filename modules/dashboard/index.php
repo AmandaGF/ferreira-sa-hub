@@ -166,10 +166,9 @@ $cargaResp = qrows($pdo, "SELECT u.name, COUNT(CASE WHEN c.status NOT IN ('cance
 $onbRealizados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='realizado'");
 $onbNaoCompareceu = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='nao_compareceu'");
 $onbAgendados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='agendado' AND data_inicio >= CURDATE()");
-$onbCancelados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='cancelado'");
-$onbTotal = $onbRealizados + $onbNaoCompareceu + $onbAgendados + $onbCancelados;
-// Por mês (últimos 6 meses)
-$onbPorMes = qrows($pdo, "SELECT DATE_FORMAT(data_inicio, '%Y-%m') as mes, SUM(CASE WHEN status='realizado' THEN 1 ELSE 0 END) as realizados, SUM(CASE WHEN status='nao_compareceu' THEN 1 ELSE 0 END) as nao_compareceu, SUM(CASE WHEN status='cancelado' THEN 1 ELSE 0 END) as cancelados, COUNT(*) as total FROM agenda_eventos WHERE tipo='onboarding' AND data_inicio >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC");
+$onbTotal = $onbRealizados + $onbNaoCompareceu + $onbAgendados;
+// Por mês (últimos 6 meses) — ignora cancelados
+$onbPorMes = qrows($pdo, "SELECT DATE_FORMAT(data_inicio, '%Y-%m') as mes, SUM(CASE WHEN status='realizado' THEN 1 ELSE 0 END) as realizados, SUM(CASE WHEN status='nao_compareceu' THEN 1 ELSE 0 END) as nao_compareceu FROM agenda_eventos WHERE tipo='onboarding' AND status != 'cancelado' AND data_inicio >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC");
 
 // Distribuídos x Pendentes (6 meses)
 $distPendLabels = array(); $distPendDist = array(); $distPendPend = array();
@@ -534,11 +533,10 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div class="dash-grid2" style="margin-bottom:1.25rem;">
     <div class="dash-card">
         <h4>📞 Onboarding — Resumo</h4>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:1rem;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:1rem;">
             <div style="text-align:center;padding:.5rem;background:#d1fae5;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#059669;"><?= $onbRealizados ?></div><div style="font-size:.65rem;color:#059669;font-weight:600;">Realizados</div></div>
             <div style="text-align:center;padding:.5rem;background:#fef3c7;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#b45309;"><?= $onbNaoCompareceu ?></div><div style="font-size:.65rem;color:#b45309;font-weight:600;">Não compareceu</div></div>
             <div style="text-align:center;padding:.5rem;background:#dbeafe;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#2563eb;"><?= $onbAgendados ?></div><div style="font-size:.65rem;color:#2563eb;font-weight:600;">Agendados</div></div>
-            <div style="text-align:center;padding:.5rem;background:#fee2e2;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#dc2626;"><?= $onbCancelados ?></div><div style="font-size:.65rem;color:#dc2626;font-weight:600;">Cancelados</div></div>
         </div>
         <?php if ($onbTotal > 0): ?>
         <div style="font-size:.75rem;color:var(--text-muted);text-align:center;">
