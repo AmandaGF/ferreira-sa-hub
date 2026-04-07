@@ -123,6 +123,50 @@ function calcular_prazo_meses($data_inicio, $quantidade, $comarca = null)
 /**
  * Cálculo completo: disponibilização → data fatal
  */
+/**
+ * Calcula prazo para juntada aos autos (mandado de citação, etc.)
+ * Art. 231 CPC: prazo começa no dia útil seguinte à juntada
+ * Não tem etapa de publicação — a data informada É a data da juntada
+ */
+function calcular_prazo_juntada($data_juntada, $quantidade, $unidade = 'dias', $comarca = null)
+{
+    $inicio = new DateTime($data_juntada);
+    $inicio->modify('+1 day');
+    $inicioStr = proximo_dia_util($inicio->format('Y-m-d'));
+
+    if ($unidade === 'meses') {
+        $fatal = calcular_prazo_meses($inicioStr, $quantidade, $comarca);
+    } else {
+        $fatal = calcular_prazo_dias($inicioStr, $quantidade, $comarca);
+    }
+
+    $suspensoes = get_suspensoes_periodo($inicioStr, $fatal, $comarca);
+    $seguranca = _dia_util_anterior($fatal, $comarca);
+
+    $hoje = new DateTime();
+    $fatalDt = new DateTime($fatal);
+    $diasAte = (int)$hoje->diff($fatalDt)->format('%r%a');
+    $segDt = new DateTime($seguranca);
+    $diasAteSeg = (int)$hoje->diff($segDt)->format('%r%a');
+
+    return array(
+        'disponibilizacao' => $data_juntada,
+        'publicacao'       => null,
+        'inicio_contagem'  => $inicioStr,
+        'quantidade'       => $quantidade,
+        'unidade'          => $unidade,
+        'comarca'          => $comarca,
+        'data_fatal'       => $fatal,
+        'dia_semana_fatal' => _dia_semana_pt($fatal),
+        'data_seguranca'   => $seguranca,
+        'dia_semana_seg'   => _dia_semana_pt($seguranca),
+        'dias_ate_prazo'   => $diasAte,
+        'dias_ate_seguranca' => $diasAteSeg,
+        'suspensoes'       => $suspensoes,
+        'modo'             => 'juntada',
+    );
+}
+
 function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade = 'dias', $comarca = null)
 {
     $publicacao = calcular_data_publicacao($data_disponibilizacao);
@@ -268,6 +312,7 @@ function tipos_prazo()
         'Apelação', 'Embargos de Declaração', 'Contrarrazões',
         'Agravo de Instrumento', 'Impugnação ao Cumprimento',
         'Embargos à Execução', 'Manifestação', 'Juntada de Documentos',
+        'Juntada de Mandado de Citação',
         'Recurso Inominado', 'Cumprimento de Sentença',
         'Tutela de Urgência', 'Outro',
     );

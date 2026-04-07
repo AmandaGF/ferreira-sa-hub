@@ -34,8 +34,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $tipoPrazo = clean_str(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '', 100);
     $caseId    = (int)(isset($_POST['case_id']) ? $_POST['case_id'] : 0);
 
+    $modoJuntada = isset($_POST['modo_juntada']) ? (int)$_POST['modo_juntada'] : 0;
+
     if ($dataDisp && $qtd > 0) {
-        $resultado = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
+        if ($modoJuntada) {
+            $resultado = calcular_prazo_juntada($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
+        } else {
+            $resultado = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
+        }
 
         if (isset($_POST['salvar']) && $_POST['salvar']) {
             if (!$caseId) {
@@ -874,21 +880,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </div>
 
-                    <!-- Data de disponibilizacao -->
+                    <!-- Modo: Disponibilização (DJe) ou Juntada aos Autos -->
                     <div class="field-group">
-                        <label class="field-label" for="dataDisp">Data de Disponibilização (DJe)</label>
+                        <label class="field-label">Marco inicial do prazo</label>
+                        <div style="display:flex;gap:1rem;margin-bottom:.6rem;">
+                            <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;" id="labelDje" onclick="toggleModoJuntada(false)">
+                                <input type="radio" name="modo_juntada" value="0" <?= empty($_POST['modo_juntada']) ? 'checked' : '' ?> onchange="toggleModoJuntada(false)">
+                                <strong>Disponibilização (DJe)</strong>
+                                <span style="font-size:.7rem;color:var(--text-muted);">D+1 publicação, D+2 contagem</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid var(--border);border-radius:8px;transition:all .2s;" id="labelJuntada" onclick="toggleModoJuntada(true)">
+                                <input type="radio" name="modo_juntada" value="1" <?= !empty($_POST['modo_juntada']) ? 'checked' : '' ?> onchange="toggleModoJuntada(true)">
+                                <strong>Juntada aos Autos</strong>
+                                <span style="font-size:.7rem;color:var(--text-muted);">Art. 231 CPC — D+1 contagem</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="field-group">
+                        <label class="field-label" for="dataDisp" id="labelDataDisp">Data de Disponibilização (DJe)</label>
                         <input type="date" name="data_disponibilizacao" id="dataDisp"
                                class="field-input"
                                value="<?= e(isset($_POST['data_disponibilizacao']) ? $_POST['data_disponibilizacao'] : '') ?>"
                                required>
 
-                        <!-- Preview D+1 / D+2 -->
+                        <!-- Preview D+1 / D+2 (só no modo DJe) -->
                         <div class="preview-badges" id="previewRow" style="display:none;">
                             <span class="preview-badge">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                Publicação (D+1): <strong id="previewPub">--</strong>
+                                <span id="previewPubLabel">Publicação (D+1)</span>: <strong id="previewPub">--</strong>
                             </span>
-                            <span class="preview-badge">
+                            <span class="preview-badge" id="previewInicioWrap">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                                 Início contagem: <strong id="previewInicio">--</strong>
                             </span>
@@ -1230,6 +1252,33 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (dataInput.value) previewCalculo();
     }
 
+    var _modoJuntada = false;
+
+    function toggleModoJuntada(isJuntada) {
+        _modoJuntada = isJuntada;
+        var labelData = document.getElementById('labelDataDisp');
+        var labelDje = document.getElementById('labelDje');
+        var labelJunt = document.getElementById('labelJuntada');
+
+        if (isJuntada) {
+            labelData.textContent = 'Data da Juntada aos Autos';
+            labelDje.style.borderColor = 'var(--border)';
+            labelDje.style.background = '';
+            labelJunt.style.borderColor = '#059669';
+            labelJunt.style.background = '#ecfdf5';
+        } else {
+            labelData.textContent = 'Data de Disponibilização (DJe)';
+            labelJunt.style.borderColor = 'var(--border)';
+            labelJunt.style.background = '';
+            labelDje.style.borderColor = '#3b82f6';
+            labelDje.style.background = '#eff6ff';
+        }
+        previewCalculo();
+    }
+
+    // Inicializar estado visual
+    toggleModoJuntada(<?= !empty($_POST['modo_juntada']) ? 'true' : 'false' ?>);
+
     function previewCalculo() {
         var data = document.getElementById('dataDisp').value;
         var qtd  = document.getElementById('quantidade').value;
@@ -1238,17 +1287,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
             return;
         }
         var dt = new Date(data + 'T12:00:00');
-        dt.setDate(dt.getDate() + 1);
-        while (dt.getDay() === 0 || dt.getDay() === 6) {
-            dt.setDate(dt.getDate() + 1);
-        }
-        document.getElementById('previewPub').textContent = formatDateBR(dt) + ' (aprox.)';
 
-        dt.setDate(dt.getDate() + 1);
-        while (dt.getDay() === 0 || dt.getDay() === 6) {
+        if (_modoJuntada) {
+            // Juntada: D+1 útil = início contagem (sem publicação)
+            document.getElementById('previewPubLabel').textContent = 'Juntada';
+            document.getElementById('previewPub').textContent = formatDateBR(dt);
+            document.getElementById('previewInicioWrap').style.display = '';
+
             dt.setDate(dt.getDate() + 1);
+            while (dt.getDay() === 0 || dt.getDay() === 6) {
+                dt.setDate(dt.getDate() + 1);
+            }
+            document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (D+1 útil)';
+        } else {
+            // DJe: D+1 útil = publicação, D+2 útil = início
+            document.getElementById('previewPubLabel').textContent = 'Publicação (D+1)';
+            document.getElementById('previewInicioWrap').style.display = '';
+
+            dt.setDate(dt.getDate() + 1);
+            while (dt.getDay() === 0 || dt.getDay() === 6) {
+                dt.setDate(dt.getDate() + 1);
+            }
+            document.getElementById('previewPub').textContent = formatDateBR(dt) + ' (aprox.)';
+
+            dt.setDate(dt.getDate() + 1);
+            while (dt.getDay() === 0 || dt.getDay() === 6) {
+                dt.setDate(dt.getDate() + 1);
+            }
+            document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (aprox.)';
         }
-        document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (aprox.)';
 
         document.getElementById('previewRow').style.display = 'flex';
     }
