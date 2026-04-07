@@ -59,7 +59,7 @@ body.dark-mode .ag-nav-mes-titulo { color:var(--text); }
 .ag-cal-header { display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:1px; }
 .ag-cal-hd { text-align:center;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:8px 0; }
 .ag-cal-grid { display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border-radius:12px;overflow:hidden; }
-.ag-cal-dia { background:#fff;min-height:100px;padding:6px;cursor:pointer;transition:background .15s;position:relative; }
+.ag-cal-dia { background:#fff;min-height:110px;padding:6px;cursor:pointer;transition:background .15s;position:relative;overflow:hidden; }
 body.dark-mode .ag-cal-dia { background:var(--bg-card); }
 .ag-cal-dia:hover { background:#FAFAF8; }
 body.dark-mode .ag-cal-dia:hover { background:var(--bg-secondary); }
@@ -67,7 +67,7 @@ body.dark-mode .ag-cal-dia:hover { background:var(--bg-secondary); }
 .ag-cal-dia-num { font-size:13px;font-weight:600;color:var(--petrol-900);margin-bottom:3px;width:26px;height:26px;display:flex;align-items:center;justify-content:center; }
 body.dark-mode .ag-cal-dia-num { color:var(--text); }
 .ag-cal-dia.hoje .ag-cal-dia-num { background:var(--rose);color:#fff;border-radius:50%; }
-.ag-cal-ev { font-size:10px;font-weight:500;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer; }
+.ag-cal-ev { font-size:10px;font-weight:500;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff;cursor:pointer;max-width:100%;display:block; }
 .ag-cal-mais { font-size:10px;color:var(--text-muted);padding:1px 5px;cursor:pointer; }
 .ag-cal-mais:hover { color:var(--rose); }
 
@@ -217,7 +217,7 @@ if ($voltarCaso > 0): ?>
             <?php if (has_min_role('gestao')): ?>
             <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">Importar CSV</a>
             <?php endif; ?>
-            <a href="https://www.tjrj.jus.br/web/guest/balcao-virtual" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcao Virtual</a>
+            <a href="https://www.tjrj.jus.br/web/guest/balcao-virtual" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcão Virtual</a>
             <button class="btn btn-primary btn-sm" onclick="abrirModal(getDataSelecionada())" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
@@ -1036,7 +1036,7 @@ function marcarRealizado(id, btn) {
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
         try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
-        btn.textContent = 'Concluido';
+        btn.textContent = 'Conclu\u00eddo';
         btn.style.background = '#888';
         btn.style.borderColor = '#888';
         btn.disabled = true;
@@ -1132,7 +1132,7 @@ function confirmarConvite(evId, btn) {
             var r = JSON.parse(xhr.responseText);
             if (r.csrf) CSRF = r.csrf;
             if (r.error) { alert(r.error); btn.textContent = 'Enviar'; btn.disabled = false; return; }
-            alert('Convites enviados para ' + r.enviados + ' pessoa(s)! Vao receber na agenda pessoal.');
+            alert('Convites enviados para ' + r.enviados + ' pessoa(s)! V\u00e3o receber na agenda pessoal.');
             btn.closest('div[style*="position:fixed"]').remove();
         } catch(e) { alert('Erro ao enviar convites'); btn.textContent = 'Enviar'; btn.disabled = false; }
     };
