@@ -770,6 +770,65 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'duplicate_case':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            $orig = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+            $orig->execute(array($caseId));
+            $origCase = $orig->fetch();
+            if ($origCase) {
+                // Criar nova pasta com mesmo cliente, sem número de processo
+                $novoTitulo = $origCase['title'] . ' (Nova Ação)';
+                $pdo->prepare(
+                    "INSERT INTO cases (client_id, title, case_type, court, comarca, comarca_uf, regional,
+                     sistema_tribunal, departamento, category, status, priority, responsible_user_id,
+                     drive_folder_url, notes, created_at, updated_at)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,'em_andamento',?,?,?,?,NOW(),NOW())"
+                )->execute(array(
+                    $origCase['client_id'],
+                    $novoTitulo,
+                    '', // case_type vazio — será preenchido
+                    $origCase['court'],
+                    $origCase['comarca'],
+                    $origCase['comarca_uf'],
+                    $origCase['regional'],
+                    $origCase['sistema_tribunal'],
+                    $origCase['departamento'] ?: 'operacional',
+                    $origCase['category'] ?: 'judicial',
+                    $origCase['priority'],
+                    $origCase['responsible_user_id'],
+                    null, // drive novo
+                    'Duplicado da pasta #' . $caseId . ' (' . $origCase['title'] . ')'
+                ));
+                $newCaseId = (int)$pdo->lastInsertId();
+
+                // Duplicar partes do processo original
+                try {
+                    $partes = $pdo->prepare("SELECT * FROM case_partes WHERE case_id = ?");
+                    $partes->execute(array($caseId));
+                    $stmtParte = $pdo->prepare(
+                        "INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, client_id, created_at)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW())"
+                    );
+                    foreach ($partes->fetchAll() as $pt) {
+                        $stmtParte->execute(array(
+                            $newCaseId, $pt['papel'], $pt['tipo_pessoa'], $pt['nome'], $pt['cpf'],
+                            $pt['rg'], $pt['nascimento'], $pt['profissao'], $pt['estado_civil'],
+                            $pt['email'], $pt['telefone'], $pt['endereco'], $pt['cidade'], $pt['uf'],
+                            $pt['client_id']
+                        ));
+                    }
+                } catch (Exception $e) {}
+
+                audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Duplicado de #' . $caseId . ' (' . $origCase['title'] . ')');
+                flash_set('success', 'Pasta duplicada! Edite o tipo de ação e o título.');
+                redirect(module_url('operacional', 'caso_ver.php?id=' . $newCaseId));
+                exit;
+            }
+        }
+        redirect(module_url('operacional'));
+        break;
+
     case 'add_prazo':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $tipo = clean_str($_POST['tipo'] ?? '', 100);

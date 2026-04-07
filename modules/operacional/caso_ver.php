@@ -195,7 +195,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
     <?php endif; ?>
-    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="duplicate_case">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-outline btn-sm" style="border-color:#6366f1;color:#6366f1;">📋 Duplicar Pasta</button>
+    </form>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" data-confirm="Excluir este caso permanentemente? Esta ação não pode ser desfeita.">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="delete_case">
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
