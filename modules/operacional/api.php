@@ -776,9 +776,16 @@ switch ($action) {
         $descricao = clean_str($_POST['descricao'] ?? '', 300);
         if ($caseId && $prazoFatal) {
             try {
+                // Buscar client_id e numero_processo do caso
+                $stmtCp = $pdo->prepare("SELECT client_id, case_number FROM cases WHERE id = ?");
+                $stmtCp->execute(array($caseId));
+                $cpRow = $stmtCp->fetch();
+                $clientIdPrazo = $cpRow ? (int)$cpRow['client_id'] : null;
+                $numProcPrazo = $cpRow ? $cpRow['case_number'] : null;
+
                 $pdo->prepare(
-                    "INSERT INTO prazos_processuais (case_id, tipo, descricao_acao, prazo_fatal, concluido, usuario_id, created_at) VALUES (?,?,?,?,0,?,NOW())"
-                )->execute(array($caseId, $tipo ?: 'Prazo', $descricao ?: $tipo, $prazoFatal, current_user_id()));
+                    "INSERT INTO prazos_processuais (client_id, case_id, numero_processo, tipo, descricao_acao, prazo_fatal, concluido, usuario_id, created_at) VALUES (?,?,?,?,?,?,0,?,NOW())"
+                )->execute(array($clientIdPrazo, $caseId, $numProcPrazo, $tipo ?: 'Prazo', $descricao ?: $tipo, $prazoFatal, current_user_id()));
                 audit_log('PRAZO_CRIADO', 'case', $caseId, $tipo . ' — ' . $prazoFatal);
                 flash_set('success', 'Prazo cadastrado: ' . date('d/m/Y', strtotime($prazoFatal)));
             } catch (Exception $e) {
