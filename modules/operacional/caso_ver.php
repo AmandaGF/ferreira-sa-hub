@@ -286,7 +286,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
     <div class="actions">
         <?php if ($clientWhatsapp):
-            $msgCaso = "Olá " . ($case['client_name'] ?: '') . ", tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
+            $primeiroNomeCli = explode(' ', trim($case['client_name'] ?: ''))[0];
+            $msgCaso = "Olá " . $primeiroNomeCli . ", tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
         ?>
             <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgCaso) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php endif; ?>
@@ -957,7 +958,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
                                 <?php if ($clientWhatsapp):
                                     $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
-                                    $msgAnd = "Ola " . ($case['client_name'] ?: '') . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer duvida, estamos a disposicao.\nFerreira e Sa Advocacia";
+                                    $primeiroNomeAnd = explode(' ', trim($case['client_name'] ?: ''))[0];
+                                    $msgAnd = "Olá " . $primeiroNomeAnd . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\nFerreira e Sá Advocacia";
                                     $waFullUrl = $clientWhatsapp . '?text=' . rawurlencode($msgAnd);
                                     $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>

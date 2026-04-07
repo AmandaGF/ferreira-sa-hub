@@ -112,7 +112,9 @@ function notificar_cliente(string $tipo, int $clientId, array $vars = array(), $
         if (!$client) return;
 
         // Preparar variáveis de substituição
-        $vars['[Nome]'] = $client['name'];
+        $primeiroNome = explode(' ', trim($client['name']))[0];
+        $vars['[Nome]'] = $primeiroNome;
+        $vars['[NomeCompleto]'] = $client['name'];
         if (!isset($vars['[link_drive]'])) {
             if ($caseId) {
                 $cStmt = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ?");

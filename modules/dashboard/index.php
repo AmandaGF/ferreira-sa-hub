@@ -425,7 +425,7 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
         <?php
         $bdayPhone = $b['phone'] ? preg_replace('/\D/', '', $b['phone']) : '';
         $bdayNome = explode(' ', $b['name'])[0];
-        $bdayMsg = "Ola, {$bdayNome}!\n\nA equipe Ferreira e Sa Advocacia deseja a voce um FELIZ ANIVERSARIO!\n\nQue este novo ano seja repleto de conquistas, saude e muitas bencaos!\n\nUm grande abraco,\nEquipe Ferreira e Sa";
+        $bdayMsg = "Olá, {$bdayNome}!\n\nA equipe Ferreira e Sá Advocacia deseja a você um FELIZ ANIVERSÁRIO!\n\nQue este novo ano seja repleto de conquistas, saúde e muitas bênçãos!\n\nUm grande abraço,\nEquipe Ferreira e Sá";
         $bdaySent = false;
         try {
             $stmtBday = $pdo->prepare("SELECT 1 FROM birthday_greetings WHERE client_id = ? AND year = ? LIMIT 1");
