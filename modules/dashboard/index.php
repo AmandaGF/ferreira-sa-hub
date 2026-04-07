@@ -162,6 +162,15 @@ $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c
 // Carga por responsável (só ativos)
 $cargaResp = qrows($pdo, "SELECT u.name, COUNT(CASE WHEN c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') THEN 1 END) as ativos, COUNT(CASE WHEN c.status='distribuido' AND DATE_FORMAT(c.updated_at,'%Y-%m')='$mesAtual' THEN 1 END) as distribuidos_mes FROM users u LEFT JOIN cases c ON c.responsible_user_id = u.id WHERE u.is_active = 1 GROUP BY u.id ORDER BY ativos DESC");
 
+// ═══ ONBOARDING STATS ═══
+$onbRealizados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='realizado'");
+$onbNaoCompareceu = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='nao_compareceu'");
+$onbAgendados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='agendado' AND data_inicio >= CURDATE()");
+$onbCancelados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='cancelado'");
+$onbTotal = $onbRealizados + $onbNaoCompareceu + $onbAgendados + $onbCancelados;
+// Por mês (últimos 6 meses)
+$onbPorMes = qrows($pdo, "SELECT DATE_FORMAT(data_inicio, '%Y-%m') as mes, SUM(CASE WHEN status='realizado' THEN 1 ELSE 0 END) as realizados, SUM(CASE WHEN status='nao_compareceu' THEN 1 ELSE 0 END) as nao_compareceu, SUM(CASE WHEN status='cancelado' THEN 1 ELSE 0 END) as cancelados, COUNT(*) as total FROM agenda_eventos WHERE tipo='onboarding' AND data_inicio >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC");
+
 // Distribuídos x Pendentes (6 meses)
 $distPendLabels = array(); $distPendDist = array(); $distPendPend = array();
 for ($i = 5; $i >= 0; $i--) {
@@ -521,6 +530,25 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div class="funnel-legend"><?php foreach ($pipeStages as $s => $c): ?><div class="funnel-legend-item"><div class="funnel-legend-dot" style="background:<?= $fColors[$s] ?? '#888' ?>;"></div><?= $fLabels[$s] ?? $s ?> (<?= $c ?>)</div><?php endforeach; ?></div>
 <?php endif; ?></div>
 
+<!-- Onboarding -->
+<div class="dash-grid2" style="margin-bottom:1.25rem;">
+    <div class="dash-card">
+        <h4>📞 Onboarding — Resumo</h4>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;margin-bottom:1rem;">
+            <div style="text-align:center;padding:.5rem;background:#d1fae5;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#059669;"><?= $onbRealizados ?></div><div style="font-size:.65rem;color:#059669;font-weight:600;">Realizados</div></div>
+            <div style="text-align:center;padding:.5rem;background:#fef3c7;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#b45309;"><?= $onbNaoCompareceu ?></div><div style="font-size:.65rem;color:#b45309;font-weight:600;">Não compareceu</div></div>
+            <div style="text-align:center;padding:.5rem;background:#dbeafe;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#2563eb;"><?= $onbAgendados ?></div><div style="font-size:.65rem;color:#2563eb;font-weight:600;">Agendados</div></div>
+            <div style="text-align:center;padding:.5rem;background:#fee2e2;border-radius:8px;"><div style="font-size:1.5rem;font-weight:800;color:#dc2626;"><?= $onbCancelados ?></div><div style="font-size:.65rem;color:#dc2626;font-weight:600;">Cancelados</div></div>
+        </div>
+        <?php if ($onbTotal > 0): ?>
+        <div style="font-size:.75rem;color:var(--text-muted);text-align:center;">
+            Taxa de sucesso: <strong style="color:#059669;"><?= $onbTotal > 0 ? round(($onbRealizados / $onbTotal) * 100) : 0 ?>%</strong>
+        </div>
+        <?php endif; ?>
+    </div>
+    <div class="dash-card"><h4>📊 Onboarding por Mês</h4><canvas id="chartOnb"></canvas></div>
+</div>
+
 <div class="dash-grid2">
     <div class="dash-card"><h4>📉 Taxa de Conversão (6 meses)</h4><canvas id="chartConv"></canvas></div>
     <div class="dash-card"><h4>📊 Entradas vs Contratos</h4><canvas id="chartEC"></canvas></div>
@@ -645,6 +673,26 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 
     var c2=document.getElementById('chartEC');
     if(c2) new Chart(c2,{type:'bar',data:{labels:<?= json_encode($convLabels) ?>,datasets:[{label:'Entradas',data:<?= json_encode($convEntradas) ?>,backgroundColor:'rgba(99,102,241,.5)',borderRadius:3},{label:'Contratos',data:<?= json_encode($convConvertidos) ?>,backgroundColor:'rgba(5,150,105,.6)',borderRadius:3}]},options:opts});
+
+    // Gráfico Onboarding
+    var cOnb=document.getElementById('chartOnb');
+    if(cOnb){
+        <?php
+        $onbLabels = array();
+        $onbDataR = array();
+        $onbDataN = array();
+        foreach ($onbPorMes as $om) {
+            $dt = DateTime::createFromFormat('Y-m', $om['mes']);
+            $onbLabels[] = $dt ? $dt->format('M/y') : $om['mes'];
+            $onbDataR[] = (int)$om['realizados'];
+            $onbDataN[] = (int)$om['nao_compareceu'];
+        }
+        ?>
+        new Chart(cOnb,{type:'bar',data:{labels:<?= json_encode($onbLabels) ?>,datasets:[
+            {label:'Realizados',data:<?= json_encode($onbDataR) ?>,backgroundColor:'rgba(5,150,105,.7)',borderRadius:3},
+            {label:'N\u00e3o compareceu',data:<?= json_encode($onbDataN) ?>,backgroundColor:'rgba(180,83,9,.6)',borderRadius:3}
+        ]},options:{responsive:true,plugins:{legend:{labels:{color:fc,font:{size:10}}}},scales:{x:{ticks:{color:fc},grid:{display:false}},y:{beginAtZero:true,ticks:{color:fc,stepSize:1},grid:{color:gc}}}}});
+    }
     <?php endif; ?>
 
     <?php if ($tab === 'operacional'): ?>

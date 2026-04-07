@@ -286,7 +286,7 @@ if ($action === 'salvar') {
 if ($action === 'status') {
     $id = (int)($_POST['id'] ?? 0);
     $status = $_POST['status'] ?? '';
-    $statusValidos = array('agendado','realizado','cancelado','remarcado');
+    $statusValidos = array('agendado','realizado','cancelado','remarcado','nao_compareceu');
     if (!$id || !in_array($status, $statusValidos)) {
         echo json_encode(array('error' => 'Dados inválidos'));
         exit;
@@ -305,6 +305,27 @@ if ($action === 'status') {
 
     $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
     audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status);
+    echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
+    exit;
+}
+
+// ── REMARCAR (atualizar data/hora) ──
+if ($action === 'remarcar') {
+    $id = (int)($_POST['id'] ?? 0);
+    $novaData = $_POST['nova_data'] ?? '';
+    $novaHora = $_POST['nova_hora'] ?? '';
+    if (!$id || !$novaData || !$novaHora) {
+        echo json_encode(array('error' => 'Dados incompletos'));
+        exit;
+    }
+    // Validar formato
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData) || !preg_match('/^\d{2}:\d{2}$/', $novaHora)) {
+        echo json_encode(array('error' => 'Formato de data/hora inválido'));
+        exit;
+    }
+    $pdo->prepare("UPDATE agenda_eventos SET data_inicio=?, hora_inicio=?, status='agendado', updated_at=NOW() WHERE id=?")
+        ->execute(array($novaData, $novaHora . ':00', $id));
+    audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaData . ' ' . $novaHora);
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }

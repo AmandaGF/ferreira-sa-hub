@@ -681,6 +681,8 @@ function renderLista() {
             acoesHtml = linkProcesso + linkContato + meetHtml + msgHtml
                 + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
                 + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>'
+                + '<button class="ag-btn-acao" style="color:#b45309;border-color:#b45309;" onclick="marcarNaoCompareceu(' + ev.id + ',this)">N\u00e3o compareceu</button>'
+                + '<button class="ag-btn-acao" style="color:#7c3aed;border-color:#7c3aed;" onclick="abrirRemarcar(' + ev.id + ')">Remarcar</button>'
                 + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
                 + '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>'
                 + lembreteHtml;
@@ -1108,6 +1110,67 @@ function marcarRealizado(id, btn) {
         btn.style.borderColor = '#888';
         btn.disabled = true;
         setTimeout(recarregarEventos, 500);
+    };
+    xhr.send(fd);
+}
+
+function marcarNaoCompareceu(id, btn) {
+    if (!confirm('Marcar como "Cliente n\u00e3o compareceu"?')) return;
+    var fd = new FormData();
+    fd.append('action', 'status');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    fd.append('status', 'nao_compareceu');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+        btn.textContent = 'N\u00e3o compareceu';
+        btn.style.background = '#b45309';
+        btn.style.borderColor = '#b45309';
+        btn.style.color = '#fff';
+        btn.disabled = true;
+        setTimeout(recarregarEventos, 500);
+    };
+    xhr.send(fd);
+}
+
+function abrirRemarcar(id) {
+    var novaData = prompt('Nova data e hor\u00e1rio (ex: 2026-04-10 14:00):');
+    if (!novaData) return;
+    var partes = novaData.trim().split(' ');
+    if (partes.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(partes[0]) || !/^\d{2}:\d{2}$/.test(partes[1])) {
+        alert('Formato inv\u00e1lido. Use: AAAA-MM-DD HH:MM (ex: 2026-04-10 14:00)');
+        return;
+    }
+    // 1. Marcar como remarcado
+    var fd = new FormData();
+    fd.append('action', 'status');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    fd.append('status', 'remarcado');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+        // 2. Atualizar data/hora
+        var fd2 = new FormData();
+        fd2.append('action', 'remarcar');
+        fd2.append('csrf_token', CSRF);
+        fd2.append('id', id);
+        fd2.append('nova_data', partes[0]);
+        fd2.append('nova_hora', partes[1]);
+        var xhr2 = new XMLHttpRequest();
+        xhr2.open('POST', API);
+        xhr2.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr2.onload = function() {
+            try { var r2 = JSON.parse(xhr2.responseText); if (r2.csrf) CSRF = r2.csrf; } catch(e) {}
+            alert('Reuni\u00e3o remarcada para ' + partes[0] + ' \u00e0s ' + partes[1]);
+            recarregarEventos();
+        };
+        xhr2.send(fd2);
     };
     xhr.send(fd);
 }
