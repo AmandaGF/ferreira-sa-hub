@@ -719,7 +719,7 @@ function irHoje() {
 // ── MODAL ───────────────────────────────────────────────────
 var tipoSelecionado = 'audiencia';
 var msgsPadrao = {
-    audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora]. Qualquer dúvida, estamos à disposição!\nFerreira e Sá Advocacia',
+    audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora].\n\n*IMPORTANTE:* Acesse o link abaixo para informações essenciais sobre sua audiência:\nhttps://www.ferreiraesa.com.br/audiencias/\n\nQualquer dúvida, estamos à disposição!\nFerreira e Sá Advocacia',
     reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora].\n\nLink da reunião: [link_meet]\n\nTe esperamos!\nFerreira e Sá Advocacia',
     onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!\n\nLink da reunião: [link_meet]\n\nFerreira e Sá Advocacia',
     mediacao_cejusc: 'Olá, [nome]! A mediação/CEJUSC está agendada para [data] às [hora]. Contamos com sua presença!\nFerreira e Sá Advocacia',
