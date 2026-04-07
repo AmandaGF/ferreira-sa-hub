@@ -774,6 +774,8 @@ switch ($action) {
         $caseId = (int)($_POST['case_id'] ?? 0);
         $clientIdDup = (int)($_POST['client_id'] ?? 0);
         $leadIdDup = (int)($_POST['lead_id'] ?? 0);
+        $dupCaseType = clean_str($_POST['case_type'] ?? '', 60);
+        $dupTitulo = clean_str($_POST['titulo'] ?? '', 200);
 
         // Se não tem case_id, criar pasta do zero a partir do cliente/lead
         if (!$caseId && ($clientIdDup || $leadIdDup)) {
@@ -788,16 +790,32 @@ switch ($action) {
                 $cli = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
                 $cli->execute(array($clientIdDup));
                 $cliRow = $cli->fetch();
-                $novoTitulo = ($cliRow ? $cliRow['name'] : 'Cliente') . ' (Nova Ação)';
+                $novoTitulo = $dupTitulo ?: (($cliRow ? $cliRow['name'] : 'Cliente') . ' x ' . ($dupCaseType ?: 'Nova Ação'));
 
                 $pdo->prepare(
-                    "INSERT INTO cases (client_id, title, status, priority, departamento, category, created_at, updated_at)
-                     VALUES (?,?,'em_andamento','normal','operacional','judicial',NOW(),NOW())"
-                )->execute(array($clientIdDup, $novoTitulo));
+                    "INSERT INTO cases (client_id, title, case_type, status, priority, departamento, category, created_at, updated_at)
+                     VALUES (?,?,?,'em_andamento','normal','operacional','judicial',NOW(),NOW())"
+                )->execute(array($clientIdDup, $novoTitulo, $dupCaseType ?: null));
                 $newCaseId = (int)$pdo->lastInsertId();
 
-                audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Novo caso criado por duplicação (sem caso original)');
-                flash_set('success', 'Nova pasta criada! Edite o tipo de ação e o título.');
+                // Criar lead espelhado no Pipeline
+                try {
+                    $cd = $pdo->prepare("SELECT name, phone, email FROM clients WHERE id = ?");
+                    $cd->execute(array($clientIdDup));
+                    $cdRow = $cd->fetch();
+                    if ($cdRow) {
+                        $pdo->prepare(
+                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, assigned_to, notes, created_at)
+                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,NOW())"
+                        )->execute(array($clientIdDup, $newCaseId, $cdRow['name'], $cdRow['phone'], $cdRow['email'], 'duplicado', current_user_id(), 'Nova ação (duplicado)'));
+                        $newLeadId = (int)$pdo->lastInsertId();
+                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
+                            ->execute(array($newLeadId, 'contrato_assinado', current_user_id(), 'Lead criado por duplicação'));
+                    }
+                } catch (Exception $e) {}
+
+                audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Novo caso + lead criados por duplicação');
+                flash_set('success', 'Nova pasta + lead criados! Edite o tipo de ação.');
                 redirect(module_url('operacional', 'caso_ver.php?id=' . $newCaseId));
                 exit;
             }
@@ -809,7 +827,7 @@ switch ($action) {
             $origCase = $orig->fetch();
             if ($origCase) {
                 // Criar nova pasta com mesmo cliente, sem número de processo
-                $novoTitulo = $origCase['title'] . ' (Nova Ação)';
+                $novoTitulo = $dupTitulo ?: ($origCase['title'] . ' (Nova Ação)');
                 $pdo->prepare(
                     "INSERT INTO cases (client_id, title, case_type, court, comarca, comarca_uf, regional,
                      sistema_tribunal, departamento, category, status, priority, responsible_user_id,
@@ -818,7 +836,7 @@ switch ($action) {
                 )->execute(array(
                     $origCase['client_id'],
                     $novoTitulo,
-                    '', // case_type vazio — será preenchido
+                    $dupCaseType ?: '', // tipo de ação selecionado
                     $origCase['court'],
                     $origCase['comarca'],
                     $origCase['comarca_uf'],
@@ -851,8 +869,29 @@ switch ($action) {
                     }
                 } catch (Exception $e) {}
 
+                // Criar lead espelhado no Pipeline
+                try {
+                    $cliDup = $pdo->prepare("SELECT name, phone, email FROM clients WHERE id = ?");
+                    $cliDup->execute(array($origCase['client_id']));
+                    $cliDupRow = $cliDup->fetch();
+                    if ($cliDupRow) {
+                        $pdo->prepare(
+                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, notes, created_at)
+                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,?,NOW())"
+                        )->execute(array(
+                            $origCase['client_id'], $newCaseId,
+                            $cliDupRow['name'], $cliDupRow['phone'], $cliDupRow['email'],
+                            'duplicado', $dupCaseType ?: '', $origCase['responsible_user_id'],
+                            ($dupCaseType ?: 'Nova ação') . ' — duplicado da pasta #' . $caseId
+                        ));
+                        $newLeadId = (int)$pdo->lastInsertId();
+                        $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
+                            ->execute(array($newLeadId, 'contrato_assinado', current_user_id(), 'Lead criado por duplicação de pasta'));
+                    }
+                } catch (Exception $e) {}
+
                 audit_log('CASE_DUPLICATED', 'case', $newCaseId, 'Duplicado de #' . $caseId . ' (' . $origCase['title'] . ')');
-                flash_set('success', 'Pasta duplicada! Edite o tipo de ação e o título.');
+                flash_set('success', 'Pasta + lead duplicados! Edite o tipo de ação.');
                 redirect(module_url('operacional', 'caso_ver.php?id=' . $newCaseId));
                 exit;
             }

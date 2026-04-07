@@ -249,15 +249,46 @@ document.body.appendChild(form);form.submit();
 };
 
 window._cdDuplicate=function(){
-var titulo=D.caso?D.caso.title:(D.lead?D.lead.name:'Cliente');
-var clientName=D.client?D.client.name:titulo;
-if(!confirm('Duplicar "'+clientName+'" para uma nova a\u00e7\u00e3o?\n\nUma nova pasta + lead ser\u00e3o criados.'))return;
+var clientName=D.client?D.client.name:(D.lead?D.lead.name:'Cliente');
+var tipos=['Alimentos','Revis\u00e3o de Alimentos','Execu\u00e7\u00e3o de Alimentos','Exonera\u00e7\u00e3o de Alimentos',
+'Div\u00f3rcio','Div\u00f3rcio Consensual','Div\u00f3rcio Litigioso','Guarda','Guarda Compartilhada',
+'Regulamenta\u00e7\u00e3o de Conviv\u00eancia','Conviv\u00eancia','Investiga\u00e7\u00e3o de Paternidade',
+'Medida Protetiva','Tutela de Urg\u00eancia','Invent\u00e1rio','Usucapi\u00e3o',
+'Indeniza\u00e7\u00e3o','Consignat\u00f3ria','Trabalhista','Outro'];
+var opts='';for(var i=0;i<tipos.length;i++){opts+='<option value="'+tipos[i]+'">'+tipos[i]+'</option>';}
+var html='<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center" id="dupOverlay">'
++'<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
++'<h3 style="font-size:1rem;font-weight:700;color:#6366f1;margin:0 0 .5rem">Duplicar para nova a\u00e7\u00e3o</h3>'
++'<p style="font-size:.78rem;color:#6b7280;margin:0 0 .75rem">Cliente: <b>'+clientName+'</b></p>'
++'<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Tipo de a\u00e7\u00e3o *</label>'
++'<select id="dupTipoAcao" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"><option value="">\u2014 Selecione \u2014</option>'+opts+'</select></div>'
++'<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">T\u00edtulo da pasta</label>'
++'<input type="text" id="dupTitulo" value="'+clientName+' x " style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit" placeholder="Ex: Fulano x Alimentos"></div>'
++'<div style="display:flex;gap:.4rem;justify-content:flex-end">'
++'<button onclick="document.getElementById(\'dupOverlay\').remove()" style="padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem">Cancelar</button>'
++'<button onclick="window._cdDupConfirm()" style="padding:.4rem 1rem;border:none;border-radius:8px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:700">Criar</button>'
++'</div></div></div>';
+document.body.insertAdjacentHTML('beforeend',html);
+// Auto-preencher título ao selecionar tipo
+document.getElementById('dupTipoAcao').addEventListener('change',function(){
+var t=this.value;if(t)document.getElementById('dupTitulo').value=clientName+' x '+t;
+});
+};
+
+window._cdDupConfirm=function(){
+var tipo=document.getElementById('dupTipoAcao').value;
+if(!tipo){document.getElementById('dupTipoAcao').style.borderColor='#ef4444';return;}
+var titulo=document.getElementById('dupTitulo').value.trim();
+if(!titulo)titulo=D.client.name+' x '+tipo;
+var el=document.getElementById('dupOverlay');if(el)el.remove();
 var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
 function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
 af('csrf_token',D.csrf||'');af('action','duplicate_case');
 af('case_id',D.case_id||'0');
 af('client_id',D.client_id||'0');
 af('lead_id',D.lead_id||'0');
+af('case_type',tipo);
+af('titulo',titulo);
 document.body.appendChild(form);form.submit();
 };
 
