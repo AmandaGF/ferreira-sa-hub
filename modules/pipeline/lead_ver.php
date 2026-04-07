@@ -306,12 +306,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php if ($lead['linked_case_id']): ?>
                 <a href="<?= module_url('peticoes', 'index.php?case_id=' . $lead['linked_case_id']) ?>" class="btn btn-outline btn-sm" style="color:#B87333;border-color:#B87333;">📝 Fábrica de Petições</a>
             <?php endif; ?>
-            <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:inline;" data-confirm="Criar outra ação para este cliente?">
-                <?= csrf_input() ?>
-                <input type="hidden" name="action" value="duplicate">
-                <input type="hidden" name="lead_id" value="<?= $leadId ?>">
-                <button type="submit" class="btn btn-outline btn-sm">📋 + Nova Ação (duplicar)</button>
-            </form>
+            <button type="button" onclick="abrirDuplicarLead()" class="btn btn-outline btn-sm">📋 + Nova Ação (duplicar)</button>
             <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" style="display:inline;" data-confirm="Excluir este lead permanentemente?">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="delete">
@@ -424,6 +419,45 @@ function saveField(field, value, id) {
         if (indicator) { indicator.classList.add('show'); setTimeout(function() { indicator.classList.remove('show'); }, 1500); }
     };
     xhr.send(formData);
+}
+
+function abrirDuplicarLead() {
+    var clientName = '<?= e(addslashes($lead['name'])) ?>';
+    var tipos = ['Alimentos','Revis\u00e3o de Alimentos','Execu\u00e7\u00e3o de Alimentos','Exonera\u00e7\u00e3o de Alimentos',
+    'Div\u00f3rcio','Div\u00f3rcio Consensual','Div\u00f3rcio Litigioso','Guarda','Guarda Compartilhada',
+    'Regulamenta\u00e7\u00e3o de Conviv\u00eancia','Conviv\u00eancia','Investiga\u00e7\u00e3o de Paternidade',
+    'Medida Protetiva','Tutela de Urg\u00eancia','Invent\u00e1rio','Usucapi\u00e3o',
+    'Indeniza\u00e7\u00e3o','Consignat\u00f3ria','Trabalhista','Outro'];
+    var opts = '';
+    for (var i = 0; i < tipos.length; i++) { opts += '<option value="' + tipos[i] + '">' + tipos[i] + '</option>'; }
+    var html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center" id="dupLeadOverlay">'
+        + '<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+        + '<h3 style="font-size:1rem;font-weight:700;color:#6366f1;margin:0 0 .5rem">Nova a\u00e7\u00e3o para ' + clientName + '</h3>'
+        + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Tipo de a\u00e7\u00e3o *</label>'
+        + '<select id="dupLeadTipo" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit" onchange="var t=this.value;if(t)document.getElementById(\'dupLeadTitulo\').value=\'' + clientName + ' x \'+t;"><option value="">\u2014 Selecione \u2014</option>' + opts + '</select></div>'
+        + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">T\u00edtulo da pasta</label>'
+        + '<input type="text" id="dupLeadTitulo" value="' + clientName + ' x " style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"></div>'
+        + '<div style="display:flex;gap:.4rem;justify-content:flex-end">'
+        + '<button onclick="document.getElementById(\'dupLeadOverlay\').remove()" style="padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem">Cancelar</button>'
+        + '<button onclick="confirmarDupLead()" style="padding:.4rem 1rem;border:none;border-radius:8px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:700">Criar</button>'
+        + '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function confirmarDupLead() {
+    var tipo = document.getElementById('dupLeadTipo').value;
+    if (!tipo) { document.getElementById('dupLeadTipo').style.borderColor = '#ef4444'; return; }
+    var titulo = document.getElementById('dupLeadTitulo').value.trim();
+    var el = document.getElementById('dupLeadOverlay'); if (el) el.remove();
+    var form = document.createElement('form'); form.method = 'POST';
+    form.action = '<?= module_url("pipeline", "api.php") ?>';
+    function af(n, v) { var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; form.appendChild(i); }
+    af('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    af('action', 'duplicate');
+    af('lead_id', '<?= $leadId ?>');
+    af('case_type', tipo);
+    af('titulo', titulo);
+    document.body.appendChild(form); form.submit();
 }
 </script>
 

@@ -283,12 +283,23 @@ if(!titulo)titulo=D.client.name+' x '+tipo;
 var el=document.getElementById('dupOverlay');if(el)el.remove();
 var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
 function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
-af('csrf_token',D.csrf||'');af('action','duplicate_case');
-af('case_id',D.case_id||'0');
-af('client_id',D.client_id||'0');
-af('lead_id',D.lead_id||'0');
+af('csrf_token',D.csrf||'');
+// Se tem lead, duplicar via pipeline (cria lead + pasta)
+// Se só tem case, duplicar via operacional (cria pasta + lead)
+if(D.lead_id){
+af('action','duplicate');
+af('lead_id',D.lead_id);
 af('case_type',tipo);
 af('titulo',titulo);
+form.action=base+'/modules/pipeline/api.php';
+}else{
+af('action','duplicate_case');
+af('case_id',D.case_id||'0');
+af('client_id',D.client_id||'0');
+af('lead_id','0');
+af('case_type',tipo);
+af('titulo',titulo);
+}
 document.body.appendChild(form);form.submit();
 };
 
