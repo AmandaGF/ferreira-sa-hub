@@ -279,28 +279,28 @@ window._cdDupConfirm=function(){
 var tipo=document.getElementById('dupTipoAcao').value;
 if(!tipo){document.getElementById('dupTipoAcao').style.borderColor='#ef4444';return;}
 var titulo=document.getElementById('dupTitulo').value.trim();
-if(!titulo)titulo=D.client.name+' x '+tipo;
+if(!titulo)titulo=(D.client?D.client.name:'')+ ' x '+tipo;
 var el=document.getElementById('dupOverlay');if(el)el.remove();
+
+// Buscar CSRF fresco antes de submeter
+var xhr=new XMLHttpRequest();
+xhr.open('GET',base+'/modules/shared/card_api.php?client_id='+(D.client_id||1));
+xhr.onload=function(){
+var freshCsrf=D.csrf||'';
+try{var r=JSON.parse(xhr.responseText);if(r.csrf)freshCsrf=r.csrf;}catch(e){}
+
 var form=document.createElement('form');form.method='POST';form.action=base+'/modules/operacional/api.php';
 function af(n,v){var i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)}
-af('csrf_token',D.csrf||'');
-// Se tem lead, duplicar via pipeline (cria lead + pasta)
-// Se só tem case, duplicar via operacional (cria pasta + lead)
+af('csrf_token',freshCsrf);
 if(D.lead_id){
-af('action','duplicate');
-af('lead_id',D.lead_id);
-af('case_type',tipo);
-af('titulo',titulo);
+af('action','duplicate');af('lead_id',D.lead_id);af('case_type',tipo);af('titulo',titulo);
 form.action=base+'/modules/pipeline/api.php';
 }else{
-af('action','duplicate_case');
-af('case_id',D.case_id||'0');
-af('client_id',D.client_id||'0');
-af('lead_id','0');
-af('case_type',tipo);
-af('titulo',titulo);
+af('action','duplicate_case');af('case_id',D.case_id||'0');af('client_id',D.client_id||'0');af('lead_id','0');af('case_type',tipo);af('titulo',titulo);
 }
 document.body.appendChild(form);form.submit();
+};
+xhr.send();
 };
 
 window._cdDelete=function(){
