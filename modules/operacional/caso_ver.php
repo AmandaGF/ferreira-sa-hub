@@ -314,6 +314,93 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 <?php endif; ?>
 
+<!-- Próximos Compromissos do Processo -->
+<?php
+$compromissosCaso = array();
+try {
+    $stmtComp = $pdo->prepare(
+        "SELECT e.*, u.name as responsavel_name
+         FROM agenda_eventos e
+         LEFT JOIN users u ON u.id = e.responsavel_id
+         WHERE e.case_id = ? AND e.status != 'cancelado'
+         ORDER BY e.data_inicio ASC"
+    );
+    $stmtComp->execute(array($caseId));
+    $compromissosCaso = $stmtComp->fetchAll();
+} catch (Exception $e) {}
+
+$compFuturos = array();
+$compPassados = array();
+foreach ($compromissosCaso as $comp) {
+    $dtComp = substr($comp['data_inicio'], 0, 10);
+    if ($dtComp >= date('Y-m-d')) {
+        $compFuturos[] = $comp;
+    } else {
+        $compPassados[] = $comp;
+    }
+}
+
+$tipoCompCores = array(
+    'audiencia'=>'#052228','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000',
+    'onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A',
+    'balcao_virtual'=>'#0d9488','ligacao'=>'#888880','publicacao'=>'#dc2626',
+);
+$tipoCompLabels = array(
+    'audiencia'=>'Audiência','reuniao_cliente'=>'Reunião','prazo'=>'Prazo',
+    'onboarding'=>'Onboarding','reuniao_interna'=>'R. Interna','mediacao_cejusc'=>'Mediação',
+    'balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','publicacao'=>'Publicação',
+);
+
+if (!empty($compFuturos)): ?>
+<div style="margin-bottom:1rem;">
+    <?php foreach ($compFuturos as $comp):
+        $corComp = isset($tipoCompCores[$comp['tipo']]) ? $tipoCompCores[$comp['tipo']] : '#052228';
+        $labelComp = isset($tipoCompLabels[$comp['tipo']]) ? $tipoCompLabels[$comp['tipo']] : ucfirst($comp['tipo']);
+        $dtInicio = $comp['data_inicio'];
+        $diasAte = (int)((strtotime(substr($dtInicio, 0, 10)) - strtotime(date('Y-m-d'))) / 86400);
+        $isHoje = $diasAte === 0;
+        $isAmanha = $diasAte === 1;
+        $isUrgente = $diasAte <= 1;
+    ?>
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;margin-bottom:.4rem;border-radius:10px;border-left:4px solid <?= $corComp ?>;background:<?= $isUrgente ? '#fef2f2' : '#f8fafc' ?>;border:1px solid <?= $isUrgente ? '#fca5a5' : 'var(--border)' ?>;border-left:4px solid <?= $corComp ?>;">
+        <div style="text-align:center;min-width:48px;">
+            <div style="font-size:1.2rem;font-weight:800;color:<?= $isUrgente ? '#dc2626' : $corComp ?>;"><?= date('d', strtotime($dtInicio)) ?></div>
+            <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;"><?= date('M', strtotime($dtInicio)) ?></div>
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
+                <span style="font-size:.68rem;font-weight:700;color:#fff;background:<?= $corComp ?>;padding:1px 6px;border-radius:3px;"><?= $labelComp ?></span>
+                <?php if ($isHoje): ?>
+                    <span style="font-size:.65rem;font-weight:700;color:#dc2626;background:#fef2f2;padding:1px 6px;border-radius:3px;border:1px solid #fca5a5;">HOJE</span>
+                <?php elseif ($isAmanha): ?>
+                    <span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:3px;border:1px solid #fcd34d;">AMANHÃ</span>
+                <?php elseif ($diasAte <= 7): ?>
+                    <span style="font-size:.65rem;color:var(--text-muted);"><?= $diasAte ?>d</span>
+                <?php endif; ?>
+                <span style="font-size:.85rem;font-weight:600;color:var(--petrol-900);"><?= e($comp['titulo']) ?></span>
+            </div>
+            <div style="font-size:.75rem;color:var(--text-muted);margin-top:2px;">
+                <?php if ($comp['dia_todo'] != 1): ?>
+                    <?= date('H:i', strtotime($dtInicio)) ?>
+                    <?php if ($comp['data_fim']): ?> — <?= date('H:i', strtotime($comp['data_fim'])) ?><?php endif; ?>
+                    &middot;
+                <?php endif; ?>
+                <?= date('d/m/Y', strtotime($dtInicio)) ?>
+                <?php if ($comp['local']): ?> &middot; <?= e($comp['local']) ?><?php endif; ?>
+                <?php if ($comp['responsavel_name']): ?> &middot; <?= e(explode(' ', $comp['responsavel_name'])[0]) ?><?php endif; ?>
+            </div>
+        </div>
+        <div style="display:flex;gap:.3rem;flex-shrink:0;">
+            <?php if ($comp['meet_link']): ?>
+                <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
+            <?php endif; ?>
+            <a href="<?= module_url('agenda') ?>?voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
+        </div>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <!-- Atalhos rápidos -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
