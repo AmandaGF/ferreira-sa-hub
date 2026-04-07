@@ -66,26 +66,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             } catch (Exception $e) {}
 
             if ($caseId) {
+                // Buscar client_id e numero_processo do caso
+                $clientIdPrazo = null;
+                $numProcPrazo = null;
+                try {
+                    $stmtCp = $pdo->prepare("SELECT client_id, case_number FROM cases WHERE id = ?");
+                    $stmtCp->execute(array($caseId));
+                    $cpRow = $stmtCp->fetch();
+                    if ($cpRow) {
+                        $clientIdPrazo = (int)$cpRow['client_id'] ?: null;
+                        $numProcPrazo = $cpRow['case_number'] ?: null;
+                    }
+                } catch (Exception $e) {}
+
+                // Salvar em prazos_processuais (módulo de Prazos)
                 try {
                     $pdo->prepare(
-                        "INSERT INTO prazos_processuais (case_id, tipo, descricao, data_fatal, status) VALUES (?,?,?,?,0)"
+                        "INSERT INTO prazos_processuais (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, concluido, usuario_id) VALUES (?,?,?,?,?,0,?)"
                     )->execute(array(
+                        $clientIdPrazo,
                         $caseId,
-                        $tipoPrazo ? $tipoPrazo : 'Prazo',
-                        'Prazo calculado: ' . $qtd . ' ' . $unidade,
-                        $resultado['data_fatal']
+                        $numProcPrazo,
+                        ($tipoPrazo ? $tipoPrazo : 'Prazo') . ' — ' . $qtd . ' ' . $unidade,
+                        $resultado['data_fatal'],
+                        current_user_id()
                     ));
                 } catch (Exception $e) {}
 
+                // Salvar evento na agenda
                 try {
                     $pdo->prepare(
-                        "INSERT INTO agenda_eventos (titulo, tipo, data_inicio, data_fim, dia_todo, case_id, responsavel_id) VALUES (?,?,?,?,1,?,?)"
+                        "INSERT INTO agenda_eventos (titulo, tipo, data_inicio, data_fim, dia_todo, case_id, client_id, responsavel_id, created_by, created_at) VALUES (?,?,?,?,1,?,?,?,?,NOW())"
                     )->execute(array(
-                        'PRAZO: ' . ($tipoPrazo ? $tipoPrazo : 'Processual') . ' - ' . ($preCase ? $preCase['title'] : ''),
+                        'PRAZO: ' . ($tipoPrazo ? $tipoPrazo : 'Processual') . ' — ' . ($preCase ? $preCase['title'] : ''),
                         'prazo',
                         $resultado['data_fatal'],
                         $resultado['data_fatal'],
                         $caseId,
+                        $clientIdPrazo,
+                        current_user_id(),
                         current_user_id()
                     ));
                 } catch (Exception $e) {}
