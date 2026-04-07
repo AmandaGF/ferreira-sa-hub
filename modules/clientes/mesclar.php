@@ -96,13 +96,28 @@ $dupsCpf = $pdo->query(
      FROM clients WHERE cpf IS NOT NULL AND cpf != '' GROUP BY cpf HAVING cnt > 1 ORDER BY cnt DESC"
 )->fetchAll();
 
-// 2. Por nome muito similar (normalizado)
+// 2. Por nome normalizado (remove espaços duplos, uppercased)
 $dupsNome = $pdo->query(
-    "SELECT UPPER(TRIM(name)) as nome_norm, GROUP_CONCAT(id ORDER BY id) as ids, GROUP_CONCAT(name ORDER BY id SEPARATOR ' | ') as names, COUNT(*) as cnt
-     FROM clients GROUP BY nome_norm HAVING cnt > 1 ORDER BY cnt DESC LIMIT 50"
+    "SELECT UPPER(TRIM(REPLACE(REPLACE(REPLACE(name, '  ', ' '), '  ', ' '), '  ', ' '))) as nome_norm,
+     GROUP_CONCAT(id ORDER BY id) as ids, GROUP_CONCAT(name ORDER BY id SEPARATOR ' | ') as names, COUNT(*) as cnt
+     FROM clients WHERE name IS NOT NULL AND name != ''
+     GROUP BY nome_norm HAVING cnt > 1 ORDER BY cnt DESC LIMIT 50"
 )->fetchAll();
 
-$totalDups = count($dupsCpf) + count($dupsNome);
+// 3. Por telefone igual (captura duplicados com nomes ligeiramente diferentes)
+$dupsTel = $pdo->query(
+    "SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')',''),'+','') as tel_norm,
+     GROUP_CONCAT(id ORDER BY id) as ids, GROUP_CONCAT(name ORDER BY id SEPARATOR ' | ') as names, COUNT(*) as cnt
+     FROM clients WHERE phone IS NOT NULL AND phone != '' AND LENGTH(phone) >= 8
+     GROUP BY tel_norm HAVING cnt > 1 ORDER BY cnt DESC LIMIT 50"
+)->fetchAll();
+
+// Contar grupos únicos (evitar contar o mesmo par duas vezes)
+$allGroupIds = array();
+foreach ($dupsCpf as $d) $allGroupIds[] = $d['ids'];
+foreach ($dupsNome as $d) $allGroupIds[] = $d['ids'];
+foreach ($dupsTel as $d) $allGroupIds[] = $d['ids'];
+$totalDups = count(array_unique($allGroupIds));
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -122,6 +137,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .dup-type { font-size:.65rem; font-weight:700; text-transform:uppercase; padding:.15rem .5rem; border-radius:4px; color:#fff; }
 .dup-cpf { background:#ef4444; }
 .dup-nome { background:#f59e0b; }
+.dup-tel { background:#3b82f6; }
 </style>
 
 <a href="<?= module_url('clientes') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar</a>
@@ -176,8 +192,8 @@ function renderMergeGroup($pdo, $ids, $type, $matchValue) {
         ?>
         <div class="merge-card">
             <div style="margin-bottom:.5rem;">
-                <span class="dup-type <?= $type === 'cpf' ? 'dup-cpf' : 'dup-nome' ?>">
-                    <?= $type === 'cpf' ? 'CPF: ' . e($matchValue) : 'Nome similar' ?>
+                <span class="dup-type <?= $type === 'cpf' ? 'dup-cpf' : ($type === 'tel' ? 'dup-tel' : 'dup-nome') ?>">
+                    <?= $type === 'cpf' ? 'CPF: ' . e($matchValue) : ($type === 'tel' ? 'Telefone igual' : 'Nome similar') ?>
                 </span>
             </div>
             <div class="merge-pair">
@@ -248,16 +264,27 @@ foreach ($dupsCpf as $dup) {
 }
 
 // Duplicados por Nome (excluir os que já apareceram por CPF)
-$cpfIds = array();
+$shownIds = array();
 foreach ($dupsCpf as $dup) {
-    foreach (explode(',', $dup['ids']) as $id) $cpfIds[$id] = true;
+    foreach (explode(',', $dup['ids']) as $id) $shownIds[$id] = true;
 }
 foreach ($dupsNome as $dup) {
     $ids = explode(',', $dup['ids']);
-    // Pular se todos já foram listados por CPF
-    $newIds = array_filter($ids, function($id) use ($cpfIds) { return !isset($cpfIds[$id]); });
-    if (count($newIds) < 2 && count($ids) === count($newIds) + count(array_diff($ids, array_keys($cpfIds)))) continue;
+    $allShown = true;
+    foreach ($ids as $id) { if (!isset($shownIds[$id])) { $allShown = false; break; } }
+    if ($allShown) continue;
     renderMergeGroup($pdo, $dup['ids'], 'nome', '');
+    foreach ($ids as $id) $shownIds[$id] = true;
+}
+
+// Duplicados por Telefone (excluir os que já apareceram)
+foreach ($dupsTel as $dup) {
+    $ids = explode(',', $dup['ids']);
+    $allShown = true;
+    foreach ($ids as $id) { if (!isset($shownIds[$id])) { $allShown = false; break; } }
+    if ($allShown) continue;
+    renderMergeGroup($pdo, $dup['ids'], 'tel', $dup['tel_norm']);
+    foreach ($ids as $id) $shownIds[$id] = true;
 }
 ?>
 
