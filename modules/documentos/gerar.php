@@ -593,17 +593,17 @@ if (!$showEditor) {
 
         <?php if ($tipo === 'citacao_whatsapp'): ?>
         <div class="section">
-            <h4>Dados para Citacao por WhatsApp</h4>
+            <h4>Dados para Citação por WhatsApp</h4>
             <div class="row">
-                <div><label>Nr do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" required></div>
-                <div><label>Vara / Juizo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2a Vara de Familia de Resende" required></div>
+                <div><label>Nº do Processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25" required></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 2ª Vara de Família de Resende" required></div>
             </div>
             <div class="row">
-                <div><label>Nome completo do reu/ra</label><input name="nome_reu" value="<?= e($nomeReu) ?>" placeholder="Nome da parte re" required></div>
-                <div><label>Telefone/WhatsApp do reu/ra</label><input name="whatsapp_reu" value="<?= e($whatsappReu) ?>" placeholder="(00) 00000-0000" required></div>
+                <div><label>Nome completo do réu/ré</label><input name="nome_reu" value="<?= e($nomeReu) ?>" placeholder="Nome da parte ré" required></div>
+                <div><label>Telefone/WhatsApp do réu/ré</label><input name="whatsapp_reu" value="<?= e($whatsappReu) ?>" placeholder="(00) 00000-0000" oninput="mascaraTelefone(this)" maxlength="15" required></div>
             </div>
             <div class="row">
-                <div><label>Tipo de acao</label>
+                <div><label>Tipo de ação</label>
                     <select name="tipo_acao_citacao">
                         <?php
                         $opCit = array(
@@ -628,7 +628,7 @@ if (!$showEditor) {
                         <?php endforeach; ?>
                     </select>
                 </div>
-                <div><label>Justificativa (opcional)</label><input name="justificativa_citacao" value="" placeholder="Ex: Reu nao encontrado para citacao pessoal"></div>
+                <div><label>Justificativa (opcional)</label><input name="justificativa_citacao" value="" placeholder="Ex: Réu não encontrado para citação pessoal"></div>
             </div>
         </div>
         <?php endif; ?>
