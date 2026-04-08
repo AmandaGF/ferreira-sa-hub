@@ -2168,7 +2168,7 @@ function confirmarRecurso() {
 // ── Excluir processo ──
 function confirmarExclusao() {
     var titulo = <?= json_encode($case['title'] ?: 'Processo #' . $caseId) ?>;
-    if (!confirm('ATENÇÃO: Excluir permanentemente "' + titulo + '"?\n\nIsso apagará:\n- Todas as tarefas\n- Andamentos\n- Partes\n- Documentos pendentes\n- Prazos vinculados\n\nEsta ação NÃO pode ser desfeita!')) return;
+    if (!confirm('ATENÇÃO: Excluir permanentemente "' + titulo + '"?\n\nIsso apagará DESTE PROCESSO:\n- Tarefas vinculadas\n- Andamentos\n- Partes do processo (não exclui o cadastro do cliente)\n- Documentos pendentes\n- Prazos vinculados\n\nOs cadastros dos clientes NÃO serão afetados.\n\nEsta ação NÃO pode ser desfeita!')) return;
     if (!confirm('Tem CERTEZA ABSOLUTA? Digite OK na próxima caixa para confirmar.')) return;
     var resp = prompt('Digite EXCLUIR para confirmar a exclusão permanente:');
     if (resp !== 'EXCLUIR') { alert('Exclusão cancelada.'); return; }
