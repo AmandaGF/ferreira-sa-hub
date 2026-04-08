@@ -160,6 +160,51 @@ function buscarCPF(cpfInput, opts) {
 }
 
 // ═══════════════════════════════════════
+// MÁSCARA NÚMERO DE PROCESSO CNJ
+// Padrão: NNNNNNN-DD.AAAA.J.TR.OOOO
+// ═══════════════════════════════════════
+function formatarCNJ(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (v.length > 20) v = v.substring(0, 20);
+    // NNNNNNN-DD.AAAA.J.TR.OOOO
+    if (v.length > 13) v = v.substring(0,7) + '-' + v.substring(7,9) + '.' + v.substring(9,13) + '.' + v.substring(13,14) + '.' + v.substring(14,16) + '.' + v.substring(16,20);
+    else if (v.length > 9) v = v.substring(0,7) + '-' + v.substring(7,9) + '.' + v.substring(9);
+    else if (v.length > 7) v = v.substring(0,7) + '-' + v.substring(7);
+    el.value = v;
+}
+
+// Auto-aplicar máscara CNJ em todos os inputs de nº processo
+document.addEventListener('DOMContentLoaded', function() {
+    // Selecionar por: data-mask="cnj", name contendo case_number, placeholder com padrão CNJ
+    var seletores = 'input[data-mask="cnj"], input[name="case_number"], input[name="proc_numero"], input[data-field="case_number"], input[name="numero_processo"]';
+    document.querySelectorAll(seletores).forEach(function(el) {
+        el.addEventListener('input', function() { formatarCNJ(el); });
+        el.setAttribute('placeholder', '0000000-00.0000.0.00.0000');
+        el.setAttribute('maxlength', '25');
+    });
+
+    // Inputs com placeholder que já indica CNJ
+    document.querySelectorAll('input[placeholder*="0000000-00"]').forEach(function(el) {
+        if (!el.dataset.mask) {
+            el.addEventListener('input', function() { formatarCNJ(el); });
+            el.setAttribute('maxlength', '25');
+        }
+    });
+
+    // Inputs do modal de distribuição (procNumero)
+    var procNumero = document.getElementById('procNumero');
+    if (procNumero) {
+        procNumero.addEventListener('input', function() { formatarCNJ(procNumero); });
+        procNumero.setAttribute('maxlength', '25');
+    }
+    var distConfirmNumero = document.getElementById('distConfirmNumero');
+    if (distConfirmNumero) {
+        distConfirmNumero.addEventListener('input', function() { formatarCNJ(distConfirmNumero); });
+        distConfirmNumero.setAttribute('maxlength', '25');
+    }
+});
+
+// ═══════════════════════════════════════
 // MÁSCARA TELEFONE (00) 00000-0000
 // ═══════════════════════════════════════
 function formatarTelefone(el) {
