@@ -216,7 +216,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
         <button type="submit" class="btn btn-outline btn-sm" style="border-color:#6366f1;color:#6366f1;">📋 Duplicar Pasta</button>
     </form>
-    <!-- Excluir caso DESABILITADO — pastas não podem ser excluídas -->
+    <?php if (has_role('admin')): ?>
+    <button type="button" onclick="confirmarExclusao()" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">🗑️ Excluir Processo</button>
+    <?php endif; ?>
 </div>
 
 <!-- Header do caso -->
@@ -2085,6 +2087,25 @@ function confirmarRecurso() {
         var url = '<?= module_url("operacional", "caso_novo.php") ?>?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo) + '&tipo_vinculo=recurso';
         window.location.href = url;
     }
+}
+
+// ── Excluir processo ──
+function confirmarExclusao() {
+    var titulo = <?= json_encode($case['title'] ?: 'Processo #' . $caseId) ?>;
+    if (!confirm('ATENÇÃO: Excluir permanentemente "' + titulo + '"?\n\nIsso apagará:\n- Todas as tarefas\n- Andamentos\n- Partes\n- Documentos pendentes\n- Prazos vinculados\n\nEsta ação NÃO pode ser desfeita!')) return;
+    if (!confirm('Tem CERTEZA ABSOLUTA? Digite OK na próxima caixa para confirmar.')) return;
+    var resp = prompt('Digite EXCLUIR para confirmar a exclusão permanente:');
+    if (resp !== 'EXCLUIR') { alert('Exclusão cancelada.'); return; }
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+    function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
+    addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addH('action', 'delete_case');
+    addH('case_id', '<?= $caseId ?>');
+    document.body.appendChild(form);
+    form.submit();
 }
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

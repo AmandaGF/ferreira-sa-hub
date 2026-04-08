@@ -528,11 +528,38 @@ switch ($action) {
         break;
 
     case 'delete_case':
-        // BLOQUEADO — pastas de processo NUNCA podem ser excluídas
-        // Para arquivar, use o status "Arquivado" no select de status
-        flash_set('error', 'Pastas de processo não podem ser excluídas. Use o status "Arquivado" para finalizar.');
+        if (!has_role('admin')) {
+            flash_set('error', 'Apenas administradores podem excluir processos.');
+            redirect(module_url('operacional'));
+            break;
+        }
         $caseId = (int)($_POST['case_id'] ?? 0);
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        if ($caseId) {
+            // Buscar dados antes de excluir (para audit log)
+            $delStmt = $pdo->prepare("SELECT title, client_id, case_number FROM cases WHERE id = ?");
+            $delStmt->execute(array($caseId));
+            $delCase = $delStmt->fetch();
+            $delTitle = $delCase ? $delCase['title'] : 'Caso #' . $caseId;
+
+            // Limpar dados vinculados (tabelas com FK CASCADE já limpam sozinhas, mas garantir)
+            try { $pdo->prepare("DELETE FROM case_tasks WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            try { $pdo->prepare("DELETE FROM case_andamentos WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            try { $pdo->prepare("DELETE FROM case_partes WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            try { $pdo->prepare("DELETE FROM documentos_pendentes WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            try { $pdo->prepare("DELETE FROM prazos_processuais WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            try { $pdo->prepare("DELETE FROM case_publicacoes WHERE case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            // Desvincular incidentais/recursos
+            try { $pdo->prepare("UPDATE cases SET processo_principal_id = NULL, tipo_relacao = NULL, tipo_vinculo = NULL, is_incidental = 0 WHERE processo_principal_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+            // Desvincular lead do pipeline
+            try { $pdo->prepare("UPDATE pipeline_leads SET linked_case_id = NULL WHERE linked_case_id = ?")->execute(array($caseId)); } catch (Exception $e) {}
+
+            // Excluir o caso
+            $pdo->prepare("DELETE FROM cases WHERE id = ?")->execute(array($caseId));
+
+            audit_log('case_deleted', 'case', $caseId, 'Excluído: ' . $delTitle . ($delCase && $delCase['case_number'] ? ' (' . $delCase['case_number'] . ')' : ''));
+            flash_set('success', 'Processo "' . $delTitle . '" excluído permanentemente.');
+        }
+        redirect(module_url('operacional'));
         break;
 
     case 'update_title':
