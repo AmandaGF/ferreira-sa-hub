@@ -68,10 +68,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 $parceiros = $pdo->query("SELECT * FROM parceiros ORDER BY ativo DESC, nome ASC")->fetchAll();
 
 $processosParceiro = array();
+$processosDetalheParceiro = array();
 try {
     $rows = $pdo->query("SELECT parceiro_id, COUNT(*) as total FROM cases WHERE parceiro_id IS NOT NULL AND status NOT IN ('concluido','arquivado') GROUP BY parceiro_id")->fetchAll();
     foreach ($rows as $r) { $processosParceiro[(int)$r['parceiro_id']] = (int)$r['total']; }
+
+    $rowsDet = $pdo->query("SELECT id, title, case_number, case_type, status, parceiro_id, parceria_executor FROM cases WHERE parceiro_id IS NOT NULL ORDER BY title ASC")->fetchAll();
+    foreach ($rowsDet as $rd) {
+        $pid = (int)$rd['parceiro_id'];
+        if (!isset($processosDetalheParceiro[$pid])) $processosDetalheParceiro[$pid] = array();
+        $processosDetalheParceiro[$pid][] = $rd;
+    }
 } catch (Exception $e) {}
+
+$statusLabels = array(
+    'aguardando_docs' => 'Aguardando Docs', 'em_elaboracao' => 'Pasta Apta',
+    'em_andamento' => 'Em Andamento', 'doc_faltante' => 'Doc Faltante',
+    'suspenso' => 'Suspenso', 'aguardando_prazo' => 'Aguard. Distribuição',
+    'distribuido' => 'Distribuído', 'parceria_previdenciario' => 'Parceria',
+    'arquivado' => 'Arquivado', 'cancelado' => 'Cancelado', 'concluido' => 'Concluído',
+);
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -90,8 +106,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr><td colspan="8" class="text-center text-muted" style="padding:2rem;">Nenhum parceiro cadastrado.</td></tr>
                 <?php else: ?>
                     <?php foreach ($parceiros as $p): ?>
+                    <?php $temProcessos = isset($processosDetalheParceiro[(int)$p['id']]); ?>
                     <tr style="<?= !$p['ativo'] ? 'opacity:.5;' : '' ?>">
-                        <td class="font-bold"><?= e($p['nome']) ?></td>
+                        <td class="font-bold">
+                            <?php if ($temProcessos): ?>
+                                <a href="javascript:void(0)" onclick="toggleProcessosParceiro(<?= (int)$p['id'] ?>)" style="color:var(--petrol-900);text-decoration:none;cursor:pointer;" title="Ver processos vinculados"><?= e($p['nome']) ?> <span style="font-size:.65rem;color:var(--text-muted);">▾</span></a>
+                            <?php else: ?>
+                                <?= e($p['nome']) ?>
+                            <?php endif; ?>
+                        </td>
                         <td class="text-sm"><?= e($p['oab'] ?: '—') ?></td>
                         <td class="text-sm"><?= e($p['area'] ?: '—') ?></td>
                         <td class="text-sm">
@@ -113,6 +136,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </form>
                         </td>
                     </tr>
+                    <?php if ($temProcessos): ?>
+                    <tr id="procsParceiro<?= (int)$p['id'] ?>" style="display:none;">
+                        <td colspan="8" style="padding:0;">
+                            <div style="background:#f8f9fa;border:1px solid var(--border);border-radius:0 0 8px 8px;padding:.5rem .75rem;margin:0 .5rem .5rem;">
+                                <div style="font-size:.72rem;font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">Processos vinculados a <?= e($p['nome']) ?>:</div>
+                                <?php foreach ($processosDetalheParceiro[(int)$p['id']] as $cp):
+                                    $execLabel = (isset($cp['parceria_executor']) && $cp['parceria_executor'] === 'fes') ? 'FeS executa' : (isset($cp['parceria_executor']) && $cp['parceria_executor'] === 'parceiro' ? 'Parceiro executa' : '');
+                                    $stLabel = isset($statusLabels[$cp['status']]) ? $statusLabels[$cp['status']] : $cp['status'];
+                                ?>
+                                <div style="display:flex;align-items:center;gap:.5rem;padding:.3rem 0;border-bottom:1px solid #eee;font-size:.78rem;">
+                                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cp['id']) ?>" style="font-weight:700;color:var(--petrol-900);text-decoration:none;flex:1;">⚖️ <?= e($cp['title']) ?></a>
+                                    <?php if ($cp['case_number']): ?><span style="font-family:monospace;font-size:.72rem;color:var(--text-muted);"><?= e($cp['case_number']) ?></span><?php endif; ?>
+                                    <span class="badge badge-<?= in_array($cp['status'], array('em_andamento','distribuido')) ? 'info' : (in_array($cp['status'], array('cancelado','arquivado')) ? 'gestao' : 'warning') ?>" style="font-size:.6rem;"><?= e($stLabel) ?></span>
+                                    <?php if ($execLabel): ?><span style="font-size:.65rem;color:#059669;font-weight:600;"><?= $execLabel ?></span><?php endif; ?>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endif; ?>
                     <?php endforeach; ?>
                 <?php endif; ?>
             </tbody>
@@ -186,6 +229,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
+function toggleProcessosParceiro(id) {
+    var row = document.getElementById('procsParceiro' + id);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
 function editarParceiro(id, dados) {
     document.getElementById('editParceiroId').value = id;
     document.getElementById('editNome').value = dados.nome || '';
