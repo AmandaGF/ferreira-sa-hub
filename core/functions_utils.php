@@ -65,10 +65,7 @@ function csrf_input(): string
 function validate_csrf(): bool
 {
     $token = $_POST[CSRF_TOKEN_NAME] ?? '';
-    $valid = hash_equals($_SESSION[CSRF_TOKEN_NAME] ?? '', $token);
-    // Regenerar token para o próximo uso
-    $_SESSION[CSRF_TOKEN_NAME] = bin2hex(random_bytes(32));
-    return $valid;
+    return hash_equals($_SESSION[CSRF_TOKEN_NAME] ?? '', $token);
 }
 
 // ─── Sanitização ────────────────────────────────────────

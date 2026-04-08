@@ -57,7 +57,7 @@ switch ($action) {
         $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
         $validStatuses = array('em_andamento','suspenso','arquivado','renunciamos',
             // Legados (processos antigos que ainda têm esses status)
-            'aguardando_docs','em_elaboracao','doc_faltante','aguardando_prazo','distribuido','parceria_previdenciario','cancelado','concluido','finalizado');
+            'aguardando_docs','em_elaboracao','doc_faltante','aguardando_prazo','distribuido','kanban_prev','parceria_previdenciario','cancelado','concluido','finalizado');
 
         if ($caseId && in_array($status, $validStatuses)) {
             // Buscar caso atual
@@ -268,6 +268,23 @@ switch ($action) {
                     $pdo->prepare("UPDATE cases SET parceiro_id = ? WHERE id = ?")->execute(array($parceiroId, $caseId));
                     audit_log('parceiro_vinculado', 'case', $caseId, 'Parceiro #' . $parceiroId);
                 }
+            }
+
+            // ── KANBAN PREV: enviar para Previdenciário ──
+            if ($status === 'kanban_prev') {
+                $prevTipo = clean_str($_POST['prev_tipo_beneficio'] ?? '', 60);
+
+                $pdo->prepare(
+                    'UPDATE cases SET kanban_prev = 1, prev_status = ?, prev_enviado_em = NOW(), prev_mes_envio = MONTH(NOW()), prev_ano_envio = YEAR(NOW()), prev_tipo_beneficio = ?, updated_at = NOW() WHERE id = ?'
+                )->execute(array('aguardando_docs', $prevTipo ?: null, $caseId));
+
+                audit_log('kanban_prev_enviado', 'case', $caseId, 'Tipo: ' . ($prevTipo ?: 'N/I'));
+                notify_gestao('Caso enviado ao PREV', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . ($prevTipo ?: 'Previdenciário'), 'info', url('modules/prev/'), '🏛️');
+
+                if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+                flash_set('success', 'Caso enviado para o Kanban PREV! 🏛️');
+                redirect(module_url('operacional'));
+                exit;
             }
 
             // ── MOVIMENTAÇÕES NORMAIS ──

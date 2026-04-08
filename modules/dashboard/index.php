@@ -170,6 +170,11 @@ $onbTotal = $onbRealizados + $onbNaoCompareceu + $onbAgendados;
 // Por mês (últimos 6 meses) — ignora cancelados
 $onbPorMes = qrows($pdo, "SELECT DATE_FORMAT(data_inicio, '%Y-%m') as mes, SUM(CASE WHEN status='realizado' THEN 1 ELSE 0 END) as realizados, SUM(CASE WHEN status='nao_compareceu' THEN 1 ELSE 0 END) as nao_compareceu FROM agenda_eventos WHERE tipo='onboarding' AND status != 'cancelado' AND data_inicio >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH) GROUP BY mes ORDER BY mes ASC");
 
+// PREV KPIs
+$prevAtivos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE kanban_prev = 1 AND prev_status NOT IN ('cancelado') AND status NOT IN ('cancelado','arquivado')");
+$prevEnviadosMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE kanban_prev = 1 AND prev_mes_envio = MONTH(NOW()) AND prev_ano_envio = YEAR(NOW())");
+$prevPorTipo = qrows($pdo, "SELECT prev_tipo_beneficio, COUNT(*) as total FROM cases WHERE kanban_prev = 1 AND prev_status NOT IN ('cancelado') AND status NOT IN ('cancelado','arquivado') AND prev_tipo_beneficio IS NOT NULL GROUP BY prev_tipo_beneficio ORDER BY total DESC");
+
 // Distribuídos x Pendentes (6 meses)
 $distPendLabels = array(); $distPendDist = array(); $distPendPend = array();
 for ($i = 5; $i >= 0; $i--) {
@@ -626,6 +631,27 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     </tr>
     <?php endforeach; ?></tbody></table>
 </div>
+<?php endif; ?>
+
+<!-- PREV -->
+<?php if ($prevAtivos > 0 || $prevEnviadosMes > 0): ?>
+<div class="kpi-grid" style="grid-template-columns:repeat(2,1fr);">
+    <a href="<?= module_url('prev') ?>" class="kpi-card"><div class="kpi-icon" style="background:#eef;color:#3B4FA0;">🏛️</div><div><div class="kpi-value"><?= $prevAtivos ?></div><div class="kpi-label">Processos PREV ativos</div></div></a>
+    <a href="<?= module_url('prev') ?>" class="kpi-card"><div class="kpi-icon" style="background:#eef;color:#3B4FA0;">📥</div><div><div class="kpi-value"><?= $prevEnviadosMes ?></div><div class="kpi-label">Enviados para PREV <?= $mesNome ?></div></div></a>
+</div>
+<?php if (!empty($prevPorTipo)): ?>
+<div class="dash-card" style="margin-bottom:1.25rem;">
+    <h4>🏛️ PREV — Distribuição por Tipo de Benefício</h4>
+    <table><thead><tr><th>Tipo de Benefício</th><th style="text-align:center;">Qtd</th><th style="width:40%;">Proporção</th></tr></thead><tbody>
+    <?php $maxPrev = $prevPorTipo[0]['total']; foreach ($prevPorTipo as $pt): $pctPrev = $maxPrev > 0 ? round(($pt['total'] / $maxPrev) * 100) : 0; ?>
+    <tr>
+        <td style="font-weight:600;"><?= e($pt['prev_tipo_beneficio']) ?></td>
+        <td style="text-align:center;font-weight:700;"><?= $pt['total'] ?></td>
+        <td><div style="background:#e5e7eb;border-radius:4px;height:18px;overflow:hidden;"><div style="background:linear-gradient(90deg,#3B4FA0,#6366f1);height:100%;width:<?= $pctPrev ?>%;border-radius:4px;"></div></div></td>
+    </tr>
+    <?php endforeach; ?></tbody></table>
+</div>
+<?php endif; ?>
 <?php endif; ?>
 
 <!-- Sem movimentação 30+ dias -->

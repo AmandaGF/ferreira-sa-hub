@@ -102,6 +102,20 @@ echo "5. Permissoes...\n";
 fixP($dir);
 echo "   OK\n\n";
 
+echo "6. Rodando migracoes automaticas...\n";
+$migracoes = array('migrar_prev.php');
+foreach ($migracoes as $mig) {
+    $migPath = $dir . '/' . $mig;
+    if (file_exists($migPath)) {
+        echo "   -> $mig\n";
+        ob_start();
+        try { include $migPath; } catch (Exception $e) { echo "   ERRO: " . $e->getMessage() . "\n"; }
+        $output = ob_get_clean();
+        echo "   " . str_replace("\n", "\n   ", strip_tags($output)) . "\n";
+    }
+}
+echo "   OK\n\n";
+
 echo "=== DEPLOY CONCLUIDO! ===\n";
 echo "Arquivos atualizados: $count\n";
 

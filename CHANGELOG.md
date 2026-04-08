@@ -4,6 +4,86 @@ Registro de todas as alterações significativas no sistema.
 
 ---
 
+## [2026-04-07b] — @Menções no Helpdesk
+
+### Adicionado
+- **@Menção em comentários** — digitar `@` no campo de mensagem abre autocomplete com todos os usuários ativos
+  - Dropdown com avatar (iniciais), nome completo, seleção por teclado (↑↓ Enter) ou clique
+  - Menções destacadas visualmente nos comentários (badge azul)
+- **Notificação interna** — usuário mencionado recebe notificação no sino ao abrir a plataforma
+  - Título: "Menção no chamado #X"
+  - Mensagem com preview do texto e link direto
+- **E-mail via Brevo** — usuário mencionado recebe e-mail transactional com:
+  - Template HTML branded (cabeçalho petrol, preview da mensagem, botão "Ver Chamado")
+  - Enviado automaticamente via API Brevo (mesma configuração da Newsletter)
+
+### Arquivos tocados
+```
+conecta/modules/helpdesk/ver.php   (ALTERADO — autocomplete @menção + highlight)
+conecta/modules/helpdesk/api.php   (ALTERADO — parse menções + notify + email Brevo)
+```
+
+---
+
+## [2026-04-07] — Kanban PREV (Previdenciário)
+
+### Adicionado
+- **modules/prev/index.php** — Kanban PREV com 13 colunas dedicadas ao fluxo previdenciário
+  - Colunas: Aguardando Docs, Pasta Apta, Análise INSS, Perícia Médica, Recurso Administrativo, Recurso CRPS/CAJ, Ação Judicial, Sentença, Cumprimento/Precatório, Implantação, Suspenso, Parceria, Cancelado
+  - Filtros: responsável, tipo de benefício, comarca, busca livre
+  - Cards com badge de tipo de benefício, NB (Número de Benefício), dias na coluna
+  - Drag & drop com modais para suspensão, doc faltante e parceria
+  - Colaborador vê apenas seus casos
+- **modules/prev/api.php** — API do Kanban PREV
+  - Movimentação entre colunas com espelhamento bilateral no Pipeline Comercial
+  - Doc faltante bilateral (registra documentos_pendentes + espelha no Pipeline)
+  - Suspensão com motivo + retorno previsto (bilateral)
+  - Cancelamento (admin only) + espelhamento no Pipeline
+  - Parceria com seleção de parceiro
+  - Criação de caso PREV direto
+- **modules/prev/caso_novo.php** — Formulário de novo processo PREV
+  - Campo Tipo de Benefício obrigatório (9 tipos: INSS, BPC, LOAS, etc.)
+  - Campo Número do Benefício (NB)
+  - Autocomplete de clientes, campos judiciais, responsável, Drive
+- **Coluna "Kanban PREV"** no Kanban Operacional (cor azul índigo #3B4FA0)
+  - Modal para selecionar tipo de benefício ao mover card
+  - Card visível no Operacional apenas no mês de envio; depois só no PREV
+- **Dashboard** — Cards PREV na aba Operacional
+  - Card: Processos PREV ativos
+  - Card: Enviados este mês para PREV
+  - Tabela: distribuição por tipo de benefício com barras proporcionais
+- **Sidebar** — Link "Kanban PREV" visível para todos os perfis
+- **migrar_prev.php** — Migração automática dos campos previdenciários
+  - kanban_prev, prev_status, prev_enviado_em, prev_mes_envio, prev_ano_envio
+  - prev_tipo_beneficio, prev_numero_beneficio + índices
+- **deploy2.php** — Migração PREV roda automaticamente no deploy
+
+### Banco de dados
+```sql
+ALTER TABLE cases ADD COLUMN kanban_prev TINYINT(1) DEFAULT 0;
+ALTER TABLE cases ADD COLUMN prev_status VARCHAR(50) DEFAULT NULL;
+ALTER TABLE cases ADD COLUMN prev_enviado_em DATETIME DEFAULT NULL;
+ALTER TABLE cases ADD COLUMN prev_mes_envio INT DEFAULT NULL;
+ALTER TABLE cases ADD COLUMN prev_ano_envio INT DEFAULT NULL;
+ALTER TABLE cases ADD COLUMN prev_tipo_beneficio VARCHAR(60) DEFAULT NULL;
+ALTER TABLE cases ADD COLUMN prev_numero_beneficio VARCHAR(30) DEFAULT NULL;
+```
+
+### Arquivos tocados
+```
+conecta/modules/prev/index.php             (NOVO)
+conecta/modules/prev/api.php               (NOVO)
+conecta/modules/prev/caso_novo.php          (NOVO)
+conecta/migrar_prev.php                     (NOVO)
+conecta/modules/operacional/index.php       (ALTERADO — nova coluna + modal PREV)
+conecta/modules/operacional/api.php         (ALTERADO — handler kanban_prev)
+conecta/modules/dashboard/index.php         (ALTERADO — KPIs PREV)
+conecta/templates/sidebar.php               (ALTERADO — link Kanban PREV)
+conecta/deploy2.php                         (ALTERADO — auto-migração)
+```
+
+---
+
 ## [2026-04-02c] — Interface de Permissões por Usuário
 
 ### Adicionado

@@ -30,6 +30,7 @@ $columns = array(
     'suspenso'               => array('label' => 'Suspenso',                   'color' => '#5B2D8E', 'icon' => '⏸️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
     'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
+    'kanban_prev'            => array('label' => 'Kanban PREV',                  'color' => '#3B4FA0', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
     'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
 );
@@ -106,6 +107,16 @@ foreach ($allCases as $cs) {
         $mesRef = date('Y-m', strtotime($cs['updated_at']));
         if ($mesRef !== $mesAtual) {
             continue;
+        }
+    }
+    // Kanban PREV: aparece na coluna PREV do Operacional só no mês de envio
+    if (!empty($cs['kanban_prev']) && $cs['kanban_prev'] == 1) {
+        $prevMes = isset($cs['prev_mes_envio']) ? (int)$cs['prev_mes_envio'] : 0;
+        $prevAno = isset($cs['prev_ano_envio']) ? (int)$cs['prev_ano_envio'] : 0;
+        if ($prevMes == (int)date('n') && $prevAno == (int)date('Y')) {
+            $status = 'kanban_prev';
+        } else {
+            continue; // Meses anteriores: não mostra no Operacional
         }
     }
     if (!isset($byStatus[$status])) { $status = 'em_andamento'; }
@@ -422,6 +433,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid tbody tr[data-status="suspenso"] { border-left:4px solid #5B2D8E; background:rgba(91,45,142,.06) !important; }
 .tbl-grid tbody tr[data-status="aguardando_prazo"] { border-left:4px solid #8b5cf6; }
 .tbl-grid tbody tr[data-status="distribuido"] { border-left:4px solid #15803d; background:rgba(21,128,61,.04) !important; }
+.tbl-grid tbody tr[data-status="kanban_prev"] { border-left:4px solid #3B4FA0; background:rgba(59,79,160,.06) !important; }
 .tbl-grid tbody tr[data-status="parceria_previdenciario"] { border-left:4px solid #06b6d4; }
 .tbl-grid tbody tr[data-status="cancelado"] { border-left:4px solid #6b7280; opacity:.7; }
 </style>
@@ -779,6 +791,30 @@ sort($opTipos);
     </div>
 </div>
 
+<!-- Modal: Kanban PREV -->
+<div id="prevModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#3B4FA0;margin-bottom:.5rem;">🏛️ Enviar para Kanban PREV</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Selecione o tipo de benefício previdenciário deste caso.</p>
+        <select id="prevTipoBeneficio" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+            <option value="">Selecione o tipo...</option>
+            <option value="INSS">INSS</option>
+            <option value="BPC">BPC</option>
+            <option value="LOAS">LOAS</option>
+            <option value="Aposentadoria por Idade">Aposentadoria por Idade</option>
+            <option value="Aposentadoria por Invalidez">Aposentadoria por Invalidez</option>
+            <option value="Auxílio-Doença">Auxílio-Doença</option>
+            <option value="Auxílio-Acidente">Auxílio-Acidente</option>
+            <option value="Pensão por Morte">Pensão por Morte</option>
+            <option value="Salário-Maternidade">Salário-Maternidade</option>
+        </select>
+        <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
+            <button onclick="closePrevModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmPrev()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#3B4FA0;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Enviar para PREV 🏛️</button>
+        </div>
+    </div>
+</div>
+
 <script>
 var _pendingOpForm = null;
 var csrfToken = '<?= generate_csrf_token() ?>';
@@ -1024,6 +1060,13 @@ function handleOpMove(select) {
         return;
     }
 
+    if (status === 'kanban_prev') {
+        _pendingOpForm = form;
+        document.getElementById('prevModal').style.display = 'flex';
+        select.value = '';
+        return;
+    }
+
     if (status === '_merge') {
         var card = select.closest('.op-card') || select.closest('tr');
         var caseId = card ? card.dataset.caseId : '';
@@ -1245,6 +1288,30 @@ function confirmParceiro() {
         var parcInput = document.createElement('input');
         parcInput.type = 'hidden'; parcInput.name = 'parceiro_id'; parcInput.value = parceiroId;
         _pendingOpForm.appendChild(parcInput);
+        _pendingOpForm.submit();
+    }
+}
+
+// Kanban PREV
+function closePrevModal() {
+    document.getElementById('prevModal').style.display = 'none';
+    _pendingOpForm = null;
+}
+
+function confirmPrev() {
+    var tipo = document.getElementById('prevTipoBeneficio').value;
+    if (!tipo) { document.getElementById('prevTipoBeneficio').style.borderColor = '#ef4444'; return; }
+    document.getElementById('prevModal').style.display = 'none';
+
+    if (_pendingOpForm) {
+        var sel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (sel) sel.removeAttribute('name');
+        var statusInput = document.createElement('input');
+        statusInput.type = 'hidden'; statusInput.name = 'new_status'; statusInput.value = 'kanban_prev';
+        _pendingOpForm.appendChild(statusInput);
+        var tipoInput = document.createElement('input');
+        tipoInput.type = 'hidden'; tipoInput.name = 'prev_tipo_beneficio'; tipoInput.value = tipo;
+        _pendingOpForm.appendChild(tipoInput);
         _pendingOpForm.submit();
     }
 }

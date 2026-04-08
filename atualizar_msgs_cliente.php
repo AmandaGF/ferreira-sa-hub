@@ -39,7 +39,7 @@ $msgs = array(
     ),
     'processo_distribuido' => array(
         'titulo' => 'Processo distribuído',
-        'whatsapp' => "Olá, [Nome]! Informamos que seu processo foi distribuído.\n\nNúmero: [numero_processo]\nVara/Juízo: [vara_juizo]\n\nA partir de agora, acompanharemos todas as movimentações e manteremos você informado(a).\n\nFerreira & Sá Advocacia",
+        'whatsapp' => "Olá, [Nome]! Informamos que seu processo foi distribuído.\n\nNúmero: [numero_processo]\nVara/Juízo: [vara_juizo]\n\nA partir de agora, acompanharemos todas as movimentações e manteremos você informado(a).\n\n⚠️ *ALERTA DE SEGURANÇA* ⚠️\nOs processos judiciais são públicos, e infelizmente golpistas podem usar essas informações para se passar por advogados.\n\n🚫 *NÃO realizamos cobranças por PIX* para recebimento de condenações, danos morais ou materiais.\n💼 O único PIX do escritório é o nosso *CNPJ*.\n📞 Nosso atendimento é feito *exclusivamente* por este número oficial.\n\nEm caso de dúvida, entre em contato conosco antes de realizar qualquer pagamento. Não caia no golpe do falso advogado!\n\nFerreira & Sá Advocacia",
     ),
     'doc_faltante' => array(
         'titulo' => 'Documento faltante',

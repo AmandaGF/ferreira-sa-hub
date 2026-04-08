@@ -106,6 +106,11 @@ if ($ticket['due_date'] && !in_array($ticket['status'], array('resolvido', 'canc
     $prazoAtrasado = strtotime($ticket['due_date']) < strtotime('today');
 }
 
+// Helper: destacar @menções no texto (já HTML-escapado)
+function highlight_mentions($text) {
+    return preg_replace('/@([A-Za-zÀ-ÿ]+(?:\s[A-Za-zÀ-ÿ]+)?)/', '<span class="mention">@$1</span>', $text);
+}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 echo voltar_ao_processo_html();
 ?>
@@ -123,6 +128,15 @@ echo voltar_ao_processo_html();
 .msg-user { font-weight:700; font-size:.82rem; color:var(--petrol-900); }
 .msg-date { font-size:.72rem; color:var(--text-muted); }
 .msg-text { font-size:.88rem; white-space:pre-wrap; }
+.msg-text .mention { background:#3B4FA0; color:#fff; font-weight:700; padding:2px 8px; border-radius:12px; cursor:default; font-size:.82em; letter-spacing:.3px; }
+.mention-wrap { position:relative; }
+.mention-dropdown { position:absolute; bottom:100%; left:0; right:0; background:#fff; border:1.5px solid var(--border); border-radius:8px; max-height:180px; overflow-y:auto; z-index:200; box-shadow:0 -4px 16px rgba(0,0,0,.12); display:none; }
+.mention-dropdown.show { display:block; }
+.mention-item { padding:.45rem .75rem; font-size:.82rem; cursor:pointer; display:flex; align-items:center; gap:.5rem; }
+.mention-item:hover, .mention-item.active { background:#eff6ff; }
+.mention-item .mi-avatar { width:24px; height:24px; border-radius:50%; background:var(--petrol-900); color:#fff; font-size:.6rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.mention-item .mi-name { font-weight:600; color:var(--petrol-900); }
+.mention-item .mi-role { font-size:.68rem; color:var(--text-muted); margin-left:auto; }
 .tk-sidebar .card { margin-bottom:.75rem; }
 .tk-sidebar .card-body { padding:.75rem; }
 .tk-sidebar h4 { font-size:.78rem; font-weight:700; color:var(--petrol-900); margin-bottom:.5rem; }
@@ -297,7 +311,7 @@ echo voltar_ao_processo_html();
                         <span class="msg-user"><?= e($msg['user_name']) ?></span>
                         <span class="msg-date"><?= data_hora_br($msg['created_at']) ?></span>
                     </div>
-                    <div class="msg-text"><?= nl2br(e($msg['message'])) ?></div>
+                    <div class="msg-text"><?= nl2br(highlight_mentions(e($msg['message']))) ?></div>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -308,8 +322,14 @@ echo voltar_ao_processo_html();
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_message">
             <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
-            <textarea name="message" class="form-textarea" rows="3" placeholder="Escreva uma mensagem..." required></textarea>
-            <button type="submit" class="btn btn-primary btn-sm mt-1">Enviar</button>
+            <div class="mention-wrap">
+                <div class="mention-dropdown" id="mentionDropdown"></div>
+                <textarea name="message" id="msgTextarea" class="form-textarea" rows="3" placeholder="Escreva uma mensagem... Use @nome para mencionar alguém" required></textarea>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.35rem;">
+                <span style="font-size:.68rem;color:var(--text-muted);">💡 Digite <strong>@</strong> para mencionar um colega</span>
+                <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
+            </div>
         </form>
     </div>
 </div>
@@ -498,6 +518,127 @@ function loadSideCases() {
 <?php if (!empty($ticket['client_id']) && empty($linkedCase)): ?>
 loadSideCases();
 <?php endif; ?>
+
+// ── @Mention Autocomplete ──
+(function(){
+    var users = <?= json_encode(array_map(function($u) { return array('id' => (int)$u['id'], 'name' => $u['name'], 'initials' => mb_strtoupper(mb_substr($u['name'], 0, 2, 'UTF-8'), 'UTF-8')); }, $users), JSON_UNESCAPED_UNICODE) ?>;
+    var textarea = document.getElementById('msgTextarea');
+    var dropdown = document.getElementById('mentionDropdown');
+    var activeIdx = -1;
+    var mentionStart = -1;
+
+    textarea.addEventListener('input', function() {
+        var val = textarea.value;
+        var pos = textarea.selectionStart;
+
+        // Encontrar @ mais recente antes do cursor
+        var before = val.substring(0, pos);
+        var atIdx = before.lastIndexOf('@');
+
+        if (atIdx === -1 || (atIdx > 0 && before[atIdx - 1] !== ' ' && before[atIdx - 1] !== '\n')) {
+            closeMention();
+            return;
+        }
+
+        var query = before.substring(atIdx + 1);
+        // Se tem espaço duplo ou newline depois do @, fechar
+        if (/\n/.test(query) || /\s{2,}/.test(query)) {
+            closeMention();
+            return;
+        }
+
+        mentionStart = atIdx;
+        var q = query.toLowerCase();
+        var filtered = [];
+        for (var i = 0; i < users.length; i++) {
+            var firstName = users[i].name.split(' ')[0].toLowerCase();
+            var fullName = users[i].name.toLowerCase();
+            if (firstName.indexOf(q) === 0 || fullName.indexOf(q) === 0) {
+                filtered.push(users[i]);
+            }
+        }
+
+        if (filtered.length === 0) {
+            closeMention();
+            return;
+        }
+
+        activeIdx = 0;
+        renderDropdown(filtered);
+    });
+
+    textarea.addEventListener('keydown', function(e) {
+        if (!dropdown.classList.contains('show')) return;
+        var items = dropdown.querySelectorAll('.mention-item');
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            activeIdx = (activeIdx + 1) % items.length;
+            updateActive(items);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            activeIdx = (activeIdx - 1 + items.length) % items.length;
+            updateActive(items);
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            if (items.length > 0 && activeIdx >= 0) {
+                e.preventDefault();
+                selectUser(items[activeIdx].dataset.name);
+            }
+        } else if (e.key === 'Escape') {
+            closeMention();
+        }
+    });
+
+    function renderDropdown(list) {
+        var html = '';
+        for (var i = 0; i < list.length; i++) {
+            html += '<div class="mention-item' + (i === activeIdx ? ' active' : '') + '" data-name="' + esc(list[i].name.split(' ')[0]) + '" data-full="' + esc(list[i].name) + '">'
+                + '<span class="mi-avatar">' + esc(list[i].initials) + '</span>'
+                + '<span class="mi-name">' + esc(list[i].name) + '</span>'
+                + '</div>';
+        }
+        dropdown.innerHTML = html;
+        dropdown.classList.add('show');
+
+        dropdown.querySelectorAll('.mention-item').forEach(function(item) {
+            item.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                selectUser(item.dataset.name);
+            });
+        });
+    }
+
+    function selectUser(firstName) {
+        var val = textarea.value;
+        var before = val.substring(0, mentionStart);
+        var after = val.substring(textarea.selectionStart);
+        textarea.value = before + '@' + firstName + ' ' + after;
+        var newPos = mentionStart + firstName.length + 2;
+        textarea.selectionStart = newPos;
+        textarea.selectionEnd = newPos;
+        textarea.focus();
+        closeMention();
+    }
+
+    function closeMention() {
+        dropdown.classList.remove('show');
+        dropdown.innerHTML = '';
+        activeIdx = -1;
+        mentionStart = -1;
+    }
+
+    function updateActive(items) {
+        items.forEach(function(it, i) {
+            it.classList.toggle('active', i === activeIdx);
+        });
+    }
+
+    textarea.addEventListener('blur', function() {
+        setTimeout(closeMention, 150);
+    });
+
+    function esc(s) { if(!s)return''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+})();
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
