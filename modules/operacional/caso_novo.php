@@ -315,8 +315,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-col" style="max-width:180px;">
                         <label>Papel do cliente</label>
                         <select name="cliente_papel" id="clientePapel" class="form-select" onchange="mudouPapelCliente()">
+                            <?php if ($isRecursoCriacao): ?>
+                            <option value="autor">Recorrente</option>
+                            <option value="reu">Recorrido</option>
+                            <?php else: ?>
                             <option value="autor">Autor</option>
                             <option value="reu">Réu</option>
+                            <?php endif; ?>
                             <option value="terceiro_interessado">Terceiro Interessado</option>
                             <option value="representante_legal">Rep. Legal</option>
                         </select>
@@ -324,8 +329,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="form-col" style="max-width:180px;" id="clienteRepBox" style="display:none;">
                         <label>Representa</label>
                         <select name="cliente_representa" id="clienteRepresenta" class="form-select">
-                            <option value="autores">Os Autores</option>
-                            <option value="reus">Os Réus</option>
+                            <option value="autores"><?= $isRecursoCriacao ? 'Os Recorrentes' : 'Os Autores' ?></option>
+                            <option value="reus"><?= $isRecursoCriacao ? 'Os Recorridos' : 'Os Réus' ?></option>
                         </select>
                     </div>
                 </div>
@@ -338,13 +343,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem;">O cliente selecionado acima será vinculado ao processo. Adicione as demais partes abaixo.</p>
                     <div id="partesRows">
-                        <!-- Réu padrão -->
+                        <!-- Parte adversa padrão -->
                         <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
                             <div style="width:140px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
                                 <select name="partes_papel[]" class="form-select" style="font-size:.82rem;">
+                                    <?php if ($isRecursoCriacao): ?>
+                                    <option value="reu" selected>Recorrido</option>
+                                    <option value="autor">Recorrente</option>
+                                    <?php else: ?>
                                     <option value="reu" selected>Réu</option>
                                     <option value="autor">Autor</option>
+                                    <?php endif; ?>
                                     <option value="representante_legal">Rep. Legal</option>
                                     <option value="terceiro_interessado">3º Interessado</option>
                                     <option value="litisconsorte_ativo">Litis. Ativo</option>
@@ -760,11 +770,14 @@ function mudouPapelCliente() {
 }
 mudouPapelCliente();
 
+var _isRecurso = <?= $isRecursoCriacao ? 'true' : 'false' ?>;
 function addParteRow() {
+    var labelReu = _isRecurso ? 'Recorrido' : 'Réu';
+    var labelAutor = _isRecurso ? 'Recorrente' : 'Autor';
     var html = '<div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">'
         + '<div style="width:140px;"><label style="font-size:.68rem;color:var(--text-muted);">Papel</label>'
         + '<select name="partes_papel[]" class="form-select" style="font-size:.82rem;">'
-        + '<option value="reu">Réu</option><option value="autor">Autor</option>'
+        + '<option value="reu">' + labelReu + '</option><option value="autor">' + labelAutor + '</option>'
         + '<option value="representante_legal">Rep. Legal</option><option value="terceiro_interessado">3º Interessado</option>'
         + '<option value="litisconsorte_ativo">Litis. Ativo</option><option value="litisconsorte_passivo">Litis. Passivo</option></select></div>'
         + '<div style="width:100px;"><label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>'
