@@ -74,6 +74,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($title === '') { $errors[] = 'O titulo e obrigatorio.'; }
     if ($client_id < 1) { $errors[] = 'Selecione um cliente.'; }
 
+    // Verificar duplicata por case_number
+    if ($case_number !== '') {
+        $stmtDup = $pdo->prepare("SELECT id, title FROM cases WHERE case_number = ? LIMIT 1");
+        $stmtDup->execute(array($case_number));
+        $dupCase = $stmtDup->fetch();
+        if ($dupCase && empty($_POST['confirmar_duplicata'])) {
+            flash_set('error', 'Já existe um processo com o nº ' . $case_number . ': "' . $dupCase['title'] . '" (Pasta #' . $dupCase['id'] . '). Se deseja criar mesmo assim, marque a opção de confirmação.');
+            redirect(module_url('operacional', 'caso_novo.php'));
+        }
+    }
+
     if (!empty($errors)) {
         flash_set('error', implode(' ', $errors));
         redirect(module_url('operacional', 'caso_novo.php'));

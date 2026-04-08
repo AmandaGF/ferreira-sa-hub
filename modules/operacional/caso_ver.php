@@ -106,6 +106,16 @@ $statusCores = array(
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
 $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 
+// Detectar processos duplicados (mesmo case_number)
+$duplicatas = array();
+if (!empty($case['case_number'])) {
+    try {
+        $stmtDup = $pdo->prepare("SELECT id, title, case_number, status, client_id FROM cases WHERE case_number = ? AND id != ? AND status NOT IN ('arquivado')");
+        $stmtDup->execute(array($case['case_number'], $caseId));
+        $duplicatas = $stmtDup->fetchAll();
+    } catch (Exception $e) {}
+}
+
 // Processos incidentais e recursos
 $incidentais = array();
 $recursos = array();
@@ -330,6 +340,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </div>
 </div>
+
+<?php if (!empty($duplicatas)): ?>
+<!-- Banner: Processo duplicado detectado -->
+<div style="background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border-radius:var(--radius-lg);padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+    <span style="font-size:1.1rem;">⚠️</span>
+    <div style="flex:1;">
+        <span style="font-size:.85rem;font-weight:700;">Processo com número duplicado!</span>
+        <span style="font-size:.78rem;opacity:.9;margin-left:.5rem;">O nº <?= e($case['case_number']) ?> também existe em:</span>
+        <?php foreach ($duplicatas as $dup): ?>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $dup['id']) ?>" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:.5rem;">
+                <?= e($dup['title']) ?> (#<?= $dup['id'] ?>)
+            </a>
+        <?php endforeach; ?>
+    </div>
+    <?php if (has_min_role('gestao')): ?>
+    <button onclick="abrirMergeDuplicata(<?= (int)$duplicatas[0]['id'] ?>, '<?= e(addslashes($duplicatas[0]['title'])) ?>')" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;font-size:.78rem;font-weight:700;">🔗 Mesclar pastas</button>
+    <?php endif; ?>
+</div>
+<script>
+function abrirMergeDuplicata(outroId, outroTitulo) {
+    if (!confirm('Mesclar esta pasta com "' + outroTitulo + '"?\n\nUma das pastas será absorvida pela outra. Todos os dados (tarefas, andamentos, partes, docs) serão migrados.\n\nDeseja continuar?')) return;
+
+    var quem = prompt('Qual pasta deve ser MANTIDA?\n\n1 = Esta pasta (<?= e(addslashes($case['title'])) ?>)\n2 = ' + outroTitulo + '\n\nDigite 1 ou 2:');
+    if (quem !== '1' && quem !== '2') { alert('Operação cancelada.'); return; }
+
+    var principalId = quem === '1' ? <?= $caseId ?> : outroId;
+    var absorvidoId = quem === '1' ? outroId : <?= $caseId ?>;
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+    function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
+    addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addH('action', 'merge_cases');
+    addH('principal_id', principalId);
+    addH('absorvido_id', absorvidoId);
+    addH('novo_titulo', '');
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+<?php endif; ?>
 
 <?php if ($processoPrincipal):
     $isRecurso = (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso');

@@ -137,6 +137,17 @@ switch ($action) {
                 $procSistema = clean_str($_POST['proc_sistema'] ?? '', 30);
                 $procSegredo = (int)($_POST['proc_segredo'] ?? 0);
 
+                // Verificar duplicata por número do processo
+                $dupAviso = '';
+                if ($procNumero) {
+                    $stmtDupN = $pdo->prepare("SELECT id, title FROM cases WHERE case_number = ? AND id != ? LIMIT 1");
+                    $stmtDupN->execute(array($procNumero, $caseId));
+                    $dupN = $stmtDupN->fetch();
+                    if ($dupN) {
+                        $dupAviso = ' ⚠️ ATENÇÃO: Já existe outra pasta com este número (' . $dupN['title'] . ' #' . $dupN['id'] . '). Verifique se não é duplicata e use "Mesclar pastas" se necessário.';
+                    }
+                }
+
                 $pdo->prepare(
                     'UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type),
                      distribution_date=?, category=?, comarca=?, comarca_uf=?, regional=?,
@@ -176,7 +187,7 @@ switch ($action) {
                 if ($respId) gamificar($respId, 'processo_distribuido', $caseId, 'cases');
 
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-                flash_set('success', 'Processo distribuído! Dados salvos. 🎉');
+                flash_set($dupAviso ? 'warning' : 'success', 'Processo distribuído! Dados salvos. 🎉' . $dupAviso);
                 $_SESSION['efeito_distribuicao'] = true;
                 redirect(module_url('operacional'));
                 exit;
