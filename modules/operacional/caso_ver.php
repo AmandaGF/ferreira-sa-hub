@@ -624,9 +624,10 @@ if (!empty($compFuturos)): ?>
         <input type="hidden" id="parteId" value="0">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem;">
             <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Papel</label>
+                <?php $isRecursoVer = (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso'); ?>
                 <select id="partePapel" class="form-select" style="font-size:.85rem;" onchange="mudouPapel()">
-                    <option value="autor">Autor</option>
-                    <option value="reu">Réu</option>
+                    <option value="autor"><?= $isRecursoVer ? 'Recorrente' : 'Autor' ?></option>
+                    <option value="reu"><?= $isRecursoVer ? 'Recorrido' : 'Réu' ?></option>
                     <option value="representante_legal">Representante Legal</option>
                     <option value="terceiro_interessado">Terceiro Interessado</option>
                     <option value="litisconsorte_ativo">Litisconsorte Ativo</option>
@@ -1603,7 +1604,10 @@ var PARTES_API = '<?= url("modules/shared/partes_api.php") ?>';
 var PARTES_CSRF = '<?= generate_csrf_token() ?>';
 var PARTES_CASE = <?= $caseId ?>;
 var partesData = [];
-var papelLabels = {autor:'Autor',reu:'Réu',representante_legal:'Rep. Legal',terceiro_interessado:'3º Interessado',litisconsorte_ativo:'Litis. Ativo',litisconsorte_passivo:'Litis. Passivo'};
+var _isRecurso = <?= (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso') ? 'true' : 'false' ?>;
+var papelLabels = _isRecurso
+    ? {autor:'Recorrente',reu:'Recorrido',representante_legal:'Rep. Legal',terceiro_interessado:'3º Interessado',litisconsorte_ativo:'Litis. Ativo',litisconsorte_passivo:'Litis. Passivo'}
+    : {autor:'Autor',reu:'Réu',representante_legal:'Rep. Legal',terceiro_interessado:'3º Interessado',litisconsorte_ativo:'Litis. Ativo',litisconsorte_passivo:'Litis. Passivo'};
 var papelCores = {autor:'#059669',reu:'#dc2626',representante_legal:'#6366f1',terceiro_interessado:'#d97706',litisconsorte_ativo:'#0d9488',litisconsorte_passivo:'#8b5cf6'};
 
 carregarPartes();
