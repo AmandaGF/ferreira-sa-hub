@@ -1445,7 +1445,8 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
                                 <?php if ($clientWhatsapp):
-                                    $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
+                                    $tipoAcaoRef = ($case['case_type'] && $case['case_type'] !== 'outro') ? ' — ' . $case['case_type'] : '';
+                                    $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . $tipoAcaoRef . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
                                     $primeiroNomeAnd = explode(' ', trim($case['client_name'] ?: ''))[0];
                                     $msgAnd = "Olá " . $primeiroNomeAnd . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\nFerreira e Sá Advocacia";
                                     $waFullUrl = $clientWhatsapp . '?text=' . rawurlencode($msgAnd);
