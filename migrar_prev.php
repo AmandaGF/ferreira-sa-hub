@@ -3,60 +3,48 @@
  * Migração: Kanban PREV — campos previdenciários na tabela cases
  */
 
-error_reporting(E_ALL);
-ini_set('display_errors', '1');
-
 require_once __DIR__ . '/core/config.php';
 
+// Forçar exibição de erros DEPOIS do config
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 header('Content-Type: text/plain; charset=utf-8');
+
+echo "Inicio migracao PREV\n";
 
 try {
     $pdo = db();
-    echo "=== Migracao Kanban PREV ===\n\n";
+    echo "Conexao OK\n\n";
 
     $cols = array(
-        array("kanban_prev", "ALTER TABLE cases ADD COLUMN kanban_prev TINYINT(1) NOT NULL DEFAULT 0"),
-        array("prev_status", "ALTER TABLE cases ADD COLUMN prev_status VARCHAR(50) DEFAULT NULL"),
-        array("prev_enviado_em", "ALTER TABLE cases ADD COLUMN prev_enviado_em DATETIME DEFAULT NULL"),
-        array("prev_mes_envio", "ALTER TABLE cases ADD COLUMN prev_mes_envio INT DEFAULT NULL"),
-        array("prev_ano_envio", "ALTER TABLE cases ADD COLUMN prev_ano_envio INT DEFAULT NULL"),
-        array("prev_tipo_beneficio", "ALTER TABLE cases ADD COLUMN prev_tipo_beneficio VARCHAR(60) DEFAULT NULL"),
-        array("prev_numero_beneficio", "ALTER TABLE cases ADD COLUMN prev_numero_beneficio VARCHAR(30) DEFAULT NULL"),
+        "ALTER TABLE cases ADD COLUMN kanban_prev TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE cases ADD COLUMN prev_status VARCHAR(50) DEFAULT NULL",
+        "ALTER TABLE cases ADD COLUMN prev_enviado_em DATETIME DEFAULT NULL",
+        "ALTER TABLE cases ADD COLUMN prev_mes_envio INT DEFAULT NULL",
+        "ALTER TABLE cases ADD COLUMN prev_ano_envio INT DEFAULT NULL",
+        "ALTER TABLE cases ADD COLUMN prev_tipo_beneficio VARCHAR(60) DEFAULT NULL",
+        "ALTER TABLE cases ADD COLUMN prev_numero_beneficio VARCHAR(30) DEFAULT NULL",
     );
 
-    foreach ($cols as $c) {
+    foreach ($cols as $sql) {
         try {
-            $pdo->exec($c[1]);
-            echo "[OK] " . $c[0] . "\n";
-        } catch (Exception $e) {
+            $pdo->exec($sql);
+            echo "[OK] $sql\n";
+        } catch (PDOException $e) {
             if (strpos($e->getMessage(), 'Duplicate') !== false) {
-                echo "[SKIP] " . $c[0] . " ja existe\n";
+                echo "[SKIP] ja existe\n";
             } else {
-                echo "[ERRO] " . $c[0] . " -- " . $e->getMessage() . "\n";
+                echo "[ERRO] " . $e->getMessage() . "\n";
             }
         }
     }
 
     // Indices
-    $indices = array(
-        array("idx_kanban_prev", "ALTER TABLE cases ADD INDEX idx_kanban_prev (kanban_prev)"),
-        array("idx_prev_status", "ALTER TABLE cases ADD INDEX idx_prev_status (prev_status)"),
-        array("idx_prev_mes_ano", "ALTER TABLE cases ADD INDEX idx_prev_mes_ano (prev_mes_envio, prev_ano_envio)"),
-    );
-    foreach ($indices as $idx) {
-        try {
-            $pdo->exec($idx[1]);
-            echo "[OK] indice " . $idx[0] . "\n";
-        } catch (Exception $e) {
-            if (strpos($e->getMessage(), 'Duplicate') !== false) {
-                echo "[SKIP] indice " . $idx[0] . " ja existe\n";
-            } else {
-                echo "[ERRO] indice " . $idx[0] . " -- " . $e->getMessage() . "\n";
-            }
-        }
-    }
+    try { $pdo->exec("ALTER TABLE cases ADD INDEX idx_kanban_prev (kanban_prev)"); echo "[OK] idx_kanban_prev\n"; } catch (PDOException $e) { echo "[SKIP] idx_kanban_prev\n"; }
+    try { $pdo->exec("ALTER TABLE cases ADD INDEX idx_prev_status (prev_status)"); echo "[OK] idx_prev_status\n"; } catch (PDOException $e) { echo "[SKIP] idx_prev_status\n"; }
+    try { $pdo->exec("ALTER TABLE cases ADD INDEX idx_prev_mes_ano (prev_mes_envio, prev_ano_envio)"); echo "[OK] idx_prev_mes_ano\n"; } catch (PDOException $e) { echo "[SKIP] idx_prev_mes_ano\n"; }
 
-    echo "\n=== Migracao PREV concluida! ===\n";
+    echo "\nMigracao PREV concluida!\n";
 } catch (Exception $e) {
-    echo "ERRO FATAL: " . $e->getMessage() . "\n";
+    echo "ERRO: " . $e->getMessage() . "\n";
 }
