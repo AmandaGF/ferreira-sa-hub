@@ -309,7 +309,12 @@ echo voltar_ao_processo_html();
                 <div class="msg-item <?= (int)$msg['user_id'] === current_user_id() ? 'own' : '' ?>">
                     <div class="msg-header">
                         <span class="msg-user"><?= e($msg['user_name']) ?></span>
-                        <span class="msg-date"><?= data_hora_br($msg['created_at']) ?></span>
+                        <span style="display:flex;align-items:center;gap:.5rem;">
+                            <span class="msg-date"><?= data_hora_br($msg['created_at']) ?></span>
+                            <?php if ((int)$msg['user_id'] === current_user_id() || has_role('admin')): ?>
+                            <button type="button" onclick="apagarMsg(<?= (int)$msg['id'] ?>)" title="Apagar mensagem" style="background:none;border:none;cursor:pointer;font-size:.75rem;opacity:.4;padding:0;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.4">🗑️</button>
+                            <?php endif; ?>
+                        </span>
                     </div>
                     <div class="msg-text"><?= nl2br(highlight_mentions(e($msg['message']))) ?></div>
                 </div>
@@ -518,6 +523,21 @@ function loadSideCases() {
 <?php if (!empty($ticket['client_id']) && empty($linkedCase)): ?>
 loadSideCases();
 <?php endif; ?>
+
+// ── Apagar mensagem ──
+function apagarMsg(msgId) {
+    if (!confirm('Apagar esta mensagem?')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("helpdesk", "api.php") ?>';
+    function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
+    addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addH('action', 'delete_message');
+    addH('message_id', msgId);
+    addH('ticket_id', '<?= $ticketId ?>');
+    document.body.appendChild(form);
+    form.submit();
+}
 
 // ── @Mention Autocomplete ──
 (function(){

@@ -164,6 +164,27 @@ switch ($action) {
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
         break;
 
+    case 'delete_message':
+        $msgId = (int)($_POST['message_id'] ?? 0);
+        $ticketId = (int)($_POST['ticket_id'] ?? 0);
+
+        if ($msgId) {
+            // Verificar se é o autor ou admin
+            $stmt = $pdo->prepare('SELECT user_id FROM ticket_messages WHERE id = ?');
+            $stmt->execute(array($msgId));
+            $msgRow = $stmt->fetch();
+
+            if ($msgRow && ((int)$msgRow['user_id'] === current_user_id() || has_role('admin'))) {
+                $pdo->prepare('DELETE FROM ticket_messages WHERE id = ?')->execute(array($msgId));
+                audit_log('ticket_message_deleted', 'ticket', $ticketId, 'Msg #' . $msgId);
+                flash_set('success', 'Mensagem apagada.');
+            } else {
+                flash_set('error', 'Sem permissão para apagar esta mensagem.');
+            }
+        }
+        redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('helpdesk'));
