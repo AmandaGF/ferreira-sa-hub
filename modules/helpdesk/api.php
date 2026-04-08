@@ -52,7 +52,7 @@ switch ($action) {
                         : 'CHAMADO INTERNO CANCELADO - Chamado #' . $ticketId . ': ' . $ticketData['title'];
                     try {
                         $pdo->prepare(
-                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())"
+                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?,?,?,?,?,0,NOW())"
                         )->execute(array(
                             $ticketData['case_id'],
                             date('Y-m-d'),
