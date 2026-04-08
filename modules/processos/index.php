@@ -46,7 +46,8 @@ if ($search) {
 }
 $filterVinculo = isset($_GET['vinculo']) ? $_GET['vinculo'] : '';
 if ($filterVinculo === 'principais') { $where[] = "(cs.is_incidental = 0 OR cs.is_incidental IS NULL)"; }
-elseif ($filterVinculo === 'incidentais') { $where[] = "cs.is_incidental = 1"; }
+elseif ($filterVinculo === 'incidentais') { $where[] = "cs.is_incidental = 1 AND (cs.tipo_vinculo IS NULL OR cs.tipo_vinculo != 'recurso')"; }
+elseif ($filterVinculo === 'recursos') { $where[] = "cs.is_incidental = 1 AND cs.tipo_vinculo = 'recurso'"; }
 
 // Filtros especiais
 $filterEspecial = isset($_GET['especial']) ? $_GET['especial'] : '';
@@ -89,6 +90,18 @@ $stmt = $pdo->prepare(
 $stmt->execute($params);
 $processos = $stmt->fetchAll();
 
+// Identificar quais processos são "principais" (têm filhos vinculados)
+$principaisIds = array();
+try {
+    $allIds = array_column($processos, 'id');
+    if (!empty($allIds)) {
+        $inPlaceholders = implode(',', array_fill(0, count($allIds), '?'));
+        $stmtPrinc = $pdo->prepare("SELECT DISTINCT processo_principal_id FROM cases WHERE processo_principal_id IN ($inPlaceholders)");
+        $stmtPrinc->execute($allIds);
+        $principaisIds = $stmtPrinc->fetchAll(PDO::FETCH_COLUMN);
+    }
+} catch (Exception $e) {}
+
 // KPIs
 $totalJudiciais = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != ''")->fetchColumn();
 $ativosJ = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND status NOT IN ('concluido','arquivado')")->fetchColumn();
@@ -121,6 +134,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .case-link:hover { color:var(--rose); }
 .client-link { color:var(--petrol-500); font-weight:600; text-decoration:none; }
 .client-link:hover { color:var(--rose); }
+.proc-table tr.vinculo-principal { border-left:4px solid #052228; }
+.proc-table tr.vinculo-incidental { border-left:4px solid #6366f1; background:rgba(99,102,241,.03); }
+.proc-table tr.vinculo-recurso { border-left:4px solid #d97706; background:rgba(217,119,6,.03); }
+.proc-badge-vinc { display:inline-block; padding:1px 6px; border-radius:4px; font-size:.6rem; font-weight:700; color:#fff; margin-left:.35rem; vertical-align:middle; }
 </style>
 
 <!-- KPIs -->
@@ -179,6 +196,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <option value="">Vínculos</option>
             <option value="principais" <?= $filterVinculo === 'principais' ? 'selected' : '' ?>>Só principais</option>
             <option value="incidentais" <?= $filterVinculo === 'incidentais' ? 'selected' : '' ?>>Só incidentais</option>
+            <option value="recursos" <?= $filterVinculo === 'recursos' ? 'selected' : '' ?>>Só recursos</option>
         </select>
         <select name="ordem" class="proc-filter-sel" onchange="this.form.submit()">
             <option value="alfa" <?= $orderBy === 'alfa' ? 'selected' : '' ?>>A → Z</option>
@@ -225,15 +243,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <tbody>
                 <?php foreach ($processos as $p):
                     $isOverdue = $p['deadline'] && $p['deadline'] < date('Y-m-d');
+                    $isRecursoRow = (!empty($p['is_incidental']) && isset($p['tipo_vinculo']) && $p['tipo_vinculo'] === 'recurso');
+                    $isIncidentalRow = (!empty($p['is_incidental']) && !$isRecursoRow);
+                    $isPrincipalRow = in_array($p['id'], $principaisIds);
+                    $vincClass = $isRecursoRow ? 'vinculo-recurso' : ($isIncidentalRow ? 'vinculo-incidental' : ($isPrincipalRow ? 'vinculo-principal' : ''));
                 ?>
-                <tr>
+                <tr class="<?= $vincClass ?>">
                     <td><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" class="proc-number" style="text-decoration:none;color:inherit;cursor:pointer;" title="Abrir pasta do processo"><?= e($p['case_number']) ?></a></td>
                     <td>
                         <?php if ($p['client_id']): ?>
                             <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $p['client_id']) ?>" class="client-link"><?= e($p['client_name']) ?></a>
                         <?php else: ?>—<?php endif; ?>
                     </td>
-                    <td><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" class="case-link"><?= e($p['title'] ? $p['title'] : 'Processo #' . $p['id']) ?></a></td>
+                    <td>
+                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['id']) ?>" class="case-link"><?= e($p['title'] ? $p['title'] : 'Processo #' . $p['id']) ?></a>
+                        <?php if ($isRecursoRow): ?>
+                            <span class="proc-badge-vinc" style="background:#d97706;">📜 Recurso</span>
+                        <?php elseif ($isIncidentalRow): ?>
+                            <span class="proc-badge-vinc" style="background:#6366f1;">📎 Incidental</span>
+                        <?php elseif ($isPrincipalRow): ?>
+                            <span class="proc-badge-vinc" style="background:#052228;">⚖️ Principal</span>
+                        <?php endif; ?>
+                    </td>
                     <td style="font-size:.78rem;"><?= e($p['case_type'] && $p['case_type'] !== 'outro' ? $p['case_type'] : '—') ?></td>
                     <td style="font-size:.78rem;"><?= e($p['court'] ? $p['court'] : '—') ?></td>
                     <td><span class="badge badge-<?= isset($statusBadge[$p['status']]) ? $statusBadge[$p['status']] : 'gestao' ?>"><?= isset($statusLabels[$p['status']]) ? $statusLabels[$p['status']] : $p['status'] ?></span></td>
