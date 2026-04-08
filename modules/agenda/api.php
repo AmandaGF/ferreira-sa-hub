@@ -255,29 +255,36 @@ if ($action === 'salvar') {
         echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf));
     } else {
         // Criar
-        $stmt = $pdo->prepare(
-            "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
-             local, meet_link, descricao, client_id, case_id, responsavel_id,
-             msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
-             status, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
-        );
-        $stmt->execute(array(
-            $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
-            $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
-            $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
-            current_user_id()
-        ));
-        $newId = (int)$pdo->lastInsertId();
+        try {
+            $stmt = $pdo->prepare(
+                "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
+                 local, meet_link, descricao, client_id, case_id, responsavel_id,
+                 msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
+                 status, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+            );
+            $stmt->execute(array(
+                $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+                $local ?: null, $meetLink ?: null, $descricao ?: null, $clientId, $caseId, $responsavelId,
+                $msgCliente ?: null, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
+                current_user_id()
+            ));
+            $newId = (int)$pdo->lastInsertId();
+        } catch (Exception $e) {
+            echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
+            exit;
+        }
 
         // Notificar responsável se diferente do criador
         if ($responsavelId && $responsavelId !== current_user_id()) {
-            notify($responsavelId, 'Novo compromisso', $titulo . ' em ' . date('d/m/Y H:i', strtotime($dataInicio)),
-                url('modules/agenda/?evento=' . $newId), 'info', '📅');
+            try {
+                notify($responsavelId, 'Novo compromisso', $titulo . ' em ' . date('d/m/Y H:i', strtotime($dataInicio)),
+                    'info', url('modules/agenda/?evento=' . $newId), '📅');
+            } catch (Exception $e) { /* silenciar */ }
         }
 
         audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
-        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => generate_csrf_token()));
+        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => $newCsrf));
     }
     exit;
 }

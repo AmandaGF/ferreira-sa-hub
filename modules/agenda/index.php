@@ -996,7 +996,7 @@ function gerarMeet() {
                 document.getElementById('agEvId').value = r.id;
                 // Agora gerar o meet com o ID criado
                 chamarGerarMeet(r.id, btn);
-            } catch(ex) { alert('Erro ao salvar evento'); btn.textContent = 'Gerar Meet'; btn.disabled = false; }
+            } catch(ex) { alert('Erro ao salvar evento: ' + (xhr.responseText || '').substring(0, 200)); btn.textContent = 'Gerar Meet'; btn.disabled = false; }
         };
         xhr.send(fd);
         return;
@@ -1096,7 +1096,7 @@ function salvarEvento() {
             if (r.error) { alert(r.error); return; }
             fecharModal();
             recarregarEventos();
-        } catch(ex) { alert('Erro ao salvar'); }
+        } catch(ex) { alert('Erro ao salvar: ' + (xhr.responseText || '').substring(0, 200)); }
     };
     xhr.send(fd);
 }
