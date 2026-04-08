@@ -139,18 +139,39 @@ function cdRenderTab() {
         }
         // Formulario
         if (d.form_data) {
-            h += '<div class="cd-s"><h5>Formulario de Cadastro</h5>';
+            h += '<div class="cd-s"><h5>Formulário de Cadastro</h5>';
             var skip = ['nome','name','client_name','client_phone','client_email','email','celular','phone','cpf','form_type','protocol_original','protocol','protocolo','id','created_at','updated_at','ip','ip_address','user_agent','data_envio','payload_json','totais'];
+            var _labels = {
+                'nascimento':'Nascimento','birth_date':'Nascimento','fam_escola':'Fam. Escola',
+                'filhos':'Filhos','children':'Filhos','fam_saude':'Fam. Saúde',
+                'fam_endereco_genitor':'Fam. Endereço Genitor','nome_filhos':'Nome dos Filhos',
+                'clt':'CLT','conta_bancaria':'Conta Bancária','estado_civil':'Estado Civil',
+                'tipo_atendimento':'Tipo de Atendimento','fam_pensao_atual':'Fam. Pensão Atual',
+                'autoriza_contato':'Autoriza Contato?','fam_trabalho_genitor':'Fam. Trabalho Genitor',
+                'imposto_renda':'Imposto de Renda','pix':'PIX','cep':'CEP',
+                'profissao':'Profissão','endereco':'Endereço','address_street':'Endereço',
+                'address_city':'Cidade','address_state':'UF','address_zip':'CEP',
+                'marital_status':'Estado Civil','profession':'Profissão',
+                'gender':'Sexo','nacionalidade':'Nacionalidade','has_children':'Tem Filhos?',
+                'children_names':'Nome dos Filhos','pix_key':'Chave PIX',
+                'rg':'RG','phone2':'Telefone 2','source':'Origem',
+                'nome_filho_referente':'Nome do Filho Referente',
+                'pensao_valor':'Valor Pensão','pensao_percentual':'Percentual Pensão',
+                'renda_mensal':'Renda Mensal','valor_acao':'Valor da Ação',
+                'tipo_acao':'Tipo de Ação','descricao':'Descrição',
+                'data_envio_form':'Data de Envio','created_at_form':'Data de Cadastro'
+            };
             for (var fk in d.form_data) {
                 if (skip.indexOf(fk) >= 0) continue;
                 var fv = d.form_data[fk];
                 if (fv === null || fv === '' || typeof fv === 'object') continue;
-                h += _row(fk.replace(/_/g,' '), fv);
+                var label = _labels[fk] || fk.replace(/_/g,' ').replace(/\b\w/g, function(c){ return c.toUpperCase(); });
+                h += _row(label, fv);
             }
             h += '</div>';
         }
         // Comentarios
-        h += '<div class="cd-s"><h5>Comentarios</h5>';
+        h += '<div class="cd-s"><h5>Comentários</h5>';
         h += '<textarea id="cdNewComment" style="width:100%;font-size:.82rem;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;resize:vertical;min-height:50px;" placeholder="Escrever..."></textarea>';
         h += '<button onclick="cdAddComment()" style="background:#B87333;color:#fff;border:none;padding:4px 14px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;margin-top:4px;">Comentar</button>';
         (d.comments || []).forEach(function(cm) {
@@ -164,7 +185,7 @@ function cdRenderTab() {
         h += _row('Nome Pasta', l.nome_pasta) + _row('Pendencias', l.pendencias);
         h += _row('Convertido em', l.converted_at ? _d(l.converted_at) : null);
         h += '</div>';
-        h += '<div class="cd-s"><h5>Historico Pipeline</h5><div class="cd-tl">';
+        h += '<div class="cd-s"><h5>Histórico Pipeline</h5><div class="cd-tl">';
         (d.pipeline_history || []).forEach(function(ph) {
             h += '<div class="cd-ti"><div class="dt">' + _d(ph.created_at) + '</div><div class="tx">' + _e(ph.user_name ? ph.user_name.split(' ')[0] : 'Sistema') + ' > ' + (sl[ph.to_stage]||ph.to_stage) + '</div></div>';
         });
