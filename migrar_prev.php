@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/core/config.php';
+require_once __DIR__ . '/core/database.php';
 
 // Forçar exibição de erros DEPOIS do config
 ini_set('display_errors', '1');
