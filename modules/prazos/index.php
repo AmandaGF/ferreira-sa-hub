@@ -24,7 +24,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         if ($descricao && $prazoFatal) {
             $pdo->prepare("INSERT INTO prazos_processuais (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, usuario_id) VALUES (?,?,?,?,?,?)")
                 ->execute(array($clientId, $caseId, $numProcesso ?: null, $descricao, $prazoFatal, current_user_id()));
-            flash_set('success', 'Prazo cadastrado!');
+
+            // Gerar tarefa automática 3 dias antes do prazo fatal
+            if ($caseId) {
+                $prazoSeguranca = date('Y-m-d', strtotime($prazoFatal . ' -3 days'));
+                // Não criar se prazo de segurança já passou
+                if ($prazoSeguranca >= date('Y-m-d')) {
+                    try {
+                        // Buscar responsável do caso
+                        $stmtR = $pdo->prepare("SELECT responsible_user_id FROM cases WHERE id = ?");
+                        $stmtR->execute(array($caseId));
+                        $respId = (int)$stmtR->fetchColumn() ?: null;
+
+                        $pdo->prepare(
+                            "INSERT INTO case_tasks (case_id, title, tipo, status, due_date, prazo_alerta, assigned_to, prioridade, sort_order) VALUES (?,?,?,?,?,?,?,?,?)"
+                        )->execute(array(
+                            $caseId,
+                            '⏰ PRAZO: ' . $descricao . ' (fatal ' . date('d/m/Y', strtotime($prazoFatal)) . ')',
+                            'prazo',
+                            'a_fazer',
+                            $prazoSeguranca,
+                            $prazoSeguranca,
+                            $respId,
+                            'urgente',
+                            0
+                        ));
+                    } catch (Exception $e) { /* silenciar se tabela incompatível */ }
+                }
+            }
+
+            flash_set('success', 'Prazo cadastrado!' . ($caseId ? ' Tarefa criada automaticamente para 3 dias antes.' : ''));
         }
         redirect(module_url('prazos'));
     }

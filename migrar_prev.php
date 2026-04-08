@@ -70,6 +70,21 @@ try {
         }
     }
 
+    // Colunas de alertas escalonados na prazos_processuais
+    $alertaCols = array(
+        "ALTER TABLE prazos_processuais ADD COLUMN alertado_7d DATETIME DEFAULT NULL",
+        "ALTER TABLE prazos_processuais ADD COLUMN alertado_3d DATETIME DEFAULT NULL",
+        "ALTER TABLE prazos_processuais ADD COLUMN alertado_1d DATETIME DEFAULT NULL",
+        "ALTER TABLE prazos_processuais ADD COLUMN alertado_hoje DATETIME DEFAULT NULL",
+    );
+    foreach ($alertaCols as $sql) {
+        try { $pdo->exec($sql); echo "[OK] " . substr($sql, 40) . "\n"; }
+        catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'Duplicate') !== false) echo "[SKIP] ja existe\n";
+            else echo "[ERRO] " . $e->getMessage() . "\n";
+        }
+    }
+
     // children_json na tabela clients
     try {
         $pdo->exec("ALTER TABLE clients ADD COLUMN children_json TEXT DEFAULT NULL");

@@ -114,55 +114,101 @@ foreach ($eventos2h as $ev) {
 
 echo "\nTotal 1d: " . count($eventos1d) . " | Total 2h: " . count($eventos2h) . "\n";
 
-// ── 3. Alertas de prazos processuais (tarefas tipo=prazo) ──
-echo "\n--- Alertas de Prazos ---\n";
+// ── 3. Alertas escalonados de prazos processuais (7d, 3d, 1d, HOJE) ──
+echo "\n--- Alertas Escalonados de Prazos ---\n";
 try {
-    $amanha = (new DateTime())->modify('+1 day')->format('Y-m-d');
+    $hoje = date('Y-m-d');
+    $em1d = date('Y-m-d', strtotime('+1 day'));
+    $em3d = date('Y-m-d', strtotime('+3 days'));
+    $em7d = date('Y-m-d', strtotime('+7 days'));
+
+    // Buscar TODOS os prazos ativos nos próximos 7 dias
     $stmtPrazos = $pdo->prepare(
-        "SELECT t.id, t.title, t.due_date, t.prazo_alerta, t.case_id, t.assigned_to,
-                cs.title as case_title, u.name as assigned_name
-         FROM case_tasks t
-         LEFT JOIN cases cs ON cs.id = t.case_id
-         LEFT JOIN users u ON u.id = t.assigned_to
-         WHERE t.tipo = 'prazo'
-           AND t.status NOT IN ('concluido')
-           AND t.alerta_enviado = 0
-           AND t.prazo_alerta IS NOT NULL
-           AND t.prazo_alerta <= ?"
+        "SELECT p.*, cs.title as case_title, cs.responsible_user_id, cl.name as client_name
+         FROM prazos_processuais p
+         LEFT JOIN cases cs ON cs.id = p.case_id
+         LEFT JOIN clients cl ON cl.id = p.client_id
+         WHERE p.concluido = 0 AND p.prazo_fatal BETWEEN ? AND ?"
     );
-    $stmtPrazos->execute(array($amanha));
-    $prazosAlert = $stmtPrazos->fetchAll();
+    $stmtPrazos->execute(array($hoje, $em7d));
+    $prazosProximos = $stmtPrazos->fetchAll();
 
-    // Buscar todos admin + operacional para notificar
-    $opUsers = $pdo->query("SELECT id FROM users WHERE role IN ('admin','gestao','operacional') AND is_active = 1")->fetchAll();
+    // Usuários que devem receber alertas
+    $opUsers = $pdo->query("SELECT id, name, email FROM users WHERE role IN ('admin','gestao','operacional') AND is_active = 1")->fetchAll();
+    $opIds = array_column($opUsers, 'id');
 
-    foreach ($prazosAlert as $pr) {
-        $dataFmt = date('d/m/Y', strtotime($pr['due_date']));
-        $titulo = 'Prazo: ' . ($pr['title'] ?: 'Tarefa #' . $pr['id']);
-        $msg = 'Prazo fatal em ' . $dataFmt . ' — ' . ($pr['case_title'] ?: 'Processo #' . $pr['case_id']);
+    $totalAlertas = 0;
+    foreach ($prazosProximos as $pr) {
+        $diasRestantes = (int)((strtotime($pr['prazo_fatal']) - strtotime($hoje)) / 86400);
+        $dataFmt = date('d/m/Y', strtotime($pr['prazo_fatal']));
 
-        // Notificar todos os operacionais + admin
-        foreach ($opUsers as $ou) {
-            try {
-                notify(
-                    (int)$ou['id'],
-                    $titulo,
-                    $msg,
-                    'urgencia',
-                    '/conecta/modules/tarefas/',
-                    ''
-                );
-            } catch (Exception $ex) {}
+        // Definir nível de urgência e ícone
+        if ($diasRestantes <= 0) {
+            $nivelTag = 'HOJE'; $icon = '🚨'; $tipo = 'urgencia';
+        } elseif ($diasRestantes <= 1) {
+            $nivelTag = 'AMANHÃ'; $icon = '🔴'; $tipo = 'urgencia';
+        } elseif ($diasRestantes <= 3) {
+            $nivelTag = $diasRestantes . 'd'; $icon = '⚠️'; $tipo = 'alerta';
+        } else {
+            $nivelTag = $diasRestantes . 'd'; $icon = '📅'; $tipo = 'info';
         }
 
-        // Marcar alerta como enviado
-        $pdo->prepare("UPDATE case_tasks SET alerta_enviado = 1 WHERE id = ?")
-            ->execute(array($pr['id']));
+        // Coluna de controle: alertado_7d, alertado_3d, alertado_1d, alertado_hoje
+        $colAlerta = null;
+        if ($diasRestantes <= 0 && empty($pr['alertado_hoje'])) $colAlerta = 'alertado_hoje';
+        elseif ($diasRestantes <= 1 && empty($pr['alertado_1d'])) $colAlerta = 'alertado_1d';
+        elseif ($diasRestantes <= 3 && empty($pr['alertado_3d'])) $colAlerta = 'alertado_3d';
+        elseif ($diasRestantes <= 7 && empty($pr['alertado_7d'])) $colAlerta = 'alertado_7d';
 
-        echo "  [PRAZO] #" . $pr['id'] . " — " . $pr['title'] . " (fatal: " . $dataFmt . ") => " . count($opUsers) . " notificados\n";
+        if (!$colAlerta) continue; // Já alertado neste nível
+
+        $titulo = $icon . ' Prazo ' . $nivelTag . ': ' . $pr['descricao_acao'];
+        $msg = 'Prazo fatal ' . $dataFmt . ' — ' . ($pr['case_title'] ?: ($pr['numero_processo'] ?: 'Processo')) . ($pr['client_name'] ? ' (' . $pr['client_name'] . ')' : '');
+        $link = '/conecta/modules/prazos/';
+
+        // Notificar responsável do caso + todos operacionais/admin
+        $notificar = $opIds;
+        if ($pr['responsible_user_id'] && !in_array((int)$pr['responsible_user_id'], $notificar)) {
+            $notificar[] = (int)$pr['responsible_user_id'];
+        }
+        if ($pr['usuario_id'] && !in_array((int)$pr['usuario_id'], $notificar)) {
+            $notificar[] = (int)$pr['usuario_id'];
+        }
+
+        foreach ($notificar as $uid) {
+            try { notify($uid, $titulo, $msg, $tipo, $link, $icon); } catch (Exception $ex) {}
+        }
+
+        // Marcar nível de alerta
+        try {
+            $pdo->prepare("UPDATE prazos_processuais SET $colAlerta = NOW() WHERE id = ?")->execute(array($pr['id']));
+        } catch (Exception $e) {
+            // Coluna pode não existir ainda — silenciar
+        }
+
+        $totalAlertas++;
+        echo "  [$nivelTag] #" . $pr['id'] . " — " . $pr['descricao_acao'] . " (fatal: $dataFmt) => " . count($notificar) . " notificados\n";
     }
 
-    echo "Total prazos alertados: " . count($prazosAlert) . "\n";
+    echo "Total prazos alertados: $totalAlertas\n";
+
+    // Alertas de tarefas tipo=prazo (manter compatibilidade)
+    $amanha = (new DateTime())->modify('+1 day')->format('Y-m-d');
+    $stmtTarefas = $pdo->prepare(
+        "SELECT t.id, t.title, t.due_date, t.case_id, t.assigned_to, cs.title as case_title
+         FROM case_tasks t LEFT JOIN cases cs ON cs.id = t.case_id
+         WHERE t.tipo = 'prazo' AND t.status NOT IN ('concluido') AND t.alerta_enviado = 0
+           AND t.prazo_alerta IS NOT NULL AND t.prazo_alerta <= ?"
+    );
+    $stmtTarefas->execute(array($amanha));
+    foreach ($stmtTarefas->fetchAll() as $pr) {
+        $dataFmt = date('d/m/Y', strtotime($pr['due_date']));
+        foreach ($opIds as $uid) {
+            try { notify($uid, '⏰ Prazo tarefa: ' . $pr['title'], 'Fatal ' . $dataFmt . ' — ' . ($pr['case_title'] ?: ''), 'urgencia', '/conecta/modules/tarefas/', '⏰'); } catch (Exception $ex) {}
+        }
+        $pdo->prepare("UPDATE case_tasks SET alerta_enviado = 1 WHERE id = ?")->execute(array($pr['id']));
+        echo "  [TAREFA] #" . $pr['id'] . " — " . $pr['title'] . "\n";
+    }
 } catch (Exception $e) {
     echo "  [ERRO PRAZOS] " . $e->getMessage() . "\n";
 }

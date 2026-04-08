@@ -184,6 +184,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card-tasks .mini-fill { height:100%; background:var(--success); border-radius:3px; display:block; }
 .op-card-deadline { font-size:.55rem; margin-top:.2rem; }
 .op-card-deadline.overdue { color:#ef4444; font-weight:700; }
+.op-card.prazo-hoje { border-left-color:#dc2626 !important; animation:pulsePrazo 1.5s ease-in-out infinite; }
+.op-card.prazo-3d { border-left-color:#f59e0b !important; animation:pulsePrazoSuave 2s ease-in-out infinite; }
+@keyframes pulsePrazo { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
+@keyframes pulsePrazoSuave { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.3)} 50%{box-shadow:0 0 0 4px rgba(245,158,11,0)} }
 .op-card-process { font-size:.58rem; color:var(--petrol-500); font-weight:600; margin-top:.2rem; }
 .op-card-doc-alert { background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:.3rem .4rem; font-size:.6rem; color:#dc2626; margin-top:.25rem; }
 .op-doc-item { display:flex; align-items:flex-start; gap:.2rem; padding:.1rem 0; font-weight:600; line-height:1.3; }
@@ -292,8 +296,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $taskPct = $totalTasks > 0 ? round(($cs['done_tasks'] / $totalTasks) * 100) : 0;
                     $isOverdue = $cs['deadline'] && $cs['deadline'] < date('Y-m-d');
                     $pColor = isset($priorityColors[$cs['priority']]) ? $priorityColors[$cs['priority']] : '#9ca3af';
+                    $prazoClass = '';
+                    if ($cs['deadline']) {
+                        $diasPrazo = (int)((strtotime($cs['deadline']) - strtotime(date('Y-m-d'))) / 86400);
+                        if ($diasPrazo <= 0) $prazoClass = 'prazo-hoje';
+                        elseif ($diasPrazo <= 3) $prazoClass = 'prazo-3d';
+                    }
                 ?>
-                <div class="op-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
+                <div class="op-card <?= $prazoClass ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>

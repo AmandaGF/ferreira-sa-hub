@@ -1004,8 +1004,21 @@ switch ($action) {
                 $pdo->prepare(
                     "INSERT INTO prazos_processuais (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, concluido, usuario_id) VALUES (?,?,?,?,?,0,?)"
                 )->execute(array($clientIdPrazo, $caseId, $numProcPrazo, $descAcao, $prazoFatal, current_user_id()));
+
+                // Gerar tarefa automática 3 dias antes do prazo fatal
+                $prazoSeg = date('Y-m-d', strtotime($prazoFatal . ' -3 days'));
+                if ($prazoSeg >= date('Y-m-d')) {
+                    try {
+                        $stmtResp = $pdo->prepare("SELECT responsible_user_id FROM cases WHERE id = ?");
+                        $stmtResp->execute(array($caseId));
+                        $respIdPrazo = (int)$stmtResp->fetchColumn() ?: null;
+                        $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, status, due_date, prazo_alerta, assigned_to, prioridade, sort_order) VALUES (?,?,?,?,?,?,?,?,?)")
+                            ->execute(array($caseId, '⏰ PRAZO: ' . $descAcao . ' (fatal ' . date('d/m/Y', strtotime($prazoFatal)) . ')', 'prazo', 'a_fazer', $prazoSeg, $prazoSeg, $respIdPrazo, 'urgente', 0));
+                    } catch (Exception $e) {}
+                }
+
                 audit_log('PRAZO_CRIADO', 'case', $caseId, $tipo . ' — ' . $prazoFatal);
-                flash_set('success', 'Prazo cadastrado: ' . date('d/m/Y', strtotime($prazoFatal)));
+                flash_set('success', 'Prazo cadastrado: ' . date('d/m/Y', strtotime($prazoFatal)) . '. Tarefa criada para 3 dias antes.');
             } catch (Exception $e) {
                 flash_set('error', 'Erro ao cadastrar prazo.');
             }
