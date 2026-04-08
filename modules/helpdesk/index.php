@@ -23,7 +23,13 @@ if (has_role('colaborador') || has_role('estagiario')) {
     $params[] = $userId;
     $params[] = $userId;
 }
-if ($filterStatus) { $where[] = "t.status = ?"; $params[] = $filterStatus; }
+$showArquivados = isset($_GET['arquivados']) && $_GET['arquivados'] === '1';
+if ($filterStatus) {
+    $where[] = "t.status = ?"; $params[] = $filterStatus;
+} elseif (!$showArquivados) {
+    // Por padrão, ocultar resolvidos e cancelados
+    $where[] = "t.status NOT IN ('resolvido','cancelado')";
+}
 if ($filterPriority) { $where[] = "t.priority = ?"; $params[] = $filterPriority; }
 $filterCategory = $_GET['category'] ?? '';
 $filterAssignee = (int)($_GET['assignee'] ?? 0);
@@ -123,7 +129,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Limpar filtros</a>
         <?php endif; ?>
     </div>
-    <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Chamado</a>
+    <div style="display:flex;gap:.5rem;">
+        <?php if ($showArquivados): ?>
+            <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;">✕ Ocultar arquivados</a>
+        <?php else: ?>
+            <a href="<?= module_url('helpdesk') ?>?arquivados=1" class="btn btn-outline btn-sm" style="font-size:.75rem;">📦 Mostrar arquivados</a>
+        <?php endif; ?>
+        <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Chamado</a>
+    </div>
 </div>
 
 <!-- Filtros -->
