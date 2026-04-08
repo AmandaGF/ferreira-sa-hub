@@ -96,8 +96,19 @@ try {
 
 // Parceria
 $parceiroNome = '';
+$parceiroTel = '';
+$parceiroOab = '';
 if (!empty($case['parceiro_id'])) {
-    try { $pn = $pdo->prepare("SELECT nome FROM parceiros WHERE id = ?"); $pn->execute(array($case['parceiro_id'])); $parceiroNome = $pn->fetchColumn() ?: ''; } catch (Exception $e) {}
+    try {
+        $pn = $pdo->prepare("SELECT nome, telefone, oab FROM parceiros WHERE id = ?");
+        $pn->execute(array($case['parceiro_id']));
+        $parcData = $pn->fetch();
+        if ($parcData) {
+            $parceiroNome = $parcData['nome'] ?: '';
+            $parceiroTel = $parcData['telefone'] ?: '';
+            $parceiroOab = $parcData['oab'] ?: '';
+        }
+    } catch (Exception $e) {}
 }
 
 // Prazos
@@ -220,8 +231,13 @@ try {
         <div class="field"><label>Pasta Drive</label><span><?= $case['drive_folder_url'] ? 'Vinculada' : '—' ?></span></div>
     </div>
     <?php if (!empty($case['is_parceria'])): ?>
-    <div style="margin-top:6px;padding:4px 8px;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:4px;font-size:10px;">
-        <strong>🤝 Parceria:</strong> <?= e($parceiroNome ?: 'Parceiro definido') ?> — Executor: <?= (isset($case['parceria_executor']) && $case['parceria_executor'] === 'fes') ? 'Ferreira & Sá' : 'O Parceiro' ?>
+    <div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:6px;">
+        <div style="font-size:11px;font-weight:700;color:#059669;margin-bottom:4px;">🤝 Parceria</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:10px;">
+            <div><span style="color:#888;font-size:8px;text-transform:uppercase;display:block;">Parceiro</span><strong><?= e($parceiroNome ?: '—') ?></strong><?= $parceiroOab ? ' <span style="color:#888;">(OAB ' . e($parceiroOab) . ')</span>' : '' ?></div>
+            <div><span style="color:#888;font-size:8px;text-transform:uppercase;display:block;">Telefone do Parceiro</span><?= e($parceiroTel ?: '—') ?></div>
+            <div><span style="color:#888;font-size:8px;text-transform:uppercase;display:block;">Quem executa</span><strong><?= (isset($case['parceria_executor']) && $case['parceria_executor'] === 'fes') ? 'Ferreira & Sá' : 'O Parceiro' ?></strong></div>
+        </div>
     </div>
     <?php endif; ?>
 </div>
