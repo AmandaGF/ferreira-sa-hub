@@ -150,6 +150,7 @@ echo voltar_ao_processo_html();
                         <option value="">— Selecionar —</option>
                         <option value="Operacional">Operacional</option>
                         <option value="Comercial">Comercial</option>
+                        <option value="CX">CX</option>
                         <option value="Financeiro">Financeiro</option>
                         <option value="Administrativo">Administrativo</option>
                         <option value="Marketing">Marketing</option>

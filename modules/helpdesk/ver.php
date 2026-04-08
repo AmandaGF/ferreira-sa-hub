@@ -385,7 +385,7 @@ echo voltar_ao_processo_html();
                 <label class="form-label" style="font-size:.72rem;">Setor</label>
                 <select name="department" class="form-select" style="font-size:.82rem;">
                     <option value="">—</option>
-                    <?php foreach (array('Operacional','Comercial','Financeiro','Administrativo','Marketing') as $dep): ?>
+                    <?php foreach (array('Operacional','Comercial','CX','Financeiro','Administrativo','Marketing') as $dep): ?>
                     <option value="<?= $dep ?>" <?= $ticket['department'] === $dep ? 'selected' : '' ?>><?= $dep ?></option>
                     <?php endforeach; ?>
                 </select>
