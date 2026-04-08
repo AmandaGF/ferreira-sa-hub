@@ -792,6 +792,82 @@ if (!empty($compFuturos)): ?>
     </div>
 </div>
 
+<!-- Parceria -->
+<?php
+$parceirosAtivos = array();
+try { $parceirosAtivos = $pdo->query("SELECT id, nome FROM parceiros WHERE ativo = 1 ORDER BY nome")->fetchAll(); } catch (Exception $e) {}
+$parceiroAtual = null;
+if (!empty($case['parceiro_id'])) {
+    try { $stmtP = $pdo->prepare("SELECT id, nome FROM parceiros WHERE id = ?"); $stmtP->execute(array($case['parceiro_id'])); $parceiroAtual = $stmtP->fetch(); } catch (Exception $e) {}
+}
+$isParceria = !empty($case['is_parceria']);
+$parceriaExecutor = isset($case['parceria_executor']) ? $case['parceria_executor'] : '';
+?>
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>🤝 Parceria</h3>
+        <?php if ($isParceria && $parceiroAtual): ?>
+            <span style="font-size:.72rem;font-weight:700;color:#17A589;">Parceria ativa — <?= e($parceiroAtual['nome']) ?></span>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="update_parceria">
+            <input type="hidden" name="case_id" value="<?= $caseId ?>">
+
+            <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:.75rem;">
+                <label style="font-size:.82rem;font-weight:700;color:var(--petrol-900);white-space:nowrap;">É parceria?</label>
+                <select name="is_parceria" id="isParceriaSelect" class="form-select" style="width:80px;" onchange="toggleParceriaFields()">
+                    <option value="0" <?= !$isParceria ? 'selected' : '' ?>>Não</option>
+                    <option value="1" <?= $isParceria ? 'selected' : '' ?>>Sim</option>
+                </select>
+            </div>
+
+            <div id="parceriaFields" style="<?= $isParceria ? '' : 'display:none;' ?>">
+                <div style="display:flex;gap:.75rem;margin-bottom:.75rem;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:200px;">
+                        <label style="font-size:.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Parceiro</label>
+                        <select name="parceiro_id" id="parceiroSelect" class="form-select" style="font-size:.85rem;">
+                            <option value="">— Selecionar —</option>
+                            <?php foreach ($parceirosAtivos as $pa): ?>
+                                <option value="<?= $pa['id'] ?>" <?= (int)($case['parceiro_id'] ?? 0) === (int)$pa['id'] ? 'selected' : '' ?>><?= e($pa['nome']) ?></option>
+                            <?php endforeach; ?>
+                            <option value="_novo">+ Cadastrar novo parceiro</option>
+                        </select>
+                    </div>
+                    <div style="flex:1;min-width:200px;">
+                        <label style="font-size:.72rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Quem está executando?</label>
+                        <select name="parceria_executor" class="form-select" style="font-size:.85rem;">
+                            <option value="">— Selecionar —</option>
+                            <option value="fes" <?= $parceriaExecutor === 'fes' ? 'selected' : '' ?>>Ferreira & Sá</option>
+                            <option value="parceiro" <?= $parceriaExecutor === 'parceiro' ? 'selected' : '' ?>>O Parceiro</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Cadastro rápido de parceiro -->
+                <div id="novoParcBox" style="display:none;background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:8px;padding:.75rem;margin-bottom:.75rem;">
+                    <label style="font-size:.72rem;font-weight:700;color:#059669;display:block;margin-bottom:.3rem;">Nome do novo parceiro *</label>
+                    <input type="text" name="novo_parceiro_nome" id="novoParcNome" class="form-input" style="font-size:.85rem;" placeholder="Nome completo do advogado parceiro">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-sm">Salvar parceria</button>
+        </form>
+    </div>
+</div>
+
+<script>
+function toggleParceriaFields() {
+    var v = document.getElementById('isParceriaSelect').value;
+    document.getElementById('parceriaFields').style.display = v === '1' ? '' : 'none';
+}
+document.getElementById('parceiroSelect').addEventListener('change', function() {
+    document.getElementById('novoParcBox').style.display = this.value === '_novo' ? '' : 'none';
+});
+</script>
+
 <!-- Dados do Processo (editável inline) -->
 <div class="card mb-2">
     <div class="card-header">

@@ -57,6 +57,19 @@ try {
         }
     }
 
+    // is_parceria e parceria_executor na tabela cases
+    $camposParceria = array(
+        "ALTER TABLE cases ADD COLUMN is_parceria TINYINT(1) NOT NULL DEFAULT 0",
+        "ALTER TABLE cases ADD COLUMN parceria_executor VARCHAR(20) DEFAULT NULL",
+    );
+    foreach ($camposParceria as $sql) {
+        try { $pdo->exec($sql); echo "[OK] " . substr($sql, 30) . "\n"; }
+        catch (PDOException $e) {
+            if (strpos($e->getMessage(), 'Duplicate') !== false) echo "[SKIP] ja existe\n";
+            else echo "[ERRO] " . $e->getMessage() . "\n";
+        }
+    }
+
     // children_json na tabela clients
     try {
         $pdo->exec("ALTER TABLE clients ADD COLUMN children_json TEXT DEFAULT NULL");

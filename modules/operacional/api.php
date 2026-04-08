@@ -469,6 +469,48 @@ switch ($action) {
         }
         exit;
 
+    case 'update_parceria':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $isParceria = (int)($_POST['is_parceria'] ?? 0);
+        $parceiroId = $_POST['parceiro_id'] ?? '';
+        $executor = in_array(($_POST['parceria_executor'] ?? ''), array('fes', 'parceiro')) ? $_POST['parceria_executor'] : null;
+
+        if ($caseId) {
+            if (!$isParceria) {
+                // Desmarcar parceria
+                $pdo->prepare("UPDATE cases SET is_parceria = 0, parceiro_id = NULL, parceria_executor = NULL, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($caseId));
+                audit_log('parceria_removida', 'case', $caseId);
+                flash_set('success', 'Parceria removida.');
+            } else {
+                // Cadastrar novo parceiro se necessário
+                if ($parceiroId === '_novo') {
+                    $novoParcNome = clean_str($_POST['novo_parceiro_nome'] ?? '', 150);
+                    if ($novoParcNome) {
+                        $pdo->prepare("INSERT INTO parceiros (nome, ativo) VALUES (?, 1)")->execute(array($novoParcNome));
+                        $parceiroId = (int)$pdo->lastInsertId();
+                        audit_log('parceiro_criado_rapido', 'parceiro', $parceiroId, $novoParcNome);
+                    } else {
+                        $parceiroId = null;
+                    }
+                } else {
+                    $parceiroId = (int)$parceiroId ?: null;
+                }
+
+                $pdo->prepare("UPDATE cases SET is_parceria = 1, parceiro_id = ?, parceria_executor = ?, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($parceiroId, $executor, $caseId));
+
+                $parcNome = '';
+                if ($parceiroId) {
+                    $pn = $pdo->prepare("SELECT nome FROM parceiros WHERE id = ?"); $pn->execute(array($parceiroId)); $parcNome = $pn->fetchColumn() ?: '';
+                }
+                audit_log('parceria_atualizada', 'case', $caseId, 'Parceiro: ' . ($parcNome ?: 'N/D') . ', Executor: ' . ($executor ?: 'N/D'));
+                flash_set('success', 'Parceria salva — ' . ($parcNome ?: 'Parceiro definido') . ' (' . ($executor === 'fes' ? 'FeS executa' : 'Parceiro executa') . ')');
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'update_case_info':
         // Qualquer usuário logado pode atualizar prioridade/responsável
         $caseId = (int)($_POST['case_id'] ?? 0);
