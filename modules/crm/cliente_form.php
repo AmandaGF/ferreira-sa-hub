@@ -388,16 +388,63 @@ function consultarCPFInterno(cpf) {
     xhr.onload = function() {
         try {
             var d = JSON.parse(xhr.responseText);
-            if (d.nome) {
-                var n = document.querySelector('[name=name]');
-                if (n && !n.value) n.value = d.nome;
+            if (!d || d.status === 'ERROR') return;
+
+            // Helper: preenche campo se estiver vazio
+            function fill(sel, val) {
+                if (!val) return;
+                var el = document.querySelector(sel);
+                if (el && !el.value) el.value = val;
             }
+
+            fill('[name=name]', d.nome);
+            fill('[name=rg]', d.rg);
+            fill('[name=email]', d.email);
+            fill('[name=phone]', d.telefone);
+            fill('[name=phone2]', d.telefone2);
+            fill('[name=profession]', d.profissao);
+            fill('[name=address_street]', d.endereco);
+            fill('[name=address_city]', d.cidade);
+            fill('[name=address_state]', d.uf);
+            fill('[name=address_zip]', d.cep);
+            fill('[name=pix_key]', d.pix);
+            fill('[name=children_names]', d.filhos);
+
+            // Nascimento: converter dd/mm/yyyy ou yyyy-mm-dd
             if (d.nascimento) {
                 var b = document.querySelector('[name=birth_date]');
                 if (b && !b.value) {
                     var p = d.nascimento.split('/');
-                    if (p.length === 3) b.value = p[2] + '-' + p[1] + '-' + p[0];
+                    if (p.length === 3) {
+                        b.value = p[2] + '-' + p[1] + '-' + p[0];
+                    } else if (d.nascimento.indexOf('-') !== -1) {
+                        b.value = d.nascimento;
+                    }
                 }
+            }
+
+            // Selects: estado civil, sexo, nacionalidade
+            function fillSelect(sel, val) {
+                if (!val) return;
+                var el = document.querySelector(sel);
+                if (!el || el.value) return;
+                var valLow = val.toLowerCase();
+                for (var i = 0; i < el.options.length; i++) {
+                    if (el.options[i].value.toLowerCase() === valLow || el.options[i].text.toLowerCase() === valLow) {
+                        el.selectedIndex = i; return;
+                    }
+                }
+                // Se não encontrou opção exata, preenche se for input
+                if (el.tagName === 'INPUT') el.value = val;
+            }
+            fillSelect('[name=marital_status]', d.estado_civil);
+            fillSelect('[name=gender]', d.genero);
+            fill('[name=nacionalidade]', d.nacionalidade);
+
+            // Feedback visual
+            if (d.nome) {
+                cpfField.style.borderColor = '#059669';
+                setTimeout(function() { cpfField.style.borderColor = ''; }, 2000);
             }
         } catch(e) {}
     };

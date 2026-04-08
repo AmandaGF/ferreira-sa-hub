@@ -23,11 +23,26 @@ if (isset($resultado['erro'])) {
     exit;
 }
 
-// Formato compatível com o antigo
+// Retornar todos os dados disponíveis
+$dados = $resultado['dados'];
 echo json_encode(array(
-    'status' => 'OK',
-    'cpf_valido' => true,
-    'nome' => $resultado['dados']['nome'] ?? null,
-    'nascimento' => $resultado['dados']['nascimento'] ?? null,
-    'source' => $resultado['fonte'],
-));
+    'status'       => 'OK',
+    'cpf_valido'   => true,
+    'nome'         => isset($dados['nome']) ? $dados['nome'] : null,
+    'nascimento'   => isset($dados['nascimento']) ? $dados['nascimento'] : null,
+    'rg'           => isset($dados['rg']) ? $dados['rg'] : null,
+    'profissao'    => isset($dados['profissao']) ? $dados['profissao'] : null,
+    'estado_civil' => isset($dados['estado_civil']) ? $dados['estado_civil'] : null,
+    'genero'       => isset($dados['genero']) ? $dados['genero'] : null,
+    'nacionalidade'=> isset($dados['nacionalidade']) ? $dados['nacionalidade'] : null,
+    'email'        => isset($dados['email']) ? $dados['email'] : null,
+    'telefone'     => isset($dados['telefone']) ? $dados['telefone'] : null,
+    'telefone2'    => isset($dados['telefone2']) ? $dados['telefone2'] : null,
+    'endereco'     => isset($dados['endereco']) ? $dados['endereco'] : null,
+    'cidade'       => isset($dados['cidade']) ? $dados['cidade'] : null,
+    'uf'           => isset($dados['uf']) ? $dados['uf'] : null,
+    'cep'          => isset($dados['cep']) ? $dados['cep'] : null,
+    'pix'          => isset($dados['pix']) ? $dados['pix'] : null,
+    'filhos'       => isset($dados['filhos']) ? $dados['filhos'] : null,
+    'source'       => $resultado['fonte'],
+), JSON_UNESCAPED_UNICODE);
