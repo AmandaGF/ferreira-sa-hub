@@ -102,6 +102,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <td><span class="badge badge-info"><?= isset($processosParceiro[(int)$p['id']]) ? $processosParceiro[(int)$p['id']] : 0 ?></span></td>
                         <td><span class="badge badge-<?= $p['ativo'] ? 'success' : 'gestao' ?>"><?= $p['ativo'] ? 'Ativo' : 'Inativo' ?></span></td>
                         <td style="white-space:nowrap;">
+                            <button type="button" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .35rem;" title="Editar" onclick="editarParceiro(<?= (int)$p['id'] ?>, <?= e(json_encode(array('nome'=>$p['nome'],'oab'=>$p['oab'],'area'=>$p['area'],'email'=>$p['email'],'telefone'=>$p['telefone'],'pct'=>$p['pct_honorarios'],'obs'=>$p['observacoes']))) ?>)">✏️</button>
                             <form method="POST" style="display:inline;">
                                 <?= csrf_input() ?><input type="hidden" name="action" value="toggle"><input type="hidden" name="id" value="<?= $p['id'] ?>">
                                 <button type="submit" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .35rem;" title="<?= $p['ativo'] ? 'Desativar' : 'Ativar' ?>"><?= $p['ativo'] ? '⏸️' : '▶️' ?></button>
@@ -153,7 +154,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- Modal Editar Parceiro -->
+<div class="modal-overlay" id="modalEditarParceiro">
+    <div class="modal">
+        <div class="modal-header"><h3>Editar Parceiro</h3><button class="modal-close">&times;</button></div>
+        <div class="modal-body">
+            <form method="POST">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="update">
+                <input type="hidden" name="id" id="editParceiroId">
+                <div class="form-group"><label class="form-label">Nome *</label><input type="text" name="nome" id="editNome" class="form-input" required></div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">OAB</label><input type="text" name="oab" id="editOab" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Área</label><input type="text" name="area" id="editArea" class="form-input"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">E-mail</label><input type="email" name="email" id="editEmail" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Telefone</label><input type="text" name="telefone" id="editTel" class="form-input"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label class="form-label">% Honorários</label><input type="text" name="pct_honorarios" id="editPct" class="form-input"></div>
+                    <div class="form-group"><label class="form-label">Observações</label><input type="text" name="observacoes" id="editObs" class="form-input"></div>
+                </div>
+                <div class="modal-footer" style="border:none;padding:1rem 0 0;">
+                    <button type="button" class="btn btn-outline" data-modal-close>Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+function editarParceiro(id, dados) {
+    document.getElementById('editParceiroId').value = id;
+    document.getElementById('editNome').value = dados.nome || '';
+    document.getElementById('editOab').value = dados.oab || '';
+    document.getElementById('editArea').value = dados.area || '';
+    document.getElementById('editEmail').value = dados.email || '';
+    document.getElementById('editTel').value = dados.telefone || '';
+    document.getElementById('editPct').value = dados.pct || '';
+    document.getElementById('editObs').value = dados.obs || '';
+    document.getElementById('modalEditarParceiro').classList.add('open');
+}
+
 (function() {
     var input = document.getElementById('buscaContato');
     var results = document.getElementById('buscaContatoRes');
