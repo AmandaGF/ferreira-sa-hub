@@ -44,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'gender'         => clean_str($_POST['gender'] ?? '', 20),
         'has_children'   => isset($_POST['has_children']) ? (int)$_POST['has_children'] : null,
         'children_names' => clean_str($_POST['children_names'] ?? '', 500),
+        'children_json'  => null,
         'pix_key'        => clean_str($_POST['pix_key'] ?? '', 100),
         'nacionalidade'  => clean_str($_POST['nacionalidade'] ?? '', 50),
         'source'         => $_POST['source'] ?? 'outro',
@@ -52,6 +53,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($f['name'])) $errors[] = 'Nome é obrigatório.';
     if ($f['birth_date'] === '') $f['birth_date'] = null;
+
+    // Montar children_json a partir dos campos dinâmicos
+    $filhosNomes = isset($_POST['filho_nome']) ? $_POST['filho_nome'] : array();
+    $filhosCpfs = isset($_POST['filho_cpf']) ? $_POST['filho_cpf'] : array();
+    $filhosNasc = isset($_POST['filho_nascimento']) ? $_POST['filho_nascimento'] : array();
+    $filhos = array();
+    $nomesList = array();
+    for ($fi = 0; $fi < count($filhosNomes); $fi++) {
+        $fn = trim($filhosNomes[$fi]);
+        if ($fn === '') continue;
+        $filhos[] = array(
+            'nome' => $fn,
+            'cpf' => isset($filhosCpfs[$fi]) ? trim($filhosCpfs[$fi]) : '',
+            'nascimento' => isset($filhosNasc[$fi]) ? trim($filhosNasc[$fi]) : '',
+        );
+        $nomesList[] = $fn;
+    }
+    if (!empty($filhos)) {
+        $f['children_json'] = json_encode($filhos, JSON_UNESCAPED_UNICODE);
+        $f['children_names'] = implode(', ', $nomesList);
+        $f['has_children'] = 1;
+    }
 
     // CPF duplicado
     if (!empty($f['cpf']) && empty($errors)) {
@@ -66,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'UPDATE clients SET name=?, cpf=?, rg=?, birth_date=?, email=?, phone=?, phone2=?,
                  address_street=?, address_city=?, address_state=?, address_zip=?,
                  profession=?, marital_status=?, gender=?, has_children=?, children_names=?,
-                 pix_key=?, nacionalidade=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
+                 children_json=?, pix_key=?, nacionalidade=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
             )->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
@@ -74,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['address_state'] ?: null, $f['address_zip'] ?: null,
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
                 $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
-                $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
+                $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, $editId
             ]);
             audit_log('client_updated', 'client', $editId);
@@ -84,8 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'INSERT INTO clients (name, cpf, rg, birth_date, email, phone, phone2,
                  address_street, address_city, address_state, address_zip,
                  profession, marital_status, gender, has_children, children_names,
-                 pix_key, nacionalidade, source, notes, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                 children_json, pix_key, nacionalidade, source, notes, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
@@ -93,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['address_state'] ?: null, $f['address_zip'] ?: null,
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
                 $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
-                $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
+                $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, current_user_id()
             ]);
             $newId = (int)$pdo->lastInsertId();
@@ -121,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'gender'         => $client['gender'] ?? '',
         'has_children'   => $client['has_children'] ?? null,
         'children_names' => $client['children_names'] ?? '',
+        'children_json'  => isset($client['children_json']) ? $client['children_json'] : '',
         'pix_key'        => $client['pix_key'] ?? '',
         'nacionalidade'  => $client['nacionalidade'] ?? '',
         'source'         => $client['source'] ?? 'outro',
@@ -257,19 +281,51 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label class="form-label">Tem filhos?</label>
-                        <select name="has_children" class="form-select">
-                            <option value="">—</option>
-                            <option value="1" <?= $f['has_children'] === 1 || $f['has_children'] === '1' ? 'selected' : '' ?>>Sim</option>
-                            <option value="0" <?= $f['has_children'] === 0 || $f['has_children'] === '0' ? 'selected' : '' ?>>Não</option>
-                        </select>
+                <!-- Filhos -->
+                <div style="background:#f8f9fa;border:1.5px solid var(--border);border-radius:10px;padding:.8rem 1rem;margin-bottom:1rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+                        <label class="form-label" style="margin:0;font-weight:700;">Filhos</label>
+                        <button type="button" onclick="addFilhoRow()" class="btn btn-outline btn-sm" style="font-size:.72rem;">+ Adicionar Filho</button>
                     </div>
-                    <div class="form-group" style="grid-column: span 2;">
-                        <label class="form-label">Nome(s) dos filhos</label>
-                        <input type="text" name="children_names" class="form-input" value="<?= e($f['children_names']) ?>" placeholder="Ex: João (5 anos), Maria (3 anos)">
+                    <input type="hidden" name="has_children" id="hasChildrenHidden" value="<?= e($f['has_children'] ?? '') ?>">
+                    <input type="hidden" name="children_names" id="childrenNamesHidden" value="">
+                    <div id="filhosRows">
+                        <?php
+                        $filhosExistentes = array();
+                        if (!empty($f['children_json'])) {
+                            $filhosExistentes = json_decode($f['children_json'], true);
+                            if (!is_array($filhosExistentes)) $filhosExistentes = array();
+                        }
+                        // Fallback: se não tem JSON mas tem children_names, criar rows a partir dos nomes
+                        if (empty($filhosExistentes) && !empty($f['children_names'])) {
+                            $nomes = preg_split('/[,;]/', $f['children_names']);
+                            foreach ($nomes as $n) {
+                                $n = trim($n);
+                                if ($n) $filhosExistentes[] = array('nome' => $n, 'cpf' => '', 'nascimento' => '');
+                            }
+                        }
+                        foreach ($filhosExistentes as $filho):
+                        ?>
+                        <div class="filho-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
+                            <div style="flex:1;min-width:180px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Nome do filho(a)</label>
+                                <input type="text" name="filho_nome[]" class="form-input" style="font-size:.82rem;" value="<?= e($filho['nome']) ?>" placeholder="Nome completo">
+                            </div>
+                            <div style="width:155px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">CPF</label>
+                                <input type="text" name="filho_cpf[]" class="form-input filho-cpf" style="font-size:.82rem;" value="<?= e($filho['cpf'] ?? '') ?>" placeholder="000.000.000-00" maxlength="14">
+                            </div>
+                            <div style="width:140px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Nascimento</label>
+                                <input type="date" name="filho_nascimento[]" class="form-input" style="font-size:.82rem;" value="<?= e($filho['nascimento'] ?? '') ?>">
+                            </div>
+                            <button type="button" onclick="this.closest('.filho-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
+                    <?php if (empty($filhosExistentes)): ?>
+                    <p id="filhosVazio" class="text-muted" style="font-size:.78rem;text-align:center;padding:.5rem 0;">Nenhum filho cadastrado. Clique em "+ Adicionar Filho".</p>
+                    <?php endif; ?>
                 </div>
 
                 <div class="form-group">
@@ -369,6 +425,69 @@ if (cepInput) {
         }
     });
 }
+
+// ══ Filhos: adicionar row + busca CPF ══
+function addFilhoRow() {
+    var vazio = document.getElementById('filhosVazio');
+    if (vazio) vazio.remove();
+    var html = '<div class="filho-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">'
+        + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome do filho(a)</label>'
+        + '<input type="text" name="filho_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome completo"></div>'
+        + '<div style="width:155px;"><label style="font-size:.68rem;color:var(--text-muted);">CPF</label>'
+        + '<input type="text" name="filho_cpf[]" class="form-input filho-cpf" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="14"></div>'
+        + '<div style="width:140px;"><label style="font-size:.68rem;color:var(--text-muted);">Nascimento</label>'
+        + '<input type="date" name="filho_nascimento[]" class="form-input" style="font-size:.82rem;"></div>'
+        + '<button type="button" onclick="this.closest(\'.filho-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
+    document.getElementById('filhosRows').insertAdjacentHTML('beforeend', html);
+    // Ativar busca CPF no novo campo
+    var novos = document.querySelectorAll('.filho-cpf');
+    var ultimo = novos[novos.length - 1];
+    ativarBuscaCpfFilho(ultimo);
+}
+
+function ativarBuscaCpfFilho(input) {
+    var timer = null;
+    input.addEventListener('input', function() {
+        clearTimeout(timer);
+        var cpf = input.value.replace(/\D/g, '');
+        // Máscara
+        if (cpf.length <= 11) {
+            var masked = cpf.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+            input.value = masked;
+        }
+        if (cpf.length === 11) {
+            timer = setTimeout(function() { buscarCpfFilho(cpf, input); }, 500);
+        }
+    });
+}
+
+function buscarCpfFilho(cpf, input) {
+    var row = input.closest('.filho-row');
+    if (!row) return;
+    var nomeField = row.querySelector('input[name="filho_nome[]"]');
+    var nascField = row.querySelector('input[name="filho_nascimento[]"]');
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= url("publico/api_cpf.php") ?>?cpf=' + cpf, true);
+    xhr.timeout = 8000;
+    xhr.onload = function() {
+        try {
+            var d = JSON.parse(xhr.responseText);
+            if (d.status === 'ERROR') return;
+            if (d.nome && nomeField && !nomeField.value) nomeField.value = d.nome;
+            if (d.nascimento && nascField && !nascField.value) {
+                var p = d.nascimento.split('/');
+                if (p.length === 3) nascField.value = p[2] + '-' + p[1] + '-' + p[0];
+                else if (d.nascimento.indexOf('-') !== -1) nascField.value = d.nascimento;
+            }
+            if (d.nome) { input.style.borderColor = '#059669'; setTimeout(function() { input.style.borderColor = ''; }, 2000); }
+        } catch(e) {}
+    };
+    xhr.send();
+}
+
+// Ativar busca CPF nos campos de filhos já existentes
+document.querySelectorAll('.filho-cpf').forEach(function(el) { ativarBuscaCpfFilho(el); });
 
 // ══ Busca nome por CPF (consulta base interna) ══
 if (cpfField) {

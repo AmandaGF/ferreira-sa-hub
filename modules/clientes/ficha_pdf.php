@@ -16,6 +16,23 @@ $client = $stmt->fetch();
 
 if (!$client) { die('Cliente não encontrado.'); }
 
+$userName = current_user()['name'] ?? 'Usuário';
+$anoAtual = date('Y');
+
+// Filhos estruturados
+$filhosData = array();
+if (isset($client['children_json']) && $client['children_json']) {
+    $filhosData = json_decode($client['children_json'], true);
+    if (!is_array($filhosData)) $filhosData = array();
+}
+if (empty($filhosData) && isset($client['children_names']) && $client['children_names']) {
+    $nomes = preg_split('/[,;]/', $client['children_names']);
+    foreach ($nomes as $n) {
+        $n = trim($n);
+        if ($n) $filhosData[] = array('nome' => $n, 'cpf' => '', 'nascimento' => '');
+    }
+}
+
 // Processos
 $cases = $pdo->prepare(
     'SELECT cs.*, u.name as responsible_name FROM cases cs
@@ -99,14 +116,17 @@ $hoje = date('d/m/Y H:i');
 </div>
 
 <div class="header">
-    <div class="header-left">
-        <h1>FICHA CADASTRAL</h1>
-        <p>Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ</p>
+    <div class="header-left" style="display:flex;align-items:center;gap:12px;">
+        <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" style="width:48px;height:48px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">
+        <div>
+            <h1>FICHA CADASTRAL</h1>
+            <p>Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ</p>
+        </div>
     </div>
     <div class="header-right">
-        <div class="logo-text">Ferreira & Sá</div>
+        <div class="logo-text">Portal Ferreira & Sá HUB — <?= $anoAtual ?></div>
         <div>Gerado em <?= $hoje ?></div>
-        <div>Conecta Hub</div>
+        <div>Por: <?= e($userName) ?></div>
     </div>
 </div>
 
@@ -149,15 +169,21 @@ $hoje = date('d/m/Y H:i');
 </div>
 
 <!-- Filhos -->
-<?php if ((isset($client['has_children']) && $client['has_children']) || (isset($client['children_names']) && $client['children_names'])): ?>
+<?php if (!empty($filhosData)): ?>
 <div class="section">
-    <div class="section-title">Filhos</div>
-    <div class="grid">
-        <div class="field"><label>Possui filhos</label><span><?= (isset($client['has_children']) && $client['has_children']) ? 'Sim' : 'Não' ?></span></div>
-        <?php if (isset($client['children_names']) && $client['children_names']): ?>
-        <div class="field" style="grid-column:span 3;"><label>Nome(s)</label><span><?= e($client['children_names']) ?></span></div>
-        <?php endif; ?>
-    </div>
+    <div class="section-title">Filhos (<?= count($filhosData) ?>)</div>
+    <table>
+        <thead><tr><th>Nome</th><th>CPF</th><th>Nascimento</th></tr></thead>
+        <tbody>
+        <?php foreach ($filhosData as $filho): ?>
+        <tr>
+            <td style="font-weight:600;"><?= e($filho['nome']) ?></td>
+            <td style="font-family:monospace;"><?= e(isset($filho['cpf']) && $filho['cpf'] ? $filho['cpf'] : '—') ?></td>
+            <td><?= (isset($filho['nascimento']) && $filho['nascimento']) ? date('d/m/Y', strtotime($filho['nascimento'])) : '—' ?></td>
+        </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
 </div>
 <?php endif; ?>
 
@@ -219,7 +245,7 @@ $hoje = date('d/m/Y H:i');
 
 <div class="footer">
     <div>Ferreira & Sá Advocacia — OAB/RJ 65.532 · OAB/RJ 249.105</div>
-    <div>Ficha gerada pelo Conecta Hub em <?= $hoje ?></div>
+    <div>Portal Ferreira & Sá HUB — <?= $anoAtual ?> · Impresso por <?= e($userName) ?> em <?= $hoje ?></div>
 </div>
 
 <script>

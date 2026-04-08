@@ -57,7 +57,19 @@ try {
         }
     }
 
-    echo "\nMigracao PREV concluida!\n";
+    // children_json na tabela clients
+    try {
+        $pdo->exec("ALTER TABLE clients ADD COLUMN children_json TEXT DEFAULT NULL");
+        echo "[OK] children_json em clients\n";
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate') !== false) {
+            echo "[SKIP] children_json ja existe em clients\n";
+        } else {
+            echo "[ERRO] children_json -- " . $e->getMessage() . "\n";
+        }
+    }
+
+    echo "\nMigracao concluida!\n";
 } catch (Exception $e) {
     echo "ERRO: " . $e->getMessage() . "\n";
 }
