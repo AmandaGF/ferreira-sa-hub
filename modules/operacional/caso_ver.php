@@ -106,16 +106,24 @@ $statusCores = array(
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
 $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 
-// Processos incidentais
+// Processos incidentais e recursos
 $incidentais = array();
+$recursos = array();
 $processoPrincipal = null;
 try {
-    // Se este é o principal → buscar incidentais vinculados
-    $stmtInc = $pdo->prepare("SELECT id, title, case_number, case_type, status, tipo_relacao FROM cases WHERE processo_principal_id = ? ORDER BY created_at DESC");
+    // Se este é o principal → buscar vinculados
+    $stmtInc = $pdo->prepare("SELECT id, title, case_number, case_type, status, tipo_relacao, tipo_vinculo FROM cases WHERE processo_principal_id = ? ORDER BY created_at DESC");
     $stmtInc->execute(array($caseId));
-    $incidentais = $stmtInc->fetchAll();
+    $vinculados = $stmtInc->fetchAll();
+    foreach ($vinculados as $v) {
+        if (isset($v['tipo_vinculo']) && $v['tipo_vinculo'] === 'recurso') {
+            $recursos[] = $v;
+        } else {
+            $incidentais[] = $v;
+        }
+    }
 
-    // Se este é incidental → buscar o principal
+    // Se este é vinculado → buscar o principal
     if (!empty($case['processo_principal_id'])) {
         $stmtPrinc = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE id = ?");
         $stmtPrinc->execute(array($case['processo_principal_id']));
@@ -128,6 +136,13 @@ $tiposRelacao = array(
     'Tutela de Urgência', 'Medida Protetiva', 'Busca e Apreensão de Menor',
     'Modificação de Guarda', 'Alienação Parental', 'Arrolamento de Bens',
     'Cumprimento de Sentença', 'Embargos à Execução', 'Outros',
+);
+
+$tiposRecurso = array(
+    'Apelação', 'Agravo de Instrumento', 'Agravo Interno',
+    'Embargos de Declaração', 'Recurso Especial (REsp)', 'Recurso Extraordinário (RE)',
+    'Recurso Ordinário', 'Recurso Inominado', 'Embargos Infringentes',
+    'Reclamação', 'Outros',
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -314,12 +329,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<?php if ($processoPrincipal): ?>
-<!-- Banner: Este é um processo incidental -->
-<div style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-radius:var(--radius-lg);padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-    <span style="font-size:1.1rem;">🔗</span>
+<?php if ($processoPrincipal):
+    $isRecurso = (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso');
+    $bannerGrad = $isRecurso ? '#b45309,#d97706' : '#6366f1,#4f46e5';
+    $bannerIcon = $isRecurso ? '📜' : '🔗';
+    $bannerLabel = $isRecurso ? 'Recurso vinculado a:' : 'Processo incidental de:';
+?>
+<!-- Banner: Este é um processo vinculado -->
+<div style="background:linear-gradient(135deg,<?= $bannerGrad ?>);color:#fff;border-radius:var(--radius-lg);padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+    <span style="font-size:1.1rem;"><?= $bannerIcon ?></span>
     <div style="flex:1;">
-        <span style="font-size:.82rem;font-weight:700;">Processo incidental de:</span>
+        <span style="font-size:.82rem;font-weight:700;"><?= $bannerLabel ?></span>
         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $processoPrincipal['id']) ?>" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:.3rem;">
             <?= e($processoPrincipal['title']) ?>
         </a>
@@ -500,6 +520,84 @@ if (!empty($compFuturos)): ?>
         <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
             <button onclick="document.getElementById('modalIncidental').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
             <button id="btnIncConfirmar" onclick="confirmarIncidental()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Recursos Vinculados -->
+<?php if (!empty($recursos) || !$case['is_incidental']): ?>
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>📜 Recursos (<?= count($recursos) ?>)</h3>
+        <?php if (has_min_role('gestao')): ?>
+        <button onclick="document.getElementById('modalRecurso').style.display='flex'" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#b45309;">+ Vincular recurso</button>
+        <?php endif; ?>
+    </div>
+    <div class="card-body">
+        <?php if (empty($recursos)): ?>
+            <p class="text-muted text-sm">Nenhum recurso vinculado.</p>
+        <?php else: ?>
+            <?php foreach ($recursos as $rec):
+                $recStatusLabel = isset($statusLabels[$rec['status']]) ? $statusLabels[$rec['status']] : ucfirst($rec['status']);
+                $recStatusCor = isset($statusCores[$rec['status']]) ? $statusCores[$rec['status']] : '#6b7280';
+            ?>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:1rem;">📜</span>
+                <div style="flex:1;">
+                    <div style="font-weight:700;font-size:.88rem;color:var(--petrol-900);">
+                        <?= e($rec['tipo_relacao'] ?: 'Recurso') ?>
+                    </div>
+                    <div style="font-size:.75rem;color:var(--text-muted);">
+                        <?= e($rec['title']) ?>
+                        · <?= $rec['case_number'] ? 'Nº ' . e($rec['case_number']) : 'Sem número' ?>
+                        · <span style="color:<?= $recStatusCor ?>;font-weight:600;"><?= e($recStatusLabel) ?></span>
+                    </div>
+                </div>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $rec['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir recurso</a>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: Vincular Recurso -->
+<div id="modalRecurso" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#b45309;margin-bottom:1rem;">📜 Vincular Recurso</h3>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Tipo de recurso *</label>
+            <select id="recTipoRelacao" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Selecione...</option>
+                <?php foreach ($tiposRecurso as $tr): ?>
+                <option value="<?= e($tr) ?>"><?= e($tr) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <!-- Tab: Vincular existente / Criar novo -->
+        <div style="display:flex;border:2px solid #b45309;border-radius:10px;overflow:hidden;margin-bottom:1rem;">
+            <button type="button" id="btnRecExistente" onclick="toggleRecTab('existente')" style="flex:1;padding:6px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#b45309;color:#fff;">Vincular existente</button>
+            <button type="button" id="btnRecNovo" onclick="toggleRecTab('novo')" style="flex:1;padding:6px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:#b45309;">Criar novo</button>
+        </div>
+
+        <!-- Vincular existente -->
+        <div id="recTabExistente">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Buscar processo do mesmo cliente</label>
+            <select id="recCasoSelect" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Carregando...</option>
+            </select>
+        </div>
+
+        <!-- Criar novo -->
+        <div id="recTabNovo" style="display:none;">
+            <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem;">Será criado um novo processo vinculado a este como recurso.</p>
+        </div>
+
+        <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
+            <button onclick="document.getElementById('modalRecurso').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
+            <button id="btnRecConfirmar" onclick="confirmarRecurso()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#b45309;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
         </div>
     </div>
 </div>
@@ -1915,6 +2013,72 @@ function confirmarIncidental() {
     } else {
         // Criar novo → redirecionar para caso_novo com pré-vínculo
         var url = '<?= module_url("operacional", "caso_novo.php") ?>?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo);
+        window.location.href = url;
+    }
+}
+
+// ── Recursos ──
+var _recTab = 'existente';
+
+function toggleRecTab(tab) {
+    _recTab = tab;
+    document.getElementById('recTabExistente').style.display = tab === 'existente' ? 'block' : 'none';
+    document.getElementById('recTabNovo').style.display = tab === 'novo' ? 'block' : 'none';
+    document.getElementById('btnRecExistente').style.background = tab === 'existente' ? '#b45309' : '#fff';
+    document.getElementById('btnRecExistente').style.color = tab === 'existente' ? '#fff' : '#b45309';
+    document.getElementById('btnRecNovo').style.background = tab === 'novo' ? '#b45309' : '#fff';
+    document.getElementById('btnRecNovo').style.color = tab === 'novo' ? '#fff' : '#b45309';
+    document.getElementById('btnRecConfirmar').textContent = tab === 'existente' ? 'Vincular →' : 'Criar novo →';
+}
+
+// Carregar casos do mesmo cliente para recurso
+(function() {
+    var clientId = <?= (int)$case['client_id'] ?>;
+    if (!clientId) return;
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_casos_cliente&client_id=' + clientId + '&exclude_id=<?= $caseId ?>');
+    xhr.onload = function() {
+        try {
+            var casos = JSON.parse(xhr.responseText);
+            var sel = document.getElementById('recCasoSelect');
+            sel.innerHTML = '<option value="">— Selecione um processo —</option>';
+            casos.forEach(function(c) {
+                var opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.title + (c.case_number ? ' — ' + c.case_number : '') + ' (' + c.status + ')';
+                sel.appendChild(opt);
+            });
+            if (casos.length === 0) sel.innerHTML = '<option value="">Nenhum outro processo deste cliente</option>';
+        } catch(e) {}
+    };
+    xhr.send();
+})();
+
+function confirmarRecurso() {
+    var tipo = document.getElementById('recTipoRelacao').value;
+    if (!tipo) { document.getElementById('recTipoRelacao').style.borderColor = '#ef4444'; return; }
+
+    if (_recTab === 'existente') {
+        var casoId = document.getElementById('recCasoSelect').value;
+        if (!casoId) { document.getElementById('recCasoSelect').style.borderColor = '#ef4444'; return; }
+
+        var fd = new FormData();
+        fd.append('action', 'vincular_recurso');
+        fd.append('principal_id', '<?= $caseId ?>');
+        fd.append('recurso_id', casoId);
+        fd.append('tipo_relacao', tipo);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', andCsrf);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            try { var r = JSON.parse(xhr.responseText); if (r.csrf) andCsrf = r.csrf; } catch(e){}
+            location.reload();
+        };
+        xhr.send(fd);
+    } else {
+        var url = '<?= module_url("operacional", "caso_novo.php") ?>?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo) + '&tipo_vinculo=recurso';
         window.location.href = url;
     }
 }

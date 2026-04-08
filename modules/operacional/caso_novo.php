@@ -79,15 +79,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('operacional', 'caso_novo.php'));
     }
 
-    // Processos incidentais
+    // Processos incidentais / recursos
     $principalId = (int)($_POST['principal_id'] ?? $_GET['principal_id'] ?? 0) ?: null;
     $tipoRelacao = clean_str($_POST['tipo_relacao'] ?? $_GET['tipo_relacao'] ?? '', 50) ?: null;
+    $tipoVinculo = clean_str($_POST['tipo_vinculo'] ?? $_GET['tipo_vinculo'] ?? '', 20) ?: null;
+    if ($tipoVinculo && !in_array($tipoVinculo, array('incidental', 'recurso'))) $tipoVinculo = null;
     $isIncidental = $principalId ? 1 : 0;
 
     $sql = "INSERT INTO cases
-        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, regional, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, processo_principal_id, tipo_relacao, is_incidental, created_at, updated_at)
+        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, regional, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, processo_principal_id, tipo_relacao, tipo_vinculo, is_incidental, created_at, updated_at)
         VALUES
-        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :regional, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, :principal_id, :tipo_relacao, :is_incidental, NOW(), NOW())";
+        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :regional, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, :principal_id, :tipo_relacao, :tipo_vinculo, :is_incidental, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
@@ -114,6 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':notes'              => $notes !== '' ? $notes : null,
         ':principal_id'       => $principalId,
         ':tipo_relacao'       => $tipoRelacao,
+        ':tipo_vinculo'       => $tipoVinculo,
         ':is_incidental'      => $isIncidental,
     ));
 
@@ -278,6 +281,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php
                 $prePrincipalId = (int)($_GET['principal_id'] ?? 0);
                 $preTipoRelacao = $_GET['tipo_relacao'] ?? '';
+                $preTipoVinculo = $_GET['tipo_vinculo'] ?? '';
+                $isRecursoCriacao = ($preTipoVinculo === 'recurso');
                 if ($prePrincipalId):
                     $stmtPrinc = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
                     $stmtPrinc->execute(array($prePrincipalId));
@@ -285,8 +290,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 ?>
                 <input type="hidden" name="principal_id" value="<?= $prePrincipalId ?>">
                 <input type="hidden" name="tipo_relacao" value="<?= e($preTipoRelacao) ?>">
-                <div style="background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;">
-                    📎 Criando processo incidental de: <strong><?= e($princTitle ?: "Processo #$prePrincipalId") ?></strong>
+                <input type="hidden" name="tipo_vinculo" value="<?= e($preTipoVinculo) ?>">
+                <div style="background:linear-gradient(135deg,<?= $isRecursoCriacao ? '#b45309,#d97706' : '#6366f1,#4f46e5' ?>);color:#fff;border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;">
+                    <?= $isRecursoCriacao ? '📜 Criando recurso de' : '📎 Criando processo incidental de' ?>: <strong><?= e($princTitle ?: "Processo #$prePrincipalId") ?></strong>
                     <?php if ($preTipoRelacao): ?> — <span style="background:rgba(255,255,255,.2);padding:1px 8px;border-radius:4px;font-size:.75rem;"><?= e($preTipoRelacao) ?></span><?php endif; ?>
                 </div>
                 <?php endif; ?>

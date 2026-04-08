@@ -1071,6 +1071,24 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
         break;
 
+    case 'vincular_recurso':
+        $principalId = (int)($_POST['principal_id'] ?? 0);
+        $recursoId = (int)($_POST['recurso_id'] ?? 0);
+        $tipoRelacao = clean_str($_POST['tipo_relacao'] ?? '', 50);
+
+        if ($principalId && $recursoId && $principalId !== $recursoId) {
+            $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, tipo_vinculo = 'recurso', is_incidental = 1, updated_at = NOW() WHERE id = ?")
+                ->execute(array($principalId, $tipoRelacao ?: null, $recursoId));
+            audit_log('recurso_vinculado', 'case', $recursoId, "Principal: #$principalId, Tipo: $tipoRelacao");
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+            flash_set('success', 'Recurso vinculado.');
+        } else {
+            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados inválidos')); exit; }
+            flash_set('error', 'Dados inválidos.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
+        break;
+
     case 'desvincular_incidental':
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId) {

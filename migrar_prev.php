@@ -45,6 +45,18 @@ try {
     try { $pdo->exec("ALTER TABLE cases ADD INDEX idx_prev_status (prev_status)"); echo "[OK] idx_prev_status\n"; } catch (PDOException $e) { echo "[SKIP] idx_prev_status\n"; }
     try { $pdo->exec("ALTER TABLE cases ADD INDEX idx_prev_mes_ano (prev_mes_envio, prev_ano_envio)"); echo "[OK] idx_prev_mes_ano\n"; } catch (PDOException $e) { echo "[SKIP] idx_prev_mes_ano\n"; }
 
+    // tipo_vinculo para diferenciar incidental de recurso
+    try {
+        $pdo->exec("ALTER TABLE cases ADD COLUMN tipo_vinculo VARCHAR(20) DEFAULT NULL");
+        echo "[OK] tipo_vinculo\n";
+    } catch (PDOException $e) {
+        if (strpos($e->getMessage(), 'Duplicate') !== false) {
+            echo "[SKIP] tipo_vinculo ja existe\n";
+        } else {
+            echo "[ERRO] tipo_vinculo -- " . $e->getMessage() . "\n";
+        }
+    }
+
     echo "\nMigracao PREV concluida!\n";
 } catch (Exception $e) {
     echo "ERRO: " . $e->getMessage() . "\n";
