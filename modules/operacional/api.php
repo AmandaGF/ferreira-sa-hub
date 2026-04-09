@@ -434,7 +434,14 @@ switch ($action) {
                 error_log('[resolve_doc] LEAD VINCULADO: ' . ($leadRow ? 'id=' . $leadRow['id'] . ' stage=' . $leadRow['stage'] : 'NÃO ENCONTRADO'));
 
                 if ($leadRow && $leadRow['stage'] === 'doc_faltante') {
-                    $novoStageLead = ($anteriorStatus === 'em_andamento') ? 'finalizado' : 'pasta_apta';
+                    // Mapeamento status do case → stage do lead Comercial
+                    // em_andamento/em_elaboracao = pasta sendo executada → pasta_apta
+                    // arquivado/finalizado = encerrada → finalizado
+                    if (in_array($anteriorStatus, array('finalizado','arquivado'), true)) {
+                        $novoStageLead = 'finalizado';
+                    } else {
+                        $novoStageLead = 'pasta_apta';
+                    }
                     $pdo->prepare("UPDATE pipeline_leads SET stage=?, doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=?")
                         ->execute(array($novoStageLead, $leadRow['id']));
                     $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
