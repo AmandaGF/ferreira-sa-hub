@@ -17,31 +17,26 @@ $pdo = db();
 $apply = isset($_GET['apply']) || $isCron;
 
 // Mapeamento case.status → lead.stage canônico
+// SOMENTE casos onde há UMA correspondência única e óbvia.
+// Estados ambíguos (aguardando_docs pode ser contrato_assinado/agendado_docs/reuniao_cobranca)
+// retornam null para NÃO reconciliar.
 function mapear_case_para_lead($caseStatus) {
     switch ($caseStatus) {
         case 'cancelado':       return 'cancelado';
-        case 'arquivado':       return 'finalizado';
-        case 'finalizado':      return 'finalizado';
-        case 'concluido':       return 'finalizado';
         case 'doc_faltante':    return 'doc_faltante';
-        case 'aguardando_docs': return 'pasta_apta';
-        case 'em_elaboracao':   return 'pasta_apta';
-        case 'em_andamento':    return 'pasta_apta';
-        case 'distribuido':     return 'pasta_apta';
-        case 'aguardando_prazo':return 'pasta_apta';
         case 'suspenso':        return 'suspenso';
-        case 'kanban_prev':     return 'pasta_apta';
-        case 'parceria_previdenciario': return 'pasta_apta';
+        // arquivado/finalizado/concluido NÃO força mudança no lead — pode estar em pasta_apta legítimo
         default: return null;
     }
 }
 
 // Mapeamento lead.stage → case.status canônico (quando lead manda)
+// SÓ os terminais comerciais — porque o time comercial decide cancelar/perder/suspender.
+// Finalizado NÃO força arquivamento do caso (pode ter trabalho em andamento ainda).
 function mapear_lead_para_case($leadStage) {
     switch ($leadStage) {
         case 'cancelado': return 'cancelado';
         case 'perdido':   return 'cancelado';
-        case 'finalizado':return 'arquivado';
         case 'suspenso':  return 'suspenso';
         default: return null;
     }
