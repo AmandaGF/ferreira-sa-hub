@@ -68,6 +68,21 @@ function validate_csrf(): bool
     return hash_equals($_SESSION[CSRF_TOKEN_NAME] ?? '', $token);
 }
 
+// ─── Máscara CNJ (NNNNNNN-DD.AAAA.J.TR.OOOO) ──────────
+function format_cnj($numero)
+{
+    if (!$numero) return '';
+    $num = preg_replace('/\D/', '', $numero);
+    // Se já tem formatação (contém - ou .), retorna como está
+    if (preg_match('/\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}/', $numero)) return $numero;
+    // Se tem 20 dígitos, formatar
+    if (strlen($num) === 20) {
+        return substr($num,0,7) . '-' . substr($num,7,2) . '.' . substr($num,9,4) . '.' . substr($num,13,1) . '.' . substr($num,14,2) . '.' . substr($num,16,4);
+    }
+    // Retorna original se não tem 20 dígitos
+    return $numero;
+}
+
 // ─── Sanitização ────────────────────────────────────────
 function clean_str(?string $input, int $maxLength = 500): string
 {

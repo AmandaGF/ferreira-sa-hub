@@ -333,7 +333,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php endif; ?>
                     </div>
                     <?php if ($cs['case_number']): ?>
-                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" class="op-card-process" style="text-decoration:none;display:block;" title="Abrir pasta do processo">🏛️ <?= e($cs['case_number']) ?></a>
+                        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" class="op-card-process" style="text-decoration:none;display:block;" title="Abrir pasta do processo">🏛️ <?= e(format_cnj($cs['case_number'])) ?></a>
                     <?php endif; ?>
                     <?php if ($cs['deadline']): ?>
                         <div class="op-card-deadline <?= $isOverdue ? 'overdue' : '' ?>"><?= $isOverdue ? '⚠️ Vencido ' : '📅 ' ?><?= date('d/m', strtotime($cs['deadline'])) ?></div>
