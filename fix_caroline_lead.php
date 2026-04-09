@@ -5,19 +5,16 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-// Histórico do lead 1234
-echo "=== Histórico Lead #1234 ===\n";
-$h = $pdo->query("SELECT id, from_stage, to_stage, changed_by, notes, changed_at FROM pipeline_history WHERE lead_id = 1234 ORDER BY id")->fetchAll();
-foreach ($h as $r) {
-    echo "#{$r['id']} [{$r['changed_at']}] {$r['from_stage']} → {$r['to_stage']} by user {$r['changed_by']} :: {$r['notes']}\n";
-}
+// Estado atual lead
+$lead = $pdo->query("SELECT * FROM pipeline_leads WHERE id=1234")->fetch();
+echo "Lead atual: stage=" . ($lead['stage'] ?? 'N/A') . " linked_case=" . ($lead['linked_case_id'] ?? 'N/A') . "\n";
 
-// Audit log relacionado
-echo "\n=== Audit log lead 1234 ou case 614 ===\n";
-$a = $pdo->query("SELECT id, action, entity_type, entity_id, details, created_at FROM audit_log WHERE (entity_type='lead' AND entity_id=1234) OR (entity_type='case' AND entity_id=614) ORDER BY id DESC LIMIT 30")->fetchAll();
-foreach ($a as $r) {
-    echo "#{$r['id']} [{$r['created_at']}] {$r['action']} {$r['entity_type']}#{$r['entity_id']} :: {$r['details']}\n";
-}
+// Audit log
+echo "\n=== Audit log ===\n";
+try {
+    $a = $pdo->query("SELECT id, action, entity_type, entity_id, details, created_at FROM audit_log WHERE (entity_type='lead' AND entity_id=1234) OR (entity_type='case' AND entity_id=614) ORDER BY id DESC LIMIT 20")->fetchAll();
+    foreach ($a as $r) echo "[{$r['created_at']}] {$r['action']} {$r['entity_type']}#{$r['entity_id']} :: {$r['details']}\n";
+} catch (Exception $e) { echo "ERR: " . $e->getMessage() . "\n"; }
 
 // Corrigir lead 1234 → pasta_apta
 echo "\n=== Corrigindo Lead #1234 → pasta_apta ===\n";
