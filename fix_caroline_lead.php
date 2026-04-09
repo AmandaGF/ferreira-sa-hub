@@ -1,4 +1,6 @@
 <?php
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 require_once __DIR__ . '/core/config.php';
