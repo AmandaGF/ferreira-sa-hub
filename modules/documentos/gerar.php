@@ -158,6 +158,17 @@ $varaJuizo = $_POST['vara_juizo'] ?? ($_GET['vara_juizo'] ?? $varaFromCase);
 $comarcaDoc = $_POST['comarca_doc'] ?? ($caseData ? ($caseData['comarca'] ?: '') : '');
 $comarcaUfDoc = $_POST['comarca_uf_doc'] ?? ($caseData ? ($caseData['comarca_uf'] ?: 'RJ') : 'RJ');
 
+// Campos substabelecimento
+$semReserva = isset($_POST['sem_reserva']) && $_POST['sem_reserva'];
+$substabelecente = $_POST['substabelecente'] ?? 'amanda_para_luiz';
+$substAdvNome = $_POST['subst_adv_nome'] ?? '';
+$substAdvOab = $_POST['subst_adv_oab'] ?? '';
+$substAdvSeccional = $_POST['subst_adv_seccional'] ?? 'RJ';
+$substAdvEmail = $_POST['subst_adv_email'] ?? '';
+$substAdvEndereco = $_POST['subst_adv_endereco'] ?? '';
+$substAdvNacionalidade = $_POST['subst_adv_nacionalidade'] ?? 'brasileiro(a)';
+$substAdvTelefone = $_POST['subst_adv_telefone'] ?? '';
+
 // Campos habilitação
 $tipoAcaoHab = $_POST['tipo_acao_hab'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
 $repLegal = $_POST['rep_legal'] ?? 'nao';
@@ -344,7 +355,56 @@ if (!$showEditor) {
                     <input type="radio" name="sem_reserva" value="1" style="width:auto;"> Sem reserva de poderes
                 </label>
             </div>
+
+            <h4 style="margin-top:1rem;">👤 Quem substabelece (advogado outorgante)</h4>
+            <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem;">
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="amanda_para_luiz" checked style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para <strong>Dr. Luiz Eduardo</strong></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="luiz_para_amanda" style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para <strong>Dra. Amanda Guedes Ferreira</strong></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="amanda_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para outro advogado(a)</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="luiz_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para outro advogado(a)</span>
+                </label>
+            </div>
+
+            <div id="substAdvCustom" style="display:none;background:#fef3c7;border:1.5px solid #fbbf24;border-radius:10px;padding:.75rem 1rem;margin-bottom:.75rem;">
+                <h4 style="margin:0 0 .5rem;color:#92400e;">📋 Dados do(a) advogado(a) substabelecido(a)</h4>
+                <div class="row">
+                    <div><label>Nome completo *</label><input name="subst_adv_nome" placeholder="Ex: FLAVIANE DA SILVA ASSOMPÇÃO"></div>
+                    <div><label>OAB *</label><input name="subst_adv_oab" placeholder="Ex: 230711"></div>
+                </div>
+                <div class="row">
+                    <div><label>Seccional</label><input name="subst_adv_seccional" placeholder="Ex: RJ" value="RJ" maxlength="2"></div>
+                    <div><label>E-mail</label><input name="subst_adv_email" placeholder="email@exemplo.com"></div>
+                </div>
+                <div style="margin-bottom:.5rem;">
+                    <label>Endereço profissional</label>
+                    <input name="subst_adv_endereco" placeholder="Ex: Rua Albino de Almeida, 119 - Campos Elíseos, Resende-RJ, CEP 27542-040">
+                </div>
+                <div class="row">
+                    <div><label>Nacionalidade</label><input name="subst_adv_nacionalidade" placeholder="brasileiro(a)" value="brasileiro(a)"></div>
+                    <div><label>Telefone</label><input name="subst_adv_telefone" placeholder="(00) 00000-0000"></div>
+                </div>
+            </div>
         </div>
+
+        <script>
+        function toggleSubstAdvCustom() {
+            var box = document.getElementById('substAdvCustom');
+            var v = document.querySelector('input[name="substabelecente"]:checked').value;
+            var precisaCustom = (v === 'amanda_para_outro' || v === 'luiz_para_outro');
+            box.style.display = precisaCustom ? 'block' : 'none';
+        }
+        </script>
         <?php endif; ?>
 
         <?php if (!$acaoTexto && ($tipo === 'procuracao' || $tipo === 'contrato')): ?>
@@ -785,6 +845,16 @@ if (!$showEditor) {
         'nome_parte_contraria' => $nomeParteContraria,
         'papel_cliente' => $papelCliente,
         'nacionalidade' => $client['nacionalidade'] ?? '',
+        // Substabelecimento
+        'sem_reserva' => $semReserva,
+        'substabelecente' => $substabelecente,
+        'subst_adv_nome' => $substAdvNome,
+        'subst_adv_oab' => $substAdvOab,
+        'subst_adv_seccional' => $substAdvSeccional,
+        'subst_adv_email' => $substAdvEmail,
+        'subst_adv_endereco' => $substAdvEndereco,
+        'subst_adv_nacionalidade' => $substAdvNacionalidade,
+        'subst_adv_telefone' => $substAdvTelefone,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
