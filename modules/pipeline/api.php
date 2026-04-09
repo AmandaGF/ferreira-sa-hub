@@ -35,6 +35,13 @@ switch ($action) {
 
         $fromStage = $lead['stage'];
 
+        // ── Checagens de permissão ANTES de qualquer update (para não dessincronizar) ──
+        if (in_array($toStage, array('cancelado','suspenso'), true) && !has_role('admin')) {
+            flash_set('error', 'Apenas administradores podem ' . ($toStage === 'cancelado' ? 'cancelar' : 'suspender') . '.');
+            redirect(module_url('pipeline'));
+            exit;
+        }
+
         // Atualizar estágio
         $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
             ->execute(array($toStage, $leadId));
@@ -213,30 +220,19 @@ switch ($action) {
             }
         }
 
-        // ── CANCELADO: só Admin + espelhar no Operacional ──
-        if ($toStage === 'cancelado') {
-            if (!has_role('admin')) {
-                flash_set('error', 'Apenas administradores podem cancelar.');
-                redirect(module_url('pipeline'));
-                exit;
-            }
-            // Cancelar caso vinculado no Operacional
+        // ── CANCELADO ou PERDIDO: espelhar no Operacional ──
+        if ($toStage === 'cancelado' || $toStage === 'perdido') {
             $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
             if ($linkedCaseId) {
-                $pdo->prepare("UPDATE cases SET status = 'cancelado', closed_at = CURDATE(), updated_at = NOW() WHERE id = ?")
+                $pdo->prepare("UPDATE cases SET status = 'cancelado', closed_at = CURDATE(), updated_at = NOW() WHERE id = ? AND status NOT IN ('cancelado','arquivado','finalizado')")
                     ->execute(array($linkedCaseId));
-                audit_log('case_auto_cancelled', 'case', $linkedCaseId, 'Pipeline cancelou lead #' . $leadId);
+                audit_log('case_auto_cancelled', 'case', $linkedCaseId, 'Pipeline ' . $toStage . ' lead #' . $leadId);
             }
-            notify_gestao('Lead cancelado', $lead['name'] . ' foi cancelado no Pipeline.' . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
+            notify_gestao('Lead ' . $toStage, $lead['name'] . ' foi ' . $toStage . ' no Pipeline.' . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
         }
 
-        // ── SUSPENSO: só Admin + bilateral com memória de estado ──
+        // ── SUSPENSO: bilateral com memória de estado (admin checado acima) ──
         if ($toStage === 'suspenso') {
-            if (!has_role('admin')) {
-                flash_set('error', 'Apenas administradores podem suspender.');
-                redirect(module_url('pipeline'));
-                exit;
-            }
             $prazoSusp = isset($_POST['prazo_suspensao']) ? $_POST['prazo_suspensao'] : null;
             if ($prazoSusp === '') $prazoSusp = null;
 
