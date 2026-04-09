@@ -21,8 +21,10 @@ try {
 // Corrigir lead 1234 → pasta_apta
 echo "\n=== Corrigindo Lead #1234 → pasta_apta ===\n";
 $pdo->prepare("UPDATE pipeline_leads SET stage='pasta_apta', doc_faltante_motivo=NULL, stage_antes_doc_faltante=NULL, updated_at=NOW() WHERE id=1234")->execute();
-$pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
-    ->execute(array(1234, 'cancelado', 'pasta_apta', 0, 'Manual: corrigir mapeamento bugado em_andamento→finalizado/cancelado'));
+try {
+    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+        ->execute(array(1234, 'cancelado', 'pasta_apta', null, 'Auto-fix: caso esta em em_andamento (Em Execucao)'));
+} catch (Exception $e) { echo "history skip: " . $e->getMessage() . "\n"; }
 echo "OK\n";
 
 echo "\n=== FIM ===\n";
