@@ -1150,42 +1150,69 @@ function marcarNaoCompareceu(id, btn) {
 }
 
 function abrirRemarcar(id) {
-    var novaData = prompt('Nova data e hor\u00e1rio (ex: 2026-04-10 14:00):');
-    if (!novaData) return;
-    var partes = novaData.trim().split(' ');
-    if (partes.length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(partes[0]) || !/^\d{2}:\d{2}$/.test(partes[1])) {
-        alert('Formato inv\u00e1lido. Use: AAAA-MM-DD HH:MM (ex: 2026-04-10 14:00)');
-        return;
+    // Buscar dados do evento original
+    var evOriginal = eventos.find(function(e) { return e.id == id; });
+    var tituloOriginal = evOriginal ? evOriginal.titulo : '';
+
+    // Criar modal de remarcação com calendário
+    var overlay = document.createElement('div');
+    overlay.id = 'remarcarOverlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+    var modal = document.createElement('div');
+    modal.style.cssText = 'background:#fff;border-radius:16px;padding:1.5rem;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);';
+    modal.innerHTML = '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">Remarcar compromisso</h3>'
+        + '<p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">' + (tituloOriginal || 'Evento #' + id) + '</p>'
+        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Nova data</label>'
+        + '<input type="date" id="remarcarData" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;" />'
+        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Novo hor\u00e1rio</label>'
+        + '<input type="time" id="remarcarHora" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;" />'
+        + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
+        + '<button onclick="document.getElementById(\'remarcarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
+        + '<button id="btnConfirmarRemarcar" style="padding:.45rem 1rem;border:none;border-radius:8px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;">Remarcar</button>'
+        + '</div>';
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Preencher com data de amanhã por padrão
+    var amanha = new Date();
+    amanha.setDate(amanha.getDate() + 1);
+    document.getElementById('remarcarData').value = amanha.getFullYear() + '-' + pad(amanha.getMonth()+1) + '-' + pad(amanha.getDate());
+    // Manter mesmo horário do evento original
+    if (evOriginal && evOriginal.data_inicio) {
+        document.getElementById('remarcarHora').value = evOriginal.data_inicio.substring(11,16);
     }
-    // 1. Marcar como remarcado
-    var fd = new FormData();
-    fd.append('action', 'status');
-    fd.append('csrf_token', CSRF);
-    fd.append('id', id);
-    fd.append('status', 'remarcado');
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', API);
-    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-    xhr.onload = function() {
-        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
-        // 2. Atualizar data/hora
-        var fd2 = new FormData();
-        fd2.append('action', 'remarcar');
-        fd2.append('csrf_token', CSRF);
-        fd2.append('id', id);
-        fd2.append('nova_data', partes[0]);
-        fd2.append('nova_hora', partes[1]);
-        var xhr2 = new XMLHttpRequest();
-        xhr2.open('POST', API);
-        xhr2.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr2.onload = function() {
-            try { var r2 = JSON.parse(xhr2.responseText); if (r2.csrf) CSRF = r2.csrf; } catch(e) {}
-            alert('Reuni\u00e3o remarcada para ' + partes[0] + ' \u00e0s ' + partes[1]);
+
+    document.getElementById('btnConfirmarRemarcar').onclick = function() {
+        var novaData = document.getElementById('remarcarData').value;
+        var novaHora = document.getElementById('remarcarHora').value;
+        if (!novaData || !novaHora) { alert('Preencha data e hor\u00e1rio.'); return; }
+
+        this.disabled = true;
+        this.textContent = 'Remarcando...';
+
+        var fd = new FormData();
+        fd.append('action', 'remarcar_novo');
+        fd.append('csrf_token', CSRF);
+        fd.append('id', id);
+        fd.append('nova_data', novaData);
+        fd.append('nova_hora', novaHora);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', API);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.onload = function() {
+            try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+            document.getElementById('remarcarOverlay').remove();
+            alert('Remarca\u00e7\u00e3o criada para ' + novaData + ' \u00e0s ' + novaHora + '.\nT\u00edtulo: REMARCA\u00c7\u00c3O \u2014 ' + tituloOriginal);
             recarregarEventos();
         };
-        xhr2.send(fd2);
+        xhr.onerror = function() {
+            alert('Erro ao remarcar. Tente novamente.');
+            document.getElementById('remarcarOverlay').remove();
+        };
+        xhr.send(fd);
     };
-    xhr.send(fd);
 }
 
 function excluirEvento(id) {

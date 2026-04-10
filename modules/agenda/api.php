@@ -325,7 +325,6 @@ if ($action === 'remarcar') {
         echo json_encode(array('error' => 'Dados incompletos'));
         exit;
     }
-    // Validar formato
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData) || !preg_match('/^\d{2}:\d{2}$/', $novaHora)) {
         echo json_encode(array('error' => 'Formato de data/hora inválido'));
         exit;
@@ -334,6 +333,74 @@ if ($action === 'remarcar') {
         ->execute(array($novaData, $novaHora . ':00', $id));
     audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaData . ' ' . $novaHora);
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
+    exit;
+}
+
+// ── REMARCAR (criar novo evento) ──
+if ($action === 'remarcar_novo') {
+    $id = (int)($_POST['id'] ?? 0);
+    $novaData = $_POST['nova_data'] ?? '';
+    $novaHora = $_POST['nova_hora'] ?? '';
+    if (!$id || !$novaData || !$novaHora) {
+        echo json_encode(array('error' => 'Dados incompletos'));
+        exit;
+    }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData) || !preg_match('/^\d{2}:\d{2}$/', $novaHora)) {
+        echo json_encode(array('error' => 'Formato de data/hora inválido'));
+        exit;
+    }
+
+    // Buscar evento original
+    $stmt = $pdo->prepare("SELECT * FROM agenda_eventos WHERE id = ?");
+    $stmt->execute(array($id));
+    $original = $stmt->fetch();
+    if (!$original) {
+        echo json_encode(array('error' => 'Evento não encontrado'));
+        exit;
+    }
+
+    // 1. Marcar original como remarcado
+    $pdo->prepare("UPDATE agenda_eventos SET status='remarcado', updated_at=NOW() WHERE id=?")
+        ->execute(array($id));
+
+    // 2. Criar novo evento com título "REMARCAÇÃO — ..."
+    $tituloOriginal = $original['titulo'];
+    // Evitar acumular prefixos se já é uma remarcação
+    $tituloNovo = (strpos($tituloOriginal, 'REMARCA') === 0) ? $tituloOriginal : ('REMARCAÇÃO — ' . $tituloOriginal);
+
+    // Calcular duração original para manter data_fim proporcional
+    $dtIni = new DateTime($original['data_inicio']);
+    $dtFim = $original['data_fim'] ? new DateTime($original['data_fim']) : null;
+    $duracao = $dtFim ? $dtIni->diff($dtFim) : null;
+    $novaInicio = $novaData . ' ' . $novaHora . ':00';
+    $novaFim = null;
+    if ($duracao) {
+        $novaFimDt = new DateTime($novaInicio);
+        $novaFimDt->add($duracao);
+        $novaFim = $novaFimDt->format('Y-m-d H:i:s');
+    }
+
+    $pdo->prepare(
+        "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
+         local, meet_link, descricao, client_id, case_id, responsavel_id,
+         msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
+         status, created_by)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+    )->execute(array(
+        $tituloNovo, $original['tipo'], $original['modalidade'],
+        $novaInicio, $novaFim, $original['dia_todo'],
+        $original['local'], $original['meet_link'],
+        'Remarcação do evento #' . $id . '. ' . ($original['descricao'] ?: ''),
+        $original['client_id'], $original['case_id'], $original['responsavel_id'],
+        $original['msg_cliente'],
+        $original['lembrete_email'], $original['lembrete_whatsapp'],
+        $original['lembrete_portal'], $original['lembrete_cliente'],
+        current_user_id()
+    ));
+    $novoId = (int)$pdo->lastInsertId();
+
+    audit_log('AGENDA_REMARCACAO', 'agenda', $novoId, 'Remarcação do evento #' . $id . ' para ' . $novaData . ' ' . $novaHora);
+    echo json_encode(array('ok' => true, 'novo_id' => $novoId, 'csrf' => $newCsrf));
     exit;
 }
 
