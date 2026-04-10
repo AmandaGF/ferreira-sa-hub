@@ -86,6 +86,35 @@ try {
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
+// Detectar divergências entre Pipeline ↔ Operacional (mesma lógica do reconciliador)
+$divergencias = array();
+try {
+    $diverRows = $pdo->query("
+        SELECT l.id AS lead_id, l.stage AS lead_stage, l.name AS lead_name,
+               c.id AS case_id, c.status AS case_status
+        FROM pipeline_leads l
+        INNER JOIN cases c ON c.id = l.linked_case_id
+        WHERE l.linked_case_id IS NOT NULL AND l.linked_case_id > 0
+    ")->fetchAll();
+    foreach ($diverRows as $r) {
+        $leadCanon = null; $caseCanon = null;
+        switch ($r['lead_stage']) {
+            case 'cancelado': case 'perdido': $leadCanon = 'cancelado'; break;
+            case 'suspenso': $leadCanon = 'suspenso'; break;
+        }
+        switch ($r['case_status']) {
+            case 'cancelado': $caseCanon = 'cancelado'; break;
+            case 'doc_faltante': $caseCanon = 'doc_faltante'; break;
+            case 'suspenso': $caseCanon = 'suspenso'; break;
+        }
+        if ($leadCanon !== null && $r['case_status'] !== $leadCanon) {
+            $divergencias[] = $r + array('tipo' => 'lead_manda', 'esperado' => "case=$leadCanon");
+        } elseif ($caseCanon !== null && $r['lead_stage'] !== $caseCanon) {
+            $divergencias[] = $r + array('tipo' => 'case_manda', 'esperado' => "lead=$caseCanon");
+        }
+    }
+} catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -141,6 +170,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <span style="font-size:.6rem;color:#6b7280;margin-left:auto;"><?= date('d/m H:i', strtotime($dp['solicitado_em'])) ?></span>
             </div>
             <?php endforeach; ?>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Banner: Divergências Pipeline ↔ Operacional -->
+<?php if (!empty($divergencias) && has_role('admin')): ?>
+<div style="background:#fff7ed;border:2px solid #fb923c;border-radius:12px;padding:.75rem 1rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="var el=document.getElementById('divExpand');el.style.display=el.style.display==='none'?'block':'none';this.querySelector('.chevron').textContent=el.style.display==='none'?'▸':'▾';">
+        <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="font-size:1rem;">🔄</span>
+            <strong style="font-size:.82rem;color:#c2410c;"><?= count($divergencias) ?> divergência(s) entre Pipeline e Operacional</strong>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;">
+            <a href="<?= url('modules/admin/reconciliar_kanbans.php') ?>" style="background:#fb923c;color:#fff;padding:.3rem .7rem;border-radius:6px;font-size:.7rem;font-weight:700;text-decoration:none;" onclick="event.stopPropagation()">Reconciliar →</a>
+            <span class="chevron" style="font-size:.8rem;color:#c2410c;">▸</span>
+        </div>
+    </div>
+    <div id="divExpand" style="display:none;margin-top:.5rem;">
+        <?php foreach ($divergencias as $d): ?>
+        <div style="padding:.3rem 0;border-top:1px solid #fed7aa;font-size:.72rem;color:#7c2d12;">
+            <strong><?= e($d['lead_name']) ?></strong> —
+            Lead #<?= $d['lead_id'] ?> em <code><?= e($d['lead_stage']) ?></code> ↔
+            Caso #<?= $d['case_id'] ?> em <code><?= e($d['case_status']) ?></code>
+            <span style="color:#9a3412;">→ esperado: <?= e($d['esperado']) ?></span>
         </div>
         <?php endforeach; ?>
     </div>
