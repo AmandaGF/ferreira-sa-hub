@@ -1056,7 +1056,8 @@ function atualizarPreview() {
     var msg = document.getElementById('agMsgCliente').value;
     var prev = document.getElementById('agMsgPreview');
     if (!msg) { prev.style.display = 'none'; return; }
-    var nome = document.getElementById('agClienteBusca').value || '[nome]';
+    var nomeCompleto = document.getElementById('agClienteBusca').value || '[nome]';
+    var nome = nomeCompleto.split(' ')[0];
     var dtVal = document.getElementById('agDtInicio').value;
     var data = dtVal ? new Date(dtVal).toLocaleDateString('pt-BR') : '[data]';
     var hora = dtVal ? new Date(dtVal).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '[hora]';
@@ -1338,7 +1339,8 @@ function enviarMsgCliente(id) {
     var msg = ev.msg_cliente || '';
     if (msg) {
         var dt = new Date(ev.data_inicio.replace(' ','T'));
-        msg = msg.replace(/\[nome\]/g, ev.client_name || '')
+        var prNome = ev.client_name ? ev.client_name.split(' ')[0] : '';
+        msg = msg.replace(/\[nome\]/g, prNome)
                  .replace(/\[data\]/g, dt.toLocaleDateString('pt-BR'))
                  .replace(/\[hora\]/g, dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))
                  .replace(/\[link_meet\]/g, ev.meet_link || '');
