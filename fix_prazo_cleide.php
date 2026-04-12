@@ -5,36 +5,27 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-echo "=== Fix prazos concluídos sem tarefa/evento atualizados ===\n\n";
+echo "=== Debug case #685 (Cleide Mendes) ===\n\n";
 
-// Buscar TODOS os prazos concluídos
-$prazos = $pdo->query("SELECT pp.id, pp.case_id, pp.descricao_acao, pp.prazo_fatal
-    FROM prazos_processuais pp WHERE pp.concluido = 1")->fetchAll();
-echo "Prazos concluídos: " . count($prazos) . "\n\n";
+echo "--- Prazos ---\n";
+$r = $pdo->query("SELECT id, descricao_acao, prazo_fatal, concluido FROM prazos_processuais WHERE case_id=685")->fetchAll();
+foreach ($r as $x) echo "#" . $x['id'] . " concluido=" . $x['concluido'] . " data=" . $x['prazo_fatal'] . " :: " . $x['descricao_acao'] . "\n";
 
-$fixedTasks = 0; $fixedEvents = 0;
-foreach ($prazos as $pz) {
-    $desc = $pz['descricao_acao'] ?: '';
-    $caseId = (int)$pz['case_id'];
-    if (!$caseId || !$desc) continue;
+echo "\n--- Tarefas ---\n";
+$r = $pdo->query("SELECT id, title, status, due_date FROM case_tasks WHERE case_id=685")->fetchAll();
+foreach ($r as $x) echo "#" . $x['id'] . " status=" . $x['status'] . " due=" . $x['due_date'] . " :: " . $x['title'] . "\n";
 
-    // Concluir tarefa vinculada
-    $r1 = $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=COALESCE(completed_at,NOW()) WHERE case_id=? AND title LIKE ? AND status != 'concluido'");
-    $r1->execute(array($caseId, '%PRAZO: ' . $desc . '%'));
-    if ($r1->rowCount() > 0) {
-        echo "TASK FIX: case #$caseId — $desc\n";
-        $fixedTasks += $r1->rowCount();
-    }
+echo "\n--- Agenda ---\n";
+$r = $pdo->query("SELECT id, titulo, tipo, status, data_inicio FROM agenda_eventos WHERE case_id=685")->fetchAll();
+foreach ($r as $x) echo "#" . $x['id'] . " status=" . $x['status'] . " tipo=" . $x['tipo'] . " data=" . $x['data_inicio'] . " :: " . $x['titulo'] . "\n";
 
-    // Marcar evento agenda como realizado
-    $r2 = $pdo->prepare("UPDATE agenda_eventos SET status='realizado', updated_at=NOW() WHERE case_id=? AND tipo='prazo' AND titulo LIKE ? AND status NOT IN ('cancelado','realizado')");
-    $r2->execute(array($caseId, '%PRAZO:%' . mb_substr($desc, 0, 50, 'UTF-8') . '%'));
-    if ($r2->rowCount() > 0) {
-        echo "EVENT FIX: case #$caseId — $desc\n";
-        $fixedEvents += $r2->rowCount();
-    }
-}
+echo "\n=== Corrigindo ===\n";
+// Concluir tarefas de prazo que estão ativas
+$pdo->exec("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE case_id=685 AND title LIKE '%PRAZO:%' AND status != 'concluido'");
+echo "Tarefas atualizadas: " . $pdo->query("SELECT ROW_COUNT()")->fetchColumn() . "\n";
 
-echo "\nTarefas corrigidas: $fixedTasks\n";
-echo "Eventos corrigidos: $fixedEvents\n";
-echo "=== FIM ===\n";
+// Marcar eventos de prazo como realizados
+$pdo->exec("UPDATE agenda_eventos SET status='realizado', updated_at=NOW() WHERE case_id=685 AND tipo='prazo' AND status NOT IN ('cancelado','realizado')");
+echo "Eventos atualizados: " . $pdo->query("SELECT ROW_COUNT()")->fetchColumn() . "\n";
+
+echo "\n=== FIM ===\n";
