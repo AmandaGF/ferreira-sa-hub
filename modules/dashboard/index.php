@@ -192,7 +192,7 @@ $ticketsAbertos = qval($pdo, "SELECT COUNT(*) FROM tickets WHERE status IN ('abe
 $docsFaltantes = qval($pdo, "SELECT COUNT(*) FROM documentos_pendentes WHERE status = 'pendente'");
 
 // Próximos compromissos (3 dias)
-$proxCompromissos = qrows($pdo, "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.local, e.case_id, cl.name as client_name FROM agenda_eventos e LEFT JOIN clients cl ON cl.id = e.client_id WHERE e.status NOT IN ('cancelado','remarcado') AND e.data_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY e.data_inicio LIMIT 5");
+$proxCompromissos = qrows($pdo, "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.local, e.case_id, cl.name as client_name FROM agenda_eventos e LEFT JOIN clients cl ON cl.id = e.client_id WHERE e.status NOT IN ('cancelado','remarcado','realizado') AND e.data_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY e.data_inicio LIMIT 5");
 
 // ═══════════════════════════════════════════════════════════
 // ATIVIDADES RECENTES — linguagem humana

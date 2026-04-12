@@ -1052,9 +1052,28 @@ switch ($action) {
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($prazoId) {
             try {
-                $pdo->prepare("UPDATE prazos_processuais SET concluido = 1 WHERE id = ?")->execute(array($prazoId));
+                // 1. Concluir o prazo
+                $pdo->prepare("UPDATE prazos_processuais SET concluido = 1, concluido_em = NOW() WHERE id = ?")->execute(array($prazoId));
+
+                // 2. Buscar descrição do prazo para encontrar tarefa e evento vinculados
+                $stmtPz = $pdo->prepare("SELECT descricao_acao FROM prazos_processuais WHERE id = ?");
+                $stmtPz->execute(array($prazoId));
+                $descPrazo = $stmtPz->fetchColumn() ?: '';
+
+                // 3. Concluir tarefa vinculada (título contém "PRAZO: <descricao>")
+                if ($caseId && $descPrazo) {
+                    $pdo->prepare("UPDATE case_tasks SET status = 'concluido', completed_at = NOW() WHERE case_id = ? AND title LIKE ? AND status != 'concluido'")
+                        ->execute(array($caseId, '%PRAZO: ' . $descPrazo . '%'));
+                }
+
+                // 4. Marcar evento da agenda como realizado (tipo=prazo, título contém o prazo)
+                if ($caseId && $descPrazo) {
+                    $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW() WHERE case_id = ? AND tipo = 'prazo' AND titulo LIKE ? AND status NOT IN ('cancelado','realizado')")
+                        ->execute(array($caseId, '%PRAZO:%' . mb_substr($descPrazo, 0, 50, 'UTF-8') . '%'));
+                }
+
                 audit_log('PRAZO_CONCLUIDO', 'case', $caseId, 'prazo_id=' . $prazoId);
-                flash_set('success', 'Prazo concluído.');
+                flash_set('success', 'Prazo concluído. Tarefa e evento atualizados.');
             } catch (Exception $e) {
                 flash_set('error', 'Erro ao concluir prazo.');
             }

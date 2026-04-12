@@ -414,7 +414,7 @@ try {
         "SELECT e.*, u.name as responsavel_name
          FROM agenda_eventos e
          LEFT JOIN users u ON u.id = e.responsavel_id
-         WHERE e.case_id = ? AND e.status != 'cancelado'
+         WHERE e.case_id = ? AND e.status NOT IN ('cancelado','remarcado','realizado')
          ORDER BY e.data_inicio ASC"
     );
     $stmtComp->execute(array($caseId));
