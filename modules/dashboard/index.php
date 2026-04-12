@@ -154,7 +154,7 @@ $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluid
 
 // Prazos vencendo em 7 dias
 $prazos7dias = qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
-$prazosLista = qrows($pdo, "SELECT p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id WHERE p.concluido = 0 AND p.prazo_fatal >= CURDATE() ORDER BY p.prazo_fatal LIMIT 10");
+$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id WHERE p.concluido = 0 AND p.prazo_fatal >= CURDATE() ORDER BY p.prazo_fatal LIMIT 10");
 
 // Clientes sem movimentação 30+ dias
 $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c.updated_at) as dias_parado FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') AND c.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY) ORDER BY dias_parado DESC LIMIT 10");
@@ -192,7 +192,7 @@ $ticketsAbertos = qval($pdo, "SELECT COUNT(*) FROM tickets WHERE status IN ('abe
 $docsFaltantes = qval($pdo, "SELECT COUNT(*) FROM documentos_pendentes WHERE status = 'pendente'");
 
 // Próximos compromissos (3 dias)
-$proxCompromissos = qrows($pdo, "SELECT e.titulo, e.tipo, e.data_inicio, e.local, cl.name as client_name FROM agenda_eventos e LEFT JOIN clients cl ON cl.id = e.client_id WHERE e.status != 'cancelado' AND e.data_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY e.data_inicio LIMIT 5");
+$proxCompromissos = qrows($pdo, "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.local, e.case_id, cl.name as client_name FROM agenda_eventos e LEFT JOIN clients cl ON cl.id = e.client_id WHERE e.status NOT IN ('cancelado','remarcado') AND e.data_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY e.data_inicio LIMIT 5");
 
 // ═══════════════════════════════════════════════════════════
 // ATIVIDADES RECENTES — linguagem humana
@@ -313,7 +313,8 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 .funnel-legend-item { display:flex; align-items:center; gap:.25rem; font-size:.65rem; color:var(--text-muted); }
 .funnel-legend-dot { width:8px; height:8px; border-radius:2px; }
 
-.alert-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .6rem; margin-bottom:.3rem; border-radius:8px; font-size:.78rem; }
+.alert-item { display:flex; align-items:center; gap:.6rem; padding:.5rem .6rem; margin-bottom:.3rem; border-radius:8px; font-size:.78rem; transition:all .15s; }
+a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
 .alert-item.warn { background:#fffbeb; border-left:3px solid #f59e0b; }
 .alert-item.danger { background:#fef2f2; border-left:3px solid #dc2626; }
 .alert-item.info { background:#eff6ff; border-left:3px solid #6366f1; }
@@ -394,22 +395,27 @@ a.kpi-card { text-decoration:none; color:inherit; cursor:pointer; }
 <?php if ($prazos7dias > 0 || $docsFaltantes > 0 || !empty($proxCompromissos)): ?>
 <div class="dash-card" style="margin-bottom:1.25rem;">
     <h4>🔔 Alertas e Próximos Compromissos</h4>
-    <?php foreach ($prazosLista as $p): if ((int)$p['dias'] <= 7): ?>
-    <div class="alert-item <?= (int)$p['dias'] <= 2 ? 'danger' : 'warn' ?>">
+    <?php foreach ($prazosLista as $p): if ((int)$p['dias'] <= 7):
+        $prazoLink = $p['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) : module_url('agenda');
+    ?>
+    <a href="<?= $prazoLink ?>" class="alert-item <?= (int)$p['dias'] <= 2 ? 'danger' : 'warn' ?>" style="text-decoration:none;color:inherit;cursor:pointer;">
         <span>⏰</span>
         <div style="flex:1;"><strong><?= e($p['descricao_acao']) ?></strong><?php if ($p['client_name']): ?> — <?= e($p['client_name']) ?><?php endif; ?></div>
         <span style="font-size:.72rem;font-weight:700;color:<?= (int)$p['dias'] <= 2 ? '#dc2626' : '#f59e0b' ?>;"><?= (int)$p['dias'] === 0 ? 'HOJE' : $p['dias'] . 'd' ?></span>
-    </div>
+    </a>
     <?php endif; endforeach; ?>
     <?php if ($docsFaltantes > 0): ?>
-    <div class="alert-item warn"><span>📄</span><div style="flex:1;"><strong><?= $docsFaltantes ?></strong> documento(s) faltante(s)</div><a href="<?= module_url('operacional') ?>" style="font-size:.72rem;">Ver →</a></div>
+    <a href="<?= module_url('pipeline') ?>" class="alert-item warn" style="text-decoration:none;color:inherit;cursor:pointer;"><span>📄</span><div style="flex:1;"><strong><?= $docsFaltantes ?></strong> documento(s) faltante(s)</div><span style="font-size:.72rem;">Ver →</span></a>
     <?php endif; ?>
-    <?php foreach ($proxCompromissos as $comp): ?>
-    <div class="alert-item info">
+    <?php foreach ($proxCompromissos as $comp):
+        $compData = date('Y-m-d', strtotime($comp['data_inicio']));
+        $compLink = module_url('agenda') . '?dia=' . $compData;
+    ?>
+    <a href="<?= $compLink ?>" class="alert-item info" style="text-decoration:none;color:inherit;cursor:pointer;">
         <span>📅</span>
         <div style="flex:1;"><strong><?= e($comp['titulo']) ?></strong><?php if ($comp['client_name']): ?> — <?= e($comp['client_name']) ?><?php endif; ?><?php if ($comp['local']): ?> · <?= e($comp['local']) ?><?php endif; ?></div>
         <span style="font-size:.72rem;color:#6366f1;font-weight:600;"><?= date('d/m H:i', strtotime($comp['data_inicio'])) ?></span>
-    </div>
+    </a>
     <?php endforeach; ?>
 </div>
 <?php endif; ?>

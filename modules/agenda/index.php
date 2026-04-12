@@ -385,6 +385,26 @@ var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0
 mesAtual = hoje.getMonth();
 anoAtual = hoje.getFullYear();
 diaLista = hoje;
+
+// Aceitar ?dia=YYYY-MM-DD para abrir direto na data
+var _urlDia = new URLSearchParams(window.location.search).get('dia');
+if (_urlDia && /^\d{4}-\d{2}-\d{2}$/.test(_urlDia)) {
+    var _dParts = _urlDia.split('-');
+    diaLista = new Date(parseInt(_dParts[0]), parseInt(_dParts[1])-1, parseInt(_dParts[2]));
+    mesAtual = diaLista.getMonth();
+    anoAtual = diaLista.getFullYear();
+    visAtual = 'lista';
+    // Ativar visualmente a view de lista após o DOM carregar
+    setTimeout(function() {
+        document.getElementById('vis-mensal').style.display = 'none';
+        document.getElementById('vis-semanal').style.display = 'none';
+        document.getElementById('vis-lista').style.display = 'block';
+        var btns = document.querySelectorAll('.ag-nav-vis button');
+        btns.forEach(function(b) { b.classList.remove('ativo'); });
+        if (btns[2]) btns[2].classList.add('ativo');
+    }, 100);
+}
+
 recarregarEventos();
 
 // Auto-abrir modal se veio com ?novo=1
