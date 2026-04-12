@@ -662,8 +662,9 @@ function renderLista() {
         var isTask = ev.is_task || false;
         var isAtrasada = ev.atrasada || false;
         if (isAtrasada) cor = '#dc2626';
+        var _isBalcao = (ev.tipo === 'balcao_virtual');
         var meetHtml = ev.meet_link ? '<button class="ag-btn-acao meet" onclick="window.open(\'' + ev.meet_link + '\',\'_blank\')">Entrar no Meet</button>' : '';
-        var msgHtml = ev.client_id ? '<button class="ag-btn-acao" onclick="enviarMsgCliente(' + ev.id + ')">Mensagem cliente</button>' : '';
+        var msgHtml = (ev.client_id && !_isBalcao) ? '<button class="ag-btn-acao" onclick="enviarMsgCliente(' + ev.id + ')">Mensagem cliente</button>' : '';
 
         var acoesHtml = '';
         if (isTask) {
@@ -708,11 +709,11 @@ function renderLista() {
             acoesHtml = linkProcesso + linkContato + meetHtml + msgHtml
                 + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
                 + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>'
-                + '<button class="ag-btn-acao" style="color:#b45309;border-color:#b45309;" onclick="marcarNaoCompareceu(' + ev.id + ',this)">N\u00e3o compareceu</button>'
+                + (_isBalcao ? '' : '<button class="ag-btn-acao" style="color:#b45309;border-color:#b45309;" onclick="marcarNaoCompareceu(' + ev.id + ',this)">N\u00e3o compareceu</button>')
                 + '<button class="ag-btn-acao" style="color:#7c3aed;border-color:#7c3aed;" onclick="abrirRemarcar(' + ev.id + ')">Remarcar</button>'
                 + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
                 + '<button class="ag-btn-acao" style="color:#dc2626;border-color:#dc2626;" onclick="excluirEvento(' + ev.id + ')">Excluir</button>'
-                + lembreteHtml;
+                + (_isBalcao ? '' : lembreteHtml);
         }
 
         var prioHtml = '';
