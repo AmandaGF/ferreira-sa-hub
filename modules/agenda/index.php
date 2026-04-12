@@ -344,7 +344,7 @@ if ($voltarCaso > 0): ?>
         </div>
 
         <div class="ag-fg">
-            <label class="ag-fl">Mensagem para o cliente (WhatsApp)</label>
+            <label class="ag-fl" id="agMsgLabel">Mensagem para o cliente (WhatsApp)</label>
             <textarea class="ag-fi" id="agMsgCliente" rows="3" placeholder="Variáveis: [nome], [data], [hora], [link_meet]"></textarea>
             <div class="ag-msg-prev" id="agMsgPreview" style="display:none;"></div>
         </div>
@@ -941,6 +941,17 @@ function selTipo(tipo, btn) {
     var msgEhPadrao = false;
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
+
+    // Balcão Virtual: trocar label do campo de mensagem para "Motivo"
+    var msgLabel = document.getElementById('agMsgLabel');
+    if (tipo === 'balcao_virtual') {
+        msgLabel.textContent = 'Motivo do Balcão Virtual';
+        msg.placeholder = 'Descreva o que precisa ser feito no Balcão Virtual...';
+        document.getElementById('agMsgPreview').style.display = 'none';
+    } else {
+        msgLabel.textContent = 'Mensagem para o cliente (WhatsApp)';
+        msg.placeholder = 'Variáveis: [nome], [data], [hora], [link_meet]';
+    }
 
     // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
     var sugerirOnline = ['reuniao_interna','reuniao_cliente','onboarding'];
