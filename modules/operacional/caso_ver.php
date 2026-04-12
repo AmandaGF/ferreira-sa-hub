@@ -409,6 +409,7 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
 <!-- Próximos Compromissos do Processo -->
 <?php
 $compromissosCaso = array();
+$compromissosRealizados = array();
 try {
     $stmtComp = $pdo->prepare(
         "SELECT e.*, u.name as responsavel_name
@@ -419,6 +420,16 @@ try {
     );
     $stmtComp->execute(array($caseId));
     $compromissosCaso = $stmtComp->fetchAll();
+
+    $stmtCompR = $pdo->prepare(
+        "SELECT e.*, u.name as responsavel_name
+         FROM agenda_eventos e
+         LEFT JOIN users u ON u.id = e.responsavel_id
+         WHERE e.case_id = ? AND e.status IN ('realizado','nao_compareceu','remarcado')
+         ORDER BY e.data_inicio DESC"
+    );
+    $stmtCompR->execute(array($caseId));
+    $compromissosRealizados = $stmtCompR->fetchAll();
 } catch (Exception $e) {}
 
 $compFuturos = array();
@@ -490,6 +501,35 @@ if (!empty($compFuturos)): ?>
         </div>
     </div>
     <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($compromissosRealizados)): ?>
+<div style="margin-bottom:1rem;">
+    <button type="button" onclick="var el=document.getElementById('compRealizados');el.style.display=el.style.display==='none'?'block':'none';this.querySelector('.chv').textContent=el.style.display==='none'?'▸':'▾';" style="background:none;border:none;font-size:.75rem;color:#059669;cursor:pointer;font-family:inherit;font-weight:600;display:flex;align-items:center;gap:.3rem;">
+        <span class="chv">▸</span> Compromissos realizados (<?= count($compromissosRealizados) ?>)
+    </button>
+    <div id="compRealizados" style="display:none;margin-top:.3rem;">
+        <?php foreach ($compromissosRealizados as $comp):
+            $corComp = isset($tipoCompCores[$comp['tipo']]) ? $tipoCompCores[$comp['tipo']] : '#6b7280';
+            $labelComp = isset($tipoCompLabels[$comp['tipo']]) ? $tipoCompLabels[$comp['tipo']] : ucfirst($comp['tipo']);
+            $statusLabel = $comp['status'] === 'realizado' ? 'Realizado' : ($comp['status'] === 'nao_compareceu' ? 'Não compareceu' : 'Remarcado');
+            $statusCor = $comp['status'] === 'realizado' ? '#059669' : ($comp['status'] === 'nao_compareceu' ? '#b45309' : '#7c3aed');
+        ?>
+        <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-bottom:1px solid rgba(0,0,0,.04);opacity:.7;">
+            <div style="width:30px;text-align:center;font-size:.7rem;font-weight:700;color:<?= $corComp ?>;flex-shrink:0;">
+                <?= date('d', strtotime($comp['data_inicio'])) ?><br><span style="font-size:.55rem;text-transform:uppercase;"><?= date('M', strtotime($comp['data_inicio'])) ?></span>
+            </div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:.78rem;text-decoration:line-through;color:var(--text-muted);">
+                    <span style="background:<?= $corComp ?>;color:#fff;padding:1px 5px;border-radius:3px;font-size:.6rem;font-weight:700;margin-right:4px;"><?= $labelComp ?></span>
+                    <?= e($comp['titulo']) ?>
+                </div>
+            </div>
+            <span style="font-size:.65rem;font-weight:600;color:<?= $statusCor ?>;flex-shrink:0;"><?= $statusLabel ?></span>
+        </div>
+        <?php endforeach; ?>
+    </div>
 </div>
 <?php endif; ?>
 
@@ -1064,16 +1104,23 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
             <?php endforeach; ?>
 
             <?php if (!empty($prazosConcluidos)): ?>
-            <div style="margin-top:.5rem;">
-                <button type="button" onclick="document.getElementById('prazosConcluidos').style.display=document.getElementById('prazosConcluidos').style.display==='none'?'block':'none'" style="background:none;border:none;font-size:.72rem;color:var(--text-muted);cursor:pointer;font-family:inherit;">
-                    Concluídos (<?= count($prazosConcluidos) ?>)
+            <div style="margin-top:.75rem;padding-top:.5rem;border-top:1px dashed var(--border);">
+                <button type="button" onclick="var el=document.getElementById('prazosConcluidos');el.style.display=el.style.display==='none'?'block':'none';this.querySelector('.chv').textContent=el.style.display==='none'?'▸':'▾';" style="background:none;border:none;font-size:.75rem;color:#059669;cursor:pointer;font-family:inherit;font-weight:600;display:flex;align-items:center;gap:.3rem;">
+                    <span class="chv">▸</span> Prazos cumpridos (<?= count($prazosConcluidos) ?>)
                 </button>
-                <div id="prazosConcluidos" style="display:none;">
+                <div id="prazosConcluidos" style="display:none;margin-top:.3rem;">
                     <?php foreach ($prazosConcluidos as $pz): ?>
-                    <div style="display:flex;align-items:center;gap:.75rem;padding:.4rem .8rem;opacity:.5;">
+                    <div style="display:flex;align-items:center;gap:.75rem;padding:.5rem .8rem;border-bottom:1px solid rgba(0,0,0,.04);">
                         <span style="width:20px;height:20px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.6rem;flex-shrink:0;">&#10003;</span>
-                        <div style="flex:1;font-size:.8rem;text-decoration:line-through;color:var(--text-muted);"><?= e($pz['tipo'] ?: $pz['descricao_acao'] ?: 'Prazo') ?></div>
-                        <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m', strtotime($pz['prazo_fatal'])) ?></span>
+                        <div style="flex:1;min-width:0;">
+                            <div style="font-size:.8rem;text-decoration:line-through;color:var(--text-muted);"><?= e($pz['tipo'] ?: $pz['descricao_acao'] ?: 'Prazo') ?></div>
+                            <?php if (!empty($pz['concluido_em'])): ?>
+                            <div style="font-size:.65rem;color:#059669;">Cumprido em <?= date('d/m/Y H:i', strtotime($pz['concluido_em'])) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <div style="text-align:right;flex-shrink:0;">
+                            <div style="font-size:.72rem;color:var(--text-muted);">Prazo: <?= date('d/m/Y', strtotime($pz['prazo_fatal'])) ?></div>
+                        </div>
                     </div>
                     <?php endforeach; ?>
                 </div>
