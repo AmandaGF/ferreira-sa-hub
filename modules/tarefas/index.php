@@ -77,7 +77,7 @@ echo voltar_ao_processo_html();
 <div class="tk-kpis">
     <div class="tk-kpi"><div class="tk-kpi-n"><?= $kpis['pendentes'] ?></div><div class="tk-kpi-l">Pendentes</div></div>
     <div class="tk-kpi vermelho"><div class="tk-kpi-n"><?= $kpis['vencidas'] ?></div><div class="tk-kpi-l">Vencidas</div></div>
-    <div class="tk-kpi verde"><div class="tk-kpi-n"><?= $kpis['concluidas_mes'] ?></div><div class="tk-kpi-l">Concluidas (mes)</div></div>
+    <div class="tk-kpi verde"><div class="tk-kpi-n"><?= $kpis['concluidas_mes'] ?></div><div class="tk-kpi-l">Concluídas (mês)</div></div>
     <div class="tk-kpi azul"><div class="tk-kpi-n"><?= $kpis['prazos_7d'] ?></div><div class="tk-kpi-l">Prazos em 7 dias</div></div>
 </div>
 
