@@ -294,10 +294,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $preTipoRelacao = $_GET['tipo_relacao'] ?? '';
                 $preTipoVinculo = $_GET['tipo_vinculo'] ?? '';
                 $isRecursoCriacao = ($preTipoVinculo === 'recurso');
+                $princData = null;
+                $princPartes = array();
                 if ($prePrincipalId):
-                    $stmtPrinc = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
+                    $stmtPrinc = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
                     $stmtPrinc->execute(array($prePrincipalId));
-                    $princTitle = $stmtPrinc->fetchColumn();
+                    $princData = $stmtPrinc->fetch();
+                    $princTitle = $princData ? $princData['title'] : '';
+                    // Buscar partes do processo principal
+                    try {
+                        $stmtPartes = $pdo->prepare("SELECT papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, cnpj, razao_social, client_id FROM case_partes WHERE case_id = ? ORDER BY id");
+                        $stmtPartes->execute(array($prePrincipalId));
+                        $princPartes = $stmtPartes->fetchAll();
+                    } catch (Exception $e) {}
                 ?>
                 <input type="hidden" name="principal_id" value="<?= $prePrincipalId ?>">
                 <input type="hidden" name="tipo_relacao" value="<?= e($preTipoRelacao) ?>">
@@ -305,6 +314,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div style="background:linear-gradient(135deg,<?= $isRecursoCriacao ? '#b45309,#d97706' : '#6366f1,#4f46e5' ?>);color:#fff;border-radius:var(--radius);padding:.75rem 1rem;margin-bottom:1rem;font-size:.85rem;">
                     <?= $isRecursoCriacao ? '📜 Criando recurso de' : '📎 Criando processo incidental de' ?>: <strong><?= e($princTitle ?: "Processo #$prePrincipalId") ?></strong>
                     <?php if ($preTipoRelacao): ?> — <span style="background:rgba(255,255,255,.2);padding:1px 8px;border-radius:4px;font-size:.75rem;"><?= e($preTipoRelacao) ?></span><?php endif; ?>
+                </div>
+                <div style="background:#fefce8;border:1.5px solid #facc15;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem;font-size:.78rem;color:#854d0e;">
+                    💡 Os dados do processo principal foram pré-preenchidos abaixo. Confira e altere o que for necessário (os campos em <span style="background:#fef08a;padding:0 4px;border-radius:3px;font-weight:700;">destaque</span> vieram do processo principal).
                 </div>
                 <?php endif; ?>
 
@@ -354,7 +366,58 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <p style="font-size:.72rem;color:var(--text-muted);margin:0 0 .5rem;">O cliente selecionado acima será vinculado ao processo. Adicione as demais partes abaixo.</p>
                     <div id="partesRows">
-                        <!-- Parte adversa padrão -->
+                        <?php
+                        // Se criando incidental/recurso, pré-preencher partes do processo principal
+                        $partesPreFill = array();
+                        if (!empty($princPartes)) {
+                            // Filtrar partes que NÃO são o cliente (já está acima)
+                            foreach ($princPartes as $pp) {
+                                if ($pp['client_id'] && $preClient && (int)$pp['client_id'] === (int)$preClient['id']) continue;
+                                $partesPreFill[] = $pp;
+                            }
+                        }
+                        if (!empty($partesPreFill)):
+                            foreach ($partesPreFill as $pp):
+                                $ppDoc = $pp['tipo_pessoa'] === 'juridica' ? ($pp['cnpj'] ?: '') : ($pp['cpf'] ?: '');
+                                $ppNome = $pp['tipo_pessoa'] === 'juridica' ? ($pp['razao_social'] ?: $pp['nome']) : $pp['nome'];
+                        ?>
+                        <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
+                            <div style="width:140px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
+                                <select name="partes_papel[]" class="form-select" style="font-size:.82rem;background:#fef9c3;">
+                                    <?php if ($isRecursoCriacao): ?>
+                                    <option value="reu" <?= $pp['papel']==='reu'?'selected':'' ?>>Recorrido</option>
+                                    <option value="autor" <?= $pp['papel']==='autor'?'selected':'' ?>>Recorrente</option>
+                                    <?php else: ?>
+                                    <option value="reu" <?= $pp['papel']==='reu'?'selected':'' ?>>Réu</option>
+                                    <option value="autor" <?= $pp['papel']==='autor'?'selected':'' ?>>Autor</option>
+                                    <?php endif; ?>
+                                    <option value="representante_legal" <?= $pp['papel']==='representante_legal'?'selected':'' ?>>Rep. Legal</option>
+                                    <option value="terceiro_interessado" <?= $pp['papel']==='terceiro_interessado'?'selected':'' ?>>3º Interessado</option>
+                                    <option value="litisconsorte_ativo" <?= $pp['papel']==='litisconsorte_ativo'?'selected':'' ?>>Litis. Ativo</option>
+                                    <option value="litisconsorte_passivo" <?= $pp['papel']==='litisconsorte_passivo'?'selected':'' ?>>Litis. Passivo</option>
+                                </select>
+                            </div>
+                            <div style="width:100px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>
+                                <select name="partes_tipo[]" class="form-select" style="font-size:.82rem;background:#fef9c3;">
+                                    <option value="fisica" <?= $pp['tipo_pessoa']==='fisica'?'selected':'' ?>>PF</option>
+                                    <option value="juridica" <?= $pp['tipo_pessoa']==='juridica'?'selected':'' ?>>PJ</option>
+                                </select>
+                            </div>
+                            <div style="width:150px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;background:#fef9c3;" value="<?= e($ppDoc) ?>" maxlength="18" data-busca-doc>
+                            </div>
+                            <div style="flex:1;min-width:180px;">
+                                <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
+                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;background:#fef9c3;" value="<?= e($ppNome) ?>">
+                            </div>
+                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php else: ?>
+                        <!-- Parte adversa padrão (em branco) -->
                         <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
                             <div style="width:140px;">
                                 <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
@@ -389,6 +452,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
                         </div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <!-- Campos legados (hidden, para backward compatibility) -->
@@ -520,26 +584,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div class="form-col">
                         <label>Vara</label>
-                        <input type="text" name="court" class="form-input" placeholder="Ex: 1a Vara de Familia">
+                        <?php $preVara = ($princData && $princData['court']) ? $princData['court'] : ''; ?>
+                        <input type="text" name="court" class="form-input" placeholder="Ex: 1a Vara de Familia" value="<?= e($preVara) ?>"<?= $preVara ? ' style="background:#fef9c3;"' : '' ?>>
                     </div>
                 </div>
 
                 <!-- UF + Comarca (cidade) + Data de Distribuicao -->
                 <div class="form-row">
+                    <?php $preUf = ($princData && $princData['comarca_uf']) ? $princData['comarca_uf'] : ''; ?>
                     <div class="form-col" style="max-width:120px;">
                         <label>Estado (UF)</label>
-                        <select name="comarca_uf" id="comarcaUf" class="form-select" onchange="filtrarCidades()">
+                        <select name="comarca_uf" id="comarcaUf" class="form-select" onchange="filtrarCidades()"<?= $preUf ? ' style="background:#fef9c3;"' : '' ?>>
                             <option value="">UF</option>
                             <?php
                             $ufs = array('AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO');
                             foreach ($ufs as $uf): ?>
-                                <option value="<?= $uf ?>"><?= $uf ?></option>
+                                <option value="<?= $uf ?>" <?= ($preUf === $uf) ? 'selected' : '' ?>><?= $uf ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
+                    <?php $preComarca = ($princData && $princData['comarca']) ? $princData['comarca'] : ''; ?>
                     <div class="form-col">
                         <label>Comarca (Cidade)</label>
-                        <input type="text" name="comarca" id="comarcaCidade" class="form-input" placeholder="Digite a cidade..." autocomplete="off" list="listaCidades">
+                        <input type="text" name="comarca" id="comarcaCidade" class="form-input" placeholder="Digite a cidade..." autocomplete="off" list="listaCidades" value="<?= e($preComarca) ?>"<?= $preComarca ? ' style="background:#fef9c3;"' : '' ?>>
                         <datalist id="listaCidades"></datalist>
                     </div>
                     <div class="form-col" style="max-width:200px;">
@@ -549,34 +616,39 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
 
                 <!-- Regional (ex: Madureira, Campo Grande, Bangu) -->
+                <?php $preRegional = ($princData && $princData['regional']) ? $princData['regional'] : ''; ?>
                 <div class="form-row">
                     <div class="form-col" style="max-width:180px;">
                         <label>Tem Regional?</label>
                         <select id="temRegional" class="form-select" onchange="document.getElementById('campoRegional').style.display=this.value==='sim'?'block':'none';">
-                            <option value="nao">Não</option>
-                            <option value="sim">Sim</option>
+                            <option value="nao" <?= !$preRegional ? 'selected' : '' ?>>Não</option>
+                            <option value="sim" <?= $preRegional ? 'selected' : '' ?>>Sim</option>
                         </select>
                     </div>
-                    <div class="form-col" id="campoRegional" style="display:none;">
+                    <div class="form-col" id="campoRegional" style="<?= $preRegional ? '' : 'display:none;' ?>">
                         <label>Qual Regional?</label>
-                        <input type="text" name="regional" class="form-input" placeholder="Ex: Madureira, Campo Grande, Bangu...">
+                        <input type="text" name="regional" class="form-input" placeholder="Ex: Madureira, Campo Grande, Bangu..." value="<?= e($preRegional) ?>"<?= $preRegional ? ' style="background:#fef9c3;"' : '' ?>>
                     </div>
                 </div>
 
                 <!-- Sistema + Segredo de Justiça -->
+                <?php
+                    $preSistema = ($princData && $princData['sistema_tribunal']) ? $princData['sistema_tribunal'] : '';
+                    $preSegredo = ($princData && $princData['segredo_justica']) ? (int)$princData['segredo_justica'] : 0;
+                ?>
                 <div class="form-row">
                     <div class="form-col">
                         <label>Sistema do Tribunal</label>
-                        <select name="sistema_tribunal" class="form-select">
+                        <select name="sistema_tribunal" class="form-select"<?= $preSistema ? ' style="background:#fef9c3;"' : '' ?>>
                             <?php foreach ($sistemasTribunal as $k => $v): ?>
-                                <option value="<?= $k ?>"><?= $v ?></option>
+                                <option value="<?= $k ?>" <?= ($preSistema === $k) ? 'selected' : '' ?>><?= $v ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="form-col" style="max-width:200px;">
                         <label>Segredo de Justica</label>
                         <div style="display:flex;align-items:center;gap:.5rem;height:42px;">
-                            <input type="checkbox" name="segredo_justica" id="segredoJustica" value="1" style="width:18px;height:18px;cursor:pointer;">
+                            <input type="checkbox" name="segredo_justica" id="segredoJustica" value="1" style="width:18px;height:18px;cursor:pointer;" <?= $preSegredo ? 'checked' : '' ?>>
                             <label for="segredoJustica" style="font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;">Sim, é segredo</label>
                         </div>
                     </div>
@@ -956,6 +1028,26 @@ function preencherCidades(nomes) {
         datalist.appendChild(opt);
     }
 }
+
+// ── Pré-selecionar tipo de ação do processo principal ──
+<?php if ($princData && $princData['case_type']): ?>
+(function() {
+    var sel = document.getElementById('selCaseType');
+    var preType = <?= json_encode($princData['case_type']) ?>;
+    for (var i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === preType) {
+            sel.selectedIndex = i;
+            sel.style.background = '#fef9c3';
+            break;
+        }
+    }
+    // Seção de filhos (para alimentos)
+    if (preType.toLowerCase().indexOf('aliment') !== -1) {
+        var sf = document.getElementById('secaoFilhos');
+        if (sf) sf.style.display = 'block';
+    }
+})();
+<?php endif; ?>
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
