@@ -485,7 +485,12 @@ function filtrosAtivos() {
 function toggleFiltro(el) { el.classList.toggle('ativo'); renderVis(); }
 function eventosFiltrados() {
     var f = filtrosAtivos();
-    return eventos.filter(function(ev) { return f.indexOf(ev.tipo) !== -1; });
+    return eventos.filter(function(ev) {
+        if (f.indexOf(ev.tipo) === -1) return false;
+        // Marcar visualmente eventos concluídos/remarcados
+        ev._concluido = (ev.status === 'realizado' || ev.status === 'remarcado' || ev.status === 'nao_compareceu');
+        return true;
+    });
 }
 
 // ── CALENDÁRIO MENSAL ───────────────────────────────────────
@@ -523,9 +528,10 @@ function renderCalendario() {
                 var evDiv = document.createElement('div');
                 evDiv.className = 'ag-cal-ev';
                 evDiv.style.background = (ev.atrasada ? '#dc2626' : CORES[ev.tipo]) || '#888';
+                if (ev._concluido) { evDiv.style.opacity = '.45'; evDiv.style.textDecoration = 'line-through'; }
                 var hr = ev.dia_todo == 1 ? '' : ev.data_inicio.substring(11,16) + ' ';
                 evDiv.textContent = hr + ev.titulo;
-                evDiv.title = ev.titulo;
+                evDiv.title = ev.titulo + (ev._concluido ? ' (' + ev.status + ')' : '');
                 evDiv.onclick = function(e) {
                     e.stopPropagation();
                     if (ev.is_task) {
@@ -598,10 +604,11 @@ function renderSemanal() {
                 var evDiv = document.createElement('div');
                 evDiv.className = 'ag-sem-ev';
                 evDiv.style.background = (ev.atrasada ? '#dc2626' : CORES[ev.tipo]) || '#888';
+                if (ev._concluido) { evDiv.style.opacity = '.45'; evDiv.style.textDecoration = 'line-through'; }
                 evDiv.style.top = '2px';
                 evDiv.style.height = Math.min(Math.max(durMin / 60 * 56 - 4, 16), 112) + 'px';
                 evDiv.textContent = ev.titulo;
-                evDiv.title = ev.titulo + ' (' + ev.data_inicio.substring(11,16) + ')';
+                evDiv.title = ev.titulo + ' (' + ev.data_inicio.substring(11,16) + ')' + (ev._concluido ? ' — ' + ev.status : '');
                 evDiv.onclick = function() {
                     if (ev.is_task) {
                         window.location.href = '<?= module_url("tarefas") ?>';
@@ -723,14 +730,15 @@ function renderLista() {
 
         var _done = (ev.status === 'realizado');
         var _nc = (ev.status === 'nao_compareceu');
-        var _cardSt = _done ? 'background:rgba(209,250,229,.45);opacity:.75;' : _nc ? 'background:rgba(254,243,199,.45);opacity:.75;' : '';
-        var _titSt = (_done || _nc) ? 'text-decoration:line-through;color:#6b7280;' : '';
-        var _dotCor = _done ? '#059669' : _nc ? '#b45309' : cor;
-        var _badge = _done ? 'Realizado' : _nc ? 'N\u00e3o compareceu' : label;
-        var _icon = _done ? '\u2705 ' : _nc ? '\u26A0\uFE0F ' : (isTask ? '\u2705 ' : '');
+        var _remc = (ev.status === 'remarcado');
+        var _cardSt = _done ? 'background:rgba(209,250,229,.45);opacity:.75;' : _nc ? 'background:rgba(254,243,199,.45);opacity:.75;' : _remc ? 'background:rgba(224,231,255,.45);opacity:.75;' : '';
+        var _titSt = (_done || _nc || _remc) ? 'text-decoration:line-through;color:#6b7280;' : '';
+        var _dotCor = _done ? '#059669' : _nc ? '#b45309' : _remc ? '#7c3aed' : cor;
+        var _badge = _done ? 'Realizado' : _nc ? 'N\u00e3o compareceu' : _remc ? 'Remarcado' : label;
+        var _icon = _done ? '\u2705 ' : _nc ? '\u26A0\uFE0F ' : _remc ? '\uD83D\uDD04 ' : (isTask ? '\u2705 ' : '');
 
         return '<div class="ag-lista-item">' +
-            '<div class="ag-lista-hora"' + ((_done||_nc) ? ' style="opacity:.5;"' : '') + '>' + hr + '</div>' +
+            '<div class="ag-lista-hora"' + ((_done||_nc||_remc) ? ' style="opacity:.5;"' : '') + '>' + hr + '</div>' +
             '<div class="ag-lista-linha"><div class="ag-lista-dot" style="background:' + _dotCor + '"></div>' +
             (i < evsFilt.length-1 ? '<div class="ag-lista-fio"></div>' : '') + '</div>' +
             '<div class="ag-lista-card" style="border-left-color:' + _dotCor + ';' + _cardSt + '">' +
