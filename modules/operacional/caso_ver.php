@@ -1481,6 +1481,13 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                                     </span>
                                 <?php elseif ($and['tipo'] === 'chamado'): ?>
                                     <span style="font-size:.58rem;background:#fef3c7;color:#d97706;padding:1px 5px;border-radius:3px;font-weight:700;">Chamado</span>
+                                    <?php
+                                    // Extrair ID do chamado da descrição (ex: "Chamado #129: ...")
+                                    if (preg_match('/Chamado #(\d+)/', $and['descricao'], $mChamado)):
+                                        $chamadoId = (int)$mChamado[1];
+                                    ?>
+                                    <a href="<?= module_url('helpdesk', 'ver.php?id=' . $chamadoId) ?>" style="font-size:.6rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;font-weight:600;">Abrir Chamado #<?= $chamadoId ?></a>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                                 <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
                                 <?php
