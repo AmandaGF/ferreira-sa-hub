@@ -77,9 +77,10 @@ function salavip_gerar_token(): string {
  * Gera e armazena token CSRF na sessão.
  */
 function salavip_gerar_csrf(): string {
-    $token = bin2hex(random_bytes(32));
-    $_SESSION['salavip_csrf'] = $token;
-    return $token;
+    if (empty($_SESSION['salavip_csrf'])) {
+        $_SESSION['salavip_csrf'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['salavip_csrf'];
 }
 
 /**
