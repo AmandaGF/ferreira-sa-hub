@@ -668,12 +668,19 @@ function template_habilitacao($d) {
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
     // Qualificação
+    $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : ($isRepLegal ? 'menor' : 'proprio');
+    $qualifMenor = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
+
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
-    if ($isRepLegal && $nomeFilhos) {
-        // Representante legal dos filhos
+    if ($pleiteante === 'menor' && $nomeFilhos) {
+        // Habilitação no nome do menor, representado pelo cliente
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(s) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>';
+    } elseif ($isRepLegal && $nomeFilhos) {
+        // Fallback legado
         $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) impúbere(s), representado(s) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>';
     } else {
+        // Habilitação no nome próprio do cliente
         $html .= '<strong>' . f($d['nome']) . '</strong>';
     }
 
@@ -715,19 +722,38 @@ function template_habilitacao($d) {
     } else {
         $html .= 'por <strong>' . f($nomeParteContraria) . '</strong>';
     }
-    $html .= ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+    $tipoHabProc = isset($d['tipo_hab_proc']) ? $d['tipo_hab_proc'] : 'plena';
+    $isAnalise = ($tipoHabProc === 'analise');
+
+    if ($isAnalise) {
+        $html .= ', conforme substabelecimento/procuração em anexo, <strong>exclusivamente para fins de análise dos autos</strong>, sem poderes para atuação efetiva, nos termos do art. 107, I, do Código de Processo Civil.</p>';
+    } else {
+        $html .= ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+    }
 
     // Fundamentação
     $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO</p>';
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Nos termos do art. 105 do Código de Processo Civil, a parte é representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil, devendo juntar instrumento de mandato quando do primeiro ato processual.</p>';
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+
+    if ($isAnalise) {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente habilitação tem por objetivo <strong>exclusivamente a análise dos autos</strong>, viabilizando o acesso ao processo para estudo e avaliação do caso, <strong>sem que os advogados ora habilitados possam praticar quaisquer atos processuais</strong> em nome da parte, salvo mediante posterior juntada de procuração com poderes específicos para atuação.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
+    } else {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+    }
 
     // Pedido
     $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS PEDIDOS</p>';
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ante o exposto, requer a Vossa Excelência:</p>';
     $html .= '<div style="margin:12px 0;">';
-    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
-    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+
+    if ($isAnalise) {
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados ora subscritos, <strong>exclusivamente para fins de análise</strong>, passando a ter acesso ao conteúdo processual;</p>';
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntado aos autos o substabelecimento/documento que acompanha esta petição;</p>';
+    } else {
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+    }
     $html .= '<p style="text-indent:0;margin:6px 0;"><strong>c)</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
     $html .= '</div>';
 

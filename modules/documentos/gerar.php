@@ -770,17 +770,44 @@ if (!$showEditor) {
             </div>
             <div class="row">
                 <div>
-                    <label>É representante legal de menor?</label>
-                    <select name="rep_legal" onchange="document.getElementById('filhosHab').style.display=this.value==='sim'?'block':'none';">
-                        <option value="nao" <?= $repLegal === 'nao' ? 'selected' : '' ?>>Não</option>
-                        <option value="sim" <?= $repLegal === 'sim' ? 'selected' : '' ?>>Sim</option>
+                    <label>Quem pleiteia a habilitação?</label>
+                    <select name="pleiteante_hab" id="pleiteante_hab" onchange="togglePleiteante(this.value)">
+                        <option value="proprio" <?= ($d['pleiteante_hab'] ?? 'proprio') === 'proprio' ? 'selected' : '' ?>>O próprio cliente (em nome próprio)</option>
+                        <option value="menor" <?= ($d['pleiteante_hab'] ?? '') === 'menor' ? 'selected' : '' ?>>Menor de idade (cliente é representante legal)</option>
                     </select>
                 </div>
-                <div id="filhosHab" style="<?= $repLegal === 'sim' ? '' : 'display:none;' ?>">
-                    <label>Nome(s) dos filhos</label>
+            </div>
+            <div class="row" id="dadosMenorHab" style="<?= ($d['pleiteante_hab'] ?? '') === 'menor' ? '' : 'display:none;' ?>">
+                <div>
+                    <label>Nome completo do(s) menor(es) *</label>
                     <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: JOÃO DA SILVA E MARIA DA SILVA">
+                    <small style="color:#6b7280;font-size:.72rem;">O pedido de habilitação será feito no nome do menor, representado pelo cliente</small>
+                </div>
+                <div>
+                    <label>Qualificação do menor</label>
+                    <select name="qualif_menor">
+                        <option value="impubere" <?= ($d['qualif_menor'] ?? '') === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
+                        <option value="pubere" <?= ($d['qualif_menor'] ?? '') === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
+                    </select>
                 </div>
             </div>
+            <div class="row">
+                <div>
+                    <label>Tipo de habilitação</label>
+                    <select name="tipo_hab_proc">
+                        <option value="plena" <?= ($d['tipo_hab_proc'] ?? 'plena') === 'plena' ? 'selected' : '' ?>>Procuração com poderes para atuação plena</option>
+                        <option value="analise" <?= ($d['tipo_hab_proc'] ?? '') === 'analise' ? 'selected' : '' ?>>Apenas para análise dos autos (sem poderes para atuar)</option>
+                    </select>
+                    <small style="color:#6b7280;font-size:.72rem;">Se "apenas para análise", constará que a atuação efetiva depende de nova juntada de procuração</small>
+                </div>
+            </div>
+            <input type="hidden" name="rep_legal" id="rep_legal_hidden" value="<?= e($repLegal) ?>">
+            <script>
+            function togglePleiteante(val) {
+                document.getElementById('dadosMenorHab').style.display = val === 'menor' ? '' : 'none';
+                document.getElementById('rep_legal_hidden').value = val === 'menor' ? 'sim' : 'nao';
+            }
+            </script>
         </div>
         <?php endif; ?>
 
