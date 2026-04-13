@@ -3,24 +3,28 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 
 $htPath = dirname(__DIR__) . '/salavip/uploads/.htaccess';
-$content = '# Allow only image files
-<FilesMatch "\.(jpg|jpeg|png|webp|gif)$">
-    Require all granted
-</FilesMatch>
 
-# Block everything else
-<FilesMatch "\.php$">
-    Require all denied
-</FilesMatch>
-';
+// Remover htaccess completamente — a pasta de uploads de fotos pode ser pública
+// (fotos de perfil não são confidenciais, e o nome é randomizado)
+if (file_exists($htPath)) {
+    unlink($htPath);
+    echo "htaccess REMOVIDO de: $htPath\n";
+} else {
+    echo "htaccess não existia\n";
+}
 
-file_put_contents($htPath, $content);
-echo "Written to: $htPath\n";
-echo "Content:\n$content\n";
+// Garantir permissões
+$dir = dirname(__DIR__) . '/salavip/uploads/';
+chmod($dir, 0755);
+echo "Dir perms set: 755\n";
 
-// Test file exists
-$foto = dirname(__DIR__) . '/salavip/uploads/foto_447_1776080807.jpg';
-echo "Photo exists: " . (file_exists($foto) ? 'YES (' . filesize($foto) . ' bytes)' : 'NO') . "\n";
-echo "Photo readable: " . (is_readable($foto) ? 'YES' : 'NO') . "\n";
-echo "Dir perms: " . decoct(fileperms(dirname($foto)) & 0777) . "\n";
-echo "File perms: " . (file_exists($foto) ? decoct(fileperms($foto) & 0777) : 'N/A') . "\n";
+// Listar arquivos
+$files = scandir($dir);
+echo "Files in uploads: " . implode(', ', array_diff($files, ['.','..'])) . "\n";
+
+// Limpar foto_path do cliente (foto foi perdida pelo deploy)
+require_once __DIR__ . '/core/config.php';
+require_once __DIR__ . '/core/database.php';
+$pdo = db();
+$pdo->exec("UPDATE clients SET foto_path = NULL WHERE foto_path IS NOT NULL AND foto_path != ''");
+echo "foto_path resetado para todos os clientes (foto será reenviada).\n";

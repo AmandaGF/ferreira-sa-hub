@@ -78,12 +78,13 @@ if (!is_dir($sourceDir)) {
 
     if (!is_dir($destDir)) mkdir($destDir, 0755, true);
 
-    function copyDir($src, $dst) {
+    function copyDir($src, $dst, $skipDirs = []) {
         $count = 0;
         $dir = opendir($src);
         if (!is_dir($dst)) mkdir($dst, 0755, true);
         while (($file = readdir($dir)) !== false) {
             if ($file === '.' || $file === '..') continue;
+            if (in_array($file, $skipDirs)) { echo "  [SKIP] $file/\n"; continue; }
             $srcPath = $src . '/' . $file;
             $dstPath = $dst . '/' . $file;
             if (is_dir($srcPath)) {
@@ -98,7 +99,7 @@ if (!is_dir($sourceDir)) {
         return $count;
     }
 
-    $copied = copyDir($sourceDir, $destDir);
+    $copied = copyDir($sourceDir, $destDir, ['uploads']);
     echo "Copiados: $copied arquivos\n";
 }
 

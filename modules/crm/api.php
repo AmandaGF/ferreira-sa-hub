@@ -170,6 +170,59 @@ switch ($action) {
         }
         break;
 
+    case 'criar_salavip':
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        if ($clientId && has_min_role('gestao')) {
+            $cl = $pdo->prepare('SELECT id, name, cpf, email FROM clients WHERE id = ?');
+            $cl->execute(array($clientId));
+            $cli = $cl->fetch();
+            if ($cli) {
+                $cpfClean = preg_replace('/\D/', '', $cli['cpf'] ?? '');
+                if (strlen($cpfClean) < 11) {
+                    flash_set('error', 'Cliente não possui CPF válido cadastrado. Cadastre o CPF antes de criar o acesso.');
+                    redirect(module_url('clientes', 'ver.php?id=' . $clientId));
+                    break;
+                }
+                // Verificar se já existe
+                $chk = $pdo->prepare('SELECT id FROM salavip_usuarios WHERE cliente_id = ?');
+                $chk->execute(array($clientId));
+                if ($chk->fetch()) {
+                    flash_set('warning', 'Este cliente já possui acesso à Sala VIP.');
+                    redirect(module_url('clientes', 'ver.php?id=' . $clientId));
+                    break;
+                }
+                $token = bin2hex(random_bytes(32));
+                $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
+                $cpfFormatado = substr($cpfClean, 0, 3) . '.' . substr($cpfClean, 3, 3) . '.' . substr($cpfClean, 6, 3) . '-' . substr($cpfClean, 9, 2);
+                $senhaTemp = password_hash($cpfClean, PASSWORD_DEFAULT);
+                $pdo->prepare(
+                    'INSERT INTO salavip_usuarios (cliente_id, cpf, senha_hash, email, nome_exibicao, ativo, token_ativacao, token_expira, criado_por)
+                     VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)'
+                )->execute(array(
+                    $clientId, $cpfFormatado, $senhaTemp,
+                    $cli['email'] ?: '', $cli['name'], $token, $expira, current_user_id()
+                ));
+                audit_log('criar_salavip', 'client', $clientId, 'Token: ' . substr($token, 0, 8) . '...');
+                flash_set('success', 'Acesso Sala VIP criado! O cliente deve ativar a conta em até 72h. Token: ' . $token);
+            }
+        }
+        redirect(module_url('clientes', 'ver.php?id=' . $clientId));
+        break;
+
+    case 'reset_salavip':
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        if ($clientId && has_min_role('gestao')) {
+            $token = bin2hex(random_bytes(32));
+            $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
+            $pdo->prepare(
+                'UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE cliente_id = ?'
+            )->execute(array($token, $expira, $clientId));
+            audit_log('reset_salavip', 'client', $clientId, 'Novo token: ' . substr($token, 0, 8) . '...');
+            flash_set('success', 'Link de ativação renovado (72h). Token: ' . $token);
+        }
+        redirect(module_url('clientes', 'ver.php?id=' . $clientId));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('crm'));

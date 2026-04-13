@@ -99,6 +99,7 @@ if (!isset($pageTitle)) {
         <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
         <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>
         <li><a href="<?= sv_url('pages/documentos.php') ?>"<?= $_svCurrentPage === 'documentos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C4;</span> Documentos</a></li>
+        <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio</a></li>
         <li><a href="<?= sv_url('pages/mensagens.php') ?>"<?= $_svCurrentPage === 'mensagens.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4AC;</span> Mensagens<?php if ($_svUnread > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;"><?= $_svUnread ?></span><?php endif; ?></a></li>
         <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
         <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>
@@ -135,6 +136,7 @@ if (!isset($pageTitle)) {
             <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
             <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>
             <li><a href="<?= sv_url('pages/documentos.php') ?>"<?= $_svCurrentPage === 'documentos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C4;</span> Documentos</a></li>
+            <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio</a></li>
             <li><a href="<?= sv_url('pages/mensagens.php') ?>"<?= $_svCurrentPage === 'mensagens.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4AC;</span> Mensagens<?php if ($_svUnread > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;"><?= $_svUnread ?></span><?php endif; ?></a></li>
             <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
             <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>

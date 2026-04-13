@@ -230,6 +230,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if (has_role('admin')): ?>
     <button type="button" onclick="confirmarExclusao()" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">🗑️ Excluir Processo</button>
     <?php endif; ?>
+    <?php if (has_min_role('gestao')): ?>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="toggle_salavip">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-outline btn-sm" style="border-color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Sala VIP — clique para ocultar' : 'Oculto da Sala VIP — clique para tornar visível' ?>">
+            <?= $case['salavip_ativo'] ? '🟢 Sala VIP' : '⚪ Sala VIP' ?>
+        </button>
+    </form>
+    <?php endif; ?>
 </div>
 
 <!-- Header do caso -->

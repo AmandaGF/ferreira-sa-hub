@@ -1142,6 +1142,20 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'toggle_salavip':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId && has_min_role('gestao')) {
+            $stmtSv = $pdo->prepare("SELECT salavip_ativo FROM cases WHERE id = ?");
+            $stmtSv->execute([$caseId]);
+            $current = (int)$stmtSv->fetchColumn();
+            $new = $current ? 0 : 1;
+            $pdo->prepare("UPDATE cases SET salavip_ativo = ? WHERE id = ?")->execute([$new, $caseId]);
+            audit_log('toggle_salavip', 'case', $caseId, $new ? 'Ativado' : 'Desativado');
+            flash_set('success', $new ? 'Caso visível na Sala VIP.' : 'Caso oculto da Sala VIP.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'toggle_visibilidade':
         $andId = (int)($_POST['andamento_id'] ?? 0);
         $visivel = (int)($_POST['visivel'] ?? 1);
