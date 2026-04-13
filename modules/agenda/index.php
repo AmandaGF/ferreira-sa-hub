@@ -7,7 +7,9 @@ require_login();
 
 $pdo = db();
 $pageTitle = 'Agenda';
-$users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+$users = $pdo->query("SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+$cxUserIds = array();
+foreach ($users as $u) { if ($u['role'] === 'cx') $cxUserIds[] = (int)$u['id']; }
 
 // Mapa tipo → cor / ícone / label
 $tiposMapa = array(
@@ -377,6 +379,7 @@ var hoje = new Date();
 var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
+var CX_USER_IDS = <?= json_encode($cxUserIds) ?>;
 var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1'};
 var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa'};
 var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705"};
@@ -951,12 +954,16 @@ function selTipo(tipo, btn) {
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
 
-    // Balcão Virtual: trocar label do campo de mensagem para "Motivo"
+    // Balcão Virtual: trocar label + responsável CX
     var msgLabel = document.getElementById('agMsgLabel');
     if (tipo === 'balcao_virtual') {
         msgLabel.textContent = 'Motivo do Balcão Virtual';
         msg.placeholder = 'Descreva o que precisa ser feito no Balcão Virtual...';
         document.getElementById('agMsgPreview').style.display = 'none';
+        // Selecionar primeiro CX como responsável
+        if (CX_USER_IDS.length > 0) {
+            document.getElementById('agResponsavel').value = CX_USER_IDS[0];
+        }
     } else {
         msgLabel.textContent = 'Mensagem para o cliente (WhatsApp)';
         msg.placeholder = 'Variáveis: [nome], [data], [hora], [link_meet]';
