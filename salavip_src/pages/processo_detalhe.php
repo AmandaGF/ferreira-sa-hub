@@ -26,6 +26,19 @@ try {
     $stmtPartes = $pdo->prepare("SELECT * FROM case_partes WHERE case_id = ?");
     $stmtPartes->execute([$caseId]);
     $partes = $stmtPartes->fetchAll();
+    // Fallback: se réu sem nome, usar campo legado
+    foreach ($partes as &$_p) {
+        if (empty($_p['nome']) && $_p['papel'] === 'reu' && !empty($caso['parte_re_nome'])) {
+            $_p['nome'] = $caso['parte_re_nome'];
+        }
+    }
+    unset($_p);
+    // Se não tem partes na tabela, montar a partir dos campos legados
+    if (empty($partes)) {
+        if (!empty($caso['parte_re_nome'])) {
+            $partes[] = ['papel' => 'reu', 'nome' => $caso['parte_re_nome']];
+        }
+    }
 } catch (Exception $e) {}
 
 // --- Andamentos (TODOS visíveis, sem limite artificial) ---
