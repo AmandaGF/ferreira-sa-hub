@@ -177,11 +177,17 @@ if ($preClientId) {
     $row = $stmt->fetch();
     if ($row) $preClientName = $row['name'];
 }
+$preCaseCourt = '';
+$preCaseComarca = '';
 if ($preCaseId) {
-    $stmt = $pdo->prepare("SELECT title FROM cases WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT title, court, comarca FROM cases WHERE id = ?");
     $stmt->execute(array($preCaseId));
     $row = $stmt->fetch();
-    if ($row) $preCaseTitle = $row['title'];
+    if ($row) {
+        $preCaseTitle = $row['title'];
+        $preCaseCourt = $row['court'] ?: '';
+        $preCaseComarca = $row['comarca'] ?: '';
+    }
 }
 
 if ($voltarCaso > 0): ?>
@@ -428,6 +434,9 @@ setTimeout(function() {
     <?php if ($preTipo): ?>
     var preBtn = document.querySelector('.ag-tipo-btn[data-t="<?= e($preTipo) ?>"]');
     if (preBtn) selTipo('<?= e($preTipo) ?>', preBtn);
+    <?php if ($preTipo === 'balcao_virtual' && ($preCaseCourt || $preCaseComarca)): ?>
+    document.getElementById('agLocal').value = <?= json_encode(trim($preCaseCourt . ($preCaseCourt && $preCaseComarca ? ' — ' : '') . $preCaseComarca)) ?>;
+    <?php endif; ?>
     <?php endif; ?>
     <?php if ($preModalidade): ?>
     document.getElementById('agModalidade').value = '<?= e($preModalidade) ?>';
