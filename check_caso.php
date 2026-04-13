@@ -5,25 +5,31 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-// Buscar caso pelo número
-$r = $pdo->query("SELECT id, client_id, title, status, salavip_ativo, case_number FROM cases WHERE case_number LIKE '%0803040-34.2026%'")->fetch();
-if (!$r) { echo "Caso não encontrado.\n"; exit; }
-$caseId = $r['id'];
-echo "Caso #$caseId: " . $r['title'] . " | client_id=" . $r['client_id'] . " | salavip=" . $r['salavip_ativo'] . " | status=" . $r['status'] . "\n\n";
+echo "=== Teste query andamento (mesma da meus_processos.php) ===\n\n";
 
-// Andamentos
-$total = (int)$pdo->query("SELECT COUNT(*) FROM case_andamentos WHERE case_id = $caseId")->fetchColumn();
-$visiveis = (int)$pdo->query("SELECT COUNT(*) FROM case_andamentos WHERE case_id = $caseId AND visivel_cliente = 1")->fetchColumn();
-echo "Andamentos: total=$total visiveis=$visiveis\n\n";
+// Simular exatamente a query do meus_processos.php
+$stmtAnd = $pdo->prepare(
+    "SELECT data_andamento, descricao FROM case_andamentos
+     WHERE case_id = ? AND visivel_cliente = 1
+     ORDER BY data_andamento DESC, created_at DESC LIMIT 1"
+);
 
-// Últimos 5
-$rows = $pdo->query("SELECT id, data_andamento, tipo, visivel_cliente, LEFT(descricao,80) as trecho FROM case_andamentos WHERE case_id = $caseId ORDER BY data_andamento DESC LIMIT 5")->fetchAll();
-foreach ($rows as $a) {
-    echo "#" . $a['id'] . " vis=" . $a['visivel_cliente'] . " " . $a['data_andamento'] . " " . $a['tipo'] . " :: " . $a['trecho'] . "\n";
-}
+// Testar com case 637
+$stmtAnd->execute([637]);
+$and = $stmtAnd->fetch();
+echo "Case 637: " . ($and ? $and['data_andamento'] . " :: " . substr($and['descricao'], 0, 80) : "NENHUM") . "\n";
 
-// Verificar cliente vinculado ao usuario salavip
-echo "\n=== Usuario Sala VIP ===\n";
-$su = $pdo->query("SELECT id, cliente_id FROM salavip_usuarios WHERE cliente_id = " . $r['client_id'])->fetch();
-echo $su ? "SalaVIP user #" . $su['id'] . " cliente_id=" . $su['cliente_id'] : "Nenhum usuario SalaVIP para client_id=" . $r['client_id'];
-echo "\n";
+// Verificar colunas de case_andamentos
+echo "\n=== Colunas case_andamentos ===\n";
+$cols = $pdo->query("SHOW COLUMNS FROM case_andamentos")->fetchAll();
+foreach ($cols as $c) echo $c['Field'] . " (" . $c['Type'] . ")\n";
+
+// Verificar se é o user correto que está logado
+echo "\n=== Todos os salavip_usuarios ===\n";
+$users = $pdo->query("SELECT su.id, su.cliente_id, su.cpf, su.ativo, c.name FROM salavip_usuarios su JOIN clients c ON c.id = su.cliente_id ORDER BY su.id")->fetchAll();
+foreach ($users as $u) echo "#" . $u['id'] . " cliente_id=" . $u['cliente_id'] . " cpf=" . $u['cpf'] . " ativo=" . $u['ativo'] . " :: " . $u['name'] . "\n";
+
+// Todos os processos com salavip_ativo=1
+echo "\n=== Processos com salavip_ativo=1 ===\n";
+$cases = $pdo->query("SELECT id, client_id, title, case_number FROM cases WHERE salavip_ativo = 1 ORDER BY id")->fetchAll();
+foreach ($cases as $cs) echo "#" . $cs['id'] . " client=" . $cs['client_id'] . " :: " . $cs['title'] . " — " . ($cs['case_number'] ?: 'sem nº') . "\n";
