@@ -118,11 +118,18 @@ if (!isset($pageTitle)) {
             <img src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/img/logo.png" alt="Logo" onerror="this.style.display='none'">
             <h2>Sala VIP</h2>
         </div>
-        <?php if ($_svClienteFoto): ?>
-            <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar" style="margin:0 auto .5rem;display:block;">
-        <?php else: ?>
-            <div class="sv-avatar-placeholder" style="margin:0 auto .5rem;">&#x1F464;</div>
-        <?php endif; ?>
+        <form id="sidebarFotoForm" action="<?= sv_url('api/dados_atualizar.php?acao=foto') ?>" method="POST" enctype="multipart/form-data" style="text-align:center;margin:.5rem 0;">
+            <input type="hidden" name="csrf_token" value="<?= salavip_gerar_csrf() ?>">
+            <label style="cursor:pointer;position:relative;display:inline-block;" title="Clique para alterar sua foto">
+                <?php if ($_svClienteFoto): ?>
+                    <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar">
+                <?php else: ?>
+                    <div class="sv-avatar-placeholder">&#x1F464;</div>
+                <?php endif; ?>
+                <span style="position:absolute;bottom:2px;right:50%;transform:translateX(50%);background:var(--sv-accent);color:#fff;font-size:.55rem;padding:1px 6px;border-radius:3px;font-weight:700;white-space:nowrap;">&#x1F4F7; trocar</span>
+                <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" onchange="if(this.files[0]){if(this.files[0].size>5242880){alert('Máximo 5MB');this.value='';return;}this.closest('form').submit();}" style="display:none;">
+            </label>
+        </form>
         <div style="color:var(--sv-text);font-size:.82rem;text-align:center;margin-bottom:.5rem;"><?= sv_e($_svUser['nome_exibicao']) ?></div>
         <ul class="sv-nav">
             <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
