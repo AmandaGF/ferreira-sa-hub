@@ -1,0 +1,120 @@
+<?php
+/**
+ * Ferreira & Sa Hub -- Sala VIP -- Dashboard / Inbox
+ */
+
+require_once __DIR__ . '/../../core/middleware.php';
+require_login();
+
+if (!has_min_role('gestao')) {
+    flash_set('error', 'Acesso restrito.');
+    redirect(url('modules/dashboard/index.php'));
+}
+
+$pageTitle = 'Sala VIP — Gestao';
+$pdo = db();
+
+// ── KPIs ────────────────────────────────────────────────
+$totalAcessos = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE status = 'ativo'")->fetchColumn();
+
+$msgNaoLidas = (int)$pdo->query(
+    "SELECT COUNT(*) FROM salavip_mensagens WHERE origem = 'salavip' AND lida_equipe = 0"
+)->fetchColumn();
+
+$docsPendentes = (int)$pdo->query(
+    "SELECT COUNT(*) FROM salavip_documentos_cliente WHERE status = 'pendente'"
+)->fetchColumn();
+
+$acessosHoje = (int)$pdo->query(
+    "SELECT COUNT(*) FROM salavip_log_acesso WHERE DATE(created_at) = CURDATE()"
+)->fetchColumn();
+
+// ── Mensagens nao lidas (inbox) ─────────────────────────
+$inbox = $pdo->query(
+    "SELECT m.id as msg_id, m.mensagem, m.created_at as msg_data,
+            t.id as thread_id, t.assunto, t.categoria,
+            c.name as client_name
+     FROM salavip_mensagens m
+     JOIN salavip_threads t ON t.id = m.thread_id
+     JOIN salavip_usuarios su ON su.id = t.usuario_id
+     JOIN clients c ON c.id = su.client_id
+     WHERE m.origem = 'salavip' AND m.lida_equipe = 0
+     ORDER BY m.created_at DESC
+     LIMIT 50"
+)->fetchAll();
+
+require_once APP_ROOT . '/templates/layout_start.php';
+?>
+
+<style>
+.sv-stats { display:flex; gap:.75rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.sv-stat { background:var(--bg-card); border-radius:var(--radius-lg); border:1px solid var(--border); padding:.75rem 1.25rem; display:flex; align-items:center; gap:.75rem; min-width:150px; flex:1; }
+.sv-stat-icon { font-size:1.3rem; }
+.sv-stat-val { font-size:1.4rem; font-weight:800; color:var(--petrol-900); }
+.sv-stat-lbl { font-size:.68rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; }
+.sv-links { display:flex; gap:.5rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.sv-inbox-item { display:flex; justify-content:space-between; align-items:flex-start; padding:.75rem 1rem; border-bottom:1px solid var(--border); transition:background .15s; }
+.sv-inbox-item:hover { background:rgba(215,171,144,.06); }
+.sv-inbox-item:last-child { border-bottom:none; }
+.sv-inbox-name { font-weight:700; font-size:.82rem; color:var(--petrol-900); }
+.sv-inbox-assunto { font-size:.8rem; color:var(--rose); font-weight:600; }
+.sv-inbox-preview { font-size:.78rem; color:var(--text-muted); margin-top:.15rem; }
+.sv-inbox-date { font-size:.7rem; color:var(--text-muted); white-space:nowrap; }
+</style>
+
+<!-- KPIs -->
+<div class="sv-stats">
+    <div class="sv-stat">
+        <span class="sv-stat-icon">&#128101;</span>
+        <div><div class="sv-stat-val"><?= $totalAcessos ?></div><div class="sv-stat-lbl">Clientes com acesso</div></div>
+    </div>
+    <div class="sv-stat">
+        <span class="sv-stat-icon">&#9993;</span>
+        <div><div class="sv-stat-val"><?= $msgNaoLidas ?></div><div class="sv-stat-lbl">Msgs nao lidas</div></div>
+    </div>
+    <div class="sv-stat">
+        <span class="sv-stat-icon">&#128196;</span>
+        <div><div class="sv-stat-val"><?= $docsPendentes ?></div><div class="sv-stat-lbl">Docs pendentes</div></div>
+    </div>
+    <div class="sv-stat">
+        <span class="sv-stat-icon">&#128065;</span>
+        <div><div class="sv-stat-val"><?= $acessosHoje ?></div><div class="sv-stat-lbl">Acessos hoje</div></div>
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="sv-links">
+    <a href="<?= module_url('salavip', 'acessos.php') ?>" class="btn btn-outline btn-sm">&#128101; Gerenciar Acessos</a>
+    <a href="<?= module_url('salavip', 'ged.php') ?>" class="btn btn-outline btn-sm">&#128193; GED</a>
+    <a href="<?= module_url('salavip', 'faq_admin.php') ?>" class="btn btn-outline btn-sm">&#10067; FAQ</a>
+    <a href="<?= module_url('salavip', 'palavras_bloqueio.php') ?>" class="btn btn-outline btn-sm">&#128683; Palavras Bloqueio</a>
+    <a href="<?= module_url('salavip', 'log.php') ?>" class="btn btn-outline btn-sm">&#128220; Log de Acessos</a>
+</div>
+
+<!-- Inbox: Mensagens Nao Lidas -->
+<div class="card">
+    <div class="card-header">
+        <h3>Mensagens Nao Lidas</h3>
+        <span class="badge badge-danger"><?= $msgNaoLidas ?></span>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <?php if (empty($inbox)): ?>
+            <div style="text-align:center;padding:2rem;">
+                <p class="text-muted text-sm">Nenhuma mensagem pendente.</p>
+            </div>
+        <?php else: ?>
+            <?php foreach ($inbox as $msg): ?>
+                <a href="<?= module_url('salavip', 'ver_mensagem.php?thread_id=' . $msg['thread_id']) ?>" class="sv-inbox-item" style="text-decoration:none;">
+                    <div style="flex:1;min-width:0;">
+                        <div class="sv-inbox-name"><?= e($msg['client_name']) ?></div>
+                        <div class="sv-inbox-assunto"><?= e($msg['assunto']) ?></div>
+                        <div class="sv-inbox-preview"><?= e(mb_strimwidth($msg['mensagem'], 0, 120, '...')) ?></div>
+                    </div>
+                    <div class="sv-inbox-date"><?= date('d/m H:i', strtotime($msg['msg_data'])) ?></div>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+
+<?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
