@@ -5,32 +5,63 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-// Buscar andamentos/publicações com caracteres corrompidos (contém '�' ou bytes inválidos)
-echo "=== Andamentos com encoding quebrado ===\n";
-$rows = $pdo->query("SELECT id, case_id, tipo, LEFT(descricao, 200) as trecho FROM case_andamentos WHERE descricao LIKE '%�%' OR descricao LIKE '%Ã%' OR descricao LIKE '%Ã§%' ORDER BY id DESC LIMIT 10")->fetchAll();
-echo "Encontrados: " . count($rows) . "\n";
-foreach ($rows as $r) {
-    echo "#" . $r['id'] . " case=" . $r['case_id'] . " tipo=" . $r['tipo'] . "\n  " . $r['trecho'] . "\n\n";
+$apply = isset($_GET['apply']);
+
+// 1. Converter database default charset
+echo "=== Converter database + tabelas para utf8mb4 ===\n\n";
+
+$dbName = DB_NAME;
+if ($apply) {
+    $pdo->exec("ALTER DATABASE `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+    echo "Database convertido.\n";
 }
 
-echo "\n=== Publicações com encoding quebrado ===\n";
-try {
-    $rows2 = $pdo->query("SELECT id, case_id, tipo_publicacao, LEFT(conteudo, 200) as trecho FROM case_publicacoes WHERE conteudo LIKE '%�%' OR conteudo LIKE '%Ã%' OR conteudo LIKE '%Ã§%' ORDER BY id DESC LIMIT 10")->fetchAll();
-    echo "Encontrados: " . count($rows2) . "\n";
-    foreach ($rows2 as $r) {
-        echo "#" . $r['id'] . " case=" . $r['case_id'] . " tipo=" . $r['tipo_publicacao'] . "\n  " . $r['trecho'] . "\n\n";
-    }
-} catch (Exception $e) { echo "Tabela não existe: " . $e->getMessage() . "\n"; }
-
-// Verificar collation das tabelas
-echo "\n=== Collation tabelas ===\n";
+// 2. Converter todas as tabelas
 $tables = $pdo->query("SHOW TABLE STATUS")->fetchAll();
 foreach ($tables as $t) {
-    if (strpos($t['Collation'] ?? '', 'utf8mb4') === false) {
-        echo $t['Name'] . ": " . ($t['Collation'] ?? 'NULL') . " !!!\n";
+    $tName = $t['Name'];
+    $coll = $t['Collation'] ?? '';
+    if (strpos($coll, 'utf8mb4') !== false) continue;
+    echo "Tabela: $tName — collation atual: $coll\n";
+    if ($apply) {
+        try {
+            $pdo->exec("ALTER TABLE `$tName` CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+            echo "  → Convertida!\n";
+        } catch (Exception $e) {
+            echo "  → ERRO: " . $e->getMessage() . "\n";
+        }
     }
 }
 
-echo "\n=== Connection charset ===\n";
-$r = $pdo->query("SHOW VARIABLES LIKE 'character_set%'")->fetchAll();
-foreach ($r as $v) echo $v['Variable_name'] . " = " . $v['Value'] . "\n";
+// 3. Corrigir dados corrompidos no case 734 (latin1 gravado como utf8)
+echo "\n=== Corrigir dados corrompidos (case 734) ===\n";
+$broken = $pdo->query("SELECT id, descricao FROM case_andamentos WHERE case_id = 734 AND descricao LIKE '%�%'")->fetchAll();
+echo "Andamentos corrompidos: " . count($broken) . "\n";
+
+if ($apply && count($broken) > 0) {
+    foreach ($broken as $b) {
+        // Tentar converter: os bytes estão em latin1 mas foram marcados como utf8
+        $fixed = @iconv('UTF-8', 'UTF-8//IGNORE', $b['descricao']);
+        // Se ainda tem ?, tentar double-decode
+        if (strpos($fixed, '�') !== false) {
+            $fixed = mb_convert_encoding($b['descricao'], 'UTF-8', 'ISO-8859-1');
+        }
+        if ($fixed !== $b['descricao']) {
+            $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?")->execute(array($fixed, $b['id']));
+            echo "  #" . $b['id'] . " corrigido\n";
+        } else {
+            echo "  #" . $b['id'] . " sem mudança (dados irrecuperáveis?)\n";
+        }
+    }
+}
+
+if (!$apply) {
+    echo "\n>>> Modo simulação. Para aplicar: &apply=1\n";
+} else {
+    echo "\n>>> APLICADO.\n";
+}
+
+// Verificar resultado
+echo "\n=== Charset final ===\n";
+$r = $pdo->query("SHOW VARIABLES LIKE 'character_set_database'")->fetch();
+echo $r['Variable_name'] . " = " . $r['Value'] . "\n";
