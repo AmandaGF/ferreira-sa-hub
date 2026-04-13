@@ -26,7 +26,7 @@ $solicitados = $stmtSolicitados->fetchAll();
 $stmtEnviados = $pdo->prepare(
     "SELECT dc.*, c.title AS processo_titulo
      FROM salavip_documentos_cliente dc
-     LEFT JOIN cases c ON c.id = dc.case_id
+     LEFT JOIN cases c ON c.id = dc.processo_id
      WHERE dc.cliente_id = ?
      ORDER BY dc.criado_em DESC"
 );

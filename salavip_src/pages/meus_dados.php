@@ -18,6 +18,15 @@ $pageTitle = 'Meus Dados';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
+<!-- Alerta de atualização -->
+<div style="background:rgba(220,38,38,.12);border:1.5px solid rgba(220,38,38,.3);border-radius:12px;padding:1rem 1.25rem;margin-bottom:1.25rem;display:flex;align-items:flex-start;gap:.75rem;">
+    <span style="font-size:1.3rem;flex-shrink:0;">⚠️</span>
+    <div>
+        <strong style="color:#fca5a5;font-size:.9rem;">Atenção:</strong>
+        <span style="color:#e2e8f0;font-size:.88rem;"> é imprescindível manter seus dados atualizados no processo para evitar perdas de prazos.</span>
+    </div>
+</div>
+
 <!-- Dados Pessoais -->
 <div class="sv-card" style="margin-bottom:1.5rem;">
     <h3>Dados Pessoais</h3>
@@ -45,24 +54,24 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <?php
             $enderecoParts = [];
-            if (!empty($cliente['address']))      $enderecoParts[] = $cliente['address'];
-            if (!empty($cliente['address_number'])) $enderecoParts[] = $cliente['address_number'];
-            if (!empty($cliente['complement']))    $enderecoParts[] = $cliente['complement'];
-            if (!empty($cliente['neighborhood']))  $enderecoParts[] = $cliente['neighborhood'];
-            if (!empty($cliente['city']))           $enderecoParts[] = $cliente['city'];
-            if (!empty($cliente['state']))          $enderecoParts[] = $cliente['state'];
-            if (!empty($cliente['zip_code']))       $enderecoParts[] = 'CEP ' . $cliente['zip_code'];
+            if (!empty($cliente['address_street']))  $enderecoParts[] = $cliente['address_street'];
+            if (!empty($cliente['address_city']))    $enderecoParts[] = $cliente['address_city'];
+            if (!empty($cliente['address_state']))   $enderecoParts[] = $cliente['address_state'];
+            if (!empty($cliente['address_zip']))     $enderecoParts[] = 'CEP ' . $cliente['address_zip'];
             $enderecoCompleto = !empty($enderecoParts) ? implode(', ', $enderecoParts) : '-';
             ?>
             <div>
-                <div style="color:#94a3b8;font-size:.8rem;margin-bottom:.15rem;">Endere&ccedil;o</div>
+                <div style="color:#94a3b8;font-size:.8rem;margin-bottom:.15rem;">Endereço</div>
                 <div style="color:#e2e8f0;"><?= sv_e($enderecoCompleto) ?></div>
             </div>
         </div>
-        <div style="margin-top:1.25rem;padding:.75rem;background:rgba(201,169,78,.08);border:1px solid rgba(201,169,78,.2);border-radius:.5rem;">
-            <p style="color:#c9a94e;margin:0;font-size:.85rem;">
-                Para alterar seus dados, entre em contato conosco pelo menu Mensagens ou ligue para o escrit&oacute;rio.
-            </p>
+        <div style="margin-top:1.25rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;">
+            <span style="color:#94a3b8;font-size:.85rem;">Para alterar seus dados:</span>
+            <a href="https://wa.me/5524992050096?text=Ol%C3%A1!%20Preciso%20atualizar%20meus%20dados%20cadastrais." target="_blank"
+               style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;padding:8px 16px;border-radius:8px;text-decoration:none;font-size:.85rem;font-weight:600;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 01-4.29-1.234l-.307-.184-2.87.852.852-2.87-.184-.307A8 8 0 1112 20z"/></svg>
+                Enviar WhatsApp
+            </a>
         </div>
     <?php else: ?>
         <p class="sv-empty">Dados n&atilde;o encontrados.</p>
