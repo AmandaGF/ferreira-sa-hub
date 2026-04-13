@@ -27,6 +27,33 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
+<?php
+// Buscar foto atual
+$fotoAtual = null;
+try { $stmtFoto = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?"); $stmtFoto->execute([$clienteId]); $fotoAtual = $stmtFoto->fetchColumn(); } catch(Exception $e) {}
+?>
+
+<!-- Foto de Perfil -->
+<div class="sv-card" style="margin-bottom:1.5rem;text-align:center;">
+    <h3>Foto de Perfil</h3>
+    <form id="formFoto" action="<?= sv_url('api/dados_atualizar.php?acao=foto') ?>" method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="<?= salavip_gerar_csrf() ?>">
+        <div style="margin:1rem 0;">
+            <?php if ($fotoAtual): ?>
+                <img src="<?= sv_url('uploads/' . $fotoAtual) ?>" alt="Sua foto" class="sv-avatar" id="fotoPreview" style="width:120px;height:120px;">
+            <?php else: ?>
+                <div class="sv-avatar-placeholder" id="fotoPlaceholder" style="width:120px;height:120px;font-size:2.5rem;margin:0 auto;">&#x1F464;</div>
+                <img src="" alt="" class="sv-avatar" id="fotoPreview" style="width:120px;height:120px;display:none;">
+            <?php endif; ?>
+        </div>
+        <label class="sv-btn sv-btn-outline" style="cursor:pointer;display:inline-flex;align-items:center;gap:6px;">
+            &#x1F4F7; <?= $fotoAtual ? 'Alterar foto' : 'Enviar foto' ?>
+            <input type="file" name="foto" accept="image/jpeg,image/png,image/webp" onchange="previewFoto(this)" style="display:none;">
+        </label>
+        <p style="color:var(--sv-text-muted);font-size:.75rem;margin-top:.5rem;">JPG, PNG ou WebP &mdash; m&aacute;ximo 5MB</p>
+    </form>
+</div>
+
 <!-- Dados Pessoais -->
 <div class="sv-card" style="margin-bottom:1.5rem;">
     <h3>Dados Pessoais</h3>

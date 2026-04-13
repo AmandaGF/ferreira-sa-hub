@@ -5,6 +5,8 @@
     Ferreira &amp; Sa Advocacia &mdash; Sala VIP v1.0 &mdash; 2026
 </footer>
 
+<button class="sv-theme-toggle" onclick="toggleTheme()" title="Alternar tema claro/escuro" id="themeToggle">&#x1F319;</button>
+
 <script src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/js/app.js"></script>
 </body>
 </html>

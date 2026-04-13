@@ -14,6 +14,20 @@ salavip_require_login();
 
 $_svUser = salavip_current_user();
 
+// Migration: add foto_path column if not exists
+$pdo = sv_db();
+try { $pdo->query("SELECT foto_path FROM clients LIMIT 0"); } catch (Exception $e) {
+    $pdo->exec("ALTER TABLE clients ADD COLUMN foto_path VARCHAR(500) DEFAULT NULL");
+}
+
+// Fetch client photo
+$_svClienteFoto = null;
+try {
+    $stmtF = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?");
+    $stmtF->execute([$_svUser['cliente_id']]);
+    $_svClienteFoto = $stmtF->fetchColumn();
+} catch(Exception $e) {}
+
 // Contar mensagens nao lidas
 $_svUnread = 0;
 try {
@@ -53,7 +67,14 @@ if (!isset($pageTitle)) {
 <div class="sv-mobile-header">
     <button type="button" id="btn-menu-open" aria-label="Abrir menu" style="background:none;border:none;color:#c9a94e;font-size:1.5rem;cursor:pointer;">&#9776;</button>
     <span style="font-family:'Playfair Display',serif;color:#c9a94e;font-size:1rem;">Sala VIP</span>
-    <span style="color:#94a3b8;font-size:.8rem;"><?= sv_e($_svUser['nome_exibicao']) ?></span>
+    <span style="display:inline-flex;align-items:center;gap:6px;">
+        <?php if ($_svClienteFoto): ?>
+            <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar sv-avatar-small">
+        <?php else: ?>
+            <div class="sv-avatar-placeholder sv-avatar-small">&#x1F464;</div>
+        <?php endif; ?>
+        <span style="color:#94a3b8;font-size:.8rem;"><?= sv_e($_svUser['nome_exibicao']) ?></span>
+    </span>
 </div>
 
 <!-- Mobile Overlay -->
@@ -68,6 +89,12 @@ if (!isset($pageTitle)) {
         <img src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/img/logo.png" alt="Logo" onerror="this.style.display='none'">
         <h2>Sala VIP</h2>
     </div>
+    <?php if ($_svClienteFoto): ?>
+        <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar" style="margin:0 auto .5rem;display:block;">
+    <?php else: ?>
+        <div class="sv-avatar-placeholder" style="margin:0 auto .5rem;">&#x1F464;</div>
+    <?php endif; ?>
+    <div style="color:var(--sv-text);font-size:.82rem;text-align:center;margin-bottom:.5rem;"><?= sv_e($_svUser['nome_exibicao']) ?></div>
     <ul class="sv-nav">
         <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
         <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>
@@ -90,6 +117,12 @@ if (!isset($pageTitle)) {
             <img src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/img/logo.png" alt="Logo" onerror="this.style.display='none'">
             <h2>Sala VIP</h2>
         </div>
+        <?php if ($_svClienteFoto): ?>
+            <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar" style="margin:0 auto .5rem;display:block;">
+        <?php else: ?>
+            <div class="sv-avatar-placeholder" style="margin:0 auto .5rem;">&#x1F464;</div>
+        <?php endif; ?>
+        <div style="color:var(--sv-text);font-size:.82rem;text-align:center;margin-bottom:.5rem;"><?= sv_e($_svUser['nome_exibicao']) ?></div>
         <ul class="sv-nav">
             <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
             <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>

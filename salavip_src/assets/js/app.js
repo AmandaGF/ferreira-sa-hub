@@ -4,6 +4,61 @@
  * Pure JS (no jQuery)
  */
 
+// =========================================
+// Theme Toggle (dark/light)
+// =========================================
+function toggleTheme() {
+    var html = document.documentElement;
+    var current = html.getAttribute('data-theme') || 'dark';
+    var next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('salavip_theme', next);
+    var btn = document.getElementById('themeToggle');
+    if (btn) btn.textContent = next === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
+}
+
+// Apply saved theme on load
+(function() {
+    var saved = localStorage.getItem('salavip_theme');
+    if (saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        var btn = document.getElementById('themeToggle');
+        if (btn) btn.textContent = theme === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
+    });
+})();
+
+// =========================================
+// Profile Photo Preview + Auto Upload
+// =========================================
+function previewFoto(input) {
+    if (input.files && input.files[0]) {
+        var file = input.files[0];
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Foto deve ter no m\u00e1ximo 5MB.');
+            input.value = '';
+            return;
+        }
+        if (!file.type.match(/^image\/(jpeg|jpg|png|webp)$/)) {
+            alert('Formato aceito: JPG, PNG ou WebP.');
+            input.value = '';
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            var img = document.getElementById('fotoPreview');
+            if (img) { img.src = e.target.result; img.style.display = 'block'; }
+            var placeholder = document.getElementById('fotoPlaceholder');
+            if (placeholder) placeholder.style.display = 'none';
+            // Auto submit the form
+            document.getElementById('formFoto').submit();
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
 
     // =========================================

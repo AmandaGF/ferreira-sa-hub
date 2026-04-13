@@ -24,6 +24,54 @@ if (!salavip_validar_csrf($csrf)) {
 $user = salavip_current_user();
 $pdo  = sv_db();
 $acao = $_GET['acao'] ?? '';
+$clienteId = $user['cliente_id'];
+
+// ── Ação: Upload Foto de Perfil ─────────────────────────────────────
+
+if ($acao === 'foto') {
+    if (!isset($_FILES['foto']) || $_FILES['foto']['error'] !== UPLOAD_ERR_OK) {
+        sv_flash('error', 'Nenhuma foto selecionada.');
+        sv_redirect('pages/meus_dados.php');
+    }
+
+    $file = $_FILES['foto'];
+    $maxSize = 5 * 1024 * 1024; // 5MB
+    if ($file['size'] > $maxSize) {
+        sv_flash('error', 'Foto deve ter no máximo 5MB.');
+        sv_redirect('pages/meus_dados.php');
+    }
+
+    $mime = mime_content_type($file['tmp_name']);
+    $allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!in_array($mime, $allowedMimes)) {
+        sv_flash('error', 'Formato inválido. Aceitos: JPG, PNG, WebP.');
+        sv_redirect('pages/meus_dados.php');
+    }
+
+    $ext = ['image/jpeg'=>'jpg', 'image/png'=>'png', 'image/webp'=>'webp'][$mime];
+    $filename = 'foto_' . $clienteId . '_' . time() . '.' . $ext;
+    $destPath = SALAVIP_UPLOAD_DIR . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $destPath)) {
+        sv_flash('error', 'Erro ao salvar foto.');
+        sv_redirect('pages/meus_dados.php');
+    }
+
+    // Delete old photo if exists
+    $oldFoto = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?");
+    $oldFoto->execute([$clienteId]);
+    $old = $oldFoto->fetchColumn();
+    if ($old && file_exists(SALAVIP_UPLOAD_DIR . $old)) {
+        unlink(SALAVIP_UPLOAD_DIR . $old);
+    }
+
+    // Update client record
+    $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = ?")->execute([$filename, $clienteId]);
+
+    salavip_log_acesso($pdo, $user['id'], 'foto_perfil_atualizada');
+    sv_flash('success', 'Foto atualizada com sucesso!');
+    sv_redirect('pages/meus_dados.php');
+}
 
 // ── Ação: Alterar Senha ──────────────────────────────────────────────
 
