@@ -180,7 +180,8 @@ $tipoHabProc = $_POST['tipo_hab_proc'] ?? 'plena';
 
 // Buscar partes do processo para preencher dados automaticamente
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
-    $partesDoc = buscar_partes_caso($caseIdDoc);
+    $partesDocResult = buscar_partes_caso($caseIdDoc);
+    $partesDoc = isset($partesDocResult['todas']) ? $partesDocResult['todas'] : array();
     if (!empty($partesDoc)) {
         $menorAutor = '';
         $clienteEhRepLegal = false;
