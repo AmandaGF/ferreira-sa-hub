@@ -51,6 +51,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    if ($action === 'buscar_nome_parte') {
+        $q = trim($_GET['q'] ?? '');
+        if (mb_strlen($q) < 3) { echo json_encode(array()); exit; }
+        $pdo = db();
+        // Buscar em case_partes (partes já cadastradas em outros processos)
+        $stmt = $pdo->prepare(
+            "SELECT DISTINCT nome, cpf, rg, nascimento, profissao, estado_civil, email, telefone, endereco, cidade, uf, cep, tipo_pessoa, cnpj, razao_social, nome_fantasia
+             FROM case_partes
+             WHERE nome LIKE ? OR razao_social LIKE ?
+             ORDER BY nome
+             LIMIT 10"
+        );
+        $like = '%' . $q . '%';
+        $stmt->execute(array($like, $like));
+        $results = $stmt->fetchAll();
+        // Deduplicate by nome+cpf
+        $seen = array();
+        $unique = array();
+        foreach ($results as $r) {
+            $key = mb_strtolower($r['nome'] ?: $r['razao_social']) . '|' . ($r['cpf'] ?: $r['cnpj']);
+            if (isset($seen[$key])) continue;
+            $seen[$key] = true;
+            $unique[] = $r;
+        }
+        echo json_encode($unique);
+        exit;
+    }
+
     if ($action === 'buscar_cnpj') {
         $cnpj = preg_replace('/\D/', '', $_GET['q'] ?? '');
         if (strlen($cnpj) < 14) { echo json_encode(array('found' => false)); exit; }

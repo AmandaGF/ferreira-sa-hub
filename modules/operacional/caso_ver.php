@@ -746,7 +746,7 @@ if (!empty($compFuturos)): ?>
         <div id="partePF">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
                 <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CPF</label><input id="parteCpf" class="form-input" style="font-size:.85rem;" placeholder="000.000.000-00" onblur="buscarCpfParte()"><span id="parteCpfStatus" style="font-size:.65rem;"></span></div>
-                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nome Completo</label><input id="parteNome" class="form-input" style="font-size:.85rem;"></div>
+                <div style="position:relative;"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nome Completo</label><input id="parteNome" class="form-input" style="font-size:.85rem;" autocomplete="off" oninput="buscarNomeParte(this.value)"><div id="parteNomeSugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.12);"></div></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-top:.5rem;">
                 <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">RG</label><input id="parteRg" class="form-input" style="font-size:.85rem;"></div>
@@ -1984,6 +1984,68 @@ function excluirParte() {
     };
     x.send(fd);
 }
+
+var _buscaNomeTimer = null;
+function buscarNomeParte(q) {
+    var box = document.getElementById('parteNomeSugestoes');
+    if (q.length < 3) { box.style.display = 'none'; return; }
+    clearTimeout(_buscaNomeTimer);
+    _buscaNomeTimer = setTimeout(function() {
+        var x = new XMLHttpRequest();
+        x.open('GET', PARTES_API + '?action=buscar_nome_parte&q=' + encodeURIComponent(q));
+        x.onload = function() {
+            try {
+                var res = JSON.parse(x.responseText);
+                if (!res.length) { box.style.display = 'none'; return; }
+                box.innerHTML = '';
+                res.forEach(function(p) {
+                    var div = document.createElement('div');
+                    div.style.cssText = 'padding:8px 10px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f3f4f6;';
+                    var label = p.nome || p.razao_social || '';
+                    var sub = p.cpf ? ' — CPF: ' + p.cpf : (p.cnpj ? ' — CNPJ: ' + p.cnpj : '');
+                    div.innerHTML = '<strong>' + label + '</strong><span style="color:#6b7280;font-size:.72rem;">' + sub + '</span>';
+                    div.onmouseenter = function() { this.style.background = 'rgba(215,171,144,.15)'; };
+                    div.onmouseleave = function() { this.style.background = ''; };
+                    div.onclick = function() {
+                        // Preencher todos os campos
+                        if (p.tipo_pessoa === 'juridica') {
+                            document.getElementById('parteTipo').value = 'juridica';
+                            mudouTipoPessoa();
+                            if (p.cnpj) document.getElementById('parteCnpj').value = p.cnpj;
+                            if (p.razao_social) document.getElementById('parteRazao').value = p.razao_social;
+                            if (p.nome_fantasia) document.getElementById('parteFantasia').value = p.nome_fantasia;
+                            if (p.email) document.getElementById('parteEmailPJ').value = p.email;
+                        } else {
+                            document.getElementById('parteNome').value = p.nome || '';
+                            if (p.cpf) document.getElementById('parteCpf').value = p.cpf;
+                            if (p.rg) document.getElementById('parteRg').value = p.rg;
+                            if (p.nascimento) document.getElementById('parteNasc').value = p.nascimento;
+                            if (p.estado_civil) document.getElementById('parteEC').value = p.estado_civil;
+                            if (p.profissao) document.getElementById('parteProf').value = p.profissao;
+                            if (p.email) document.getElementById('parteEmail').value = p.email;
+                            try {
+                                if (p.telefone) document.getElementById('parteTel').value = p.telefone;
+                                if (p.endereco) document.getElementById('parteEnd').value = p.endereco;
+                                if (p.cidade) document.getElementById('parteCid').value = p.cidade;
+                                if (p.uf) document.getElementById('parteUf').value = p.uf;
+                                if (p.cep) document.getElementById('parteCep').value = p.cep;
+                            } catch(e) {}
+                        }
+                        box.style.display = 'none';
+                    };
+                    box.appendChild(div);
+                });
+                box.style.display = 'block';
+            } catch(e) { box.style.display = 'none'; }
+        };
+        x.send();
+    }, 300);
+}
+// Fechar ao clicar fora
+document.addEventListener('click', function(e) {
+    var box = document.getElementById('parteNomeSugestoes');
+    if (box && !box.contains(e.target) && e.target.id !== 'parteNome') box.style.display = 'none';
+});
 
 function buscarCpfParte() {
     var cpf = document.getElementById('parteCpf').value.replace(/\D/g,'');
