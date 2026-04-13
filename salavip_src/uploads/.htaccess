@@ -1,2 +1,12 @@
-# Block all direct access
+# Allow only image files
+Order Deny,Allow
 Deny from all
+
+<FilesMatch "\.(jpg|jpeg|png|webp|gif)$">
+    Allow from all
+</FilesMatch>
+
+# Block PHP execution
+<FilesMatch "\.php$">
+    Deny from all
+</FilesMatch>
