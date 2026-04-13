@@ -35,7 +35,7 @@ $filePath = $doc['arquivo_path'];
 
 // Se caminho relativo, resolver a partir do diretório de uploads
 if (strpos($filePath, '/') !== 0 && strpos($filePath, ':') === false) {
-    $filePath = __DIR__ . '/../uploads/' . $filePath;
+    $filePath = __DIR__ . '/../uploads/ged/' . $filePath;
 }
 
 if (!file_exists($filePath)) {

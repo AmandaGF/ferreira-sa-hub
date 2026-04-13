@@ -5,51 +5,56 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-echo "=== Debug GED ===\n\n";
+echo "=== Migrar case_type: sem acento → com acento ===\n\n";
 
-// Ver docs no GED
-$docs = $pdo->query("SELECT id, cliente_id, titulo, arquivo_path, arquivo_nome, categoria FROM salavip_ged ORDER BY id DESC LIMIT 5")->fetchAll();
-echo "Docs no GED: " . count($docs) . "\n";
-foreach ($docs as $d) {
-    echo "#" . $d['id'] . " cliente=" . $d['cliente_id'] . " path=" . $d['arquivo_path'] . " nome=" . $d['arquivo_nome'] . " cat=" . $d['categoria'] . " titulo=" . $d['titulo'] . "\n";
-}
-
-// Verificar caminhos possíveis
-echo "\n=== Verificar caminhos ===\n";
-$paths = [
-    'conecta/salavip/uploads/ged/',
-    'salavip/uploads/ged/',
-    'salavip/uploads/',
-    'conecta/uploads/ged/',
+$map = [
+    'Execucao de Alimentos' => 'Execução de Alimentos',
+    'Exoneracao de Alimentos' => 'Exoneração de Alimentos',
+    'Divorcio Consensual' => 'Divórcio Consensual',
+    'Divorcio Litigioso' => 'Divórcio Litigioso',
+    'Dissolucao de Uniao Estavel' => 'Dissolução de União Estável',
+    'Reconhecimento de Uniao Estavel' => 'Reconhecimento de União Estável',
+    'Regulamentacao de Convivencia' => 'Regulamentação de Convivência',
+    'Modificacao de Guarda' => 'Modificação de Guarda',
+    'Busca e Apreensao de Menor' => 'Busca e Apreensão de Menor',
+    'Investigacao de Paternidade' => 'Investigação de Paternidade',
+    'Negatoria de Paternidade' => 'Negatória de Paternidade',
+    'Adocao' => 'Adoção',
+    'Interdicao' => 'Interdição',
+    'Alienacao Parental' => 'Alienação Parental',
+    'Inventario Judicial' => 'Inventário Judicial',
+    'Inventario Extrajudicial' => 'Inventário Extrajudicial',
+    'Alvara Judicial' => 'Alvará Judicial',
+    'Indenizacao / Danos Morais' => 'Indenização / Danos Morais',
+    'Indenizacao / Danos Materiais' => 'Indenização / Danos Materiais',
+    'Obrigacao de Fazer' => 'Obrigação de Fazer',
+    'Cobranca' => 'Cobrança',
+    'Execucao de Titulo Extrajudicial' => 'Execução de Título Extrajudicial',
+    'Cumprimento de Sentenca' => 'Cumprimento de Sentença',
+    'Revisao Contratual' => 'Revisão Contratual',
+    'Fraude Bancaria' => 'Fraude Bancária',
+    'Negativacao Indevida' => 'Negativação Indevida',
+    'Usucapiao' => 'Usucapião',
+    'Reintegracao de Posse' => 'Reintegração de Posse',
+    'Imissao na Posse' => 'Imissão na Posse',
+    'Adjudicacao Compulsoria' => 'Adjudicação Compulsória',
+    'Reclamacao Trabalhista' => 'Reclamação Trabalhista',
+    'Execucao Trabalhista' => 'Execução Trabalhista',
+    'Auxilio-Doenca / Incapacidade' => 'Auxílio-Doença / Incapacidade',
+    'Pensao por Morte' => 'Pensão por Morte',
+    'Revisao de Beneficio' => 'Revisão de Benefício',
+    'Mandado de Seguranca' => 'Mandado de Segurança',
+    'Regulamentacao de Convivencia' => 'Regulamentação de Convivência',
 ];
-$baseDir = dirname(__DIR__);
-foreach ($paths as $p) {
-    $full = $baseDir . '/' . $p;
-    echo "$p => " . (is_dir($full) ? "EXISTE" : "NÃO EXISTE") . "\n";
-    if (is_dir($full)) {
-        $files = array_diff(scandir($full), ['.','..']);
-        echo "  Arquivos: " . implode(', ', $files) . "\n";
-    }
-}
 
-// O que o download_ged.php usa como caminho
-echo "\n=== download_ged.php path logic ===\n";
-$dlFile = $baseDir . '/salavip/api/download_ged.php';
-if (file_exists($dlFile)) {
-    $content = file_get_contents($dlFile);
-    // Encontrar a linha com o caminho
-    foreach (explode("\n", $content) as $i => $line) {
-        if (stripos($line, 'upload') !== false || stripos($line, 'path') !== false || stripos($line, 'arquivo') !== false) {
-            echo "L" . ($i+1) . ": " . trim($line) . "\n";
-        }
+$stmt = $pdo->prepare("UPDATE cases SET case_type = ? WHERE case_type = ?");
+$total = 0;
+foreach ($map as $old => $new) {
+    $stmt->execute([$new, $old]);
+    $n = $stmt->rowCount();
+    if ($n > 0) {
+        echo "$old → $new: $n registros\n";
+        $total += $n;
     }
 }
-
-// O que o ged.php do Conecta usa como uploadDir
-echo "\n=== ged.php (Conecta) upload dir ===\n";
-$gedFile = __DIR__ . '/modules/salavip/ged.php';
-foreach (explode("\n", file_get_contents($gedFile)) as $i => $line) {
-    if (stripos($line, 'uploadDir') !== false || stripos($line, 'uploads') !== false) {
-        echo "L" . ($i+1) . ": " . trim($line) . "\n";
-    }
-}
+echo "\nTotal atualizado: $total\n";
