@@ -86,13 +86,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Header -->
 <div class="cli-profile-header">
-    <div>
+    <div style="display:flex;align-items:center;gap:1rem;">
+        <?php if (!empty($client['foto_path'])): ?>
+            <img src="/salavip/uploads/<?= e($client['foto_path']) ?>" alt="Foto" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--rose);flex-shrink:0;">
+        <?php endif; ?>
+        <div>
         <a href="<?= module_url('clientes') ?>" class="text-sm text-muted" style="display:inline-block;margin-bottom:.25rem;">← Voltar aos Clientes</a>
         <div class="cli-profile-name"><?= e($client['name']) ?></div>
         <div class="cli-profile-meta">
             <?php if ($client['cpf']): ?><?= strlen(preg_replace('/\D/', '', $client['cpf'])) > 11 ? 'CNPJ' : 'CPF' ?>: <?= e($client['cpf']) ?> · <?php endif; ?>
             <?php if ($client['source']): ?>Origem: <?= e($client['source']) ?> · <?php endif; ?>
             Cadastrado em <?= $client['created_at'] ? date('d/m/Y', strtotime($client['created_at'])) : '—' ?>
+        </div>
         </div>
     </div>
     <div class="cli-profile-actions">
