@@ -714,8 +714,15 @@ if (!$showEditor) {
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família"></div>
             </div>
             <div class="row">
-                <div><label>Comarca</label><input name="comarca_doc" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende"></div>
-                <div><label>UF</label><input name="comarca_uf_doc" value="<?= e($comarcaUfDoc ?: 'RJ') ?>" placeholder="RJ" maxlength="2" style="text-transform:uppercase;"></div>
+                <div><label>UF</label>
+                    <select name="comarca_uf_doc" id="docUf" onchange="if(typeof ibgeCidades==='function'&&!this._init){this._init=1;ibgeCidades('docUf','docComarca','docListaCidades');}">
+                        <option value="">—</option>
+                        <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $_uf): ?>
+                        <option value="<?= $_uf ?>" <?= ($comarcaUfDoc ?: 'RJ') === $_uf ? 'selected' : '' ?>><?= $_uf ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div><label>Comarca</label><input name="comarca_doc" id="docComarca" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende" list="docListaCidades" autocomplete="off"><datalist id="docListaCidades"></datalist></div>
             </div>
             <div class="row">
                 <div>
@@ -781,8 +788,15 @@ if (!$showEditor) {
         <div class="section">
             <h4>Comarca</h4>
             <div class="row">
-                <div><label>Comarca</label><input name="comarca_doc" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende"></div>
-                <div><label>UF</label><input name="comarca_uf_doc" value="<?= e($comarcaUfDoc ?: 'RJ') ?>" placeholder="RJ" maxlength="2" style="text-transform:uppercase;"></div>
+                <div><label>UF</label>
+                    <select name="comarca_uf_doc" id="docUf" onchange="if(typeof ibgeCidades==='function'&&!this._init){this._init=1;ibgeCidades('docUf','docComarca','docListaCidades');}">
+                        <option value="">—</option>
+                        <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $_uf): ?>
+                        <option value="<?= $_uf ?>" <?= ($comarcaUfDoc ?: 'RJ') === $_uf ? 'selected' : '' ?>><?= $_uf ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div><label>Comarca</label><input name="comarca_doc" id="docComarca" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende" list="docListaCidades" autocomplete="off"><datalist id="docListaCidades"></datalist></div>
             </div>
         </div>
         <?php endif; ?>
@@ -1003,6 +1017,8 @@ function baixarWord() {
     URL.revokeObjectURL(link.href);
 }
 </script>
+<script src="<?= url('assets/js/ibge_cidades.js') ?>"></script>
+<script>ibgeCidades('docUf', 'docComarca', 'docListaCidades');</script>
 
 </body>
 </html>

@@ -232,11 +232,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <label>Bairro</label>
             <input type="text" name="bairro" id="bairro" value="<?= e($_POST['bairro'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP">
 
-            <label>Cidade</label>
-            <input type="text" name="cidade" id="cidade" value="<?= e($_POST['cidade'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP">
-
             <label>UF</label>
-            <input type="text" name="uf" id="uf" value="<?= e($_POST['uf'] ?? '') ?>" maxlength="2" placeholder="Ex: RJ">
+            <select name="uf" id="uf" style="width:100%;padding:12px;border:1.5px solid #ddd;border-radius:8px;font-size:15px;">
+                <option value="">— Selecione —</option>
+                <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $_uf): ?>
+                <option value="<?= $_uf ?>" <?= ($_POST['uf'] ?? '') === $_uf ? 'selected' : '' ?>><?= $_uf ?></option>
+                <?php endforeach; ?>
+            </select>
+
+            <label>Cidade</label>
+            <input type="text" name="cidade" id="cidade" value="<?= e($_POST['cidade'] ?? '') ?>" placeholder="Preenchido automaticamente pelo CEP" list="pubListaCidades" autocomplete="off">
+            <datalist id="pubListaCidades"></datalist>
 
             <input type="hidden" name="endereco" id="enderecoCompleto" value="<?= e($_POST['endereco'] ?? '') ?>">
 
@@ -473,5 +479,7 @@ function consultarCPF(cpfFormatado) {
     xhr.send();
 }
 </script>
+<script src="/conecta/assets/js/ibge_cidades.js"></script>
+<script>ibgeCidades('uf', 'cidade', 'pubListaCidades');</script>
 </body>
 </html>

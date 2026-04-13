@@ -219,17 +219,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Cidade</label>
-                        <input type="text" name="address_city" class="form-input" value="<?= e($f['address_city']) ?>">
-                    </div>
-                    <div class="form-group">
                         <label class="form-label">UF</label>
-                        <select name="address_state" class="form-select">
+                        <select name="address_state" id="crmUf" class="form-select">
                             <option value="">—</option>
                             <?php foreach (['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'] as $uf): ?>
                                 <option value="<?= $uf ?>" <?= $f['address_state'] === $uf ? 'selected' : '' ?>><?= $uf ?></option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Cidade</label>
+                        <input type="text" name="address_city" id="crmCidade" class="form-input" value="<?= e($f['address_city']) ?>" list="crmListaCidades" autocomplete="off">
+                        <datalist id="crmListaCidades"></datalist>
                     </div>
                 </div>
 
@@ -570,4 +571,6 @@ function consultarCPFInterno(cpf) {
     xhr.send();
 }
 </script>
+<script src="<?= url('assets/js/ibge_cidades.js') ?>"></script>
+<script>ibgeCidades('crmUf', 'crmCidade', 'crmListaCidades');</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

@@ -104,21 +104,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="text" name="court" class="form-input" placeholder="Ex: 1ª Vara Federal">
             </div>
             <div class="form-group">
-                <label>Comarca</label>
-                <input type="text" name="comarca" class="form-input" placeholder="Ex: Volta Redonda">
-            </div>
-        </div>
-
-        <div class="form-grid">
-            <div class="form-group">
                 <label>UF</label>
-                <select name="comarca_uf" class="form-select">
+                <select name="comarca_uf" id="prevUf" class="form-select">
                     <option value="">—</option>
                     <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $uf): ?>
                     <option value="<?= $uf ?>" <?= $uf === 'RJ' ? 'selected' : '' ?>><?= $uf ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+            <div class="form-group">
+                <label>Comarca</label>
+                <input type="text" name="comarca" id="prevComarca" class="form-input" placeholder="Ex: Volta Redonda" list="prevListaCidades" autocomplete="off">
+                <datalist id="prevListaCidades"></datalist>
+            </div>
+        </div>
+
+        <div class="form-grid">
             <div class="form-group">
                 <label>Prioridade</label>
                 <select name="priority" class="form-select">
@@ -209,5 +210,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 })();
 </script>
+<script src="<?= url('assets/js/ibge_cidades.js') ?>"></script>
+<script>ibgeCidades('prevUf', 'prevComarca', 'prevListaCidades');</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
