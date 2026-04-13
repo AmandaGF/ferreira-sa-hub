@@ -4,5 +4,6 @@ RewriteBase /salavip/
 # Block direct access to includes
 RewriteRule ^includes/ - [F,L]
 
-# Block direct access to uploads (served via PHP if needed)
-RewriteRule ^uploads/ - [F,L]
+# Allow image files in uploads, block everything else
+RewriteRule ^uploads/.*\.php$ - [F,L]
+RewriteRule ^uploads/.*\.(jpg|jpeg|png|webp|gif)$ - [L]
