@@ -5,29 +5,20 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
-echo "=== Fix residual: ê incorretos ===\n";
-
-// Agora os textos têm 'ê' onde deveria ser outros acentos. Vou corrigir por contexto:
+echo "=== Fix residual: RêU e outros ===\n";
 $rows = $pdo->query("SELECT id, descricao FROM case_andamentos WHERE case_id = 734")->fetchAll();
 $fixed = 0;
 foreach ($rows as $r) {
     $text = $r['descricao'];
     $patterns = array(
-        'Ministêrio' => 'Ministério', 'ministêrio' => 'ministério',
-        'salêrio' => 'salário', 'mênimo' => 'mínimo',
-        'Nê ' => 'Nº ', 'nê ' => 'nº ',
-        'deveré' => 'deverá',
-        'DECISêO' => 'DECISÃO',
-        'justiêa' => 'justiça',
-        'Pêblico' => 'Público', 'pêblico' => 'público',
-        'resistência' => 'resistência',
-        ' rê ' => ' ré ',
-        'apelaêão' => 'apelação',
-        'informaêão' => 'informação',
-        'prestaêão' => 'prestação',
-        'comprovanêo' => 'comprovação',
-        'êrea' => 'área',
-        ' nê ' => ' nº ',
+        'RêU' => 'RÉU', 'Rêu' => 'Réu', 'rêu' => 'réu',
+        'êbito' => 'ébito', 'dêbito' => 'débito',
+        'mêdic' => 'médic',
+        'perêcia' => 'perícia',
+        'côdigo' => 'código',
+        'têcnic' => 'técnic',
+        'crêdit' => 'crédit',
+        'prêpri' => 'própri',
     );
     $new = str_replace(array_keys($patterns), array_values($patterns), $text);
     if ($new !== $text) {
@@ -38,9 +29,6 @@ foreach ($rows as $r) {
 }
 echo "Total corrigidos: $fixed\n";
 
-// Verificar se sobrou algo
-echo "\n=== Verificação ===\n";
-$check = $pdo->query("SELECT id, LEFT(descricao, 150) as trecho FROM case_andamentos WHERE case_id = 734 AND (descricao LIKE '%ê%') ORDER BY id LIMIT 5")->fetchAll();
-foreach ($check as $c) {
-    echo "#" . $c['id'] . ": " . $c['trecho'] . "\n\n";
-}
+echo "\n=== Amostra final ===\n";
+$check = $pdo->query("SELECT id, LEFT(descricao, 200) as trecho FROM case_andamentos WHERE case_id = 734 ORDER BY id LIMIT 5")->fetchAll();
+foreach ($check as $c) echo "#" . $c['id'] . ": " . $c['trecho'] . "\n\n";
