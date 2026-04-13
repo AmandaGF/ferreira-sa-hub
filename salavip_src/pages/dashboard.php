@@ -53,24 +53,16 @@ $stmtProxEventos = $pdo->prepare(
 $stmtProxEventos->execute([$clienteId]);
 $proxEventos = $stmtProxEventos->fetchAll();
 
-// --- Últimos andamentos (5, filtrados) ---
+// --- Últimos andamentos (5) ---
 $stmtAndamentos = $pdo->prepare(
-    "SELECT ca.* FROM case_andamentos ca
+    "SELECT ca.*, c.title as caso_titulo FROM case_andamentos ca
      INNER JOIN cases c ON c.id = ca.case_id
      WHERE c.client_id = ? AND c.salavip_ativo = 1 AND ca.visivel_cliente = 1
-     ORDER BY ca.data_andamento DESC
-     LIMIT 50"
+     ORDER BY ca.data_andamento DESC, ca.created_at DESC
+     LIMIT 5"
 );
 $stmtAndamentos->execute([$clienteId]);
-$andamentosRaw = $stmtAndamentos->fetchAll();
-
-$andamentos = [];
-foreach ($andamentosRaw as $a) {
-    if (sv_andamento_visivel($a['descricao'], $palavrasBloqueio)) {
-        $andamentos[] = $a;
-        if (count($andamentos) >= 5) break;
-    }
-}
+$andamentos = $stmtAndamentos->fetchAll();
 
 // --- Mensagens recentes (3) ---
 $stmtMsgsRecentes = $pdo->prepare(
@@ -140,22 +132,29 @@ require_once __DIR__ . '/../includes/header.php';
 <!-- Últimos Andamentos -->
 <div class="sv-card" style="margin-top:1.5rem;">
     <h3>&Uacute;ltimos Andamentos</h3>
+    <?php
+    $tipoLabels = ['movimentacao'=>'Movimentação','despacho'=>'Despacho','decisao'=>'Decisão','sentenca'=>'Sentença','intimacao'=>'Intimação','citacao'=>'Citação','audiencia'=>'Audiência','peticao'=>'Petição','certidao'=>'Certidão','observacao'=>'Andamento','chamado'=>'Atendimento','publicacao'=>'Publicação'];
+    $tipoCores = ['movimentacao'=>'#6366f1','despacho'=>'#0ea5e9','decisao'=>'#dc2626','sentenca'=>'#7c3aed','intimacao'=>'#d97706','citacao'=>'#059669','audiencia'=>'#e67e22','peticao'=>'#B87333','certidao'=>'#0891b2','observacao'=>'#64748b','chamado'=>'#f59e0b','publicacao'=>'#dc2626'];
+    ?>
     <?php if (empty($andamentos)): ?>
         <p class="sv-empty">Nenhum andamento recente.</p>
     <?php else: ?>
         <div style="display:flex;flex-direction:column;gap:.75rem;">
-            <?php foreach ($andamentos as $and): ?>
-                <div style="border-bottom:1px solid rgba(201,169,78,.1);padding-bottom:.75rem;">
+            <?php foreach ($andamentos as $and):
+                $tipo = $and['tipo'] ?? 'observacao';
+                $tipoLabel = $tipoLabels[$tipo] ?? ucfirst($tipo);
+                $tipoCor = $tipoCores[$tipo] ?? '#64748b';
+            ?>
+                <div style="border-bottom:1px solid var(--sv-border);padding-bottom:.75rem;">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-                        <strong style="color:#c9a94e;"><?= sv_formatar_data($and['data_andamento']) ?></strong>
-                        <?php if (!empty($and['tipo'])): ?>
-                            <span style="background:#1e293b;color:#c9a94e;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">
-                                <?= sv_e(ucfirst($and['tipo'])) ?>
-                            </span>
+                        <strong style="color:var(--sv-accent);"><?= sv_formatar_data($and['data_andamento']) ?></strong>
+                        <span style="background:<?= $tipoCor ?>20;color:<?= $tipoCor ?>;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;"><?= sv_e($tipoLabel) ?></span>
+                        <?php if (!empty($and['caso_titulo'])): ?>
+                        <span style="color:var(--sv-text-muted);font-size:.75rem;">— <?= sv_e($and['caso_titulo']) ?></span>
                         <?php endif; ?>
                     </div>
-                    <div style="color:#cbd5e1;margin-top:.25rem;">
-                        <?= sv_e(sv_traduzir_andamento($and['descricao'])) ?>
+                    <div style="color:var(--sv-text);margin-top:.3rem;font-size:.88rem;line-height:1.5;">
+                        <?= nl2br(sv_e(sv_traduzir_andamento($and['descricao']))) ?>
                     </div>
                 </div>
             <?php endforeach; ?>
