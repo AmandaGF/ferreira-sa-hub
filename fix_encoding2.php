@@ -11,14 +11,27 @@ $fixed = 0;
 foreach ($rows as $r) {
     $text = $r['descricao'];
     $patterns = array(
-        'RêU' => 'RÉU', 'Rêu' => 'Réu', 'rêu' => 'réu',
-        'êbito' => 'ébito', 'dêbito' => 'débito',
-        'mêdic' => 'médic',
-        'perêcia' => 'perícia',
-        'côdigo' => 'código',
-        'têcnic' => 'técnic',
-        'crêdit' => 'crédit',
-        'prêpri' => 'própri',
+        'binêmio' => 'binômio', 'Juêzo' => 'Juízo', 'juêzo' => 'juízo',
+        '3ê ' => '3ª ', '1ê ' => '1ª ', '2ê ' => '2ª ',
+        'Lêgica' => 'Lógica',
+        'prêpri' => 'própri', 'Prêpri' => 'Própri',
+        'cêvel' => 'cível', 'Cêvel' => 'Cível',
+        'possêvel' => 'possível', 'impossêvel' => 'impossível',
+        'responsêvel' => 'responsável',
+        'cônjuge' => 'cônjuge',
+        'vêlido' => 'válido',
+        'ônus' => 'ônus',
+        'indêcios' => 'indícios',
+        'especêfic' => 'específic',
+        'relatêrio' => 'relatório',
+        'obrigatêri' => 'obrigatóri',
+        'necessêri' => 'necessári',
+        'provisêri' => 'provisóri',
+        'alimentêri' => 'alimentári',
+        'processuêl' => 'processual',
+        'compatêvel' => 'compatível',
+        'êntegr' => 'íntegr',
+        'êndice' => 'índice',
     );
     $new = str_replace(array_keys($patterns), array_values($patterns), $text);
     if ($new !== $text) {
