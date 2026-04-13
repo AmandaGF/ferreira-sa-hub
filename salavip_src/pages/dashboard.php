@@ -82,12 +82,24 @@ require_once __DIR__ . '/../includes/header.php';
     Bem-vindo(a), <?= sv_e($primeiroNome) ?>
 </p>
 
+<!-- Dica de navegação -->
+<?php if ($kpiProcessos > 0): ?>
+<a href="<?= sv_url('pages/meus_processos.php') ?>" style="display:flex;align-items:center;gap:.6rem;padding:.75rem 1rem;background:var(--sv-accent-bg);border:1px solid var(--sv-border);border-radius:10px;margin-bottom:1.25rem;text-decoration:none;transition:all .2s;" onmouseover="this.style.transform='translateX(4px)'" onmouseout="this.style.transform=''">
+    <span style="font-size:1.3rem;">📂</span>
+    <div>
+        <div style="color:var(--sv-accent);font-weight:700;font-size:.88rem;">Acompanhe seus processos</div>
+        <div style="color:var(--sv-text-muted);font-size:.78rem;">Clique aqui para ver detalhes, andamentos completos e documentos de cada processo</div>
+    </div>
+    <span style="color:var(--sv-accent);margin-left:auto;font-size:1.1rem;">→</span>
+</a>
+<?php endif; ?>
+
 <!-- KPI Grid -->
 <div class="sv-kpi-grid">
-    <div class="sv-kpi-card">
+    <a href="<?= sv_url('pages/meus_processos.php') ?>" class="sv-kpi-card" style="text-decoration:none;cursor:pointer;">
         <div class="sv-kpi-number"><?= $kpiProcessos ?></div>
         <div class="sv-kpi-label">Processos ativos</div>
-    </div>
+    </a>
     <div class="sv-kpi-card">
         <div class="sv-kpi-number"><?= $kpiMensagens ?></div>
         <div class="sv-kpi-label">Mensagens n&atilde;o lidas</div>
@@ -145,18 +157,19 @@ require_once __DIR__ . '/../includes/header.php';
                 $tipoLabel = $tipoLabels[$tipo] ?? ucfirst($tipo);
                 $tipoCor = $tipoCores[$tipo] ?? '#64748b';
             ?>
-                <div style="border-bottom:1px solid var(--sv-border);padding-bottom:.75rem;">
+                <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$and['case_id']) ?>" style="display:block;border-bottom:1px solid var(--sv-border);padding-bottom:.75rem;text-decoration:none;transition:all .15s;border-radius:6px;padding:.6rem;margin:-.1rem -.4rem;" onmouseover="this.style.background='var(--sv-accent-bg)'" onmouseout="this.style.background=''">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
                         <strong style="color:var(--sv-accent);"><?= sv_formatar_data($and['data_andamento']) ?></strong>
                         <span style="background:<?= $tipoCor ?>20;color:<?= $tipoCor ?>;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;"><?= sv_e($tipoLabel) ?></span>
                         <?php if (!empty($and['caso_titulo'])): ?>
                         <span style="color:var(--sv-text-muted);font-size:.75rem;">— <?= sv_e($and['caso_titulo']) ?></span>
                         <?php endif; ?>
+                        <span style="color:var(--sv-accent);font-size:.72rem;margin-left:auto;">Ver detalhes →</span>
                     </div>
                     <div style="color:var(--sv-text);margin-top:.3rem;font-size:.88rem;line-height:1.5;">
-                        <?= nl2br(sv_e(sv_traduzir_andamento($and['descricao']))) ?>
+                        <?= nl2br(sv_e(mb_strimwidth(sv_traduzir_andamento($and['descricao']), 0, 200, '...'))) ?>
                     </div>
-                </div>
+                </a>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
