@@ -54,7 +54,7 @@ require_once __DIR__ . '/../includes/header.php';
                             <td><?= sv_badge_status_parcela($cob['status'] ?? '') ?></td>
                             <td>
                                 <?php if (!empty($cob['invoice_url'])): ?>
-                                    <a href="<?= sv_e($cob['invoice_url']) ?>" target="_blank" rel="noopener" style="color:#c9a94e;font-weight:600;font-size:.85rem;">
+                                    <a href="<?= sv_e($cob['invoice_url']) ?>" target="_blank" rel="noopener" style="color:var(--sv-accent);font-weight:600;font-size:.85rem;">
                                         Ver Boleto &rarr;
                                     </a>
                                 <?php else: ?>

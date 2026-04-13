@@ -26,7 +26,7 @@ require_once __DIR__ . '/../includes/header.php';
 ?>
 
 <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:1.5rem;">
-    <h3 style="margin:0;color:#e2e8f0;">Suas Conversas</h3>
+    <h3 style="margin:0;color:var(--sv-text);">Suas Conversas</h3>
     <a href="<?= sv_url('pages/mensagem_nova.php') ?>" class="sv-btn sv-btn-gold">Nova Mensagem</a>
 </div>
 
@@ -39,7 +39,7 @@ require_once __DIR__ . '/../includes/header.php';
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
                     <div style="flex:1;min-width:0;">
                         <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-                            <span style="color:#e2e8f0;font-size:1rem;<?= $thread['nao_lidas'] > 0 ? 'font-weight:700;' : 'font-weight:400;' ?>">
+                            <span style="color:var(--sv-text);font-size:1rem;<?= $thread['nao_lidas'] > 0 ? 'font-weight:700;' : 'font-weight:400;' ?>">
                                 <?= sv_e($thread['assunto']) ?>
                             </span>
                             <?php if ($thread['nao_lidas'] > 0): ?>
@@ -50,7 +50,7 @@ require_once __DIR__ . '/../includes/header.php';
                         </div>
                         <div style="display:flex;align-items:center;gap:.5rem;margin-top:.35rem;flex-wrap:wrap;">
                             <?php if (!empty($thread['categoria'])): ?>
-                                <span style="background:#1e293b;color:#c9a94e;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">
+                                <span style="background:var(--sv-accent-bg);color:var(--sv-accent);padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">
                                     <?= sv_e(ucfirst($thread['categoria'])) ?>
                                 </span>
                             <?php endif; ?>

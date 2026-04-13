@@ -174,18 +174,35 @@ $tipoAcaoHab = $_POST['tipo_acao_hab'] ?? ($caseData ? ($caseData['case_type'] ?
 $repLegal = $_POST['rep_legal'] ?? 'nao';
 $nomeParteContraria = $_POST['nome_parte_contraria'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $papelCliente = $_POST['papel_cliente'] ?? 'autor';
+$pleiteanteHab = $_POST['pleiteante_hab'] ?? 'proprio';
+$qualifMenor = $_POST['qualif_menor'] ?? 'impubere';
+$tipoHabProc = $_POST['tipo_hab_proc'] ?? 'plena';
 
 // Buscar partes do processo para preencher dados automaticamente
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
     $partesDoc = buscar_partes_caso($caseIdDoc);
     if (!empty($partesDoc)) {
+        $menorAutor = '';
+        $clienteEhRepLegal = false;
         foreach ($partesDoc as $p) {
             if (isset($p['client_id']) && $p['client_id'] == $clientId) {
                 $papelCliente = $p['papel'] ?: $papelCliente;
+                if ($p['papel'] === 'representante_legal') $clienteEhRepLegal = true;
+            }
+            // Detectar menor como autor (parte autor que NÃO é o cliente)
+            if ($p['papel'] === 'autor' && (!isset($p['client_id']) || $p['client_id'] != $clientId) && $p['nome']) {
+                $menorAutor = $p['nome'];
             }
             if (in_array($p['papel'], array('reu')) && !$nomeParteContraria) {
                 $nomeParteContraria = $p['nome'] ?: '';
             }
+        }
+        // Se cliente é rep. legal e tem um menor como autor → pré-preencher
+        if ($clienteEhRepLegal && $menorAutor && !$_POST) {
+            $pleiteanteHab = 'menor';
+            $repLegal = 'sim';
+            if (!$childNames) $childNames = strtoupper($menorAutor);
+            $papelCliente = 'autor'; // O menor é o autor
         }
     }
 }
@@ -885,6 +902,9 @@ if (!$showEditor) {
         'rep_legal' => $repLegal,
         'nome_parte_contraria' => $nomeParteContraria,
         'papel_cliente' => $papelCliente,
+        'pleiteante_hab' => $pleiteanteHab,
+        'qualif_menor' => $qualifMenor,
+        'tipo_hab_proc' => $tipoHabProc,
         'nacionalidade' => $client['nacionalidade'] ?? '',
         // Substabelecimento
         'sem_reserva' => $semReserva,

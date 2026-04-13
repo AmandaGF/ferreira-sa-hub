@@ -78,7 +78,7 @@ $pageTitle = 'Painel';
 require_once __DIR__ . '/../includes/header.php';
 ?>
 
-<p style="font-family:'Playfair Display',serif;color:#c9a94e;font-size:1.5rem;margin-bottom:1.5rem;">
+<p style="font-family:'Playfair Display',serif;color:var(--sv-accent);font-size:1.5rem;margin-bottom:1.5rem;">
     Bem-vindo(a), <?= sv_e($primeiroNome) ?>
 </p>
 
@@ -124,14 +124,14 @@ require_once __DIR__ . '/../includes/header.php';
             <?php foreach ($proxEventos as $ev): ?>
                 <div style="border-bottom:1px solid rgba(201,169,78,.1);padding-bottom:.75rem;">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-                        <strong style="color:#c9a94e;"><?= sv_formatar_data_hora($ev['data_inicio']) ?></strong>
+                        <strong style="color:var(--sv-accent);"><?= sv_formatar_data_hora($ev['data_inicio']) ?></strong>
                         <span><?= sv_e($ev['titulo']) ?></span>
-                        <span style="background:#1e293b;color:#c9a94e;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">
+                        <span style="background:var(--sv-accent-bg);color:var(--sv-accent);padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">
                             <?= sv_e(sv_nome_tipo_evento($ev['tipo'])) ?>
                         </span>
                     </div>
                     <?php if (!empty($ev['local'])): ?>
-                        <div style="color:#94a3b8;font-size:.85rem;margin-top:.25rem;">
+                        <div style="color:var(--sv-text-muted);font-size:.85rem;margin-top:.25rem;">
                             Local: <?= sv_e($ev['local']) ?>
                         </div>
                     <?php endif; ?>
@@ -185,22 +185,22 @@ require_once __DIR__ . '/../includes/header.php';
             <?php foreach ($msgsRecentes as $msg): ?>
                 <div style="border-bottom:1px solid rgba(201,169,78,.1);padding-bottom:.75rem;<?= ($msg['origem'] === 'conecta' && !$msg['lida_cliente']) ? 'border-left:3px solid #c9a94e;padding-left:.75rem;' : '' ?>">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-                        <strong style="color:<?= $msg['origem'] === 'conecta' ? '#c9a94e' : '#94a3b8' ?>;">
-                            <?= $msg['origem'] === 'conecta' ? 'Escritorio' : 'Voce' ?>
+                        <strong style="color:<?= $msg['origem'] === 'conecta' ? 'var(--sv-accent)' : 'var(--sv-text-muted)' ?>;">
+                            <?= $msg['origem'] === 'conecta' ? 'Escritório' : 'Você' ?>
                         </strong>
-                        <span style="color:#64748b;font-size:.75rem;"><?= sv_formatar_data_hora($msg['criado_em']) ?></span>
+                        <span style="color:var(--sv-text-muted);font-size:.75rem;"><?= sv_formatar_data_hora($msg['criado_em']) ?></span>
                         <?php if ($msg['origem'] === 'conecta' && !$msg['lida_cliente']): ?>
                             <span style="background:#dc2626;color:#fff;padding:1px 6px;border-radius:9999px;font-size:.65rem;font-weight:600;">Nova</span>
                         <?php endif; ?>
                     </div>
-                    <div style="color:#cbd5e1;margin-top:.25rem;">
+                    <div style="color:var(--sv-text);margin-top:.25rem;">
                         <?= sv_e(mb_strimwidth($msg['mensagem'], 0, 80, '...')) ?>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
         <div style="text-align:right;margin-top:.75rem;">
-            <a href="<?= sv_url('pages/mensagens.php') ?>" style="color:#c9a94e;font-size:.85rem;">Ver todas &rarr;</a>
+            <a href="<?= sv_url('pages/mensagens.php') ?>" style="color:var(--sv-accent);font-size:.85rem;">Ver todas &rarr;</a>
         </div>
     <?php endif; ?>
 </div>

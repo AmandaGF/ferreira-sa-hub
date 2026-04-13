@@ -51,7 +51,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="sv-card" style="margin-bottom:1.5rem;">
     <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:center;">
         <?php if (!empty($thread['categoria'])): ?>
-            <span style="background:#1e293b;color:#c9a94e;padding:2px 8px;border-radius:9999px;font-size:.75rem;font-weight:600;">
+            <span style="background:var(--sv-accent-bg);color:var(--sv-accent);padding:2px 8px;border-radius:9999px;font-size:.75rem;font-weight:600;">
                 <?= sv_e(ucfirst($thread['categoria'])) ?>
             </span>
         <?php endif; ?>
@@ -67,7 +67,7 @@ require_once __DIR__ . '/../includes/header.php';
             <?= sv_e($ts[1]) ?>
         </span>
         <?php if (!empty($thread['processo_titulo'])): ?>
-            <span style="color:#94a3b8;font-size:.85rem;">
+            <span style="color:var(--sv-text-muted);font-size:.85rem;">
                 Processo: <?= sv_e($thread['processo_titulo']) ?>
             </span>
         <?php endif; ?>
@@ -91,13 +91,13 @@ require_once __DIR__ . '/../includes/header.php';
                 <strong style="color:<?= $nomeCor ?>;font-size:.85rem;"><?= $nome ?></strong>
                 <span style="color:#64748b;font-size:.75rem;"><?= sv_formatar_data_hora($msg['criado_em']) ?></span>
             </div>
-            <div style="color:#cbd5e1;line-height:1.6;white-space:pre-wrap;"><?= sv_e($msg['mensagem']) ?></div>
+            <div style="color:var(--sv-text);line-height:1.6;white-space:pre-wrap;"><?= sv_e($msg['mensagem']) ?></div>
             <?php if (!empty($msg['anexo_nome'])): ?>
                 <div style="margin-top:.75rem;padding-top:.5rem;border-top:1px solid rgba(100,116,139,.2);">
-                    <span style="color:#94a3b8;font-size:.8rem;">
+                    <span style="color:var(--sv-text-muted);font-size:.8rem;">
                         &#128206; <?= sv_e($msg['anexo_nome']) ?>
                         <?php if (!empty($msg['anexo_url'])): ?>
-                            &mdash; <a href="<?= sv_e($msg['anexo_url']) ?>" target="_blank" rel="noopener" style="color:#c9a94e;">Baixar</a>
+                            &mdash; <a href="<?= sv_e($msg['anexo_url']) ?>" target="_blank" rel="noopener" style="color:var(--sv-accent);">Baixar</a>
                         <?php endif; ?>
                     </span>
                 </div>
@@ -132,12 +132,12 @@ require_once __DIR__ . '/../includes/header.php';
     </div>
 <?php else: ?>
     <div class="sv-card" style="text-align:center;">
-        <p style="color:#94a3b8;margin:0;">Esta conversa foi encerrada.</p>
+        <p style="color:var(--sv-text-muted);margin:0;">Esta conversa foi encerrada.</p>
     </div>
 <?php endif; ?>
 
 <div style="margin-top:1rem;">
-    <a href="<?= sv_url('pages/mensagens.php') ?>" style="color:#c9a94e;font-size:.85rem;">&larr; Voltar para Mensagens</a>
+    <a href="<?= sv_url('pages/mensagens.php') ?>" style="color:var(--sv-accent);font-size:.85rem;">&larr; Voltar para Mensagens</a>
 </div>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
