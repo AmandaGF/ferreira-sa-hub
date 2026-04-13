@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'reenviar_link') {
         $newToken = bin2hex(random_bytes(32));
         $pdo->prepare(
-            "UPDATE salavip_usuarios SET token = ?, updated_at = NOW() WHERE id = ?"
+            "UPDATE salavip_usuarios SET token_ativacao = ?, atualizado_em = NOW() WHERE id = ?"
         )->execute([$newToken, $id]);
         audit_log('salavip_reenviar_link', 'salavip_usuarios', $id, "Novo token gerado");
         flash_set('success', 'Link de acesso regenerado. Envie o novo link ao cliente.');
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tempPassword = substr(str_shuffle('abcdefghjkmnpqrstuvwxyz23456789'), 0, 8);
         $hash = password_hash($tempPassword, PASSWORD_DEFAULT);
         $pdo->prepare(
-            "UPDATE salavip_usuarios SET senha = ?, updated_at = NOW() WHERE id = ?"
+            "UPDATE salavip_usuarios SET senha_hash = ?, atualizado_em = NOW() WHERE id = ?"
         )->execute([$hash, $id]);
         audit_log('salavip_resetar_senha', 'salavip_usuarios', $id);
         flash_set('success', 'Senha resetada. Nova senha temporaria: <strong>' . $tempPassword . '</strong> — Anote antes de sair desta pagina!');
@@ -45,16 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Ativar / Desativar ──────────────────────────────
     if ($action === 'toggle_status') {
-        $current = $pdo->prepare("SELECT status FROM salavip_usuarios WHERE id = ?");
+        $current = $pdo->prepare("SELECT ativo FROM salavip_usuarios WHERE id = ?");
         $current->execute([$id]);
-        $currentStatus = $current->fetchColumn();
+        $currentAtivo = (int)$current->fetchColumn();
 
-        $newStatus = ($currentStatus === 'ativo') ? 'bloqueado' : 'ativo';
+        $newAtivo = $currentAtivo ? 0 : 1;
         $pdo->prepare(
-            "UPDATE salavip_usuarios SET status = ?, updated_at = NOW() WHERE id = ?"
-        )->execute([$newStatus, $id]);
-        audit_log('salavip_toggle_status', 'salavip_usuarios', $id, "Status: $currentStatus -> $newStatus");
-        flash_set('success', 'Status alterado para: ' . $newStatus);
+            "UPDATE salavip_usuarios SET ativo = ?, atualizado_em = NOW() WHERE id = ?"
+        )->execute([$newAtivo, $id]);
+        $label = $newAtivo ? 'ativo' : 'bloqueado';
+        audit_log('salavip_toggle_status', 'salavip_usuarios', $id, "Ativo: $currentAtivo -> $newAtivo");
+        flash_set('success', 'Status alterado para: ' . $label);
         redirect(module_url('salavip', 'acessos.php'));
     }
 }
@@ -74,16 +75,16 @@ if ($search) {
 $usuarios = $pdo->prepare(
     "SELECT su.*, c.name as client_name, c.cpf, c.email, c.phone
      FROM salavip_usuarios su
-     JOIN clients c ON c.id = su.client_id
+     JOIN clients c ON c.id = su.cliente_id
      WHERE $where
      ORDER BY c.name ASC"
 );
 $usuarios->execute($params);
 $usuarios = $usuarios->fetchAll();
 
-$statusBadge = array(
-    'ativo' => 'success', 'pendente' => 'warning', 'bloqueado' => 'danger'
-);
+// ativo is boolean: 1 = ativo, 0 = bloqueado
+$statusBadge = array(1 => 'success', 0 => 'danger');
+$statusLabel = array(1 => 'Ativo', 0 => 'Bloqueado');
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -133,8 +134,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <td class="acc-cpf"><?= e($u['cpf'] ?? '—') ?></td>
                             <td class="text-sm"><?= e($u['email'] ?? '—') ?></td>
                             <td>
-                                <span class="badge badge-<?= $statusBadge[$u['status']] ?? 'gestao' ?>">
-                                    <?= ucfirst(e($u['status'])) ?>
+                                <span class="badge badge-<?= $statusBadge[(int)$u['ativo']] ?? 'gestao' ?>">
+                                    <?= $statusLabel[(int)$u['ativo']] ?? 'Desconhecido' ?>
                                 </span>
                             </td>
                             <td class="text-sm text-muted">
@@ -159,12 +160,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     </form>
 
                                     <!-- Ativar/Desativar -->
-                                    <form method="POST" style="display:inline;" onsubmit="return confirm('<?= $u['status'] === 'ativo' ? 'Desativar' : 'Ativar' ?> este acesso?');">
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('<?= $u['ativo'] ? 'Desativar' : 'Ativar' ?> este acesso?');">
                                         <?= csrf_input() ?>
                                         <input type="hidden" name="action" value="toggle_status">
                                         <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                                        <button type="submit" class="btn btn-outline btn-sm" title="<?= $u['status'] === 'ativo' ? 'Desativar' : 'Ativar' ?>" style="color:<?= $u['status'] === 'ativo' ? 'var(--danger)' : 'var(--success)' ?>;">
-                                            <?= $u['status'] === 'ativo' ? '&#9940;' : '&#9989;' ?>
+                                        <button type="submit" class="btn btn-outline btn-sm" title="<?= $u['ativo'] ? 'Desativar' : 'Ativar' ?>" style="color:<?= $u['ativo'] ? 'var(--danger)' : 'var(--success)' ?>;">
+                                            <?= $u['ativo'] ? '&#9940;' : '&#9989;' ?>
                                         </button>
                                     </form>
                                 </div>

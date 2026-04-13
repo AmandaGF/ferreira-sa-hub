@@ -16,10 +16,9 @@ $threadId = (int)($_GET['thread_id'] ?? 0);
 
 // ── Carregar thread ─────────────────────────────────────
 $stmt = $pdo->prepare(
-    "SELECT t.*, su.client_id, c.name as client_name, c.email as client_email, c.phone as client_phone
+    "SELECT t.*, c.name as client_name, c.email as client_email, c.phone as client_phone
      FROM salavip_threads t
-     JOIN salavip_usuarios su ON su.id = t.usuario_id
-     JOIN clients c ON c.id = su.client_id
+     JOIN clients c ON c.id = t.cliente_id
      WHERE t.id = ?"
 );
 $stmt->execute([$threadId]);
@@ -43,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'responder';
 
     if ($action === 'fechar_thread') {
-        $pdo->prepare("UPDATE salavip_threads SET status = 'fechada', updated_at = NOW() WHERE id = ?")->execute([$threadId]);
+        $pdo->prepare("UPDATE salavip_threads SET status = 'fechada', atualizado_em = NOW() WHERE id = ?")->execute([$threadId]);
         audit_log('salavip_thread_fechar', 'salavip_threads', $threadId);
         flash_set('success', 'Conversa fechada.');
         redirect(module_url('salavip'));
@@ -77,21 +76,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt = $pdo->prepare(
-            "INSERT INTO salavip_mensagens (thread_id, origem, remetente_id, remetente_nome, mensagem, anexo, anexo_nome, lida_equipe, lida_cliente, created_at)
+            "INSERT INTO salavip_mensagens (thread_id, origem, remetente_id, remetente_nome, mensagem, anexo_path, anexo_nome, lida_equipe, lida_cliente, criado_em)
              VALUES (?, 'conecta', ?, ?, ?, ?, ?, 1, 0, NOW())"
         );
         $stmt->execute([$threadId, current_user_id(), $userName, $mensagem, $anexo, $anexoNome]);
 
         // Update thread status
-        $pdo->prepare("UPDATE salavip_threads SET status = 'respondida', updated_at = NOW() WHERE id = ?")->execute([$threadId]);
+        $pdo->prepare("UPDATE salavip_threads SET status = 'respondida', atualizado_em = NOW() WHERE id = ?")->execute([$threadId]);
 
         // Create notification for client (if notifications table exists)
         try {
             $pdo->prepare(
                 "INSERT INTO notifications (user_id, type, title, message, link, created_at)
-                 SELECT su.client_id, 'salavip', 'Nova resposta na Sala VIP', ?, ?, NOW()
+                 SELECT su.cliente_id, 'salavip', 'Nova resposta na Sala VIP', ?, ?, NOW()
                  FROM salavip_usuarios su
-                 JOIN salavip_threads t ON t.usuario_id = su.id
+                 JOIN salavip_threads t ON t.cliente_id = su.cliente_id
                  WHERE t.id = ?"
             )->execute([
                 mb_strimwidth($mensagem, 0, 100, '...'),
@@ -110,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Carregar mensagens ──────────────────────────────────
 $mensagens = $pdo->prepare(
-    "SELECT * FROM salavip_mensagens WHERE thread_id = ? ORDER BY created_at ASC"
+    "SELECT * FROM salavip_mensagens WHERE thread_id = ? ORDER BY criado_em ASC"
 );
 $mensagens->execute([$threadId]);
 $mensagens = $mensagens->fetchAll();
@@ -147,7 +146,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="card-header" style="flex-wrap:wrap;gap:.5rem;">
         <div>
             <h3 style="margin-bottom:.2rem;"><?= e($thread['assunto']) ?></h3>
-            <span class="text-sm text-muted">Por <?= e($thread['client_name']) ?> &middot; <?= date('d/m/Y H:i', strtotime($thread['created_at'])) ?></span>
+            <span class="text-sm text-muted">Por <?= e($thread['client_name']) ?> &middot; <?= date('d/m/Y H:i', strtotime($thread['criado_em'])) ?></span>
         </div>
         <div style="display:flex;gap:.4rem;align-items:center;">
             <span class="badge badge-<?= $statusBadge[$thread['status']] ?? 'gestao' ?>">
@@ -210,13 +209,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </span>
                         </div>
                         <div><?= nl2br(e($m['mensagem'])) ?></div>
-                        <?php if (!empty($m['anexo'])): ?>
+                        <?php if (!empty($m['anexo_path'])): ?>
                             <div class="msg-anexo">
-                                &#128206; <a href="<?= url('salavip/uploads/mensagens/' . $m['anexo']) ?>" target="_blank"><?= e($m['anexo_nome'] ?: $m['anexo']) ?></a>
+                                &#128206; <a href="<?= url('salavip/uploads/mensagens/' . $m['anexo_path']) ?>" target="_blank"><?= e($m['anexo_nome'] ?: $m['anexo_path']) ?></a>
                             </div>
                         <?php endif; ?>
                         <div class="msg-meta">
-                            <span><?= date('d/m/Y H:i', strtotime($m['created_at'])) ?></span>
+                            <span><?= date('d/m/Y H:i', strtotime($m['criado_em'])) ?></span>
                         </div>
                     </div>
                 <?php endforeach; ?>

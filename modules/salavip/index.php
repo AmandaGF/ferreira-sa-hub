@@ -15,7 +15,7 @@ $pageTitle = 'Sala VIP — Gestao';
 $pdo = db();
 
 // ── KPIs ────────────────────────────────────────────────
-$totalAcessos = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE status = 'ativo'")->fetchColumn();
+$totalAcessos = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE ativo = 1")->fetchColumn();
 
 $msgNaoLidas = (int)$pdo->query(
     "SELECT COUNT(*) FROM salavip_mensagens WHERE origem = 'salavip' AND lida_equipe = 0"
@@ -26,20 +26,19 @@ $docsPendentes = (int)$pdo->query(
 )->fetchColumn();
 
 $acessosHoje = (int)$pdo->query(
-    "SELECT COUNT(*) FROM salavip_log_acesso WHERE DATE(created_at) = CURDATE()"
+    "SELECT COUNT(*) FROM salavip_log_acesso WHERE DATE(criado_em) = CURDATE()"
 )->fetchColumn();
 
 // ── Mensagens nao lidas (inbox) ─────────────────────────
 $inbox = $pdo->query(
-    "SELECT m.id as msg_id, m.mensagem, m.created_at as msg_data,
+    "SELECT m.id as msg_id, m.mensagem, m.criado_em as msg_data,
             t.id as thread_id, t.assunto, t.categoria,
             c.name as client_name
      FROM salavip_mensagens m
      JOIN salavip_threads t ON t.id = m.thread_id
-     JOIN salavip_usuarios su ON su.id = t.usuario_id
-     JOIN clients c ON c.id = su.client_id
+     JOIN clients c ON c.id = m.cliente_id
      WHERE m.origem = 'salavip' AND m.lida_equipe = 0
-     ORDER BY m.created_at DESC
+     ORDER BY m.criado_em DESC
      LIMIT 50"
 )->fetchAll();
 

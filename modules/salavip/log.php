@@ -27,11 +27,11 @@ if ($filterUser) {
     $params[] = $filterUser;
 }
 if ($filterFrom) {
-    $where .= ' AND DATE(la.created_at) >= ?';
+    $where .= ' AND DATE(la.criado_em) >= ?';
     $params[] = $filterFrom;
 }
 if ($filterTo) {
-    $where .= ' AND DATE(la.created_at) <= ?';
+    $where .= ' AND DATE(la.criado_em) <= ?';
     $params[] = $filterTo;
 }
 
@@ -39,9 +39,9 @@ $logs = $pdo->prepare(
     "SELECT la.*, c.name as client_name
      FROM salavip_log_acesso la
      JOIN salavip_usuarios su ON su.id = la.usuario_id
-     JOIN clients c ON c.id = su.client_id
+     JOIN clients c ON c.id = su.cliente_id
      WHERE $where
-     ORDER BY la.created_at DESC
+     ORDER BY la.criado_em DESC
      LIMIT 100"
 );
 $logs->execute($params);
@@ -49,7 +49,7 @@ $logs = $logs->fetchAll();
 
 // Usuarios para filtro
 $usuarios = $pdo->query(
-    "SELECT su.id, c.name FROM salavip_usuarios su JOIN clients c ON c.id = su.client_id ORDER BY c.name"
+    "SELECT su.id, c.name FROM salavip_usuarios su JOIN clients c ON c.id = su.cliente_id ORDER BY c.name"
 )->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -122,7 +122,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <td style="font-weight:600;"><?= e($log['client_name']) ?></td>
                             <td><?= e($log['acao'] ?? $log['action'] ?? '—') ?></td>
                             <td class="text-sm text-muted" style="font-family:monospace;"><?= e($log['ip'] ?? $log['ip_address'] ?? '—') ?></td>
-                            <td class="text-sm"><?= date('d/m/Y H:i:s', strtotime($log['created_at'])) ?></td>
+                            <td class="text-sm"><?= date('d/m/Y H:i:s', strtotime($log['criado_em'])) ?></td>
                         </tr>
                     <?php endforeach; ?>
                 </tbody>

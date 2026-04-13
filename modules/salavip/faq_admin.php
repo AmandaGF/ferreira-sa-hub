@@ -29,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash_set('error', 'Pergunta e resposta sao obrigatorias.');
         } else {
             $pdo->prepare(
-                "INSERT INTO salavip_faq (pergunta, resposta, ordem, ativo, created_at) VALUES (?, ?, ?, 1, NOW())"
+                "INSERT INTO salavip_faq (pergunta, resposta, ordem, ativo, criado_em) VALUES (?, ?, ?, 1, NOW())"
             )->execute([$pergunta, $resposta, $ordem]);
             audit_log('salavip_faq_add', 'salavip_faq', (int)$pdo->lastInsertId());
             flash_set('success', 'FAQ adicionada.');

@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $stmt = $pdo->prepare(
-            "INSERT INTO salavip_ged (client_id, case_id, titulo, descricao, categoria, arquivo, arquivo_nome, visivel_cliente, uploaded_by, created_at)
+            "INSERT INTO salavip_ged (cliente_id, processo_id, titulo, descricao, categoria, arquivo_path, arquivo_nome, visivel_cliente, compartilhado_por, compartilhado_em)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
         );
         $stmt->execute([$clientId, $caseId, $titulo, $descricao, $categoria, $filename, $file['name'], $visivel, current_user_id()]);
@@ -95,12 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── Excluir ─────────────────────────────────────────
     if ($action === 'excluir_ged') {
         $id = (int)($_POST['id'] ?? 0);
-        $doc = $pdo->prepare("SELECT arquivo, titulo FROM salavip_ged WHERE id = ?");
+        $doc = $pdo->prepare("SELECT arquivo_path, titulo FROM salavip_ged WHERE id = ?");
         $doc->execute([$id]);
         $doc = $doc->fetch();
 
         if ($doc) {
-            $filePath = $uploadDir . $doc['arquivo'];
+            $filePath = $uploadDir . $doc['arquivo_path'];
             if (file_exists($filePath)) {
                 unlink($filePath);
             }
@@ -118,7 +118,7 @@ $filterClient = isset($_GET['client_id']) ? (int)$_GET['client_id'] : 0;
 $where = '1=1';
 $params = array();
 if ($filterClient) {
-    $where .= ' AND g.client_id = ?';
+    $where .= ' AND g.cliente_id = ?';
     $params[] = $filterClient;
 }
 
@@ -126,10 +126,10 @@ $docs = $pdo->prepare(
     "SELECT g.*, c.name as client_name,
             cs.title as case_title, cs.case_number
      FROM salavip_ged g
-     JOIN clients c ON c.id = g.client_id
-     LEFT JOIN cases cs ON cs.id = g.case_id
+     JOIN clients c ON c.id = g.cliente_id
+     LEFT JOIN cases cs ON cs.id = g.processo_id
      WHERE $where
-     ORDER BY g.created_at DESC
+     ORDER BY g.compartilhado_em DESC
      LIMIT 50"
 );
 $docs->execute($params);
@@ -262,7 +262,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <td class="text-sm text-muted"><?= $doc['case_number'] ? e($doc['case_number']) : '—' ?></td>
                             <td><?= e($doc['titulo']) ?></td>
                             <td><span class="badge badge-<?= $catBadge[$doc['categoria']] ?? 'gestao' ?>"><?= e($doc['categoria']) ?></span></td>
-                            <td class="text-sm"><?= date('d/m/Y H:i', strtotime($doc['created_at'])) ?></td>
+                            <td class="text-sm"><?= date('d/m/Y H:i', strtotime($doc['compartilhado_em'])) ?></td>
                             <td>
                                 <form method="POST" style="display:inline;">
                                     <?= csrf_input() ?>
@@ -275,7 +275,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </td>
                             <td>
                                 <div style="display:flex;gap:.3rem;">
-                                    <a href="<?= url('salavip/uploads/ged/' . $doc['arquivo']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Download">&#128229;</a>
+                                    <a href="<?= url('salavip/uploads/ged/' . $doc['arquivo_path']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Download">&#128229;</a>
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Excluir este documento?');">
                                         <?= csrf_input() ?>
                                         <input type="hidden" name="action" value="excluir_ged">
