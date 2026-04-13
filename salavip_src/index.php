@@ -44,8 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $erro = 'Preencha todos os campos.';
         } else {
             $pdo  = sv_db();
-            $stmt = $pdo->prepare('SELECT * FROM salavip_usuarios WHERE cpf = ? LIMIT 1');
-            $stmt->execute([$cpf_raw]);
+            // Buscar por CPF: tanto formatado quanto só dígitos
+            $cpf_fmt = '';
+            if (strlen($cpf_raw) === 11) {
+                $cpf_fmt = substr($cpf_raw,0,3).'.'.substr($cpf_raw,3,3).'.'.substr($cpf_raw,6,3).'-'.substr($cpf_raw,9,2);
+            }
+            $stmt = $pdo->prepare('SELECT * FROM salavip_usuarios WHERE cpf = ? OR cpf = ? LIMIT 1');
+            $stmt->execute([$cpf_raw, $cpf_fmt]);
             $user = $stmt->fetch();
 
             if (!$user) {
