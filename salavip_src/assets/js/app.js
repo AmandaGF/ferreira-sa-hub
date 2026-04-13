@@ -17,16 +17,15 @@ function toggleTheme() {
     if (btn) btn.textContent = next === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
 }
 
-// Apply saved theme on load
+// Apply saved theme on load (default: light)
 (function() {
     var saved = localStorage.getItem('salavip_theme');
-    if (saved) {
-        document.documentElement.setAttribute('data-theme', saved);
-    }
+    var theme = saved || 'light';
+    document.documentElement.setAttribute('data-theme', theme);
     document.addEventListener('DOMContentLoaded', function() {
-        var theme = document.documentElement.getAttribute('data-theme') || 'dark';
+        var t = document.documentElement.getAttribute('data-theme') || 'light';
         var btn = document.getElementById('themeToggle');
-        if (btn) btn.textContent = theme === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
+        if (btn) btn.textContent = t === 'dark' ? '\uD83C\uDF19' : '\u2600\uFE0F';
     });
 })();
 

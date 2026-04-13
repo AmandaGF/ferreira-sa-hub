@@ -23,15 +23,15 @@
 /* --- Light Mode --- */
 [data-theme="light"] {
     --sv-bg: #f5f1ec;
-    --sv-bg-card: rgba(255, 255, 255, 0.85);
-    --sv-bg-sidebar: #1a2744;
+    --sv-bg-card: rgba(255, 255, 255, 0.9);
+    --sv-bg-sidebar: #fff;
     --sv-text: #1a1a2e;
     --sv-text-muted: #5a6474;
     --sv-accent: #8b6f4e;
     --sv-accent-light: #b08d6e;
     --sv-accent-bg: rgba(139, 111, 78, 0.06);
-    --sv-border: rgba(139, 111, 78, 0.15);
-    --sv-input-bg: rgba(0, 0, 0, 0.03);
+    --sv-border: rgba(139, 111, 78, 0.12);
+    --sv-input-bg: #fff;
     --sv-input-border: rgba(139, 111, 78, 0.25);
     --sv-btn-gradient: linear-gradient(135deg, #8b6f4e, #a68660);
     --sv-btn-hover: linear-gradient(135deg, #a68660, #b08d6e);
@@ -639,6 +639,58 @@ textarea.form-input {
 [data-theme="light"] .error-msg {
     background: rgba(220, 38, 38, 0.08);
     color: #dc2626;
+}
+
+/* Sidebar light mode */
+[data-theme="light"] .sv-sidebar {
+    background: #fff;
+    border-right: 1px solid rgba(139, 111, 78, 0.12);
+    box-shadow: 2px 0 12px rgba(0,0,0,.04);
+}
+[data-theme="light"] .sv-sidebar-logo {
+    border-bottom-color: rgba(139, 111, 78, 0.1);
+}
+[data-theme="light"] .sv-sidebar-logo h2 {
+    color: #8b6f4e;
+}
+[data-theme="light"] .sv-nav li a {
+    color: #4a5568;
+}
+[data-theme="light"] .sv-nav li a:hover,
+[data-theme="light"] .sv-nav li a.active {
+    color: #8b6f4e;
+    background: rgba(139, 111, 78, 0.06);
+    border-left-color: #8b6f4e;
+}
+[data-theme="light"] .sv-avatar {
+    border-color: #c4a882;
+}
+[data-theme="light"] .sv-avatar-placeholder {
+    background: rgba(139, 111, 78, 0.06);
+    border-color: rgba(139, 111, 78, 0.2);
+}
+[data-theme="light"] .sv-header {
+    border-bottom-color: rgba(139, 111, 78, 0.1);
+}
+[data-theme="light"] .sv-mobile-header {
+    background: #fff;
+    border-bottom: 1px solid rgba(139, 111, 78, 0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,.04);
+}
+[data-theme="light"] .sv-mobile-menu {
+    background: #fff;
+}
+[data-theme="light"] .sv-kpi {
+    background: #fff;
+    box-shadow: 0 1px 6px rgba(0,0,0,.05);
+}
+[data-theme="light"] .sv-theme-toggle {
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,.1);
+}
+[data-theme="light"] .success-msg {
+    background: rgba(5, 150, 105, 0.08);
+    color: #059669;
 }
 
 /* ============================================
