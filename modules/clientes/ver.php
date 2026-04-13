@@ -98,6 +98,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php if ($client['source']): ?>Origem: <?= e($client['source']) ?> · <?php endif; ?>
             Cadastrado em <?= $client['created_at'] ? date('d/m/Y', strtotime($client['created_at'])) : '—' ?>
         </div>
+        <?php
+        $csLabels = ['ativo'=>'Ativo','inativo'=>'Inativo','cancelou'=>'Cancelou','parou_responder'=>'Parou de Responder','demitido'=>'Demitimos','prospect'=>'Prospect'];
+        $csCores = ['ativo'=>'#059669','inativo'=>'#6b7280','cancelou'=>'#dc2626','parou_responder'=>'#f59e0b','demitido'=>'#dc2626','prospect'=>'#6366f1'];
+        $csAtual = $client['client_status'] ?? 'ativo';
+        ?>
+        <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline-flex;align-items:center;gap:.4rem;margin-top:.3rem;">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="update_client_status">
+            <input type="hidden" name="client_id" value="<?= $client['id'] ?>">
+            <select name="client_status" onchange="this.form.submit()" style="padding:3px 8px;font-size:.75rem;border-radius:6px;border:1.5px solid <?= $csCores[$csAtual] ?? '#888' ?>;background:<?= $csCores[$csAtual] ?? '#888' ?>22;color:<?= $csCores[$csAtual] ?? '#888' ?>;font-weight:700;cursor:pointer;">
+                <?php foreach ($csLabels as $k => $v): ?>
+                <option value="<?= $k ?>" <?= $csAtual === $k ? 'selected' : '' ?>><?= $v ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
         </div>
     </div>
     <div class="cli-profile-actions">

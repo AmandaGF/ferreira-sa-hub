@@ -72,7 +72,7 @@ switch ($action) {
     case 'update_client_status':
         $clientId = (int)($_POST['client_id'] ?? 0);
         $newStatus = $_POST['client_status'] ?? '';
-        $validStatuses = array('ativo', 'contrato_assinado', 'cancelou', 'parou_responder', 'demitido');
+        $validStatuses = array('ativo', 'inativo', 'contrato_assinado', 'cancelou', 'parou_responder', 'demitido', 'prospect');
 
         if ($clientId && in_array($newStatus, $validStatuses)) {
             $pdo->prepare('UPDATE clients SET client_status = ?, updated_at = NOW() WHERE id = ?')
@@ -128,7 +128,13 @@ switch ($action) {
 
             flash_set('success', 'Status alterado para "' . ($statusLabels[$newStatus] ?? $newStatus) . '".');
         }
-        redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
+        // Tentar redirect para a ficha do cliente (ver.php na pasta clientes)
+        $referer = $_SERVER['HTTP_REFERER'] ?? '';
+        if (strpos($referer, 'clientes/ver.php') !== false) {
+            redirect(url('modules/clientes/ver.php?id=' . $clientId));
+        } else {
+            redirect(module_url('crm'));
+        }
         break;
 
     case 'remove_from_crm':
