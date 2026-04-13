@@ -1,0 +1,8 @@
+RewriteEngine On
+RewriteBase /salavip/
+
+# Block direct access to includes
+RewriteRule ^includes/ - [F,L]
+
+# Block direct access to uploads (served via PHP if needed)
+RewriteRule ^uploads/ - [F,L]
