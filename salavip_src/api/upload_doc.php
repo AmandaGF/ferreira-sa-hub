@@ -33,13 +33,9 @@ if ($titulo === '') {
 
 // Validar arquivo enviado
 if (!isset($_FILES['arquivo']) || $_FILES['arquivo']['error'] !== UPLOAD_ERR_OK) {
-    $erroUpload = $_FILES['arquivo']['error'] ?? UPLOAD_ERR_NO_FILE;
-    $msgErro = match ((int) $erroUpload) {
-        UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Arquivo muito grande.',
-        UPLOAD_ERR_NO_FILE   => 'Nenhum arquivo selecionado.',
-        UPLOAD_ERR_PARTIAL   => 'Upload incompleto. Tente novamente.',
-        default              => 'Erro no upload. Tente novamente.',
-    };
+    $erroUpload = (int)($_FILES['arquivo']['error'] ?? UPLOAD_ERR_NO_FILE);
+    $erroMsgs = [UPLOAD_ERR_INI_SIZE => 'Arquivo muito grande.', UPLOAD_ERR_FORM_SIZE => 'Arquivo muito grande.', UPLOAD_ERR_NO_FILE => 'Nenhum arquivo selecionado.', UPLOAD_ERR_PARTIAL => 'Upload incompleto. Tente novamente.'];
+    $msgErro = isset($erroMsgs[$erroUpload]) ? $erroMsgs[$erroUpload] : 'Erro no upload. Tente novamente.';
     sv_flash('error', $msgErro);
     sv_redirect('pages/documentos.php');
 }
