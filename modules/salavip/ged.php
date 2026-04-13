@@ -11,12 +11,23 @@ if (!has_min_role('gestao')) {
     redirect(url('modules/dashboard/index.php'));
 }
 
-$pageTitle = 'GED — Documentos para Clientes';
 $pdo = db();
+
+// AJAX: buscar processos de um cliente
+if (isset($_GET['ajax_cases']) && isset($_GET['client_id'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $cid = (int)$_GET['client_id'];
+    $stmt = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE client_id = ? ORDER BY title");
+    $stmt->execute([$cid]);
+    echo json_encode($stmt->fetchAll());
+    exit;
+}
+
+$pageTitle = 'GED — Documentos para Clientes';
 
 $allowedExt = array('pdf', 'jpg', 'jpeg', 'png', 'docx');
 $maxSize = 10 * 1024 * 1024; // 10MB
-$uploadDir = APP_ROOT . '/salavip/uploads/ged/';
+$uploadDir = dirname(APP_ROOT) . '/salavip/uploads/ged/';
 
 $categorias = array(
     'Procuracao', 'Contrato', 'Peticao', 'Decisao', 'Sentenca',
@@ -179,10 +190,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
 
             <div>
-                <label class="form-label">Processo (opcional)</label>
+                <label class="form-label">Processo vinculado *</label>
                 <select name="case_id" id="ged_case" class="form-control">
-                    <option value="">Nenhum</option>
+                    <option value="">Selecione o cliente primeiro...</option>
                 </select>
+                <small style="color:var(--text-muted);font-size:.72rem;">Selecione o cliente acima para carregar os processos</small>
             </div>
 
             <div>
@@ -297,17 +309,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 document.getElementById('ged_client').addEventListener('change', function(){
     var clientId = this.value;
     var caseSelect = document.getElementById('ged_case');
-    caseSelect.innerHTML = '<option value="">Nenhum</option>';
-    if (!clientId) return;
+    caseSelect.innerHTML = '<option value="">Carregando processos...</option>';
+    if (!clientId) { caseSelect.innerHTML = '<option value="">Selecione o cliente primeiro...</option>'; return; }
 
-    fetch('<?= url('api/') ?>?action=cases_by_client&client_id=' + clientId)
+    fetch('<?= module_url('salavip', 'ged.php') ?>?ajax_cases=1&client_id=' + clientId)
         .then(function(r){ return r.json(); })
         .then(function(data){
+            caseSelect.innerHTML = '<option value="">— Documento geral (sem processo) —</option>';
             if (data && data.length) {
                 data.forEach(function(c){
                     var opt = document.createElement('option');
                     opt.value = c.id;
-                    opt.textContent = (c.case_number || '') + ' - ' + (c.title || '');
+                    opt.textContent = (c.case_number ? c.case_number + ' — ' : '') + (c.title || 'Processo #' + c.id);
                     caseSelect.appendChild(opt);
                 });
             }
