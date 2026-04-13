@@ -1,27 +1,35 @@
 <?php
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
-require_once __DIR__ . '/core/config.php';
-require_once __DIR__ . '/core/database.php';
-$pdo = db();
 
-// Vincular a foto existente ao cliente 447
 $dir = dirname(__DIR__) . '/salavip/uploads/';
-$files = glob($dir . 'foto_447_*');
-echo "Fotos encontradas: " . count($files) . "\n";
-foreach ($files as $f) {
-    $filename = basename($f);
-    echo "  $filename (" . filesize($f) . " bytes)\n";
-    $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = 447")->execute([$filename]);
-    echo "  → Vinculada ao cliente 447\n";
-}
 
-// Testar acesso direto
-$testUrl = "https://www.ferreiraesa.com.br/salavip/uploads/" . basename($files[0] ?? '');
-echo "\nURL: $testUrl\n";
-echo "Test curl: ";
+// Tentar diferentes formatos de .htaccess
+$htContent = "# Allow all access to images\n" .
+    "Satisfy any\n" .
+    "Allow from all\n" .
+    "\n" .
+    "<IfModule mod_authz_core.c>\n" .
+    "    Require all granted\n" .
+    "</IfModule>\n" .
+    "\n" .
+    "# Block PHP\n" .
+    "AddHandler cgi-script .php .php5 .phtml\n" .
+    "Options -ExecCGI\n";
+
+file_put_contents($dir . '.htaccess', $htContent);
+chmod($dir . '.htaccess', 0644);
+echo ".htaccess written\n";
+echo $htContent . "\n";
+
+// Check parent .htaccess for denials
+$parentHt = dirname(__DIR__) . '/salavip/.htaccess';
+echo "Parent .htaccess:\n" . (file_exists($parentHt) ? file_get_contents($parentHt) : 'NOT FOUND') . "\n";
+
+// Test
+$testUrl = "https://www.ferreiraesa.com.br/salavip/uploads/foto_447_1776081067.jpg";
 $ch = curl_init($testUrl);
 curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_NOBODY => true, CURLOPT_FOLLOWLOCATION => true]);
 curl_exec($ch);
-echo "HTTP " . curl_getinfo($ch, CURLINFO_HTTP_CODE) . "\n";
+echo "Test: HTTP " . curl_getinfo($ch, CURLINFO_HTTP_CODE) . "\n";
 curl_close($ch);
