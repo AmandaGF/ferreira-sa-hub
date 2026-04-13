@@ -30,8 +30,8 @@ $maxSize = 10 * 1024 * 1024; // 10MB
 $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/ged/';
 
 $categorias = array(
-    'Procuracao', 'Contrato', 'Peticao', 'Decisao', 'Sentenca',
-    'Certidao', 'Comprovante', 'Acordo', 'Parecer', 'Outro'
+    'Procuração', 'Contrato', 'Petição', 'Decisão', 'Sentença',
+    'Certidão', 'Comprovante', 'Acordo', 'Parecer', 'Outro'
 );
 
 // ── POST handlers ───────────────────────────────────────
@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $visivel   = isset($_POST['visivel_cliente']) ? 1 : 0;
 
         if (!$clientId || !$titulo) {
-            flash_set('error', 'Cliente e titulo sao obrigatorios.');
+            flash_set('error', 'Cliente e título são obrigatórios.');
             redirect(module_url('salavip', 'ged.php'));
         }
 
@@ -150,9 +150,12 @@ $docs = $docs->fetchAll();
 $clientes = $pdo->query("SELECT id, name FROM clients ORDER BY name")->fetchAll();
 
 $catBadge = array(
-    'Procuracao' => 'info', 'Contrato' => 'success', 'Peticao' => 'warning',
-    'Decisao' => 'gestao', 'Sentenca' => 'danger', 'Certidao' => 'colaborador',
-    'Comprovante' => 'info', 'Acordo' => 'success', 'Parecer' => 'gestao', 'Outro' => 'warning'
+    'Procuração' => 'info', 'Contrato' => 'success', 'Petição' => 'warning',
+    'Decisão' => 'gestao', 'Sentença' => 'danger', 'Certidão' => 'colaborador',
+    'Comprovante' => 'info', 'Acordo' => 'success', 'Parecer' => 'gestao', 'Outro' => 'warning',
+    // Fallback sem acento (dados antigos)
+    'Procuracao' => 'info', 'Peticao' => 'warning', 'Decisao' => 'gestao',
+    'Sentenca' => 'danger', 'Certidao' => 'colaborador',
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -198,7 +201,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
 
             <div>
-                <label class="form-label">Titulo *</label>
+                <label class="form-label">Título *</label>
                 <input type="text" name="titulo" class="form-control" required maxlength="255">
             </div>
 
@@ -212,17 +215,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
 
             <div class="full">
-                <label class="form-label">Descricao</label>
+                <label class="form-label">Descrição</label>
                 <textarea name="descricao" class="form-control" rows="2"></textarea>
             </div>
 
             <div>
-                <label class="form-label">Arquivo * (PDF, JPG, PNG, DOCX - max 10MB)</label>
+                <label class="form-label">Arquivo * (PDF, JPG, PNG, DOCX — máx 10MB)</label>
                 <input type="file" name="arquivo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx" required>
             </div>
 
             <div style="display:flex;align-items:center;gap:.5rem;padding-top:1.5rem;">
-                <label class="form-label" style="margin:0;">Visivel ao cliente</label>
+                <label class="form-label" style="margin:0;">Visível ao cliente</label>
                 <input type="checkbox" name="visivel_cliente" value="1" checked>
             </div>
 
@@ -260,11 +263,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr>
                         <th>Cliente</th>
                         <th>Processo</th>
-                        <th>Titulo</th>
+                        <th>Título</th>
                         <th>Categoria</th>
                         <th>Data</th>
-                        <th>Visivel</th>
-                        <th>Acoes</th>
+                        <th>Visível</th>
+                        <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
