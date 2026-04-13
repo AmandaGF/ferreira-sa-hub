@@ -116,11 +116,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <div class="cli-stat">
         <span class="cli-stat-icon">📁</span>
-        <div><div class="cli-stat-val"><?= $comProcesso ?></div><div class="cli-stat-lbl">Com processo</div></div>
+        <div><div class="cli-stat-val"><?= $comProcesso ?></div><div class="cli-stat-lbl">Com vínculo</div></div>
     </div>
     <div class="cli-stat">
         <span class="cli-stat-icon">📋</span>
-        <div><div class="cli-stat-val"><?= $semProcesso ?></div><div class="cli-stat-lbl">Sem processo</div></div>
+        <div><div class="cli-stat-val"><?= $semProcesso ?></div><div class="cli-stat-lbl">Sem vínculo</div></div>
     </div>
     <?php if ($importados > 0): ?>
     <div class="cli-stat">
