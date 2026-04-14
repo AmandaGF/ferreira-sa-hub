@@ -270,20 +270,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errosCount++;
             } else {
                 try {
-                    // 1. Campo Confidencial do CSV (LegalOne)
+                    // Segredo/visibilidade: somente pelo campo "Confidencial" do CSV (LegalOne)
+                    // NÃO herdar do processo nem detectar pelo texto do andamento
                     $confCsv = isset($reg['confidencial']) ? $reg['confidencial'] : 'Não';
-                    $ehConfidencial = (mb_strtolower(trim($confCsv)) === 'sim') ? 1 : 0;
-
-                    // 2. Verificar se o PROCESSO é segredo de justiça (não detectar pelo texto do andamento)
-                    $ehProcessoSigilo = 0;
-                    try {
-                        $stmtSig = $pdo->prepare("SELECT segredo_justica FROM cases WHERE id = ?");
-                        $stmtSig->execute(array($caseId));
-                        $ehProcessoSigilo = (int)$stmtSig->fetchColumn();
-                    } catch (Exception $e2) {}
-
-                    // Resultado: confidencial (CSV) OU processo é segredo → oculto
-                    $segredoJustica = ($ehConfidencial || $ehProcessoSigilo) ? 1 : 0;
+                    $segredoJustica = (mb_strtolower(trim($confCsv)) === 'sim') ? 1 : 0;
                     $visivelCliente = $segredoJustica ? 0 : 1;
 
                     $pdo->prepare(
