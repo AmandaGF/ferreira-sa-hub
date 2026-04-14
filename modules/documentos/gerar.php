@@ -209,6 +209,7 @@ if ($caseIdDoc && !$dataAudiencia && !$_POST) {
 }
 
 // Buscar partes do processo para preencher dados automaticamente
+$qtdMenores = 0;
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
     $partesDocResult = buscar_partes_caso($caseIdDoc);
     $partesDoc = isset($partesDocResult['todas']) ? $partesDocResult['todas'] : array();
@@ -229,6 +230,7 @@ if ($caseIdDoc && function_exists('buscar_partes_caso')) {
             }
         }
         $menorAutor = !empty($autoresOutros) ? implode(' E ', $autoresOutros) : '';
+        $qtdMenores = count($autoresOutros);
 
         // Se cliente é rep. legal e tem menor(es) como autor → pré-selecionar "menor"
         if ($clienteEhRepLegal && $menorAutor && !$_POST) {
@@ -1097,6 +1099,7 @@ if (!$showEditor) {
         'qualif_menor_aud' => $qualifMenorAud,
         'rep_legal_aud' => $repLegalAud,
         'data_audiencia' => $dataAudiencia,
+        'qtd_menores' => $qtdMenores,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);

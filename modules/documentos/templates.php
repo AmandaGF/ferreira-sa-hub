@@ -65,9 +65,10 @@ function qualificacao_legitimidade($d) {
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : 'proprio';
     $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
     $qualifMenorRaw = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere' : 'impúbere';
+    $qtd = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        $multiplos = (strpos($nomeFilhos, ' E ') !== false);
+        $multiplos = ($qtd > 1);
         $menorTexto = $multiplos ? 'menores ' . $qualifMenorRaw . 's' : 'menor ' . $qualifMenorRaw;
         $repTexto = $multiplos ? 'representados' : 'representado(a)';
         return '<strong>' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
@@ -691,12 +692,17 @@ function template_habilitacao($d) {
 
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
+    $qtdMenHab = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
+    $multiplosHab = ($qtdMenHab > 1);
+
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        // Habilitação no nome do menor, representado pelo cliente
-        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(s) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>';
+        $qualifMenorTexto = $multiplosHab ? 'menores ' . str_replace(array('(s)','(a)'), '', $qualifMenor) . 's' : 'menor ' . str_replace(array('(s)','(a)'), '', $qualifMenor);
+        $repTextoHab = $multiplosHab ? 'representados' : 'representado(a)';
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $qualifMenorTexto . ', neste ato ' . $repTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
     } elseif ($isRepLegal && $nomeFilhos) {
-        // Fallback legado
-        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) impúbere(s), representado(s) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>';
+        $qualifMenorTexto = $multiplosHab ? 'menores impúberes' : 'menor impúbere';
+        $repTextoHab = $multiplosHab ? 'representados' : 'representado(a)';
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $qualifMenorTexto . ', ' . $repTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
     } else {
         // Habilitação no nome próprio do cliente
         $html .= '<strong>' . f($d['nome']) . '</strong>';
@@ -833,9 +839,11 @@ function template_audiencia_remota($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        $multiplos = (strpos($nomeFilhos, ' E ') !== false);
+        $qtdMen = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
+        $multiplos = ($qtdMen > 1);
+        $qualifSemParenteses = str_replace(array('(s)', '(a)'), '', $qualifMenor);
         $repTexto = $multiplos ? 'representados' : 'representado(a)';
-        $menorTexto = $multiplos ? 'menores ' . $qualifMenor : 'menor ' . str_replace('(s)', '', $qualifMenor);
+        $menorTexto = $multiplos ? 'menores ' . $qualifSemParenteses . 's' : 'menor ' . $qualifSemParenteses;
         $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
         $verbo = $multiplos ? 'vêm' : 'vem';
     } else {
