@@ -228,17 +228,7 @@ if ($action === 'salvar') {
     if (!$dataFim) $dataFim = $dataInicio;
 
     if ($id) {
-        // Editar
-        $canEdit = has_min_role('gestao');
-        if (!$canEdit) {
-            $stmt = $pdo->prepare("SELECT responsavel_id FROM agenda_eventos WHERE id = ?");
-            $stmt->execute(array($id));
-            $ev = $stmt->fetch();
-            if (!$ev || (int)$ev['responsavel_id'] !== current_user_id()) {
-                echo json_encode(array('error' => 'Sem permissão para editar este evento'));
-                exit;
-            }
-        }
+        // Editar — todos os usuários logados podem editar compromissos
         $stmt = $pdo->prepare(
             "UPDATE agenda_eventos SET titulo=?, tipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
              local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
