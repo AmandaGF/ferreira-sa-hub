@@ -190,6 +190,24 @@ $qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
 $repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
 $dataAudiencia = $_POST['data_audiencia'] ?? '';
 
+// Buscar próxima audiência do processo para pré-preencher data
+if ($caseIdDoc && !$dataAudiencia && !$_POST) {
+    try {
+        $stmtAud = $pdo->prepare(
+            "SELECT data_inicio FROM agenda_eventos
+             WHERE case_id = ? AND tipo = 'audiencia'
+             AND data_inicio >= NOW()
+             AND status NOT IN ('cancelado','remarcado','realizado','nao_compareceu')
+             ORDER BY data_inicio ASC LIMIT 1"
+        );
+        $stmtAud->execute(array($caseIdDoc));
+        $proxAud = $stmtAud->fetchColumn();
+        if ($proxAud) {
+            $dataAudiencia = date('Y-m-d', strtotime($proxAud));
+        }
+    } catch (Exception $e) {}
+}
+
 // Buscar partes do processo para preencher dados automaticamente
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
     $partesDocResult = buscar_partes_caso($caseIdDoc);
