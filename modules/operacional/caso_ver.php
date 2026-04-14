@@ -116,6 +116,19 @@ $statusCores = array(
 $clientPhone = $case['client_phone'] ? preg_replace('/\D/', '', $case['client_phone']) : '';
 $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 
+// Todos os clientes vinculados ao processo (principal + partes com client_id)
+$clientesVinculados = array();
+if ($case['client_id']) {
+    $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name']);
+}
+try {
+    $stmtCliVinc = $pdo->prepare("SELECT DISTINCT cp.client_id, c.name FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?");
+    $stmtCliVinc->execute(array($caseId, (int)($case['client_id'] ?: 0)));
+    foreach ($stmtCliVinc->fetchAll() as $cv) {
+        $clientesVinculados[] = array('id' => $cv['client_id'], 'name' => $cv['name']);
+    }
+} catch (Exception $e) {}
+
 // Detectar processos duplicados (mesmo case_number)
 $duplicatas = array();
 if (!empty($case['case_number'])) {
@@ -356,8 +369,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
         ?>
             <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgCaso) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php endif; ?>
-        <?php if ($case['client_id']): ?>
-            <a href="<?= module_url('clientes', 'ver.php?id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente</a>
+        <?php if (!empty($clientesVinculados)): ?>
+            <?php if (count($clientesVinculados) === 1): ?>
+                <a href="<?= module_url('clientes', 'ver.php?id=' . $clientesVinculados[0]['id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente</a>
+            <?php else: ?>
+                <div style="position:relative;display:inline-block;">
+                    <button type="button" onclick="var m=document.getElementById('menuClientes');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente ▾</button>
+                    <div id="menuClientes" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
+                        <?php foreach ($clientesVinculados as $cv): ?>
+                        <a href="<?= module_url('clientes', 'ver.php?id=' . $cv['id']) ?>" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8f6f2'" onmouseout="this.style.background=''">
+                            👤 <?= e($cv['name']) ?>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
