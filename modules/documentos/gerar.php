@@ -184,38 +184,38 @@ if ($caseIdDoc && function_exists('buscar_partes_caso')) {
     $partesDocResult = buscar_partes_caso($caseIdDoc);
     $partesDoc = isset($partesDocResult['todas']) ? $partesDocResult['todas'] : array();
     if (!empty($partesDoc)) {
-        $menorAutor = '';
+        $autoresOutros = array(); // Autores que NÃO são o cliente (possíveis menores)
         $clienteEhRepLegal = false;
         foreach ($partesDoc as $p) {
             if (isset($p['client_id']) && $p['client_id'] == $clientId) {
                 $papelCliente = $p['papel'] ?: $papelCliente;
                 if ($p['papel'] === 'representante_legal') $clienteEhRepLegal = true;
             }
-            // Detectar menor como autor (parte autor que NÃO é o cliente)
+            // Coletar TODOS os autores que NÃO são o cliente (podem ser múltiplos filhos)
             if ($p['papel'] === 'autor' && (!isset($p['client_id']) || $p['client_id'] != $clientId) && $p['nome']) {
-                $menorAutor = $p['nome'];
+                $autoresOutros[] = strtoupper($p['nome']);
             }
             if (in_array($p['papel'], array('reu')) && !$nomeParteContraria) {
                 $nomeParteContraria = $p['nome'] ?: '';
             }
         }
-        // Se cliente é rep. legal e tem um menor como autor → pré-preencher
+        $menorAutor = !empty($autoresOutros) ? implode(' E ', $autoresOutros) : '';
+
+        // Se cliente é rep. legal e tem menor(es) como autor → pré-selecionar "menor"
         if ($clienteEhRepLegal && $menorAutor && !$_POST) {
             $pleiteanteHab = 'menor';
             $repLegal = 'sim';
-            if (!$childNames) $childNames = strtoupper($menorAutor);
-            $papelCliente = 'autor'; // O menor é o autor
-            // Também pré-preencher audiência remota
+            if (!$childNames) $childNames = $menorAutor;
+            $papelCliente = 'autor';
             $pleiteanteAud = 'menor';
             $repLegalAud = 'sim';
-            if (!$childNamesAud) $childNamesAud = strtoupper($menorAutor);
+            if (!$childNamesAud) $childNamesAud = $menorAutor;
             $papelClienteAud = 'autor';
         }
-        // Fallback: se há menor como autor no processo mas cliente não é rep_legal explícito
-        // (ex: cliente é "autor" junto com o menor) — ainda disponibilizar o nome
+        // Sempre disponibilizar nomes dos autores (mesmo se cliente não é rep_legal)
         if ($menorAutor && !$_POST) {
-            if (!$childNamesAud) $childNamesAud = strtoupper($menorAutor);
-            if (!$childNames) $childNames = strtoupper($menorAutor);
+            if (!$childNamesAud) $childNamesAud = $menorAutor;
+            if (!$childNames) $childNames = $menorAutor;
         }
     }
 }
