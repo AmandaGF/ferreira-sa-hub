@@ -42,6 +42,7 @@ try {
             'Rio de Janeiro' => 'RJ', 'Rio de janeiro' => 'RJ',
             'São Paulo' => 'SP', 'Sao Paulo' => 'SP',
             'Minas Gerais' => 'MG',
+            'Sã' => 'SP',
         ];
         $total = 0;
         foreach ($fixes as $wrong => $right) {
