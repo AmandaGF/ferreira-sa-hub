@@ -318,6 +318,18 @@ switch ($action) {
                 ->execute(array($status, $closedAt, $caseId));
             audit_log('case_status', 'case', $caseId, $status);
 
+            // ── ARQUIVADO/CANCELADO: propagar para Pipeline ──
+            if (in_array($status, array('arquivado', 'cancelado'))) {
+                $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
+                if ($leadRow && !in_array($leadRow['stage'], array('cancelado', 'finalizado'))) {
+                    $newStage = ($status === 'cancelado') ? 'cancelado' : 'finalizado';
+                    $pdo->prepare("UPDATE pipeline_leads SET stage = ?, updated_at = NOW() WHERE id = ?")
+                        ->execute(array($newStage, $leadRow['id']));
+                    $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                        ->execute(array($leadRow['id'], $leadRow['stage'], $newStage, current_user_id(), 'Auto: caso ' . $status . ' no Operacional'));
+                }
+            }
+
             // ── EM EXECUÇÃO: auto-finalizar Pipeline se Pasta Apta ──
             if ($status === 'em_andamento') {
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
