@@ -179,6 +179,16 @@ $pleiteanteHab = $_POST['pleiteante_hab'] ?? 'proprio';
 $qualifMenor = $_POST['qualif_menor'] ?? 'impubere';
 $tipoHabProc = $_POST['tipo_hab_proc'] ?? 'plena';
 
+// Campos audiência remota/híbrida (ANTES do buscar_partes_caso para não sobrescrever)
+$motivoAudiencia = $_POST['motivo_audiencia'] ?? '';
+$modalidadeAudiencia = $_POST['modalidade_audiencia'] ?? 'remota_ou_hibrida';
+$emailsAudiencia = $_POST['emails_audiencia'] ?? ($email ? $email : '');
+$papelClienteAud = $_POST['papel_cliente_aud'] ?? 'autor';
+$pleiteanteAud = $_POST['pleiteante_aud'] ?? 'proprio';
+$childNamesAud = $_POST['child_names_aud'] ?? '';
+$qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
+$repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
+
 // Buscar partes do processo para preencher dados automaticamente
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
     $partesDocResult = buscar_partes_caso($caseIdDoc);
@@ -235,16 +245,6 @@ $nomeReu = $_POST['nome_reu'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '')
 $whatsappReu = $_POST['whatsapp_reu'] ?? '';
 $tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
 $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
-
-// Campos audiência remota/híbrida
-$motivoAudiencia = $_POST['motivo_audiencia'] ?? '';
-$modalidadeAudiencia = $_POST['modalidade_audiencia'] ?? 'remota_ou_hibrida';
-$emailsAudiencia = $_POST['emails_audiencia'] ?? ($email ? $email : '');
-$papelClienteAud = $_POST['papel_cliente_aud'] ?? 'autor';
-$pleiteanteAud = $_POST['pleiteante_aud'] ?? 'proprio';
-$childNamesAud = $_POST['child_names_aud'] ?? '';
-$qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
-$repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
