@@ -5,9 +5,100 @@
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') die('Acesso negado.');
 header('Content-Type: text/plain; charset=utf-8');
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 set_time_limit(300);
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
+
+function extractTextFromNode($node, &$text) {
+    if ($node->nodeType === XML_TEXT_NODE) {
+        $t = trim($node->textContent);
+        if ($t !== '') $text .= $t . "\n";
+    }
+    if ($node->hasChildNodes()) {
+        foreach ($node->childNodes as $child) {
+            if ($child->nodeType === XML_ELEMENT_NODE) {
+                $bg = $child->getAttribute('bgcolor');
+                $cls = $child->getAttribute('class');
+                if ($bg === '#B8B8B8' || $cls === 's1') continue;
+            }
+            extractTextFromNode($child, $text);
+        }
+    }
+}
+
+function parseBlocoEndereco($lines) {
+    if (count($lines) < 2) return null;
+    $nome = $lines[0];
+    if (preg_match('/^\d/', $nome) || preg_match('/^(Rua|Avenida|Estrada|Travessa|Beco|Servidão|Viela|Caminho|Rodovia|Largo|Praça|Alameda)/ui', $nome)) return null;
+    if (mb_strlen($nome) < 3 || mb_strlen($nome) > 80) return null;
+
+    $lastLine = $lines[count($lines) - 1];
+    $cep = '';
+    if (preg_match('/(\d{5}-\d{3})/', $lastLine, $m)) $cep = $m[1];
+    $uf = '';
+    if (preg_match('/\b([A-Z]{2})\s+\d{5}-\d{3}/', $lastLine, $m)) $uf = $m[1];
+    if (!$uf && preg_match('/\b([A-Z]{2})\s+Brasil/', $lastLine, $m)) $uf = $m[1];
+
+    $origLast = $lines[count($lines) - 1];
+    $origLast = preg_replace('/\s*' . preg_quote($cep, '/') . '\s*/', '', $origLast);
+    $origLast = preg_replace('/\s*Brasil\s*/', '', $origLast);
+    if ($uf) $origLast = preg_replace('/\s*\b' . preg_quote($uf, '/') . '\b/', '', $origLast, 1);
+    $origLast = trim($origLast);
+
+    $parts = preg_split('/\s{2,}/', $origLast);
+    $parts = array_values(array_filter(array_map('trim', $parts)));
+    $cidade = '';
+    $bairro = '';
+    if (count($parts) >= 2) {
+        $cidade = array_pop($parts);
+        $bairro = implode(' ', $parts);
+    } elseif (count($parts) === 1) {
+        $cidade = $parts[0];
+    }
+
+    $logradouro = '';
+    $numero = '';
+    $complemento = '';
+
+    if (count($lines) >= 3) {
+        $logradouro = $lines[1];
+        $midLines = array_slice($lines, 2, count($lines) - 3);
+        foreach ($midLines as $ml) {
+            $ml = trim($ml);
+            if (!$numero && preg_match('/^(\d+\s*[A-Za-z]?)\s/', $ml, $nm)) {
+                $numero = trim($nm[1]);
+                $rest = trim(mb_substr($ml, mb_strlen($nm[0])));
+                if ($rest) $complemento = $rest;
+            } elseif (!$numero && preg_match('/^(s\/n|S\/N)\b/i', $ml)) {
+                $numero = 's/n';
+                $rest = trim(preg_replace('/^s\/n\s*/i', '', $ml));
+                if ($rest) $complemento = $rest;
+            } elseif (!$numero && preg_match('/^\d+$/', $ml)) {
+                $numero = $ml;
+            } else {
+                if ($complemento) $complemento .= ' - ' . $ml;
+                else $complemento = $ml;
+            }
+        }
+    } elseif (count($lines) === 2) {
+        if (preg_match('/^(\d+\S*)\s+/', $lines[1], $nm)) {
+            $numero = $nm[1];
+        }
+    }
+
+    $street = $logradouro;
+    if ($numero && $numero !== '0' && $numero !== '0000') $street .= ', ' . $numero;
+    if ($complemento) {
+        $complemento = preg_replace('/\s+/', ' ', $complemento);
+        $street .= ' - ' . $complemento;
+    }
+    $street = trim($street, ' ,-');
+    if (!$street || !$nome) return null;
+
+    return array('nome' => $nome, 'street' => $street, 'city' => $cidade, 'uf' => $uf, 'zip' => $cep);
+}
 
 try {
     $pdo = db();
@@ -31,26 +122,8 @@ try {
     $body = $dom->getElementsByTagName('body')->item(0);
     if (!$body) die("Não encontrou body no HTML");
 
-    // Pegar todo o texto, preservando quebras entre tags
     $allText = '';
-    function extractText($node, &$text) {
-        if ($node->nodeType === XML_TEXT_NODE) {
-            $t = trim($node->textContent);
-            if ($t !== '') $text .= $t . "\n";
-        }
-        if ($node->hasChildNodes()) {
-            foreach ($node->childNodes as $child) {
-                // Pular headers (Nome/Razão social, Descrição, etc.)
-                if ($child->nodeType === XML_ELEMENT_NODE) {
-                    $bg = $child->getAttribute('bgcolor');
-                    $cls = $child->getAttribute('class');
-                    if ($bg === '#B8B8B8' || $cls === 's1') continue; // Header rows
-                }
-                extractText($child, $text);
-            }
-        }
-    }
-    extractText($body, $allText);
+    extractTextFromNode($body, $allText);
 
     // Separar em linhas e limpar
     $lines = array_values(array_filter(array_map('trim', explode("\n", $allText)), function($l) {
@@ -67,137 +140,10 @@ try {
         // Se a linha contém um CEP, este é o fim do registro
         if (preg_match('/\d{5}-\d{3}/', $line)) {
             // Tentar parsear este bloco
-            $reg = parseBloco($current);
+            $reg = parseBlocoEndereco($current);
             if ($reg) $registros[] = $reg;
             $current = array();
         }
-    }
-
-    function parseBloco($lines) {
-        if (count($lines) < 2) return null;
-
-        // Primeira linha = nome (geralmente)
-        $nome = $lines[0];
-
-        // Ignorar se o nome parece ser um endereço
-        if (preg_match('/^\d/', $nome) || preg_match('/^(Rua|Avenida|Estrada|Travessa|Beco|Servidão)/ui', $nome)) return null;
-
-        // Última linha contém: [bairro] [cidade] [UF] [CEP] [Brasil]
-        $lastLine = $lines[count($lines) - 1];
-
-        // Extrair CEP
-        $cep = '';
-        if (preg_match('/(\d{5}-\d{3})/', $lastLine, $m)) {
-            $cep = $m[1];
-        }
-
-        // Extrair UF (2 letras maiúsculas antes do CEP)
-        $uf = '';
-        if (preg_match('/\b([A-Z]{2})\s+\d{5}-\d{3}/', $lastLine, $m)) {
-            $uf = $m[1];
-        }
-
-        // Extrair cidade e bairro da última linha
-        // Formato típico: "Bairro      Cidade       UF   CEP   Brasil"
-        $partsLine = preg_replace('/\s+/', ' ', $lastLine);
-        $partsLine = preg_replace('/\s*(Brasil|' . preg_quote($cep, '/') . '|' . preg_quote($uf, '/') . ')\s*/', ' ', $partsLine);
-        $partsLine = trim($partsLine);
-
-        // Tentar separar bairro e cidade (separados por espaços múltiplos na original)
-        $cidade = '';
-        $bairro = '';
-        // Usar a linha original para detectar separações por múltiplos espaços
-        $origLast = $lines[count($lines) - 1];
-        $origLast = preg_replace('/\s*' . preg_quote($cep, '/') . '\s*/', '', $origLast);
-        $origLast = preg_replace('/\s*Brasil\s*/', '', $origLast);
-        $origLast = preg_replace('/\s*\b' . preg_quote($uf, '/') . '\b\s*/', ' ', $origLast);
-        $origLast = trim($origLast);
-
-        // Separar por 2+ espaços
-        $parts = preg_split('/\s{2,}/', $origLast);
-        $parts = array_values(array_filter(array_map('trim', $parts)));
-
-        if (count($parts) >= 2) {
-            $cidade = array_pop($parts);
-            $bairro = implode(' ', $parts);
-        } elseif (count($parts) === 1) {
-            $cidade = $parts[0];
-        }
-
-        // Logradouro: linhas do meio (entre nome e última linha)
-        $logradouro = '';
-        $numero = '';
-        $complemento = '';
-
-        if (count($lines) >= 3) {
-            // Segunda linha = logradouro
-            $logradouro = $lines[1];
-
-            // Terceira linha pode ter número + bairro + cidade, ou só número
-            if (count($lines) >= 4) {
-                // Linhas do meio (exceto primeira e última)
-                $midLines = array_slice($lines, 2, count($lines) - 3);
-                foreach ($midLines as $ml) {
-                    $ml = trim($ml);
-                    // Se começa com número, é o número
-                    if (preg_match('/^(\d+\s*[A-Za-z]?)\s/', $ml) && !$numero) {
-                        if (preg_match('/^(\S+)\s+(.*)$/', $ml, $nm)) {
-                            $numero = $nm[1];
-                            $rest = trim($nm[2]);
-                            if ($rest) $complemento = $rest;
-                        } else {
-                            $numero = $ml;
-                        }
-                    } elseif (preg_match('/^(s\/n|S\/N|s\/N)\b/', $ml)) {
-                        $numero = 's/n';
-                        $rest = trim(preg_replace('/^s\/n\s*/i', '', $ml));
-                        if ($rest) $complemento = $rest;
-                    } elseif (!$numero && preg_match('/^\d+$/', $ml)) {
-                        $numero = $ml;
-                    } else {
-                        // Complemento
-                        if ($complemento) $complemento .= ' - ' . $ml;
-                        else $complemento = $ml;
-                    }
-                }
-            } elseif (count($lines) === 3) {
-                // Só 3 linhas: nome, logradouro, "num bairro cidade UF CEP"
-                // Número pode estar no início da última linha
-                if (preg_match('/^(\d+\S*)\s+/', $lines[2], $nm)) {
-                    $numero = $nm[1];
-                }
-            }
-        } elseif (count($lines) === 2) {
-            // Só nome + linha com tudo
-            $logradouro = '';
-        }
-
-        // Montar address_street
-        $street = $logradouro;
-        if ($numero && $numero !== '0' && $numero !== '0000') {
-            $street .= ', ' . $numero;
-        }
-        if ($complemento) {
-            // Limpar complemento de dados redundantes
-            $complemento = preg_replace('/\s+/', ' ', $complemento);
-            $street .= ' - ' . $complemento;
-        }
-        $street = trim($street, ' ,-');
-
-        if (!$street || !$nome) return null;
-
-        // Limpar bairro de parênteses e dados extras
-        $bairro = preg_replace('/\(\w+\)$/', '', trim($bairro));
-        $bairro = trim($bairro);
-
-        return array(
-            'nome' => $nome,
-            'street' => $street,
-            'city' => $cidade,
-            'uf' => $uf,
-            'zip' => $cep,
-            'bairro' => $bairro,
-        );
     }
 
     echo "=== Migração Endereços Novajus (HTML) ===\n\n";
