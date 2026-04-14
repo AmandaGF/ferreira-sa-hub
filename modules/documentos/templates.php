@@ -792,81 +792,98 @@ function template_audiencia_remota($d) {
     $pleiteante = isset($d['pleiteante_aud']) ? $d['pleiteante_aud'] : 'proprio';
     $nomeFilhos = isset($d['child_names_aud']) && $d['child_names_aud'] ? $d['child_names_aud'] : '';
     $qualifMenor = isset($d['qualif_menor_aud']) && $d['qualif_menor_aud'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
-    $isRepLegal = isset($d['rep_legal_aud']) && $d['rep_legal_aud'] === 'sim';
+    $dataAud = isset($d['data_audiencia']) && $d['data_audiencia'] ? $d['data_audiencia'] : '';
+
+    // Formatar data da audiência
+    $dataAudFormatada = '';
+    if ($dataAud) {
+        $meses = array('','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro');
+        $ts = strtotime($dataAud);
+        if ($ts) {
+            $dataAudFormatada = date('d', $ts) . ' de ' . $meses[(int)date('m', $ts)] . ' de ' . date('Y', $ts);
+        }
+    }
 
     // Modalidade texto
     if ($modalidade === 'remota') {
-        $modalidadeTexto = 'audiência de forma remota';
+        $modalidadeTexto = 'de forma remota';
         $modalidadeTitulo = 'REMOTA';
     } elseif ($modalidade === 'hibrida') {
-        $modalidadeTexto = 'audiência de forma híbrida';
+        $modalidadeTexto = 'de forma híbrida';
         $modalidadeTitulo = 'HÍBRIDA';
     } else {
-        $modalidadeTexto = 'audiência de forma remota ou, alternativamente, híbrida';
+        $modalidadeTexto = 'de forma remota ou, alternativamente, híbrida';
         $modalidadeTitulo = 'REMOTA/HÍBRIDA';
     }
 
-    $html = '<div class="doc-title">PETIÇÃO — AUDIÊNCIA ' . $modalidadeTitulo . '</div>';
+    $html = '';
 
     // Endereçamento
     $html .= enderecamento($d);
-    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+    $html .= '<p style="text-indent:0;"><br>Processo n. <strong>' . f($numProcesso) . '</strong></p>';
 
-    // Corpo — qualificação com legitimidade ativa
+    // Qualificação com legitimidade ativa
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        // Petição em nome do menor, representado pelo cliente
-        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
     } else {
-        // Petição em nome próprio do cliente
-        $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+        $html .= '<strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
     }
 
-    $html .= ', vem, respeitosamente, por intermédio de sua advogada que esta assina digitalmente, requerer a realização da <strong>' . $modalidadeTexto . '</strong>, pelos fundamentos a seguir expostos.</p>';
-
-    // Motivo / Justificativa
-    $poloTexto = ($papelCliente === 'reu') ? 'do(a) Requerido(a)' : 'da Autora';
-    if ($pleiteante === 'menor' && $nomeFilhos) {
-        $poloTexto = ($papelCliente === 'reu') ? 'do(a) Requerido(a)' : 'do(a) menor ' . f($nomeFilhos);
+    $html .= ', vem, respeitosamente, por intermédio de sua advogada que esta assina digitalmente, requerer a realização da audiência';
+    if ($dataAudFormatada) {
+        $html .= ' designada para o dia <strong>' . $dataAudFormatada . '</strong>';
     }
+    $html .= ' <strong>' . $modalidadeTexto . '</strong>, pelos fundamentos a seguir expostos.</p>';
+
+    // Motivo/Justificativa livre (se preenchido)
     if ($motivo) {
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . nl2br(f($motivo)) . '</p>';
-    } else {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A patrona ' . $poloTexto . ', <strong>' . $esc['adv1_nome'] . '</strong>, OAB/RJ nº ' . $esc['adv1_oab'] . ', possui compromisso profissional na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca em tempo hábil para o cumprimento de ambas as obrigações profissionais.</p>';
     }
 
-    // Fundamentação legal
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO LEGAL</p>';
+    // 1. DA FUNDAMENTAÇÃO LEGAL
+    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">1 &mdash; DA FUNDAMENTAÇÃO LEGAL</div>';
 
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A realização de audiências por meio de videoconferência ou outro recurso tecnológico encontra amplo respaldo legal no ordenamento jurídico vigente, notadamente no <strong>art. 236, §3º, do Código de Processo Civil</strong>, com redação dada pela Lei nº 14.195/2021, bem como na <strong>Resolução CNJ nº 354/2020</strong>, que instituiu e regulamentou o processo judicial eletrônico e o uso de ferramentas remotas para a prática de atos processuais, e na <strong>Resolução CNJ nº 385/2021</strong>, que disciplina o Juízo 100% Digital.</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A realização de audiências por meio de videoconferência ou outro recurso tecnológico de transmissão de sons e imagens em tempo real encontra amplo respaldo legal no ordenamento jurídico vigente, notadamente no <strong>art. 236, §3º, do Código de Processo Civil</strong>, com redação dada pela Lei n. 14.195/2021, que expressamente autoriza a prática de atos processuais por meio eletrônico.</p>';
 
-    $parteTextoFund = ($papelCliente === 'reu') ? 'Requerida' : 'Autora';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Também embasa o pedido a <strong>Resolução CNJ n. 354/2020</strong>, que instituiu e regulamentou o processo judicial eletrônico e o uso de ferramentas remotas para a prática de atos processuais, e a <strong>Resolução CNJ n. 385/2021</strong>, que disciplina o Juízo 100% Digital e faculta às partes a opção pela realização de atos de forma remota.</p>';
+
+    $parteTextoFund = ($papelCliente === 'reu') ? 'Ré' : 'Autora';
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        $parteTextoFund = ($papelCliente === 'reu') ? 'Requerida' : 'Autora (representada)';
+        $parteTextoFund .= ' (representada)';
     }
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediatidade e do contraditório, porquanto a parte ' . $parteTextoFund . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
 
-    // Pedido
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DO PEDIDO</p>';
+    // Parágrafo opcional sobre distância/justa causa (se não tem motivo livre)
+    if (!$motivo) {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Acrescenta-se que a parte requerente reside em localidade distante da sede do Juízo, o que torna o comparecimento presencial de difícil realização, configurando hipótese de justa causa prevista no art. 223, §1º, do CPC.</p>';
+    }
 
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do exposto, requer a Vossa Excelência que se digne a determinar a realização da <strong>' . $modalidadeTexto . '</strong>, com o envio do link de acesso às partes com antecedência razoável, nos termos da legislação e das resoluções do CNJ aplicáveis.</p>';
+    // 2. DO PEDIDO
+    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">2 &mdash; DO PEDIDO</div>';
 
-    // E-mails
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do exposto, requer a Vossa Excelência que se digne a determinar a realização da audiência <strong>' . $modalidadeTexto . '</strong>, com o envio do link de acesso às partes com antecedência razoável, nos termos da legislação e das resoluções do CNJ aplicáveis.</p>';
+
+    // E-mails — sempre incluir os do escritório
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Em tempo, informa os endereços eletrônicos para recebimento do link de acesso:</p>';
+    $html .= '<div style="margin:8px 0 8px 4em;line-height:2;">';
     if ($emails) {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Em tempo, aproveita para informar os endereços eletrônicos:</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;"><strong>' . f($emails) . '</strong></p>';
+        $html .= '<p style="margin:2px 0;"><strong>' . f($emails) . '</strong></p>';
     }
+    $html .= '<p style="margin:2px 0;"><strong>amandaguedesferreira@gmail.com</strong></p>';
+    $html .= '<p style="margin:2px 0;"><strong>luizeduardo@ferreiraesa.com.br</strong></p>';
+    $html .= '</div>';
 
     // Fechamento
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
-    // Assinatura — somente advogada principal (como no modelo PDF)
+    // Assinatura
     $html .= '<div class="assinatura" style="margin-top:2.5rem;">';
     $html .= '<div class="linha"></div>';
-    $html .= '<div class="nome-ass">Amanda Ferreira</div>';
-    $html .= '<div style="font-size:10px;color:#6b7280;">OAB-RJ ' . $esc['adv1_oab'] . '</div>';
+    $html .= '<div class="nome-ass">' . $esc['adv1_nome'] . '</div>';
+    $html .= '<div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div>';
     $html .= '</div>';
 
     return $html;

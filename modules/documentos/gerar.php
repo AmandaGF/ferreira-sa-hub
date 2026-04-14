@@ -188,6 +188,7 @@ $pleiteanteAud = $_POST['pleiteante_aud'] ?? 'proprio';
 $childNamesAud = $_POST['child_names_aud'] ?? '';
 $qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
 $repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
+$dataAudiencia = $_POST['data_audiencia'] ?? '';
 
 // Buscar partes do processo para preencher dados automaticamente
 if ($caseIdDoc && function_exists('buscar_partes_caso')) {
@@ -920,14 +921,18 @@ if (!$showEditor) {
                         <option value="hibrida" <?= $modalidadeAudiencia === 'hibrida' ? 'selected' : '' ?>>Somente híbrida</option>
                     </select>
                 </div>
+                <div>
+                    <label>Data da audiência designada</label>
+                    <input type="date" name="data_audiencia" value="<?= e($dataAudiencia) ?>">
+                </div>
             </div>
             <div style="margin-bottom:.75rem;">
-                <label>Motivo / Justificativa da impossibilidade de comparecimento presencial</label>
+                <label>Motivo / Justificativa (opcional — se vazio, gera texto padrão sobre justa causa)</label>
                 <textarea name="motivo_audiencia" rows="4" placeholder="Ex: A patrona da Autora exerce atividade docente presencial na cidade de Volta Redonda – RJ na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca..."><?= e($motivoAudiencia) ?></textarea>
             </div>
             <div style="margin-bottom:.75rem;">
-                <label>E-mails para envio do link de acesso (separar por ; se mais de um)</label>
-                <input name="emails_audiencia" value="<?= e($emailsAudiencia) ?>" placeholder="Ex: amandaferreira@ferreiraesa.com.br ; amandaguedesferreira@gmail.com">
+                <label>E-mails para envio do link (além dos e-mails do escritório que já são incluídos)</label>
+                <input name="emails_audiencia" value="<?= e($emailsAudiencia) ?>" placeholder="Ex: email-pessoal@cliente.com">
             </div>
         </div>
         <?php endif; ?>
@@ -1073,6 +1078,7 @@ if (!$showEditor) {
         'child_names_aud' => $childNamesAud,
         'qualif_menor_aud' => $qualifMenorAud,
         'rep_legal_aud' => $repLegalAud,
+        'data_audiencia' => $dataAudiencia,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
