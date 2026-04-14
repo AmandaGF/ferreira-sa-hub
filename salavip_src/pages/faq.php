@@ -245,9 +245,7 @@ h1,h2,h3,h4 { font-family:'Cormorant Garamond',serif; }
 
 <!-- Footer -->
 <div class="faq-footer">
-    <p><strong>Amanda Guedes Ferreira</strong> — OAB/RJ 163.260</p>
-    <p>CNPJ: 51.294.223/0001-40 | OAB: 005.987/2023</p>
-    <p>&copy; 2026 Ferreira &amp; Sá Advocacia Especializada</p>
+    <p>&copy; 2026 <strong>Ferreira &amp; Sá Advocacia Especializada</strong></p>
 </div>
 
 </div><!-- /.faq-container -->
