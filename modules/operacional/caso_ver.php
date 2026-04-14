@@ -845,6 +845,21 @@ if (!empty($compFuturos)): ?>
             <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Cidade</label><input id="parteCid" class="form-input" style="font-size:.85rem;"></div>
             <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">UF</label><input id="parteUf" class="form-input" style="font-size:.85rem;" maxlength="2"></div>
         </div>
+        <!-- Vincular como cliente -->
+        <div style="margin-top:.75rem;padding:.6rem .8rem;border:1.5px dashed rgba(184,115,51,.3);border-radius:8px;background:rgba(184,115,51,.03);">
+            <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem;">
+                <input type="checkbox" id="parteEhCliente" onchange="toggleVincularCliente(this.checked)" style="width:16px;height:16px;">
+                <label for="parteEhCliente" style="font-size:.78rem;font-weight:600;color:#B87333;cursor:pointer;">Esta parte é nosso cliente</label>
+                <span id="parteClienteNome" style="font-size:.72rem;color:#059669;font-weight:600;"></span>
+            </div>
+            <div id="parteClienteBusca" style="display:none;">
+                <div style="position:relative;">
+                    <input type="text" id="parteClienteBuscaInput" class="form-input" style="font-size:.82rem;" placeholder="Buscar cliente por nome..." autocomplete="off" oninput="buscarClienteParaVincular(this.value)">
+                    <div id="parteClienteResultados" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;z-index:60;box-shadow:0 4px 16px rgba(0,0,0,.15);"></div>
+                </div>
+            </div>
+        </div>
+
         <div style="margin-top:.5rem;"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Observações</label><textarea id="parteObs" class="form-input" style="font-size:.85rem;" rows="2"></textarea></div>
     </div>
     <div style="padding:.8rem 1.2rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;">
@@ -1991,6 +2006,10 @@ function abrirModalParte() {
         var el = document.getElementById(id); if(el) el.value = '';
     });
     document.getElementById('parteRepId').value = '';
+    document.getElementById('parteEhCliente').checked = false;
+    document.getElementById('parteClienteBusca').style.display = 'none';
+    document.getElementById('parteClienteNome').textContent = '';
+    document.getElementById('parteClienteBuscaInput').value = '';
     mudouTipoPessoa();
     mudouPapel();
     document.getElementById('parteOverlay').style.display = 'flex';
@@ -2027,6 +2046,13 @@ function editarParte(id) {
             document.getElementById('parteUf').value = p.uf || '';
             document.getElementById('parteObs').value = p.observacoes || '';
             document.getElementById('parteRepId').value = p.representa_parte_id || '';
+            // Vincular cliente
+            var cliId = p.client_id || 0;
+            document.getElementById('parteClientId').value = cliId;
+            document.getElementById('parteEhCliente').checked = !!cliId;
+            document.getElementById('parteClienteBusca').style.display = cliId ? 'block' : 'none';
+            document.getElementById('parteClienteBuscaInput').value = '';
+            document.getElementById('parteClienteNome').textContent = cliId ? '✓ Cliente vinculado (ID ' + cliId + ')' : '';
             document.getElementById('parteBtnDel').style.display = 'inline-block';
             mudouTipoPessoa();
             mudouPapel();
@@ -2373,6 +2399,60 @@ function salvarAndamento(andId) {
     };
     x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
+
+function toggleVincularCliente(checked) {
+    var busca = document.getElementById('parteClienteBusca');
+    busca.style.display = checked ? 'block' : 'none';
+    if (!checked) {
+        document.getElementById('parteClientId').value = '0';
+        document.getElementById('parteClienteNome').textContent = '';
+        document.getElementById('parteClienteBuscaInput').value = '';
+        document.getElementById('parteClienteResultados').style.display = 'none';
+    }
+}
+
+var _vincClienteTimer = null;
+function buscarClienteParaVincular(q) {
+    clearTimeout(_vincClienteTimer);
+    var box = document.getElementById('parteClienteResultados');
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    _vincClienteTimer = setTimeout(function() {
+        var x = new XMLHttpRequest();
+        x.open('GET', '<?= module_url("operacional", "caso_novo.php") ?>?ajax_busca_cliente=1&q=' + encodeURIComponent(q));
+        x.onload = function() {
+            try {
+                var clientes = JSON.parse(x.responseText);
+                box.innerHTML = '';
+                if (clientes.length === 0) {
+                    box.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.78rem;">Nenhum cliente encontrado</div>';
+                } else {
+                    clientes.forEach(function(c) {
+                        var div = document.createElement('div');
+                        div.style.cssText = 'padding:.5rem .75rem;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9;';
+                        div.innerHTML = '<strong>' + c.name + '</strong>' + (c.cpf ? ' <span style="color:var(--text-muted);font-size:.72rem;">' + c.cpf + '</span>' : '');
+                        div.onmouseover = function() { this.style.background = '#f8f6f2'; };
+                        div.onmouseout = function() { this.style.background = ''; };
+                        div.onclick = function() {
+                            document.getElementById('parteClientId').value = c.id;
+                            document.getElementById('parteClienteNome').textContent = '✓ ' + c.name;
+                            document.getElementById('parteClienteBuscaInput').value = c.name;
+                            box.style.display = 'none';
+                        };
+                        box.appendChild(div);
+                    });
+                }
+                box.style.display = 'block';
+            } catch(e) {}
+        };
+        x.send();
+    }, 300);
+}
+
+// Fechar sugestões ao clicar fora
+document.addEventListener('click', function(e) {
+    var box = document.getElementById('parteClienteResultados');
+    if (box && !box.contains(e.target) && e.target.id !== 'parteClienteBuscaInput') box.style.display = 'none';
+});
 
 function buscarCepParte() {
     var cep = document.getElementById('parteCep').value.replace(/\D/g,'');
