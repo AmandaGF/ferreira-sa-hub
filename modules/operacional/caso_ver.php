@@ -2408,6 +2408,13 @@ function toggleVincularCliente(checked) {
         document.getElementById('parteClienteNome').textContent = '';
         document.getElementById('parteClienteBuscaInput').value = '';
         document.getElementById('parteClienteResultados').style.display = 'none';
+    } else {
+        // Auto-buscar pelo nome da parte já preenchido
+        var nome = document.getElementById('parteNome').value.trim();
+        if (nome.length >= 3) {
+            document.getElementById('parteClienteBuscaInput').value = nome;
+            buscarClienteParaVincular(nome);
+        }
     }
 }
 
