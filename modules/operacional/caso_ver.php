@@ -780,7 +780,7 @@ if (!empty($compFuturos)): ?>
         <!-- Pessoa Física -->
         <div id="partePF">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
-                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CPF</label><input id="parteCpf" class="form-input" style="font-size:.85rem;" placeholder="000.000.000-00" onblur="buscarCpfParte()"><span id="parteCpfStatus" style="font-size:.65rem;"></span></div>
+                <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">CPF</label><input id="parteCpf" class="form-input" style="font-size:.85rem;" placeholder="000.000.000-00" oninput="mascaraCpfParte(this); autoBuscarCpfParte()" onblur="buscarCpfParte()"><span id="parteCpfStatus" style="font-size:.65rem;"></span></div>
                 <div style="position:relative;"><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Nome Completo</label><input id="parteNome" class="form-input" style="font-size:.85rem;" autocomplete="off" oninput="buscarNomeParte(this.value)"><div id="parteNomeSugestoes" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:0 0 8px 8px;max-height:200px;overflow-y:auto;z-index:50;box-shadow:0 4px 16px rgba(0,0,0,.12);"></div></div>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem;margin-top:.5rem;">
@@ -2161,6 +2161,24 @@ document.addEventListener('click', function(e) {
     var box = document.getElementById('parteNomeSugestoes');
     if (box && !box.contains(e.target) && e.target.id !== 'parteNome') box.style.display = 'none';
 });
+
+function mascaraCpfParte(el) {
+    var v = el.value.replace(/\D/g, '');
+    if (v.length > 11) v = v.substr(0, 11);
+    if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    el.value = v;
+}
+
+var _cpfParteTimer = null;
+function autoBuscarCpfParte() {
+    clearTimeout(_cpfParteTimer);
+    var cpf = document.getElementById('parteCpf').value.replace(/\D/g, '');
+    if (cpf.length === 11) {
+        _cpfParteTimer = setTimeout(function() { buscarCpfParte(); }, 400);
+    }
+}
 
 function buscarCpfParte() {
     var cpf = document.getElementById('parteCpf').value.replace(/\D/g,'');
