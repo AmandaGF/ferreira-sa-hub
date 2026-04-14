@@ -1156,9 +1156,10 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
 ?>
 
 <!-- Tarefas Operacionais -->
-<div class="card mb-2">
-    <div class="card-header">
-        <h3>Tarefas (<?= count($tarefasReais) ?>)</h3>
+<?php $temTarefasPendentes = !empty($tarefasReais); ?>
+<div class="card mb-2" style="<?= $temTarefasPendentes ? 'border:2px solid #d97706;box-shadow:0 0 12px rgba(217,119,6,.15);' : '' ?>">
+    <div class="card-header" style="<?= $temTarefasPendentes ? 'background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(217,119,6,.02));' : '' ?>">
+        <h3><?= $temTarefasPendentes ? '⚡ ' : '' ?>Tarefas (<?= count($tarefasReais) ?>)</h3>
     </div>
     <div class="card-body">
         <?php if (empty($tarefasReais)): ?>
