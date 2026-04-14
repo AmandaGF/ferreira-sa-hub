@@ -373,56 +373,25 @@ document.querySelectorAll('[name=phone],[name=phone2]').forEach(function(el) {
     });
 });
 
-// ══ Busca CEP via ViaCEP ══
-function formatarCEP(el) {
-    var v = el.value.replace(/\D/g, '');
-    if (v.length > 5) v = v.substr(0,5) + '-' + v.substr(5,3);
-    el.value = v;
-}
-function buscarCEP(el, targets) {
-    var cep = el.value.replace(/\D/g, '');
-    if (cep.length !== 8) return;
-    var loading = el.parentElement.querySelector('.cep-loading');
-    if (loading) loading.style.display = 'inline';
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', 'https://viacep.com.br/ws/' + cep + '/json/', true);
-    xhr.onload = function() {
-        if (loading) loading.style.display = 'none';
-        if (xhr.status === 200) {
-            try {
-                var d = JSON.parse(xhr.responseText);
-                if (!d.erro) {
-                    if (targets.endereco) {
-                        var f = document.querySelector(targets.endereco);
-                        if (f && !f.value) f.value = d.logradouro || '';
-                    }
-                    if (targets.cidade) {
-                        var f = document.querySelector(targets.cidade);
-                        if (f) f.value = d.localidade || '';
-                    }
-                    if (targets.uf) {
-                        var f = document.querySelector(targets.uf);
-                        if (f) f.value = d.uf || '';
-                    }
-                }
-            } catch(e) {}
-        }
-    };
-    xhr.onerror = function() { if (loading) loading.style.display = 'none'; };
-    xhr.send();
-}
-
-// ══ Auto-busca CEP ao digitar ══
+// ══ Busca CEP — delegado ao helpers.js global (carregado no footer) ══
+// A função buscarCEP e formatarCEP estão no helpers.js
+// O campo CEP já tem onblur no HTML chamando buscarCEP
+// Auto-busca ao digitar:
+var _cepTimer = null;
 var cepInput = document.getElementById('cepInput');
 if (cepInput) {
     cepInput.addEventListener('input', function() {
-        formatarCEP(this);
-        if (this.value.replace(/\D/g, '').length === 8) {
-            buscarCEP(this, {
-                endereco: '[name=address_street]',
-                cidade: '[name=address_city]',
-                uf: '[name=address_state]'
-            });
+        var v = this.value.replace(/\D/g, '');
+        if (v.length > 5) this.value = v.substr(0,5) + '-' + v.substr(5,3);
+        else this.value = v;
+        var self = this;
+        clearTimeout(_cepTimer);
+        if (v.length === 8) {
+            _cepTimer = setTimeout(function() {
+                if (typeof buscarCEP === 'function') {
+                    buscarCEP(self, {endereco:'[name=address_street]', cidade:'[name=address_city]', uf:'[name=address_state]'});
+                }
+            }, 300);
         }
     });
 }
