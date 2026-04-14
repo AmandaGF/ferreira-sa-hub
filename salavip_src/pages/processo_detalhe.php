@@ -41,9 +41,19 @@ try {
     }
 } catch (Exception $e) {}
 
-// --- Andamentos (TODOS visíveis, sem limite artificial) ---
+// --- Andamentos com paginação (15 por página) ---
+$porPagina = 15;
+$paginaAtual = isset($_GET['pg']) ? max(1, (int)$_GET['pg']) : 1;
+$offset = ($paginaAtual - 1) * $porPagina;
+
+$stmtTotal = $pdo->prepare("SELECT COUNT(*) FROM case_andamentos WHERE case_id = ? AND visivel_cliente = 1");
+$stmtTotal->execute([$caseId]);
+$totalAndamentos = (int)$stmtTotal->fetchColumn();
+$totalPaginas = max(1, (int)ceil($totalAndamentos / $porPagina));
+if ($paginaAtual > $totalPaginas) $paginaAtual = $totalPaginas;
+
 $stmtAnd = $pdo->prepare(
-    "SELECT * FROM case_andamentos WHERE case_id = ? AND visivel_cliente = 1 ORDER BY data_andamento DESC, created_at DESC"
+    "SELECT * FROM case_andamentos WHERE case_id = ? AND visivel_cliente = 1 ORDER BY data_andamento DESC, created_at DESC LIMIT " . (int)$porPagina . " OFFSET " . (int)$offset
 );
 $stmtAnd->execute([$caseId]);
 $andamentos = $stmtAnd->fetchAll();
@@ -160,7 +170,7 @@ require_once __DIR__ . '/../includes/header.php';
 <div class="sv-card" style="margin-bottom:1.5rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
         <h3 style="margin:0;">Andamentos do Processo</h3>
-        <span style="color:var(--sv-text-muted);font-size:.78rem;"><?= count($andamentos) ?> registro<?= count($andamentos) !== 1 ? 's' : '' ?></span>
+        <span style="color:var(--sv-text-muted);font-size:.78rem;"><?= $totalAndamentos ?> registro<?= $totalAndamentos !== 1 ? 's' : '' ?></span>
     </div>
 
     <?php if (empty($andamentos)): ?>
@@ -189,6 +199,32 @@ require_once __DIR__ . '/../includes/header.php';
             </div>
             <?php endforeach; ?>
         </div>
+
+        <?php if ($totalPaginas > 1): ?>
+        <div style="display:flex;justify-content:center;align-items:center;gap:.4rem;margin-top:1.25rem;flex-wrap:wrap;">
+            <?php if ($paginaAtual > 1): ?>
+                <a href="<?= sv_url('pages/processo_detalhe.php?id=' . $caseId . '&pg=' . ($paginaAtual - 1)) ?>" style="padding:6px 12px;border-radius:6px;font-size:.82rem;font-weight:600;text-decoration:none;color:var(--sv-accent);background:var(--sv-accent-bg);border:1px solid var(--sv-border);">← Anterior</a>
+            <?php endif; ?>
+
+            <?php for ($pg = 1; $pg <= $totalPaginas; $pg++):
+                $ativo = ($pg === $paginaAtual);
+            ?>
+                <?php if ($pg === 1 || $pg === $totalPaginas || abs($pg - $paginaAtual) <= 2): ?>
+                    <a href="<?= sv_url('pages/processo_detalhe.php?id=' . $caseId . '&pg=' . $pg) ?>" style="padding:6px 12px;border-radius:6px;font-size:.82rem;font-weight:<?= $ativo ? '700' : '500' ?>;text-decoration:none;color:<?= $ativo ? '#fff' : 'var(--sv-accent)' ?>;background:<?= $ativo ? 'var(--sv-accent)' : 'var(--sv-accent-bg)' ?>;border:1px solid <?= $ativo ? 'var(--sv-accent)' : 'var(--sv-border)' ?>;"><?= $pg ?></a>
+                <?php elseif (abs($pg - $paginaAtual) === 3): ?>
+                    <span style="color:var(--sv-text-muted);font-size:.82rem;padding:0 4px;">…</span>
+                <?php endif; ?>
+            <?php endfor; ?>
+
+            <?php if ($paginaAtual < $totalPaginas): ?>
+                <a href="<?= sv_url('pages/processo_detalhe.php?id=' . $caseId . '&pg=' . ($paginaAtual + 1)) ?>" style="padding:6px 12px;border-radius:6px;font-size:.82rem;font-weight:600;text-decoration:none;color:var(--sv-accent);background:var(--sv-accent-bg);border:1px solid var(--sv-border);">Próxima →</a>
+            <?php endif; ?>
+        </div>
+        <div style="text-align:center;color:var(--sv-text-muted);font-size:.72rem;margin-top:.5rem;">
+            Página <?= $paginaAtual ?> de <?= $totalPaginas ?>
+        </div>
+        <?php endif; ?>
+
     <?php endif; ?>
 </div>
 
