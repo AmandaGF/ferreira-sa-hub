@@ -119,13 +119,13 @@ $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 // Todos os clientes vinculados ao processo (principal + partes com client_id)
 $clientesVinculados = array();
 if ($case['client_id']) {
-    $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name']);
+    $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name'], 'phone' => $case['client_phone'] ?: '');
 }
 try {
-    $stmtCliVinc = $pdo->prepare("SELECT DISTINCT cp.client_id, c.name FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?");
+    $stmtCliVinc = $pdo->prepare("SELECT DISTINCT cp.client_id, c.name, c.phone FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?");
     $stmtCliVinc->execute(array($caseId, (int)($case['client_id'] ?: 0)));
     foreach ($stmtCliVinc->fetchAll() as $cv) {
-        $clientesVinculados[] = array('id' => $cv['client_id'], 'name' => $cv['name']);
+        $clientesVinculados[] = array('id' => $cv['client_id'], 'name' => $cv['name'], 'phone' => $cv['phone'] ?: '');
     }
 } catch (Exception $e) {}
 
@@ -363,11 +363,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <?php endif; ?>
     <div class="actions">
-        <?php if ($clientWhatsapp):
-            $primeiroNomeCli = explode(' ', trim($case['client_name'] ?: ''))[0];
-            $msgCaso = "Olá " . $primeiroNomeCli . ", tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
+        <?php
+        // Montar lista de clientes com WhatsApp
+        $clientesComWa = array();
+        foreach ($clientesVinculados as $cv) {
+            $ph = $cv['phone'] ? preg_replace('/\D/', '', $cv['phone']) : '';
+            if ($ph) {
+                $primeiro = explode(' ', trim($cv['name']))[0];
+                $msg = "Olá " . $primeiro . ", tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
+                $clientesComWa[] = array('name' => $cv['name'], 'primeiro' => $primeiro, 'wa' => 'https://wa.me/55' . $ph . '?text=' . rawurlencode($msg));
+            }
+        }
         ?>
-            <a href="<?= $clientWhatsapp ?>?text=<?= urlencode($msgCaso) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+        <?php if (count($clientesComWa) === 1): ?>
+            <a href="<?= $clientesComWa[0]['wa'] ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+        <?php elseif (count($clientesComWa) > 1): ?>
+            <div style="position:relative;display:inline-block;">
+                <button type="button" onclick="var m=document.getElementById('menuWa');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-success btn-sm">💬 WhatsApp ▾</button>
+                <div id="menuWa" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
+                    <?php foreach ($clientesComWa as $cw): ?>
+                    <a href="<?= $cw['wa'] ?>" target="_blank" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
+                        💬 <?= e($cw['name']) ?>
+                    </a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         <?php endif; ?>
         <?php if (!empty($clientesVinculados)): ?>
             <?php if (count($clientesVinculados) === 1): ?>
