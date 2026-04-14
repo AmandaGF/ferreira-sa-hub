@@ -81,7 +81,8 @@ $stmt = $pdo->prepare(
      u.name as responsible_name,
      (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) as ultimo_andamento,
      (SELECT COUNT(*) FROM agenda_eventos ae WHERE ae.case_id = cs.id AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado') as audiencias_futuras,
-     (SELECT MIN(ae2.data_inicio) FROM agenda_eventos ae2 WHERE ae2.case_id = cs.id AND ae2.tipo = 'audiencia' AND ae2.data_inicio >= NOW() AND ae2.status != 'cancelado') as prox_audiencia
+     (SELECT MIN(ae2.data_inicio) FROM agenda_eventos ae2 WHERE ae2.case_id = cs.id AND ae2.tipo = 'audiencia' AND ae2.data_inicio >= NOW() AND ae2.status != 'cancelado') as prox_audiencia,
+     (SELECT GROUP_CONCAT(DISTINCT cl2.name SEPARATOR ', ') FROM case_partes cp2 INNER JOIN clients cl2 ON cl2.id = cp2.client_id WHERE cp2.case_id = cs.id AND cp2.client_id IS NOT NULL AND cp2.client_id != cs.client_id) as outros_clientes
      FROM cases cs
      LEFT JOIN clients c ON c.id = cs.client_id
      LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -253,6 +254,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td>
                         <?php if ($p['client_id']): ?>
                             <a href="<?= module_url('crm', 'cliente_ver.php?id=' . $p['client_id']) ?>" class="client-link"><?= e($p['client_name']) ?></a>
+                            <?php if (!empty($p['outros_clientes'])): ?>
+                                <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;"><?= e($p['outros_clientes']) ?></div>
+                            <?php endif; ?>
                         <?php else: ?>—<?php endif; ?>
                     </td>
                     <td>
