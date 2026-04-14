@@ -779,6 +779,7 @@ if (!empty($compFuturos)): ?>
     </div>
     <div style="padding:1.2rem;">
         <input type="hidden" id="parteId" value="0">
+        <input type="hidden" id="parteClientId" value="0">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem;">
             <div><label style="font-size:.72rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.2rem;">Papel</label>
                 <?php $isRecursoVer = (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso'); ?>
@@ -1986,7 +1987,7 @@ function abrirModalParte() {
     document.getElementById('partePapel').value = 'reu';
     document.getElementById('parteTipo').value = 'fisica';
     document.getElementById('parteBtnDel').style.display = 'none';
-    ['parteNome','parteCpf','parteRg','parteNasc','parteEC','parteProf','parteEmail','parteCnpj','parteRazao','parteFantasia','parteRepNome','parteRepCpf','parteTel','parteCep','parteEnd','parteCid','parteUf','parteObs','parteEmailPJ'].forEach(function(id) {
+    ['parteNome','parteCpf','parteRg','parteNasc','parteEC','parteProf','parteEmail','parteCnpj','parteRazao','parteFantasia','parteRepNome','parteRepCpf','parteTel','parteCep','parteEnd','parteCid','parteUf','parteObs','parteEmailPJ','parteClientId'].forEach(function(id) {
         var el = document.getElementById(id); if(el) el.value = '';
     });
     document.getElementById('parteRepId').value = '';
@@ -2101,6 +2102,8 @@ function salvarParte() {
     document.querySelectorAll('.repCheck:checked').forEach(function(cb) { repIds.push(cb.value); });
     fd.append('representa_ids', repIds.join(','));
     fd.append('observacoes', document.getElementById('parteObs').value);
+    var cliId = document.getElementById('parteClientId').value;
+    if (cliId && cliId !== '0') fd.append('client_id', cliId);
 
     var x = new XMLHttpRequest(); x.open('POST', PARTES_API);
     x.onload = function() {
@@ -2229,6 +2232,8 @@ function buscarCpfParte() {
                 if (d.address_city || d.cidade) document.getElementById('parteCid').value = d.address_city || d.cidade || '';
                 if (d.address_state || d.uf) document.getElementById('parteUf').value = d.address_state || d.uf || '';
                 if (d.address_zip || d.cep) document.getElementById('parteCep').value = d.address_zip || d.cep || '';
+                // Vincular client_id se veio da base interna
+                if (d.id || d.client_id) document.getElementById('parteClientId').value = d.id || d.client_id || '0';
                 st.textContent = 'Dados encontrados! (' + r.source + ')'; st.style.color = '#059669';
             } else {
                 st.textContent = 'Não encontrado. Preencha manualmente.'; st.style.color = '#94a3b8';
