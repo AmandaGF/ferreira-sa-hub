@@ -1029,6 +1029,14 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                    style="width:16px;height:16px;">
             <span style="font-size:.72rem;color:var(--text-muted);"><?= !empty($case['segredo_justica']) ? 'Sim' : 'Não' ?></span>
         </div>
+        <!-- Pro Bono -->
+        <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;border-top:1px solid var(--border);">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">Pro Bono</label>
+            <input type="checkbox" <?= !empty($case['pro_bono']) ? 'checked' : '' ?>
+                   onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'pro_bono'},value:this.checked?'1':'0'})"
+                   style="width:16px;height:16px;">
+            <span style="font-size:.72rem;color:<?= !empty($case['pro_bono']) ? '#059669' : 'var(--text-muted)' ?>;"><?= !empty($case['pro_bono']) ? '✓ Pro Bono' : 'Não' ?></span>
+        </div>
         <!-- Observações -->
         <div style="padding:.45rem .6rem;border-top:1px solid var(--border);">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.3rem;">Observações</label>

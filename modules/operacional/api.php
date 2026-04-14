@@ -482,7 +482,7 @@ switch ($action) {
         }
 
         // Whitelist de campos editáveis
-        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','distribution_date','drive_folder_url');
+        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url');
 
         if (!in_array($field, $allowed)) {
             echo json_encode(array('error' => 'Campo nao editavel: ' . $field));
