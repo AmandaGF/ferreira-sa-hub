@@ -91,6 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         audit_log('salavip_ged_upload', 'salavip_ged', (int)$pdo->lastInsertId(), "Documento: $titulo");
         flash_set('success', 'Documento enviado com sucesso.');
+        $fromCase = (int)($_POST['from_case'] ?? 0);
+        if ($fromCase) {
+            redirect(module_url('operacional', 'caso_ver.php?id=' . $fromCase));
+        }
         redirect(module_url('salavip', 'ged.php'));
     }
 

@@ -73,6 +73,16 @@ try {
     }
 } catch (Exception $e) {}
 
+// Documentos GED (compartilhados com cliente via Sala VIP)
+$docsGed = array();
+try {
+    $stmtGed = $pdo->prepare(
+        "SELECT g.*, u.name as user_name FROM salavip_ged g LEFT JOIN users u ON u.id = g.compartilhado_por WHERE g.processo_id = ? ORDER BY g.compartilhado_em DESC"
+    );
+    $stmtGed->execute(array($caseId));
+    $docsGed = $stmtGed->fetchAll();
+} catch (Exception $e) {}
+
 $statusLabels = array(
     'aguardando_docs'  => 'Contrato — Aguardando Docs',
     'em_elaboracao'    => 'Pasta Apta',
@@ -861,6 +871,78 @@ if (!empty($compFuturos)): ?>
     </div>
 </div>
 <?php endif; ?>
+
+<!-- GED — Documentos para o Cliente (Sala VIP) -->
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>📁 Documentos para o Cliente (<?= count($docsGed) ?>)</h3>
+        <button type="button" onclick="document.getElementById('gedUploadForm').style.display=document.getElementById('gedUploadForm').style.display==='none'?'block':'none'" class="btn btn-primary btn-sm" style="font-size:.72rem;">+ Enviar Documento</button>
+    </div>
+    <div class="card-body">
+        <!-- Upload Form (oculto por padrão) -->
+        <div id="gedUploadForm" style="display:none;margin-bottom:1rem;padding:1rem;background:var(--bg-card);border:1.5px solid var(--rose);border-radius:var(--radius);;">
+            <form method="POST" action="<?= module_url('salavip', 'ged.php') ?>" enctype="multipart/form-data">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="upload">
+                <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
+                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                <input type="hidden" name="from_case" value="<?= $caseId ?>">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem;">
+                    <div>
+                        <label class="form-label" style="font-size:.72rem;">Título *</label>
+                        <input type="text" name="titulo" class="form-control" required placeholder="Ex: Procuração, Decisão..." style="font-size:.82rem;">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size:.72rem;">Categoria</label>
+                        <select name="categoria" class="form-control" style="font-size:.82rem;">
+                            <?php foreach (array('Procuração','Contrato','Petição','Decisão','Sentença','Certidão','Comprovante','Acordo','Parecer','Outro') as $cat): ?>
+                            <option value="<?= $cat ?>"><?= $cat ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div style="margin-bottom:.5rem;">
+                    <label class="form-label" style="font-size:.72rem;">Arquivo * (PDF, JPG, PNG, DOCX — máx 10MB)</label>
+                    <input type="file" name="arquivo" class="form-control" required accept=".pdf,.jpg,.jpeg,.png,.docx" style="font-size:.82rem;">
+                </div>
+                <div style="display:flex;gap:.75rem;align-items:center;">
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer;">
+                        <input type="checkbox" name="visivel_cliente" value="1" checked> Visível na Sala VIP
+                    </label>
+                    <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;">Enviar</button>
+                </div>
+            </form>
+        </div>
+
+        <?php if (empty($docsGed)): ?>
+            <p class="text-muted text-sm">Nenhum documento compartilhado com o cliente neste processo.</p>
+        <?php else: ?>
+            <div style="display:flex;flex-direction:column;gap:.4rem;">
+                <?php foreach ($docsGed as $ged): ?>
+                <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-bottom:1px solid var(--border);font-size:.82rem;">
+                    <span style="font-size:1rem;">📄</span>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);"><?= e($ged['titulo']) ?></div>
+                        <div style="font-size:.7rem;color:var(--text-muted);">
+                            <?= e($ged['categoria'] ?? '') ?> · <?= e($ged['arquivo_nome'] ?? '') ?> · <?= date('d/m/Y', strtotime($ged['compartilhado_em'])) ?>
+                            <?php if ($ged['user_name']): ?> · <?= e(explode(' ', $ged['user_name'])[0]) ?><?php endif; ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;padding:2px 6px;border-radius:4px;font-weight:600;<?= $ged['visivel_cliente'] ? 'background:#ecfdf5;color:#059669;' : 'background:#fef2f2;color:#dc2626;' ?>">
+                        <?= $ged['visivel_cliente'] ? '👁 Visível' : '🔒 Oculto' ?>
+                    </span>
+                    <form method="POST" action="<?= module_url('salavip', 'ged.php') ?>" style="display:inline;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="toggle_visivel">
+                        <input type="hidden" name="id" value="<?= $ged['id'] ?>">
+                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text-muted);" title="Alternar visibilidade">&#128260;</button>
+                    </form>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
 
 <!-- Status e Informações -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
