@@ -29,6 +29,7 @@ $docTypes = array(
     'prevjud' => array('label' => 'Pesquisa PREVJUD', 'icon' => '🔍', 'color' => '#052228', 'desc' => 'Pesquisa de vínculo empregatício via PREVJUD'),
     'citacao_whatsapp' => array('label' => 'Citação por WhatsApp', 'icon' => '💬', 'color' => '#25D366', 'desc' => 'Petição requerendo citação do réu via WhatsApp — Art. 246, V, CPC'),
     'habilitacao' => array('label' => 'Petição de Habilitação', 'icon' => '📋', 'color' => '#7c3aed', 'desc' => 'Habilitação nos autos para atuação no processo (procuração em anexo)'),
+    'audiencia_remota' => array('label' => 'Audiência Remota/Híbrida', 'icon' => '🖥️', 'color' => '#0ea5e9', 'desc' => 'Requer realização de audiência por videoconferência ou de forma híbrida'),
 );
 
 // Histórico de documentos gerados

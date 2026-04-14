@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -37,6 +37,7 @@ $typeLabels = array(
     'prevjud' => 'Pesquisa PREVJUD',
     'citacao_whatsapp' => 'Petição de Citação por WhatsApp',
     'habilitacao' => 'Petição de Habilitação nos Autos',
+    'audiencia_remota' => 'Petição de Audiência Remota/Híbrida',
 );
 
 $acaoLabels = array(
@@ -219,10 +220,16 @@ $whatsappReu = $_POST['whatsapp_reu'] ?? '';
 $tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
 $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 
+// Campos audiência remota/híbrida
+$motivoAudiencia = $_POST['motivo_audiencia'] ?? '';
+$modalidadeAudiencia = $_POST['modalidade_audiencia'] ?? 'remota_ou_hibrida';
+$emailsAudiencia = $_POST['emails_audiencia'] ?? ($email ? $email : '');
+$papelClienteAud = $_POST['papel_cliente_aud'] ?? 'autor';
+
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -829,7 +836,53 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
-        <?php if ($isIntercorrente && $tipo !== 'habilitacao'): ?>
+        <?php if ($tipo === 'audiencia_remota'): ?>
+        <div class="section">
+            <h4>🖥️ Dados da Audiência Remota/Híbrida</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 4º Juizado Especial Cível"></div>
+            </div>
+            <div class="row">
+                <div><label>UF</label>
+                    <select name="comarca_uf_doc" id="docUf" onchange="if(typeof ibgeCidades==='function'&&!this._init){this._init=1;ibgeCidades('docUf','docComarca','docListaCidades');}">
+                        <option value="">—</option>
+                        <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $_uf): ?>
+                        <option value="<?= $_uf ?>" <?= ($comarcaUfDoc ?: 'RJ') === $_uf ? 'selected' : '' ?>><?= $_uf ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div><label>Comarca</label><input name="comarca_doc" id="docComarca" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Nova Iguaçu" list="docListaCidades" autocomplete="off"><datalist id="docListaCidades"></datalist></div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>Papel do cliente no processo</label>
+                    <select name="papel_cliente_aud">
+                        <option value="autor" <?= $papelClienteAud === 'autor' ? 'selected' : '' ?>>Autor(a) / Requerente</option>
+                        <option value="reu" <?= $papelClienteAud === 'reu' ? 'selected' : '' ?>>Réu / Requerido(a)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Modalidade requerida</label>
+                    <select name="modalidade_audiencia">
+                        <option value="remota_ou_hibrida" <?= $modalidadeAudiencia === 'remota_ou_hibrida' ? 'selected' : '' ?>>Remota ou, alternativamente, híbrida</option>
+                        <option value="remota" <?= $modalidadeAudiencia === 'remota' ? 'selected' : '' ?>>Somente remota (videoconferência)</option>
+                        <option value="hibrida" <?= $modalidadeAudiencia === 'hibrida' ? 'selected' : '' ?>>Somente híbrida</option>
+                    </select>
+                </div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Motivo / Justificativa da impossibilidade de comparecimento presencial</label>
+                <textarea name="motivo_audiencia" rows="4" placeholder="Ex: A patrona da Autora exerce atividade docente presencial na cidade de Volta Redonda – RJ na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca..."><?= e($motivoAudiencia) ?></textarea>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>E-mails para envio do link de acesso (separar por ; se mais de um)</label>
+                <input name="emails_audiencia" value="<?= e($emailsAudiencia) ?>" placeholder="Ex: amandaferreira@ferreiraesa.com.br ; amandaguedesferreira@gmail.com">
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($isIntercorrente && $tipo !== 'habilitacao' && $tipo !== 'audiencia_remota'): ?>
         <div class="section">
             <h4>Comarca</h4>
             <div class="row">
@@ -917,6 +970,11 @@ if (!$showEditor) {
         'subst_adv_endereco' => $substAdvEndereco,
         'subst_adv_nacionalidade' => $substAdvNacionalidade,
         'subst_adv_telefone' => $substAdvTelefone,
+        // Audiência remota/híbrida
+        'motivo_audiencia' => $motivoAudiencia,
+        'modalidade_audiencia' => $modalidadeAudiencia,
+        'emails_audiencia' => $emailsAudiencia,
+        'papel_cliente_aud' => $papelClienteAud,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -931,6 +989,7 @@ if (!$showEditor) {
     elseif ($tipo === 'prevjud') echo template_prevjud($d);
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
+    elseif ($tipo === 'audiencia_remota') echo template_audiencia_remota($d);
     ?>
     </div>
 
