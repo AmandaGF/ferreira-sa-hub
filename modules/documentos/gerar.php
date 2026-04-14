@@ -149,9 +149,9 @@ if ($caseData) {
         if (stripos($varaFromCase, 'regional') === false) {
             $comarcaNome = $caseData['comarca'] ?: '';
             if ($comarcaNome && stripos($varaFromCase, $comarcaNome) === false) {
-                $varaFromCase .= ' da Comarca de ' . strtoupper($comarcaNome);
+                $varaFromCase .= ' da Comarca de ' . mb_strtoupper($comarcaNome, 'UTF-8');
             }
-            $varaFromCase .= ' - REGIONAL DE ' . strtoupper($caseData['regional']);
+            $varaFromCase .= ' - REGIONAL DE ' . mb_strtoupper($caseData['regional'], 'UTF-8');
         }
     }
 }

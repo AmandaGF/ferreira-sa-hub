@@ -48,8 +48,12 @@ function qualificacao_completa($d, $incluirEndereco = true) {
  */
 function enderecamento($d) {
     $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '___ª VARA DE FAMÍLIA';
-    $comarca = isset($d['comarca']) && $d['comarca'] ? strtoupper($d['comarca']) : '_______________';
-    $uf = isset($d['comarca_uf']) && $d['comarca_uf'] ? strtoupper($d['comarca_uf']) : 'RJ';
+    $comarca = isset($d['comarca']) && $d['comarca'] ? mb_strtoupper($d['comarca'], 'UTF-8') : '_______________';
+    $uf = isset($d['comarca_uf']) && $d['comarca_uf'] ? mb_strtoupper($d['comarca_uf'], 'UTF-8') : 'RJ';
+    // Se a vara já contém "comarca", não duplicar "DA COMARCA DE"
+    if (stripos($vara, 'comarca') !== false) {
+        return '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . ' — ' . f($uf) . '</p>';
+    }
     return '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . ' DA COMARCA DE ' . f($comarca) . '/' . f($uf) . '</p>';
 }
 
@@ -60,10 +64,13 @@ function enderecamento($d) {
 function qualificacao_legitimidade($d) {
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : 'proprio';
     $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
-    $qualifMenor = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
+    $qualifMenorRaw = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere' : 'impúbere';
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        return '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        $multiplos = (strpos($nomeFilhos, ' E ') !== false);
+        $menorTexto = $multiplos ? 'menores ' . $qualifMenorRaw . 's' : 'menor ' . $qualifMenorRaw;
+        $repTexto = $multiplos ? 'representados' : 'representado(a)';
+        return '<strong>' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
     }
     return '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
 }
@@ -826,12 +833,17 @@ function template_audiencia_remota($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        $multiplos = (strpos($nomeFilhos, ' E ') !== false);
+        $repTexto = $multiplos ? 'representados' : 'representado(a)';
+        $menorTexto = $multiplos ? 'menores ' . $qualifMenor : 'menor ' . str_replace('(s)', '', $qualifMenor);
+        $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        $verbo = $multiplos ? 'vêm' : 'vem';
     } else {
         $html .= '<strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+        $verbo = 'vem';
     }
 
-    $html .= ', vem, respeitosamente, por intermédio de sua advogada que esta assina digitalmente, requerer a realização da audiência';
+    $html .= ', ' . $verbo . ', respeitosamente, por intermédio de sua advogada que esta subscreve, requerer a realização da audiência';
     if ($dataAudFormatada) {
         $html .= ' designada para o dia <strong>' . $dataAudFormatada . '</strong>';
     }
@@ -855,9 +867,9 @@ function template_audiencia_remota($d) {
     }
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
 
-    // Parágrafo opcional sobre distância/justa causa (se não tem motivo livre)
-    if (!$motivo) {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Acrescenta-se que a parte requerente reside em localidade distante da sede do Juízo, o que torna o comparecimento presencial de difícil realização, configurando hipótese de justa causa prevista no art. 223, §1º, do CPC.</p>';
+    // Parágrafo sobre justa causa — só aparece se motivo foi preenchido (o motivo já explica a circunstância)
+    if ($motivo) {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A circunstância acima narrada configura hipótese de justa causa prevista no <strong>art. 223, §1º, do CPC</strong>, justificando a concessão da medida ora requerida.</p>';
     }
 
     // 2. DO PEDIDO
