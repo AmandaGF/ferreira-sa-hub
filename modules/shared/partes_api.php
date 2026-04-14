@@ -66,6 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $like = '%' . $q . '%';
         $stmt->execute(array($like, $like));
         $results = $stmt->fetchAll();
+        // Também buscar em clients (clientes cadastrados)
+        $stmtCli = $pdo->prepare(
+            "SELECT name as nome, cpf, rg, birth_date as nascimento, profession as profissao, marital_status as estado_civil,
+                    email, phone as telefone, address_street as endereco, address_city as cidade, address_state as uf, address_zip as cep,
+                    'fisica' as tipo_pessoa, NULL as cnpj, NULL as razao_social, NULL as nome_fantasia
+             FROM clients
+             WHERE name LIKE ?
+             ORDER BY name
+             LIMIT 10"
+        );
+        $stmtCli->execute(array($like));
+        $clientResults = $stmtCli->fetchAll();
+        $results = array_merge($results, $clientResults);
+
         // Deduplicate by nome+cpf
         $seen = array();
         $unique = array();
@@ -75,6 +89,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             $seen[$key] = true;
             $unique[] = $r;
         }
+        // Limitar a 15
+        $unique = array_slice($unique, 0, 15);
         echo json_encode($unique);
         exit;
     }
