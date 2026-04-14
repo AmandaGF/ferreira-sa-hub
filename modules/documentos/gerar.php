@@ -211,7 +211,18 @@ if ($caseIdDoc && function_exists('buscar_partes_caso')) {
             if (!$childNamesAud) $childNamesAud = strtoupper($menorAutor);
             $papelClienteAud = 'autor';
         }
+        // Fallback: se há menor como autor no processo mas cliente não é rep_legal explícito
+        // (ex: cliente é "autor" junto com o menor) — ainda disponibilizar o nome
+        if ($menorAutor && !$_POST) {
+            if (!$childNamesAud) $childNamesAud = strtoupper($menorAutor);
+            if (!$childNames) $childNames = strtoupper($menorAutor);
+        }
     }
+}
+
+// Fallback: se childNamesAud está vazio, usar childNames (form convivência/gastos)
+if (!$childNamesAud && $childNames && !$_POST) {
+    $childNamesAud = $childNames;
 }
 
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
