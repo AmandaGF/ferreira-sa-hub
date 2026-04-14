@@ -947,6 +947,50 @@ if (!$showEditor) {
                 <div><label>Comarca</label><input name="comarca_doc" id="docComarca" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Resende" list="docListaCidades" autocomplete="off"><datalist id="docListaCidades"></datalist></div>
             </div>
         </div>
+
+        <div class="section">
+            <h4>👤 Legitimidade — Quem é a parte?</h4>
+            <div class="row">
+                <div>
+                    <label>A petição é em nome de quem?</label>
+                    <select name="pleiteante_inter" id="pleiteante_inter" onchange="togglePleiteanteInter(this.value)">
+                        <option value="proprio" <?= ($pleiteanteHab === 'proprio' || $pleiteanteHab === '') ? 'selected' : '' ?>>Do próprio cliente (em nome próprio)</option>
+                        <option value="menor" <?= $pleiteanteHab === 'menor' ? 'selected' : '' ?>>De menor de idade (cliente é representante legal)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Papel no processo</label>
+                    <select name="papel_cliente">
+                        <option value="autor" <?= $papelCliente === 'autor' ? 'selected' : '' ?>>Autor(a) / Requerente</option>
+                        <option value="reu" <?= $papelCliente === 'reu' ? 'selected' : '' ?>>Réu / Requerido(a)</option>
+                        <option value="representante_legal" <?= $papelCliente === 'representante_legal' ? 'selected' : '' ?>>Representante Legal</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row" id="dadosMenorInter" style="<?= $pleiteanteHab === 'menor' ? '' : 'display:none;' ?>">
+                <div>
+                    <label>Nome completo do(s) menor(es) *</label>
+                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: SOFIA COUTO PATRÍCIO E JONAS COUTO PATRÍCIO">
+                    <small style="color:#6b7280;font-size:.72rem;">A petição será feita em nome do menor, representado pelo cliente</small>
+                </div>
+                <div>
+                    <label>Qualificação do menor</label>
+                    <select name="qualif_menor">
+                        <option value="impubere" <?= ($qualifMenor ?? '') === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
+                        <option value="pubere" <?= ($qualifMenor ?? '') === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
+                    </select>
+                </div>
+            </div>
+            <input type="hidden" name="rep_legal" id="rep_legal_inter_hidden" value="<?= e($repLegal) ?>">
+            <input type="hidden" name="pleiteante_hab" id="pleiteante_hab_hidden" value="<?= e($pleiteanteHab) ?>">
+            <script>
+            function togglePleiteanteInter(val) {
+                document.getElementById('dadosMenorInter').style.display = val === 'menor' ? '' : 'none';
+                document.getElementById('rep_legal_inter_hidden').value = val === 'menor' ? 'sim' : 'nao';
+                document.getElementById('pleiteante_hab_hidden').value = val;
+            }
+            </script>
+        </div>
         <?php endif; ?>
 
         <button type="submit" class="btn-gen">Gerar Documento →</button>

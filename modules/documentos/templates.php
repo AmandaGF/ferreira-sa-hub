@@ -53,6 +53,21 @@ function enderecamento($d) {
     return '<p style="font-weight:700;text-transform:uppercase;text-indent:0;">JUÍZO DA ' . f($vara) . ' DA COMARCA DE ' . f($comarca) . '/' . f($uf) . '</p>';
 }
 
+/**
+ * Gera qualificação da parte com legitimidade ativa (próprio ou menor representado)
+ * Retorna: "FULANO, já qualificado(a) nos autos" ou "MENOR, representado(a) por FULANO, já qualificados nos autos"
+ */
+function qualificacao_legitimidade($d) {
+    $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : 'proprio';
+    $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
+    $qualifMenor = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
+
+    if ($pleiteante === 'menor' && $nomeFilhos) {
+        return '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
+    }
+    return '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+}
+
 // ═══════════════════════════════════════════════════════
 // PROCURAÇÃO
 // ═══════════════════════════════════════════════════════
@@ -439,7 +454,7 @@ function template_juntada($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">JUNTADA DE DOCUMENTOS</div>';
 
@@ -508,12 +523,8 @@ function template_prevjud($d) {
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<br>';
 
-    // Qualificação
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;"><strong>' . f($d['nome']) . '</strong>';
-    if (isset($d['child_names']) && $d['child_names']) {
-        $html .= ', representado(a) por sua genitora/genitor <strong>' . f($d['child_names']) . '</strong>';
-    }
-    $html .= ', já qualificado(a) nos autos do processo em epígrafe, por intermédio de seus advogados que esta subscrevem digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
+    // Qualificação com legitimidade ativa
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de seus advogados que esta subscrevem digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
 
     // Destaque visual PREVJUD
     $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);border-radius:8px;overflow:hidden;">';
@@ -576,7 +587,7 @@ function template_ciencia($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CIÊNCIA</div>';
 
@@ -612,7 +623,7 @@ function template_citacao_whatsapp($d) {
     $html = '<div class="doc-title">PETIÇÃO INTERCORRENTE</div>';
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
-    $html .= '<p><strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITAÇÃO DO(A) RÉU/RÉ POR MEIO ELETRÔNICO (WHATSAPP)</div>';
     $html .= '<p>da parte ré <strong>' . f($nomeReu) . '</strong>, nos termos a seguir expostos.</p>';
 
