@@ -1,8 +1,11 @@
 <?php
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') die('Acesso negado.');
 header('Content-Type: text/plain; charset=utf-8');
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
+try {
 $pdo = db();
 
 // Corrigir andamentos marcados como segredo_justica=1 onde o PROCESSO não é segredo
@@ -31,4 +34,7 @@ if (isset($_GET['fix'])) {
     echo "\n=== CORRIGIDOS: {$fixed} andamento(s) ===\n";
 } else {
     echo "\nAdicione &fix=1 para corrigir.\n";
+}
+} catch (Exception $e) {
+    echo "ERRO: " . $e->getMessage() . "\n";
 }
