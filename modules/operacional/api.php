@@ -1192,7 +1192,14 @@ switch ($action) {
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Sem permissão', 'csrf' => $newCsrf)); exit; }
             break;
         }
-        $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?")->execute(array($descricao, $andId));
+        $hora = trim($_POST['hora'] ?? '');
+        if ($hora && preg_match('/^\d{2}:\d{2}$/', $hora)) {
+            // Atualizar created_at mantendo a data mas alterando a hora
+            $pdo->prepare("UPDATE case_andamentos SET descricao = ?, created_at = CONCAT(DATE(created_at), ' ', ?, ':00') WHERE id = ?")
+                ->execute(array($descricao, $hora, $andId));
+        } else {
+            $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?")->execute(array($descricao, $andId));
+        }
         audit_log('ANDAMENTO_EDITADO', 'andamento', $andId, mb_substr($descricao, 0, 80, 'UTF-8'));
         $newCsrf = generate_csrf_token();
         if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'csrf' => $newCsrf)); exit; }

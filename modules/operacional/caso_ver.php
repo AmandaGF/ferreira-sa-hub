@@ -504,6 +504,21 @@ if (!empty($compFuturos)): ?>
             </div>
         </div>
         <div style="display:flex;gap:.3rem;flex-shrink:0;">
+            <?php if ($clientPhone):
+                $primeiroNomeComp = explode(' ', trim($case['client_name'] ?: ''))[0];
+                $dataCompFmt = date('d/m/Y', strtotime($dtInicio));
+                $horaCompFmt = ($comp['dia_todo'] != 1) ? date('H:i', strtotime($dtInicio)) : '';
+                $tipoCompMsg = isset($tipoCompLabels[$comp['tipo']]) ? mb_strtolower($tipoCompLabels[$comp['tipo']]) : $comp['tipo'];
+                $msgComp = "Olá " . $primeiroNomeComp . ", tudo bem?\n\nGostaríamos de lembrar sobre a *" . $tipoCompMsg . "* agendada para o dia *" . $dataCompFmt . "*";
+                if ($horaCompFmt) $msgComp .= " às *" . $horaCompFmt . "*";
+                $msgComp .= ".";
+                if ($comp['local']) $msgComp .= "\n\n📍 Local: " . $comp['local'];
+                if ($comp['meet_link']) $msgComp .= "\n\n💻 Link de acesso: " . $comp['meet_link'];
+                $msgComp .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
+                $waCompUrl = 'https://wa.me/55' . $clientPhone . '?text=' . rawurlencode($msgComp);
+            ?>
+                <a href="<?= e($waCompUrl) ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;" title="Lembrar cliente via WhatsApp">WhatsApp</a>
+            <?php endif; ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
@@ -1499,7 +1514,7 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                                     <a href="<?= module_url('helpdesk', 'ver.php?id=' . $chamadoId) ?>" style="font-size:.6rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;font-weight:600;">Abrir Chamado #<?= $chamadoId ?></a>
                                     <?php endif; ?>
                                 <?php endif; ?>
-                                <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
+                                <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;" data-hora="<?= date('H:i', strtotime($and['created_at'])) ?>" data-and-hora="<?= $and['id'] ?>"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
                                 <?php
                                 $visivel = isset($and['visivel_cliente']) ? (int)$and['visivel_cliente'] : 1;
                                 $sigilo = isset($and['segredo_justica']) ? (int)$and['segredo_justica'] : 0;
@@ -2152,22 +2167,41 @@ function toggleVisibilidade(andId, btn) {
 function editarAndamento(andId) {
     var descEl = document.getElementById('andDesc' + andId);
     var textoAtual = descEl.textContent;
+    // Pegar hora atual do andamento (do span de hora)
+    var horaSpan = descEl.closest('.and-item') ? descEl.closest('.and-item').querySelector('[data-hora]') : null;
+    var horaAtual = horaSpan ? horaSpan.getAttribute('data-hora') : '';
+
+    var wrapper = document.createElement('div');
+    wrapper.id = 'andEditWrap' + andId;
+
+    var horaRow = document.createElement('div');
+    horaRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
+    horaRow.innerHTML = '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Horário:</label><input type="time" id="andHora' + andId + '" value="' + horaAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">';
+
     var input = document.createElement('textarea');
     input.value = textoAtual;
     input.style.cssText = 'width:100%;font-size:.85rem;padding:6px;border:2px solid #B87333;border-radius:6px;min-height:60px;font-family:inherit;resize:vertical;';
+    input.id = 'andEdit' + andId;
+
     var btns = document.createElement('div');
     btns.style.cssText = 'display:flex;gap:4px;margin-top:4px;';
+    btns.id = 'andBtns' + andId;
     btns.innerHTML = '<button onclick="salvarAndamento(' + andId + ')" style="background:#059669;color:#fff;border:none;padding:3px 10px;border-radius:4px;font-size:.72rem;font-weight:600;cursor:pointer;">Salvar</button>'
         + '<button onclick="cancelarEdicaoAnd(' + andId + ')" style="background:#f3f4f6;border:none;padding:3px 10px;border-radius:4px;font-size:.72rem;cursor:pointer;">Cancelar</button>';
+
+    wrapper.appendChild(horaRow);
+    wrapper.appendChild(input);
+    wrapper.appendChild(btns);
+
     descEl.style.display = 'none';
-    descEl.parentNode.insertBefore(input, descEl.nextSibling);
-    descEl.parentNode.insertBefore(btns, input.nextSibling);
+    descEl.parentNode.insertBefore(wrapper, descEl.nextSibling);
     input.focus();
-    input.id = 'andEdit' + andId;
-    btns.id = 'andBtns' + andId;
 }
 
 function cancelarEdicaoAnd(andId) {
+    var wrap = document.getElementById('andEditWrap' + andId);
+    if (wrap) wrap.remove();
+    // Fallback para versão antiga sem wrapper
     var input = document.getElementById('andEdit' + andId);
     var btns = document.getElementById('andBtns' + andId);
     if (input) input.remove();
@@ -2180,6 +2214,8 @@ function salvarAndamento(andId) {
     if (!input) return;
     var novoTexto = input.value.trim();
     if (!novoTexto) { alert('Descrição não pode ser vazia.'); return; }
+    var horaEl = document.getElementById('andHora' + andId);
+    var novaHora = horaEl ? horaEl.value : '';
     var x = new XMLHttpRequest();
     x.open('POST', '<?= module_url("operacional", "api.php") ?>');
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -2189,11 +2225,14 @@ function salvarAndamento(andId) {
             if (r.csrf) andCsrf = r.csrf;
             if (r.ok) {
                 document.getElementById('andDesc' + andId).textContent = novoTexto;
+                // Atualizar hora exibida
+                var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
+                if (horaSpan && novaHora) horaSpan.textContent = novaHora;
                 cancelarEdicaoAnd(andId);
             } else if (r.error) { alert(r.error); }
         } catch(e) { alert('Erro ao salvar'); }
     };
-    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
+    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
 function buscarCepParte() {
