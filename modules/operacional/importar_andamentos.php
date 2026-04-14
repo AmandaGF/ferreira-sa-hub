@@ -274,12 +274,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $confCsv = isset($reg['confidencial']) ? $reg['confidencial'] : 'Não';
                     $ehConfidencial = (mb_strtolower(trim($confCsv)) === 'sim') ? 1 : 0;
 
-                    // 2. Detectar sigilo pelo conteúdo (publicações do tribunal)
-                    $descLower = mb_strtolower($reg['descricao'], 'UTF-8');
-                    $ehSigiloPorConteudo = (strpos($descLower, 'em segredo de justi') !== false || strpos($descLower, 'sigilo') !== false || strpos($descLower, 'sigiloso') !== false) ? 1 : 0;
+                    // 2. Verificar se o PROCESSO é segredo de justiça (não detectar pelo texto do andamento)
+                    $ehProcessoSigilo = 0;
+                    try {
+                        $stmtSig = $pdo->prepare("SELECT segredo_justica FROM cases WHERE id = ?");
+                        $stmtSig->execute(array($caseId));
+                        $ehProcessoSigilo = (int)$stmtSig->fetchColumn();
+                    } catch (Exception $e2) {}
 
-                    // Resultado: confidencial OU sigilo por conteúdo → oculto
-                    $segredoJustica = ($ehConfidencial || $ehSigiloPorConteudo) ? 1 : 0;
+                    // Resultado: confidencial (CSV) OU processo é segredo → oculto
+                    $segredoJustica = ($ehConfidencial || $ehProcessoSigilo) ? 1 : 0;
                     $visivelCliente = $segredoJustica ? 0 : 1;
 
                     $pdo->prepare(
