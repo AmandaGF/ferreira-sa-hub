@@ -990,7 +990,6 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                 array('label' => 'Regional', 'field' => 'regional', 'value' => $case['regional'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: Barra Mansa'),
                 array('label' => 'Sistema Tribunal', 'field' => 'sistema_tribunal', 'value' => $case['sistema_tribunal'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: PJe TJRJ'),
                 array('label' => 'Data Distribuição', 'field' => 'distribution_date', 'value' => $case['distribution_date'] ?? '', 'type' => 'date', 'placeholder' => ''),
-                array('label' => 'Prazo / Deadline', 'field' => 'deadline', 'value' => $case['deadline'] ?? '', 'type' => 'date', 'placeholder' => ''),
                 array('label' => 'Link Google Drive', 'field' => 'drive_folder_url', 'value' => $case['drive_folder_url'] ?? '', 'type' => 'url', 'placeholder' => 'https://drive.google.com/...'),
             );
             foreach ($camposProcesso as $cp):
