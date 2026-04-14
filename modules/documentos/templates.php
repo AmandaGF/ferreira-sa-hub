@@ -778,6 +778,10 @@ function template_audiencia_remota($d) {
     $motivo = isset($d['motivo_audiencia']) && $d['motivo_audiencia'] ? $d['motivo_audiencia'] : '';
     $emails = isset($d['emails_audiencia']) && $d['emails_audiencia'] ? $d['emails_audiencia'] : '';
     $papelCliente = isset($d['papel_cliente_aud']) && $d['papel_cliente_aud'] ? $d['papel_cliente_aud'] : 'autor';
+    $pleiteante = isset($d['pleiteante_aud']) ? $d['pleiteante_aud'] : 'proprio';
+    $nomeFilhos = isset($d['child_names_aud']) && $d['child_names_aud'] ? $d['child_names_aud'] : '';
+    $qualifMenor = isset($d['qualif_menor_aud']) && $d['qualif_menor_aud'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
+    $isRepLegal = isset($d['rep_legal_aud']) && $d['rep_legal_aud'] === 'sim';
 
     // Modalidade texto
     if ($modalidade === 'remota') {
@@ -797,15 +801,28 @@ function template_audiencia_remota($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    // Corpo
+    // Corpo — qualificação com legitimidade ativa
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
-    $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos, vem, respeitosamente, por intermédio de sua advogada que esta assina digitalmente, requerer a realização da <strong>' . $modalidadeTexto . '</strong>, pelos fundamentos a seguir expostos.</p>';
+
+    if ($pleiteante === 'menor' && $nomeFilhos) {
+        // Petição em nome do menor, representado pelo cliente
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, menor(es) ' . $qualifMenor . ', neste ato representado(a) por sua genitora/genitor <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
+    } else {
+        // Petição em nome próprio do cliente
+        $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+    }
+
+    $html .= ', vem, respeitosamente, por intermédio de sua advogada que esta assina digitalmente, requerer a realização da <strong>' . $modalidadeTexto . '</strong>, pelos fundamentos a seguir expostos.</p>';
 
     // Motivo / Justificativa
+    $poloTexto = ($papelCliente === 'reu') ? 'do(a) Requerido(a)' : 'da Autora';
+    if ($pleiteante === 'menor' && $nomeFilhos) {
+        $poloTexto = ($papelCliente === 'reu') ? 'do(a) Requerido(a)' : 'do(a) menor ' . f($nomeFilhos);
+    }
     if ($motivo) {
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . nl2br(f($motivo)) . '</p>';
     } else {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A patrona ' . ($papelCliente === 'reu' ? 'do(a) Requerido(a)' : 'da Autora') . ', <strong>' . $esc['adv1_nome'] . '</strong>, OAB/RJ nº ' . $esc['adv1_oab'] . ', possui compromisso profissional na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca em tempo hábil para o cumprimento de ambas as obrigações profissionais.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A patrona ' . $poloTexto . ', <strong>' . $esc['adv1_nome'] . '</strong>, OAB/RJ nº ' . $esc['adv1_oab'] . ', possui compromisso profissional na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca em tempo hábil para o cumprimento de ambas as obrigações profissionais.</p>';
     }
 
     // Fundamentação legal
@@ -813,7 +830,11 @@ function template_audiencia_remota($d) {
 
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A realização de audiências por meio de videoconferência ou outro recurso tecnológico encontra amplo respaldo legal no ordenamento jurídico vigente, notadamente no <strong>art. 236, §3º, do Código de Processo Civil</strong>, com redação dada pela Lei nº 14.195/2021, bem como na <strong>Resolução CNJ nº 354/2020</strong>, que instituiu e regulamentou o processo judicial eletrônico e o uso de ferramentas remotas para a prática de atos processuais, e na <strong>Resolução CNJ nº 385/2021</strong>, que disciplina o Juízo 100% Digital.</p>';
 
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediatidade e do contraditório, porquanto a parte ' . ($papelCliente === 'reu' ? 'Requerida' : 'Autora') . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
+    $parteTextoFund = ($papelCliente === 'reu') ? 'Requerida' : 'Autora';
+    if ($pleiteante === 'menor' && $nomeFilhos) {
+        $parteTextoFund = ($papelCliente === 'reu') ? 'Requerida' : 'Autora (representada)';
+    }
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediatidade e do contraditório, porquanto a parte ' . $parteTextoFund . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
 
     // Pedido
     $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DO PEDIDO</p>';

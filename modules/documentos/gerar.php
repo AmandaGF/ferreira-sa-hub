@@ -205,6 +205,11 @@ if ($caseIdDoc && function_exists('buscar_partes_caso')) {
             $repLegal = 'sim';
             if (!$childNames) $childNames = strtoupper($menorAutor);
             $papelCliente = 'autor'; // O menor é o autor
+            // Também pré-preencher audiência remota
+            $pleiteanteAud = 'menor';
+            $repLegalAud = 'sim';
+            if (!$childNamesAud) $childNamesAud = strtoupper($menorAutor);
+            $papelClienteAud = 'autor';
         }
     }
 }
@@ -225,6 +230,10 @@ $motivoAudiencia = $_POST['motivo_audiencia'] ?? '';
 $modalidadeAudiencia = $_POST['modalidade_audiencia'] ?? 'remota_ou_hibrida';
 $emailsAudiencia = $_POST['emails_audiencia'] ?? ($email ? $email : '');
 $papelClienteAud = $_POST['papel_cliente_aud'] ?? 'autor';
+$pleiteanteAud = $_POST['pleiteante_aud'] ?? 'proprio';
+$childNamesAud = $_POST['child_names_aud'] ?? '';
+$qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
+$repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
@@ -856,12 +865,42 @@ if (!$showEditor) {
             </div>
             <div class="row">
                 <div>
-                    <label>Papel do cliente no processo</label>
+                    <label>Quem é a parte no processo?</label>
+                    <select name="pleiteante_aud" id="pleiteante_aud" onchange="togglePleiteanteAud(this.value)">
+                        <option value="proprio" <?= $pleiteanteAud === 'proprio' ? 'selected' : '' ?>>O próprio cliente (em nome próprio)</option>
+                        <option value="menor" <?= $pleiteanteAud === 'menor' ? 'selected' : '' ?>>Menor de idade (cliente é representante legal)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Papel no processo</label>
                     <select name="papel_cliente_aud">
                         <option value="autor" <?= $papelClienteAud === 'autor' ? 'selected' : '' ?>>Autor(a) / Requerente</option>
                         <option value="reu" <?= $papelClienteAud === 'reu' ? 'selected' : '' ?>>Réu / Requerido(a)</option>
                     </select>
                 </div>
+            </div>
+            <div class="row" id="dadosMenorAud" style="<?= $pleiteanteAud === 'menor' ? '' : 'display:none;' ?>">
+                <div>
+                    <label>Nome completo do(s) menor(es) *</label>
+                    <input name="child_names_aud" value="<?= e($childNamesAud) ?>" placeholder="Ex: ARTHUR REIS CABRAL">
+                    <small style="color:#6b7280;font-size:.72rem;">A petição será feita em nome do menor, representado pelo cliente</small>
+                </div>
+                <div>
+                    <label>Qualificação do menor</label>
+                    <select name="qualif_menor_aud">
+                        <option value="impubere" <?= $qualifMenorAud === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
+                        <option value="pubere" <?= $qualifMenorAud === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
+                    </select>
+                </div>
+            </div>
+            <input type="hidden" name="rep_legal_aud" id="rep_legal_aud_hidden" value="<?= e($repLegalAud) ?>">
+            <script>
+            function togglePleiteanteAud(val) {
+                document.getElementById('dadosMenorAud').style.display = val === 'menor' ? '' : 'none';
+                document.getElementById('rep_legal_aud_hidden').value = val === 'menor' ? 'sim' : 'nao';
+            }
+            </script>
+            <div class="row">
                 <div>
                     <label>Modalidade requerida</label>
                     <select name="modalidade_audiencia">
@@ -975,6 +1014,10 @@ if (!$showEditor) {
         'modalidade_audiencia' => $modalidadeAudiencia,
         'emails_audiencia' => $emailsAudiencia,
         'papel_cliente_aud' => $papelClienteAud,
+        'pleiteante_aud' => $pleiteanteAud,
+        'child_names_aud' => $childNamesAud,
+        'qualif_menor_aud' => $qualifMenorAud,
+        'rep_legal_aud' => $repLegalAud,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
