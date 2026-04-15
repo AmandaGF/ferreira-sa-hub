@@ -455,7 +455,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <div style="display:flex;align-items:center;gap:4px;">
                                 <input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">
                                 <label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">
-                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" disabled>
+                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onclick="toggleParteCliente(this)">
                                     <span class="parte-cliente-label">Cliente</span>
                                 </label>
                             </div>
@@ -891,9 +891,76 @@ function addParteRow() {
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
         + '<div style="display:flex;align-items:center;gap:4px;"><input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">'
         + '<label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">'
-        + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" disabled><span class="parte-cliente-label">Cliente</span></label></div>'
+        + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onclick="toggleParteCliente(this)"><span class="parte-cliente-label">Cliente</span></label></div>'
         + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
     document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
+}
+
+// Toggle marcar parte como cliente — busca na base e vincula
+function toggleParteCliente(checkbox) {
+    var row = checkbox.closest('.parte-row');
+    var hiddenId = row.querySelector('.parte-client-id');
+    var label = row.querySelector('.parte-cliente-label');
+    var inputNome = row.querySelector('input[name="partes_nome[]"]');
+    var inputDoc = row.querySelector('input[name="partes_doc[]"]');
+
+    if (!checkbox.checked) {
+        hiddenId.value = '0';
+        label.textContent = 'Cliente';
+        label.style.color = '';
+        return;
+    }
+
+    var nome = inputNome ? inputNome.value.trim() : '';
+    var doc = inputDoc ? inputDoc.value.replace(/\D/g, '') : '';
+
+    if (!nome && !doc) {
+        alert('Preencha o nome ou CPF da parte primeiro.');
+        checkbox.checked = false;
+        return;
+    }
+
+    label.textContent = 'Buscando...';
+    var url = '<?= module_url('shared', 'partes_api.php') ?>?action=buscar_nome_parte&q=' + encodeURIComponent(nome || doc);
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(results) {
+            // Filtrar só os que vieram de clients (têm client_id)
+            var clientes = results.filter(function(r) { return r.client_id && r.fonte === 'cliente'; });
+
+            if (clientes.length === 0) {
+                alert('Cliente "' + nome + '" não foi encontrado na base.\n\nCadastre primeiro em CRM > Novo Cliente, depois marque a parte como cliente.');
+                checkbox.checked = false;
+                label.textContent = 'Cliente';
+                return;
+            }
+
+            if (clientes.length === 1) {
+                hiddenId.value = clientes[0].client_id;
+                label.textContent = '✓ ' + (clientes[0].nome || nome).split(' ').slice(0, 2).join(' ');
+                label.style.color = '#059669';
+                return;
+            }
+
+            // Múltiplos: pedir para escolher
+            var opcoes = clientes.map(function(c, i) { return (i + 1) + '. ' + c.nome + ' (' + (c.cpf || 'sem CPF') + ')'; }).join('\n');
+            var escolha = prompt('Vários clientes encontrados. Digite o número:\n\n' + opcoes);
+            var idx = parseInt(escolha) - 1;
+            if (isNaN(idx) || idx < 0 || idx >= clientes.length) {
+                checkbox.checked = false;
+                label.textContent = 'Cliente';
+                return;
+            }
+            hiddenId.value = clientes[idx].client_id;
+            label.textContent = '✓ ' + clientes[idx].nome.split(' ').slice(0, 2).join(' ');
+            label.style.color = '#059669';
+        })
+        .catch(function() {
+            alert('Erro ao buscar cliente. Tente novamente.');
+            checkbox.checked = false;
+            label.textContent = 'Cliente';
+        });
 }
 
 // Preencher campos legados antes de submeter (backward compatibility)
