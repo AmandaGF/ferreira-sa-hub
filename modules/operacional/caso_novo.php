@@ -156,19 +156,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $partesDocs = isset($_POST['partes_doc']) ? $_POST['partes_doc'] : array();
     $partesPapeis = isset($_POST['partes_papel']) ? $_POST['partes_papel'] : array();
     $partesTipos = isset($_POST['partes_tipo']) ? $_POST['partes_tipo'] : array();
+    $partesClientIds = isset($_POST['partes_client_id']) ? $_POST['partes_client_id'] : array();
     for ($pi = 0; $pi < count($partesNomes); $pi++) {
         $pNome = trim($partesNomes[$pi]);
         if ($pNome === '') continue;
         $pDoc = isset($partesDocs[$pi]) ? trim($partesDocs[$pi]) : '';
         $pPapel = isset($partesPapeis[$pi]) ? $partesPapeis[$pi] : 'reu';
         $pTipo = isset($partesTipos[$pi]) ? $partesTipos[$pi] : 'fisica';
+        $pClientId = isset($partesClientIds[$pi]) ? (int)$partesClientIds[$pi] : 0;
         try {
             if ($pTipo === 'juridica') {
-                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, razao_social, cnpj) VALUES (?,?,?,?,?)")
-                    ->execute(array($newId, $pPapel, 'juridica', $pNome, $pDoc));
+                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, razao_social, cnpj, client_id) VALUES (?,?,?,?,?,?)")
+                    ->execute(array($newId, $pPapel, 'juridica', $pNome, $pDoc, $pClientId ?: null));
             } else {
-                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf) VALUES (?,?,?,?,?)")
-                    ->execute(array($newId, $pPapel, 'fisica', $pNome, $pDoc));
+                $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, client_id) VALUES (?,?,?,?,?,?)")
+                    ->execute(array($newId, $pPapel, 'fisica', $pNome, $pDoc, $pClientId ?: null));
             }
         } catch (Exception $e) {}
     }
@@ -450,6 +452,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
                                 <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte">
                             </div>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">
+                                <label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">
+                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" disabled>
+                                    <span class="parte-cliente-label">Cliente</span>
+                                </label>
+                            </div>
                             <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
                         </div>
                         <?php endif; ?>
@@ -489,7 +498,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-col">
                         <label>Nome da Pasta / Titulo *</label>
-                        <input type="text" name="title" class="form-input" required placeholder="Ex: Divorcio Maria x Joao">
+                        <input type="text" name="title" id="tituloProcesso" class="form-input" required placeholder="Ex: Maria Silva x João Santos">
                     </div>
                 </div>
 
@@ -783,6 +792,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
         input.style.display = 'none';
         results.style.display = 'none';
         selDiv.innerHTML = '<span class="cliente-selecionado">' + name + ' <button type="button" onclick="limparCliente()">&times;</button></span>';
+        // Pré-preencher título da pasta: "Primeiro Último x "
+        var titulo = document.getElementById('tituloProcesso');
+        if (titulo && !titulo.value) {
+            var partes = name.trim().split(/\s+/);
+            var primeiro = partes[0] || '';
+            var ultimo = partes.length > 1 ? partes[partes.length - 1] : '';
+            titulo.value = primeiro + ' ' + ultimo + ' x ';
+            titulo.focus();
+            // Colocar cursor no final
+            titulo.setSelectionRange(titulo.value.length, titulo.value.length);
+        }
     }
 
     window.limparCliente = function() {
@@ -869,6 +889,9 @@ function addParteRow() {
         + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" data-busca-doc></div>'
         + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>'
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
+        + '<div style="display:flex;align-items:center;gap:4px;"><input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">'
+        + '<label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">'
+        + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" disabled><span class="parte-cliente-label">Cliente</span></label></div>'
         + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
     document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
 }
