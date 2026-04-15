@@ -589,6 +589,7 @@ switch ($action) {
     case 'toggle_task':
         $taskId = (int)($_POST['task_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        $isAjaxTask = isset($_POST['ajax']);
         if ($taskId) {
             $stmt = $pdo->prepare('SELECT status FROM case_tasks WHERE id = ?');
             $stmt->execute(array($taskId));
@@ -600,6 +601,7 @@ switch ($action) {
                     ->execute(array($newStatus, $completedAt, $taskId));
             }
         }
+        if ($isAjaxTask) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 

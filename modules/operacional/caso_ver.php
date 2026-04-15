@@ -1187,10 +1187,12 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         <!-- Segredo de justiça -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">Segredo de Justiça</label>
-            <input type="checkbox" <?= !empty($case['segredo_justica']) ? 'checked' : '' ?>
-                   onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.checked?'1':'0'})"
-                   style="width:16px;height:16px;">
-            <span style="font-size:.72rem;color:var(--text-muted);"><?= !empty($case['segredo_justica']) ? 'Sim' : 'Não' ?></span>
+            <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;">
+                <input type="checkbox" id="chkSegredo" <?= !empty($case['segredo_justica']) ? 'checked' : '' ?>
+                       onchange="var lbl=document.getElementById('lblSegredo');lbl.textContent=this.checked?'Sim':'Não';lbl.style.color=this.checked?'#dc2626':'var(--text-muted)';salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.checked?'1':'0'})"
+                       style="width:16px;height:16px;">
+                <span id="lblSegredo" style="font-size:.72rem;font-weight:600;color:<?= !empty($case['segredo_justica']) ? '#dc2626' : 'var(--text-muted)' ?>;"><?= !empty($case['segredo_justica']) ? 'Sim' : 'Não' ?></span>
+            </label>
         </div>
         <!-- Pro Bono -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;border-top:1px solid var(--border);">
@@ -1405,21 +1407,43 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
     <div class="card-body" id="checkDocsBody" style="display:none;">
         <ul class="task-list">
             <?php foreach ($checklistDocs as $task): ?>
-            <li class="task-item">
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="toggle_task">
-                    <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                    <?php $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito'); ?>
-                    <button type="submit" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>">
-                        <?= $isDone ? '✓' : '' ?>
-                    </button>
-                </form>
+            <li class="task-item" id="taskItem<?= $task['id'] ?>">
+                <?php $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito'); ?>
+                <button type="button" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>"
+                    onclick="toggleCheckDoc(<?= $task['id'] ?>, this)">
+                    <?= $isDone ? '✓' : '' ?>
+                </button>
                 <span class="task-text <?= $isDone ? 'done' : '' ?>"><?= e($task['title']) ?></span>
             </li>
             <?php endforeach; ?>
         </ul>
+        <script>
+        function toggleCheckDoc(taskId, btn) {
+            btn.disabled = true;
+            var fd = new FormData();
+            fd.append('action', 'toggle_task');
+            fd.append('task_id', taskId);
+            fd.append('case_id', '<?= $caseId ?>');
+            fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+            fd.append('ajax', '1');
+            fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd })
+            .then(function(r) { return r.text(); })
+            .then(function() {
+                var isDone = btn.classList.contains('done');
+                btn.classList.toggle('done');
+                btn.textContent = isDone ? '' : '✓';
+                var span = btn.nextElementSibling;
+                if (span) span.classList.toggle('done');
+                // Atualizar contador no header
+                var items = document.querySelectorAll('#checkDocsBody .task-check.done');
+                var total = document.querySelectorAll('#checkDocsBody .task-check');
+                var header = document.querySelector('#checkDocsBody').parentElement.querySelector('.card-header span');
+                if (header) header.textContent = '(' + items.length + '/' + total.length + ')';
+                btn.disabled = false;
+            })
+            .catch(function() { btn.disabled = false; location.reload(); });
+        }
+        </script>
     </div>
 </div>
 <?php endif; ?>
