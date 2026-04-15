@@ -57,7 +57,7 @@ function buscar_cpf($cpf)
 
     $pdo = db();
 
-    // Camada 2: base interna — clients (PRIORIDADE sobre cache externo)
+    // Camada 2: base interna — clients (PRIORIDADE sobre cache externo) v2
     $cpfFmt = substr($cpf,0,3).'.'.substr($cpf,3,3).'.'.substr($cpf,6,3).'-'.substr($cpf,9,2);
     $stmt = $pdo->prepare(
         "SELECT id, name, cpf, rg, birth_date, profession, marital_status, gender,
