@@ -99,6 +99,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE salavip_ged SET visivel_cliente = NOT visivel_cliente WHERE id = ?")->execute([$id]);
         audit_log('salavip_ged_toggle_visivel', 'salavip_ged', $id);
         flash_set('success', 'Visibilidade alterada.');
+        $fromCase = (int)($_POST['from_case'] ?? 0);
+        if ($fromCase) { redirect(module_url('operacional', 'caso_ver.php?id=' . $fromCase)); }
         redirect(module_url('salavip', 'ged.php'));
     }
 
@@ -118,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             audit_log('salavip_ged_excluir', 'salavip_ged', $id, "Documento: " . $doc['titulo']);
             flash_set('success', 'Documento excluido.');
         }
+        $fromCase = (int)($_POST['from_case'] ?? 0);
+        if ($fromCase) { redirect(module_url('operacional', 'caso_ver.php?id=' . $fromCase)); }
         redirect(module_url('salavip', 'ged.php'));
     }
 }

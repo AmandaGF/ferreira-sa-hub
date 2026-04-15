@@ -43,6 +43,17 @@ if (!file_exists($filePath)) {
     die('Arquivo não encontrado no servidor.');
 }
 
+// Registrar visualização do cliente
+try {
+    $pdo->prepare(
+        "UPDATE salavip_ged
+         SET total_visualizacoes = COALESCE(total_visualizacoes, 0) + 1,
+             primeira_visualizacao = COALESCE(primeira_visualizacao, NOW()),
+             ultima_visualizacao = NOW()
+         WHERE id = ?"
+    )->execute(array($docId));
+} catch (Exception $e) { /* bonus, não falha download */ }
+
 // Servir o arquivo
 $mimeType = $doc['arquivo_tipo'] ?: 'application/octet-stream';
 $fileName = $doc['arquivo_nome'] ?: 'documento';

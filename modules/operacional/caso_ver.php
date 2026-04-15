@@ -1000,6 +1000,10 @@ if (!empty($compFuturos)): ?>
         <?php else: ?>
             <div style="display:flex;flex-direction:column;gap:.4rem;">
                 <?php foreach ($docsGed as $ged): ?>
+                <?php
+                $totalViews = isset($ged['total_visualizacoes']) ? (int)$ged['total_visualizacoes'] : 0;
+                $ultimaView = isset($ged['ultima_visualizacao']) ? $ged['ultima_visualizacao'] : null;
+                ?>
                 <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-bottom:1px solid var(--border);font-size:.82rem;">
                     <span style="font-size:1rem;">📄</span>
                     <div style="flex:1;min-width:0;">
@@ -1009,14 +1013,32 @@ if (!empty($compFuturos)): ?>
                             <?php if ($ged['user_name']): ?> · <?= e(explode(' ', $ged['user_name'])[0]) ?><?php endif; ?>
                         </div>
                     </div>
+                    <?php if ($totalViews > 0): ?>
+                        <span style="font-size:.62rem;padding:2px 6px;border-radius:4px;font-weight:700;background:#ecfdf5;color:#059669;" title="<?= $ultimaView ? 'Último acesso: ' . date('d/m/Y H:i', strtotime($ultimaView)) : '' ?>">
+                            ✓ Visualizado <?= $totalViews ?>x
+                        </span>
+                    <?php elseif ($ged['visivel_cliente']): ?>
+                        <span style="font-size:.62rem;padding:2px 6px;border-radius:4px;font-weight:700;background:#fef3c7;color:#92400e;" title="Cliente ainda não visualizou">
+                            ⏳ Não visto
+                        </span>
+                    <?php endif; ?>
                     <span style="font-size:.65rem;padding:2px 6px;border-radius:4px;font-weight:600;<?= $ged['visivel_cliente'] ? 'background:#ecfdf5;color:#059669;' : 'background:#fef2f2;color:#dc2626;' ?>">
                         <?= $ged['visivel_cliente'] ? '👁 Visível' : '🔒 Oculto' ?>
                     </span>
+                    <a href="<?= module_url('salavip', 'download.php?id=' . $ged['id']) ?>" target="_blank" style="background:none;border:none;cursor:pointer;font-size:.9rem;color:#0d9488;text-decoration:none;" title="Ver arquivo">📥</a>
                     <form method="POST" action="<?= module_url('salavip', 'ged.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="toggle_visivel">
                         <input type="hidden" name="id" value="<?= $ged['id'] ?>">
-                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.7rem;color:var(--text-muted);" title="Alternar visibilidade">&#128260;</button>
+                        <input type="hidden" name="from_case" value="<?= $caseId ?>">
+                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.9rem;color:var(--text-muted);" title="Alternar visibilidade">&#128260;</button>
+                    </form>
+                    <form method="POST" action="<?= module_url('salavip', 'ged.php') ?>" style="display:inline;" onsubmit="return confirm('Excluir este documento? Esta ação não pode ser desfeita.');">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="excluir_ged">
+                        <input type="hidden" name="id" value="<?= $ged['id'] ?>">
+                        <input type="hidden" name="from_case" value="<?= $caseId ?>">
+                        <button type="submit" style="background:none;border:none;cursor:pointer;font-size:.9rem;color:#dc2626;" title="Excluir">🗑️</button>
                     </form>
                 </div>
                 <?php endforeach; ?>
