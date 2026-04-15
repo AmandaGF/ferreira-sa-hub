@@ -444,35 +444,60 @@ function consultarCPF(cpfFormatado) {
     loading.style.display = 'inline'; ok.style.display = 'none';
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/conecta/publico/api_cpf.php?cpf=' + cpfLimpo, true);
-    xhr.timeout = 10000;
+    xhr.open('GET', '/conecta/api/buscar_documento.php?doc=' + cpfLimpo, true);
+    xhr.timeout = 12000;
     xhr.onload = function() {
         loading.style.display = 'none';
         try {
-            var data = JSON.parse(xhr.responseText);
-            if (data.cpf_valido) {
+            var r = JSON.parse(xhr.responseText);
+            if (r.erro) {
+                ok.textContent = '✗ ' + r.erro;
+                ok.style.color = '#CC0000';
+                ok.style.display = 'inline';
+                return;
+            }
+            var d = r.dados;
+            if (d) {
+                // Preencher campos pelo name
+                function fill(name, val) { var el = document.querySelector('[name="'+name+'"]'); if (el && !el.value && val) el.value = val; }
+                fill('nome', d.nome);
+                fill('nascimento', d.nascimento);
+                fill('profissao', d.profissao);
+                fill('rg', d.rg);
+                fill('celular', d.telefone);
+                fill('email', d.email);
+                fill('cep', d.cep);
+                fill('rua', d.endereco);
+                fill('cidade', d.cidade);
+                // UF
+                if (d.uf) { var ufSel = document.querySelector('[name="uf"]'); if (ufSel) ufSel.value = d.uf; }
+                // Estado civil
+                if (d.estado_civil) {
+                    var ecSel = document.querySelector('[name="estado_civil"]');
+                    if (ecSel) {
+                        for (var i = 0; i < ecSel.options.length; i++) {
+                            if (ecSel.options[i].value.toLowerCase() === d.estado_civil.toLowerCase()) { ecSel.selectedIndex = i; break; }
+                        }
+                    }
+                }
+                // Aviso se já cadastrado
+                if (r.fonte === 'portal') {
+                    ok.textContent = '⚠ CPF já cadastrado (' + d.nome + '). Verifique se é a mesma pessoa.';
+                    ok.style.color = '#d97706';
+                    ok.style.display = 'inline';
+                } else {
+                    ok.textContent = '✓ Dados encontrados! Confira abaixo.';
+                    ok.style.color = '#2D7A4F';
+                    ok.style.display = 'inline';
+                    setTimeout(function() { ok.style.display = 'none'; }, 4000);
+                }
+            } else {
                 ok.textContent = '✓ CPF válido';
                 ok.style.color = '#2D7A4F';
                 ok.style.display = 'inline';
                 setTimeout(function() { ok.style.display = 'none'; }, 3000);
-            } else if (data.status === 'ERROR' && data.message === 'CPF inválido') {
-                ok.textContent = '✗ CPF inválido';
-                ok.style.color = '#CC0000';
-                ok.style.display = 'inline';
             }
-            // Se a API retornar nome (futuro), preencher
-            if (data.nome) {
-                var nomeInput = document.getElementById('nomeInput');
-                if (nomeInput && !nomeInput.value) nomeInput.value = data.nome;
-            }
-            if (data.nascimento) {
-                var nascInput = document.getElementById('nascimentoInput');
-                if (nascInput && !nascInput.value) {
-                    var parts = data.nascimento.split('/');
-                    if (parts.length === 3) nascInput.value = parts[2] + '-' + parts[1] + '-' + parts[0];
-                }
-            }
-        } catch(e) {}
+        } catch(e) { }
     };
     xhr.onerror = function() { loading.style.display = 'none'; };
     xhr.ontimeout = function() { loading.style.display = 'none'; };
