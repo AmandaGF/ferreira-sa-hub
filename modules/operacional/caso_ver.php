@@ -2505,6 +2505,17 @@ function buscarClienteParaVincular(q) {
                             document.getElementById('parteClienteNome').textContent = '✓ ' + c.name;
                             document.getElementById('parteClienteBuscaInput').value = c.name;
                             box.style.display = 'none';
+                            // Preencher campos com dados do cliente
+                            if (c.cpf) {
+                                var cpfLimpo = c.cpf.replace(/\D/g, '');
+                                if (cpfLimpo.length >= 11) {
+                                    document.getElementById('parteCpf').value = c.cpf;
+                                    buscarCpfParte(); // busca completa e preenche tudo
+                                }
+                            }
+                            // Preencher nome se vazio
+                            var nomeEl = document.getElementById('parteNome');
+                            if (!nomeEl.value) nomeEl.value = c.name;
                         };
                         box.appendChild(div);
                     });
