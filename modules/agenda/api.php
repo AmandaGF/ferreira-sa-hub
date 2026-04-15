@@ -165,7 +165,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $id = (int)($_GET['id'] ?? 0);
         if (!$id) { echo json_encode(array('error' => 'ID inválido')); exit; }
         $stmt = $pdo->prepare(
-            "SELECT e.*, c.name as client_name, c.phone as client_phone, cs.title as case_title, u.name as responsavel_name
+            "SELECT e.*, c.name as client_name, c.phone as client_phone, cs.title as case_title, cs.case_number, u.name as responsavel_name
              FROM agenda_eventos e
              LEFT JOIN clients c ON c.id = e.client_id
              LEFT JOIN cases cs ON cs.id = e.case_id
@@ -279,6 +279,65 @@ if ($action === 'salvar') {
 
         audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
         echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => $newCsrf));
+    }
+    exit;
+}
+
+// ── ANEXAR DOCUMENTO A COMPROMISSO ──
+if ($action === 'anexar_documento') {
+    $id = (int)($_POST['id'] ?? 0);
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $titulo = trim($_POST['titulo'] ?? '');
+    $observacao = trim($_POST['observacao'] ?? '');
+    $visivel = (int)($_POST['visivel_cliente'] ?? 0);
+
+    if (!$id || !$caseId || !$clientId || !$titulo) {
+        echo json_encode(array('error' => 'Dados incompletos', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    if (!isset($_FILES['arquivo']) || $_FILES['arquivo']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Arquivo obrigatório', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    $file = $_FILES['arquivo'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $allowedExt = array('pdf','jpg','jpeg','png','webp','gif','doc','docx');
+    if (!in_array($ext, $allowedExt)) {
+        echo json_encode(array('error' => 'Formato não permitido (PDF, imagem ou Word).', 'csrf' => $newCsrf));
+        exit;
+    }
+    if ($file['size'] > 10 * 1024 * 1024) {
+        echo json_encode(array('error' => 'Arquivo maior que 10MB', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/ged/';
+    if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0755, true); }
+
+    $filename = uniqid('ged_') . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
+    $filepath = $uploadDir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+        echo json_encode(array('error' => 'Erro ao salvar arquivo', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    try {
+        $desc = $observacao ?: ('Documento anexado ao compromisso #' . $id);
+
+        $pdo->prepare(
+            "INSERT INTO salavip_ged (cliente_id, processo_id, titulo, descricao, categoria, arquivo_path, arquivo_nome, visivel_cliente, compartilhado_por, compartilhado_em)
+             VALUES (?, ?, ?, ?, 'Compromisso', ?, ?, ?, ?, NOW())"
+        )->execute(array($clientId, $caseId, $titulo, $desc, $filename, $file['name'], $visivel, current_user_id()));
+
+        audit_log('AGENDA_ANEXO', 'agenda', $id, "Anexo: $titulo (visível cliente: " . ($visivel ? 'sim' : 'não') . ')');
+        echo json_encode(array('ok' => true, 'msg' => 'Documento anexado', 'visivel_cliente' => $visivel ? true : false, 'csrf' => $newCsrf));
+    } catch (Exception $e) {
+        @unlink($filepath);
+        echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
     }
     exit;
 }

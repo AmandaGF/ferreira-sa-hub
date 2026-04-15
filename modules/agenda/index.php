@@ -718,9 +718,12 @@ function renderLista() {
                     + '</div>';
             }
 
+            var _caseIdEv = ev.case_id || 0;
+            var _clientIdEv = ev.client_id || 0;
             acoesHtml = linkProcesso + linkContato + meetHtml + msgHtml
                 + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
-                + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this,\'' + ev.tipo + '\',' + (ev.case_id || 0) + ',' + (ev.client_id || 0) + ')">Realizado</button>'
+                + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this,\'' + ev.tipo + '\',' + _caseIdEv + ',' + _clientIdEv + ')">Realizado</button>'
+                + (_caseIdEv && _clientIdEv ? '<button class="ag-btn-acao" style="color:#0d9488;border-color:#0d9488;" onclick="abrirModalAnexoCompromisso(' + ev.id + ',' + _caseIdEv + ',' + _clientIdEv + ')">📎 Anexar Doc</button>' : '')
                 + (_isBalcao ? '' : '<button class="ag-btn-acao" style="color:#b45309;border-color:#b45309;" onclick="marcarNaoCompareceu(' + ev.id + ',this)">N\u00e3o compareceu</button>')
                 + '<button class="ag-btn-acao" style="color:#7c3aed;border-color:#7c3aed;" onclick="abrirRemarcar(' + ev.id + ')">Remarcar</button>'
                 + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
@@ -762,7 +765,7 @@ function renderLista() {
             (ev.meet_link ? '<span>\uD83C\uDFA5 Google Meet</span>' : '') +
             (ev.responsavel_name ? '<span>\uD83D\uDC64 ' + esc(ev.responsavel_name) + '</span>' : '') +
             (ev.client_name ? '<span>\uD83D\uDCCB ' + esc(ev.client_name) + '</span>' : '') +
-            (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + '</span>' : '') +
+            (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + (ev.case_number ? ' — ' + esc(ev.case_number) : '') + '</span>' : '') +
             prioHtml + statusHtml +
             '</div>' +
             '<div class="ag-lc-acoes">' + acoesHtml + '</div></div></div>';
@@ -886,7 +889,7 @@ function abrirModalEditar(id) {
             document.getElementById('agDtFim').value = (ev.data_fim || '').replace(' ', 'T').substring(0,16);
             document.getElementById('agClienteBusca').value = ev.client_name || '';
             document.getElementById('agClienteId').value = ev.client_id || '';
-            document.getElementById('agCasoBusca').value = ev.case_title || '';
+            document.getElementById('agCasoBusca').value = (ev.case_title || '') + (ev.case_number ? ' — ' + ev.case_number : '');
             document.getElementById('agCasoId').value = ev.case_id || '';
             document.getElementById('agResponsavel').value = ev.responsavel_id || '';
             document.getElementById('agMsgCliente').value = ev.msg_cliente || '';
@@ -1182,6 +1185,97 @@ function marcarRealizado(id, btn, tipo, caseId, clientId) {
         setTimeout(recarregarEventos, 500);
     };
     xhr.send(fd);
+}
+
+// Modal genérico de anexar documento a qualquer compromisso
+function abrirModalAnexoCompromisso(eventoId, caseId, clientId) {
+    var modal = document.getElementById('modalAnexoCompromisso');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalAnexoCompromisso';
+        modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
+        modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:500px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .5rem;color:#052228;font-size:1rem;">📎 Anexar Documento ao Compromisso</h3>'
+            + '<p style="font-size:.78rem;color:#6b7280;margin:0 0 1rem;">O arquivo será salvo na pasta do processo. Marque o checkbox abaixo se quiser que o cliente veja esse documento na Central VIP.</p>'
+            + '<form id="formAnexoCompromisso" enctype="multipart/form-data">'
+            + '<input type="hidden" name="evento_id" id="acEventoId">'
+            + '<input type="hidden" name="case_id" id="acCaseId">'
+            + '<input type="hidden" name="client_id" id="acClientId">'
+            + '<div style="margin-bottom:.75rem;">'
+            + '<label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.25rem;">Título *</label>'
+            + '<input type="text" id="acTitulo" placeholder="Ex: Comprovante do balcão virtual" required style="width:100%;font-size:.82rem;padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;">'
+            + '</div>'
+            + '<div style="margin-bottom:.75rem;">'
+            + '<label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.25rem;">Arquivo *</label>'
+            + '<input type="file" name="arquivo" id="acArquivo" accept="image/*,.pdf,.doc,.docx" required style="width:100%;font-size:.8rem;padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;">'
+            + '</div>'
+            + '<div style="margin-bottom:.75rem;">'
+            + '<label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.25rem;">Observação (opcional)</label>'
+            + '<textarea id="acObs" rows="2" style="width:100%;font-size:.8rem;padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;resize:vertical;"></textarea>'
+            + '</div>'
+            + '<div style="margin-bottom:1rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:.6rem .8rem;">'
+            + '<label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer;font-size:.82rem;">'
+            + '<input type="checkbox" id="acVisivel" style="margin-top:2px;">'
+            + '<span><strong>Mostrar ao cliente na Central VIP</strong><br><span style="font-size:.72rem;color:#78350f;">Se marcado, o cliente verá este documento em "Docs do Escritório".</span></span>'
+            + '</label>'
+            + '</div>'
+            + '<div style="display:flex;gap:.5rem;justify-content:flex-end;padding-top:.75rem;border-top:1px solid #e5e7eb;">'
+            + '<button type="button" onclick="document.getElementById(\'modalAnexoCompromisso\').style.display=\'none\';" class="btn btn-outline btn-sm">Cancelar</button>'
+            + '<button type="submit" class="btn btn-primary btn-sm" style="background:#0d9488;">Anexar</button>'
+            + '</div>'
+            + '</form>'
+            + '</div>';
+        document.body.appendChild(modal);
+
+        document.getElementById('formAnexoCompromisso').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var fd = new FormData();
+            fd.append('action', 'anexar_documento');
+            fd.append('csrf_token', CSRF);
+            fd.append('id', document.getElementById('acEventoId').value);
+            fd.append('case_id', document.getElementById('acCaseId').value);
+            fd.append('client_id', document.getElementById('acClientId').value);
+            fd.append('titulo', document.getElementById('acTitulo').value);
+            fd.append('observacao', document.getElementById('acObs').value);
+            fd.append('visivel_cliente', document.getElementById('acVisivel').checked ? '1' : '0');
+            var fileInput = document.getElementById('acArquivo');
+            if (fileInput.files[0]) fd.append('arquivo', fileInput.files[0]);
+
+            var btnSubmit = this.querySelector('button[type="submit"]');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Enviando...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', API);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.onload = function() {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Anexar';
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r.csrf) CSRF = r.csrf;
+                    if (r.error) { alert('Erro: ' + r.error); return; }
+                    var msg = '✓ Documento anexado à pasta do processo.';
+                    if (r.visivel_cliente) msg += '\n✓ Disponível para o cliente na Central VIP.';
+                    alert(msg);
+                    document.getElementById('modalAnexoCompromisso').style.display = 'none';
+                    document.getElementById('formAnexoCompromisso').reset();
+                } catch(ex) {
+                    alert('Erro ao processar: ' + (xhr.responseText || '').substring(0, 200));
+                }
+            };
+            xhr.send(fd);
+        });
+    }
+
+    document.getElementById('acEventoId').value = eventoId;
+    document.getElementById('acCaseId').value = caseId;
+    document.getElementById('acClientId').value = clientId;
+    document.getElementById('acTitulo').value = '';
+    document.getElementById('acArquivo').value = '';
+    document.getElementById('acObs').value = '';
+    document.getElementById('acVisivel').checked = false;
+    modal.style.display = 'flex';
 }
 
 function abrirModalBalcaoProva(id, btn, caseId, clientId) {
