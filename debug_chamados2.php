@@ -17,8 +17,13 @@ require_once __DIR__ . '/core/database.php';
 $pdo = db();
 $cliente = $pdo->query("SELECT id FROM clients WHERE cpf IS NOT NULL ORDER BY id LIMIT 1")->fetch();
 if ($cliente) {
+    $_SESSION['salavip_user_id'] = (int)$cliente['id'];
     $_SESSION['salavip_cliente_id'] = (int)$cliente['id'];
-    $_SESSION['salavip_user'] = array('id' => $cliente['id'], 'name' => 'TESTE');
+    $_SESSION['salavip_nome_exibicao'] = 'TESTE';
+    $_SESSION['salavip_cpf'] = '00000000000';
+    $_SESSION['salavip_email'] = 'teste@teste.com';
+    $_SESSION['salavip_logado_em'] = date('Y-m-d H:i:s');
+    $_SESSION['salavip_ultimo_atividade'] = time();
     echo "Cliente fake: #{$cliente['id']}\n\n";
 }
 
