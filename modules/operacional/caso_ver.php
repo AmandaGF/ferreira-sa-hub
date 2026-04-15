@@ -1535,6 +1535,10 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                     <option value="observacao">Observação interna</option>
                 </select>
                 <button type="submit" class="btn btn-primary btn-sm">+ Adicionar</button>
+                <label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);cursor:pointer;margin-left:.5rem;" title="Se marcado, o cliente NÃO verá este andamento na Sala VIP">
+                    <input type="checkbox" name="interno" value="1" style="width:15px;height:15px;">
+                    <span>&#128274; Interno</span>
+                </label>
             </div>
             <textarea name="descricao" class="form-input" rows="2" placeholder="Descreva o andamento..." required style="width:100%;font-size:.85rem;"></textarea>
         </form>

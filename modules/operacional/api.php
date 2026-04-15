@@ -1098,11 +1098,13 @@ switch ($action) {
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
         $tipoAnd = $_POST['tipo'] ?? 'movimentacao';
         $descAnd = trim($_POST['descricao'] ?? '');
+        $isInterno = isset($_POST['interno']) && $_POST['interno'] === '1';
+        $visivelCliente = $isInterno ? 0 : 1;
         if ($caseId && $descAnd) {
             try {
                 $pdo->prepare(
-                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at) VALUES (?,?,?,?,?,NOW())"
-                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, current_user_id()));
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,NOW())"
+                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, $visivelCliente, current_user_id()));
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
                 flash_set('success', 'Andamento registrado.');
             } catch (Exception $e) {
