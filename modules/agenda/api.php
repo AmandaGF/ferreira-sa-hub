@@ -315,10 +315,10 @@ if ($action === 'status_com_anexo') {
     }
 
     // Salvar arquivo no diretório GED da Central VIP
-    $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/';
+    $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/ged/';
     if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0755, true); }
 
-    $filename = 'balcao_' . $id . '_' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
+    $filename = uniqid('ged_') . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
     $filepath = $uploadDir . $filename;
 
     if (!move_uploaded_file($file['tmp_name'], $filepath)) {
