@@ -72,6 +72,9 @@ require_once APP_ROOT . '/templates/sidebar.php';
             </div>
         </div>
 
+        <!-- Barra de favoritos (populada via JS / localStorage) -->
+        <div class="fav-bar" id="favBar"></div>
+
         <div class="page-content">
             <?= flash_html() ?>
 <?php

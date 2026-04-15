@@ -143,11 +143,17 @@ body.dark-mode a { color:var(--rose); }
         </div>
     </div>
 
-    <nav class="sidebar-nav">
-        <?php foreach ($menuItems as $item): ?>
-            <?php if (isset($item['section'])): ?>
-                <div class="sidebar-section"><?= e($item['section']) ?></div>
-            <?php else:
+    <nav class="sidebar-nav" id="sidebarNav">
+        <?php
+        // Processar os itens em seções agrupadas (para colapsar)
+        $sectionIdx = -1;
+        $sectionGroups = array(); // [ ['name' => X, 'items' => []], ... ]
+        foreach ($menuItems as $item) {
+            if (isset($item['section'])) {
+                $sectionIdx++;
+                $sectionGroups[$sectionIdx] = array('name' => $item['section'], 'items' => array());
+            } else {
+                if ($sectionIdx < 0) { $sectionIdx = 0; $sectionGroups[0] = array('name' => 'Menu', 'items' => array()); }
                 // Verificar permissão
                 $showItem = false;
                 if (function_exists('can_access') && isset($item['id'])) {
@@ -156,18 +162,36 @@ body.dark-mode a { color:var(--rose); }
                 } else {
                     $showItem = in_array($userRole, $item['roles'], true);
                 }
-                if ($showItem): ?>
-                <a href="<?= $item['href'] ?>"
-                   class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
-                   title="<?= e($item['label']) ?>">
-                    <span class="icon"><?= $item['icon'] ?></span>
-                    <span><?= e($item['label']) ?></span>
-                    <?php if ($item['id'] === 'salavip' && $_svMsgsNaoLidas > 0): ?>
-                        <span style="background:#dc2626;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:9px;margin-left:auto;font-weight:700;"><?= $_svMsgsNaoLidas ?></span>
-                    <?php endif; ?>
-                </a>
-            <?php endif; // showItem ?>
-            <?php endif; // section vs item ?>
+                if ($showItem) {
+                    $sectionGroups[$sectionIdx]['items'][] = $item;
+                }
+            }
+        }
+        // Renderizar cada seção colapsável (pular seções vazias por permissão)
+        foreach ($sectionGroups as $si => $group):
+            if (empty($group['items'])) continue;
+            $sectionSlug = 'sec_' . $si;
+        ?>
+            <div class="sidebar-section sidebar-section-header" data-section="<?= $sectionSlug ?>" onclick="toggleSidebarSection('<?= $sectionSlug ?>')">
+                <span><?= e($group['name']) ?></span>
+                <span class="sidebar-section-chevron" id="chv_<?= $sectionSlug ?>">▾</span>
+            </div>
+            <div class="sidebar-section-items" id="items_<?= $sectionSlug ?>">
+                <?php foreach ($group['items'] as $item): ?>
+                    <div class="sidebar-item-row">
+                        <a href="<?= $item['href'] ?>"
+                           class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
+                           title="<?= e($item['label']) ?>">
+                            <span class="icon"><?= $item['icon'] ?></span>
+                            <span class="sidebar-link-label"><?= e($item['label']) ?></span>
+                            <?php if ($item['id'] === 'salavip' && $_svMsgsNaoLidas > 0): ?>
+                                <span style="background:#dc2626;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:9px;margin-left:auto;font-weight:700;"><?= $_svMsgsNaoLidas ?></span>
+                            <?php endif; ?>
+                        </a>
+                        <button type="button" class="sidebar-fav-btn" data-fav-id="<?= e($item['id']) ?>" data-fav-label="<?= e($item['label']) ?>" data-fav-icon="<?= e($item['icon']) ?>" data-fav-href="<?= e($item['href']) ?>" onclick="toggleFavorito(this, event)" title="Fixar nos favoritos">☆</button>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php endforeach; ?>
     </nav>
 
@@ -191,8 +215,43 @@ body.dark-mode a { color:var(--rose); }
     </div>
 </aside>
 
+<style>
+/* Seções colapsáveis */
+.sidebar-section-header { cursor:pointer; display:flex; align-items:center; justify-content:space-between; user-select:none; transition:background .15s; }
+.sidebar-section-header:hover { background:rgba(255,255,255,.05); }
+.sidebar-section-chevron { font-size:.65rem; transition:transform .2s; opacity:.6; }
+.sidebar-section-header.collapsed .sidebar-section-chevron { transform:rotate(-90deg); }
+.sidebar-section-items { overflow:hidden; max-height:2000px; transition:max-height .25s ease; }
+.sidebar-section-items.collapsed { max-height:0 !important; }
+
+/* Linha com botão de favorito */
+.sidebar-item-row { position:relative; display:flex; align-items:center; }
+.sidebar-item-row .sidebar-link { flex:1; padding-right:26px; }
+.sidebar-fav-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:none; border:none; color:rgba(255,255,255,.3); font-size:.85rem; cursor:pointer; padding:2px 5px; border-radius:3px; transition:all .15s; }
+.sidebar-item-row:hover .sidebar-fav-btn { color:rgba(255,255,255,.55); }
+.sidebar-fav-btn:hover { color:#fbbf24 !important; background:rgba(255,255,255,.08); }
+.sidebar-fav-btn.active { color:#fbbf24 !important; }
+
+/* Barra de favoritos no topo */
+.fav-bar { display:flex; align-items:center; gap:.4rem; padding:.35rem .8rem; background:var(--bg-card); border-bottom:1px solid var(--border); flex-wrap:wrap; font-size:.72rem; min-height:32px; }
+.fav-bar-label { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-right:.3rem; }
+.fav-bar-link { display:inline-flex; align-items:center; gap:3px; padding:3px 9px; border-radius:100px; background:rgba(184,115,51,.08); color:var(--petrol-900); text-decoration:none; font-weight:600; font-size:.72rem; border:1px solid rgba(184,115,51,.2); transition:all .15s; white-space:nowrap; }
+.fav-bar-link:hover { background:#B87333; color:#fff; border-color:#B87333; }
+.fav-bar-empty { color:var(--text-muted); font-style:italic; font-size:.7rem; }
+body.dark-mode .fav-bar { background:var(--bg-card); border-color:var(--border); }
+body.dark-mode .fav-bar-link { background:rgba(201,169,78,.12); color:#e0e0e0; border-color:rgba(201,169,78,.3); }
+body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
+
+/* Collapsed sidebar: esconder chevrons e botões favoritos */
+.sidebar.collapsed .sidebar-section-chevron,
+.sidebar.collapsed .sidebar-fav-btn,
+.sidebar.collapsed .sidebar-link-label { display:none !important; }
+.sidebar.collapsed .sidebar-section-items { max-height:none !important; }
+.sidebar.collapsed .sidebar-item-row .sidebar-link { padding-right:0; }
+</style>
+
 <script>
-// Colapsar sidebar
+// ── Colapsar sidebar ──
 function toggleSidebarCollapse() {
     var sb = document.getElementById('sidebar');
     sb.classList.toggle('collapsed');
@@ -207,7 +266,7 @@ function toggleSidebarCollapse() {
     try { localStorage.setItem('sidebar_collapsed', sb.classList.contains('collapsed') ? '1' : '0'); } catch(e) {}
 }
 
-// Dark Mode
+// ── Dark Mode ──
 function toggleDarkMode() {
     document.body.classList.toggle('dark-mode');
     var isDark = document.body.classList.contains('dark-mode');
@@ -217,7 +276,66 @@ function toggleDarkMode() {
     try { localStorage.setItem('dark_mode', isDark ? '1' : '0'); } catch(e) {}
 }
 
-// Restaurar preferências
+// ── Seções colapsáveis ──
+function toggleSidebarSection(slug) {
+    var header = document.querySelector('[data-section="' + slug + '"]');
+    var items = document.getElementById('items_' + slug);
+    if (!header || !items) return;
+    var collapsed = items.classList.toggle('collapsed');
+    header.classList.toggle('collapsed', collapsed);
+    // Salvar estado
+    try {
+        var state = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
+        state[slug] = collapsed ? 1 : 0;
+        localStorage.setItem('sidebar_sections', JSON.stringify(state));
+    } catch(e) {}
+}
+
+// ── Favoritos ──
+function getFavoritos() {
+    try { return JSON.parse(localStorage.getItem('sidebar_favoritos') || '[]'); } catch(e) { return []; }
+}
+function saveFavoritos(list) {
+    try { localStorage.setItem('sidebar_favoritos', JSON.stringify(list)); } catch(e) {}
+}
+function toggleFavorito(btn, evt) {
+    if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+    var favs = getFavoritos();
+    var id = btn.getAttribute('data-fav-id');
+    var label = btn.getAttribute('data-fav-label');
+    var icon = btn.getAttribute('data-fav-icon');
+    var href = btn.getAttribute('data-fav-href');
+    var idx = -1;
+    for (var i = 0; i < favs.length; i++) { if (favs[i].id === id) { idx = i; break; } }
+    if (idx >= 0) {
+        favs.splice(idx, 1);
+        btn.classList.remove('active');
+        btn.textContent = '☆';
+    } else {
+        if (favs.length >= 10) { alert('Você já tem 10 favoritos. Remova um antes de adicionar.'); return; }
+        favs.push({ id: id, label: label, icon: icon, href: href });
+        btn.classList.add('active');
+        btn.textContent = '★';
+    }
+    saveFavoritos(favs);
+    renderFavBar();
+}
+function renderFavBar() {
+    var bar = document.getElementById('favBar');
+    if (!bar) return;
+    var favs = getFavoritos();
+    var html = '<span class="fav-bar-label">⭐ Favoritos:</span>';
+    if (favs.length === 0) {
+        html += '<span class="fav-bar-empty">Clique na estrela ☆ ao lado de qualquer item da sidebar para adicionar aqui</span>';
+    } else {
+        favs.forEach(function(f) {
+            html += '<a href="' + f.href + '" class="fav-bar-link" title="' + f.label + '"><span>' + f.icon + '</span><span>' + f.label + '</span></a>';
+        });
+    }
+    bar.innerHTML = html;
+}
+
+// ── Restaurar preferências ──
 (function() {
     try {
         if (localStorage.getItem('sidebar_collapsed') === '1') {
@@ -230,6 +348,28 @@ function toggleDarkMode() {
             document.getElementById('btnDarkMode').textContent = '☀️';
             document.getElementById('btnDarkMode').title = 'Modo claro';
         }
+        // Seções colapsadas
+        var state = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
+        Object.keys(state).forEach(function(slug) {
+            if (state[slug] === 1) {
+                var header = document.querySelector('[data-section="' + slug + '"]');
+                var items = document.getElementById('items_' + slug);
+                if (header && items) {
+                    items.classList.add('collapsed');
+                    header.classList.add('collapsed');
+                }
+            }
+        });
+        // Marcar favoritos ativos
+        var favs = getFavoritos();
+        var favIds = favs.map(function(f) { return f.id; });
+        document.querySelectorAll('.sidebar-fav-btn').forEach(function(btn) {
+            if (favIds.indexOf(btn.getAttribute('data-fav-id')) >= 0) {
+                btn.classList.add('active');
+                btn.textContent = '★';
+            }
+        });
+        renderFavBar();
     } catch(e) {}
 })();
 </script>
