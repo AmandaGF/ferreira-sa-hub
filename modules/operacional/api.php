@@ -1096,15 +1096,18 @@ switch ($action) {
     case 'add_andamento':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
+        $horaAnd = trim($_POST['hora_andamento'] ?? '');
         $tipoAnd = $_POST['tipo'] ?? 'movimentacao';
         $descAnd = trim($_POST['descricao'] ?? '');
         $isInterno = isset($_POST['interno']) && $_POST['interno'] === '1';
         $visivelCliente = $isInterno ? 0 : 1;
+        // Montar created_at com horário informado
+        $createdAt = $dataAnd . ' ' . ($horaAnd && preg_match('/^\d{2}:\d{2}$/', $horaAnd) ? $horaAnd . ':00' : date('H:i:s'));
         if ($caseId && $descAnd) {
             try {
                 $pdo->prepare(
-                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,NOW())"
-                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, $visivelCliente, current_user_id()));
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,?)"
+                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, $visivelCliente, current_user_id(), $createdAt));
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
                 flash_set('success', 'Andamento registrado.');
             } catch (Exception $e) {

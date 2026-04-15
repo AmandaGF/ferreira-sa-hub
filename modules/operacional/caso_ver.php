@@ -1517,8 +1517,9 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_andamento">
             <input type="hidden" name="case_id" value="<?= $caseId ?>">
-            <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;align-items:end;">
                 <input type="date" name="data_andamento" class="form-input" value="<?= date('Y-m-d') ?>" required style="width:150px;">
+                <input type="time" name="hora_andamento" class="form-input" value="<?= date('H:i') ?>" style="width:100px;" title="Horário do andamento">
                 <select name="tipo" class="form-select" style="width:180px;">
                     <option value="movimentacao">Movimentação</option>
                     <option value="despacho">Despacho</option>
