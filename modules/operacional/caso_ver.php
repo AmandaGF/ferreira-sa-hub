@@ -244,6 +244,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
     <?php endif; ?>
+    <?php if ($case['client_id'] && can_access('cobranca_honorarios')): ?>
+        <button onclick="document.getElementById('modalInadimplencia').style.display='flex'" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">⚠️ Inadimplência</button>
+    <?php endif; ?>
     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="duplicate_case">
@@ -2707,4 +2710,51 @@ function confirmarExclusao() {
     form.submit();
 }
 </script>
+
+<?php if ($case['client_id'] && can_access('cobranca_honorarios')): ?>
+<!-- Modal Inadimplência -->
+<div id="modalInadimplencia" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
+<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:480px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
+    <h3 style="font-size:1rem;margin-bottom:1rem;color:#052228;">⚠️ Marcar Inadimplência</h3>
+    <form method="POST" action="<?= module_url('cobranca_honorarios', 'api.php') ?>">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="criar_cobranca">
+        <input type="hidden" name="client_id" value="<?= $case['client_id'] ?>">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+
+        <div style="margin-bottom:.6rem;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Tipo do débito *</label>
+            <select name="tipo_debito" class="form-select" required>
+                <option value="Honorários advocatícios">Honorários advocatícios</option>
+                <option value="Honorários contratuais">Honorários contratuais</option>
+                <option value="Honorários de êxito">Honorários de êxito</option>
+                <option value="Custas processuais">Custas processuais</option>
+                <option value="Outro">Outro</option>
+            </select>
+        </div>
+
+        <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
+            <div style="flex:1;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Valor (R$) *</label>
+                <input type="text" name="valor_total" class="form-input input-reais" required placeholder="0,00">
+            </div>
+            <div style="flex:1;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Vencimento *</label>
+                <input type="date" name="vencimento" class="form-input" required>
+            </div>
+        </div>
+
+        <div style="margin-bottom:.6rem;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Observação</label>
+            <textarea name="observacoes" rows="2" class="form-input" style="resize:vertical;" placeholder="Detalhes adicionais..."></textarea>
+        </div>
+
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
+            <button type="button" onclick="document.getElementById('modalInadimplencia').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
+            <button type="submit" class="btn btn-primary btn-sm" style="background:#dc2626;">Registrar Inadimplência</button>
+        </div>
+    </form>
+</div></div>
+<?php endif; ?>
+
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

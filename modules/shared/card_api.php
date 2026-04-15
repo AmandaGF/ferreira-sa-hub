@@ -225,6 +225,24 @@ $result['status_labels'] = array(
     'suspenso'=>'Suspenso','concluido'=>'Finalizado','arquivado'=>'Arquivado','cancelado'=>'Cancelado','renunciamos'=>'Renunciamos',
 );
 
+// ── 13. COBRANÇA DE HONORÁRIOS (Inadimplência) ──
+$result['cobranca_honorarios'] = null;
+try {
+    $stmtCH = $pdo->prepare(
+        "SELECT COUNT(*) as total, SUM(valor_total - valor_pago) as saldo_total
+         FROM honorarios_cobranca
+         WHERE client_id = ? AND status NOT IN ('pago','cancelado')"
+    );
+    $stmtCH->execute(array($clientId));
+    $chRow = $stmtCH->fetch();
+    if ($chRow && (int)$chRow['total'] > 0) {
+        $result['cobranca_honorarios'] = array(
+            'total' => (int)$chRow['total'],
+            'saldo' => (float)$chRow['saldo_total']
+        );
+    }
+} catch (Exception $e) {}
+
 // Permissões do usuário logado
 $result['can_comercial'] = has_role('admin','gestao','comercial','cx');
 $result['can_financeiro'] = can_access('faturamento');

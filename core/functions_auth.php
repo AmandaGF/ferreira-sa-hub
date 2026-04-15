@@ -59,6 +59,7 @@ function _permission_defaults()
         'usuarios'            => array('admin'), // manter só admin
         'financeiro'          => $todos,
         'faturamento'         => $todos,
+        'cobranca_honorarios' => array('admin','gestao'),
     );
 }
 
@@ -159,6 +160,7 @@ function module_permission_labels()
         'formularios' => 'Formulários',
         'relatorios' => 'Relatórios',
         'financeiro' => 'Módulo Financeiro',
+        'cobranca_honorarios' => 'Cobrança de Honorários',
         'usuarios' => 'Gestão de Usuários',
         'faturamento' => 'Ver Faturamento (R$)',
     );
