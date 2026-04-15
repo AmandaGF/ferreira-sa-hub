@@ -336,17 +336,18 @@ function renderFavBar() {
 }
 
 // ── Restaurar preferências ──
-(function() {
+function _sidebarRestorePrefs() {
     try {
         if (localStorage.getItem('sidebar_collapsed') === '1') {
-            document.getElementById('sidebar').classList.add('collapsed');
-            document.getElementById('btnCollapse').innerHTML = '▶';
-            document.getElementById('btnCollapse').title = 'Expandir menu';
+            var sb = document.getElementById('sidebar');
+            if (sb) sb.classList.add('collapsed');
+            var bc = document.getElementById('btnCollapse');
+            if (bc) { bc.innerHTML = '▶'; bc.title = 'Expandir menu'; }
         }
         if (localStorage.getItem('dark_mode') === '1') {
             document.body.classList.add('dark-mode');
-            document.getElementById('btnDarkMode').textContent = '☀️';
-            document.getElementById('btnDarkMode').title = 'Modo claro';
+            var bd = document.getElementById('btnDarkMode');
+            if (bd) { bd.textContent = '☀️'; bd.title = 'Modo claro'; }
         }
         // Seções colapsadas
         var state = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
@@ -371,5 +372,11 @@ function renderFavBar() {
         });
         renderFavBar();
     } catch(e) {}
-})();
+}
+// Rodar após DOM completo (favBar é emitido depois da sidebar)
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _sidebarRestorePrefs);
+} else {
+    _sidebarRestorePrefs();
+}
 </script>
