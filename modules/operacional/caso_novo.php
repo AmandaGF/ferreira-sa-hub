@@ -455,7 +455,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <div style="display:flex;align-items:center;gap:4px;">
                                 <input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">
                                 <label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">
-                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onclick="toggleParteCliente(this)">
+                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onchange="toggleParteCliente(this)">
                                     <span class="parte-cliente-label">Cliente</span>
                                 </label>
                             </div>
@@ -891,7 +891,7 @@ function addParteRow() {
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
         + '<div style="display:flex;align-items:center;gap:4px;"><input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">'
         + '<label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">'
-        + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onclick="toggleParteCliente(this)"><span class="parte-cliente-label">Cliente</span></label></div>'
+        + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onchange="toggleParteCliente(this)"><span class="parte-cliente-label">Cliente</span></label></div>'
         + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
     document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
 }
