@@ -930,9 +930,36 @@ function toggleParteCliente(checkbox) {
             var clientes = results.filter(function(r) { return r.client_id && r.fonte === 'cliente'; });
 
             if (clientes.length === 0) {
-                alert('Cliente "' + nome + '" não foi encontrado na base.\n\nCadastre primeiro em CRM > Novo Cliente, depois marque a parte como cliente.');
-                checkbox.checked = false;
-                label.textContent = 'Cliente';
+                // Oferecer cadastro rápido
+                if (!confirm('Cliente "' + nome + '" não foi encontrado na base.\n\nDeseja CADASTRAR agora e vincular à parte?\n\n(Nome e CPF serão usados. Complete os demais dados depois no CRM.)')) {
+                    checkbox.checked = false;
+                    label.textContent = 'Cliente';
+                    return;
+                }
+                label.textContent = 'Cadastrando...';
+                var fd = new FormData();
+                fd.append('action', 'criar_cliente_rapido');
+                fd.append('nome', nome);
+                fd.append('cpf', doc);
+                fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+                fetch('<?= module_url('shared', 'partes_api.php') ?>', { method: 'POST', body: fd })
+                    .then(function(r) { return r.json(); })
+                    .then(function(res) {
+                        if (res.error) {
+                            alert('Erro: ' + res.error);
+                            checkbox.checked = false;
+                            label.textContent = 'Cliente';
+                            return;
+                        }
+                        hiddenId.value = res.client_id;
+                        label.textContent = (res.ja_existia ? '✓ ' : '✓ Novo: ') + res.nome.split(' ').slice(0, 2).join(' ');
+                        label.style.color = '#059669';
+                    })
+                    .catch(function() {
+                        alert('Erro ao cadastrar cliente.');
+                        checkbox.checked = false;
+                        label.textContent = 'Cliente';
+                    });
                 return;
             }
 

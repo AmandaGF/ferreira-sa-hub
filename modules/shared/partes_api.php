@@ -151,6 +151,40 @@ if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido', 'csr
 $newCsrf = generate_csrf_token();
 $action = $_POST['action'] ?? '';
 
+// ── CRIAR CLIENTE RÁPIDO (quick-add para vincular à parte) ──
+if ($action === 'criar_cliente_rapido') {
+    $nome = trim($_POST['nome'] ?? '');
+    $cpf = preg_replace('/\D/', '', $_POST['cpf'] ?? '');
+    $telefone = trim($_POST['telefone'] ?? '');
+
+    if (!$nome) {
+        echo json_encode(array('error' => 'Nome obrigatório', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Verificar se já existe por CPF
+    if ($cpf) {
+        $stmtChk = $pdo->prepare("SELECT id, name FROM clients WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ? LIMIT 1");
+        $stmtChk->execute(array($cpf));
+        $existing = $stmtChk->fetch();
+        if ($existing) {
+            echo json_encode(array('ok' => true, 'client_id' => (int)$existing['id'], 'nome' => $existing['name'], 'ja_existia' => true, 'csrf' => $newCsrf));
+            exit;
+        }
+    }
+
+    try {
+        $stmt = $pdo->prepare("INSERT INTO clients (name, cpf, phone, source, created_at) VALUES (?, ?, ?, 'quick_add_caso', NOW())");
+        $stmt->execute(array($nome, $cpf ?: null, $telefone ?: null));
+        $newId = (int)$pdo->lastInsertId();
+        audit_log('cliente_criar', 'clients', $newId, "Quick-add via caso_novo: $nome");
+        echo json_encode(array('ok' => true, 'client_id' => $newId, 'nome' => $nome, 'csrf' => $newCsrf));
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Erro ao criar cliente: ' . $e->getMessage(), 'csrf' => $newCsrf));
+    }
+    exit;
+}
+
 // ── SALVAR ──
 if ($action === 'salvar') {
     $id = (int)($_POST['id'] ?? 0);
