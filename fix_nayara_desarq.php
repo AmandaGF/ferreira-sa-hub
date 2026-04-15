@@ -14,10 +14,10 @@ foreach ($cases as $c) {
 
 if (isset($_GET['fix'])) {
     foreach ($cases as $c) {
-        if ($c['status'] === 'arquivado') {
+        if ($c['status'] === 'arquivado' || $c['kanban_oculto']) {
             $pdo->prepare("UPDATE cases SET status = 'em_andamento', closed_at = NULL, kanban_oculto = 0, updated_at = NOW() WHERE id = ?")
                 ->execute(array($c['id']));
-            echo "\n  Case #{$c['id']} desarquivado => em_andamento\n";
+            echo "\n  Case #{$c['id']} desarquivado + visível no Kanban\n";
         }
     }
     echo "\n=== OK ===\n";
