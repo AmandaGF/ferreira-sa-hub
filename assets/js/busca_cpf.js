@@ -98,18 +98,9 @@
                     setVal(campo, 'estado-civil', d.estado_civil);
                 }
 
-                // Vincular client_id se veio da base interna
-                if (d.client_id) {
-                    var row = campo.closest('.parte-row') || campo.closest('.form-row') || campo.closest('div');
-                    if (row) {
-                        var cidField = row.querySelector('.parte-client-id');
-                        if (cidField) cidField.value = d.client_id;
-                        var chk = row.querySelector('.parte-eh-cliente');
-                        if (chk) { chk.checked = true; chk.disabled = false; }
-                        var lbl = row.querySelector('.parte-cliente-label');
-                        if (lbl) { lbl.textContent = '✓ Cliente'; lbl.style.color = '#059669'; }
-                    }
-                }
+                // NOTA: não marcar automaticamente como cliente, pois a tabela clients
+                // guarda TODOS os contatos (incluindo partes contrárias).
+                // A marcação "Cliente" deve ser feita manualmente pela usuária.
 
                 mostrarFeedback(campo, 'Dados encontrados (' + r.fonte + ')', 'success');
             } catch(e) {
