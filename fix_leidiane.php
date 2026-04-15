@@ -38,7 +38,18 @@ foreach ($leads as $l) {
     echo "  Lead={$l['id']} | Client={$l['client_id']} ({$l['name']}) | Stage={$l['stage']} | Data={$l['created_at']}\n";
 }
 
-// 4. Verificar últimos form_submissions para ver se há erro
+// 4. Quem é client 2309?
+$stmt5 = $pdo->query("SELECT id, name, cpf, phone, email FROM clients WHERE id = 2309");
+$c2309 = $stmt5->fetch();
+echo "\nClient #2309: " . ($c2309 ? $c2309['name'] . " | CPF=" . $c2309['cpf'] . " | Phone=" . $c2309['phone'] : 'NÃO EXISTE') . "\n";
+
+// 5. Buscar por CPF 165.911.327-08
+$stmt6 = $pdo->query("SELECT id, name, cpf FROM clients WHERE REPLACE(REPLACE(cpf,'.',''),'-','') = '16591132708'");
+$byCpf = $stmt6->fetchAll();
+echo "\nClients com CPF 165.911.327-08: " . count($byCpf) . "\n";
+foreach ($byCpf as $bc) echo "  ID={$bc['id']} | {$bc['name']} | CPF={$bc['cpf']}\n";
+
+// 6. Verificar últimos form_submissions para ver se há erro
 $stmt4 = $pdo->query("SELECT id, form_type, protocol, linked_client_id, status, created_at FROM form_submissions ORDER BY created_at DESC LIMIT 10");
 echo "\nÚltimos 10 form_submissions:\n";
 foreach ($stmt4->fetchAll() as $f) {
