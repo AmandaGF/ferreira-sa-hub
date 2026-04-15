@@ -55,6 +55,13 @@ Nome completo (negrito + versalete), nacionalidade, profissão, CPF, RG (com ór
 PARTE RÉ — Máximo disponível. Dados faltantes em CAIXA ALTA VERMELHO para a equipe buscar.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VALORES DE REFERÊNCIA (ATUALIZAÇÃO OBRIGATÓRIA)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SALÁRIO MÍNIMO NACIONAL VIGENTE: R$ 1.621,00 (mil seiscentos e vinte e um reais) — Decreto 12.342/2025.
+Sempre que fizer referência ao salário mínimo, utilizar ESTE valor. NÃO usar valores de anos anteriores (R$ 1.518,00 ou outros).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ESTRUTURA DA PETIÇÃO INICIAL
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

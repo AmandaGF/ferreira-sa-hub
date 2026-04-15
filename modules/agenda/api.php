@@ -246,18 +246,22 @@ if ($action === 'salvar') {
     } else {
         // Criar
         try {
+            // Tipos visíveis ao cliente automaticamente na Sala VIP
+            $tiposVisiveis = array('audiencia', 'reuniao_cliente', 'onboard', 'balcao_virtual');
+            $visivelCliente = in_array($tipo, $tiposVisiveis) ? 1 : 0;
+
             $stmt = $pdo->prepare(
                 "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
                  local, meet_link, descricao, client_id, case_id, responsavel_id,
                  msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
-                 status, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+                 visivel_cliente, status, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
             );
             $stmt->execute(array(
                 $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
                 $local ?: null, $meetLink ?: null, $descricao ?: null, $clientId, $caseId, $responsavelId,
                 $msgCliente ?: null, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
-                current_user_id()
+                $visivelCliente, current_user_id()
             ));
             $newId = (int)$pdo->lastInsertId();
         } catch (Exception $e) {
