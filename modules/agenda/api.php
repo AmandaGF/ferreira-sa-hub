@@ -246,7 +246,7 @@ if ($action === 'salvar') {
     } else {
         // Criar
         try {
-            // Tipos visíveis ao cliente automaticamente na Sala VIP
+            // Tipos visíveis ao cliente automaticamente na Central VIP
             $tiposVisiveis = array('audiencia', 'reuniao_cliente', 'onboard');
             $visivelCliente = in_array($tipo, $tiposVisiveis) ? 1 : 0;
 

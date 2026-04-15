@@ -134,7 +134,7 @@ require_once __DIR__ . '/../includes/header.php';
         <div style="background:var(--sv-bg-card);border:1px solid var(--sv-border);border-radius:12px;padding:1.5rem;text-align:center;">
             <div style="font-size:2rem;margin-bottom:.5rem;">&#128203;</div>
             <h4 style="font-family:'Playfair Display',serif;color:var(--sv-accent);font-size:.95rem;margin-bottom:.5rem;">Transpar&ecirc;ncia Total</h4>
-            <p style="color:var(--sv-text-muted);font-size:.82rem;line-height:1.5;">Atrav&eacute;s da Sala VIP, nossos clientes acompanham cada passo do seu processo em tempo real. Sem surpresas, sem jarg&otilde;es &mdash; comunica&ccedil;&atilde;o clara e acess&iacute;vel.</p>
+            <p style="color:var(--sv-text-muted);font-size:.82rem;line-height:1.5;">Atrav&eacute;s da Central VIP, nossos clientes acompanham cada passo do seu processo em tempo real. Sem surpresas, sem jarg&otilde;es &mdash; comunica&ccedil;&atilde;o clara e acess&iacute;vel.</p>
         </div>
 
         <div style="background:var(--sv-bg-card);border:1px solid var(--sv-border);border-radius:12px;padding:1.5rem;text-align:center;">

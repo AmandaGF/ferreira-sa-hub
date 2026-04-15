@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Chamados (Tickets)
+ * Central VIP F&S — Chamados (Tickets)
  * Cliente pode abrir chamados que vão para o Helpdesk do Conecta
  */
 require_once __DIR__ . '/../config.php';

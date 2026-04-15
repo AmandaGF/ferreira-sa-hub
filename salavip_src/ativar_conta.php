@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Ativacao de Conta
+ * Central VIP F&S — Ativacao de Conta
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/auth.php';
@@ -75,7 +75,7 @@ $csrf_token = salavip_gerar_csrf();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativar Conta — Sala VIP</title>
+    <title>Ativar Conta — Central VIP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -90,7 +90,7 @@ $csrf_token = salavip_gerar_csrf();
             <img src="assets/img/logo.png" alt="Ferreira &amp; Sa Advocacia" onerror="this.style.display='none'">
         </div>
 
-        <h1 class="login-title">Sala VIP</h1>
+        <h1 class="login-title">Central VIP</h1>
         <p class="login-subtitle">Ativacao de Conta</p>
 
         <?php if ($erro): ?>
@@ -106,7 +106,7 @@ $csrf_token = salavip_gerar_csrf();
         <?php else: ?>
             <p style="text-align:center;color:#94a3b8;margin-bottom:1.5rem;">
                 Bem-vindo(a), <strong style="color:#c9a94e;"><?= sv_e($user['nome_exibicao']) ?></strong>!<br>
-                Defina sua senha para acessar a Sala VIP.
+                Defina sua senha para acessar a Central VIP.
             </p>
 
             <form method="POST" action="<?= sv_e(SALAVIP_BASE_URL) ?>/ativar_conta.php?token=<?= sv_e($token) ?>">

@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Central de Atendimento & FAQ
+ * Central VIP F&S — Central de Atendimento & FAQ
  * Design premium com identidade Ferreira & Sá
  */
 require_once __DIR__ . '/../config.php';

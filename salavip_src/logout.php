@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Logout
+ * Central VIP F&S — Logout
  */
 require_once __DIR__ . '/config.php';
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Hub -- Sala VIP -- GED (Documentos para Clientes)
+ * Ferreira & Sa Hub -- Central VIP -- GED (Documentos para Clientes)
  */
 
 require_once __DIR__ . '/../../core/middleware.php';

@@ -73,7 +73,7 @@ try {
     }
 } catch (Exception $e) {}
 
-// Documentos GED (compartilhados com cliente via Sala VIP)
+// Documentos GED (compartilhados com cliente via Central VIP)
 $docsGed = array();
 try {
     $stmtGed = $pdo->prepare(
@@ -261,8 +261,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="toggle_salavip">
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
-        <button type="submit" class="btn btn-outline btn-sm" style="border-color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Sala VIP — clique para ocultar' : 'Oculto da Sala VIP — clique para tornar visível' ?>">
-            <?= $case['salavip_ativo'] ? '🟢 Sala VIP' : '⚪ Sala VIP' ?>
+        <button type="submit" class="btn btn-outline btn-sm" style="border-color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
+            <?= $case['salavip_ativo'] ? '🟢 Central VIP' : '⚪ Central VIP' ?>
         </button>
     </form>
     <?php endif; ?>
@@ -953,7 +953,7 @@ if (!empty($compFuturos)): ?>
 </div>
 <?php endif; ?>
 
-<!-- GED — Documentos para o Cliente (Sala VIP) -->
+<!-- GED — Documentos para o Cliente (Central VIP) -->
 <div class="card mb-2">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h3>📁 Documentos para o Cliente (<?= count($docsGed) ?>)</h3>
@@ -988,7 +988,7 @@ if (!empty($compFuturos)): ?>
                 </div>
                 <div style="display:flex;gap:.75rem;align-items:center;">
                     <label style="display:flex;align-items:center;gap:.3rem;font-size:.78rem;cursor:pointer;">
-                        <input type="checkbox" name="visivel_cliente" value="1" checked> Visível na Sala VIP
+                        <input type="checkbox" name="visivel_cliente" value="1" checked> Visível na Central VIP
                     </label>
                     <button type="submit" class="btn btn-primary btn-sm" style="margin-left:auto;">Enviar</button>
                 </div>
@@ -1563,7 +1563,7 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                     <option value="observacao">Observação interna</option>
                 </select>
                 <button type="submit" class="btn btn-primary btn-sm">+ Adicionar</button>
-                <label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);cursor:pointer;margin-left:.5rem;" title="Se marcado, o cliente NÃO verá este andamento na Sala VIP">
+                <label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);cursor:pointer;margin-left:.5rem;" title="Se marcado, o cliente NÃO verá este andamento na Central VIP">
                     <input type="checkbox" name="interno" value="1" style="width:15px;height:15px;">
                     <span>&#128274; Interno</span>
                 </label>

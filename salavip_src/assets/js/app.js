@@ -1,5 +1,5 @@
 /**
- * Sala VIP — Frontend JavaScript
+ * Central VIP — Frontend JavaScript
  * Ferreira & Sá Advocacia
  * Pure JS (no jQuery)
  */

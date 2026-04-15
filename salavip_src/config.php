@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Configuração
+ * Central VIP F&S — Configuração
  */
 date_default_timezone_set('America/Sao_Paulo');
 error_reporting(E_ALL);

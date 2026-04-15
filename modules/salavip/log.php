@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Hub -- Sala VIP -- Log de Acessos
+ * Ferreira & Sa Hub -- Central VIP -- Log de Acessos
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -11,7 +11,7 @@ if (!has_min_role('gestao')) {
     redirect(url('modules/dashboard/index.php'));
 }
 
-$pageTitle = 'Log de Acessos — Sala VIP';
+$pageTitle = 'Log de Acessos — Central VIP';
 $pdo = db();
 
 // ── Filtros ─────────────────────────────────────────────

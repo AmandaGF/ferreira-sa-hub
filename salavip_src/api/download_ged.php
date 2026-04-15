@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Download seguro de documento GED
+ * Central VIP F&S — Download seguro de documento GED
  * Valida que o documento pertence ao cliente logado antes de servir o arquivo.
  */
 require_once __DIR__ . '/../config.php';

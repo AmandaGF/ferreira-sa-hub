@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Autenticação e Sessão
+ * Central VIP F&S — Autenticação e Sessão
  */
 
 /**

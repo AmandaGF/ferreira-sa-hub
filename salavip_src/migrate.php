@@ -10,7 +10,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
-echo "=== Migração Sala VIP ===\n\n";
+echo "=== Migração Central VIP ===\n\n";
 
 $sqls = [
     'salavip_usuarios' => "CREATE TABLE IF NOT EXISTS salavip_usuarios (

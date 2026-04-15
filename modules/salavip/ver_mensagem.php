@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Hub -- Sala VIP -- Ver / Responder Thread
+ * Ferreira & Sa Hub -- Central VIP -- Ver / Responder Thread
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $pdo->prepare(
                 "INSERT INTO notifications (user_id, type, title, message, link, created_at)
-                 SELECT su.cliente_id, 'salavip', 'Nova resposta na Sala VIP', ?, ?, NOW()
+                 SELECT su.cliente_id, 'salavip', 'Nova resposta na Central VIP', ?, ?, NOW()
                  FROM salavip_usuarios su
                  JOIN salavip_threads t ON t.cliente_id = su.cliente_id
                  WHERE t.id = ?"

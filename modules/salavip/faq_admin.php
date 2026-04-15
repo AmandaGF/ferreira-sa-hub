@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — Sala VIP — FAQ Admin (CRUD) v2
+ * Ferreira & Sá Hub — Central VIP — FAQ Admin (CRUD) v2
  * Com áreas, destaque e filtro
  */
 require_once __DIR__ . '/../../core/middleware.php';
@@ -11,7 +11,7 @@ if (!has_min_role('gestao')) {
     redirect(url('modules/dashboard/index.php'));
 }
 
-$pageTitle = 'FAQ — Sala VIP';
+$pageTitle = 'FAQ — Central VIP';
 $pdo = db();
 
 $areaLabels = array(

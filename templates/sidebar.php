@@ -7,7 +7,7 @@ $user = current_user();
 $userRole = $user['role'] ?? 'colaborador';
 $userInitials = mb_substr($user['name'] ?? '?', 0, 2, 'UTF-8');
 
-// Contar mensagens não lidas da Sala VIP
+// Contar mensagens não lidas da Central VIP
 $_svMsgsNaoLidas = 0;
 try {
     $_svMsgsNaoLidas = (int)db()->query("SELECT COUNT(*) FROM salavip_mensagens WHERE origem='salavip' AND lida_equipe=0")->fetchColumn();
@@ -69,8 +69,8 @@ $menuItems = array(
     array('section' => 'Equipe'),
     array('label' => 'Ranking',         'icon' => '🏆', 'href' => url('modules/gamificacao/'),      'id' => 'gamificacao',     'roles' => $all),
 
-    array('section' => '🌟 Sala VIP F&S'),
-    array('label' => 'Sala VIP',        'icon' => '🌟', 'href' => url('modules/salavip/'),            'id' => 'salavip',         'roles' => array('admin','gestao','cx')),
+    array('section' => '🌟 Central VIP F&S'),
+    array('label' => 'Central VIP',     'icon' => '🌟', 'href' => url('modules/salavip/'),            'id' => 'salavip',         'roles' => array('admin','gestao','cx')),
     array('label' => 'GED (Docs)',      'icon' => '📁', 'href' => url('modules/salavip/ged.php'),      'id' => 'salavip_ged',     'roles' => array('admin','gestao','cx')),
     array('label' => 'Acessos',         'icon' => '🔑', 'href' => url('modules/salavip/acessos.php'),  'id' => 'salavip_acessos', 'roles' => array('admin','gestao')),
     array('label' => 'FAQ',             'icon' => '❓', 'href' => url('modules/salavip/faq_admin.php'), 'id' => 'salavip_faq',     'roles' => array('admin','gestao')),

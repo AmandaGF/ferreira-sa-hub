@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Funções utilitárias
+ * Central VIP F&S — Funções utilitárias
  */
 
 /**
@@ -169,14 +169,14 @@ function sv_enviar_email(string $para, string $assunto, string $corpo_html): boo
 }
 
 /**
- * Monta URL relativa da Sala VIP.
+ * Monta URL relativa da Central VIP.
  */
 function sv_url(string $path): string {
     return SALAVIP_BASE_URL . '/' . ltrim($path, '/');
 }
 
 /**
- * Redireciona para path da Sala VIP.
+ * Redireciona para path da Central VIP.
  */
 function sv_redirect(string $path): void {
     header('Location: ' . sv_url($path));

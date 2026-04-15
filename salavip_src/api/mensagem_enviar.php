@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Enviar Mensagem (nova thread ou resposta)
+ * Central VIP F&S — Enviar Mensagem (nova thread ou resposta)
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -158,7 +158,7 @@ if ($threadId === null) {
         if ($anexoPath && file_exists(SALAVIP_UPLOAD_DIR . $anexoPath)) {
             @unlink(SALAVIP_UPLOAD_DIR . $anexoPath);
         }
-        error_log('Sala VIP mensagem_enviar (nova) erro: ' . $e->getMessage());
+        error_log('Central VIP mensagem_enviar (nova) erro: ' . $e->getMessage());
         sv_flash('error', 'Erro ao enviar mensagem. Tente novamente.');
         sv_redirect('pages/mensagem_nova.php');
     }
@@ -228,7 +228,7 @@ try {
     if ($anexoPath && file_exists(SALAVIP_UPLOAD_DIR . $anexoPath)) {
         @unlink(SALAVIP_UPLOAD_DIR . $anexoPath);
     }
-    error_log('Sala VIP mensagem_enviar (reply) erro: ' . $e->getMessage());
+    error_log('Central VIP mensagem_enviar (reply) erro: ' . $e->getMessage());
     sv_flash('error', 'Erro ao enviar resposta. Tente novamente.');
 }
 

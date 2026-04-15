@@ -193,7 +193,7 @@ switch ($action) {
                 $chk = $pdo->prepare('SELECT id FROM salavip_usuarios WHERE cliente_id = ?');
                 $chk->execute(array($clientId));
                 if ($chk->fetch()) {
-                    flash_set('warning', 'Este cliente já possui acesso à Sala VIP.');
+                    flash_set('warning', 'Este cliente já possui acesso à Central VIP.');
                     redirect(module_url('clientes', 'ver.php?id=' . $clientId));
                     break;
                 }
@@ -214,7 +214,7 @@ switch ($action) {
                 $linkAtivacao = 'https://www.ferreiraesa.com.br/salavip/ativar_conta.php?token=' . $token;
                 _salavip_enviar_email_ativacao($cli['email'], $cli['name'], $linkAtivacao);
 
-                flash_set('success', 'Acesso Sala VIP criado! E-mail de ativação enviado para ' . $cli['email'] . '.');
+                flash_set('success', 'Acesso Central VIP criado! E-mail de ativação enviado para ' . $cli['email'] . '.');
             }
         }
         redirect(module_url('clientes', 'ver.php?id=' . $clientId));
@@ -249,7 +249,7 @@ switch ($action) {
         redirect(module_url('crm'));
 }
 
-// ── Função de envio de e-mail Sala VIP via Brevo ──
+// ── Função de envio de e-mail Central VIP via Brevo ──
 function _salavip_enviar_email_ativacao($email, $nome, $link) {
     if (!$email) return;
     try {
@@ -267,7 +267,7 @@ function _salavip_enviar_email_ativacao($email, $nome, $link) {
         $html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">
 <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
     <div style="background:linear-gradient(135deg,#0f2140,#1a3358);padding:24px;text-align:center;">
-        <h1 style="color:#c9a94e;font-size:20px;margin:0;font-family:Georgia,serif;">Sala VIP</h1>
+        <h1 style="color:#c9a94e;font-size:20px;margin:0;font-family:Georgia,serif;">Central VIP</h1>
         <p style="color:#94a3b8;font-size:12px;margin:4px 0 0;">Ferreira &amp; Sá Advocacia</p>
     </div>
     <div style="padding:28px;">
@@ -275,7 +275,7 @@ function _salavip_enviar_email_ativacao($email, $nome, $link) {
             Olá, <strong>' . htmlspecialchars($firstName, ENT_QUOTES, 'UTF-8') . '</strong>!
         </p>
         <p style="font-size:14px;color:#374151;margin:0 0 16px;line-height:1.6;">
-            Seu acesso à <strong>Sala VIP</strong> do escritório Ferreira &amp; Sá Advocacia foi criado.
+            Seu acesso à <strong>Central VIP</strong> do escritório Ferreira &amp; Sá Advocacia foi criado.
             Através dela, você poderá acompanhar seus processos, enviar documentos, trocar mensagens com nossa equipe e muito mais.
         </p>
         <p style="font-size:14px;color:#374151;margin:0 0 20px;line-height:1.6;">
@@ -295,7 +295,7 @@ function _salavip_enviar_email_ativacao($email, $nome, $link) {
         </p>
     </div>
     <div style="background:#f9fafb;padding:14px 24px;font-size:11px;color:#9ca3af;text-align:center;">
-        Ferreira &amp; Sá Advocacia — Sala VIP v1.0
+        Ferreira &amp; Sá Advocacia — Central VIP v1.0
     </div>
 </div>
 </body></html>';
@@ -303,7 +303,7 @@ function _salavip_enviar_email_ativacao($email, $nome, $link) {
         $data = array(
             'sender' => array('name' => $cfg['name'], 'email' => $cfg['email']),
             'to' => array(array('email' => $email, 'name' => $nome)),
-            'subject' => '🔑 Ative sua conta na Sala VIP — Ferreira & Sá Advocacia',
+            'subject' => '🔑 Ative sua conta na Central VIP — Ferreira & Sá Advocacia',
             'htmlContent' => $html,
         );
 

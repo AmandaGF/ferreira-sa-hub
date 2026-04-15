@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Upload de Documento
+ * Central VIP F&S — Upload de Documento
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';
@@ -116,7 +116,7 @@ try {
 } catch (PDOException $e) {
     // Remover arquivo se insert falhar
     @unlink($caminhoDestino);
-    error_log('Sala VIP upload_doc erro: ' . $e->getMessage());
+    error_log('Central VIP upload_doc erro: ' . $e->getMessage());
     sv_flash('error', 'Erro ao registrar o documento. Tente novamente.');
 }
 

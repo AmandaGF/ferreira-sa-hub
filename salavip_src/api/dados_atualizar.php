@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Atualizar Dados do Usuário
+ * Central VIP F&S — Atualizar Dados do Usuário
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';

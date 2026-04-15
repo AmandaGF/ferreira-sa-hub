@@ -148,7 +148,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </a>
     <a href="<?= module_url('helpdesk') ?>?origem=clientes" style="padding:.7rem 1.4rem;font-size:.85rem;font-weight:700;text-decoration:none;border-bottom:3px solid <?= $filterOrigem === 'clientes' ? '#B87333' : 'transparent' ?>;color:<?= $filterOrigem === 'clientes' ? '#B87333' : 'var(--text-muted)' ?>;margin-bottom:-2px;display:flex;align-items:center;gap:.4rem;">
-        🌟 Chamados de Clientes (Sala VIP)
+        🌟 Chamados de Clientes (Central VIP)
         <?php if ($countClientes > 0): ?>
             <span style="background:<?= $filterOrigem === 'clientes' ? '#B87333' : '#dc2626' ?>;color:#fff;padding:1px 8px;border-radius:9999px;font-size:.65rem;font-weight:700;"><?= $countClientes ?></span>
         <?php endif; ?>

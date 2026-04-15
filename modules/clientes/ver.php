@@ -123,14 +123,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
         <?php if (has_min_role('gestao')): ?>
             <?php
-            // Verificar se cliente tem acesso Sala VIP
+            // Verificar se cliente tem acesso Central VIP
             $stmtSv = $pdo->prepare("SELECT id, ativo, token_ativacao, token_expira FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
             $svUser = null;
             try { $stmtSv->execute(array($clientId)); $svUser = $stmtSv->fetch(); } catch (Exception $e) {}
             ?>
             <?php if ($svUser): ?>
                 <?php if ($svUser['ativo']): ?>
-                    <span class="btn btn-sm" style="background:#059669;color:#fff;cursor:default;">🟢 Sala VIP Ativa</span>
+                    <span class="btn btn-sm" style="background:#059669;color:#fff;cursor:default;">🟢 Central VIP Ativa</span>
                     <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="reset_salavip">
@@ -138,7 +138,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Gerar novo link de ativação">🔄 Reenviar Link</button>
                     </form>
                 <?php else: ?>
-                    <span class="btn btn-sm" style="background:#f59e0b;color:#fff;cursor:default;">⏳ Sala VIP Pendente</span>
+                    <span class="btn btn-sm" style="background:#f59e0b;color:#fff;cursor:default;">⏳ Central VIP Pendente</span>
                     <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="reset_salavip">
@@ -151,7 +151,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="criar_salavip">
                     <input type="hidden" name="client_id" value="<?= $clientId ?>">
-                    <button type="submit" class="btn btn-sm" style="background:#6366f1;color:#fff;">🔑 Criar Acesso Sala VIP</button>
+                    <button type="submit" class="btn btn-sm" style="background:#6366f1;color:#fff;">🔑 Criar Acesso Central VIP</button>
                 </form>
             <?php endif; ?>
             <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>

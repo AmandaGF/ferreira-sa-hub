@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Recuperacao de Senha
+ * Central VIP F&S — Recuperacao de Senha
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/auth.php';
@@ -79,7 +79,7 @@ if ($etapa === 'redefinir') {
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Redefinir Senha — Sala VIP</title>
+        <title>Redefinir Senha — Central VIP</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -94,7 +94,7 @@ if ($etapa === 'redefinir') {
                 <img src="assets/img/logo.png" alt="Ferreira &amp; Sa Advocacia" onerror="this.style.display='none'">
             </div>
 
-            <h1 class="login-title">Sala VIP</h1>
+            <h1 class="login-title">Central VIP</h1>
             <p class="login-subtitle">Redefinir Senha</p>
 
             <?php if ($erro): ?>
@@ -195,14 +195,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a1628;color:#e2e8f0;padding:2rem;border-radius:12px;">
                     <h2 style="color:#c9a94e;font-family:Georgia,serif;">Ferreira &amp; Sa Advocacia</h2>
                     <p>Ola, <strong>' . sv_e($user['nome_exibicao']) . '</strong>!</p>
-                    <p>Recebemos uma solicitacao para redefinir sua senha na Sala VIP.</p>
+                    <p>Recebemos uma solicitacao para redefinir sua senha na Central VIP.</p>
                     <p style="text-align:center;margin:2rem 0;">
                         <a href="' . sv_e($link) . '" style="background:#c9a94e;color:#0a1628;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;">Redefinir Senha</a>
                     </p>
                     <p style="font-size:.85rem;color:#94a3b8;">Este link expira em 1 hora. Se voce nao solicitou, ignore este e-mail.</p>
                 </div>';
 
-                sv_enviar_email($user['email'], 'Redefinir Senha — Sala VIP', $corpo);
+                sv_enviar_email($user['email'], 'Redefinir Senha — Central VIP', $corpo);
             }
 
             // Mensagem neutra (sempre a mesma, independente de encontrar o usuario)
@@ -218,7 +218,7 @@ $csrf_token = salavip_gerar_csrf();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Recuperar Senha — Sala VIP</title>
+    <title>Recuperar Senha — Central VIP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -233,7 +233,7 @@ $csrf_token = salavip_gerar_csrf();
             <img src="assets/img/logo.png" alt="Ferreira &amp; Sa Advocacia" onerror="this.style.display='none'">
         </div>
 
-        <h1 class="login-title">Sala VIP</h1>
+        <h1 class="login-title">Central VIP</h1>
         <p class="login-subtitle">Recuperar Senha</p>
 
         <?php if ($erro): ?>

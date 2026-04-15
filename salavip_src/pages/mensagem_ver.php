@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Ver Conversa
+ * Central VIP F&S — Ver Conversa
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';

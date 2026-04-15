@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Login
+ * Central VIP F&S — Login
  */
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/auth.php';
@@ -102,7 +102,7 @@ $csrf_token = salavip_gerar_csrf();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sala VIP — Ferreira &amp; Sá Advocacia</title>
+    <title>Central VIP — Ferreira &amp; Sá Advocacia</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -117,7 +117,7 @@ $csrf_token = salavip_gerar_csrf();
             <img src="assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia" onerror="this.style.display='none'">
         </div>
 
-        <h1 class="login-title">Sala VIP</h1>
+        <h1 class="login-title">Central VIP</h1>
         <p class="login-subtitle">Portal Exclusivo do Cliente</p>
 
         <?php if ($erro): ?>

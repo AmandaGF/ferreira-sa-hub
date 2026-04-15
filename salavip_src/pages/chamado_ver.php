@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Detalhe do Chamado (conversa)
+ * Central VIP F&S — Detalhe do Chamado (conversa)
  * Cliente vê histórico completo + responde se ainda estiver aberto
  */
 require_once __DIR__ . '/../config.php';

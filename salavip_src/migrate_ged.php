@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Migração: Tabela GED (Gestão Eletrônica de Documentos)
+ * Central VIP F&S — Migração: Tabela GED (Gestão Eletrônica de Documentos)
  * Executar uma vez: /salavip/migrate_ged.php?key=fsa-hub-deploy-2026
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
@@ -13,7 +13,7 @@ $pdo = new PDO(
     [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]
 );
 
-echo "=== Migração GED (Sala VIP) ===\n\n";
+echo "=== Migração GED (Central VIP) ===\n\n";
 
 $sql = "CREATE TABLE IF NOT EXISTS salavip_ged (
     id INT AUTO_INCREMENT PRIMARY KEY,

@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Header (layout autenticado)
+ * Central VIP F&S — Header (layout autenticado)
  *
  * Uso: defina $pageTitle antes de incluir este arquivo.
  *   $pageTitle = 'Painel';
@@ -47,7 +47,7 @@ $_svCurrentPage = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
 $_svFlash = sv_flash_get();
 
 if (!isset($pageTitle)) {
-    $pageTitle = 'Sala VIP';
+    $pageTitle = 'Central VIP';
 }
 ?>
 <!DOCTYPE html>
@@ -55,7 +55,7 @@ if (!isset($pageTitle)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= sv_e($pageTitle) ?> — Sala VIP</title>
+    <title><?= sv_e($pageTitle) ?> — Central VIP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -66,7 +66,7 @@ if (!isset($pageTitle)) {
 <!-- Mobile Header -->
 <div class="sv-mobile-header">
     <button type="button" id="btn-menu-open" aria-label="Abrir menu" style="background:none;border:none;color:#c9a94e;font-size:1.5rem;cursor:pointer;">&#9776;</button>
-    <span style="font-family:'Playfair Display',serif;color:#c9a94e;font-size:1rem;">Sala VIP</span>
+    <span style="font-family:'Playfair Display',serif;color:#c9a94e;font-size:1rem;">Central VIP</span>
     <span style="display:inline-flex;align-items:center;gap:6px;">
         <?php if ($_svClienteFoto): ?>
             <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar sv-avatar-small">
@@ -87,7 +87,7 @@ if (!isset($pageTitle)) {
     </div>
     <div class="sv-sidebar-logo">
         <img src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/img/logo.png" alt="Logo" onerror="this.style.display='none'">
-        <h2>Sala VIP</h2>
+        <h2>Central VIP</h2>
     </div>
     <?php if ($_svClienteFoto): ?>
         <img src="<?= sv_url('uploads/' . $_svClienteFoto) ?>" alt="Foto" class="sv-avatar" style="margin:0 auto .5rem;display:block;">
@@ -118,7 +118,8 @@ if (!isset($pageTitle)) {
     <aside class="sv-sidebar">
         <div class="sv-sidebar-logo">
             <img src="<?= sv_e(SALAVIP_BASE_URL) ?>/assets/img/logo.png" alt="Logo" onerror="this.style.display='none'">
-            <h2>Sala VIP</h2>
+            <h2>Central VIP</h2>
+            <p style="font-size:.62rem;color:#94a3b8;text-align:center;margin:.2rem 0 0;font-style:italic;line-height:1.3;">Central Exclusiva F&amp;S<br>Acompanhamento Processual</p>
         </div>
         <form id="sidebarFotoForm" action="<?= sv_url('api/dados_atualizar.php?acao=foto') ?>" method="POST" enctype="multipart/form-data" style="text-align:center;margin:.5rem 0;">
             <input type="hidden" name="csrf_token" value="<?= salavip_gerar_csrf() ?>">

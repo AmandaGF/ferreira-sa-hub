@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Hub -- Sala VIP -- Gerenciar Acessos de Clientes
+ * Ferreira & Sa Hub -- Central VIP -- Gerenciar Acessos de Clientes
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -11,7 +11,7 @@ if (!has_min_role('gestao')) {
     redirect(url('modules/dashboard/index.php'));
 }
 
-$pageTitle = 'Clientes com Acesso — Sala VIP';
+$pageTitle = 'Clientes com Acesso — Central VIP';
 $pdo = db();
 
 // ── POST handlers ───────────────────────────────────────

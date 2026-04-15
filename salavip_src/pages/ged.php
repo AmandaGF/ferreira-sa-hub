@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Docs do Escritório (GED)
+ * Central VIP F&S — Docs do Escritório (GED)
  * Documentos compartilhados pelo escritório com o cliente.
  */
 require_once __DIR__ . '/../config.php';

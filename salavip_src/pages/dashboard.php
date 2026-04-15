@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Dashboard / Painel
+ * Central VIP F&S — Dashboard / Painel
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';

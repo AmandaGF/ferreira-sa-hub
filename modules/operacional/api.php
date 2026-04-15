@@ -1170,7 +1170,7 @@ switch ($action) {
             $new = $current ? 0 : 1;
             $pdo->prepare("UPDATE cases SET salavip_ativo = ? WHERE id = ?")->execute([$new, $caseId]);
             audit_log('toggle_salavip', 'case', $caseId, $new ? 'Ativado' : 'Desativado');
-            flash_set('success', $new ? 'Caso visível na Sala VIP.' : 'Caso oculto da Sala VIP.');
+            flash_set('success', $new ? 'Caso visível na Central VIP.' : 'Caso oculto da Central VIP.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;

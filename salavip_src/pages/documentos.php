@@ -1,6 +1,6 @@
 <?php
 /**
- * Sala VIP F&S — Documentos
+ * Central VIP F&S — Documentos
  */
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';

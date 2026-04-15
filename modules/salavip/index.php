@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sa Hub -- Sala VIP -- Dashboard / Inbox
+ * Ferreira & Sa Hub -- Central VIP -- Dashboard / Inbox
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -11,7 +11,7 @@ if (!has_min_role('gestao')) {
     redirect(url('modules/dashboard/index.php'));
 }
 
-$pageTitle = 'Sala VIP — Gestao';
+$pageTitle = 'Central VIP — Gestao';
 $pdo = db();
 
 // ── KPIs ────────────────────────────────────────────────
