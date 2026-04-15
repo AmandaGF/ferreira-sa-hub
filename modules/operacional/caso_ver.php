@@ -1692,19 +1692,34 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                             </div>
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
-                                <?php if ($clientWhatsapp):
-                                    $tipoAcaoRef = ($case['case_type'] && $case['case_type'] !== 'outro') ? ' — ' . $case['case_type'] : '';
-                                    $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . $tipoAcaoRef . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
-                                    $primeiroNomeAnd = explode(' ', trim($case['client_name'] ?: ''))[0];
-                                    $msgAnd = "Olá " . $primeiroNomeAnd . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\nFerreira e Sá Advocacia";
-                                    $waFullUrl = $clientWhatsapp . '?text=' . rawurlencode($msgAnd);
-                                    $jaEnviou = !empty($and['whatsapp_enviado_em']);
+                                <?php
+                                // Montar links WhatsApp para todos os clientes vinculados
+                                $waAnds = array();
+                                $tipoAcaoRef = ($case['case_type'] && $case['case_type'] !== 'outro') ? ' — ' . $case['case_type'] : '';
+                                $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . $tipoAcaoRef . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
+                                foreach ($clientesVinculados as $cvAnd) {
+                                    $phAnd = $cvAnd['phone'] ? preg_replace('/\D/', '', $cvAnd['phone']) : '';
+                                    if (!$phAnd) continue;
+                                    $nomeCvAnd = explode(' ', trim($cvAnd['name']))[0];
+                                    $msgAnd = "Olá " . $nomeCvAnd . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\nFerreira e Sá Advocacia";
+                                    $waAnds[] = array('name' => $cvAnd['name'], 'url' => 'https://wa.me/55' . $phAnd . '?text=' . rawurlencode($msgAnd));
+                                }
+                                $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>
+                                <?php if (count($waAnds) === 1): ?>
                                 <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;">
-                                    <a href="<?= e($waFullUrl) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;display:inline-flex;align-items:center;gap:3px;" title="Enviar ao cliente via WhatsApp" id="waBtn<?= $and['id'] ?>">Enviar</a>
-                                    <?php if ($jaEnviou): ?>
-                                        <span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span>
-                                    <?php endif; ?>
+                                    <a href="<?= e($waAnds[0]['url']) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;" id="waBtn<?= $and['id'] ?>">Enviar</a>
+                                    <?php if ($jaEnviou): ?><span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span><?php endif; ?>
+                                </span>
+                                <?php elseif (count($waAnds) > 1): ?>
+                                <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;position:relative;">
+                                    <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;border:none;font-weight:600;cursor:pointer;" id="waBtn<?= $and['id'] ?>">Enviar ▾</button>
+                                    <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:2px;overflow:hidden;">
+                                        <?php foreach ($waAnds as $wa): ?>
+                                        <a href="<?= e($wa['url']) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="display:block;padding:.45rem .75rem;color:#052228;text-decoration:none;font-size:.75rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wa['name']) ?></a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <?php if ($jaEnviou): ?><span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span><?php endif; ?>
                                 </span>
                                 <?php endif; ?>
                                 <?php if (has_min_role('gestao') || (int)($and['created_by'] ?? 0) === $userId): ?>
