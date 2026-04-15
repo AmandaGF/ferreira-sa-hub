@@ -1213,7 +1213,17 @@ switch ($action) {
         }
         try {
             $hora = trim($_POST['hora'] ?? '');
-            if ($hora && preg_match('/^\d{2}:\d{2}$/', $hora)) {
+            $dataInput = trim($_POST['data'] ?? '');
+            $dataValida = $dataInput && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInput);
+            $horaValida = $hora && preg_match('/^\d{2}:\d{2}$/', $hora);
+
+            if ($dataValida && $horaValida) {
+                $pdo->prepare("UPDATE case_andamentos SET descricao = ?, data_andamento = ?, created_at = CONCAT(?, ' ', ?, ':00') WHERE id = ?")
+                    ->execute(array($descricao, $dataInput, $dataInput, $hora, $andId));
+            } elseif ($dataValida) {
+                $pdo->prepare("UPDATE case_andamentos SET descricao = ?, data_andamento = ?, created_at = CONCAT(?, ' ', COALESCE(TIME(created_at), '00:00:00')) WHERE id = ?")
+                    ->execute(array($descricao, $dataInput, $dataInput, $andId));
+            } elseif ($horaValida) {
                 $pdo->prepare("UPDATE case_andamentos SET descricao = ?, created_at = CONCAT(COALESCE(DATE(created_at), CURDATE()), ' ', ?, ':00') WHERE id = ?")
                     ->execute(array($descricao, $hora, $andId));
             } else {

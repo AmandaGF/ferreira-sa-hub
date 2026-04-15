@@ -1714,7 +1714,7 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                                     <a href="<?= module_url('helpdesk', 'ver.php?id=' . $chamadoId) ?>" style="font-size:.6rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;font-weight:600;">Abrir Chamado #<?= $chamadoId ?></a>
                                     <?php endif; ?>
                                 <?php endif; ?>
-                                <span style="font-size:.7rem;color:var(--text-muted);"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;" data-hora="<?= date('H:i', strtotime($and['created_at'])) ?>" data-and-hora="<?= $and['id'] ?>"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?></span>
+                                <span style="font-size:.7rem;color:var(--text-muted);" data-data="<?= date('Y-m-d', strtotime($and['data_andamento'])) ?>" data-and-data="<?= $and['id'] ?>"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?></span><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;font-size:.7rem;" data-hora="<?= date('H:i', strtotime($and['created_at'])) ?>" data-and-hora="<?= $and['id'] ?>"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?>
                                 <?php
                                 $visivel = isset($and['visivel_cliente']) ? (int)$and['visivel_cliente'] : 1;
                                 $sigilo = isset($and['segredo_justica']) ? (int)$and['segredo_justica'] : 0;
@@ -2425,16 +2425,20 @@ function toggleVisibilidade(andId, btn) {
 function editarAndamento(andId) {
     var descEl = document.getElementById('andDesc' + andId);
     var textoAtual = descEl.textContent;
-    // Pegar hora atual do andamento (do span de hora)
-    var horaSpan = descEl.closest('.and-item') ? descEl.closest('.and-item').querySelector('[data-hora]') : null;
+    // Pegar hora e data atuais do andamento
+    var item = descEl.closest('.and-item');
+    var horaSpan = item ? item.querySelector('[data-hora]') : null;
     var horaAtual = horaSpan ? horaSpan.getAttribute('data-hora') : '';
+    var dataSpan = item ? item.querySelector('[data-data]') : null;
+    var dataAtual = dataSpan ? dataSpan.getAttribute('data-data') : '';
 
     var wrapper = document.createElement('div');
     wrapper.id = 'andEditWrap' + andId;
 
     var horaRow = document.createElement('div');
-    horaRow.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px;';
-    horaRow.innerHTML = '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Horário:</label><input type="time" id="andHora' + andId + '" value="' + horaAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">';
+    horaRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;';
+    horaRow.innerHTML = '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Data:</label><input type="date" id="andData' + andId + '" value="' + dataAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">'
+        + '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Horário:</label><input type="time" id="andHora' + andId + '" value="' + horaAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">';
 
     var input = document.createElement('textarea');
     input.value = textoAtual;
@@ -2474,6 +2478,8 @@ function salvarAndamento(andId) {
     if (!novoTexto) { alert('Descrição não pode ser vazia.'); return; }
     var horaEl = document.getElementById('andHora' + andId);
     var novaHora = horaEl ? horaEl.value : '';
+    var dataEl = document.getElementById('andData' + andId);
+    var novaData = dataEl ? dataEl.value : '';
     var x = new XMLHttpRequest();
     x.open('POST', '<?= module_url("operacional", "api.php") ?>');
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -2486,11 +2492,18 @@ function salvarAndamento(andId) {
                 // Atualizar hora exibida
                 var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
                 if (horaSpan && novaHora) horaSpan.textContent = novaHora;
+                // Atualizar data exibida
+                var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
+                if (dataSpan && novaData) {
+                    var p = novaData.split('-');
+                    dataSpan.textContent = p[2] + '/' + p[1] + '/' + p[0];
+                    dataSpan.setAttribute('data-data', novaData);
+                }
                 cancelarEdicaoAnd(andId);
             } else if (r.error) { alert(r.error); }
         } catch(e) { alert('Erro ao salvar'); }
     };
-    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
+    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&data=' + encodeURIComponent(novaData) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
 function toggleVincularCliente(checked) {
