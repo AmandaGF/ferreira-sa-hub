@@ -720,7 +720,7 @@ function renderLista() {
 
             acoesHtml = linkProcesso + linkContato + meetHtml + msgHtml
                 + (ev.google_event_id ? '<button class="ag-btn-acao" style="color:#052228;border-color:#052228;" onclick="enviarConvite(' + ev.id + ')">Enviar Convite</button>' : '')
-                + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this)">Realizado</button>'
+                + '<button class="ag-btn-acao verde" onclick="marcarRealizado(' + ev.id + ',this,\'' + ev.tipo + '\',' + (ev.case_id || 0) + ',' + (ev.client_id || 0) + ')">Realizado</button>'
                 + (_isBalcao ? '' : '<button class="ag-btn-acao" style="color:#b45309;border-color:#b45309;" onclick="marcarNaoCompareceu(' + ev.id + ',this)">N\u00e3o compareceu</button>')
                 + '<button class="ag-btn-acao" style="color:#7c3aed;border-color:#7c3aed;" onclick="abrirRemarcar(' + ev.id + ')">Remarcar</button>'
                 + '<button class="ag-btn-acao" onclick="abrirModalEditar(' + ev.id + ')">Editar</button>'
@@ -1159,7 +1159,12 @@ function salvarEvento() {
 }
 
 // ── AÇÕES ───────────────────────────────────────────────────
-function marcarRealizado(id, btn) {
+function marcarRealizado(id, btn, tipo, caseId, clientId) {
+    // Balcão virtual: exige upload da prova
+    if (tipo === 'balcao_virtual') {
+        abrirModalBalcaoProva(id, btn, caseId || 0, clientId || 0);
+        return;
+    }
     var fd = new FormData();
     fd.append('action', 'status');
     fd.append('csrf_token', CSRF);
@@ -1177,6 +1182,103 @@ function marcarRealizado(id, btn) {
         setTimeout(recarregarEventos, 500);
     };
     xhr.send(fd);
+}
+
+function abrirModalBalcaoProva(id, btn, caseId, clientId) {
+    if (!caseId || !clientId) {
+        if (!confirm('Este evento não está vinculado a um processo ou cliente. Deseja marcar como realizado SEM anexar comprovante?')) return;
+        // Fallback: marca sem anexo
+        var fd0 = new FormData();
+        fd0.append('action', 'status');
+        fd0.append('csrf_token', CSRF);
+        fd0.append('id', id);
+        fd0.append('status', 'realizado');
+        var xhr0 = new XMLHttpRequest();
+        xhr0.open('POST', API);
+        xhr0.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr0.onload = function() {
+            try { var r = JSON.parse(xhr0.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+            btn.textContent = 'Concluído';
+            btn.disabled = true;
+            setTimeout(recarregarEventos, 500);
+        };
+        xhr0.send(fd0);
+        return;
+    }
+
+    var modal = document.getElementById('modalBalcaoProva');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalBalcaoProva';
+        modal.style.cssText = 'display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:9999;align-items:center;justify-content:center;';
+        modal.innerHTML = '<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:500px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .5rem;color:#052228;font-size:1rem;">🏛️ Anexar Comprovante do Balcão Virtual</h3>'
+            + '<p style="font-size:.78rem;color:#6b7280;margin:0 0 1rem;">Anexe a foto/print do balcão virtual realizado. Esse arquivo será enviado automaticamente para a pasta do processo e ficará disponível para o cliente na Central VIP.</p>'
+            + '<form id="formBalcaoProva" enctype="multipart/form-data">'
+            + '<input type="hidden" name="evento_id" id="bpEventoId">'
+            + '<input type="hidden" name="case_id" id="bpCaseId">'
+            + '<input type="hidden" name="client_id" id="bpClientId">'
+            + '<div style="margin-bottom:.75rem;">'
+            + '<label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.25rem;">Arquivo (imagem ou PDF) *</label>'
+            + '<input type="file" name="arquivo" id="bpArquivo" accept="image/*,.pdf" required style="width:100%;font-size:.8rem;padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;">'
+            + '</div>'
+            + '<div style="margin-bottom:.75rem;">'
+            + '<label style="font-size:.78rem;font-weight:700;display:block;margin-bottom:.25rem;">Observação (opcional)</label>'
+            + '<textarea name="observacao" id="bpObs" rows="2" placeholder="Ex: Balcão Virtual realizado com sucesso, protocolo nº..." style="width:100%;font-size:.8rem;padding:.5rem;border:1.5px solid #e5e7eb;border-radius:6px;resize:vertical;"></textarea>'
+            + '</div>'
+            + '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid #e5e7eb;">'
+            + '<button type="button" onclick="document.getElementById(\'modalBalcaoProva\').style.display=\'none\';" class="btn btn-outline btn-sm">Cancelar</button>'
+            + '<button type="submit" class="btn btn-primary btn-sm" style="background:#0d9488;">Enviar e Marcar Realizado</button>'
+            + '</div>'
+            + '</form>'
+            + '</div>';
+        document.body.appendChild(modal);
+
+        document.getElementById('formBalcaoProva').addEventListener('submit', function(e) {
+            e.preventDefault();
+            var fd = new FormData();
+            fd.append('action', 'status_com_anexo');
+            fd.append('csrf_token', CSRF);
+            fd.append('id', document.getElementById('bpEventoId').value);
+            fd.append('case_id', document.getElementById('bpCaseId').value);
+            fd.append('client_id', document.getElementById('bpClientId').value);
+            fd.append('status', 'realizado');
+            fd.append('observacao', document.getElementById('bpObs').value);
+            var fileInput = document.getElementById('bpArquivo');
+            if (fileInput.files[0]) fd.append('arquivo', fileInput.files[0]);
+
+            var btnSubmit = this.querySelector('button[type="submit"]');
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Enviando...';
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', API);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.onload = function() {
+                btnSubmit.disabled = false;
+                btnSubmit.textContent = 'Enviar e Marcar Realizado';
+                try {
+                    var r = JSON.parse(xhr.responseText);
+                    if (r.csrf) CSRF = r.csrf;
+                    if (r.error) { alert('Erro: ' + r.error); return; }
+                    alert('✓ Balcão virtual marcado como realizado.\n✓ Comprovante enviado ao cliente na Central VIP.');
+                    document.getElementById('modalBalcaoProva').style.display = 'none';
+                    document.getElementById('formBalcaoProva').reset();
+                    recarregarEventos();
+                } catch(ex) {
+                    alert('Erro ao processar: ' + (xhr.responseText || '').substring(0, 200));
+                }
+            };
+            xhr.send(fd);
+        });
+    }
+
+    document.getElementById('bpEventoId').value = id;
+    document.getElementById('bpCaseId').value = caseId;
+    document.getElementById('bpClientId').value = clientId;
+    document.getElementById('bpArquivo').value = '';
+    document.getElementById('bpObs').value = '';
+    modal.style.display = 'flex';
 }
 
 function marcarNaoCompareceu(id, btn) {

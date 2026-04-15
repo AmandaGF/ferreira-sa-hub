@@ -283,6 +283,84 @@ if ($action === 'salvar') {
     exit;
 }
 
+// ── MARCAR STATUS COM ANEXO (balcão virtual) ──
+if ($action === 'status_com_anexo') {
+    $id = (int)($_POST['id'] ?? 0);
+    $status = $_POST['status'] ?? 'realizado';
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $observacao = trim($_POST['observacao'] ?? '');
+
+    if (!$id || !$caseId || !$clientId) {
+        echo json_encode(array('error' => 'Dados incompletos', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Validar arquivo
+    if (!isset($_FILES['arquivo']) || $_FILES['arquivo']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Arquivo obrigatório', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    $file = $_FILES['arquivo'];
+    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+    $allowedExt = array('pdf','jpg','jpeg','png','webp','gif');
+    if (!in_array($ext, $allowedExt)) {
+        echo json_encode(array('error' => 'Formato não permitido. Use PDF ou imagem.', 'csrf' => $newCsrf));
+        exit;
+    }
+    if ($file['size'] > 10 * 1024 * 1024) {
+        echo json_encode(array('error' => 'Arquivo maior que 10MB', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Salvar arquivo no diretório GED da Central VIP
+    $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/';
+    if (!is_dir($uploadDir)) { @mkdir($uploadDir, 0755, true); }
+
+    $filename = 'balcao_' . $id . '_' . uniqid() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $file['name']);
+    $filepath = $uploadDir . $filename;
+
+    if (!move_uploaded_file($file['tmp_name'], $filepath)) {
+        echo json_encode(array('error' => 'Erro ao salvar arquivo', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    try {
+        // Buscar título do evento + dados do processo
+        $stmtEv = $pdo->prepare("SELECT e.titulo, e.data_inicio, cs.title as case_title FROM agenda_eventos e LEFT JOIN cases cs ON cs.id = e.case_id WHERE e.id = ?");
+        $stmtEv->execute(array($id));
+        $ev = $stmtEv->fetch();
+        $titulo = 'Balcão Virtual — ' . date('d/m/Y', strtotime($ev['data_inicio'] ?? 'now'));
+        $desc = 'Comprovante do balcão virtual realizado no processo ' . ($ev['case_title'] ?? '') . '.' . ($observacao ? "\n\n" . $observacao : '');
+
+        // Inserir em salavip_ged (visível ao cliente = 1)
+        $pdo->prepare(
+            "INSERT INTO salavip_ged (cliente_id, processo_id, titulo, descricao, categoria, arquivo_path, arquivo_nome, visivel_cliente, compartilhado_por, compartilhado_em)
+             VALUES (?, ?, ?, ?, 'Balcão Virtual', ?, ?, 1, ?, NOW())"
+        )->execute(array($clientId, $caseId, $titulo, $desc, $filename, $file['name'], current_user_id()));
+
+        // Atualizar status do evento
+        $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
+
+        // Registrar andamento no processo (visível ao cliente)
+        try {
+            $andDesc = 'Balcão Virtual realizado com sucesso. Comprovante anexado e disponibilizado na Central VIP.' . ($observacao ? "\n\nObs: " . $observacao : '');
+            $pdo->prepare(
+                "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                 VALUES (?, CURDATE(), 'Balcão Virtual', ?, 1, ?, NOW())"
+            )->execute(array($caseId, $andDesc, current_user_id()));
+        } catch (Exception $e) { /* andamento é bônus, não falha */ }
+
+        audit_log('AGENDA_BALCAO_REALIZADO', 'agenda', $id, 'Balcão virtual realizado com comprovante');
+        echo json_encode(array('ok' => true, 'msg' => 'Balcão realizado e comprovante enviado', 'csrf' => $newCsrf));
+    } catch (Exception $e) {
+        @unlink($filepath);
+        echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
+    }
+    exit;
+}
+
 // ── MARCAR STATUS ──
 if ($action === 'status') {
     $id = (int)($_POST['id'] ?? 0);
