@@ -289,7 +289,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </td>
                             <td>
                                 <div style="display:flex;gap:.3rem;">
-                                    <a href="<?= url('salavip/uploads/ged/' . $doc['arquivo_path']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Download">&#128229;</a>
+                                    <a href="<?= module_url('salavip', 'download.php?id=' . $doc['id']) ?>" target="_blank" class="btn btn-outline btn-sm" title="Download">&#128229;</a>
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Excluir este documento?');">
                                         <?= csrf_input() ?>
                                         <input type="hidden" name="action" value="excluir_ged">
