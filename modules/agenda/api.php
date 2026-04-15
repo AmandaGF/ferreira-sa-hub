@@ -247,7 +247,7 @@ if ($action === 'salvar') {
         // Criar
         try {
             // Tipos visíveis ao cliente automaticamente na Sala VIP
-            $tiposVisiveis = array('audiencia', 'reuniao_cliente', 'onboard', 'balcao_virtual');
+            $tiposVisiveis = array('audiencia', 'reuniao_cliente', 'onboard');
             $visivelCliente = in_array($tipo, $tiposVisiveis) ? 1 : 0;
 
             $stmt = $pdo->prepare(
