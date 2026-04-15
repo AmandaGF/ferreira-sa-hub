@@ -84,8 +84,9 @@ ul, ol { list-style: none; }
 }
 
 .login-logo img {
-    max-width: 120px;
+    max-width: 160px;
     margin: 0 auto 1rem;
+    display: block;
 }
 
 .login-title {
@@ -290,8 +291,9 @@ textarea.form-input {
 }
 
 .sv-sidebar-logo img {
-    max-width: 80px;
+    max-width: 100px;
     margin: 0 auto;
+    display: block;
 }
 
 .sv-sidebar-logo h2 {
