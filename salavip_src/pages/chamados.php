@@ -3,6 +3,8 @@
  * Sala VIP F&S — Chamados (Tickets)
  * Cliente pode abrir chamados que vão para o Helpdesk do Conecta
  */
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
