@@ -57,20 +57,7 @@ function buscar_cpf($cpf)
 
     $pdo = db();
 
-    // Camada 2: cache (30 dias)
-    try {
-        $stmt = $pdo->prepare("SELECT dados FROM cpf_cache WHERE cpf = ? AND consultado_em > DATE_SUB(NOW(), INTERVAL 30 DAY)");
-        $stmt->execute(array($cpf));
-        $cached = $stmt->fetchColumn();
-        if ($cached) {
-            $dados = json_decode($cached, true);
-            if ($dados) {
-                return array('fonte' => 'cache', 'dados' => $dados);
-            }
-        }
-    } catch (Exception $e) { /* tabela pode não existir */ }
-
-    // Camada 3: base interna — clients
+    // Camada 2: base interna — clients (PRIORIDADE sobre cache externo)
     $cpfFmt = substr($cpf,0,3).'.'.substr($cpf,3,3).'.'.substr($cpf,6,3).'-'.substr($cpf,9,2);
     $stmt = $pdo->prepare(
         "SELECT id, name, cpf, rg, birth_date, profession, marital_status, gender,
@@ -129,7 +116,20 @@ function buscar_cpf($cpf)
         ));
     }
 
-    // Camada 4: API externa cpfcnpj.com.br
+    // Camada 4: cache (30 dias) — só consulta se não achou na base interna
+    try {
+        $stmt = $pdo->prepare("SELECT dados FROM cpf_cache WHERE cpf = ? AND consultado_em > DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        $stmt->execute(array($cpf));
+        $cached = $stmt->fetchColumn();
+        if ($cached) {
+            $dados = json_decode($cached, true);
+            if ($dados) {
+                return array('fonte' => 'cache', 'dados' => $dados);
+            }
+        }
+    } catch (Exception $e) {}
+
+    // Camada 5: API externa cpfcnpj.com.br
     $token = _cpfcnpj_token();
     if ($token) {
         $pacote = _cpfcnpj_pacote();
