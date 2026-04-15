@@ -105,7 +105,7 @@
                         var cidField = row.querySelector('.parte-client-id');
                         if (cidField) cidField.value = d.client_id;
                         var chk = row.querySelector('.parte-eh-cliente');
-                        if (chk) { chk.checked = true; chk.disabled = true; }
+                        if (chk) { chk.checked = true; chk.disabled = false; }
                         var lbl = row.querySelector('.parte-cliente-label');
                         if (lbl) { lbl.textContent = '✓ Cliente'; lbl.style.color = '#059669'; }
                     }
