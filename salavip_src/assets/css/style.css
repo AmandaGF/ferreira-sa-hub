@@ -87,6 +87,7 @@ ul, ol { list-style: none; }
     max-width: 160px;
     margin: 0 auto 1rem;
     display: block;
+    filter: brightness(0) invert(1);
 }
 
 .login-title {
@@ -294,6 +295,7 @@ textarea.form-input {
     max-width: 100px;
     margin: 0 auto;
     display: block;
+    filter: brightness(0) invert(1);
 }
 
 .sv-sidebar-logo h2 {
