@@ -104,6 +104,7 @@ if (!isset($pageTitle)) {
         <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
         <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>
         <li><a href="<?= sv_url('pages/meus_dados.php') ?>"<?= $_svCurrentPage === 'meus_dados.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F464;</span> Meus Dados</a></li>
+        <li><a href="<?= sv_url('pages/chamados.php') ?>"<?= $_svCurrentPage === 'chamados.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F3AB;</span> Chamados</a></li>
         <li><a href="<?= sv_url('pages/faq.php') ?>"<?= $_svCurrentPage === 'faq.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x2753;</span> FAQ</a></li>
         <li><a href="<?= sv_url('pages/sobre.php') ?>"<?= $_svCurrentPage === 'sobre.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x2696;&#xFE0F;</span> Ferreira &amp; S&aacute;</a></li>
         <li><a href="<?= sv_url('logout.php') ?>"><span class="nav-icon">&#x1F6AA;</span> Sair</a></li>
@@ -141,7 +142,8 @@ if (!isset($pageTitle)) {
             <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
             <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>
             <li><a href="<?= sv_url('pages/meus_dados.php') ?>"<?= $_svCurrentPage === 'meus_dados.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F464;</span> Meus Dados</a></li>
-            <li><a href="<?= sv_url('pages/faq.php') ?>"<?= $_svCurrentPage === 'faq.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x2753;</span> FAQ</a></li>
+            <li><a href="<?= sv_url('pages/chamados.php') ?>"<?= $_svCurrentPage === 'chamados.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F3AB;</span> Chamados</a></li>
+        <li><a href="<?= sv_url('pages/faq.php') ?>"<?= $_svCurrentPage === 'faq.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x2753;</span> FAQ</a></li>
             <li><a href="<?= sv_url('logout.php') ?>"><span class="nav-icon">&#x1F6AA;</span> Sair</a></li>
         </ul>
     </aside>

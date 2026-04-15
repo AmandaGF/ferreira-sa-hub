@@ -116,4 +116,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- Documentos Enviados pelos Clientes -->
+<?php
+$docsClientes = $pdo->query(
+    "SELECT dc.*, c.name as client_name, cs.title as processo_titulo
+     FROM salavip_documentos_cliente dc
+     LEFT JOIN clients c ON c.id = dc.cliente_id
+     LEFT JOIN cases cs ON cs.id = dc.processo_id
+     WHERE dc.status = 'pendente'
+     ORDER BY dc.criado_em DESC LIMIT 20"
+)->fetchAll();
+?>
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header">
+        <h3>Documentos Enviados pelos Clientes</h3>
+        <span class="badge badge-danger"><?= count($docsClientes) ?></span>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <?php if (empty($docsClientes)): ?>
+            <div style="text-align:center;padding:2rem;">
+                <p class="text-muted text-sm">Nenhum documento pendente.</p>
+            </div>
+        <?php else: ?>
+            <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
+                <thead><tr style="background:var(--petrol-900);color:#fff;">
+                    <th style="padding:.5rem .75rem;text-align:left;">Cliente</th>
+                    <th style="padding:.5rem .75rem;text-align:left;">Título</th>
+                    <th style="padding:.5rem .75rem;text-align:left;">Processo</th>
+                    <th style="padding:.5rem .75rem;text-align:left;">Data</th>
+                    <th style="padding:.5rem .75rem;text-align:left;">Status</th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($docsClientes as $dc): ?>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:.5rem .75rem;font-weight:600;"><?= e($dc['client_name'] ?: '?') ?></td>
+                    <td style="padding:.5rem .75rem;"><?= e($dc['titulo']) ?></td>
+                    <td style="padding:.5rem .75rem;color:var(--text-muted);"><?= e($dc['processo_titulo'] ?: '-') ?></td>
+                    <td style="padding:.5rem .75rem;"><?= date('d/m/Y', strtotime($dc['criado_em'])) ?></td>
+                    <td style="padding:.5rem .75rem;"><span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">Pendente</span></td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        <?php endif; ?>
+    </div>
+</div>
+
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
