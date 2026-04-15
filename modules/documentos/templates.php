@@ -908,3 +908,58 @@ function template_audiencia_remota($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════
+// REQUERIMENTO DE MANDADO DE PAGAMENTO
+// ═══════════════════════════════════════════════════════
+function template_mandado_pagamento($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $beneficiario = isset($d['beneficiario_mandado']) ? $d['beneficiario_mandado'] : 'escritorio';
+    $darQuitacao = isset($d['dar_quitacao']) ? $d['dar_quitacao'] : 'sim';
+    $pagProc = isset($d['pagina_procuracao']) && $d['pagina_procuracao'] ? $d['pagina_procuracao'] : '___';
+
+    $html = '';
+
+    // Endereçamento
+    $html .= enderecamento($d);
+    $html .= '<p style="text-indent:0;"><br>Processo n. <strong>' . f($numProcesso) . '</strong></p>';
+
+    // Qualificação
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
+    $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos em epígrafe, vem, por intermédio de seus advogados que esta assinam digitalmente, requerer a <strong>expedição de mandado de pagamento eletrônico</strong> do depósito judicial realizado, em benefício ';
+
+    if ($beneficiario === 'escritorio') {
+        $html .= 'do Escritório de Advocacia contratado (procuração em p. ' . f($pagProc) . ').</p>';
+
+        // Dados bancários do escritório
+        $html .= '<div style="background:#f8f6f2;border:2px solid #B87333;border-radius:10px;padding:18px 24px;margin:20px 0;font-size:12px;line-height:1.8;">';
+        $html .= '<strong style="color:#052228;">Ferreira &amp; Sá Advocacia</strong> — CNPJ: ' . $esc['cnpj'] . '<br>';
+        $html .= '<strong>CORA SCD</strong><br>';
+        $html .= 'Agência: 0001<br>';
+        $html .= 'Conta corrente: 5224012-7<br>';
+        $html .= 'Banco 403';
+        $html .= '</div>';
+    } else {
+        $html .= 'do(a) requerente, em conta bancária de sua titularidade.</p>';
+    }
+
+    // Quitação
+    if ($darQuitacao === 'sim') {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Após o efetivo levantamento, <strong>dá-se plena e irrevogável quitação</strong> ao valor depositado, requerendo o <strong>arquivamento do feito</strong>.</p>';
+    } else {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Após o efetivo levantamento, requer o prosseguimento regular do feito.</p>';
+    }
+
+    // Fechamento
+    $html .= '<p style="text-align:center;margin-top:2.5rem;">Nestes termos,<br>pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+
+    // Assinatura dupla
+    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}

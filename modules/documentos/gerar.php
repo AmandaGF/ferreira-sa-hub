@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -38,6 +38,7 @@ $typeLabels = array(
     'citacao_whatsapp' => 'Petição de Citação por WhatsApp',
     'habilitacao' => 'Petição de Habilitação nos Autos',
     'audiencia_remota' => 'Petição de Audiência Remota/Híbrida',
+    'mandado_pagamento' => 'Requerimento de Mandado de Pagamento',
 );
 
 $acaoLabels = array(
@@ -256,6 +257,11 @@ if (!$childNamesAud && $childNames && !$_POST) {
     $childNamesAud = $childNames;
 }
 
+// Campos mandado de pagamento
+$beneficiarioMandado = $_POST['beneficiario_mandado'] ?? 'escritorio';
+$darQuitacao = $_POST['dar_quitacao'] ?? 'sim';
+$paginaProcuracao = $_POST['pagina_procuracao'] ?? '';
+
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
@@ -270,7 +276,7 @@ $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -957,7 +963,50 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
-        <?php if ($isIntercorrente && $tipo !== 'habilitacao' && $tipo !== 'audiencia_remota'): ?>
+        <?php if ($tipo === 'mandado_pagamento'): ?>
+        <div class="section">
+            <h4>💰 Dados do Mandado de Pagamento</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família"></div>
+            </div>
+            <div class="row">
+                <div><label>UF</label>
+                    <select name="comarca_uf_doc" id="docUf">
+                        <option value="">—</option>
+                        <?php foreach (array('AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO') as $_uf): ?>
+                        <option value="<?= $_uf ?>" <?= ($comarcaUfDoc ?: 'RJ') === $_uf ? 'selected' : '' ?>><?= $_uf ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div><label>Comarca</label><input name="comarca_doc" id="docComarca" value="<?= e($comarcaDoc) ?>" placeholder="Ex: Volta Redonda"></div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>Beneficiário do pagamento</label>
+                    <select name="beneficiario_mandado">
+                        <option value="escritorio" <?= $beneficiarioMandado === 'escritorio' ? 'selected' : '' ?>>Escritório (Ferreira & Sá Advocacia)</option>
+                        <option value="cliente" <?= $beneficiarioMandado === 'cliente' ? 'selected' : '' ?>>Cliente (conta pessoal)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Página da procuração nos autos</label>
+                    <input type="text" name="pagina_procuracao" value="<?= e($paginaProcuracao) ?>" placeholder="Ex: 50">
+                </div>
+            </div>
+            <div class="row">
+                <div>
+                    <label>Dar quitação após levantamento?</label>
+                    <select name="dar_quitacao">
+                        <option value="sim" <?= $darQuitacao === 'sim' ? 'selected' : '' ?>>Sim — dar quitação e requerer arquivamento</option>
+                        <option value="nao" <?= $darQuitacao === 'nao' ? 'selected' : '' ?>>Não — sem quitação (processo continua)</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($isIntercorrente && $tipo !== 'habilitacao' && $tipo !== 'audiencia_remota' && $tipo !== 'mandado_pagamento'): ?>
         <div class="section">
             <h4>Comarca</h4>
             <div class="row">
@@ -1099,6 +1148,9 @@ if (!$showEditor) {
         'qualif_menor_aud' => $qualifMenorAud,
         'rep_legal_aud' => $repLegalAud,
         'data_audiencia' => $dataAudiencia,
+        'beneficiario_mandado' => $beneficiarioMandado,
+        'dar_quitacao' => $darQuitacao,
+        'pagina_procuracao' => $paginaProcuracao,
         'qtd_menores' => $qtdMenores,
     );
 
@@ -1115,6 +1167,7 @@ if (!$showEditor) {
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
     elseif ($tipo === 'audiencia_remota') echo template_audiencia_remota($d);
+    elseif ($tipo === 'mandado_pagamento') echo template_mandado_pagamento($d);
     ?>
     </div>
 
