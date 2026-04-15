@@ -5,6 +5,62 @@ require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
 
+// Atualizar dados da Leidiane (#2311) com dados do formulário
+$f = $pdo->query("SELECT payload_json FROM form_submissions WHERE linked_client_id = 2311 AND form_type = 'cadastro_cliente' ORDER BY created_at DESC LIMIT 1")->fetchColumn();
+if ($f) {
+    $d = json_decode($f, true);
+    echo "Payload encontrado:\n";
+    echo "  Telefone: " . ($d['celular'] ?? '?') . "\n";
+    echo "  Endereço: " . ($d['endereco'] ?? ($d['rua'] ?? '?')) . "\n";
+    echo "  Cidade: " . ($d['cidade'] ?? '?') . "\n";
+    echo "  UF: " . ($d['uf'] ?? '?') . "\n";
+    echo "  CEP: " . ($d['cep'] ?? '?') . "\n";
+    echo "  Profissão: " . ($d['profissao'] ?? '?') . "\n";
+    echo "  Estado civil: " . ($d['estado_civil'] ?? '?') . "\n";
+    echo "  Nascimento: " . ($d['nascimento'] ?? '?') . "\n";
+    echo "  RG: " . ($d['rg'] ?? '?') . "\n";
+
+    // Montar endereço
+    $rua = $d['rua'] ?? '';
+    $num = $d['numero'] ?? '';
+    $comp = $d['complemento'] ?? '';
+    $bairro = $d['bairro'] ?? '';
+    $street = $rua;
+    if ($num) $street .= ', nº ' . $num;
+    if ($comp) $street .= ', ' . $comp;
+    if ($bairro) $street .= ' - ' . $bairro;
+    if (!$street) $street = $d['endereco'] ?? '';
+
+    $pdo->prepare("UPDATE clients SET
+        phone = COALESCE(NULLIF(phone,''), ?),
+        address_street = COALESCE(NULLIF(address_street,''), ?),
+        address_city = COALESCE(NULLIF(address_city,''), ?),
+        address_state = COALESCE(NULLIF(address_state,''), ?),
+        address_zip = COALESCE(NULLIF(address_zip,''), ?),
+        profession = COALESCE(NULLIF(profession,''), ?),
+        marital_status = COALESCE(NULLIF(marital_status,''), ?),
+        birth_date = COALESCE(birth_date, ?),
+        rg = COALESCE(NULLIF(rg,''), ?),
+        pix_key = COALESCE(NULLIF(pix_key,''), ?)
+        WHERE id = 2311"
+    )->execute(array(
+        $d['celular'] ?? null,
+        $street ?: null,
+        $d['cidade'] ?? null,
+        $d['uf'] ?? null,
+        $d['cep'] ?? null,
+        $d['profissao'] ?? null,
+        $d['estado_civil'] ?? null,
+        ($d['nascimento'] ?? null) ?: null,
+        $d['rg'] ?? null,
+        $d['pix'] ?? null,
+    ));
+    echo "\n=== Client #2311 atualizado com dados do formulário ===\n";
+} else {
+    echo "Nenhum formulário encontrado para client #2311\n";
+}
+exit;
+
 echo "=== Diagnóstico Maria Luiza De Assis (Client #2309) ===\n\n";
 
 // Verificar dependências antes de excluir
