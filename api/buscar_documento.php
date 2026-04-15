@@ -8,6 +8,13 @@
  */
 
 header('Content-Type: application/json; charset=utf-8');
+header('Access-Control-Allow-Origin: *');
+
+// Forçar reload do functions_cpfcnpj.php
+if (function_exists('opcache_invalidate')) {
+    @opcache_invalidate(__DIR__ . '/../core/functions_cpfcnpj.php', true);
+    @opcache_invalidate(__DIR__ . '/../core/functions.php', true);
+}
 
 // Permitir acesso público (formulários públicos) e autenticado
 require_once __DIR__ . '/../core/config.php';
