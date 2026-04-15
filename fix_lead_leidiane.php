@@ -20,4 +20,15 @@ foreach ($leads as $l) {
         echo "  => Lead #{$l['id']} name atualizado para: {$l['client_name']}\n";
     }
 }
+// Remover lead duplicado (manter só o mais antigo)
+if (count($leads) > 1) {
+    // Manter o primeiro, excluir os demais
+    $keep = $leads[0]['id'];
+    for ($i = 1; $i < count($leads); $i++) {
+        $delId = $leads[$i]['id'];
+        $pdo->prepare("DELETE FROM pipeline_leads WHERE id = ?")->execute(array($delId));
+        echo "  Lead #{$delId} duplicado excluído\n";
+    }
+    echo "  Mantido Lead #{$keep}\n";
+}
 echo "\n=== OK ===\n";
