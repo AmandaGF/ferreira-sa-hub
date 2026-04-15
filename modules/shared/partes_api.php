@@ -68,9 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $results = $stmt->fetchAll();
         // Também buscar em clients (clientes cadastrados)
         $stmtCli = $pdo->prepare(
-            "SELECT name as nome, cpf, rg, birth_date as nascimento, profession as profissao, marital_status as estado_civil,
+            "SELECT id as client_id, name as nome, cpf, rg, birth_date as nascimento, profession as profissao, marital_status as estado_civil,
                     email, phone as telefone, address_street as endereco, address_city as cidade, address_state as uf, address_zip as cep,
-                    'fisica' as tipo_pessoa, NULL as cnpj, NULL as razao_social, NULL as nome_fantasia
+                    'fisica' as tipo_pessoa, NULL as cnpj, NULL as razao_social, NULL as nome_fantasia, 'cliente' as fonte
              FROM clients
              WHERE name LIKE ?
              ORDER BY name

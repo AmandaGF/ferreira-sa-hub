@@ -2223,7 +2223,9 @@ function buscarNomeParte(q) {
                     var div = document.createElement('div');
                     div.style.cssText = 'padding:8px 10px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f3f4f6;';
                     var label = p.nome || p.razao_social || '';
+                    var isCliente = p.fonte === 'cliente' || p.client_id;
                     var sub = p.cpf ? ' — CPF: ' + p.cpf : (p.cnpj ? ' — CNPJ: ' + p.cnpj : '');
+                    if (isCliente) sub += ' <span style="background:#ecfdf5;color:#059669;padding:1px 5px;border-radius:3px;font-size:.6rem;font-weight:700;">CLIENTE</span>';
                     div.innerHTML = '<strong>' + label + '</strong><span style="color:#6b7280;font-size:.72rem;">' + sub + '</span>';
                     div.onmouseenter = function() { this.style.background = 'rgba(215,171,144,.15)'; };
                     div.onmouseleave = function() { this.style.background = ''; };
@@ -2251,6 +2253,14 @@ function buscarNomeParte(q) {
                                 if (p.uf) document.getElementById('parteUf').value = p.uf;
                                 if (p.cep) document.getElementById('parteCep').value = p.cep;
                             } catch(e) {}
+                        }
+                        // Vincular client_id se veio da base de clientes
+                        if (p.client_id) {
+                            document.getElementById('parteClientId').value = p.client_id;
+                            document.getElementById('parteEhCliente').checked = true;
+                            document.getElementById('parteClienteBusca').style.display = 'block';
+                            document.getElementById('parteClienteNome').textContent = '✓ ' + (p.nome || '');
+                            document.getElementById('parteClienteBuscaInput').value = p.nome || '';
                         }
                         box.style.display = 'none';
                     };
