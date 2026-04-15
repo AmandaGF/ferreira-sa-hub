@@ -3,8 +3,6 @@
  * Sala VIP F&S — Chamados (Tickets)
  * Cliente pode abrir chamados que vão para o Helpdesk do Conecta
  */
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
@@ -243,7 +241,7 @@ require_once __DIR__ . '/../includes/header.php';
                     }
                 }
             ?>
-            <div style="border:1px solid var(--sv-border);border-radius:10px;padding:.8rem 1rem;<?= $isRespondido && $ch['status'] !== 'resolvido' ? 'border-left:3px solid var(--sv-accent);' : '' ?>">
+            <a href="<?= SALAVIP_BASE_URL ?>/pages/chamado_ver.php?id=<?= $ch['id'] ?>" style="text-decoration:none;color:inherit;display:block;border:1px solid var(--sv-border);border-radius:10px;padding:.8rem 1rem;transition:all .2s;<?= $isRespondido && $ch['status'] !== 'resolvido' ? 'border-left:3px solid var(--sv-accent);' : '' ?>" onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,.08)';this.style.transform='translateY(-1px)'" onmouseout="this.style.boxShadow='';this.style.transform=''">
                 <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
                     <strong style="color:var(--sv-accent);font-size:.85rem;">#<?= $ch['id'] ?></strong>
                     <span style="font-weight:600;color:var(--sv-text);font-size:.9rem;"><?= sv_e($ch['title']) ?></span>
@@ -270,7 +268,7 @@ require_once __DIR__ . '/../includes/header.php';
                     <span style="font-size:.65rem;font-weight:700;color:#059669;">✅ Resolvido</span>
                     <?php endif; ?>
                 </div>
-            </div>
+            </a>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>

@@ -93,8 +93,8 @@ switch ($action) {
         $message = clean_str($_POST['message'] ?? '', 5000);
 
         if ($ticketId && $message) {
-            $pdo->prepare('INSERT INTO ticket_messages (ticket_id, user_id, message) VALUES (?,?,?)')
-                ->execute([$ticketId, current_user_id(), $message]);
+            $pdo->prepare("INSERT INTO ticket_messages (ticket_id, user_id, sender_type, sender_id, message) VALUES (?,?,'equipe',?,?)")
+                ->execute([$ticketId, current_user_id(), current_user_id(), $message]);
 
             // Auto mudar status para em_andamento se estava aberto
             $stmt = $pdo->prepare('SELECT status, title FROM tickets WHERE id = ?');
