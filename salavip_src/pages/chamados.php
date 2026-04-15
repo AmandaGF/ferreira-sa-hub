@@ -22,7 +22,7 @@ $slaConfig = array(
 
 // --- POST: Abrir novo chamado ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'abrir_chamado') {
-    if (!salavip_validar_csrf()) {
+    if (!salavip_validar_csrf($_POST['csrf_token'] ?? '')) {
         sv_flash('error', 'Token inválido.');
         sv_redirect('pages/chamados.php');
     }
