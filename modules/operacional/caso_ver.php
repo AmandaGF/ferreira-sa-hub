@@ -560,20 +560,36 @@ if (!empty($compFuturos)): ?>
             </div>
         </div>
         <div style="display:flex;gap:.3rem;flex-shrink:0;">
-            <?php if ($clientPhone):
-                $primeiroNomeComp = explode(' ', trim($case['client_name'] ?: ''))[0];
-                $dataCompFmt = date('d/m/Y', strtotime($dtInicio));
-                $horaCompFmt = ($comp['dia_todo'] != 1) ? date('H:i', strtotime($dtInicio)) : '';
-                $tipoCompMsg = isset($tipoCompLabels[$comp['tipo']]) ? mb_strtolower($tipoCompLabels[$comp['tipo']]) : $comp['tipo'];
-                $msgComp = "Olá " . $primeiroNomeComp . ", tudo bem?\n\nGostaríamos de lembrar sobre a *" . $tipoCompMsg . "* agendada para o dia *" . $dataCompFmt . "*";
-                if ($horaCompFmt) $msgComp .= " às *" . $horaCompFmt . "*";
-                $msgComp .= ".";
-                if ($comp['local']) $msgComp .= "\n\n📍 Local: " . $comp['local'];
-                if ($comp['meet_link']) $msgComp .= "\n\n💻 Link de acesso: " . $comp['meet_link'];
-                $msgComp .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
-                $waCompUrl = 'https://wa.me/55' . $clientPhone . '?text=' . rawurlencode($msgComp);
+            <?php
+            // Montar links WhatsApp para cada cliente vinculado
+            $waComps = array();
+            $dataCompFmt = date('d/m/Y', strtotime($dtInicio));
+            $horaCompFmt = ($comp['dia_todo'] != 1) ? date('H:i', strtotime($dtInicio)) : '';
+            $tipoCompMsg = isset($tipoCompLabels[$comp['tipo']]) ? mb_strtolower($tipoCompLabels[$comp['tipo']]) : $comp['tipo'];
+            foreach ($clientesVinculados as $cvw) {
+                $ph = $cvw['phone'] ? preg_replace('/\D/', '', $cvw['phone']) : '';
+                if (!$ph) continue;
+                $primeiro = explode(' ', trim($cvw['name']))[0];
+                $msg = "Olá " . $primeiro . ", tudo bem?\n\nGostaríamos de lembrar sobre a *" . $tipoCompMsg . "* agendada para o dia *" . $dataCompFmt . "*";
+                if ($horaCompFmt) $msg .= " às *" . $horaCompFmt . "*";
+                $msg .= ".";
+                if ($comp['local']) $msg .= "\n\n📍 Local: " . $comp['local'];
+                if ($comp['meet_link']) $msg .= "\n\n💻 Link de acesso: " . $comp['meet_link'];
+                $msg .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
+                $waComps[] = array('name' => $cvw['name'], 'url' => 'https://wa.me/55' . $ph . '?text=' . rawurlencode($msg));
+            }
             ?>
-                <a href="<?= e($waCompUrl) ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;" title="Lembrar cliente via WhatsApp">WhatsApp</a>
+            <?php if (count($waComps) === 1): ?>
+                <a href="<?= e($waComps[0]['url']) ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">WhatsApp</a>
+            <?php elseif (count($waComps) > 1): ?>
+                <div style="position:relative;display:inline-block;">
+                    <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;border:none;font-weight:600;cursor:pointer;">WhatsApp ▾</button>
+                    <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:4px;overflow:hidden;">
+                        <?php foreach ($waComps as $wc): ?>
+                        <a href="<?= e($wc['url']) ?>" target="_blank" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
             <?php endif; ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
