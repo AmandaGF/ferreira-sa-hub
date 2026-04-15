@@ -6,11 +6,6 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-if (!has_min_role('gestao')) {
-    flash_set('error', 'Acesso restrito.');
-    redirect(url('modules/dashboard/index.php'));
-}
-
 $pageTitle = 'Central VIP — Gestao';
 $pdo = db();
 
