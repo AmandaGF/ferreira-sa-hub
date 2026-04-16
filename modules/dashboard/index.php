@@ -551,7 +551,8 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
         </div>
         <?php if ($onbTotal > 0): ?>
         <div style="font-size:.75rem;color:var(--text-muted);text-align:center;">
-            Taxa de sucesso: <strong style="color:#059669;"><?= $onbTotal > 0 ? round(($onbRealizados / $onbTotal) * 100) : 0 ?>%</strong>
+            <?php $onbConcluidos = $onbRealizados + $onbNaoCompareceu; ?>
+            Taxa de sucesso: <strong style="color:#059669;"><?= $onbConcluidos > 0 ? round(($onbRealizados / $onbConcluidos) * 100) : 0 ?>%</strong>
         </div>
         <?php endif; ?>
     </div>
