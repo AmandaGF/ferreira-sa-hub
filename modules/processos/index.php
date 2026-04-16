@@ -52,7 +52,7 @@ elseif ($filterVinculo === 'recursos') { $where[] = "cs.is_incidental = 1 AND cs
 // Filtros especiais
 $filterEspecial = isset($_GET['especial']) ? $_GET['especial'] : '';
 if ($filterEspecial === 'sem_andamento_30d') {
-    $where[] = "cs.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+    $where[] = "((SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR NOT EXISTS (SELECT 1 FROM case_andamentos a2 WHERE a2.case_id = cs.id))";
     $where[] = "cs.status NOT IN ('concluido','arquivado','cancelado')";
 }
 if ($filterEspecial === 'audiencia_marcada') {
@@ -106,7 +106,15 @@ try {
 // KPIs
 $totalJudiciais = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != ''")->fetchColumn();
 $ativosJ = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND status NOT IN ('concluido','arquivado')")->fetchColumn();
-$semAndamento30d = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND status NOT IN ('concluido','arquivado','cancelado') AND updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)")->fetchColumn();
+$semAndamento30d = (int)$pdo->query(
+    "SELECT COUNT(*) FROM cases cs
+     WHERE cs.case_number IS NOT NULL AND cs.case_number != ''
+     AND cs.status NOT IN ('concluido','arquivado','cancelado')
+     AND (
+         (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+         OR NOT EXISTS (SELECT 1 FROM case_andamentos a2 WHERE a2.case_id = cs.id)
+     )"
+)->fetchColumn();
 $comAudiencia = (int)$pdo->query("SELECT COUNT(DISTINCT ae.case_id) FROM agenda_eventos ae JOIN cases cs ON cs.id = ae.case_id WHERE cs.case_number IS NOT NULL AND cs.case_number != '' AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado'")->fetchColumn();
 
 $tipos = $pdo->query("SELECT DISTINCT case_type FROM cases WHERE case_number IS NOT NULL AND case_number != '' AND case_type IS NOT NULL AND case_type != '' ORDER BY case_type")->fetchAll(PDO::FETCH_COLUMN);
