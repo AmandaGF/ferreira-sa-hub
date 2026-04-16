@@ -6,7 +6,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'Datas Especiais';
+$pageTitle = 'Aniversariantes';
 $pdo = db();
 $currentYear = (int)date('Y');
 $currentMonth = (int)date('n');
@@ -204,26 +204,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Layout principal -->
 <div class="aniv-layout">
     <div>
-        <!-- Lista de aniversariantes -->
-        <?php if (empty($anivMes)): ?>
-            <div class="card" style="text-align:center;padding:2rem;"><div style="font-size:2rem;margin-bottom:.5rem;">🎂</div><h3>Nenhum aniversariante em <?= $meses[$filtroMes] ?></h3></div>
+        <?php
+        // Separar em próximos e passados
+        $anivProximos = array();
+        $anivPassados = array();
+        foreach ($anivMes as $a) {
+            $diaAniv = (int)$a['dia'];
+            $isPast = ($filtroMes < $currentMonth) || ($filtroMes === $currentMonth && $diaAniv < $currentDay);
+            if ($filtroMes > $currentMonth) $isPast = false;
+            if ($isPast) { $anivPassados[] = $a; } else { $anivProximos[] = $a; }
+        }
+        ?>
+
+        <!-- Abas: Próximos / Anteriores -->
+        <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:.75rem;">
+            <button onclick="document.getElementById('anivProximos').style.display='block';document.getElementById('anivPassados').style.display='none';this.style.borderBottomColor='#B87333';this.style.color='#B87333';this.nextElementSibling.style.borderBottomColor='transparent';this.nextElementSibling.style.color='var(--text-muted)'" style="padding:.5rem 1.2rem;font-size:.82rem;font-weight:700;background:none;border:none;border-bottom:3px solid #B87333;color:#B87333;margin-bottom:-2px;cursor:pointer;">
+                🎂 Próximos / Hoje (<?= count($anivProximos) ?>)
+            </button>
+            <button onclick="document.getElementById('anivPassados').style.display='block';document.getElementById('anivProximos').style.display='none';this.style.borderBottomColor='#B87333';this.style.color='#B87333';this.previousElementSibling.style.borderBottomColor='transparent';this.previousElementSibling.style.color='var(--text-muted)'" style="padding:.5rem 1.2rem;font-size:.82rem;font-weight:700;background:none;border:none;border-bottom:3px solid transparent;color:var(--text-muted);margin-bottom:-2px;cursor:pointer;">
+                📋 Anteriores (<?= count($anivPassados) ?>)
+            </button>
+        </div>
+
+        <!-- Lista: Próximos -->
+        <div id="anivProximos">
+        <?php if (empty($anivProximos)): ?>
+            <div class="card" style="text-align:center;padding:2rem;"><div style="font-size:2rem;margin-bottom:.5rem;">🎉</div><h3>Todos os aniversários de <?= $meses[$filtroMes] ?> já passaram!</h3><p style="font-size:.82rem;color:var(--text-muted);">Confira a aba "Anteriores" para ver quem já fez aniversário.</p></div>
         <?php else: ?>
-            <?php foreach ($anivMes as $a):
+            <?php foreach ($anivProximos as $a):
                 $diaAniv = (int)$a['dia'];
                 $isToday = ($filtroMes === $currentMonth && $diaAniv === $currentDay);
-                $isPast = ($filtroMes < $currentMonth) || ($filtroMes === $currentMonth && $diaAniv < $currentDay);
                 $isTomorrow = ($filtroMes === $currentMonth && $diaAniv === $currentDay + 1);
-                $isSoon = !$isToday && !$isPast && ($filtroMes === $currentMonth && $diaAniv <= $currentDay + 7);
+                $isSoon = !$isToday && ($filtroMes === $currentMonth && $diaAniv <= $currentDay + 7);
                 $isSent = !empty($a['parabens_enviado']);
 
                 if ($isSent) { $cardClass = 'sent'; $avClass = 'av-sent'; }
                 elseif ($isToday) { $cardClass = 'today'; $avClass = 'av-today'; }
-                elseif ($isPast) { $cardClass = 'past'; $avClass = 'av-past'; }
                 elseif ($isSoon) { $cardClass = 'soon'; $avClass = 'av-soon'; }
                 else { $cardClass = 'soon'; $avClass = 'av-soon'; }
-
-                // Para meses futuros, nenhum "passou"
-                if ($filtroMes > $currentMonth) { $isPast = false; $cardClass = 'soon'; $avClass = 'av-soon'; }
             ?>
             <div class="aniv-card <?= $cardClass ?>">
                 <div class="aniv-avatar <?= $avClass ?>"><?= mb_substr($a['name'], 0, 2, 'UTF-8') ?></div>
@@ -240,7 +258,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($isToday): ?><span class="aniv-tag tag-hoje">HOJE</span>
                     <?php elseif ($isTomorrow): ?><span class="aniv-tag tag-amanha">Amanhã</span>
                     <?php elseif ($isSent): ?><span class="aniv-tag tag-enviado">✓ Enviado</span>
-                    <?php elseif ($isPast): ?><span class="aniv-tag tag-passou">Passou</span>
                     <?php elseif ($isSoon): ?><span class="aniv-tag tag-semana"><?= $diaAniv - $currentDay ?>d</span>
                     <?php endif; ?>
 
@@ -256,6 +273,45 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
+        </div>
+
+        <!-- Lista: Anteriores (oculta por padrão) -->
+        <div id="anivPassados" style="display:none;">
+        <?php if (empty($anivPassados)): ?>
+            <div class="card" style="text-align:center;padding:2rem;"><div style="font-size:2rem;margin-bottom:.5rem;">📅</div><h3>Nenhum aniversário anterior em <?= $meses[$filtroMes] ?></h3></div>
+        <?php else: ?>
+            <?php foreach ($anivPassados as $a):
+                $diaAniv = (int)$a['dia'];
+                $isSent = !empty($a['parabens_enviado']);
+                $cardClass = $isSent ? 'sent' : 'past';
+                $avClass = $isSent ? 'av-sent' : 'av-past';
+            ?>
+            <div class="aniv-card <?= $cardClass ?>">
+                <div class="aniv-avatar <?= $avClass ?>"><?= mb_substr($a['name'], 0, 2, 'UTF-8') ?></div>
+                <div class="aniv-info">
+                    <div class="aniv-name"><?= e($a['name']) ?></div>
+                    <div class="aniv-detail">
+                        <span>📅 <?= str_pad($diaAniv, 2, '0', STR_PAD_LEFT) ?>/<?= str_pad($filtroMes, 2, '0', STR_PAD_LEFT) ?></span>
+                        <?php if ($a['idade']): ?><span>· <?= $a['idade'] ?> anos</span><?php endif; ?>
+                        <?php if ($a['phone']): ?><span>· 📱 <?= e($a['phone']) ?></span><?php endif; ?>
+                    </div>
+                </div>
+                <div class="aniv-actions">
+                    <?php if ($isSent): ?><span class="aniv-tag tag-enviado">✓ Enviado</span>
+                    <?php else: ?><span class="aniv-tag tag-passou">Passou</span>
+                    <?php endif; ?>
+
+                    <?php if (!$isSent && $a['phone']): ?>
+                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $a['phone']) ?>?text=<?= urlencode($msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário atrasado, ' . explode(' ', $a['name'])[0] . '!') ?>" target="_blank" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;">WhatsApp</a>
+                        <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&marcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;">✓</a>
+                    <?php elseif ($isSent): ?>
+                        <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&desmarcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.6rem;padding:.15rem .35rem;opacity:.5;" title="Desmarcar">↩</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        <?php endif; ?>
+        </div>
     </div>
 
         <!-- Datas Comemorativas do mês -->
