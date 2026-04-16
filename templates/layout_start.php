@@ -60,6 +60,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 {c:'Federal / TRF',n:'TRF 3ª Região SP - JEF',u:'https://pje1g.trf3.jus.br/pje/login.seam'},
                 {c:'Federal / TRF',n:'TRF 5ª Região - Ceará JEF',u:'https://pje1g.trf5.jus.br/pje/login.seam'},
                 {c:'Federal / TRF',n:'Balcão Virtual Federal Ceará',u:'https://painelcentralsistemas.jfce.jus.br/painelcentralsistemas/'},
+                {c:'Outros Estados',n:'TJMG - eProc',u:'https://eproc1g.tjmg.jus.br/eproc/'},
                 {c:'Outros Estados',n:'TJMG - PJe 1ª Instância',u:'https://pje.tjmg.jus.br/pje/login.seam'},
                 {c:'Outros Estados',n:'TJMG - PJe 2ª Instância',u:'https://www.tjmg.jus.br/portal-tjmg/processos/jpe-themis-processo-eletronico-de-2-instancia/'},
                 {c:'Outros Estados',n:'TJMG - Projud Juizados BH',u:'https://www.tjmg.jus.br/portal-tjmg/processos/projudi-processo-eletronico-de-juizados-especiais/'},
