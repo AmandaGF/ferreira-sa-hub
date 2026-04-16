@@ -1714,7 +1714,7 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                     <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-left:3px solid <?= $cor ?>;">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
                             <div style="display:flex;align-items:center;gap:6px;">
-                                <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;"><?= $lbl ?></span>
+                                <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;" data-and-tipo="<?= $and['id'] ?>" data-tipo-val="<?= e($and['tipo']) ?>"><?= $lbl ?></span>
                                 <?php
                                 $tipoOrigem = isset($and['tipo_origem']) ? $and['tipo_origem'] : 'manual';
                                 if ($tipoOrigem === 'datajud'): ?>
@@ -2457,9 +2457,23 @@ function editarAndamento(andId) {
     var wrapper = document.createElement('div');
     wrapper.id = 'andEditWrap' + andId;
 
+    // Pegar tipo atual
+    var tipoSpan = item ? item.querySelector('[data-tipo-val]') : null;
+    var tipoAtual = tipoSpan ? tipoSpan.getAttribute('data-tipo-val') : '';
+
+    var tipoOpcoes = [
+        ['movimentacao','Movimentação'],['despacho','Despacho'],['decisao','Decisão'],['sentenca','Sentença'],
+        ['audiencia','Audiência'],['peticao_juntada','Petição juntada'],['intimacao','Intimação'],['citacao','Citação'],
+        ['acordo','Acordo'],['recurso','Recurso'],['cumprimento','Cumprimento'],['diligencia','Diligência'],['observacao','Observação']
+    ];
+
     var horaRow = document.createElement('div');
     horaRow.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;';
-    horaRow.innerHTML = '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Data:</label><input type="date" id="andData' + andId + '" value="' + dataAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">'
+    var tipoSelectHtml = '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Tipo:</label><select id="andTipo' + andId + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">';
+    tipoOpcoes.forEach(function(o) { tipoSelectHtml += '<option value="' + o[0] + '"' + (o[0] === tipoAtual ? ' selected' : '') + '>' + o[1] + '</option>'; });
+    tipoSelectHtml += '</select>';
+    horaRow.innerHTML = tipoSelectHtml
+        + '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Data:</label><input type="date" id="andData' + andId + '" value="' + dataAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">'
         + '<label style="font-size:.72rem;font-weight:600;color:var(--text-muted);">Horário:</label><input type="time" id="andHora' + andId + '" value="' + horaAtual + '" style="font-size:.8rem;padding:3px 6px;border:1.5px solid #e5e7eb;border-radius:5px;font-family:inherit;">';
 
     var input = document.createElement('textarea');
@@ -2502,6 +2516,8 @@ function salvarAndamento(andId) {
     var novaHora = horaEl ? horaEl.value : '';
     var dataEl = document.getElementById('andData' + andId);
     var novaData = dataEl ? dataEl.value : '';
+    var tipoEl = document.getElementById('andTipo' + andId);
+    var novoTipo = tipoEl ? tipoEl.value : '';
     var x = new XMLHttpRequest();
     x.open('POST', '<?= module_url("operacional", "api.php") ?>');
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -2510,11 +2526,15 @@ function salvarAndamento(andId) {
         try { var r = JSON.parse(x.responseText);
             if (r.csrf) andCsrf = r.csrf;
             if (r.ok) {
+                // Se tipo mudou, recarregar para atualizar cor e ícone
+                var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
+                if (novoTipo && tipoSpan && tipoSpan.getAttribute('data-tipo-val') !== novoTipo) {
+                    location.reload();
+                    return;
+                }
                 document.getElementById('andDesc' + andId).textContent = novoTexto;
-                // Atualizar hora exibida
                 var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
                 if (horaSpan && novaHora) horaSpan.textContent = novaHora;
-                // Atualizar data exibida
                 var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
                 if (dataSpan && novaData) {
                     var p = novaData.split('-');
@@ -2525,7 +2545,7 @@ function salvarAndamento(andId) {
             } else if (r.error) { alert(r.error); }
         } catch(e) { alert('Erro ao salvar'); }
     };
-    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&data=' + encodeURIComponent(novaData) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
+    x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&data=' + encodeURIComponent(novaData) + '&tipo=' + encodeURIComponent(novoTipo) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
 function toggleVincularCliente(checked) {

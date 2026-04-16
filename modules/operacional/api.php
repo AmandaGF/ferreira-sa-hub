@@ -1214,21 +1214,32 @@ switch ($action) {
         try {
             $hora = trim($_POST['hora'] ?? '');
             $dataInput = trim($_POST['data'] ?? '');
+            $tipoInput = trim($_POST['tipo'] ?? '');
             $dataValida = $dataInput && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataInput);
             $horaValida = $hora && preg_match('/^\d{2}:\d{2}$/', $hora);
+            $tiposValidos = array('movimentacao','despacho','decisao','sentenca','audiencia','peticao_juntada','intimacao','citacao','acordo','recurso','cumprimento','diligencia','observacao','chamado','Balcão Virtual');
+            $tipoValido = $tipoInput && in_array($tipoInput, $tiposValidos);
 
+            // Montar SET dinâmico
+            $setCols = array('descricao = ?');
+            $setParams = array($descricao);
+            if ($tipoValido) { $setCols[] = 'tipo = ?'; $setParams[] = $tipoInput; }
+            if ($dataValida) { $setCols[] = 'data_andamento = ?'; $setParams[] = $dataInput; }
             if ($dataValida && $horaValida) {
-                $pdo->prepare("UPDATE case_andamentos SET descricao = ?, data_andamento = ?, created_at = CONCAT(?, ' ', ?, ':00') WHERE id = ?")
-                    ->execute(array($descricao, $dataInput, $dataInput, $hora, $andId));
+                $setCols[] = "created_at = CONCAT(?, ' ', ?, ':00')";
+                $setParams[] = $dataInput;
+                $setParams[] = $hora;
             } elseif ($dataValida) {
-                $pdo->prepare("UPDATE case_andamentos SET descricao = ?, data_andamento = ?, created_at = CONCAT(?, ' ', COALESCE(TIME(created_at), '00:00:00')) WHERE id = ?")
-                    ->execute(array($descricao, $dataInput, $dataInput, $andId));
+                $setCols[] = "created_at = CONCAT(?, ' ', COALESCE(TIME(created_at), '00:00:00'))";
+                $setParams[] = $dataInput;
             } elseif ($horaValida) {
-                $pdo->prepare("UPDATE case_andamentos SET descricao = ?, created_at = CONCAT(COALESCE(DATE(created_at), CURDATE()), ' ', ?, ':00') WHERE id = ?")
-                    ->execute(array($descricao, $hora, $andId));
-            } else {
-                $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?")->execute(array($descricao, $andId));
+                $setCols[] = "created_at = CONCAT(COALESCE(DATE(created_at), CURDATE()), ' ', ?, ':00')";
+                $setParams[] = $hora;
             }
+            $setParams[] = $andId;
+            $pdo->prepare("UPDATE case_andamentos SET " . implode(', ', $setCols) . " WHERE id = ?")
+                ->execute($setParams);
+
             audit_log('ANDAMENTO_EDITADO', 'andamento', $andId, mb_substr($descricao, 0, 80, 'UTF-8'));
         } catch (Exception $e) {
             $newCsrf = generate_csrf_token();
