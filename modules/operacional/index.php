@@ -188,7 +188,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card.prazo-3d { border-left-color:#f59e0b !important; animation:pulsePrazoSuave 2s ease-in-out infinite; }
 @keyframes pulsePrazo { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
 @keyframes pulsePrazoSuave { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.3)} 50%{box-shadow:0 0 0 4px rgba(245,158,11,0)} }
-.op-card-process { font-size:.58rem; color:var(--petrol-500); font-weight:600; margin-top:.2rem; }
+.op-card-process { font-size:.58rem; color:var(--petrol-500); font-weight:600; margin-top:.2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; display:block; }
 .op-card-doc-alert { background:#fef2f2; border:1px solid #fecaca; border-radius:6px; padding:.3rem .4rem; font-size:.6rem; color:#dc2626; margin-top:.25rem; }
 .op-doc-item { display:flex; align-items:flex-start; gap:.2rem; padding:.1rem 0; font-weight:600; line-height:1.3; }
 .op-doc-item.recebido { color:#059669; text-decoration:none; }
