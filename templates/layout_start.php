@@ -19,6 +19,89 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 <h1 class="topbar-title"><?= e($pageTitle ?? 'Painel') ?></h1>
             </div>
             <div class="topbar-right">
+                <!-- Links Jurídicos -->
+                <div style="position:relative;" id="ljWrap">
+                    <button id="ljBtn" onclick="document.getElementById('ljDrop').classList.toggle('lj-open');document.getElementById('ljBusca').value='';ljFiltrar('');" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:6px;color:var(--petrol-900);display:flex;align-items:center;gap:4px;" title="Links Jurídicos">
+                        ⚖️ <span style="font-size:.72rem;font-weight:600;display:none;" class="lj-label-desk">Links</span>
+                    </button>
+                    <div id="ljDrop" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:380px;max-height:520px;background:#052228;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.4);z-index:9999;overflow:hidden;flex-direction:column;">
+                        <div style="padding:.6rem .8rem;border-bottom:1px solid rgba(255,255,255,.1);">
+                            <div style="position:relative;">
+                                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.8rem;opacity:.5;">🔍</span>
+                                <input type="text" id="ljBusca" placeholder="Buscar tribunal..." oninput="ljFiltrar(this.value)" style="width:100%;padding:.5rem .6rem .5rem 30px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#fff;font-size:.8rem;outline:none;" autocomplete="off">
+                            </div>
+                        </div>
+                        <div id="ljBody" style="overflow-y:auto;max-height:440px;padding:.4rem 0;"></div>
+                    </div>
+                </div>
+                <style>
+                #ljDrop.lj-open{display:flex!important}
+                .lj-cat{padding:.3rem .8rem;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#B87333;margin-top:.3rem;}
+                .lj-link{display:block;padding:.4rem .8rem .4rem 1.4rem;color:rgba(255,255,255,.85);text-decoration:none;font-size:.78rem;transition:all .12s;}
+                .lj-link:hover{background:#B87333;color:#fff;}
+                .lj-link::before{content:'•';margin-right:6px;opacity:.4;}
+                .lj-none{padding:1.5rem;text-align:center;color:rgba(255,255,255,.4);font-size:.8rem;}
+                @media(max-width:600px){#ljDrop{width:calc(100vw - 20px);right:-50px;}}
+                @media(min-width:768px){.lj-label-desk{display:inline!important;}}
+                </style>
+                <script>
+                var _ljData=[
+                {c:'Rio de Janeiro',n:'Comunica PJE',u:'https://comunica.pje.jus.br/'},
+                {c:'Rio de Janeiro',n:'EProc TJRJ',u:'https://eproc1g.tjrj.jus.br/eproc/'},
+                {c:'Rio de Janeiro',n:'TJRJ - DCP',u:'https://www3.tjrj.jus.br/idserverjus-front/#/login?indGet=true&sgSist=PORTALSERVICOS'},
+                {c:'Rio de Janeiro',n:'TJRJ - PJe',u:'https://tjrj.pje.jus.br/1g/login.seam?loginComCertificado=false'},
+                {c:'Rio de Janeiro',n:'Fóruns Regionais RJ',u:'https://www.tjrj.jus.br/web/cgj/foruns-regionais-capital'},
+                {c:'Rio de Janeiro',n:'Balcão Virtual TJRJ',u:'https://www.tjrj.jus.br/web/guest/balcao-virtual'},
+                {c:'Rio de Janeiro',n:'Regionais Infância TJRJ',u:'https://cgj.tjrj.jus.br/abrangencia-contato-vijis-comissarios'},
+                {c:'Rio de Janeiro',n:'Mediação e Conciliação Pré-Processual',u:'https://www.tjrj.jus.br/web/guest/institucional/mediacao/pre-processual'},
+                {c:'Federal / TRF',n:'TRF 2ª Região - RJ',u:'https://eproc.trf2.jus.br/eproc/'},
+                {c:'Federal / TRF',n:'Justiça Federal 2ª Região - RJ',u:'https://eproc.jfrj.jus.br/eproc/controlador.php?acao=painel_adv_listar&acao_origem=principal&hash=df59f03e0b8579a4d0fd7ee2a0677c7b'},
+                {c:'Federal / TRF',n:'TRF 3ª Região - SP',u:'https://www.trf3.jus.br/pje'},
+                {c:'Federal / TRF',n:'TRF 3ª Região SP - JEF',u:'https://pje1g.trf3.jus.br/pje/login.seam'},
+                {c:'Federal / TRF',n:'TRF 5ª Região - Ceará JEF',u:'https://pje1g.trf5.jus.br/pje/login.seam'},
+                {c:'Federal / TRF',n:'Balcão Virtual Federal Ceará',u:'https://painelcentralsistemas.jfce.jus.br/painelcentralsistemas/'},
+                {c:'Outros Estados',n:'TJMG - PJe 1ª Instância',u:'https://pje.tjmg.jus.br/pje/login.seam'},
+                {c:'Outros Estados',n:'TJMG - PJe 2ª Instância',u:'https://www.tjmg.jus.br/portal-tjmg/processos/jpe-themis-processo-eletronico-de-2-instancia/'},
+                {c:'Outros Estados',n:'TJMG - Projud Juizados BH',u:'https://www.tjmg.jus.br/portal-tjmg/processos/projudi-processo-eletronico-de-juizados-especiais/'},
+                {c:'Outros Estados',n:'TJSP - Sistema',u:'https://esaj.tjsp.jus.br/esaj/portal.do?servico=820000'},
+                {c:'Outros Estados',n:'TJPR - PROJUD',u:'https://projudi.tjpr.jus.br/projudi/'},
+                {c:'Outros Estados',n:'TJRN',u:'https://pje1g.tjrn.jus.br/pje/login.seam'},
+                {c:'Outros Estados',n:'TJSE',u:'https://www.tjse.jus.br/portaldoadvogado/'},
+                {c:'Outros Estados',n:'TJES',u:'https://pje.tjes.jus.br/pje/login.seam'},
+                {c:'Outros Estados',n:'TJRS',u:'https://eproc1g.tjrs.jus.br/eproc/externo_controlador.php?acao=principal&sigla_orgao_sistema=TJRS&sigla_sistema=Eproc'},
+                {c:'Portais Gerais',n:'Portal Concentração de Prazos',u:'https://comunica.pje.jus.br/'},
+                {c:'Portais Gerais',n:'JUS.BR',u:'https://jus.br'},
+                {c:'Portais Gerais',n:'STJ',u:'https://cpe.web.stj.jus.br/'}
+                ];
+                function ljFiltrar(q) {
+                    var body = document.getElementById('ljBody');
+                    q = q.toLowerCase();
+                    var cats = {};
+                    _ljData.forEach(function(l) {
+                        if (q && l.n.toLowerCase().indexOf(q) === -1 && l.c.toLowerCase().indexOf(q) === -1) return;
+                        if (!cats[l.c]) cats[l.c] = [];
+                        cats[l.c].push(l);
+                    });
+                    var html = '';
+                    var keys = Object.keys(cats);
+                    if (keys.length === 0) { body.innerHTML = '<div class="lj-none">Nenhum resultado</div>'; return; }
+                    keys.forEach(function(cat) {
+                        html += '<div class="lj-cat">📍 ' + cat + '</div>';
+                        cats[cat].forEach(function(l) {
+                            html += '<a class="lj-link" href="' + l.u + '" target="_blank" rel="noopener">' + l.n + '</a>';
+                        });
+                    });
+                    body.innerHTML = html;
+                }
+                ljFiltrar('');
+                document.addEventListener('click', function(e) {
+                    var wrap = document.getElementById('ljWrap');
+                    if (wrap && !wrap.contains(e.target)) {
+                        document.getElementById('ljDrop').classList.remove('lj-open');
+                    }
+                });
+                </script>
+
                 <?php $unreadCount = count_unread_notifications(); ?>
                 <div class="notif-wrapper" id="notifWrapper">
                     <button class="notif-bell" id="notifBell" title="Notificações">
