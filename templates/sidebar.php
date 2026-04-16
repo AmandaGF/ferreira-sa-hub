@@ -17,6 +17,7 @@ $all = array('admin','gestao','comercial','cx','operacional','estagiario','colab
 $equipe = array('admin','gestao','comercial','cx','operacional','estagiario'); // todos exceto colaborador
 $menuItems = array(
     array('section' => 'Principal'),
+    array('label' => 'Painel do Dia',   'icon' => '🌅', 'href' => url('modules/painel/'),          'id' => 'painel',          'roles' => $all),
     array('label' => 'Dashboard',       'icon' => '📊', 'href' => url('modules/dashboard/'),       'id' => 'dashboard',       'roles' => $all),
     array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
 
@@ -65,6 +66,9 @@ $menuItems = array(
     array('label' => 'Notif. Clientes', 'icon' => '📲', 'href' => url('modules/notificacoes/log_cliente.php'), 'id' => 'notif_clientes', 'roles' => $equipe),
     array('label' => 'Newsletter',     'icon' => '📧', 'href' => url('modules/newsletter/'),        'id' => 'newsletter',      'roles' => array('admin','gestao')),
     array('label' => 'Aniversariantes', 'icon' => '🎂', 'href' => url('modules/aniversarios/'),     'id' => 'aniversarios',    'roles' => $all),
+
+    array('section' => '📖 Conhecimento'),
+    array('label' => 'Wiki',            'icon' => '📚', 'href' => url('modules/wiki/'),             'id' => 'wiki',            'roles' => $all),
 
     array('section' => 'Equipe'),
     array('label' => 'Ranking',         'icon' => '🏆', 'href' => url('modules/gamificacao/'),      'id' => 'gamificacao',     'roles' => $all),
