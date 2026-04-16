@@ -497,7 +497,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <!-- Titulo -->
                 <div class="form-row">
                     <div class="form-col">
-                        <label>Nome da Pasta / Titulo *</label>
+                        <label>Nome da Pasta / Título *</label>
                         <input type="text" name="title" id="tituloProcesso" class="form-input" required placeholder="Ex: Maria Silva x João Santos">
                     </div>
                 </div>
@@ -598,7 +598,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
 
-                <!-- UF + Comarca (cidade) + Data de Distribuicao -->
+                <!-- UF + Comarca (cidade) + Data de Distribuição -->
                 <div class="form-row">
                     <?php $preUf = ($princData && $princData['comarca_uf']) ? $princData['comarca_uf'] : ''; ?>
                     <div class="form-col" style="max-width:120px;">
@@ -619,7 +619,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <datalist id="listaCidades"></datalist>
                     </div>
                     <div class="form-col" style="max-width:200px;">
-                        <label>Data de Distribuicao</label>
+                        <label>Data de Distribuição</label>
                         <input type="date" name="distribution_date" class="form-input">
                     </div>
                 </div>
@@ -655,7 +655,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </div>
                     <div class="form-col" style="max-width:200px;">
-                        <label>Segredo de Justica</label>
+                        <label>Segredo de Justiça</label>
                         <div style="display:flex;align-items:center;gap:.5rem;height:42px;">
                             <input type="checkbox" name="segredo_justica" id="segredoJustica" value="1" style="width:18px;height:18px;cursor:pointer;" <?= $preSegredo ? 'checked' : '' ?>>
                             <label for="segredoJustica" style="font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:0;cursor:pointer;margin:0;">Sim, é segredo</label>
@@ -695,7 +695,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </div>
                     <div class="form-col" style="max-width:320px;">
-                        <label>Responsavel</label>
+                        <label>Responsável</label>
                         <select name="responsible_user_id" class="form-select">
                             <option value="">-- Selecionar --</option>
                             <?php foreach ($users as $u): ?>
