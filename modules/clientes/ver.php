@@ -81,7 +81,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cli-profile-actions { display:flex; gap:.5rem; flex-wrap:wrap; }
 .info-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; }
 .info-item label { font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:.15rem; }
-.info-item span { font-size:.9rem; color:var(--text); }
+.info-item span { font-size:.9rem; color:var(--text); overflow:hidden; text-overflow:ellipsis; display:block; white-space:nowrap; max-width:100%; }
 </style>
 
 <!-- Header -->
