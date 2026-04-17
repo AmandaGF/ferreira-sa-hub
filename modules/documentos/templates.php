@@ -869,11 +869,11 @@ function template_audiencia_remota($d) {
 
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Também embasa o pedido a <strong>Resolução CNJ n. 354/2020</strong>, que instituiu e regulamentou o processo judicial eletrônico e o uso de ferramentas remotas para a prática de atos processuais, e a <strong>Resolução CNJ n. 385/2021</strong>, que disciplina o Juízo 100% Digital e faculta às partes a opção pela realização de atos de forma remota.</p>';
 
-    $parteTextoFund = ($papelCliente === 'reu') ? 'Ré' : 'Autora';
+    $parteTextoFund = ($papelCliente === 'reu') ? 'ré' : 'autora';
     if ($pleiteante === 'menor' && $nomeFilhos) {
         $parteTextoFund .= ' (representada)';
     }
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e a patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e sua patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
 
     // Parágrafo sobre justa causa — só aparece se motivo foi preenchido (o motivo já explica a circunstância)
     if ($motivo) {
