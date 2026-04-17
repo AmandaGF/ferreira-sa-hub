@@ -20,14 +20,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
 
-    // ── Reenviar Link (regenerar token) ─────────────────
+    // ── Reenviar Link (regenerar token + enviar e-mail) ─
     if ($action === 'reenviar_link') {
+        // Buscar dados do usuário + cliente
+        $stmtU = $pdo->prepare(
+            "SELECT su.*, c.name as client_name, c.email as client_email
+             FROM salavip_usuarios su
+             LEFT JOIN clients c ON c.id = su.cliente_id
+             WHERE su.id = ?"
+        );
+        $stmtU->execute(array($id));
+        $usrData = $stmtU->fetch();
+
+        if (!$usrData) {
+            flash_set('error', 'Usuário não encontrado.');
+            redirect(module_url('salavip', 'acessos.php'));
+        }
+
+        $emailDest = $usrData['client_email'] ?: $usrData['email'];
+        $nomeDest = $usrData['client_name'] ?: $usrData['nome_exibicao'];
+
+        if (!$emailDest) {
+            flash_set('error', 'Cliente não tem e-mail cadastrado. Cadastre primeiro no CRM.');
+            redirect(module_url('salavip', 'acessos.php'));
+        }
+
         $newToken = bin2hex(random_bytes(32));
         $pdo->prepare(
             "UPDATE salavip_usuarios SET token_ativacao = ?, atualizado_em = NOW() WHERE id = ?"
-        )->execute([$newToken, $id]);
-        audit_log('salavip_reenviar_link', 'salavip_usuarios', $id, "Novo token gerado");
-        flash_set('success', 'Link de acesso regenerado. Envie o novo link ao cliente.');
+        )->execute(array($newToken, $id));
+
+        $linkAtivacao = 'https://www.ferreiraesa.com.br/salavip/ativar_conta.php?token=' . $newToken;
+
+        require_once APP_ROOT . '/core/functions_salavip_email.php';
+        $enviado = _salavip_enviar_email_ativacao($emailDest, $nomeDest, $linkAtivacao);
+
+        audit_log('salavip_reenviar_link', 'salavip_usuarios', $id, "Reenviado para $emailDest");
+        if ($enviado !== false) {
+            flash_set('success', '✓ Link reenviado por e-mail para <strong>' . e($emailDest) . '</strong>.<br>Link também disponível (caso precise copiar): <code style="background:#f3f4f6;padding:2px 6px;border-radius:3px;font-size:.75rem;">' . e($linkAtivacao) . '</code>');
+        } else {
+            flash_set('error', 'Token regenerado mas e-mail não pôde ser enviado (Brevo não configurado?). Copie o link manualmente: <code>' . e($linkAtivacao) . '</code>');
+        }
         redirect(module_url('salavip', 'acessos.php'));
     }
 
