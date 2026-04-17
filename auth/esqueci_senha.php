@@ -10,7 +10,7 @@
 require_once __DIR__ . '/../core/auth.php';
 
 if (is_logged_in()) {
-    redirect(url('modules/dashboard/'));
+    redirect(url('modules/painel/'));
 }
 
 $step = $_GET['step'] ?? 'email';

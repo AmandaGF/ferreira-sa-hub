@@ -7,7 +7,7 @@ require_once __DIR__ . '/../core/auth.php';
 
 // Se já está logado, redireciona
 if (is_logged_in()) {
-    redirect(url('modules/dashboard/'));
+    redirect(url('modules/painel/'));
 }
 
 $error = '';
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($user) {
                 login_user($user);
                 flash_set('success', 'Bem-vindo(a), ' . $user['name'] . '!');
-                redirect(url('modules/dashboard/'));
+                redirect(url('modules/painel/'));
             } else {
                 $error = 'E-mail ou senha incorretos.';
             }
