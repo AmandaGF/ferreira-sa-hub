@@ -36,7 +36,7 @@ try {
             LEFT JOIN clients c ON c.id = e.client_id
             LEFT JOIN cases cs ON cs.id = e.case_id
             LEFT JOIN users u ON u.id = e.responsavel_id
-            WHERE DATE(e.data_inicio) = ? AND e.status != 'cancelado'";
+            WHERE DATE(e.data_inicio) = ? AND e.status NOT IN ('cancelado','remarcado')";
     if (!$isGestao || $viewUserId !== $userId) {
         $sql .= " AND e.responsavel_id = ?";
         $stmt = $pdo->prepare($sql . " ORDER BY e.data_inicio ASC");
@@ -147,7 +147,7 @@ try {
     $stR->execute(array($hoje));
     $resumo['tarefas'] = (int)$stR->fetchColumn();
 
-    $stR2 = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos WHERE DATE(data_inicio) = ? AND tipo = 'audiencia' AND status != 'cancelado'" . (!$isGestao ? " AND responsavel_id = $userId" : ''));
+    $stR2 = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos WHERE DATE(data_inicio) = ? AND tipo = 'audiencia' AND status NOT IN ('cancelado','remarcado')" . (!$isGestao ? " AND responsavel_id = $userId" : ''));
     $stR2->execute(array($hoje));
     $resumo['audiencias'] = (int)$stR2->fetchColumn();
 
