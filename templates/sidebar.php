@@ -29,7 +29,8 @@ $menuItems = array(
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $equipe),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $equipe),
-    array('label' => 'WhatsApp CRM',    'icon' => '💬', 'href' => url('modules/whatsapp/'),         'id' => 'whatsapp',        'roles' => array('admin','gestao','comercial','cx','operacional')),
+    array('label' => 'WhatsApp (21) Comercial', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'), 'id' => 'whatsapp_21', 'roles' => $all),
+    array('label' => 'WhatsApp (24) CX/Oper.',  'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'), 'id' => 'whatsapp_24', 'roles' => $all),
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $equipe),
@@ -182,10 +183,21 @@ body.dark-mode a { color:var(--rose); }
                 <span class="sidebar-section-chevron" id="chv_<?= $sectionSlug ?>">▾</span>
             </div>
             <div class="sidebar-section-items" id="items_<?= $sectionSlug ?>">
-                <?php foreach ($group['items'] as $item): ?>
+                <?php foreach ($group['items'] as $item):
+                    // Highlight especial para WhatsApp (21 vs 24) baseado no ?canal=
+                    $isActive = false;
+                    if ($item['id'] === 'whatsapp_21' || $item['id'] === 'whatsapp_24') {
+                        $canalItem  = ($item['id'] === 'whatsapp_24') ? '24' : '21';
+                        $onWhatsApp = strpos($_SERVER['REQUEST_URI'] ?? '', '/modules/whatsapp') !== false;
+                        $canalAtual = $_GET['canal'] ?? '21';
+                        $isActive   = $onWhatsApp && $canalAtual === $canalItem;
+                    } else {
+                        $isActive = is_current_module($item['id']);
+                    }
+                ?>
                     <div class="sidebar-item-row">
                         <a href="<?= $item['href'] ?>"
-                           class="sidebar-link <?= is_current_module($item['id']) ? 'active' : '' ?>"
+                           class="sidebar-link <?= $isActive ? 'active' : '' ?>"
                            title="<?= e($item['label']) ?>">
                             <span class="icon"><?= $item['icon'] ?></span>
                             <span class="sidebar-link-label"><?= e($item['label']) ?></span>
