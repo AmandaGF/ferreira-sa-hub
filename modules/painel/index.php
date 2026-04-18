@@ -15,15 +15,57 @@ $userName = explode(' ', current_user()['name'] ?? '')[0];
 $viewUserId = ($isGestao && isset($_GET['user'])) ? (int)$_GET['user'] : $userId;
 
 $hora = (int)date('G');
-if ($hora < 12) { $saudacao = 'Bom dia'; $emoji = '☀️'; }
-elseif ($hora < 18) { $saudacao = 'Boa tarde'; $emoji = '🌤️'; }
-else { $saudacao = 'Boa noite'; $emoji = '🌙'; }
 
 $diasSemana = array('Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado');
 $meses = array('','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro');
 $hoje = date('Y-m-d');
-$diaSemana = $diasSemana[(int)date('w')];
+$diaW = (int)date('w');
+$diaSemana = $diasSemana[$diaW];
 $dataExtenso = (int)date('j') . ' de ' . $meses[(int)date('n')] . ' de ' . date('Y');
+$isFimSemana = ($diaW === 0 || $diaW === 6);
+$isSexta = ($diaW === 5);
+
+// Mensagens motivacionais para dias vazios (rotativas por dia do ano)
+$idxMsg = (int)date('z') % 12;
+if ($isFimSemana) {
+    $saudacao = 'Bom ' . ($diaW === 6 ? 'sábado' : 'domingo');
+    $emoji = '🌿';
+    $msgsVazias = array(
+        array('emoji' => '☕', 'titulo' => 'Hora de desacelerar.', 'sub' => 'Descanso não é pausa — é combustível para segunda.'),
+        array('emoji' => '🌿', 'titulo' => 'Aproveite seu fim de semana!', 'sub' => 'O escritório pode esperar. Sua família e você não.'),
+        array('emoji' => '📖', 'titulo' => 'Um bom livro, um café, um respiro.', 'sub' => 'Você merece esse tempo.'),
+        array('emoji' => '🌊', 'titulo' => 'Desligue. Respire. Recomece.', 'sub' => 'Segunda-feira tem seu próprio ritmo.'),
+        array('emoji' => '✨', 'titulo' => 'Hoje é dia de viver.', 'sub' => 'A advocacia continua amanhã — você é mais que ela.'),
+        array('emoji' => '🏡', 'titulo' => 'Casa, família, silêncio.', 'sub' => 'Os melhores advogados sabem quando parar.'),
+        array('emoji' => '🌸', 'titulo' => 'Permita-se não fazer nada.', 'sub' => 'O mundo gira sem você também — e tudo bem.'),
+        array('emoji' => '🍃', 'titulo' => 'Descanse com intenção.', 'sub' => 'Presença com quem você ama vale mais que qualquer pauta.'),
+        array('emoji' => '🎶', 'titulo' => 'Música, conversa, presença.', 'sub' => 'O que alimenta sua alma hoje?'),
+        array('emoji' => '☁️', 'titulo' => 'Dia de leveza.', 'sub' => 'Seus processos estão seguros — relaxe.'),
+        array('emoji' => '🌅', 'titulo' => 'Recarregue as energias.', 'sub' => 'Uma Amanda descansada vale por três.'),
+        array('emoji' => '🤍', 'titulo' => 'Você fez o suficiente esta semana.', 'sub' => 'Agradeça, descanse e desfrute.'),
+    );
+} else {
+    if ($hora < 12) { $saudacao = 'Bom dia'; $emoji = '☀️'; }
+    elseif ($hora < 18) { $saudacao = 'Boa tarde'; $emoji = '🌤️'; }
+    else { $saudacao = 'Boa noite'; $emoji = '🌙'; }
+
+    $msgsSexta = array(
+        array('emoji' => '🎉', 'titulo' => 'Sexta-feira leve para você!', 'sub' => 'Feche a semana com calma — o fim de semana chegou.'),
+        array('emoji' => '🌟', 'titulo' => 'Última reta da semana.', 'sub' => 'Organize, delegue e descanse amanhã.'),
+    );
+    $msgsNormais = array(
+        array('emoji' => '🎯', 'titulo' => 'Nenhum compromisso para hoje.', 'sub' => 'Aproveite para organizar pastas ou adiantar petições.'),
+        array('emoji' => '✨', 'titulo' => 'Hoje está calmo!', 'sub' => 'Que tal revisar processos pendentes ou criar um artigo na Wiki?'),
+        array('emoji' => '🚀', 'titulo' => 'Agenda livre — tempo precioso.', 'sub' => 'Use para o que você nunca tem tempo: estratégia.'),
+        array('emoji' => '📚', 'titulo' => 'Dia para estudar e planejar.', 'sub' => 'Que tal ler um julgado interessante?'),
+        array('emoji' => '💡', 'titulo' => 'Sem correria hoje.', 'sub' => 'Bons planos nascem em dias calmos.'),
+        array('emoji' => '🎯', 'titulo' => 'Foco no que importa.', 'sub' => 'Seus processos agradecem o tempo dedicado.'),
+        array('emoji' => '☕', 'titulo' => 'Café, silêncio e boas ideias.', 'sub' => 'Dia perfeito para adiantar tarefas.'),
+        array('emoji' => '📝', 'titulo' => 'Dia de revisar e planejar.', 'sub' => 'Pequenos ajustes hoje = grandes resultados amanhã.'),
+    );
+    $msgsVazias = $isSexta ? array_merge($msgsSexta, $msgsNormais) : $msgsNormais;
+}
+$msgVazia = $msgsVazias[$idxMsg % count($msgsVazias)];
 
 // ─── COLUNA 1: Agenda de Hoje ───
 $agendaHoje = array();
@@ -227,8 +269,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h3>📅 Agenda de Hoje (<?= count($agendaHoje) ?>)</h3>
         <?php if (empty($agendaHoje)): ?>
             <div class="pd-empty">
-                <div class="big">🎉</div>
-                Nenhum compromisso para hoje.<br>Aproveite para organizar suas pastas!
+                <div class="big"><?= $msgVazia['emoji'] ?></div>
+                <strong style="color:var(--petrol-900);font-size:.95rem;"><?= e($msgVazia['titulo']) ?></strong><br>
+                <span style="font-style:italic;"><?= e($msgVazia['sub']) ?></span>
             </div>
         <?php else: ?>
             <div class="pd-timeline">
