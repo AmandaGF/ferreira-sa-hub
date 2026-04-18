@@ -60,6 +60,12 @@ function _permission_defaults()
         'financeiro'          => $todos,
         'faturamento'         => $todos,
         'cobranca_honorarios' => array('admin','gestao'),
+        'whatsapp'            => array('admin','gestao','comercial','cx','operacional'),
+        'whatsapp_21'         => array('admin','gestao','comercial'),
+        'whatsapp_24'         => array('admin','gestao','cx','operacional'),
+        'whatsapp_bot'        => array('admin','gestao','comercial'),
+        'whatsapp_dashboard'  => array('admin','gestao'),
+        'whatsapp_templates'  => array('admin','gestao'),
     );
 }
 

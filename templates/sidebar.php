@@ -29,6 +29,7 @@ $menuItems = array(
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $equipe),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $equipe),
+    array('label' => 'WhatsApp CRM',    'icon' => '💬', 'href' => url('modules/whatsapp/'),         'id' => 'whatsapp',        'roles' => array('admin','gestao','comercial','cx','operacional')),
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $equipe),
