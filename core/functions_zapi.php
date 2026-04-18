@@ -132,7 +132,7 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
     } catch (Exception $e) {}
     if (!$clientId) {
         try {
-            $stmt = $pdo->prepare("SELECT id FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(whatsapp,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
             $stmt->execute(array('%' . substr($telefone_norm, -9)));
             $leadId = $stmt->fetchColumn() ?: null;
         } catch (Exception $e) {}

@@ -40,7 +40,7 @@ if ($action === 'listar_conversas') {
                    co.bot_ativo, co.ultima_mensagem, co.ultima_msg_em, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
                    cl.name AS client_name,
-                   pl.nome_completo AS lead_name,
+                   pl.name AS lead_name,
                    u.name AS atendente_name
             FROM zapi_conversas co
             LEFT JOIN clients cl ON cl.id = co.client_id
@@ -69,7 +69,7 @@ if ($action === 'listar_conversas') {
 // ── ABRIR CONVERSA (zera não lidas + retorna mensagens) ──
 if ($action === 'abrir_conversa') {
     $id = (int)($_GET['id'] ?? 0);
-    $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, pl.nome_completo AS lead_name,
+    $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, pl.name AS lead_name,
                                   u.name AS atendente_name
                            FROM zapi_conversas co
                            LEFT JOIN clients cl ON cl.id = co.client_id
