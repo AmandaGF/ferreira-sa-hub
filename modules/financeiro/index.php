@@ -184,9 +184,11 @@ echo voltar_ao_processo_html();
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
             <h4 style="margin:0;">⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)</h4>
             <form method="GET" style="margin:0;">
-                <?php foreach ($_GET as $k => $v) if ($k !== 'ordem' && is_scalar($v)): ?>
-                    <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
-                <?php endif; endforeach; ?>
+                <?php foreach ($_GET as $k => $v): ?>
+                    <?php if ($k !== 'ordem' && is_scalar($v)): ?>
+                        <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+                    <?php endif; ?>
+                <?php endforeach; ?>
                 <select name="ordem" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;">
                     <?php foreach ($ordenacoes as $k => $o): ?>
                     <option value="<?= $k ?>" <?= $ordemSel === $k ? 'selected' : '' ?>><?= e($o['label']) ?></option>
