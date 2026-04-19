@@ -407,25 +407,45 @@ if (document.readyState === 'loading') {
     if (!sidebarNav) return;
     var KEY = 'fsa_sidebar_scroll';
 
+    function salvar() {
+        try { localStorage.setItem(KEY, String(sidebarNav.scrollTop)); } catch(_) {}
+    }
+    function restaurar() {
+        try {
+            var saved = parseInt(localStorage.getItem(KEY) || '0', 10);
+            if (saved > 0 && sidebarNav.scrollTop !== saved) sidebarNav.scrollTop = saved;
+        } catch(_) {}
+    }
+
     // Salvar ao clicar em qualquer link da sidebar
     sidebarNav.addEventListener('click', function(e){
         var link = e.target.closest('a.sidebar-link');
         if (!link) return;
-        try { localStorage.setItem(KEY, String(sidebarNav.scrollTop)); } catch(_) {}
+        salvar();
     });
-    // Também salvar ao scrollar (debounced)
+    // Salvar também no capture phase (antes do navegador começar a navegar)
+    document.addEventListener('click', function(e){
+        if (e.target.closest && e.target.closest('#sidebarNav a.sidebar-link')) salvar();
+    }, true);
+    // Também antes de sair da página (fallback)
+    window.addEventListener('beforeunload', salvar);
+    // E ao scrollar (debounced)
     var scrollTimer;
     sidebarNav.addEventListener('scroll', function(){
         clearTimeout(scrollTimer);
-        scrollTimer = setTimeout(function(){
-            try { localStorage.setItem(KEY, String(sidebarNav.scrollTop)); } catch(_) {}
-        }, 200);
+        scrollTimer = setTimeout(salvar, 150);
     });
 
-    // Restaurar imediatamente ao carregar (antes de render pra não piscar)
-    try {
-        var saved = parseInt(localStorage.getItem(KEY) || '0', 10);
-        if (saved > 0) sidebarNav.scrollTop = saved;
-    } catch(_) {}
+    // Restaurar em múltiplos pontos pra vencer layout tardio
+    restaurar();
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restaurar);
+    }
+    window.addEventListener('load', function(){
+        restaurar();
+        // Após carregar TUDO (fonts, imgs), última tentativa
+        setTimeout(restaurar, 50);
+        setTimeout(restaurar, 200);
+    });
 })();
 </script>
