@@ -161,6 +161,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <!-- Input de mensagem (escondido até abrir uma conversa) -->
         <div class="wa-chat-input" id="waChatInput" style="display:none;">
             <button class="wa-btn-tpl" onclick="waToggleTemplates()" title="Respostas rápidas">📋</button>
+            <button class="wa-btn-tpl" onclick="document.getElementById('waFile').click()" title="Anexar imagem ou documento">📎</button>
+            <input type="file" id="waFile" style="display:none;" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar">
             <textarea id="waInput" placeholder="Digite uma mensagem (Shift+Enter = nova linha)..." rows="1"></textarea>
             <button class="wa-btn-send" id="waBtnSend" onclick="waEnviar()">➤ Enviar</button>
         </div>
@@ -283,7 +285,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 html += '<div class="'+cls+'">';
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
                 else if (m.direcao === 'enviada' && m.enviado_por_name) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
-                html += '<div style="white-space:pre-wrap;word-break:break-word;">' + escapeHtml(m.conteudo||'') + '</div>';
+                // Mídia (imagem/vídeo/áudio/documento)
+                if (m.arquivo_url) {
+                    if (m.tipo === 'imagem') {
+                        html += '<a href="'+escapeHtml(m.arquivo_url)+'" target="_blank"><img src="'+escapeHtml(m.arquivo_url)+'" style="max-width:260px;max-height:260px;border-radius:8px;margin-bottom:4px;display:block;" onerror="this.style.display=\'none\';this.nextSibling&&(this.nextSibling.style.display=\'inline\');"></a>';
+                        html += '<span style="display:none;color:#ef4444;font-size:.7rem;">🖼️ Imagem (URL expirada)</span>';
+                    } else if (m.tipo === 'video') {
+                        html += '<video src="'+escapeHtml(m.arquivo_url)+'" controls style="max-width:260px;border-radius:8px;margin-bottom:4px;"></video>';
+                    } else if (m.tipo === 'audio') {
+                        html += '<audio src="'+escapeHtml(m.arquivo_url)+'" controls style="width:220px;margin-bottom:4px;"></audio>';
+                    } else if (m.tipo === 'documento') {
+                        var nm = m.arquivo_nome || 'documento';
+                        html += '<a href="'+escapeHtml(m.arquivo_url)+'" target="_blank" style="display:inline-flex;gap:6px;align-items:center;padding:6px 10px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:var(--text);margin-bottom:4px;"><span>📄</span><span>'+escapeHtml(nm)+'</span></a>';
+                    } else if (m.tipo === 'sticker') {
+                        html += '<img src="'+escapeHtml(m.arquivo_url)+'" style="max-width:120px;margin-bottom:4px;">';
+                    }
+                }
+                // Texto / caption
+                if (m.conteudo && m.conteudo !== ('[' + m.tipo + ']')) {
+                    html += '<div style="white-space:pre-wrap;word-break:break-word;">' + escapeHtml(m.conteudo) + '</div>';
+                } else if (!m.arquivo_url) {
+                    // Fallback: se não tem arquivo nem texto útil, mostra o tipo
+                    html += '<div style="color:#9ca3af;font-style:italic;">' + escapeHtml(m.conteudo||'[' + m.tipo + ']') + '</div>';
+                }
                 var statusIcon = '';
                 if (m.direcao === 'enviada') {
                     if (+m.lida) statusIcon = ' <span style="color:#3b82f6;">✓✓</span>';
@@ -335,6 +359,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
             e.preventDefault();
             waEnviar();
         }
+    });
+
+    // ── ENVIO DE ARQUIVO (imagem ou documento) ──────────
+    document.getElementById('waFile').addEventListener('change', function(e){
+        if (!convAtiva) { alert('Selecione uma conversa primeiro.'); return; }
+        var file = e.target.files[0];
+        if (!file) return;
+        if (file.size > 16 * 1024 * 1024) { alert('Arquivo maior que 16 MB.'); return; }
+
+        var caption = document.getElementById('waInput').value.trim();
+        var fd = new FormData();
+        fd.append('action', 'enviar_arquivo');
+        fd.append('conversa_id', convAtiva);
+        fd.append('caption', caption);
+        fd.append('arquivo', file);
+        fd.append('csrf_token', csrf);
+
+        var btn = document.getElementById('waBtnSend');
+        btn.disabled = true; btn.textContent = 'Enviando...';
+
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            btn.disabled = false; btn.textContent = '➤ Enviar';
+            e.target.value = ''; // reset file input
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            document.getElementById('waInput').value = '';
+            window.waAbrir(convAtiva);
+            carregarLista();
+        }).catch(function(err){
+            btn.disabled = false; btn.textContent = '➤ Enviar';
+            e.target.value = '';
+            alert('Falha: ' + err);
+        });
     });
 
     // ── AÇÕES NA CONVERSA ───────────────────────────────

@@ -80,6 +80,78 @@ function zapi_send_text($ddd, $telefone, $mensagem) {
 }
 
 /**
+ * Envia imagem via Z-API.
+ * $imagem pode ser URL HTTPS pública OU base64 (data URI ou raw).
+ */
+function zapi_send_image($ddd, $telefone, $imagem, $caption = '') {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-image';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'   => zapi_normaliza_telefone($telefone),
+        'image'   => $imagem,
+        'caption' => $caption,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
+/**
+ * Envia documento via Z-API.
+ * $doc pode ser URL HTTPS pública OU base64 (data URI).
+ */
+function zapi_send_document($ddd, $telefone, $doc, $fileName, $caption = '') {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    // Z-API endpoint varia: /send-document/{ext} — derivamos do fileName
+    $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION)) ?: 'pdf';
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-document/' . $ext;
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'    => zapi_normaliza_telefone($telefone),
+        'document' => $doc,
+        'fileName' => $fileName,
+        'caption'  => $caption,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
+function _zapi_post($url, $headers, $body) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_POSTFIELDS     => json_encode($body),
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    $json = json_decode($resp, true);
+    return array(
+        'ok'        => ($code >= 200 && $code < 300),
+        'http_code' => $code,
+        'data'      => $json ?: $resp,
+        'erro'      => $err,
+    );
+}
+
+/**
  * Normaliza telefone para formato internacional Z-API (5521999999999).
  */
 function zapi_normaliza_telefone($telefone) {
@@ -184,7 +256,7 @@ function zapi_extrai_conteudo($payload, $tipo) {
 }
 
 /**
- * Extrai URL do arquivo anexado.
+ * Extrai URL do arquivo anexado (tenta múltiplas chaves possíveis da Z-API).
  */
 function zapi_extrai_arquivo($payload, $tipo) {
     $map = array(
@@ -196,12 +268,20 @@ function zapi_extrai_arquivo($payload, $tipo) {
     );
     if (!isset($map[$tipo])) return null;
     $key = $map[$tipo];
-    if (!isset($payload[$key])) return null;
+    if (!isset($payload[$key]) || !is_array($payload[$key])) return null;
+    $blk = $payload[$key];
+
+    // Z-API usa diferentes nomes conforme a versão: imageUrl, url, fileUrl, mediaUrl, etc.
+    $url = $blk['imageUrl']    ?? $blk['videoUrl']    ?? $blk['documentUrl']
+        ?? $blk['audioUrl']    ?? $blk['stickerUrl']
+        ?? $blk['url']         ?? $blk['fileUrl']     ?? $blk['mediaUrl']
+        ?? $blk['downloadUrl'] ?? null;
+
     return array(
-        'url'      => $payload[$key]['imageUrl'] ?? $payload[$key]['videoUrl'] ?? $payload[$key]['documentUrl'] ?? $payload[$key]['audioUrl'] ?? $payload[$key]['stickerUrl'] ?? null,
-        'nome'     => $payload[$key]['fileName'] ?? null,
-        'mime'     => $payload[$key]['mimeType'] ?? null,
-        'tamanho'  => $payload[$key]['fileSize'] ?? null,
+        'url'     => $url,
+        'nome'    => $blk['fileName'] ?? ($blk['filename'] ?? null),
+        'mime'    => $blk['mimeType'] ?? ($blk['mime'] ?? null),
+        'tamanho' => $blk['fileSize'] ?? ($blk['size'] ?? null),
     );
 }
 

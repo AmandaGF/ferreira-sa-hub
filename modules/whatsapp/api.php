@@ -12,7 +12,7 @@ $userId = current_user_id();
 $action = $_REQUEST['action'] ?? '';
 
 // CSRF só para ações que mutam
-$mutantes = array('enviar_mensagem', 'assumir_atendimento', 'atribuir', 'resolver',
+$mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
@@ -203,6 +203,84 @@ if ($action === 'verificar_status') {
     if (!in_array($ddd, array('21','24'), true)) { echo json_encode(array('error'=>'DDD inválido')); exit; }
     $conectado = zapi_verificar_status($ddd);
     echo json_encode(array('ok' => true, 'conectado' => $conectado));
+    exit;
+}
+
+// ── ENVIAR ARQUIVO (imagem ou documento) ─────────────────
+if ($action === 'enviar_arquivo') {
+    $convId  = (int)($_POST['conversa_id'] ?? 0);
+    $caption = trim($_POST['caption'] ?? '');
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    if (empty($_FILES['arquivo']) || $_FILES['arquivo']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Falha no upload'));
+        exit;
+    }
+
+    $conv = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $tmp = $_FILES['arquivo']['tmp_name'];
+    $nome = $_FILES['arquivo']['name'];
+    $mime = $_FILES['arquivo']['type'] ?: mime_content_type($tmp);
+    $tam  = (int)$_FILES['arquivo']['size'];
+
+    // Limite 16 MB (WhatsApp aceita até ~100MB em docs, mas começamos conservador)
+    if ($tam > 16 * 1024 * 1024) { echo json_encode(array('error' => 'Arquivo maior que 16 MB')); exit; }
+
+    // Guardar o arquivo localmente em /files/whatsapp/ (para servir ao Z-API via URL)
+    $destDir = APP_ROOT . '/files/whatsapp';
+    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+    $nomeSanitizado = preg_replace('/[^A-Za-z0-9._-]/', '_', $nome);
+    $storedName = uniqid('wa_', true) . '_' . $nomeSanitizado;
+    $dest = $destDir . '/' . $storedName;
+    if (!move_uploaded_file($tmp, $dest)) {
+        echo json_encode(array('error' => 'Falha ao salvar arquivo no servidor'));
+        exit;
+    }
+    @chmod($dest, 0644);
+    $publicUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br') . '/conecta/files/whatsapp/' . rawurlencode($storedName);
+
+    // Detectar tipo
+    $isImage = (strpos($mime, 'image/') === 0);
+    $tipo    = $isImage ? 'imagem' : 'documento';
+
+    // Enviar via Z-API
+    if ($isImage) {
+        $resp = zapi_send_image($conv['canal'], $conv['telefone'], $publicUrl, $caption);
+    } else {
+        $resp = zapi_send_document($conv['canal'], $conv['telefone'], $publicUrl, $nome, $caption);
+    }
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+
+    $zapiId = '';
+    if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
+
+    $pdo->prepare(
+        "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
+            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, enviado_por_id, status)
+         VALUES (?, ?, 'enviada', ?, ?, ?, ?, ?, ?, ?, 'enviada')"
+    )->execute(array($convId, $zapiId, $tipo, $caption ?: '[' . $tipo . ']', $publicUrl, $nome, $mime, $tam, $userId));
+
+    $preview = $caption ?: ('[' . $tipo . '] ' . $nome);
+    $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
+                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   atendente_id = COALESCE(atendente_id, ?)
+                   WHERE id = ?")
+        ->execute(array(mb_substr($preview, 0, 500), $userId, $convId));
+
+    echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── DEBUG: última mensagem recebida (pra ver estrutura do payload) ─
+if ($action === 'debug_ultima_midia' && has_min_role('gestao')) {
+    $row = $pdo->query("SELECT * FROM zapi_mensagens WHERE direcao='recebida' AND tipo IN ('imagem','video','documento','audio') ORDER BY id DESC LIMIT 1")->fetch();
+    echo json_encode(array('ok' => true, 'msg' => $row));
     exit;
 }
 
