@@ -168,7 +168,7 @@ function zapi_delete_message($ddd, $telefone, $zapiMessageId) {
 
 /**
  * Edita uma mensagem de texto já enviada (WhatsApp permite até 15 min).
- * Endpoint dedicado da Z-API: /send-message-edit
+ * Z-API: tenta /send-message-edit com vários nomes de campo comuns até funcionar.
  */
 function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
     $inst = zapi_get_instancia($ddd);
@@ -181,12 +181,33 @@ function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
-    $body = array(
-        'phone'     => zapi_normaliza_telefone($telefone),
-        'messageId' => $zapiMessageId,
-        'text'      => $novoTexto,
+    $phoneNorm = zapi_normaliza_telefone($telefone);
+
+    // A Z-API tem variações — tentar payloads comuns em ordem
+    $tentativas = array(
+        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto),
+        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'text' => $novoTexto),
+        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'newText' => $novoTexto),
     );
-    return _zapi_post($url, $headers, $body);
+
+    $logFile = APP_ROOT . '/files/zapi_edit.log';
+    $ultimoResultado = null;
+    foreach ($tentativas as $body) {
+        $r = _zapi_post($url, $headers, $body);
+        $ultimoResultado = $r;
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] TENTATIVA body=' . json_encode($body) . ' http=' . ($r['http_code'] ?? '?') . ' resp=' . substr(json_encode($r['data'] ?? ''), 0, 300) . "\n", FILE_APPEND);
+
+        if (!empty($r['ok'])) {
+            // Confirmar no body: muitas APIs retornam 200 mesmo para endpoint inexistente
+            // Se tiver 'id' ou 'messageId' ou 'zaapId' no retorno, consideramos sucesso real
+            $data = $r['data'];
+            if (is_array($data) && (isset($data['id']) || isset($data['messageId']) || isset($data['zaapId']) || isset($data['value']))) {
+                return $r;
+            }
+            // 200 mas sem dados típicos de mensagem — tenta próximo formato
+        }
+    }
+    return $ultimoResultado ?: array('ok' => false, 'erro' => 'Todos os formatos falharam');
 }
 
 function _zapi_post($url, $headers, $body) {
