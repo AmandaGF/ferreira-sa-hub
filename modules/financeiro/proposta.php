@@ -48,6 +48,10 @@ $semJurosMulta = isset($_GET['sem_jm']) ? ((int)$_GET['sem_jm'] === 1) : $tirarJ
 $prazoProposta = $_GET['prazo'] ?? date('Y-m-d', strtotime('+7 days'));
 $observacoes   = trim($_GET['obs'] ?? '');
 
+// Estimativas de execução judicial (evitar/simular) — CPC art. 85 §1º e custas
+$honExecPct = isset($_GET['hon_exec']) ? max(0, min(30, (int)$_GET['hon_exec'])) : 10;  // 10% padrão
+$custas     = isset($_GET['custas']) ? max(0, (float)$_GET['custas']) : 200.00;         // R$ 200 padrão
+
 // Conforme CLÁUSULA 5.1 do contrato padrão do escritório:
 // "multa pecuniária de 20%, juros de mora de 1% ao mês e correção monetária"
 function calcular_juros_multa($valor, $diasAtraso) {
@@ -69,11 +73,15 @@ foreach ($vencidas as $v) {
 }
 $totalComAcrescimos += $totalPendente; // pendente não tem acréscimo ainda
 
-// Valor final da proposta
+// Estimativa se virar execução judicial (pra convencer o cliente a acordar agora)
+$honExec = $totalVencido * ($honExecPct / 100);  // 10% sobre nominal vencido (CPC 85 §1º)
+$totalSeExecutar = $totalComAcrescimos + $honExec + $custas;
+
+// Valor final da proposta (SEM os acréscimos de execução — esses só se ir pra execução de fato)
 $baseProposta = $semJurosMulta ? $totalOriginal : $totalComAcrescimos;
 $desconto = $baseProposta * ($descontoPct / 100);
 $valorFinal = $baseProposta - $desconto;
-$economia = ($semJurosMulta ? $totalComAcrescimos : $baseProposta) - $valorFinal;
+$economia = $totalSeExecutar - $valorFinal; // economia real inclui o que ele evita na execução
 
 $pageTitle = 'Proposta — ' . $client['name'];
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -161,6 +169,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <label>Observações (opcional)</label>
                 <input type="text" name="obs" value="<?= e($observacoes) ?>" placeholder="Ex: pagamento à vista via PIX">
+            </div>
+            <div>
+                <label title="Honorários de execução — CPC art. 85 §1º">Hon. execução (%)</label>
+                <input type="number" name="hon_exec" min="0" max="30" value="<?= $honExecPct ?>">
+            </div>
+            <div>
+                <label title="Custas processuais estimadas">Custas estim. (R$)</label>
+                <input type="number" step="0.01" name="custas" value="<?= $custas ?>">
             </div>
         </div>
 
@@ -271,13 +287,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <td style="text-align:right;"><?= $semJurosMulta ? '<span style="text-decoration:line-through;">R$ ' . number_format($totalJuros, 2, ',', '.') . '</span> <span style="color:#059669;font-weight:700;">(ZERADOS)</span>' : 'R$ ' . number_format($totalJuros, 2, ',', '.') ?></td>
             </tr>
             <tr style="background:#f9fafb;">
-                <td style="font-weight:700;padding-left:1rem;">Subtotal com acréscimos legais:</td>
+                <td style="font-weight:700;padding-left:1rem;">Subtotal com acréscimos contratuais:</td>
                 <td style="text-align:right;font-weight:700;"><?= $semJurosMulta ? '<span style="text-decoration:line-through;color:#9ca3af;">R$ ' . number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') . '</span>' : 'R$ ' . number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') ?></td>
             </tr>
             <?php endif; ?>
             <tr><td style="font-weight:700;">Total a vencer:</td><td style="text-align:right;">R$ <?= number_format($totalPendente, 2, ',', '.') ?></td></tr>
-            <tr style="background:#fef2f2;"><td style="font-weight:800;">TOTAL DEVIDO <?= $semJurosMulta ? '(com isenção de juros+multa)' : '(com acréscimos legais)' ?>:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.05rem;">R$ <?= number_format($baseProposta, 2, ',', '.') ?></td></tr>
+            <tr style="background:#fef2f2;"><td style="font-weight:800;">TOTAL DEVIDO <?= $semJurosMulta ? '(com isenção de juros+multa)' : '(com acréscimos contratuais)' ?>:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.05rem;">R$ <?= number_format($baseProposta, 2, ',', '.') ?></td></tr>
         </table>
+
+        <!-- Simulação de execução judicial (convence o cliente a acordar) -->
+        <div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:1.5px solid #dc2626;border-radius:10px;padding:.9rem 1.1rem;margin-top:1rem;">
+            <strong style="color:#991b1b;font-size:.92rem;">⚖️ Se o débito não for quitado e for à execução judicial, somam-se ainda:</strong>
+            <table style="margin-top:.4rem;">
+                <tr><td style="padding-left:1rem;">+ Honorários advocatícios da execução (<?= $honExecPct ?>% — CPC art. 85 §1º):</td><td style="text-align:right;color:#991b1b;">R$ <?= number_format($honExec, 2, ',', '.') ?></td></tr>
+                <tr><td style="padding-left:1rem;">+ Custas processuais estimadas:</td><td style="text-align:right;color:#991b1b;">R$ <?= number_format($custas, 2, ',', '.') ?></td></tr>
+                <tr><td style="padding-left:1rem;font-style:italic;color:#6b7280;font-size:.78rem;">+ Correção monetária (não inclusa — varia conforme índice oficial)</td><td style="text-align:right;font-size:.78rem;color:#6b7280;">—</td></tr>
+                <tr style="background:#fef2f2;border-top:2px solid #dc2626;"><td style="font-weight:800;color:#991b1b;">TOTAL PROVÁVEL EM EXECUÇÃO:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.1rem;">R$ <?= number_format($totalSeExecutar, 2, ',', '.') ?></td></tr>
+            </table>
+        </div>
         <p style="font-size:.7rem;color:#64748b;font-style:italic;margin-top:-.5rem;">Acréscimos calculados conforme <strong>cláusula 5.1 do contrato de honorários</strong>: multa pecuniária de 20% + juros de mora de 1% ao mês pro-rata dia + correção monetária.<?= $semJurosMulta ? ' <strong style="color:#059669;">Nesta proposta, os acréscimos foram ISENTADOS.</strong>' : '' ?></p>
     <?php endif; ?>
 
@@ -296,11 +323,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 
     <div class="prop-box-destaque">
-        <?php if ($descontoPct > 0 || $semJurosMulta): ?>
-        <div class="valor-old">De R$ <?= number_format($totalComAcrescimos, 2, ',', '.') ?></div>
-        <?php endif; ?>
+        <div style="font-size:.72rem;color:#78350f;margin-bottom:.15rem;">Valor provável em execução judicial:</div>
+        <div class="valor-old">R$ <?= number_format($totalSeExecutar, 2, ',', '.') ?></div>
+        <div style="font-size:.72rem;color:#78350f;margin-top:.4rem;">Acordo à vista:</div>
         <div class="valor-new">R$ <?= number_format($valorFinal, 2, ',', '.') ?></div>
-        <div style="font-size:.8rem;color:#78350f;">à vista (PIX ou boleto), válido até <?= date('d/m/Y', strtotime($prazoProposta)) ?></div>
+        <div style="font-size:.8rem;color:#78350f;">PIX ou boleto, válido até <?= date('d/m/Y', strtotime($prazoProposta)) ?></div>
         <?php if ($economia > 0): ?>
         <div class="economia">💰 Você economiza R$ <?= number_format($economia, 2, ',', '.') ?></div>
         <?php endif; ?>
@@ -352,10 +379,10 @@ function setProp(desc, sjm) {
     new Chart(c, {
         type: 'bar',
         data: {
-            labels: ['Dívida completa', 'Proposta de acordo'],
+            labels: ['Se for à execução', 'Proposta de acordo'],
             datasets: [{
                 label: 'Valor (R$)',
-                data: [<?= round($totalComAcrescimos, 2) ?>, <?= round($valorFinal, 2) ?>],
+                data: [<?= round($totalSeExecutar, 2) ?>, <?= round($valorFinal, 2) ?>],
                 backgroundColor: ['#dc2626', '#059669'],
                 borderRadius: 8
             }]
