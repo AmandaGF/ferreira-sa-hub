@@ -54,6 +54,18 @@ for ($i = 5; $i >= 0; $i--) {
 }
 
 // ─── Inadimplentes ───
+$ordenacoes = array(
+    'atraso_desc'   => array('label' => 'Atraso ↓ (mais antigos primeiro)', 'sql' => 'dias_atraso DESC'),
+    'atraso_asc'    => array('label' => 'Atraso ↑ (mais recentes primeiro)','sql' => 'dias_atraso ASC'),
+    'valor_desc'    => array('label' => 'Maior valor devido',               'sql' => 'valor_aberto DESC'),
+    'valor_asc'     => array('label' => 'Menor valor devido',               'sql' => 'valor_aberto ASC'),
+    'parcelas_desc' => array('label' => 'Mais parcelas vencidas',           'sql' => 'qtd_parcelas DESC, dias_atraso DESC'),
+    'nome_asc'      => array('label' => 'Nome (A-Z)',                       'sql' => 'cl.name ASC'),
+);
+$ordemSel = $_GET['ordem'] ?? 'atraso_desc';
+if (!isset($ordenacoes[$ordemSel])) $ordemSel = 'atraso_desc';
+$orderBy = $ordenacoes[$ordemSel]['sql'];
+
 $listaInadimplentes = array();
 try {
     $listaInadimplentes = $pdo->query(
@@ -63,7 +75,7 @@ try {
          FROM asaas_cobrancas ac
          LEFT JOIN clients cl ON cl.id = ac.client_id
          WHERE ac.status = 'OVERDUE'
-         GROUP BY ac.client_id ORDER BY dias_atraso DESC LIMIT 20"
+         GROUP BY ac.client_id ORDER BY {$orderBy} LIMIT 50"
     )->fetchAll();
 } catch (Exception $e) {}
 
@@ -169,7 +181,19 @@ echo voltar_ao_processo_html();
         <canvas id="chartFinanceiro"></canvas>
     </div>
     <div class="fin-section">
-        <h4>⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)</h4>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
+            <h4 style="margin:0;">⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)</h4>
+            <form method="GET" style="margin:0;">
+                <?php foreach ($_GET as $k => $v) if ($k !== 'ordem' && is_scalar($v)): ?>
+                    <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
+                <?php endif; endforeach; ?>
+                <select name="ordem" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;">
+                    <?php foreach ($ordenacoes as $k => $o): ?>
+                    <option value="<?= $k ?>" <?= $ordemSel === $k ? 'selected' : '' ?>><?= e($o['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </form>
+        </div>
         <?php if (empty($listaInadimplentes)): ?>
             <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhum inadimplente 🎉</p>
         <?php else: ?>
