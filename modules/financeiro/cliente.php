@@ -4,7 +4,7 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!can_access('faturamento') && !has_role('admin','gestao','comercial')) { redirect(url('modules/dashboard/')); }
+if (!can_access_financeiro()) { redirect(url('modules/dashboard/')); }
 
 require_once __DIR__ . '/../../core/asaas_helper.php';
 

@@ -5,15 +5,28 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!can_access('faturamento') && !has_role('admin','gestao','comercial')) { redirect(url('modules/dashboard/')); }
+if (!can_access_financeiro()) { redirect(url('modules/dashboard/')); }
 
 require_once __DIR__ . '/../../core/asaas_helper.php';
 
 $pageTitle = 'Financeiro';
 $pdo = db();
-$mesAtual = date('Y-m');
+
+// Seletor de mês — permite navegar no histórico (default: mês atual)
+$mesSel = $_GET['mes'] ?? date('Y-m');
+if (!preg_match('/^\d{4}-\d{2}$/', $mesSel)) $mesSel = date('Y-m');
+$mesAtual = $mesSel;
 $ML = array('','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez');
-$mesNome = $ML[(int)date('n')];
+$mesNum = (int)substr($mesSel, 5, 2);
+$anoSel = substr($mesSel, 0, 4);
+$mesNome = $ML[$mesNum];
+
+// Lista de meses disponíveis no banco (pra popular dropdown)
+$mesesDisponiveis = $pdo->query(
+    "SELECT DISTINCT DATE_FORMAT(vencimento,'%Y-%m') as m FROM asaas_cobrancas WHERE vencimento IS NOT NULL
+     UNION SELECT DISTINCT DATE_FORMAT(data_pagamento,'%Y-%m') as m FROM asaas_cobrancas WHERE data_pagamento IS NOT NULL
+     ORDER BY m DESC"
+)->fetchAll(PDO::FETCH_COLUMN);
 
 // ─── KPIs ───
 $receitaPrevista = 0; $receitaRecebida = 0; $inadimplentes = 0; $totalVencido = 0;
@@ -88,9 +101,21 @@ echo voltar_ao_processo_html();
 </style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
-    <h2 style="font-size:1.1rem;font-weight:800;color:var(--petrol-900);">💰 Financeiro — <?= $mesNome ?>/<?= date('Y') ?></h2>
+    <div style="display:flex;align-items:center;gap:.7rem;">
+        <h2 style="font-size:1.1rem;font-weight:800;color:var(--petrol-900);margin:0;">💰 Financeiro —</h2>
+        <form method="GET" style="margin:0;">
+            <select name="mes" onchange="this.form.submit()" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:.85rem;font-weight:600;">
+                <?php foreach ($mesesDisponiveis as $m):
+                    $mn = (int)substr($m,5,2); $ma = substr($m,0,4);
+                    $label = ($ML[$mn] ?? '') . '/' . $ma;
+                ?>
+                <option value="<?= e($m) ?>" <?= $m === $mesSel ? 'selected' : '' ?>><?= e($label) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </form>
+    </div>
     <div style="display:flex;gap:.5rem;">
-        <a href="<?= module_url('financeiro', 'sync.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">🔄 Sincronizar Asaas</a>
+        <a href="<?= module_url('financeiro', 'sync.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca cobranças dos últimos 30 dias no Asaas">🔄 Sincronizar Asaas</a>
         <button onclick="document.getElementById('modalCobranca').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;">+ Nova Cobrança</button>
     </div>
 </div>

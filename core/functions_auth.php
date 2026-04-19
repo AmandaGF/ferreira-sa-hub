@@ -78,9 +78,26 @@ function _permission_defaults()
  * 2. Verifica override individual (user_permissions)
  * 3. Fallback para default do role
  */
+/**
+ * Restrição de acesso ao Financeiro — whitelist rígida por user_id.
+ * Só Amanda (1), Rodrigo (3) e Luiz Eduardo (6) podem acessar.
+ */
+function can_access_financeiro()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    $autorizados = array(1, 3, 6); // Amanda, Rodrigo, Luiz Eduardo
+    return in_array((int)$uid, $autorizados, true);
+}
+
 function can_access($module)
 {
     static $overrides = null;
+
+    // ── Override rígido pro financeiro ──
+    if ($module === 'faturamento' || $module === 'financeiro') {
+        return can_access_financeiro();
+    }
 
     $role = current_user_role();
     if (!$role) return false;
