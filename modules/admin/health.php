@@ -115,18 +115,20 @@ $results[] = health_test('Sistema de Autenticação', function () {
 
 // 3. API Anthropic (Claude)
 $results[] = health_test('API Anthropic (Claude)', function () {
-    // Buscar chave na configuração
-    $pdo = db();
-    $key = null;
-    try {
-        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
-        $stmt->execute(array('anthropic_api_key'));
-        $row = $stmt->fetch();
-        $key = $row ? $row['valor'] : null;
-    } catch (Exception $e) {}
+    // Fallback 1: constante em config.php (padrão atual)
+    $key = defined('ANTHROPIC_API_KEY') && ANTHROPIC_API_KEY ? ANTHROPIC_API_KEY : null;
+    // Fallback 2: tabela configuracoes
+    if (!$key) {
+        try {
+            $stmt = db()->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
+            $stmt->execute(array('anthropic_api_key'));
+            $row = $stmt->fetch();
+            if ($row) $key = $row['valor'];
+        } catch (Exception $e) {}
+    }
 
     if (!$key) {
-        return array('ok' => false, 'message' => 'Chave API Anthropic não configurada em configuracoes');
+        return array('ok' => false, 'message' => 'Chave API Anthropic não configurada (nem config.php nem configuracoes)');
     }
 
     // Testar endpoint /v1/messages com mensagem mínima
@@ -215,17 +217,20 @@ $results[] = health_test('API Asaas (Financeiro)', function () {
 
 // 5. Google Drive webhook
 $results[] = health_test('Google Drive Webhook', function () {
-    $pdo = db();
-    $webhookUrl = null;
-    try {
-        $stmt = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
-        $stmt->execute(array('google_drive_webhook'));
-        $row = $stmt->fetch();
-        $webhookUrl = $row ? $row['valor'] : null;
-    } catch (Exception $e) {}
+    // Fallback 1: constante em config.php
+    $webhookUrl = defined('GOOGLE_APPS_SCRIPT_URL') && GOOGLE_APPS_SCRIPT_URL ? GOOGLE_APPS_SCRIPT_URL : null;
+    // Fallback 2: tabela configuracoes
+    if (!$webhookUrl) {
+        try {
+            $stmt = db()->prepare("SELECT valor FROM configuracoes WHERE chave = ?");
+            $stmt->execute(array('google_drive_webhook'));
+            $row = $stmt->fetch();
+            if ($row) $webhookUrl = $row['valor'];
+        } catch (Exception $e) {}
+    }
 
     if (!$webhookUrl) {
-        return array('ok' => false, 'message' => 'URL do webhook Google Drive não configurada em configuracoes');
+        return array('ok' => false, 'message' => 'URL do Google Apps Script não configurada (nem GOOGLE_APPS_SCRIPT_URL em config.php nem em configuracoes)');
     }
 
     // Testar com GET (Apps Script retorna algo)
