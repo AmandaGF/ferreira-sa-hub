@@ -194,7 +194,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ch-card-tipo { font-size:.68rem;color:var(--text-muted); }
 .ch-card-valor { font-size:.9rem;font-weight:800;color:#dc2626;margin:.2rem 0; }
 .ch-card-info { font-size:.65rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center; }
-.ch-card-btn { display:inline-block;padding:3px 10px;border-radius:6px;font-size:.68rem;font-weight:700;color:#fff;cursor:pointer;border:none;margin-top:.3rem; }
+.ch-card-btn { display:inline-flex;align-items:center;justify-content:center;padding:5px 10px;border-radius:6px;font-size:.75rem;font-weight:700;color:#fff;cursor:pointer;border:none;margin-top:.3rem;min-height:26px;min-width:32px; }
+.ch-card-btn.icon-only { font-size:1rem;padding:4px 8px;min-width:36px; }
 /* Histórico */
 .ch-timeline { position:relative;padding-left:20px; }
 .ch-timeline::before { content:'';position:absolute;left:6px;top:0;bottom:0;width:2px;background:var(--border); }
@@ -389,11 +390,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if ($g['client_phone']):
                             $msgGrp = "Olá " . explode(' ', $g['client_name'])[0] . "! Identificamos *{$qtd} parcela" . ($qtd > 1 ? 's' : '') . " em aberto* com o valor atualizado de *R$ " . number_format($g['total_atualizado'], 2, ',', '.') . "* (nominal R$ " . number_format($g['total_saldo'], 2, ',', '.') . " + multa 20% + juros 1%/mês, cláusula 5.1). Podemos conversar sobre a regularização? _Ferreira & Sá Advocacia_";
                         ?>
-                        <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})" title="Enviar WhatsApp direto">💬</button>
+                        <button type="button" class="ch-card-btn icon-only" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})" title="Enviar WhatsApp direto">💬</button>
                         <?php endif; ?>
                         <?php if ($g['client_id']): ?>
-                        <a href="<?= module_url('whatsapp', 'fila.php?client_id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#b45309;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Ver notificações pendentes na Caixa de Envios">📬</a>
-                        <a href="<?= module_url('financeiro', 'cliente.php?id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#052228;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Abrir ficha financeira completa (Asaas + proposta de acordo)">💰</a>
+                        <a href="<?= module_url('whatsapp', 'fila.php?client_id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn icon-only" style="background:#b45309;text-decoration:none;" onclick="event.stopPropagation();" title="Ver notificações pendentes na Caixa de Envios">📬</a>
+                        <a href="<?= module_url('financeiro', 'cliente.php?id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn icon-only" style="background:#052228;text-decoration:none;" onclick="event.stopPropagation();" title="Abrir ficha financeira completa (Asaas + proposta de acordo)">💰</a>
                         <?php endif; ?>
                     </div>
                 </div>
