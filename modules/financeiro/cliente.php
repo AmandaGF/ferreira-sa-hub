@@ -147,7 +147,7 @@ echo voltar_ao_processo_html();
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="cancelar_cobranca">
                         <input type="hidden" name="cobranca_id" value="<?= $cob['id'] ?>">
-                        <button type="submit" onclick="return confirm('Cancelar esta cobrança?');" style="font-size:.65rem;background:#dc2626;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;">✕</button>
+                        <button type="submit" onclick="return confirm('⚠️ ATENÇÃO!\n\nIsto vai CANCELAR a cobrança de R$ <?= number_format($cob['valor'], 2, ',', '.') ?> (venc <?= date('d/m/Y', strtotime($cob['vencimento'])) ?>).\n\nA parcela DEIXARÁ de aparecer no Kanban de Cobrança e na Proposta de Acordo.\n\nSó confirme se tem certeza que deseja DISPENSAR essa cobrança. Tem certeza?');" style="font-size:.65rem;background:#dc2626;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;" title="Cancelar/dispensar esta cobrança">✕</button>
                     </form>
                 <?php endif; ?>
             </div>
