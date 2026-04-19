@@ -177,12 +177,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <!-- Menu de templates (popover) -->
         <div class="wa-templates-menu" id="waTemplatesMenu"></div>
 
+        <!-- Preview de arquivo pendente (aparece só quando colou/anexou) -->
+        <div id="waPendingArquivo" style="display:none;padding:.5rem .7rem;background:<?= $accentLight ?>;border-top:1px solid var(--border);border-bottom:1px solid var(--border);align-items:center;gap:.6rem;">
+            <img id="waPendingPreview" src="" style="max-width:80px;max-height:80px;border-radius:6px;display:none;">
+            <span id="waPendingIcon" style="font-size:1.8rem;display:none;">📄</span>
+            <div style="flex:1;min-width:0;">
+                <div id="waPendingNome" style="font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+                <div id="waPendingTipo" style="font-size:.7rem;color:var(--text-muted);"></div>
+                <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;">💡 Adicione uma legenda no campo abaixo (opcional) e clique em <strong>Enviar</strong>.</div>
+            </div>
+            <button onclick="waCancelarPendente()" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;" title="Cancelar">✕</button>
+        </div>
+
         <!-- Input de mensagem (escondido até abrir uma conversa) -->
         <div class="wa-chat-input" id="waChatInput" style="display:none;">
             <button class="wa-btn-tpl" onclick="waToggleTemplates()" title="Respostas rápidas">📋</button>
             <button class="wa-btn-tpl" onclick="document.getElementById('waFile').click()" title="Anexar imagem ou documento">📎</button>
             <input type="file" id="waFile" style="display:none;" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar">
-            <textarea id="waInput" placeholder="Digite uma mensagem (Shift+Enter = nova linha)..." rows="1"></textarea>
+            <textarea id="waInput" placeholder="Digite uma mensagem ou cole uma imagem (Ctrl+V)..." rows="1"></textarea>
             <button class="wa-btn-send" id="waBtnSend" onclick="waEnviar()">➤ Enviar</button>
         </div>
     </div>
@@ -200,6 +212,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var pollTimer   = null;
     var templatesCache = null;
     var etiquetasCache = null;
+    var arquivoPendente = null; // {file, previewUrl}
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
@@ -374,10 +387,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
         document.getElementById('waInput').focus();
     }
 
-    // ── ENVIAR MENSAGEM ─────────────────────────────────
+    // ── ENVIAR MENSAGEM ou ARQUIVO PENDENTE ─────────────
     window.waEnviar = function() {
         if (!convAtiva) return;
         var txt = document.getElementById('waInput').value.trim();
+
+        // Se há arquivo pendente, enviar ele com o texto como caption
+        if (arquivoPendente) {
+            var f = arquivoPendente.file;
+            if (arquivoPendente.previewUrl) URL.revokeObjectURL(arquivoPendente.previewUrl);
+            arquivoPendente = null;
+            esconderPendente();
+            enviarArquivoBlob(f, txt);
+            return;
+        }
+
         if (!txt) return;
         var btn = document.getElementById('waBtnSend');
         btn.disabled = true; btn.textContent = 'Enviando...';
@@ -398,6 +422,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
             btn.disabled = false; btn.textContent = '➤ Enviar';
             alert('Falha: ' + e);
         });
+    };
+
+    // ── PENDENTE: preview de arquivo antes de enviar ────
+    function mostrarPendente(file) {
+        var isImg = file.type && file.type.indexOf('image/') === 0;
+        var box = document.getElementById('waPendingArquivo');
+        var preview = document.getElementById('waPendingPreview');
+        var icon = document.getElementById('waPendingIcon');
+        var nome = document.getElementById('waPendingNome');
+        var tipo = document.getElementById('waPendingTipo');
+
+        if (arquivoPendente && arquivoPendente.previewUrl) URL.revokeObjectURL(arquivoPendente.previewUrl);
+
+        arquivoPendente = { file: file, previewUrl: null };
+
+        if (isImg) {
+            arquivoPendente.previewUrl = URL.createObjectURL(file);
+            preview.src = arquivoPendente.previewUrl;
+            preview.style.display = 'block';
+            icon.style.display = 'none';
+        } else {
+            preview.style.display = 'none';
+            icon.style.display = 'inline';
+        }
+        nome.textContent = file.name || 'arquivo';
+        tipo.textContent = (file.type || '') + ' · ' + Math.round(file.size/1024) + ' KB';
+        box.style.display = 'flex';
+        document.getElementById('waInput').focus();
+    }
+    function esconderPendente() {
+        document.getElementById('waPendingArquivo').style.display = 'none';
+        document.getElementById('waPendingPreview').src = '';
+    }
+    window.waCancelarPendente = function() {
+        if (arquivoPendente && arquivoPendente.previewUrl) URL.revokeObjectURL(arquivoPendente.previewUrl);
+        arquivoPendente = null;
+        esconderPendente();
     };
 
     // Enter = enviar, Shift+Enter = nova linha
@@ -438,8 +499,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     document.getElementById('waFile').addEventListener('change', function(e){
         var file = e.target.files[0];
-        var caption = document.getElementById('waInput').value.trim();
-        enviarArquivoBlob(file, caption).then(function(){ e.target.value = ''; });
+        if (!file) return;
+        if (!convAtiva) { alert('Selecione uma conversa primeiro.'); e.target.value=''; return; }
+        if (file.size > 16 * 1024 * 1024) { alert('Arquivo maior que 16 MB.'); e.target.value=''; return; }
+        mostrarPendente(file);
+        e.target.value = ''; // reset input pra poder escolher o mesmo arquivo novamente se precisar
     });
 
     // ── COLAR IMAGEM DIRETO (Ctrl+V em qualquer lugar do chat) ──
@@ -483,15 +547,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         try {
             fileComNome = new File([blob], nome, { type: mime });
         } catch (err) {
-            // Alguns navegadores (Safari antigo) não têm File constructor
             fileComNome = blob;
             fileComNome.name = nome;
         }
-        var caption = document.getElementById('waInput').value.trim();
-        var msg = 'Enviar imagem colada' + (caption ? ' com a legenda "' + caption + '"' : '') + '?';
-        if (confirm(msg)) {
-            enviarArquivoBlob(fileComNome, caption);
-        }
+        mostrarPendente(fileComNome);
     }
 
     // Anexa o paste no textarea E no container do chat inteiro (captura tudo)
