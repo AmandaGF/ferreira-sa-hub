@@ -68,6 +68,39 @@ foreach ($filaCobranca as $item) {
     }
 }
 
+// Agrupar items por cliente dentro de cada coluna (1 card por cliente)
+foreach ($colunas as $ck => &$col) {
+    $grupos = array();
+    foreach ($col['items'] as $it) {
+        $cid = (int)$it['client_id'] ?: 0;
+        $key = $cid ?: ('anon_' . md5($it['client_name'] ?? ''));
+        if (!isset($grupos[$key])) {
+            $grupos[$key] = array(
+                'client_id' => $cid,
+                'client_name' => $it['client_name'],
+                'client_phone' => $it['client_phone'],
+                'responsavel_nome' => $it['responsavel_nome'],
+                'case_title' => $it['case_title'],
+                'parcelas' => array(),
+                'total_saldo' => 0,
+                'max_atraso' => 0,
+                'ultima_acao' => null,
+            );
+        }
+        $saldo = (float)$it['valor_total'] - (float)$it['valor_pago'];
+        $grupos[$key]['parcelas'][] = $it;
+        $grupos[$key]['total_saldo'] += $saldo;
+        if ((int)$it['dias_atraso'] > $grupos[$key]['max_atraso']) $grupos[$key]['max_atraso'] = (int)$it['dias_atraso'];
+        if ($it['ultima_acao'] && (!$grupos[$key]['ultima_acao'] || $it['ultima_acao'] > $grupos[$key]['ultima_acao'])) {
+            $grupos[$key]['ultima_acao'] = $it['ultima_acao'];
+        }
+    }
+    // Ordenar grupos: maior saldo primeiro
+    uasort($grupos, function($a, $b) { return $b['total_saldo'] <=> $a['total_saldo']; });
+    $col['grupos'] = array_values($grupos);
+}
+unset($col);
+
 // ─── Histórico ───
 $filtroStatus = $_GET['status'] ?? '';
 $filtroResp = (int)($_GET['responsavel'] ?? 0);
@@ -242,44 +275,73 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <span style="margin-left:auto;background:<?= $col['color'] ?>;color:#fff;padding:1px 7px;border-radius:9px;font-size:.65rem;"><?= count($col['items']) ?></span>
             </div>
             <div class="ch-col-body">
-                <?php if (empty($col['items'])): ?>
+                <?php if (empty($col['grupos'])): ?>
                     <p style="text-align:center;color:var(--text-muted);font-size:.72rem;padding:1.5rem .5rem;">Nenhum</p>
                 <?php endif; ?>
-                <?php foreach ($col['items'] as $item):
-                    $diasAtraso = max(0, (int)$item['dias_atraso']);
-                    $saldo = $item['valor_total'] - $item['valor_pago'];
+                <?php
+                // Botão de avanço da etapa (aplicado em massa a todas as parcelas do grupo)
+                $nextAction = ''; $nextLabel = '';
+                if ($colKey === 'atrasado')                     { $nextAction = 'notificar_1'; $nextLabel = 'Notificar →'; }
+                elseif ($colKey === 'notificado_1')             { $nextAction = 'notificar_2'; $nextLabel = 'Notificar 2 →'; }
+                elseif ($colKey === 'notificado_2')             { $nextAction = 'notificar_extrajudicial'; $nextLabel = 'Extrajudicial →'; }
+                elseif ($colKey === 'notificado_extrajudicial') { $nextAction = 'judicial'; $nextLabel = '→ Judicial'; }
                 ?>
-                <div class="ch-card" onclick="abrirDetalhe(<?= $item['id'] ?>)">
-                    <div class="ch-card-name"><?= e($item['client_name'] ?: 'Sem nome') ?></div>
-                    <div class="ch-card-tipo"><?= e($item['tipo_debito']) ?></div>
-                    <div class="ch-card-valor">R$ <?= number_format($saldo, 2, ',', '.') ?></div>
-                    <div class="ch-card-info">
-                        <span><?= $diasAtraso ?>d atraso</span>
-                        <?php if ($item['case_title']): ?><span title="<?= e($item['case_title']) ?>">⚖️</span><?php endif; ?>
-                        <?php if ($item['responsavel_nome']): ?><span title="<?= e($item['responsavel_nome']) ?>">👤 <?= e(mb_substr($item['responsavel_nome'], 0, 10)) ?></span><?php endif; ?>
+                <?php foreach ($col['grupos'] as $gi => $g):
+                    $qtd = count($g['parcelas']);
+                    $grpId = 'grp_' . $colKey . '_' . $gi;
+                ?>
+                <div class="ch-card">
+                    <!-- Header do cliente (clique expande/recolhe) -->
+                    <div onclick="chToggleGrp('<?= $grpId ?>')" style="cursor:pointer;">
+                        <div class="ch-card-name"><?= e($g['client_name'] ?: 'Sem nome') ?>
+                            <span style="float:right;font-size:.72rem;color:#6b7280;" id="<?= $grpId ?>_ico">▸</span>
+                        </div>
+                        <div class="ch-card-valor">R$ <?= number_format($g['total_saldo'], 2, ',', '.') ?>
+                            <span style="font-size:.65rem;font-weight:600;color:#6b7280;margin-left:.2rem;">total em aberto</span>
+                        </div>
+                        <div class="ch-card-info">
+                            <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:700;"><?= $qtd ?> parcela<?= $qtd !== 1 ? 's' : '' ?></span>
+                            <span style="color:#d97706;font-weight:700;"><?= $g['max_atraso'] ?>d máx</span>
+                            <?php if ($g['responsavel_nome']): ?><span title="<?= e($g['responsavel_nome']) ?>">👤 <?= e(mb_substr($g['responsavel_nome'], 0, 8)) ?></span><?php endif; ?>
+                        </div>
+                        <?php if ($g['ultima_acao']): ?>
+                        <div style="font-size:.6rem;color:var(--text-muted);margin-top:.2rem;">Última ação: <?= date('d/m/Y', strtotime($g['ultima_acao'])) ?></div>
+                        <?php endif; ?>
                     </div>
-                    <?php if ($item['ultima_acao']): ?>
-                    <div style="font-size:.6rem;color:var(--text-muted);margin-top:.2rem;">Última ação: <?= date('d/m/Y', strtotime($item['ultima_acao'])) ?></div>
-                    <?php endif; ?>
 
-                    <?php
-                    // Botão de ação por status
-                    $nextAction = '';
-                    $nextLabel = '';
-                    $btnColor = $col['color'];
-                    if ($colKey === 'atrasado') { $nextAction = 'notificar_1'; $nextLabel = 'Notificar →'; }
-                    elseif ($colKey === 'notificado_1') { $nextAction = 'notificar_2'; $nextLabel = 'Notificar 2 →'; }
-                    elseif ($colKey === 'notificado_2') { $nextAction = 'notificar_extrajudicial'; $nextLabel = 'Extrajudicial →'; }
-                    elseif ($colKey === 'notificado_extrajudicial') { $nextAction = 'judicial'; $nextLabel = '→ Judicial'; }
-                    ?>
-                    <?php if ($nextAction): ?>
-                    <button class="ch-card-btn" style="background:<?= $btnColor ?>;" onclick="event.stopPropagation();avancarEtapa(<?= $item['id'] ?>,'<?= $nextAction ?>')">
-                        <?= $nextLabel ?>
-                    </button>
-                    <?php endif; ?>
-                    <button class="ch-card-btn" style="background:#059669;" onclick="event.stopPropagation();registrarPagamento(<?= $item['id'] ?>,<?= $saldo ?>)">
-                        💰 Pagar
-                    </button>
+                    <!-- Lista de parcelas (recolhida por padrão) -->
+                    <div id="<?= $grpId ?>_list" style="display:none;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed #e5e7eb;">
+                        <?php foreach ($g['parcelas'] as $p):
+                            $saldoP = (float)$p['valor_total'] - (float)$p['valor_pago'];
+                            $dAtr = max(0, (int)$p['dias_atraso']);
+                        ?>
+                        <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid #f3f4f6;font-size:.72rem;">
+                            <div style="flex:1;min-width:0;">
+                                <div style="font-weight:600;color:#374151;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e(mb_substr($p['tipo_debito'], 0, 50)) ?></div>
+                                <div style="color:#9ca3af;font-size:.65rem;">Venc: <?= date('d/m/Y', strtotime($p['vencimento'])) ?> · <?= $dAtr ?>d</div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div style="font-weight:800;color:#dc2626;">R$ <?= number_format($saldoP, 2, ',', '.') ?></div>
+                                <button onclick="event.stopPropagation();registrarPagamento(<?= $p['id'] ?>,<?= $saldoP ?>)" style="font-size:.62rem;background:#059669;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:2px;">💰 Pagar</button>
+                                <button onclick="event.stopPropagation();abrirDetalhe(<?= $p['id'] ?>)" style="font-size:.62rem;background:#6b7280;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:2px;">Ver</button>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <!-- Botões em massa (todas as parcelas desse cliente) -->
+                    <div style="display:flex;gap:.25rem;margin-top:.4rem;flex-wrap:wrap;">
+                        <?php if ($nextAction): ?>
+                        <button class="ch-card-btn" style="background:<?= $col['color'] ?>;flex:1;" onclick="event.stopPropagation();avancarEtapaEmMassa([<?= implode(',', array_map(function($p){ return (int)$p['id']; }, $g['parcelas'])) ?>],'<?= $nextAction ?>')">
+                            <?= $nextLabel ?>
+                        </button>
+                        <?php endif; ?>
+                        <?php if ($g['client_phone']):
+                            $msgGrp = "Olá " . explode(' ', $g['client_name'])[0] . "! Identificamos *{$qtd} parcela" . ($qtd > 1 ? 's' : '') . " em aberto* totalizando *R$ " . number_format($g['total_saldo'], 2, ',', '.') . "*. Podemos conversar sobre a regularização? _Ferreira & Sá Advocacia_";
+                        ?>
+                        <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})">💬</button>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <?php endforeach; ?>
             </div>
@@ -616,6 +678,33 @@ function avancarEtapa(id, acao) {
         '<?= csrf_input() ?>';
     document.body.appendChild(form);
     form.submit();
+}
+
+function avancarEtapaEmMassa(ids, acao) {
+    if (!ids || !ids.length) return;
+    if (acao === 'judicial') {
+        alert('Para mover pra Judicial, use no card individual (abra a parcela específica e clique em "→ Judicial" no detalhe).');
+        return;
+    }
+    if (!confirm('Confirma avançar TODAS as ' + ids.length + ' parcela(s) desse cliente para a próxima etapa?')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url('cobranca_honorarios', 'api.php') ?>';
+    var html = '<input type="hidden" name="action" value="avancar_etapa_massa">' +
+               '<input type="hidden" name="proxima_etapa" value="' + acao + '">' +
+               '<?= csrf_input() ?>';
+    ids.forEach(function(id){ html += '<input type="hidden" name="cobranca_ids[]" value="' + id + '">'; });
+    form.innerHTML = html;
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function chToggleGrp(id) {
+    var el = document.getElementById(id + '_list');
+    var ico = document.getElementById(id + '_ico');
+    if (!el) return;
+    if (el.style.display === 'none') { el.style.display = 'block'; if (ico) ico.textContent = '▾'; }
+    else { el.style.display = 'none'; if (ico) ico.textContent = '▸'; }
 }
 
 function registrarPagamento(id, saldo) {

@@ -267,6 +267,32 @@ if ($action === 'criar_cobranca') {
     redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
 
+// ── Avançar etapa EM MASSA (todas as parcelas de 1 cliente de uma vez) ──
+if ($action === 'avancar_etapa_massa') {
+    $ids = array_map('intval', (array)($_POST['cobranca_ids'] ?? array()));
+    $proxEtapa = $_POST['proxima_etapa'] ?? '';
+    $mapStatus = array(
+        'notificar_1' => 'notificado_1',
+        'notificar_2' => 'notificado_2',
+        'notificar_extrajudicial' => 'notificado_extrajudicial',
+    );
+    if (!isset($mapStatus[$proxEtapa]) || empty($ids)) {
+        flash_set('error', 'Parâmetros inválidos.');
+        redirect(module_url('cobranca_honorarios'));
+    }
+    $novoStatus = $mapStatus[$proxEtapa];
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("UPDATE honorarios_cobranca SET status = ?, updated_at = NOW() WHERE id IN ($placeholders)");
+    $stmt->execute(array_merge(array($novoStatus), $ids));
+    $n = $stmt->rowCount();
+    // Log em histórico pra cada uma
+    $hist = $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_por) VALUES (?, ?, 'Avanço em massa (agrupado por cliente)', ?)");
+    foreach ($ids as $cid) $hist->execute(array($cid, $proxEtapa, $userId));
+    audit_log('hc_avancar_massa', 'honorarios_cobranca', 0, "ids=[" . implode(',', $ids) . "] novo={$novoStatus}");
+    flash_set('success', "{$n} parcela(s) avançadas pra '{$novoStatus}'.");
+    redirect(module_url('cobranca_honorarios'));
+}
+
 // ── Avançar etapa ──
 if ($action === 'avancar_etapa') {
     $cobId = (int)($_POST['cobranca_id'] ?? 0);
