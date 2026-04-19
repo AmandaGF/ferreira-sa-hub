@@ -154,7 +154,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
     <h2 style="font-size:1.1rem;font-weight:800;color:var(--petrol-900);">⚠️ Cobrança de Honorários</h2>
-    <button onclick="document.getElementById('modalNovaCobranca').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;">+ Marcar Inadimplência</button>
+    <div style="display:flex;gap:.4rem;">
+        <form method="POST" action="<?= module_url('cobranca_honorarios', 'api.php') ?>" style="margin:0;">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="importar_asaas">
+            <input type="hidden" name="apenas_overdue" value="1">
+            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;" data-confirm="Importar todos os inadimplentes (vencidos) do Asaas para o Kanban de Cobrança? Cobranças já importadas serão atualizadas, não duplicadas.">📥 Importar do Asaas</button>
+        </form>
+        <button onclick="document.getElementById('modalNovaCobranca').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;">+ Marcar Inadimplência</button>
+    </div>
 </div>
 
 <!-- Abas -->

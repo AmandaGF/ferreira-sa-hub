@@ -69,13 +69,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'detalhe
     </div>
     <?php endif; ?>
 
+    <?php
+    // Resumo Asaas do mesmo cliente
+    $asaasTotais = null;
+    try {
+        $stmtA = $pdo->prepare(
+            "SELECT
+                COUNT(*) AS total_cobrancas,
+                SUM(CASE WHEN status IN ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH') THEN valor_pago ELSE 0 END) AS recebido,
+                SUM(CASE WHEN status = 'PENDING' THEN valor ELSE 0 END) AS pendente,
+                SUM(CASE WHEN status = 'OVERDUE' THEN valor ELSE 0 END) AS vencido,
+                COUNT(CASE WHEN status = 'OVERDUE' THEN 1 END) AS qtd_vencidas
+             FROM asaas_cobrancas WHERE client_id = ?"
+        );
+        $stmtA->execute(array($cob['client_id']));
+        $asaasTotais = $stmtA->fetch();
+    } catch (Exception $e) {}
+    if ($asaasTotais && (int)$asaasTotais['total_cobrancas'] > 0):
+    ?>
+    <div style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:8px;padding:.7rem .9rem;margin-bottom:1rem;font-size:.8rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.4rem;">
+            <strong style="color:#1e3a8a;">📊 Situação no Asaas deste cliente</strong>
+            <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
+            <a href="<?= module_url('financeiro', 'cliente.php?id=' . $cob['client_id']) ?>" target="_blank" style="font-size:.7rem;color:#1e3a8a;">Extrato completo →</a>
+            <?php endif; ?>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.4rem;font-size:.72rem;">
+            <div><div style="color:#6b7280;">Recebido</div><strong style="color:#059669;">R$ <?= number_format((float)$asaasTotais['recebido'], 2, ',', '.') ?></strong></div>
+            <div><div style="color:#6b7280;">Pendente</div><strong style="color:#b45309;">R$ <?= number_format((float)$asaasTotais['pendente'], 2, ',', '.') ?></strong></div>
+            <div><div style="color:#6b7280;">Vencido</div><strong style="color:#dc2626;">R$ <?= number_format((float)$asaasTotais['vencido'], 2, ',', '.') ?> <?= $asaasTotais['qtd_vencidas'] > 0 ? '(' . $asaasTotais['qtd_vencidas'] . 'p)' : '' ?></strong></div>
+            <div><div style="color:#6b7280;">Total histórico</div><strong><?= (int)$asaasTotais['total_cobrancas'] ?> cobranças</strong></div>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <!-- WhatsApp -->
     <?php if ($cob['client_phone']): ?>
     <div style="margin-bottom:1rem;">
-        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $cob['client_phone']) ?>" target="_blank"
-           class="btn btn-primary btn-sm" style="background:#25d366;font-size:.72rem;">
+        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $cob['client_phone']) ?>',nome:<?= json_encode($cob['client_name']) ?>,clientId:<?= (int)$cob['client_id'] ?>,canal:'24',mensagem:''})"
+           class="btn btn-primary btn-sm" style="background:#25d366;font-size:.72rem;border:none;">
             📱 WhatsApp
-        </a>
+        </button>
     </div>
     <?php endif; ?>
 
@@ -154,6 +188,49 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('cobranca_honor
 if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('cobranca_honorarios')); }
 
 $action = $_POST['action'] ?? '';
+
+// ── Importar inadimplentes do Asaas (cobranças OVERDUE + PENDING > 5 dias) ──
+if ($action === 'importar_asaas') {
+    $maxAtrasoDias = (int)($_POST['max_atraso'] ?? 0); // 0 = sem limite; se >0, filtra
+    $apenasOverdue = isset($_POST['apenas_overdue']) && $_POST['apenas_overdue'] === '1';
+
+    $filtro = $apenasOverdue ? "status = 'OVERDUE'" : "status IN ('OVERDUE','PENDING') AND vencimento < CURDATE()";
+    if ($maxAtrasoDias > 0) {
+        $filtro .= " AND DATEDIFF(CURDATE(), vencimento) <= " . (int)$maxAtrasoDias;
+    }
+
+    $rows = $pdo->query("SELECT ac.* FROM asaas_cobrancas ac
+                         WHERE {$filtro} AND ac.client_id IS NOT NULL
+                         ORDER BY ac.vencimento ASC")->fetchAll();
+
+    $inseridas = 0; $jaExistiam = 0;
+    $upsert = $pdo->prepare(
+        "INSERT INTO honorarios_cobranca (client_id, tipo_debito, valor_total, valor_pago, vencimento,
+         status, entrada_automatica, asaas_payment_id, observacoes, created_by)
+         VALUES (?, ?, ?, 0, ?, 'atrasado', 1, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           valor_total = VALUES(valor_total),
+           vencimento = VALUES(vencimento),
+           updated_at = NOW()"
+    );
+
+    foreach ($rows as $c) {
+        $tipo = $c['descricao'] ? mb_substr($c['descricao'], 0, 100) : 'Cobrança Asaas';
+        $obs = 'Importado do Asaas em ' . date('d/m/Y H:i') . '. Payment ID: ' . $c['asaas_payment_id']
+             . ($c['invoice_url'] ? "\nFatura: " . $c['invoice_url'] : '');
+        $before = $pdo->query("SELECT COUNT(*) FROM honorarios_cobranca WHERE asaas_payment_id = '" . addslashes($c['asaas_payment_id']) . "'")->fetchColumn();
+        $upsert->execute(array(
+            $c['client_id'], $tipo, $c['valor'], $c['vencimento'],
+            $c['asaas_payment_id'], $obs, $userId,
+        ));
+        if ($before == 0) $inseridas++;
+        else $jaExistiam++;
+    }
+
+    audit_log('hc_importar_asaas', 'honorarios_cobranca', 0, "inseridas={$inseridas} atualizadas={$jaExistiam}");
+    flash_set('success', "Importação Asaas concluída: {$inseridas} novas, {$jaExistiam} atualizadas (de " . count($rows) . " verificadas).");
+    redirect(module_url('cobranca_honorarios'));
+}
 
 // ── Criar cobrança (manual) ──
 if ($action === 'criar_cobranca') {
