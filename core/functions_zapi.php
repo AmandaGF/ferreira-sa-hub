@@ -223,16 +223,26 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
 
 /**
  * Detecta tipo de mensagem a partir do payload Z-API.
+ * Cobre variações do Multi Device.
  */
 function zapi_detecta_tipo($payload) {
-    if (isset($payload['image'])) return 'imagem';
-    if (isset($payload['document'])) return 'documento';
-    if (isset($payload['audio'])) return 'audio';
-    if (isset($payload['video'])) return 'video';
-    if (isset($payload['sticker'])) return 'sticker';
+    if (isset($payload['image']))    return 'imagem';
+    if (isset($payload['document']))  return 'documento';
+    if (isset($payload['audio']))    return 'audio';
+    if (isset($payload['video']))    return 'video';
+    if (isset($payload['sticker']))  return 'sticker';
     if (isset($payload['location'])) return 'localizacao';
     if (isset($payload['contact']) || isset($payload['contacts'])) return 'contato';
+    if (isset($payload['reaction'])) return 'reacao';
+    if (isset($payload['poll']))     return 'enquete';
+    if (isset($payload['buttonsResponseMessage']) || isset($payload['listResponseMessage'])) return 'botao';
+    // Texto em várias formas possíveis (Multi Device)
     if (isset($payload['text']['message'])) return 'texto';
+    if (isset($payload['text']) && is_string($payload['text'])) return 'texto';
+    if (isset($payload['body']) && is_string($payload['body'])) return 'texto';
+    if (isset($payload['message']) && is_string($payload['message'])) return 'texto';
+    if (isset($payload['conversation']) && is_string($payload['conversation'])) return 'texto';
+    if (isset($payload['extendedTextMessage']['text'])) return 'texto';
     return 'outro';
 }
 
@@ -240,7 +250,15 @@ function zapi_detecta_tipo($payload) {
  * Extrai texto/caption do payload.
  */
 function zapi_extrai_conteudo($payload, $tipo) {
-    if ($tipo === 'texto') return $payload['text']['message'] ?? '';
+    if ($tipo === 'texto') {
+        if (isset($payload['text']['message'])) return $payload['text']['message'];
+        if (isset($payload['text']) && is_string($payload['text'])) return $payload['text'];
+        if (isset($payload['body']))    return $payload['body'];
+        if (isset($payload['message']) && is_string($payload['message'])) return $payload['message'];
+        if (isset($payload['conversation']))  return $payload['conversation'];
+        if (isset($payload['extendedTextMessage']['text'])) return $payload['extendedTextMessage']['text'];
+        return '';
+    }
     if ($tipo === 'imagem') return $payload['image']['caption'] ?? '[imagem]';
     if ($tipo === 'video')  return $payload['video']['caption'] ?? '[vídeo]';
     if ($tipo === 'documento') return $payload['document']['caption'] ?? ($payload['document']['fileName'] ?? '[documento]');
@@ -252,6 +270,19 @@ function zapi_extrai_conteudo($payload, $tipo) {
         return "[localização] $lat, $lng";
     }
     if ($tipo === 'contato') return '[contato]';
+    if ($tipo === 'reacao') {
+        $emoji = $payload['reaction']['value'] ?? ($payload['reaction']['reaction'] ?? '');
+        return '[reagiu com ' . $emoji . ']';
+    }
+    if ($tipo === 'enquete') return '[enquete] ' . ($payload['poll']['name'] ?? $payload['poll']['question'] ?? '');
+    if ($tipo === 'botao')   return $payload['buttonsResponseMessage']['message'] ?? ($payload['listResponseMessage']['message'] ?? '[resposta de botão]');
+    // Fallback pra 'outro' — tenta qualquer campo de texto
+    foreach (array('text', 'body', 'message', 'conversation', 'caption') as $k) {
+        if (isset($payload[$k])) {
+            if (is_string($payload[$k])) return $payload[$k];
+            if (is_array($payload[$k]) && isset($payload[$k]['message'])) return $payload[$k]['message'];
+        }
+    }
     return '';
 }
 
@@ -314,6 +345,10 @@ function zapi_get_template($nome, $vars = array()) {
  * Salva mensagem recebida no banco.
  */
 function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, $arquivo, $zapiMsgId) {
+    // Mapear tipos internos para ENUM válido
+    $tiposValidos = array('texto','imagem','documento','audio','video','sticker','localizacao','contato','outro');
+    if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outro';
+
     db()->prepare(
         "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
             arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status)

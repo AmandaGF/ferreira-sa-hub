@@ -75,6 +75,11 @@ try {
             $conteudo = zapi_extrai_conteudo($payload, $tipo);
             $arquivo  = zapi_extrai_arquivo($payload, $tipo);
 
+            // Se ainda ficou como 'outro', logar payload completo pra análise
+            if ($tipo === 'outro') {
+                $log("[{$numero}] TIPO_OUTRO payload=" . substr(json_encode($payload), 0, 2000));
+            }
+
             $msgId = zapi_salvar_mensagem_recebida($conv['id'], $payload, $tipo, $conteudo, $arquivo, $zapiMsgId);
 
             // Atualiza resumo da conversa
