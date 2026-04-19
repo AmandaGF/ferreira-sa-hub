@@ -82,6 +82,18 @@ try {
 
             $msgId = zapi_salvar_mensagem_recebida($conv['id'], $payload, $tipo, $conteudo, $arquivo, $zapiMsgId);
 
+            // ── TRANSCRIÇÃO DE ÁUDIO via Groq ──
+            if ($tipo === 'audio' && $msgId) {
+                require_once APP_ROOT . '/core/functions_groq.php';
+                if (groq_transcribe_enabled()) {
+                    try {
+                        $t = groq_transcribe_mensagem($msgId);
+                        if (empty($t['ok'])) $log("[{$numero}] transcricao falhou msg={$msgId}: " . ($t['erro'] ?? '?'));
+                        else $log("[{$numero}] transcricao OK msg={$msgId} (" . strlen($t['text']) . " chars)");
+                    } catch (Exception $e) { $log("[{$numero}] transcricao EXCEPTION: " . $e->getMessage()); }
+                }
+            }
+
             // Checa se é primeira mensagem da conversa (antes de atualizar o contador)
             $totalMsgs = (int)$pdo->query("SELECT COUNT(*) FROM zapi_mensagens WHERE conversa_id = " . (int)$conv['id'] . " AND direcao = 'recebida'")->fetchColumn();
             $ehPrimeira = ($totalMsgs === 1);

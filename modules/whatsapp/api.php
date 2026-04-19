@@ -565,6 +565,13 @@ if ($action === 'enviar_audio') {
             arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, enviado_por_id, status)
          VALUES (?, ?, 'enviada', 'audio', '[áudio]', ?, ?, ?, ?, ?, 'enviada')"
     )->execute(array($convId, $zapiId, $publicUrl, $storedName, $mime, $tam, $userId));
+    $newMsgId = (int)$pdo->lastInsertId();
+
+    // Transcrever o áudio que acabamos de enviar (pro histórico)
+    require_once APP_ROOT . '/core/functions_groq.php';
+    if (groq_transcribe_enabled()) {
+        try { groq_transcribe_mensagem($newMsgId); } catch (Exception $e) {}
+    }
 
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[áudio]', ultima_msg_em = NOW(),
                    status = IF(status = 'aguardando', 'em_atendimento', status),
@@ -573,6 +580,17 @@ if ($action === 'enviar_audio') {
         ->execute(array($userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── TRANSCREVER MENSAGEM DE ÁUDIO SOB DEMANDA ──
+if ($action === 'transcrever_audio') {
+    $msgId = (int)($_POST['mensagem_id'] ?? $_GET['mensagem_id'] ?? 0);
+    if (!$msgId) { echo json_encode(array('error' => 'mensagem_id obrigatório')); exit; }
+    require_once APP_ROOT . '/core/functions_groq.php';
+    $r = groq_transcribe_mensagem($msgId);
+    if (empty($r['ok'])) { echo json_encode(array('error' => $r['erro'] ?? 'Falha na transcrição')); exit; }
+    echo json_encode(array('ok' => true, 'text' => $r['text']));
     exit;
 }
 

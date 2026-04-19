@@ -395,7 +395,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     } else if (m.tipo === 'video') {
                         html += '<video src="'+escapeHtml(m.arquivo_url)+'" controls style="max-width:260px;border-radius:8px;margin-bottom:4px;"></video>';
                     } else if (m.tipo === 'audio') {
-                        html += '<audio src="'+escapeHtml(m.arquivo_url)+'" controls style="width:220px;margin-bottom:4px;"></audio>';
+                        html += '<audio src="'+escapeHtml(m.arquivo_url)+'" controls style="width:220px;margin-bottom:4px;display:block;"></audio>';
+                        if (m.transcricao) {
+                            html += '<div class="wa-transcricao" style="font-size:.76rem;color:#374151;background:#f3f4f6;border-left:3px solid #6366f1;padding:4px 8px;border-radius:4px;margin-top:2px;max-width:260px;"><span style="color:#6366f1;font-weight:700;">📝 Transcrição:</span> '+escapeHtml(m.transcricao)+'</div>';
+                        } else {
+                            html += '<button onclick="waTranscrever('+m.id+',this)" style="background:#6366f1;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;margin-top:2px;display:block;">📝 Transcrever</button>';
+                        }
                     } else if (m.tipo === 'documento') {
                         var nm = m.arquivo_nome || 'documento';
                         html += '<a href="'+escapeHtml(m.arquivo_url)+'" target="_blank" style="display:inline-flex;gap:6px;align-items:center;padding:6px 10px;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:var(--text);margin-bottom:4px;"><span>📄</span><span>'+escapeHtml(nm)+'</span></a>';
@@ -774,6 +779,33 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
 
     // ── SALVAR ARQUIVO NO DRIVE ──────────────────────────
+    window.waTranscrever = function(msgId, btn) {
+        var original = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = '⏳ Transcrevendo...';
+        var fd = new FormData();
+        fd.append('action', 'transcrever_audio');
+        fd.append('mensagem_id', msgId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) {
+                btn.disabled = false;
+                btn.textContent = original;
+                alert('Erro: ' + d.error);
+                return;
+            }
+            var box = document.createElement('div');
+            box.className = 'wa-transcricao';
+            box.style.cssText = 'font-size:.76rem;color:#374151;background:#f3f4f6;border-left:3px solid #6366f1;padding:4px 8px;border-radius:4px;margin-top:2px;max-width:260px;';
+            box.innerHTML = '<span style="color:#6366f1;font-weight:700;">📝 Transcrição:</span> ' + escapeHtml(d.text || '');
+            btn.parentNode.replaceChild(box, btn);
+        }).catch(function(err){
+            btn.disabled = false;
+            btn.textContent = original;
+            alert('Falha: ' + err);
+        });
+    };
+
     window.waSalvarDrive = function(msgId) {
         if (!convAtiva) return;
         // Buscar casos do cliente desta conversa
