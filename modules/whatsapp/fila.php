@@ -11,9 +11,12 @@ $pageTitle = 'Caixa de Envios WhatsApp';
 
 $statusSel = $_GET['status'] ?? 'pendente';
 if (!in_array($statusSel, array('pendente','enviada','descartada','todas'), true)) $statusSel = 'pendente';
+$clientFilter = (int)($_GET['client_id'] ?? 0);
 
-$where = ''; $params = array();
-if ($statusSel !== 'todas') { $where = 'WHERE f.status = ?'; $params[] = $statusSel; }
+$conds = array(); $params = array();
+if ($statusSel !== 'todas') { $conds[] = 'f.status = ?'; $params[] = $statusSel; }
+if ($clientFilter) { $conds[] = 'f.client_id = ?'; $params[] = $clientFilter; }
+$where = $conds ? 'WHERE ' . implode(' AND ', $conds) : '';
 
 $stmt = $pdo->prepare("
     SELECT f.*, cl.name AS client_name_real
@@ -25,6 +28,14 @@ $stmt = $pdo->prepare("
 ");
 $stmt->execute($params);
 $rows = $stmt->fetchAll();
+
+// Nome do cliente filtrado (pra exibir)
+$nomeClienteFiltro = '';
+if ($clientFilter) {
+    $stmtN = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+    $stmtN->execute(array($clientFilter));
+    $nomeClienteFiltro = $stmtN->fetchColumn() ?: '';
+}
 
 $contagem = $pdo->query("SELECT status, COUNT(*) AS n FROM zapi_fila_envio GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
 
@@ -60,11 +71,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="sub">Mensagens sugeridas pelo sistema aguardando sua revisão e aprovação</div>
 </div>
 
+<?php if ($clientFilter && $nomeClienteFiltro): ?>
+<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:.6rem .9rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+    <span style="font-size:.85rem;color:#1e3a8a;">🔎 Filtrando por cliente: <strong><?= e($nomeClienteFiltro) ?></strong></span>
+    <a href="?status=<?= e($statusSel) ?>" style="margin-left:auto;background:#fff;border:1px solid #93c5fd;color:#1e3a8a;padding:3px 10px;border-radius:6px;font-size:.72rem;text-decoration:none;font-weight:600;">✕ Remover filtro</a>
+</div>
+<?php endif; ?>
+
+<?php
+// Helper pra preservar query params nos links
+function _fila_link($status, $clientFilter) {
+    $q = array('status' => $status);
+    if ($clientFilter) $q['client_id'] = $clientFilter;
+    return '?' . http_build_query($q);
+}
+?>
 <div class="fila-tabs">
-    <a href="?status=pendente" class="fila-tab <?= $statusSel === 'pendente' ? 'active' : '' ?>">⏳ Pendentes (<?= (int)($contagem['pendente'] ?? 0) ?>)</a>
-    <a href="?status=enviada" class="fila-tab <?= $statusSel === 'enviada' ? 'active' : '' ?>">✅ Enviadas (<?= (int)($contagem['enviada'] ?? 0) ?>)</a>
-    <a href="?status=descartada" class="fila-tab <?= $statusSel === 'descartada' ? 'active' : '' ?>">🗑 Descartadas (<?= (int)($contagem['descartada'] ?? 0) ?>)</a>
-    <a href="?status=todas" class="fila-tab <?= $statusSel === 'todas' ? 'active' : '' ?>">Todas</a>
+    <a href="<?= _fila_link('pendente', $clientFilter) ?>" class="fila-tab <?= $statusSel === 'pendente' ? 'active' : '' ?>">⏳ Pendentes (<?= (int)($contagem['pendente'] ?? 0) ?>)</a>
+    <a href="<?= _fila_link('enviada', $clientFilter) ?>" class="fila-tab <?= $statusSel === 'enviada' ? 'active' : '' ?>">✅ Enviadas (<?= (int)($contagem['enviada'] ?? 0) ?>)</a>
+    <a href="<?= _fila_link('descartada', $clientFilter) ?>" class="fila-tab <?= $statusSel === 'descartada' ? 'active' : '' ?>">🗑 Descartadas (<?= (int)($contagem['descartada'] ?? 0) ?>)</a>
+    <a href="<?= _fila_link('todas', $clientFilter) ?>" class="fila-tab <?= $statusSel === 'todas' ? 'active' : '' ?>">Todas</a>
 </div>
 
 <?php if (empty($rows)): ?>

@@ -389,7 +389,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if ($g['client_phone']):
                             $msgGrp = "Olá " . explode(' ', $g['client_name'])[0] . "! Identificamos *{$qtd} parcela" . ($qtd > 1 ? 's' : '') . " em aberto* com o valor atualizado de *R$ " . number_format($g['total_atualizado'], 2, ',', '.') . "* (nominal R$ " . number_format($g['total_saldo'], 2, ',', '.') . " + multa 20% + juros 1%/mês, cláusula 5.1). Podemos conversar sobre a regularização? _Ferreira & Sá Advocacia_";
                         ?>
-                        <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})">💬</button>
+                        <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})" title="Enviar WhatsApp direto">💬</button>
+                        <?php endif; ?>
+                        <?php if ($g['client_id']): ?>
+                        <a href="<?= module_url('whatsapp', 'fila.php?client_id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#b45309;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Ver notificações pendentes deste cliente na Caixa de Envios">📬</a>
                         <?php endif; ?>
                     </div>
                 </div>
