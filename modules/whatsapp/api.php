@@ -13,7 +13,8 @@ $action = $_REQUEST['action'] ?? '';
 
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'atribuir', 'resolver',
-                  'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar');
+                  'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
+                  'sincronizar_conversa', 'importar_todos');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -274,6 +275,48 @@ if ($action === 'enviar_arquivo') {
         ->execute(array(mb_substr($preview, 0, 500), $userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── SINCRONIZAR HISTÓRICO DE UMA CONVERSA ────────────────
+if ($action === 'sincronizar_conversa') {
+    $convId = (int)($_POST['conversa_id'] ?? $_GET['conversa_id'] ?? 0);
+    $limit  = (int)($_POST['limite'] ?? $_GET['limite'] ?? 50);
+    if ($limit > 200) $limit = 200;
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    $res = zapi_sincronizar_historico_conversa($convId, $limit);
+    if (isset($res['erro'])) { echo json_encode(array('error' => $res['erro'])); exit; }
+    audit_log('zapi_sync_conv', 'zapi_conversas', $convId, "Importadas: {$res['importadas']}/{$res['total_recebido']}");
+    echo json_encode(array('ok' => true, 'importadas' => $res['importadas'], 'total' => $res['total_recebido']));
+    exit;
+}
+
+// ── IMPORTAR TODOS OS CHATS DA INSTÂNCIA (admin/gestão) ──
+if ($action === 'importar_todos') {
+    if (!has_min_role('gestao')) { echo json_encode(array('error' => 'Acesso restrito')); exit; }
+    $ddd   = $_POST['ddd']   ?? '21';
+    $limit = (int)($_POST['limite'] ?? 30);   // msgs por chat
+    $max   = (int)($_POST['max_chats'] ?? 50); // total de chats a importar
+
+    $chats = zapi_fetch_chats($ddd, 1, $max);
+    if ($chats === null) { echo json_encode(array('error' => 'Falha ao listar chats da Z-API')); exit; }
+
+    $totalConv = 0; $totalMsg = 0;
+    foreach ($chats as $chat) {
+        $tel  = $chat['phone'] ?? '';
+        $nome = $chat['name'] ?? null;
+        if (!$tel) continue;
+        // Pular grupos (phone tem "-" ou contém "@g.us")
+        if (strpos($tel, '-') !== false || strpos($tel, '@g.us') !== false) continue;
+        $conv = zapi_buscar_ou_criar_conversa($tel, $ddd, $nome);
+        if (!$conv) continue;
+        $r = zapi_sincronizar_historico_conversa($conv['id'], $limit);
+        $totalMsg += $r['importadas'] ?? 0;
+        $totalConv++;
+    }
+    audit_log('zapi_import_all', 'zapi_instancias', 0, "Conv={$totalConv} Msgs={$totalMsg}");
+    echo json_encode(array('ok' => true, 'conversas' => $totalConv, 'mensagens' => $totalMsg));
     exit;
 }
 

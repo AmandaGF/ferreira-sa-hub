@@ -332,6 +332,110 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
 }
 
 /**
+ * Busca histórico de mensagens de um telefone na Z-API.
+ * @return array|null lista de mensagens (raw) ou null em erro
+ */
+function zapi_fetch_chat_messages($ddd, $telefone, $limit = 50) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
+    $cfg = zapi_get_config();
+    $phone = zapi_normaliza_telefone($telefone);
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/chat-messages/' . $phone . '?size=' . (int)$limit;
+
+    $headers = array();
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code < 200 || $code >= 300) return null;
+    $data = json_decode($resp, true);
+    return is_array($data) ? $data : null;
+}
+
+/**
+ * Lista todos os chats da instância (telefones com mensagens).
+ */
+function zapi_fetch_chats($ddd, $page = 1, $size = 50) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/chats?page=' . (int)$page . '&pageSize=' . (int)$size;
+
+    $headers = array();
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code < 200 || $code >= 300) return null;
+    $data = json_decode($resp, true);
+    return is_array($data) ? $data : null;
+}
+
+/**
+ * Importa mensagens do histórico Z-API para uma conversa existente.
+ * Retorna contagem de mensagens importadas (não duplica pelo zapi_message_id).
+ */
+function zapi_sincronizar_historico_conversa($convId, $limit = 50) {
+    $pdo = db();
+    $stmt = $pdo->prepare("SELECT co.*, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
+    $stmt->execute(array($convId));
+    $conv = $stmt->fetch();
+    if (!$conv) return array('erro' => 'Conversa não encontrada', 'importadas' => 0);
+
+    $msgs = zapi_fetch_chat_messages($conv['ddd'], $conv['telefone'], $limit);
+    if ($msgs === null) return array('erro' => 'Falha ao consultar Z-API', 'importadas' => 0);
+
+    $importadas = 0;
+    foreach ($msgs as $m) {
+        $zapiId = $m['messageId'] ?? '';
+        if (!$zapiId) continue;
+
+        // Evitar duplicata
+        $chk = $pdo->prepare("SELECT id FROM zapi_mensagens WHERE zapi_message_id = ? LIMIT 1");
+        $chk->execute(array($zapiId));
+        if ($chk->fetchColumn()) continue;
+
+        $fromMe  = !empty($m['fromMe']);
+        $direcao = $fromMe ? 'enviada' : 'recebida';
+        $tipo    = zapi_detecta_tipo($m);
+        $cont    = zapi_extrai_conteudo($m, $tipo);
+        $arq     = zapi_extrai_arquivo($m, $tipo);
+
+        // Timestamp (ms → datetime)
+        $ts = $m['momment'] ?? ($m['timestamp'] ?? null);
+        $dateStr = $ts ? date('Y-m-d H:i:s', (int)($ts / 1000)) : date('Y-m-d H:i:s');
+
+        $pdo->prepare(
+            "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
+                arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'historico', ?)"
+        )->execute(array(
+            $convId, $zapiId, $direcao, $tipo, $cont,
+            $arq['url'] ?? null, $arq['nome'] ?? null, $arq['mime'] ?? null, $arq['tamanho'] ?? null,
+            $dateStr
+        ));
+        $importadas++;
+    }
+    return array('importadas' => $importadas, 'total_recebido' => count($msgs));
+}
+
+/**
  * Consulta status da instância na Z-API e atualiza o DB local.
  * @return bool|null  true=conectado, false=desconectado, null=erro
  */

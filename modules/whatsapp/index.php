@@ -103,6 +103,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             Ir para <?= $isComercial ? 'DDD 24 (CX)' : 'DDD 21 (Comercial)' ?> →
         </a>
         <?php if (has_min_role('gestao')): ?>
+            <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar conversas antigas do WhatsApp">🔄 Importar histórico</button>
             <a href="<?= module_url('whatsapp', 'configurar.php') ?>" class="btn btn-outline btn-sm">⚙️ Configurar</a>
         <?php endif; ?>
     </div>
@@ -257,6 +258,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
+        actions += '<button onclick="waSincronizar()" title="Baixar mensagens antigas do WhatsApp">⬇ Histórico</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         actions += '</div>';
 
@@ -406,6 +408,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waAssumir   = function() { acaoConversa('assumir_atendimento').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+    window.waSincronizar = function() {
+        if (!confirm('Baixar as últimas 50 mensagens do WhatsApp desta conversa?\n(Mensagens já salvas não serão duplicadas.)')) return;
+        acaoConversa('sincronizar_conversa', { limite: 50 }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            alert('Importadas: ' + d.importadas + ' / ' + d.total + ' do histórico.');
+            window.waAbrir(convAtiva);
+        });
+    };
 
     // ── TEMPLATES (respostas rápidas) ───────────────────
     window.waToggleTemplates = function() {
@@ -449,6 +459,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var btn  = e.target.closest('.wa-btn-tpl');
         if (!btn && !e.target.closest('#waTemplatesMenu')) menu.classList.remove('open');
     });
+
+    // ── IMPORTAR TODAS AS CONVERSAS ANTIGAS ─────────────
+    window.waImportarTodas = function() {
+        if (!confirm('Importar as últimas 50 conversas do WhatsApp (até 30 mensagens cada)?\n\nIsso pode levar 30–60 segundos. Continuar?')) return;
+        var btn = event.target;
+        btn.disabled = true; btn.textContent = 'Importando...';
+        var fd = new FormData();
+        fd.append('action', 'importar_todos');
+        fd.append('ddd', canal);
+        fd.append('limite', '30');
+        fd.append('max_chats', '50');
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            btn.disabled = false; btn.textContent = '🔄 Importar histórico';
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            alert('Importado!\n\nConversas: ' + d.conversas + '\nMensagens: ' + d.mensagens);
+            carregarLista();
+        }).catch(function(e){
+            btn.disabled = false; btn.textContent = '🔄 Importar histórico';
+            alert('Falha: ' + e);
+        });
+    };
 
     // ── VERIFICAR STATUS DA INSTÂNCIA ───────────────────
     window.waVerificarStatus = function() {
