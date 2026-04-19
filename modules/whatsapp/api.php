@@ -47,12 +47,20 @@ if ($action === 'listar_conversas') {
         array_unshift($params, $etiquetaId);
     }
 
+    // ultima_mensagem e ultima_msg_em vêm de subquery (sempre reflete o estado real,
+    // ignorando mensagens deletadas — evita depender do campo salvo ficar em sync)
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
-                   co.bot_ativo, co.ultima_mensagem, co.ultima_msg_em, co.canal,
+                   co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
                    cl.name AS client_name,
                    pl.name AS lead_name,
                    u.name AS atendente_name,
+                   (SELECT m.conteudo FROM zapi_mensagens m
+                    WHERE m.conversa_id = co.id AND m.status != 'deletada' AND m.conteudo IS NOT NULL AND m.conteudo != ''
+                    ORDER BY m.id DESC LIMIT 1) AS ultima_mensagem,
+                   (SELECT m.created_at FROM zapi_mensagens m
+                    WHERE m.conversa_id = co.id AND m.status != 'deletada' AND m.conteudo IS NOT NULL AND m.conteudo != ''
+                    ORDER BY m.id DESC LIMIT 1) AS ultima_msg_em,
                    (SELECT GROUP_CONCAT(CONCAT_WS('|', e.id, e.nome, e.cor) SEPARATOR '§')
                     FROM zapi_conversa_etiquetas ce JOIN zapi_etiquetas e ON e.id = ce.etiqueta_id
                     WHERE ce.conversa_id = co.id) AS etiquetas_raw
@@ -62,7 +70,7 @@ if ($action === 'listar_conversas') {
             LEFT JOIN users u ON u.id = co.atendente_id
             {$joinEtq}
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY COALESCE(co.ultima_msg_em, co.created_at) DESC
+            ORDER BY COALESCE((SELECT m.created_at FROM zapi_mensagens m WHERE m.conversa_id = co.id AND m.status != 'deletada' ORDER BY m.id DESC LIMIT 1), co.created_at) DESC
             LIMIT 200";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
