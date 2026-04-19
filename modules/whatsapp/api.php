@@ -307,6 +307,21 @@ if ($action === 'deletar_mensagem') {
     // Marca como apagada no banco (preserva histórico)
     $pdo->prepare("UPDATE zapi_mensagens SET conteudo = '[mensagem apagada]', tipo = 'outro', status = 'deletada', arquivo_url = NULL WHERE id = ?")
         ->execute(array($msgId));
+
+    // Atualizar preview da conversa (ultima_mensagem) pra mensagem ANTERIOR mais recente que não esteja apagada
+    $prev = $pdo->prepare("SELECT conteudo, created_at FROM zapi_mensagens
+                           WHERE conversa_id = ? AND status != 'deletada' AND id != ?
+                           ORDER BY id DESC LIMIT 1");
+    $prev->execute(array($msg['conversa_id'], $msgId));
+    $prevMsg = $prev->fetch();
+    if ($prevMsg) {
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = ? WHERE id = ?")
+            ->execute(array(mb_substr($prevMsg['conteudo'], 0, 500), $prevMsg['created_at'], $msg['conversa_id']));
+    } else {
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[mensagem apagada]' WHERE id = ?")
+            ->execute(array($msg['conversa_id']));
+    }
+
     audit_log('zapi_delete_msg', 'zapi_mensagens', $msgId);
     echo json_encode(array('ok' => true));
     exit;
