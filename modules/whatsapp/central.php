@@ -64,6 +64,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <p class="cfg-desc">ID e token das instâncias 21 e 24, Client-Token da conta e Base URL. Webhook URL mostrada aqui para copiar.</p>
         <span class="cfg-tag">Integração</span>
     </a>
+
+    <a href="<?= module_url('whatsapp', 'dashboard.php') ?>" class="cfg-card">
+        <div class="cfg-ico">📊</div>
+        <h3 class="cfg-titulo">Dashboard</h3>
+        <p class="cfg-desc">KPIs (conversas, bot, resolvidas), mensagens por hora, conversas por atendente, tempo médio de resposta, taxa bot→humano e etiquetas mais usadas.</p>
+        <span class="cfg-tag">Análise</span>
+    </a>
 </div>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
