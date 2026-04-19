@@ -84,12 +84,14 @@ foreach ($docs as $d) {
     if (!$valor && !$forma && !$venc) { $pulados++; continue; }
 
     // Achar o lead correspondente (mesmo client_id, estágio pós-contrato, campos atualmente vazios)
+    // IMPORTANTE: pegar apenas UM lead (o mais recente) pra não duplicar valor em combos
+    // (ex: contrato cobre Alimentos + Convivência = 2 leads com mesmo client_id; o valor deve ir em só um)
     $leads = $pdo->prepare("
         SELECT id, name, stage, honorarios_cents, valor_acao, forma_pagamento, vencimento_parcela, exito_percentual
         FROM pipeline_leads
         WHERE client_id = ? AND arquivado_em IS NULL
           AND stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado')
-        ORDER BY updated_at DESC LIMIT 5
+        ORDER BY updated_at DESC LIMIT 1
     ");
     $leads->execute(array($d['client_id']));
     $leadsDoCliente = $leads->fetchAll();
