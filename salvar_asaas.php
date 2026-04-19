@@ -27,10 +27,10 @@ echo "✓ Chave salva (" . substr($apiKey, 0, 14) . "...)\n";
 echo "✓ Ambiente: {$env}\n\n";
 
 // Testar conexão
-$base = $env === 'production' ? 'https://api.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
-echo "Testando {$base}/finance/balance ...\n";
+$base = $env === 'production' ? 'https://api.asaas.com/v3' : 'https://sandbox.asaas.com/api/v3';
+echo "Testando {$base}/customers?limit=1 ...\n";
 
-$ch = curl_init($base . '/finance/balance');
+$ch = curl_init($base . '/customers?limit=1');
 curl_setopt_array($ch, array(
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT        => 15,
@@ -48,13 +48,27 @@ echo "Body: " . substr($body, 0, 300) . "\n\n";
 
 if ($code === 200) {
     $data = json_decode($body, true);
-    if (isset($data['balance'])) {
-        echo "✅ CONEXÃO OK — Saldo: R$ " . number_format($data['balance'], 2, ',', '.') . "\n";
-    } else {
-        echo "✅ HTTP 200 mas sem campo balance — resposta:\n" . print_r($data, true) . "\n";
+    $total = $data['totalCount'] ?? 0;
+    echo "✅ CONEXÃO OK — conta ativa, {$total} clientes no Asaas\n";
+
+    // Tenta saldo também
+    $ch2 = curl_init($base . '/finance/balance');
+    curl_setopt_array($ch2, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 10,
+        CURLOPT_HTTPHEADER => array('access_token: ' . $apiKey),
+        CURLOPT_SSL_VERIFYPEER => true,
+    ));
+    $b2 = curl_exec($ch2);
+    $c2 = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+    curl_close($ch2);
+    if ($c2 === 200) {
+        $d2 = json_decode($b2, true);
+        if (isset($d2['balance'])) echo "💰 Saldo atual: R$ " . number_format($d2['balance'], 2, ',', '.') . "\n";
     }
 } elseif ($code === 401) {
-    echo "❌ CHAVE INVÁLIDA (401) — confere se é mesmo de Produção\n";
+    echo "❌ CHAVE INVÁLIDA (401)\n";
+    echo "Resposta: {$body}\n";
 } else {
     echo "⚠ HTTP {$code}\n";
 }
