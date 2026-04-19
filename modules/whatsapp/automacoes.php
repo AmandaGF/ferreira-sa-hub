@@ -37,6 +37,7 @@ $defaults = array(
     'zapi_auto_doc_24_tpl'       => 'Confirmação de documentos',
     'zapi_signature_on'          => '0',
     'zapi_signature_format'      => '— {{atendente}}',
+    'zapi_mostrar_nome_interno'  => '1',  // mostra o nome do atendente nas mensagens do chat interno
     'zapi_auto_aniversario'        => '0',
     'zapi_auto_aniversario_canal'  => '24',
     'zapi_auto_aniversario_hora'   => '9',
@@ -74,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $up->execute(array('zapi_signature_on',     !empty($_POST['signature_on']) ? '1' : '0'));
     $up->execute(array('zapi_signature_format', trim($_POST['signature_format'] ?? '— {{atendente}}')));
+    $up->execute(array('zapi_mostrar_nome_interno', !empty($_POST['mostrar_nome_interno']) ? '1' : '0'));
 
     $up->execute(array('zapi_auto_aniversario',        !empty($_POST['auto_aniversario']) ? '1' : '0'));
     $up->execute(array('zapi_auto_aniversario_canal',  in_array($_POST['auto_aniversario_canal'] ?? '24', array('21','24'), true) ? $_POST['auto_aniversario_canal'] : '24'));
@@ -283,6 +285,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <strong>Palavras que disparam transferência automática para humano:</strong><br>
             <em>urgente, urgência, emergência, violência, agressão, ameaça, preso, criança em risco, socorro, humano, atendente, advogada, Amanda, falar com alguém...</em>
         </div>
+    </div>
+
+    <div class="aut-card">
+        <h3>👤 Mostrar nome do atendente no chat interno</h3>
+        <p class="aut-hint">Controla se o nome de quem enviou aparece acima da mensagem <strong>dentro do Hub</strong> (visível só pra vocês, não vai pro cliente). Útil pra distinguir atendentes em conversas compartilhadas.</p>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="mostrar_nome_interno" value="1" <?= $cfg['zapi_mostrar_nome_interno'] === '1' ? 'checked' : '' ?>> Mostrar nome do atendente acima das mensagens enviadas</label>
+        </div>
+        <p class="aut-hint">Desligado: mensagens aparecem "limpas" no chat. Útil quando só uma pessoa atende. Essa config é <strong>independente</strong> da assinatura enviada ao cliente (configurada no próximo card).</p>
     </div>
 
     <div class="aut-card">

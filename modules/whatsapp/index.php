@@ -27,6 +27,13 @@ $accentLight = $isComercial ? '#fdf5ed' : '#eef2f8';
 
 $csrfToken = generate_csrf_token();
 
+// Config: mostrar nome do atendente no chat interno (default: sim)
+$mostrarNomeAtendente = '1';
+try {
+    $r = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_mostrar_nome_interno'")->fetchColumn();
+    if ($r !== false && $r !== null) $mostrarNomeAtendente = $r;
+} catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -213,6 +220,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var etiquetasCache = null;
     var arquivoPendente = null; // {file, previewUrl}
     var convNomeAtual = ''; // nome do contato da conversa aberta (pra {{nome}})
+    var mostrarNomeAtendente = <?= $mostrarNomeAtendente === '1' ? 'true' : 'false' ?>; // config
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
@@ -357,7 +365,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     html += '</div>';
                 }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
-                else if (m.direcao === 'enviada' && m.enviado_por_name) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
+                else if (m.direcao === 'enviada' && m.enviado_por_name && mostrarNomeAtendente) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
                 // Botão "Salvar no Drive" pra arquivos RECEBIDOS (tem arquivo_url e não foi salvo ainda)
                 if (m.direcao === 'recebida' && m.arquivo_url && m.tipo !== 'texto') {
                     if (+m.arquivo_salvo_drive) {
