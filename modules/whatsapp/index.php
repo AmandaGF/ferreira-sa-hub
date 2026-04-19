@@ -409,35 +409,63 @@ require_once APP_ROOT . '/templates/layout_start.php';
     });
 
     // ── ENVIO DE ARQUIVO (imagem ou documento) ──────────
-    document.getElementById('waFile').addEventListener('change', function(e){
+    function enviarArquivoBlob(file, caption) {
         if (!convAtiva) { alert('Selecione uma conversa primeiro.'); return; }
-        var file = e.target.files[0];
         if (!file) return;
         if (file.size > 16 * 1024 * 1024) { alert('Arquivo maior que 16 MB.'); return; }
 
-        var caption = document.getElementById('waInput').value.trim();
         var fd = new FormData();
         fd.append('action', 'enviar_arquivo');
         fd.append('conversa_id', convAtiva);
-        fd.append('caption', caption);
-        fd.append('arquivo', file);
+        fd.append('caption', caption || '');
+        fd.append('arquivo', file, file.name || 'imagem.png');
         fd.append('csrf_token', csrf);
 
         var btn = document.getElementById('waBtnSend');
         btn.disabled = true; btn.textContent = 'Enviando...';
 
-        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+        return fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             btn.disabled = false; btn.textContent = '➤ Enviar';
-            e.target.value = ''; // reset file input
             if (d.error) { alert('Erro: ' + d.error); return; }
             document.getElementById('waInput').value = '';
             window.waAbrir(convAtiva);
             carregarLista();
         }).catch(function(err){
             btn.disabled = false; btn.textContent = '➤ Enviar';
-            e.target.value = '';
             alert('Falha: ' + err);
         });
+    }
+
+    document.getElementById('waFile').addEventListener('change', function(e){
+        var file = e.target.files[0];
+        var caption = document.getElementById('waInput').value.trim();
+        enviarArquivoBlob(file, caption).then(function(){ e.target.value = ''; });
+    });
+
+    // ── COLAR IMAGEM DIRETO (Ctrl+V) ────────────────────
+    document.getElementById('waInput').addEventListener('paste', function(e){
+        if (!convAtiva) return;
+        var items = (e.clipboardData || window.clipboardData).items;
+        if (!items) return;
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+                e.preventDefault();
+                var blob = it.getAsFile();
+                if (!blob) continue;
+                // Dar um nome útil (preservar extensão)
+                var ext = (it.type.split('/')[1] || 'png').split('+')[0];
+                var nomedMeta = { name: 'colado_' + Date.now() + '.' + ext };
+                // Clonar blob com nome (File API)
+                var fileComNome = new File([blob], nomedMeta.name, { type: it.type });
+                var caption = document.getElementById('waInput').value.trim();
+                if (confirm('Enviar imagem colada' + (caption ? ' com a legenda "' + caption + '"' : '') + '?')) {
+                    enviarArquivoBlob(fileComNome, caption);
+                }
+                return;
+            }
+        }
+        // Se não era imagem, deixa o paste padrão acontecer (texto normal)
     });
 
     // ── AÇÕES NA CONVERSA ───────────────────────────────
