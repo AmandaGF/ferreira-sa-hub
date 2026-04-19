@@ -176,38 +176,43 @@ function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
         return array('ok' => false, 'erro' => 'Instância não configurada');
     }
     $cfg = zapi_get_config();
-    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-message-edit';
+    $base = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'];
 
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
     $phoneNorm = zapi_normaliza_telefone($telefone);
+    $logFile = APP_ROOT . '/files/zapi_edit.log';
 
-    // A Z-API tem variações — tentar payloads comuns em ordem
-    $tentativas = array(
-        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto),
-        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'text' => $novoTexto),
-        array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'newText' => $novoTexto),
+    // Lista de endpoints + payloads pra tentar (Z-API varia por versão)
+    $variantes = array(
+        array('url' => $base . '/send-text-edit',     'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto)),
+        array('url' => $base . '/edit-message',        'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto)),
+        array('url' => $base . '/messages/edit',       'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto)),
+        array('url' => $base . '/edit-text',           'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto)),
+        array('url' => $base . '/send-message-edit',   'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'text'    => $novoTexto)),
+        array('url' => $base . '/send-message-edit',   'body' => array('phone' => $phoneNorm, 'messageId' => $zapiMessageId, 'message' => $novoTexto)),
     );
 
-    $logFile = APP_ROOT . '/files/zapi_edit.log';
-    $ultimoResultado = null;
-    foreach ($tentativas as $body) {
-        $r = _zapi_post($url, $headers, $body);
-        $ultimoResultado = $r;
-        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] TENTATIVA body=' . json_encode($body) . ' http=' . ($r['http_code'] ?? '?') . ' resp=' . substr(json_encode($r['data'] ?? ''), 0, 300) . "\n", FILE_APPEND);
+    $ultimo = null;
+    foreach ($variantes as $v) {
+        $r = _zapi_post($v['url'], $headers, $v['body']);
+        $ultimo = $r;
+        $respStr = substr(json_encode($r['data'] ?? ''), 0, 300);
+        @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] URL=' . $v['url'] . ' body=' . json_encode($v['body']) . ' http=' . ($r['http_code'] ?? '?') . ' resp=' . $respStr . "\n", FILE_APPEND);
+
+        // Descartar NOT_FOUND explicitamente
+        if (is_array($r['data']) && isset($r['data']['error']) && stripos($r['data']['error'], 'NOT_FOUND') !== false) continue;
 
         if (!empty($r['ok'])) {
-            // Confirmar no body: muitas APIs retornam 200 mesmo para endpoint inexistente
-            // Se tiver 'id' ou 'messageId' ou 'zaapId' no retorno, consideramos sucesso real
             $data = $r['data'];
             if (is_array($data) && (isset($data['id']) || isset($data['messageId']) || isset($data['zaapId']) || isset($data['value']))) {
+                @file_put_contents($logFile, '[' . date('Y-m-d H:i:s') . '] SUCESSO com URL=' . $v['url'] . "\n", FILE_APPEND);
                 return $r;
             }
-            // 200 mas sem dados típicos de mensagem — tenta próximo formato
         }
     }
-    return $ultimoResultado ?: array('ok' => false, 'erro' => 'Todos os formatos falharam');
+    return $ultimo ?: array('ok' => false, 'erro' => 'Edit não suportado por nenhum endpoint Z-API testado');
 }
 
 function _zapi_post($url, $headers, $body) {
