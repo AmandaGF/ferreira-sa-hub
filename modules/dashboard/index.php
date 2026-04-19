@@ -193,6 +193,9 @@ for ($i = 5; $i >= 0; $i--) {
 $totalClientes = qval($pdo, "SELECT COUNT(*) FROM clients");
 $ticketsAbertos = qval($pdo, "SELECT COUNT(*) FROM tickets WHERE status IN ('aberto','em_andamento','aguardando')");
 $docsFaltantes = qval($pdo, "SELECT COUNT(*) FROM documentos_pendentes WHERE status = 'pendente'");
+$vipThreadsAbertas = qval($pdo, "SELECT COUNT(*) FROM salavip_threads WHERE status != 'fechada'");
+$vipMsgsNaoLidas = qval($pdo, "SELECT COUNT(*) FROM salavip_mensagens WHERE origem='salavip' AND lida_equipe=0");
+$vipDocsPendentes = qval($pdo, "SELECT COUNT(*) FROM salavip_documentos_cliente WHERE status='pendente'");
 
 // Próximos compromissos (3 dias)
 $proxCompromissos = qrows($pdo, "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.local, e.case_id, cl.name as client_name FROM agenda_eventos e LEFT JOIN clients cl ON cl.id = e.client_id WHERE e.status NOT IN ('cancelado','remarcado','realizado') AND e.data_inicio BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 3 DAY) ORDER BY e.data_inicio LIMIT 5");
@@ -387,7 +390,16 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
     </a>
     <a href="<?= module_url('helpdesk') ?>" class="kpi-card">
         <div class="kpi-icon rose">🎫</div>
-        <div><div class="kpi-value"><?= $ticketsAbertos ?></div><div class="kpi-label">Chamados Abertos</div></div>
+        <div><div class="kpi-value"><?= $ticketsAbertos ?></div><div class="kpi-label">Chamados Internos</div></div>
+    </a>
+    <a href="<?= module_url('helpdesk') ?>?origem=clientes" class="kpi-card">
+        <div class="kpi-icon <?= $vipThreadsAbertas > 0 ? 'orange' : 'green' ?>">🌟</div>
+        <div>
+            <div class="kpi-value"><?= $vipThreadsAbertas ?></div>
+            <div class="kpi-label">Chamados Central VIP</div>
+            <?php if ($vipMsgsNaoLidas > 0): ?><div class="kpi-sub" style="color:#dc2626;"><?= $vipMsgsNaoLidas ?> msgs não lidas</div><?php endif; ?>
+            <?php if ($vipDocsPendentes > 0): ?><div class="kpi-sub" style="color:#f59e0b;"><?= $vipDocsPendentes ?> docs pendentes</div><?php endif; ?>
+        </div>
     </a>
     <a href="<?= module_url('crm') ?>" class="kpi-card">
         <div class="kpi-icon blue">👥</div>

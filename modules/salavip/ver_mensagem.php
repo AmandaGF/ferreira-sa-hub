@@ -134,6 +134,12 @@ $mensagens = $pdo->prepare(
 $mensagens->execute([$threadId]);
 $mensagens = $mensagens->fetchAll();
 
+// ── Respostas padrão (seed em migrar_salavip_respostas.php) ──
+$respostasPadrao = array();
+try {
+    $respostasPadrao = $pdo->query("SELECT id, titulo, texto FROM salavip_respostas_padrao WHERE ativo = 1 ORDER BY ordem, titulo")->fetchAll();
+} catch (Exception $e) { /* tabela pode não existir ainda */ }
+
 $statusLabels = array(
     'aberta' => 'Aberta', 'respondida' => 'Respondida', 'fechada' => 'Fechada',
     'aguardando' => 'Aguardando'
@@ -221,12 +227,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <p class="text-muted text-sm" style="text-align:center;">Nenhuma mensagem nesta conversa.</p>
             <?php else: ?>
                 <?php foreach ($mensagens as $m): ?>
-                    <div class="msg-bubble <?= $m['origem'] === 'conecta' ? 'equipe' : 'cliente' ?>">
+                    <div class="msg-bubble <?= $m['origem'] === 'conecta' ? 'equipe' : 'cliente' ?>" style="position:relative;">
                         <div class="msg-sender">
                             <?= e($m['remetente_nome']) ?>
                             <span style="font-weight:400;color:var(--text-muted);font-size:.7rem;">
                                 (<?= $m['origem'] === 'conecta' ? 'Equipe' : 'Cliente' ?>)
                             </span>
+                            <?php if ($m['origem'] === 'conecta'): ?>
+                                <form method="POST" style="display:inline;float:right;" onsubmit="return confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.');">
+                                    <?= csrf_input() ?>
+                                    <input type="hidden" name="action" value="apagar_msg">
+                                    <input type="hidden" name="msg_id" value="<?= $m['id'] ?>">
+                                    <button type="submit" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:.8rem;padding:2px 6px;" title="Apagar mensagem">🗑</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                         <div><?= nl2br(e($m['mensagem'])) ?></div>
                         <?php if (!empty($m['anexo_path'])): ?>
@@ -249,12 +263,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card mb-2">
     <div class="card-header"><h3>Responder</h3></div>
     <div class="card-body">
+        <?php if (!empty($respostasPadrao)): ?>
+            <div style="margin-bottom:.7rem;">
+                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:.3rem;">⚡ Respostas rápidas (clique para preencher)</div>
+                <div style="display:flex;flex-wrap:wrap;gap:.3rem;">
+                    <?php foreach ($respostasPadrao as $rp): ?>
+                        <button type="button" onclick="document.getElementById('txtResposta').value = <?= htmlspecialchars(json_encode($rp['texto']), ENT_QUOTES) ?>;" style="background:#f3f4f6;border:1px solid var(--border);padding:5px 10px;border-radius:16px;font-size:.75rem;cursor:pointer;color:var(--text);" title="<?= e($rp['texto']) ?>">
+                            <?= e($rp['titulo']) ?>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <form method="POST" enctype="multipart/form-data">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="responder">
 
             <div class="mb-1">
-                <textarea name="mensagem" class="form-control" rows="4" placeholder="Digite sua resposta..." required></textarea>
+                <textarea id="txtResposta" name="mensagem" class="form-control" rows="4" placeholder="Digite sua resposta (ou clique em uma resposta rápida acima)..." required></textarea>
             </div>
 
             <div class="mb-1">
@@ -262,14 +289,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="file" name="anexo" class="form-control" accept=".pdf,.jpg,.jpeg,.png,.docx">
             </div>
 
-            <div style="display:flex;gap:.5rem;justify-content:space-between;align-items:center;">
-                <button type="submit" class="btn btn-primary">Enviar Resposta</button>
+            <button type="submit" class="btn btn-primary">✉️ Enviar Resposta</button>
+        </form>
+    </div>
+</div>
 
-                <form method="POST" style="display:inline;" onsubmit="return confirm('Fechar esta conversa?');">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="fechar_thread">
-                    <button type="submit" class="btn btn-outline btn-sm" style="color:var(--danger);">Fechar Conversa</button>
-                </form>
+<!-- Fechar sem responder (separado do form de resposta) -->
+<div class="card mb-2" style="border-color:#fca5a5;">
+    <div class="card-body" style="padding:.8rem 1rem;">
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <strong style="color:#991b1b;font-size:.82rem;">🔒 Fechar sem responder</strong>
+            <span class="text-sm text-muted" style="flex:1;min-width:200px;">útil pra chamados duplicados ou resolvidos por outro canal</span>
+            <button type="button" onclick="document.getElementById('formFecharSem').style.display='block';" class="btn btn-outline btn-sm" style="color:#991b1b;border-color:#fca5a5;">Fechar</button>
+        </div>
+        <form method="POST" id="formFecharSem" style="display:none;margin-top:.6rem;padding-top:.6rem;border-top:1px solid #fee2e2;" onsubmit="return confirm('Fechar esta conversa SEM responder ao cliente?');">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="fechar_thread">
+            <label class="form-label text-sm">Motivo (opcional — registrado internamente)</label>
+            <input type="text" name="motivo_fechamento" class="form-control" placeholder="Ex: Duplicado do chamado #X / Resolvido por WhatsApp / etc.">
+            <div style="margin-top:.5rem;display:flex;gap:.4rem;">
+                <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;">Confirmar fechamento</button>
+                <button type="button" onclick="document.getElementById('formFecharSem').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
             </div>
         </form>
     </div>
