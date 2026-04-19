@@ -103,8 +103,12 @@ if ($fase === 'clientes' || $fase === 'tudo') {
 // ─────────── FASE 2: COBRANÇAS ───────────
 if ($fase === 'cobrancas' || $fase === 'tudo') {
     echo "━━━ FASE 2: COBRANÇAS ━━━\n";
-    $offset = 0; $limit = 100;
+    $offset = (int)($_GET['offset'] ?? 0);
+    $maxPages = (int)($_GET['max_pages'] ?? 0); // 0 = sem limite
+    $limit = 100;
     $inseridas = 0; $atualizadas = 0; $total = 0;
+    $pagina = 0;
+    echo "Iniciando em offset={$offset}, max_pages=" . ($maxPages ?: 'ilimitado') . "\n";
 
     // Mapa asaas_customer_id → client_id (pra associar rápido)
     $map = array();
@@ -169,12 +173,15 @@ if ($fase === 'cobrancas' || $fase === 'tudo') {
         }
 
         $offset += $limit;
-        if (!($data['hasMore'] ?? false)) break;
+        $pagina++;
+        if (!($data['hasMore'] ?? false)) { echo "[FIM — sem mais dados]\n"; break; }
+        if ($maxPages && $pagina >= $maxPages) { echo "[PARADA — atingiu max_pages={$maxPages}, próximo offset={$offset}]\n"; break; }
     }
 
-    echo "\nTotal processado: {$total}\n";
+    echo "\nTotal processado neste lote: {$total}\n";
     echo " ✓ Novas inseridas: {$inseridas}\n";
-    echo " ✓ Atualizadas (já existiam): {$atualizadas}\n\n";
+    echo " ✓ Atualizadas (já existiam): {$atualizadas}\n";
+    echo " → Próximo offset pra continuar: {$offset}\n\n";
 }
 
 echo "=== FIM ===\n";
