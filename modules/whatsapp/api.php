@@ -295,28 +295,41 @@ if ($action === 'sincronizar_conversa') {
 // ── IMPORTAR TODOS OS CHATS DA INSTÂNCIA (admin/gestão) ──
 if ($action === 'importar_todos') {
     if (!has_min_role('gestao')) { echo json_encode(array('error' => 'Acesso restrito')); exit; }
-    $ddd   = $_POST['ddd']   ?? '21';
-    $limit = (int)($_POST['limite'] ?? 30);   // msgs por chat
-    $max   = (int)($_POST['max_chats'] ?? 50); // total de chats a importar
+    set_time_limit(300); // 5 min para import grande
+    $ddd = $_POST['ddd'] ?? '21';
+    $max = (int)($_POST['max_chats'] ?? 200);
+    if ($max > 500) $max = 500;
 
-    $chats = zapi_fetch_chats($ddd, 1, $max);
-    if ($chats === null) { echo json_encode(array('error' => 'Falha ao listar chats da Z-API')); exit; }
+    $pageSize  = 50;     // Z-API pagina em lotes de 50
+    $totalPages = (int)ceil($max / $pageSize);
+    $totalConv = 0;
+    $pulados   = 0;
+    $pages     = array();
 
-    $totalConv = 0; $totalMsg = 0;
-    foreach ($chats as $chat) {
-        $tel  = $chat['phone'] ?? '';
-        $nome = $chat['name'] ?? null;
-        if (!$tel) continue;
-        // Pular grupos (phone tem "-" ou contém "@g.us")
-        if (strpos($tel, '-') !== false || strpos($tel, '@g.us') !== false) continue;
-        $conv = zapi_buscar_ou_criar_conversa($tel, $ddd, $nome);
-        if (!$conv) continue;
-        $r = zapi_sincronizar_historico_conversa($conv['id'], $limit);
-        $totalMsg += $r['importadas'] ?? 0;
-        $totalConv++;
+    for ($page = 1; $page <= $totalPages; $page++) {
+        $chats = zapi_fetch_chats($ddd, $page, $pageSize);
+        $pages[] = array('page' => $page, 'count' => is_array($chats) ? count($chats) : 0);
+        if (!is_array($chats) || empty($chats)) break; // sem mais páginas
+
+        foreach ($chats as $chat) {
+            $tel  = $chat['phone'] ?? '';
+            $nome = $chat['name'] ?? null;
+            if (!$tel) { $pulados++; continue; }
+            // Pular grupos
+            if (strpos($tel, '-') !== false || strpos($tel, '@g.us') !== false) { $pulados++; continue; }
+            $conv = zapi_buscar_ou_criar_conversa($tel, $ddd, $nome);
+            if (!$conv) continue;
+            $totalConv++;
+            if ($totalConv >= $max) break 2; // atingiu o teto
+        }
     }
-    audit_log('zapi_import_all', 'zapi_instancias', 0, "Conv={$totalConv} Msgs={$totalMsg}");
-    echo json_encode(array('ok' => true, 'conversas' => $totalConv, 'mensagens' => $totalMsg));
+    audit_log('zapi_import_all', 'zapi_instancias', 0, "Conv={$totalConv} Pulados={$pulados}");
+    echo json_encode(array(
+        'ok' => true,
+        'conversas' => $totalConv,
+        'pulados' => $pulados,
+        'paginas' => $pages,
+    ));
     exit;
 }
 

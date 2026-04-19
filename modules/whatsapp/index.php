@@ -456,22 +456,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // ── IMPORTAR TODAS AS CONVERSAS ANTIGAS ─────────────
     window.waImportarTodas = function() {
-        if (!confirm('Importar a lista de contatos que já têm conversa no WhatsApp?\n\nNota: por limitação da Z-API Multi Device, apenas os contatos/telefones são importados — as mensagens antigas não vêm. Mensagens futuras (após a configuração do webhook) serão capturadas normalmente.\n\nContinuar?')) return;
+        var q = prompt('Quantos contatos importar do WhatsApp?\n(padrão 200, máximo 500)\n\nObs: por limitação da Z-API Multi Device, só vêm os contatos/telefones — as mensagens antigas não. Mensagens futuras são capturadas em tempo real.', '200');
+        if (q === null) return;
+        var max = Math.min(Math.max(parseInt(q, 10) || 200, 1), 500);
         var btn = event.target;
         btn.disabled = true; btn.textContent = 'Importando...';
         var fd = new FormData();
         fd.append('action', 'importar_todos');
         fd.append('ddd', canal);
-        fd.append('limite', '30');
-        fd.append('max_chats', '50');
+        fd.append('max_chats', max);
         fd.append('csrf_token', csrf);
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
-            btn.disabled = false; btn.textContent = '🔄 Importar histórico';
+            btn.disabled = false; btn.textContent = '👥 Importar contatos';
             if (d.error) { alert('Erro: ' + d.error); return; }
-            alert('Importado!\n\nConversas: ' + d.conversas + '\nMensagens: ' + d.mensagens);
+            alert('Importado!\n\nContatos novos: ' + d.conversas + '\nGrupos/inválidos pulados: ' + (d.pulados || 0));
             carregarLista();
         }).catch(function(e){
-            btn.disabled = false; btn.textContent = '🔄 Importar histórico';
+            btn.disabled = false; btn.textContent = '👥 Importar contatos';
             alert('Falha: ' + e);
         });
     };
