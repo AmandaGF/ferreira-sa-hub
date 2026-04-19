@@ -32,6 +32,13 @@ if ($preCaseId) {
     if ($preCase) $preClientId = (int)$preCase['client_id'];
 }
 
+// Pré-preenchimento via GET (vindo do WhatsApp, p.ex.)
+if (isset($_GET['client_id']) && !$preClientId) $preClientId = (int)$_GET['client_id'];
+$preTitle       = trim($_GET['title'] ?? '');
+$preDescription = trim($_GET['description'] ?? '');
+$preClientName  = trim($_GET['client_name'] ?? '');
+$preClientContact = trim($_GET['client_contact'] ?? '');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf()) { $errors[] = 'Token inválido.'; }
 
@@ -115,7 +122,7 @@ echo voltar_ao_processo_html();
 
             <div class="form-group">
                 <label class="form-label">Título *</label>
-                <input type="text" name="title" class="form-input" required value="<?= e($_POST['title'] ?? '') ?>"
+                <input type="text" name="title" class="form-input" required value="<?= e($_POST['title'] ?? $preTitle) ?>"
                        placeholder="Ex: Protocolar petição urgente">
             </div>
 
@@ -161,7 +168,7 @@ echo voltar_ao_processo_html();
 
             <div class="form-group">
                 <label class="form-label">Descrição</label>
-                <textarea name="description" class="form-textarea" rows="4" placeholder="Descreva o que precisa ser feito..."><?= e($_POST['description'] ?? '') ?></textarea>
+                <textarea name="description" class="form-textarea" rows="6" placeholder="Descreva o que precisa ser feito..."><?= e($_POST['description'] ?? $preDescription) ?></textarea>
             </div>
 
             <div class="form-row">
@@ -188,11 +195,11 @@ echo voltar_ao_processo_html();
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Nome do cliente (texto livre)</label>
-                    <input type="text" name="client_name" class="form-input" value="<?= e($_POST['client_name'] ?? ($preCase ? $preCase['client_name'] : '')) ?>" placeholder="Se não encontrou no select acima">
+                    <input type="text" name="client_name" class="form-input" value="<?= e($_POST['client_name'] ?? $preClientName ?: ($preCase ? $preCase['client_name'] : '')) ?>" placeholder="Se não encontrou no select acima">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Contato</label>
-                    <input type="text" name="client_contact" class="form-input" value="<?= e($_POST['client_contact'] ?? '') ?>" placeholder="Telefone ou e-mail">
+                    <input type="text" name="client_contact" class="form-input" value="<?= e($_POST['client_contact'] ?? $preClientContact) ?>" placeholder="Telefone ou e-mail">
                 </div>
             </div>
 

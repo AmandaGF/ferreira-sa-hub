@@ -326,6 +326,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
+        actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         actions += '</div>';
 
@@ -921,6 +922,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+
+    window.waCriarChamado = function() {
+        if (!convAtiva) return;
+        // Busca dados da conversa atual
+        fetch(apiUrl + '?action=abrir_conversa&id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
+            if (!d.ok || !d.conversa) return;
+            var c = d.conversa;
+            var params = new URLSearchParams();
+            if (c.client_id) params.set('client_id', c.client_id);
+            // Pré-preenche título com o nome + assunto genérico
+            var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
+            params.set('title', 'Atendimento WhatsApp — ' + nome);
+            params.set('client_name', nome);
+            params.set('client_contact', c.telefone);
+            // Últimas 3 mensagens recebidas como descrição de contexto
+            var msgs = (d.mensagens || []).filter(function(m){ return m.direcao === 'recebida' && m.conteudo; }).slice(-3);
+            if (msgs.length) {
+                var desc = 'Contexto da conversa WhatsApp ('+ (c.canal === '21' ? 'Comercial' : 'CX') +'):\n\n';
+                msgs.forEach(function(m){ desc += '• ' + m.conteudo.substring(0, 200) + '\n'; });
+                desc += '\nLink do chat: ' + window.location.origin + '<?= module_url('whatsapp') ?>?canal=' + c.canal + '&conv=' + c.id;
+                params.set('description', desc);
+            }
+            // Abre em nova aba (não perde a conversa)
+            window.open('<?= module_url('helpdesk', 'novo.php') ?>?' + params.toString(), '_blank');
+        });
+    };
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
     window.waEditarNome = function() {
         var disp = document.getElementById('waNomeDisplay');
