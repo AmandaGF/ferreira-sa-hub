@@ -270,6 +270,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- ═══ ABA 2: FILA DE COBRANÇA (Kanban) ═══ -->
 <div class="ch-panel <?= $abaAtiva === 'fila' ? 'active' : '' ?>">
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
+        <div style="position:relative;flex:1;max-width:380px;">
+            <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#9ca3af;font-size:.88rem;">🔎</span>
+            <input type="text" id="chBusca" placeholder="Buscar cliente por nome..." oninput="chFiltrar(this.value)" autocomplete="off" style="width:100%;padding:7px 12px 7px 32px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;">
+        </div>
+        <button id="chBuscaLimpar" onclick="chFiltrar(''); document.getElementById('chBusca').value='';" style="display:none;padding:7px 12px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:8px;cursor:pointer;font-size:.78rem;">✕ Limpar</button>
+        <span id="chBuscaInfo" style="font-size:.72rem;color:#6b7280;"></span>
+    </div>
     <div class="ch-kanban">
         <?php foreach ($colunas as $colKey => $col): ?>
         <div class="ch-col">
@@ -701,6 +709,31 @@ function avancarEtapaEmMassa(ids, acao) {
     form.innerHTML = html;
     document.body.appendChild(form);
     form.submit();
+}
+
+function chFiltrar(termo) {
+    var q = (termo || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    var btnLimpar = document.getElementById('chBuscaLimpar');
+    var info = document.getElementById('chBuscaInfo');
+    btnLimpar.style.display = q ? 'inline-block' : 'none';
+
+    var cards = document.querySelectorAll('.ch-kanban .ch-card');
+    var visiveis = 0, total = cards.length;
+    cards.forEach(function(card) {
+        var nomeEl = card.querySelector('.ch-card-name');
+        var nome = (nomeEl ? nomeEl.textContent : '').toLowerCase();
+        var match = !q || nome.indexOf(q) !== -1;
+        card.style.display = match ? '' : 'none';
+        if (match) visiveis++;
+    });
+    info.textContent = q ? (visiveis + ' de ' + total + ' clientes') : '';
+
+    // Atualiza contagem visual nas colunas
+    document.querySelectorAll('.ch-col').forEach(function(col) {
+        var vis = col.querySelectorAll('.ch-card:not([style*="display: none"])').length;
+        var counter = col.querySelector('.ch-col-header span');
+        if (counter) counter.textContent = vis;
+    });
 }
 
 function chToggleGrp(id) {
