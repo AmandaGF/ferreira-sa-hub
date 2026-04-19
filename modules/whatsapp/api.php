@@ -374,7 +374,7 @@ if ($action === 'casos_do_cliente') {
     $conv = $conv->fetch();
     if (!$conv || !$conv['client_id']) { echo json_encode(array('ok' => true, 'casos' => array(), 'erro' => 'Conversa sem cliente vinculado')); exit; }
 
-    $cases = $pdo->prepare("SELECT id, client_title, case_type, drive_folder_url, status
+    $cases = $pdo->prepare("SELECT id, title AS client_title, case_type, drive_folder_url, status
                             FROM cases WHERE client_id = ?
                             ORDER BY status = 'arquivado' ASC, created_at DESC");
     $cases->execute(array($conv['client_id']));
