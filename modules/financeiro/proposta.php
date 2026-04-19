@@ -48,11 +48,12 @@ $semJurosMulta = isset($_GET['sem_jm']) ? ((int)$_GET['sem_jm'] === 1) : $tirarJ
 $prazoProposta = $_GET['prazo'] ?? date('Y-m-d', strtotime('+7 days'));
 $observacoes   = trim($_GET['obs'] ?? '');
 
-// Juros: 1% a.m. pro rata dia (0.033%/dia) + multa 2% sobre o valor
+// Conforme CLÁUSULA 5.1 do contrato padrão do escritório:
+// "multa pecuniária de 20%, juros de mora de 1% ao mês e correção monetária"
 function calcular_juros_multa($valor, $diasAtraso) {
     if ($diasAtraso <= 0) return array('juros' => 0, 'multa' => 0, 'total' => $valor);
-    $multa = $valor * 0.02;
-    $juros = $valor * 0.01 * ($diasAtraso / 30); // 1% ao mês, pro-rata
+    $multa = $valor * 0.20;                        // 20% contratual
+    $juros = $valor * 0.01 * ($diasAtraso / 30);   // 1% ao mês, pro-rata dia
     return array('juros' => $juros, 'multa' => $multa, 'total' => $valor + $multa + $juros);
 }
 
@@ -261,11 +262,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <table style="margin-top:1rem;">
             <tr><td style="font-weight:700;">Total vencido (valor nominal):</td><td style="text-align:right;">R$ <?= number_format($totalVencido, 2, ',', '.') ?></td></tr>
             <?php if (!$semJurosMulta && ($totalJuros + $totalMulta) > 0): ?>
-            <tr><td style="font-weight:700;">+ Juros de mora (1%/mês) e multa (2%):</td><td style="text-align:right;color:#b45309;">R$ <?= number_format($totalJuros + $totalMulta, 2, ',', '.') ?></td></tr>
+            <tr><td style="font-weight:700;">+ Multa contratual (20%) e juros de mora (1%/mês):</td><td style="text-align:right;color:#b45309;">R$ <?= number_format($totalJuros + $totalMulta, 2, ',', '.') ?></td></tr>
             <?php endif; ?>
             <tr><td style="font-weight:700;">Total a vencer:</td><td style="text-align:right;">R$ <?= number_format($totalPendente, 2, ',', '.') ?></td></tr>
             <tr style="background:#fef2f2;"><td style="font-weight:800;">TOTAL DEVIDO <?= $semJurosMulta ? '(sem acréscimos)' : 'com acréscimos' ?>:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.05rem;">R$ <?= number_format($baseProposta, 2, ',', '.') ?></td></tr>
         </table>
+        <?php if (!$semJurosMulta): ?>
+        <p style="font-size:.7rem;color:#64748b;font-style:italic;margin-top:-.5rem;">Acréscimos calculados conforme <strong>cláusula 5.1 do contrato de honorários</strong>: multa pecuniária de 20%, juros de mora de 1% ao mês e correção monetária.</p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if (($totalVencido + $totalPendente) > 0): ?>
