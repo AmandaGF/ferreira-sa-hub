@@ -226,15 +226,16 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
  * Cobre variações do Multi Device.
  */
 function zapi_detecta_tipo($payload) {
-    if (isset($payload['image']))    return 'imagem';
-    if (isset($payload['document']))  return 'documento';
-    if (isset($payload['audio']))    return 'audio';
-    if (isset($payload['video']))    return 'video';
-    if (isset($payload['sticker']))  return 'sticker';
-    if (isset($payload['location'])) return 'localizacao';
-    if (isset($payload['contact']) || isset($payload['contacts'])) return 'contato';
-    if (isset($payload['reaction'])) return 'reacao';
-    if (isset($payload['poll']))     return 'enquete';
+    // Variantes Multi Device: image, imageMessage, isImage
+    if (isset($payload['image']) || isset($payload['imageMessage']) || !empty($payload['isImage'])) return 'imagem';
+    if (isset($payload['document']) || isset($payload['documentMessage']) || !empty($payload['isDocument'])) return 'documento';
+    if (isset($payload['audio']) || isset($payload['audioMessage']) || isset($payload['pushToTalk']) || isset($payload['ptt']) || !empty($payload['isAudio']) || !empty($payload['isPtt'])) return 'audio';
+    if (isset($payload['video']) || isset($payload['videoMessage']) || !empty($payload['isVideo'])) return 'video';
+    if (isset($payload['sticker']) || isset($payload['stickerMessage'])) return 'sticker';
+    if (isset($payload['location']) || isset($payload['locationMessage'])) return 'localizacao';
+    if (isset($payload['contact']) || isset($payload['contacts']) || isset($payload['contactMessage'])) return 'contato';
+    if (isset($payload['reaction']) || isset($payload['reactionMessage'])) return 'reacao';
+    if (isset($payload['poll']) || isset($payload['pollCreationMessage'])) return 'enquete';
     if (isset($payload['buttonsResponseMessage']) || isset($payload['listResponseMessage'])) return 'botao';
     // Texto em várias formas possíveis (Multi Device)
     if (isset($payload['text']['message'])) return 'texto';
@@ -290,19 +291,39 @@ function zapi_extrai_conteudo($payload, $tipo) {
  * Extrai URL do arquivo anexado (tenta múltiplas chaves possíveis da Z-API).
  */
 function zapi_extrai_arquivo($payload, $tipo) {
-    $map = array(
-        'imagem'    => 'image',
-        'video'     => 'video',
-        'documento' => 'document',
-        'audio'     => 'audio',
-        'sticker'   => 'sticker',
+    // Tenta múltiplas chaves (Multi Device usa nomes variados)
+    $tryKeys = array(
+        'imagem'    => array('image', 'imageMessage'),
+        'video'     => array('video', 'videoMessage'),
+        'documento' => array('document', 'documentMessage'),
+        'audio'     => array('audio', 'audioMessage', 'pushToTalk', 'ptt'),
+        'sticker'   => array('sticker', 'stickerMessage'),
     );
-    if (!isset($map[$tipo])) return null;
-    $key = $map[$tipo];
-    if (!isset($payload[$key]) || !is_array($payload[$key])) return null;
-    $blk = $payload[$key];
+    if (!isset($tryKeys[$tipo])) return null;
 
-    // Z-API usa diferentes nomes conforme a versão: imageUrl, url, fileUrl, mediaUrl, etc.
+    $blk = null;
+    foreach ($tryKeys[$tipo] as $k) {
+        if (isset($payload[$k]) && is_array($payload[$k])) { $blk = $payload[$k]; break; }
+    }
+
+    // Fallback: pode estar no nível raiz (isImage=true, imageUrl na raiz)
+    if (!$blk) {
+        $raizUrlKeys = array('imageUrl','videoUrl','documentUrl','audioUrl','stickerUrl','url','fileUrl','mediaUrl','downloadUrl');
+        $urlRaiz = null;
+        foreach ($raizUrlKeys as $k) {
+            if (isset($payload[$k]) && is_string($payload[$k])) { $urlRaiz = $payload[$k]; break; }
+        }
+        if ($urlRaiz) {
+            return array(
+                'url'     => $urlRaiz,
+                'nome'    => $payload['fileName'] ?? ($payload['filename'] ?? null),
+                'mime'    => $payload['mimeType'] ?? ($payload['mime'] ?? null),
+                'tamanho' => $payload['fileSize'] ?? ($payload['size'] ?? null),
+            );
+        }
+        return null;
+    }
+
     $url = $blk['imageUrl']    ?? $blk['videoUrl']    ?? $blk['documentUrl']
         ?? $blk['audioUrl']    ?? $blk['stickerUrl']
         ?? $blk['url']         ?? $blk['fileUrl']     ?? $blk['mediaUrl']
