@@ -2676,8 +2676,11 @@ function cadastrarClienteDaParte() {
     dados.append('address_state', (document.getElementById('parteUf') || {value:''}).value || '');
     dados.append('address_zip', (document.getElementById('parteCep') || {value:''}).value || '');
     dados.append('csrf_token', '<?= generate_csrf_token() ?>');
-    fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: dados, credentials: 'same-origin' })
-        .then(function(r){ return r.json(); })
+    fetch('<?= module_url('operacional', 'api.php') ?>', {
+            method: 'POST', body: dados, credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch(e){ return { error: 'Resposta inválida do servidor: ' + t.substring(0, 200) }; } }); })
         .then(function(d){
             if (d && d.ok && d.client_id) {
                 document.getElementById('parteClientId').value = d.client_id;
