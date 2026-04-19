@@ -12,7 +12,7 @@ $userId = current_user_id();
 $action = $_REQUEST['action'] ?? '';
 
 // CSRF só para ações que mutam
-$mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'atribuir', 'resolver',
+$mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
@@ -509,6 +509,68 @@ if ($action === 'enviar_arquivo') {
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
         ->execute(array(mb_substr($preview, 0, 500), $userId, $convId));
+
+    echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── ENVIAR ÁUDIO (nota de voz gravada pelo navegador) ───
+if ($action === 'enviar_audio') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    if (empty($_FILES['audio']) || $_FILES['audio']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Falha no upload do áudio'));
+        exit;
+    }
+
+    $conv = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $tmp = $_FILES['audio']['tmp_name'];
+    $mime = $_FILES['audio']['type'] ?: (mime_content_type($tmp) ?: 'audio/webm');
+    $tam  = (int)$_FILES['audio']['size'];
+    if ($tam > 16 * 1024 * 1024) { echo json_encode(array('error' => 'Áudio maior que 16 MB')); exit; }
+
+    // Determinar extensão pelo mime
+    $ext = 'webm';
+    if (strpos($mime, 'ogg') !== false) $ext = 'ogg';
+    elseif (strpos($mime, 'mpeg') !== false || strpos($mime, 'mp3') !== false) $ext = 'mp3';
+    elseif (strpos($mime, 'wav') !== false) $ext = 'wav';
+    elseif (strpos($mime, 'm4a') !== false || strpos($mime, 'mp4') !== false) $ext = 'm4a';
+
+    $destDir = APP_ROOT . '/files/whatsapp';
+    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+    $storedName = 'wa_audio_' . uniqid('', true) . '.' . $ext;
+    $dest = $destDir . '/' . $storedName;
+    if (!move_uploaded_file($tmp, $dest)) {
+        echo json_encode(array('error' => 'Falha ao salvar áudio no servidor'));
+        exit;
+    }
+    @chmod($dest, 0644);
+    $publicUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br') . '/conecta/files/whatsapp/' . rawurlencode($storedName);
+
+    $resp = zapi_send_audio($conv['canal'], $conv['telefone'], $publicUrl, true);
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+
+    $zapiId = '';
+    if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
+
+    $pdo->prepare(
+        "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
+            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, enviado_por_id, status)
+         VALUES (?, ?, 'enviada', 'audio', '[áudio]', ?, ?, ?, ?, ?, 'enviada')"
+    )->execute(array($convId, $zapiId, $publicUrl, $storedName, $mime, $tam, $userId));
+
+    $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[áudio]', ultima_msg_em = NOW(),
+                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   atendente_id = COALESCE(atendente_id, ?)
+                   WHERE id = ?")
+        ->execute(array($userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;

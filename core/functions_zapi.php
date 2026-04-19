@@ -129,6 +129,31 @@ function zapi_send_document($ddd, $telefone, $doc, $fileName, $caption = '') {
 }
 
 /**
+ * Envia áudio (nota de voz) via Z-API.
+ * $audio: URL HTTPS pública OU base64 (data URI). Formatos: mp3, ogg, m4a, wav, webm.
+ * $asPtt: true = aparece como mensagem de voz (PTT), false = áudio comum.
+ */
+function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-audio';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'    => zapi_normaliza_telefone($telefone),
+        'audio'    => $audio,
+        'waveform' => (bool)$asPtt,
+        'viewOnce' => false,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
+/**
  * Deleta uma mensagem no WhatsApp via Z-API (remove para todos).
  */
 function zapi_delete_message($ddd, $telefone, $zapiMessageId) {
