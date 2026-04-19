@@ -120,7 +120,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </a>
         <?php if (has_min_role('gestao')): ?>
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
-            <a href="<?= module_url('whatsapp', 'config.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
+            <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
         <?php endif; ?>
     </div>
 </div>
