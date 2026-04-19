@@ -103,7 +103,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             Ir para <?= $isComercial ? 'DDD 24 (CX)' : 'DDD 21 (Comercial)' ?> →
         </a>
         <?php if (has_min_role('gestao')): ?>
-            <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar conversas antigas do WhatsApp">🔄 Importar histórico</button>
+            <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
             <a href="<?= module_url('whatsapp', 'configurar.php') ?>" class="btn btn-outline btn-sm">⚙️ Configurar</a>
         <?php endif; ?>
     </div>
@@ -258,7 +258,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
-        actions += '<button onclick="waSincronizar()" title="Baixar mensagens antigas do WhatsApp">⬇ Histórico</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         actions += '</div>';
 
@@ -409,14 +408,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
     window.waSincronizar = function() {
-        var q = prompt('Quantas mensagens antigas baixar desta conversa?\n(máximo 500, padrão 200)', '200');
-        if (q === null) return;
-        var limite = Math.min(Math.max(parseInt(q, 10) || 200, 1), 500);
-        acaoConversa('sincronizar_conversa', { limite: limite }).then(function(d){
-            if (d.error) { alert('Erro: ' + d.error); return; }
-            alert('Importadas: ' + d.importadas + ' / ' + d.total + ' do histórico.\n(Duplicadas foram ignoradas.)');
-            window.waAbrir(convAtiva);
-        });
+        alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');
     };
 
     // ── TEMPLATES (respostas rápidas) ───────────────────
@@ -464,7 +456,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // ── IMPORTAR TODAS AS CONVERSAS ANTIGAS ─────────────
     window.waImportarTodas = function() {
-        if (!confirm('Importar as últimas 50 conversas do WhatsApp (até 30 mensagens cada)?\n\nIsso pode levar 30–60 segundos. Continuar?')) return;
+        if (!confirm('Importar a lista de contatos que já têm conversa no WhatsApp?\n\nNota: por limitação da Z-API Multi Device, apenas os contatos/telefones são importados — as mensagens antigas não vêm. Mensagens futuras (após a configuração do webhook) serão capturadas normalmente.\n\nContinuar?')) return;
         var btn = event.target;
         btn.disabled = true; btn.textContent = 'Importando...';
         var fd = new FormData();
