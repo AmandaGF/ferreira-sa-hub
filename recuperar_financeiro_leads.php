@@ -104,15 +104,15 @@ foreach ($docs as $d) {
         $updates = array();
         $vals = array();
 
-        // Valor (só preenche se vazio)
+        // Valor (só preenche se vazio) — mantém honorarios_cents e estimated_value_cents iguais (dashboard usa o segundo)
         if ($valor && empty($l['honorarios_cents']) && empty($l['valor_acao'])) {
             $updates[] = 'valor_acao = ?';
             $vals[] = $valor;
-            // Converter para cents também
             $numericValor = (float)str_replace(array('.', ','), array('', '.'), preg_replace('/[^\d,.]/', '', $valor));
             if ($numericValor > 0) {
-                $updates[] = 'honorarios_cents = ?';
-                $vals[] = (int)round($numericValor * 100);
+                $cents = (int)round($numericValor * 100);
+                $updates[] = 'honorarios_cents = ?';         $vals[] = $cents;
+                $updates[] = 'estimated_value_cents = ?';    $vals[] = $cents;
             }
         }
         if ($forma && empty($l['forma_pagamento'])) {
