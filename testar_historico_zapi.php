@@ -56,7 +56,9 @@ foreach ($tentativas as $t) {
     $url = $base . '/chat-messages/' . $telTest . '?' . $t['q'];
     $r = get($url, $headers);
     $n = is_array($r['json']) ? count($r['json']) : 0;
-    echo sprintf("  %-35s HTTP %d, retornou %d msgs\n", $t['q'], $r['code'], $n);
+    $erro = '';
+    if ($r['code'] !== 200 && is_array($r['json'])) $erro = $r['json']['message'] ?? $r['json']['error'] ?? '';
+    echo sprintf("  %-35s HTTP %d, %d msgs, erro: %s\n", $t['q'], $r['code'], $n, substr($erro, 0, 100));
 }
 
 // Teste 2: endpoints alternativos
