@@ -18,7 +18,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
                   'salvar_drive',
-                  'fila_marcar_enviada', 'fila_descartar', 'fila_editar');
+                  'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
+                  'gerar_link_salavip');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -633,6 +634,70 @@ if ($action === 'enviar_rapido') {
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'conversa_id' => $conv['id'] ?? null));
+    exit;
+}
+
+// ── GERAR/RENOVAR LINK DA CENTRAL VIP e retornar mensagem pronta pro WhatsApp ──
+if ($action === 'gerar_link_salavip') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    $conv = $pdo->prepare("SELECT co.*, cl.id AS cli_id, cl.name AS cli_name, cl.cpf AS cli_cpf, cl.email AS cli_email
+                           FROM zapi_conversas co LEFT JOIN clients cl ON cl.id = co.client_id
+                           WHERE co.id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv || !$conv['cli_id']) {
+        echo json_encode(array('error' => 'Conversa sem cliente vinculado. Vincule um cliente primeiro.'));
+        exit;
+    }
+
+    $clientId = (int)$conv['cli_id'];
+    $cpf = preg_replace('/\D/', '', $conv['cli_cpf'] ?? '');
+    if (!$cpf) { echo json_encode(array('error' => 'Cliente sem CPF cadastrado. Edite o cadastro primeiro.')); exit; }
+
+    // Buscar ou criar entrada em salavip_usuarios
+    $svStmt = $pdo->prepare("SELECT id, ativo FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+    $svStmt->execute(array($clientId));
+    $sv = $svStmt->fetch();
+
+    $token = bin2hex(random_bytes(32));
+    $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
+
+    if ($sv) {
+        // Renova token
+        $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
+            ->execute(array($token, $expira, $sv['id']));
+        audit_log('sv_renovar_via_wa', 'client', $clientId, 'Token renovado no chat WA');
+    } else {
+        // Cria novo
+        $pdo->prepare("INSERT INTO salavip_usuarios (cliente_id, cpf, token_ativacao, token_expira, ativo) VALUES (?, ?, ?, ?, 0)")
+            ->execute(array($clientId, $cpf, $token, $expira));
+        audit_log('sv_criar_via_wa', 'client', $clientId, 'Acesso criado no chat WA');
+    }
+
+    $linkAtivacao = 'https://www.ferreiraesa.com.br/salavip/ativar_conta.php?token=' . $token;
+    $primeiroNome = explode(' ', $conv['cli_name'])[0];
+    $cpfFmt = preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $cpf);
+    $msg = "Olá {$primeiroNome}! 🔑\n\n"
+         . "Aqui está seu acesso à *Central VIP Ferreira & Sá* — o portal exclusivo onde você acompanha seu processo, envia documentos e conversa com a equipe:\n\n"
+         . "🔗 *Link de ativação (válido por 72h):*\n{$linkAtivacao}\n\n"
+         . "📋 *Como acessar:*\n"
+         . "1. Clique no link acima e crie sua senha\n"
+         . "2. Depois, entre em https://www.ferreiraesa.com.br/salavip/ usando:\n"
+         . "   • CPF: *{$cpfFmt}*\n"
+         . "   • Senha: a que você acabou de criar\n\n"
+         . "Qualquer dúvida, é só responder aqui. 😊\n\n_Ferreira & Sá Advocacia_";
+
+    echo json_encode(array(
+        'ok' => true,
+        'mensagem' => $msg,
+        'link' => $linkAtivacao,
+        'telefone' => $conv['telefone'],
+        'canal' => $conv['canal'],
+        'client_id' => $clientId,
+        'client_name' => $conv['cli_name'],
+    ));
     exit;
 }
 

@@ -327,6 +327,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
         actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
+        if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         actions += '</div>';
 
@@ -922,6 +923,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+
+    window.waEnviarLinkPortal = function() {
+        if (!convAtiva) return;
+        if (!confirm('Gerar novo link de ativação da Central VIP e abrir pra envio?\n\n(o link antigo será invalidado e um novo token de 72h será criado)')) return;
+        var fd = new FormData();
+        fd.append('action', 'gerar_link_salavip');
+        fd.append('conversa_id', convAtiva);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('❌ ' + d.error); return; }
+                if (d.ok) {
+                    waSenderOpen({
+                        telefone: d.telefone,
+                        nome: d.client_name,
+                        mensagem: d.mensagem,
+                        canal: d.canal,
+                        clientId: d.client_id,
+                        onSuccess: function() { window.waAbrir(convAtiva); }
+                    });
+                }
+            })
+            .catch(function(err){ alert('Falha: ' + err); });
+    };
 
     window.waCriarChamado = function() {
         if (!convAtiva) return;
