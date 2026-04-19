@@ -88,11 +88,14 @@ echo voltar_ao_processo_html();
         · Asaas: <?= $asaasId ? '<span style="color:#059669;">✓ Vinculado (' . e($asaasId) . ')</span>' : '<span style="color:#f59e0b;">Não vinculado</span>' ?>
         <?php if ($vinculoErro): ?><span style="color:#dc2626;"> — <?= e($vinculoErro) ?></span><?php endif; ?>
     </div>
-    <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+    <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap;">
         <?php if ($client['phone']): ?>
         <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>" target="_blank" class="btn btn-success btn-sm" style="font-size:.72rem;">💬 WhatsApp</a>
         <?php endif; ?>
         <a href="<?= module_url('clientes', 'ver.php?id=' . $clientId) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);font-size:.72rem;">👤 Ver cadastro</a>
+        <?php if (($totalPendente + $totalVencido) > 0): ?>
+        <a href="<?= module_url('financeiro', 'proposta.php?id=' . $clientId) ?>" class="btn btn-sm" style="background:#b45309;color:#fff;font-size:.72rem;font-weight:700;">📄 Gerar Proposta de Acordo</a>
+        <?php endif; ?>
     </div>
 </div>
 
