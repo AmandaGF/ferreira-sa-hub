@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Hub — WhatsApp CRM Inbox
+ * Ferreira & Sá Hub — WhatsApp CRM Inbox + Chat
  * Canal: ?canal=21 (Comercial) | ?canal=24 (CX/Operacional)
  */
 
@@ -22,19 +22,20 @@ $inst = zapi_get_instancia($canal);
 $cfg  = zapi_get_config();
 $configurado = $inst && $inst['instancia_id'] !== '' && $inst['token'] !== '';
 
-// Cores por canal
-$accentColor = $isComercial ? '#b08d6e' : '#0f3460';        // dourado / azul petróleo
+$accentColor = $isComercial ? '#b08d6e' : '#0f3460';
 $accentLight = $isComercial ? '#fdf5ed' : '#eef2f8';
+
+$csrfToken = generate_csrf_token();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.wa-wrap { display:grid;grid-template-columns:360px 1fr;gap:.5rem;height:calc(100vh - 140px);min-height:520px; }
+.wa-wrap { display:grid;grid-template-columns:360px 1fr;gap:.5rem;height:calc(100vh - 140px);min-height:560px; }
 .wa-pane { background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column; }
 .wa-head { padding:.6rem .9rem;background:<?= $accentColor ?>;color:#fff;font-weight:600;font-size:.9rem;display:flex;align-items:center;gap:.5rem; }
 .wa-head-sub { font-size:.7rem;opacity:.8;font-weight:400;margin-left:auto; }
-.wa-badge-canal { display:inline-block;padding:1px 8px;border-radius:10px;font-size:.65rem;font-weight:700;background:#fff;color:<?= $accentColor ?>;letter-spacing:.3px; }
+.wa-badge-canal { display:inline-block;padding:1px 8px;border-radius:10px;font-size:.65rem;font-weight:700;background:<?= $accentColor ?>;color:#fff;letter-spacing:.3px; }
 .wa-status-dot { display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.2rem; }
 .wa-status-dot.on  { background:#22c55e;box-shadow:0 0 4px #22c55e; }
 .wa-status-dot.off { background:#ef4444; }
@@ -57,18 +58,45 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-empty { padding:2rem 1rem;text-align:center;color:var(--text-muted);font-size:.85rem; }
 .wa-chat-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;padding:2rem; }
 .wa-chat-empty-ico { font-size:3rem;margin-bottom:.5rem;opacity:.4; }
+.wa-chat-head { padding:.6rem .9rem;background:#f9fafb;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap; }
+.wa-chat-head strong { font-size:.9rem; }
+.wa-chat-actions { margin-left:auto;display:flex;gap:.3rem;flex-wrap:wrap; }
+.wa-chat-actions button { padding:4px 8px;font-size:.72rem;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text); }
+.wa-chat-actions button:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
+.wa-chat-actions .btn-primary-sm { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
+.wa-chat-body { flex:1;overflow-y:auto;padding:1rem;background:#faf8f5; }
+.wa-msg-row { display:flex;margin-bottom:.4rem; }
+.wa-msg-row.left { justify-content:flex-start; }
+.wa-msg-row.right { justify-content:flex-end; }
+.wa-msg { max-width:70%;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.5rem .75rem;font-size:.83rem;box-shadow:0 1px 2px rgba(0,0,0,.04); }
+.wa-msg.sent { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
+.wa-msg.bot  { background:#ede9fe;border-color:#c4b5fd; }
+.wa-msg-tag { font-size:.62rem;font-weight:700;margin-bottom:2px; }
+.wa-msg-time { font-size:.62rem;color:#9ca3af;text-align:right;margin-top:3px; }
+.wa-chat-input { padding:.5rem .6rem;border-top:1px solid var(--border);background:#fff;display:flex;gap:.4rem;align-items:flex-end; }
+.wa-chat-input textarea { flex:1;min-height:38px;max-height:120px;resize:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;font-family:inherit; }
+.wa-btn-send { padding:8px 16px;background:<?= $accentColor ?>;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem; }
+.wa-btn-send:disabled { opacity:.5;cursor:not-allowed; }
+.wa-btn-tpl { padding:8px 10px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem; }
+.wa-templates-menu { position:absolute;bottom:56px;left:10px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);padding:.5rem;max-width:340px;z-index:100;display:none; }
+.wa-templates-menu.open { display:block; }
+.wa-tpl-item { padding:.4rem .6rem;border-radius:6px;cursor:pointer;font-size:.78rem;border-bottom:1px solid #f3f4f6; }
+.wa-tpl-item:hover { background:<?= $accentLight ?>; }
+.wa-tpl-item strong { display:block;color:var(--text);margin-bottom:2px; }
+.wa-tpl-item span { color:var(--text-muted);font-size:.72rem; }
 .wa-not-config { padding:1.5rem;background:#fffbeb;border:1px solid #f59e0b;border-radius:10px;color:#78350f; }
 @media (max-width:900px){ .wa-wrap{grid-template-columns:1fr;height:auto;} }
 </style>
 
 <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;">
     <h1 style="margin:0;">💬 WhatsApp <?= e($canalLabel) ?></h1>
-    <span class="wa-badge-canal" style="background:<?= $accentColor ?>;color:#fff;">DDD <?= e($canal) ?></span>
+    <span class="wa-badge-canal">DDD <?= e($canal) ?></span>
     <?php if ($configurado): ?>
-        <span style="display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);">
-            <span class="wa-status-dot <?= !empty($inst['conectado']) ? 'on' : 'off' ?>"></span>
-            <?= !empty($inst['conectado']) ? 'Conectado' : 'Desconectado' ?>
+        <span id="waStatusIndicator" style="display:inline-flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);">
+            <span class="wa-status-dot <?= !empty($inst['conectado']) ? 'on' : 'off' ?>" id="waStatusDot"></span>
+            <span id="waStatusText"><?= !empty($inst['conectado']) ? 'Conectado' : 'Desconectado' ?></span>
         </span>
+        <button onclick="waVerificarStatus()" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 8px;" title="Consultar status na Z-API">🔄</button>
     <?php endif; ?>
     <div style="margin-left:auto;display:flex;gap:.4rem;">
         <a href="<?= url('modules/whatsapp/?canal=' . ($isComercial ? '24' : '21')) ?>" class="btn btn-outline btn-sm">
@@ -105,7 +133,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter active" data-filter="todos">Todos</button>
                 <button class="wa-filter" data-filter="aguardando">Aguardando</button>
                 <button class="wa-filter" data-filter="em_atendimento">Em atend.</button>
-                <button class="wa-filter" data-filter="bot">🤖 Bot</button>
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
             </div>
@@ -115,30 +142,41 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
 
-    <!-- ── Coluna direita: Chat (placeholder 1.3) ────────── -->
-    <div class="wa-pane">
-        <div class="wa-head" style="background:#f9fafb;color:var(--text);border-bottom:1px solid var(--border);">
-            <span id="waChatTitle">Selecione uma conversa</span>
+    <!-- ── Coluna direita: Chat ────────────────────────── -->
+    <div class="wa-pane" style="position:relative;">
+        <div class="wa-chat-head" id="waChatHeadContainer">
+            <strong id="waChatTitle">Selecione uma conversa</strong>
             <span class="wa-head-sub" id="waChatSub"></span>
         </div>
-        <div id="waChatBody" style="flex:1;overflow-y:auto;padding:1rem;background:#fafafa;">
+        <div id="waChatBody" class="wa-chat-body">
             <div class="wa-chat-empty">
                 <div class="wa-chat-empty-ico">💬</div>
-                <div>Clique em uma conversa à esquerda para visualizar as mensagens.</div>
-                <div style="font-size:.75rem;margin-top:.5rem;opacity:.7;">Envio de mensagens será liberado no próximo checkpoint.</div>
+                <div>Clique em uma conversa à esquerda para ver e responder.</div>
             </div>
+        </div>
+
+        <!-- Menu de templates (popover) -->
+        <div class="wa-templates-menu" id="waTemplatesMenu"></div>
+
+        <!-- Input de mensagem (escondido até abrir uma conversa) -->
+        <div class="wa-chat-input" id="waChatInput" style="display:none;">
+            <button class="wa-btn-tpl" onclick="waToggleTemplates()" title="Respostas rápidas">📋</button>
+            <textarea id="waInput" placeholder="Digite uma mensagem (Shift+Enter = nova linha)..." rows="1"></textarea>
+            <button class="wa-btn-send" id="waBtnSend" onclick="waEnviar()">➤ Enviar</button>
         </div>
     </div>
 </div>
 
 <script>
 (function(){
-    var canal = '<?= e($canal) ?>';
+    var canal  = '<?= e($canal) ?>';
     var apiUrl = '<?= module_url('whatsapp', 'api.php') ?>';
+    var csrf   = '<?= e($csrfToken) ?>';
     var filtroAtual = 'todos';
-    var buscaAtual = '';
-    var convAtiva = null;
-    var pollTimer = null;
+    var buscaAtual  = '';
+    var convAtiva   = null;
+    var pollTimer   = null;
+    var templatesCache = null;
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
@@ -158,6 +196,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
     }
 
+    // ── LISTA DE CONVERSAS ──────────────────────────────
     function carregarLista() {
         var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual);
         fetch(url).then(function(r){ return r.json(); }).then(function(d){
@@ -190,6 +229,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     }
 
+    // ── ABRIR CONVERSA ──────────────────────────────────
     window.waAbrir = function(id) {
         convAtiva = id;
         document.querySelectorAll('.wa-conv').forEach(function(el){ el.classList.remove('active'); });
@@ -198,35 +238,175 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         fetch(apiUrl + '?action=abrir_conversa&id=' + id).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
-            var c = d.conversa;
-            var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
-            document.getElementById('waChatTitle').textContent = nome;
-            document.getElementById('waChatSub').textContent = formatTel(c.telefone) + (c.atendente_name ? ' · 👤 ' + c.atendente_name : '');
-            var body = document.getElementById('waChatBody');
-            if (!d.mensagens.length) {
-                body.innerHTML = '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem nesta conversa ainda.</div></div>';
-                return;
-            }
-            var html = '<div style="display:flex;flex-direction:column;gap:.5rem;">';
-            d.mensagens.forEach(function(m){
-                var dir = m.direcao === 'recebida' ? 'left' : 'right';
-                var bg  = m.direcao === 'recebida' ? '#fff' : (+m.enviado_por_bot ? '#ede9fe' : '<?= $accentLight ?>');
-                var border = m.direcao === 'recebida' ? '#e5e7eb' : '<?= $accentColor ?>';
-                html += '<div style="display:flex;justify-content:'+(dir==='left'?'flex-start':'flex-end')+';">';
-                html += '  <div style="max-width:70%;background:'+bg+';border:1px solid '+border+';border-radius:10px;padding:.5rem .75rem;font-size:.82rem;">';
-                if (+m.enviado_por_bot) html += '<div style="font-size:.65rem;font-weight:700;color:#7c3aed;margin-bottom:2px;">🤖 BOT</div>';
-                html += '<div style="white-space:pre-wrap;">' + escapeHtml(m.conteudo||'') + '</div>';
-                html += '<div style="font-size:.62rem;color:#9ca3af;text-align:right;margin-top:3px;">' + formatHora(m.created_at) + '</div>';
-                html += '  </div>';
-                html += '</div>';
-            });
-            html += '</div>';
-            body.innerHTML = html;
-            body.scrollTop = body.scrollHeight;
+            renderConversa(d);
         });
     };
 
-    // Filtros
+    function renderConversa(d) {
+        var c = d.conversa;
+        var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
+
+        // Header com ações
+        var head = document.getElementById('waChatHeadContainer');
+        var actions = '<div class="wa-chat-actions">';
+        if (!c.atendente_id || +c.atendente_id !== <?= (int)$user['id'] ?>) {
+            actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
+        }
+        if (c.status !== 'resolvido') {
+            actions += '<button onclick="waResolver()">✅ Resolver</button>';
+        }
+        actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
+        actions += '</div>';
+
+        var subTxt = formatTel(c.telefone);
+        if (c.atendente_name) subTxt += ' · 👤 ' + c.atendente_name;
+        if (c.client_name) subTxt += ' · 🎯 Cliente';
+        else if (c.lead_name) subTxt += ' · 📈 Lead';
+
+        head.innerHTML =
+            '<strong>' + escapeHtml(nome) + '</strong>' +
+            '<span class="wa-head-sub">' + escapeHtml(subTxt) + '</span>' +
+            actions;
+
+        // Body com mensagens
+        var body = document.getElementById('waChatBody');
+        if (!d.mensagens.length) {
+            body.innerHTML = '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
+        } else {
+            var html = '';
+            d.mensagens.forEach(function(m){
+                var dir = m.direcao === 'recebida' ? 'left' : 'right';
+                var cls = 'wa-msg';
+                if (m.direcao === 'enviada') cls += ' sent';
+                if (+m.enviado_por_bot) cls += ' bot';
+                html += '<div class="wa-msg-row '+dir+'">';
+                html += '<div class="'+cls+'">';
+                if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
+                else if (m.direcao === 'enviada' && m.enviado_por_name) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
+                html += '<div style="white-space:pre-wrap;word-break:break-word;">' + escapeHtml(m.conteudo||'') + '</div>';
+                var statusIcon = '';
+                if (m.direcao === 'enviada') {
+                    if (+m.lida) statusIcon = ' <span style="color:#3b82f6;">✓✓</span>';
+                    else if (+m.entregue) statusIcon = ' <span style="color:#9ca3af;">✓✓</span>';
+                    else statusIcon = ' <span style="color:#9ca3af;">✓</span>';
+                }
+                html += '<div class="wa-msg-time">' + formatHora(m.created_at) + statusIcon + '</div>';
+                html += '</div>';
+                html += '</div>';
+            });
+            body.innerHTML = html;
+            body.scrollTop = body.scrollHeight;
+        }
+
+        // Mostrar input de mensagem
+        document.getElementById('waChatInput').style.display = 'flex';
+        document.getElementById('waInput').focus();
+    }
+
+    // ── ENVIAR MENSAGEM ─────────────────────────────────
+    window.waEnviar = function() {
+        if (!convAtiva) return;
+        var txt = document.getElementById('waInput').value.trim();
+        if (!txt) return;
+        var btn = document.getElementById('waBtnSend');
+        btn.disabled = true; btn.textContent = 'Enviando...';
+
+        var fd = new FormData();
+        fd.append('action', 'enviar_mensagem');
+        fd.append('conversa_id', convAtiva);
+        fd.append('mensagem', txt);
+        fd.append('csrf_token', csrf);
+
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            btn.disabled = false; btn.textContent = '➤ Enviar';
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            document.getElementById('waInput').value = '';
+            window.waAbrir(convAtiva);
+            carregarLista();
+        }).catch(function(e){
+            btn.disabled = false; btn.textContent = '➤ Enviar';
+            alert('Falha: ' + e);
+        });
+    };
+
+    // Enter = enviar, Shift+Enter = nova linha
+    document.addEventListener('keydown', function(e){
+        if (e.target.id === 'waInput' && e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            waEnviar();
+        }
+    });
+
+    // ── AÇÕES NA CONVERSA ───────────────────────────────
+    function acaoConversa(action, extra) {
+        if (!convAtiva) return;
+        var fd = new FormData();
+        fd.append('action', action);
+        fd.append('conversa_id', convAtiva);
+        fd.append('csrf_token', csrf);
+        if (extra) for (var k in extra) fd.append(k, extra[k]);
+        return fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); });
+    }
+    window.waAssumir   = function() { acaoConversa('assumir_atendimento').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+    window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+    window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+
+    // ── TEMPLATES (respostas rápidas) ───────────────────
+    window.waToggleTemplates = function() {
+        var menu = document.getElementById('waTemplatesMenu');
+        if (menu.classList.contains('open')) { menu.classList.remove('open'); return; }
+        if (templatesCache === null) {
+            fetch(apiUrl + '?action=listar_templates&canal=' + canal).then(function(r){ return r.json(); }).then(function(d){
+                if (!d.ok) return;
+                templatesCache = d.templates;
+                renderTemplates();
+                menu.classList.add('open');
+            });
+        } else {
+            renderTemplates();
+            menu.classList.add('open');
+        }
+    };
+    function renderTemplates() {
+        var menu = document.getElementById('waTemplatesMenu');
+        if (!templatesCache || !templatesCache.length) {
+            menu.innerHTML = '<div class="wa-empty" style="padding:1rem;">Nenhum template.</div>';
+            return;
+        }
+        var html = '';
+        templatesCache.forEach(function(t){
+            html += '<div class="wa-tpl-item" onclick=\'waUsarTemplate('+JSON.stringify(t.conteudo).replace(/\'/g,"&#39;")+')\'>';
+            html += '<strong>' + escapeHtml(t.nome) + '</strong>';
+            html += '<span>' + escapeHtml((t.conteudo||'').substr(0,80)) + '</span>';
+            html += '</div>';
+        });
+        menu.innerHTML = html;
+    }
+    window.waUsarTemplate = function(txt) {
+        document.getElementById('waInput').value = txt;
+        document.getElementById('waTemplatesMenu').classList.remove('open');
+        document.getElementById('waInput').focus();
+    };
+    // Fechar templates ao clicar fora
+    document.addEventListener('click', function(e){
+        var menu = document.getElementById('waTemplatesMenu');
+        var btn  = e.target.closest('.wa-btn-tpl');
+        if (!btn && !e.target.closest('#waTemplatesMenu')) menu.classList.remove('open');
+    });
+
+    // ── VERIFICAR STATUS DA INSTÂNCIA ───────────────────
+    window.waVerificarStatus = function() {
+        fetch(apiUrl + '?action=verificar_status&ddd=' + canal).then(function(r){ return r.json(); }).then(function(d){
+            if (!d.ok) return;
+            var dot = document.getElementById('waStatusDot');
+            var txt = document.getElementById('waStatusText');
+            if (d.conectado === true) { dot.className = 'wa-status-dot on'; txt.textContent = 'Conectado'; }
+            else if (d.conectado === false) { dot.className = 'wa-status-dot off'; txt.textContent = 'Desconectado'; }
+            else { txt.textContent = 'Erro ao verificar'; }
+        });
+    };
+
+    // ── FILTROS / BUSCA / POLLING ───────────────────────
     document.querySelectorAll('.wa-filter').forEach(function(b){
         b.addEventListener('click', function(){
             document.querySelectorAll('.wa-filter').forEach(function(x){ x.classList.remove('active'); });
@@ -235,7 +415,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
             carregarLista();
         });
     });
-    // Busca
     var stBusca;
     document.getElementById('waSearch').addEventListener('input', function(e){
         clearTimeout(stBusca);
@@ -243,9 +422,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
         stBusca = setTimeout(carregarLista, 300);
     });
 
-    // Polling a cada 5s
+    // Verificar status automaticamente ao carregar
+    waVerificarStatus();
+
+    // Polling a cada 5s: atualiza lista + conversa aberta
     carregarLista();
-    pollTimer = setInterval(carregarLista, 5000);
+    pollTimer = setInterval(function(){
+        carregarLista();
+        if (convAtiva) {
+            // Atualiza mensagens da conversa aberta
+            fetch(apiUrl + '?action=abrir_conversa&id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
+                if (d.ok && d.mensagens) {
+                    var body = document.getElementById('waChatBody');
+                    var scrollAtBottom = (body.scrollHeight - body.scrollTop - body.clientHeight) < 50;
+                    renderConversa(d);
+                    if (!scrollAtBottom) body.scrollTop = body.scrollTop; // preserva scroll se user subiu
+                }
+            });
+        }
+    }, 5000);
 })();
 </script>
 

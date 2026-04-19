@@ -197,4 +197,13 @@ if ($action === 'listar_usuarios') {
     exit;
 }
 
+// ── VERIFICAR STATUS DA INSTÂNCIA ────────────────────────
+if ($action === 'verificar_status') {
+    $ddd = $_GET['ddd'] ?? '21';
+    if (!in_array($ddd, array('21','24'), true)) { echo json_encode(array('error'=>'DDD inválido')); exit; }
+    $conectado = zapi_verificar_status($ddd);
+    echo json_encode(array('ok' => true, 'conectado' => $conectado));
+    exit;
+}
+
 echo json_encode(array('error' => 'Ação inválida'));

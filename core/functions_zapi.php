@@ -138,13 +138,12 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
         } catch (Exception $e) {}
     }
 
-    $botAtivo = ($ddd_instancia === '21') ? 1 : 0; // bot só no 21
-
+    // Bot IA desligado por default — só ativa quando Checkpoint 1.4 estiver pronto
     $pdo->prepare(
         "INSERT INTO zapi_conversas (instancia_id, telefone, nome_contato, client_id, lead_id, canal, bot_ativo, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'aguardando')"
+         VALUES (?, ?, ?, ?, ?, ?, 0, 'aguardando')"
     )->execute(array(
-        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo
+        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia
     ));
     $newId = (int)$pdo->lastInsertId();
     return $pdo->query("SELECT * FROM zapi_conversas WHERE id = $newId")->fetch();
@@ -250,6 +249,39 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
         $arquivo['tamanho'] ?? null,
     ));
     return (int)db()->lastInsertId();
+}
+
+/**
+ * Consulta status da instância na Z-API e atualiza o DB local.
+ * @return bool|null  true=conectado, false=desconectado, null=erro
+ */
+function zapi_verificar_status($ddd) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/status';
+
+    $headers = array();
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($code < 200 || $code >= 300) return null;
+    $data = json_decode($resp, true);
+    if (!is_array($data)) return null;
+    $connected = !empty($data['connected']) || !empty($data['session']);
+    db()->prepare("UPDATE zapi_instancias SET conectado = ?, ultima_verificacao = NOW() WHERE ddd = ?")
+        ->execute(array($connected ? 1 : 0, $ddd));
+    return (bool)$connected;
 }
 
 /**
