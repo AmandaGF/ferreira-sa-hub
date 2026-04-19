@@ -1224,6 +1224,30 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                    style="width:16px;height:16px;">
             <span style="font-size:.72rem;color:<?= !empty($case['pro_bono']) ? '#059669' : 'var(--text-muted)' ?>;"><?= !empty($case['pro_bono']) ? '✓ Pro Bono' : 'Não' ?></span>
         </div>
+
+        <!-- Desfecho do Processo (afeta cobrança de honorários) -->
+        <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;border-top:1px solid var(--border);">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;" title="Usado pelo Kanban de Cobrança de Honorários para alertar quando a cobrança é questionável">🏁 Desfecho</label>
+            <?php
+            $desfechos = case_desfechos();
+            $desfAtual = $case['desfecho_processo'] ?? 'em_andamento';
+            $desfInfo = $desfechos[$desfAtual] ?? $desfechos['em_andamento'];
+            ?>
+            <select data-id="<?= $caseId ?>" data-field="desfecho_processo"
+                    onchange="salvarCampoProcesso(this); document.getElementById('avisoDesf').style.display = ['extinto_sem_julgamento','desistencia'].indexOf(this.value) !== -1 ? 'block' : 'none';"
+                    style="border:1px solid var(--border);background:<?= $desfInfo['cor'] ?>15;color:<?= $desfInfo['cor'] ?>;font-size:.78rem;padding:3px 10px;border-radius:6px;font-weight:700;cursor:pointer;">
+                <?php foreach ($desfechos as $dk => $di): ?>
+                <option value="<?= $dk ?>" <?= $desfAtual === $dk ? 'selected' : '' ?>><?= e($di['label']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php if (!$desfInfo['cobravel']): ?>
+                <span style="font-size:.68rem;color:#dc2626;font-weight:700;">⚠️ Avaliar cobrança</span>
+            <?php endif; ?>
+        </div>
+        <?php $mostrarAviso = in_array($desfAtual, array('extinto_sem_julgamento','desistencia'), true); ?>
+        <div id="avisoDesf" style="<?= $mostrarAviso ? '' : 'display:none;' ?>margin:.2rem .6rem .5rem;padding:.6rem .8rem;background:#fef2f2;border-left:4px solid #dc2626;border-radius:6px;font-size:.78rem;color:#991b1b;">
+            <strong>Atenção:</strong> Este desfecho <strong>pode impedir ou limitar a cobrança de honorários contratuais</strong>. Antes de movimentar cobrança (notif. 1/2/extrajudicial/judicial) consulte o contrato e a jurisprudência aplicável.
+        </div>
         <!-- Observações -->
         <div style="padding:.45rem .6rem;border-top:1px solid var(--border);">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);display:block;margin-bottom:.3rem;">Observações</label>

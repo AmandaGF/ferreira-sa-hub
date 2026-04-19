@@ -6,6 +6,29 @@
  * geração de tarefas para processos jurídicos.
  */
 
+// ─── Desfecho do Processo (para cobrança de honorários) ──
+/**
+ * Catálogo de desfechos processuais com efeito na cobrança de honorários.
+ * Fundamentação: CPC arts. 485 (extinção sem mérito) e 487 (com mérito).
+ */
+function case_desfechos(): array {
+    return array(
+        'em_andamento'              => array('label' => 'Em andamento',                   'cor' => '#6b7280', 'cobravel' => true,  'alerta' => null),
+        'julgado_procedente'        => array('label' => 'Julgado procedente',             'cor' => '#059669', 'cobravel' => true,  'alerta' => null),
+        'julgado_improcedente'      => array('label' => 'Julgado improcedente',           'cor' => '#d97706', 'cobravel' => true,  'alerta' => null),
+        'acordo'                    => array('label' => 'Acordo / transação',             'cor' => '#0ea5e9', 'cobravel' => true,  'alerta' => 'Conferir termos do acordo antes de cobrar honorários contratuais adicionais.'),
+        'extinto_sem_julgamento'    => array('label' => 'Extinto sem julgamento',         'cor' => '#dc2626', 'cobravel' => false, 'alerta' => '⚠️ Extinção sem resolução do mérito (CPC 485) — avaliar cuidadosamente o direito à cobrança de honorários contratuais.'),
+        'desistencia'               => array('label' => 'Desistência pelo cliente',       'cor' => '#dc2626', 'cobravel' => false, 'alerta' => '⚠️ Desistência do cliente — avaliar causa e cláusula contratual antes de cobrar.'),
+        'arquivado'                 => array('label' => 'Arquivado (outros)',             'cor' => '#94a3b8', 'cobravel' => true,  'alerta' => null),
+    );
+}
+
+function case_desfecho_info(?string $key): ?array {
+    if (!$key) return null;
+    $map = case_desfechos();
+    return $map[$key] ?? null;
+}
+
 // ─── Partes do Processo ────────────────────────────────
 
 /**

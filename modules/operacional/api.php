@@ -515,7 +515,12 @@ switch ($action) {
         }
 
         // Whitelist de campos editáveis
-        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url');
+        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url','desfecho_processo');
+
+        // Se for desfecho_processo, registra a data automaticamente
+        if ($field === 'desfecho_processo' && $value && $value !== 'em_andamento') {
+            $pdo->prepare("UPDATE cases SET desfecho_processo_em = CURDATE() WHERE id = ?")->execute(array((int)($_POST['case_id'] ?? 0)));
+        }
 
         if (!in_array($field, $allowed)) {
             echo json_encode(array('error' => 'Campo nao editavel: ' . $field));

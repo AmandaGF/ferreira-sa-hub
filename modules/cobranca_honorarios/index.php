@@ -40,6 +40,7 @@ $filaCobranca = array();
 try {
     $filaCobranca = $pdo->query(
         "SELECT hc.*, cl.name as client_name, cl.phone as client_phone, cs.title as case_title,
+                cs.desfecho_processo, cs.id as cs_id,
                 u.name as responsavel_nome,
                 DATEDIFF(CURDATE(), hc.vencimento) as dias_atraso,
                 (SELECT MAX(hh2.created_at) FROM honorarios_cobranca_historico hh2 WHERE hh2.cobranca_id = hc.id) as ultima_acao
@@ -81,6 +82,8 @@ foreach ($colunas as $ck => &$col) {
                 'client_phone' => $it['client_phone'],
                 'responsavel_nome' => $it['responsavel_nome'],
                 'case_title' => $it['case_title'],
+                'desfecho_processo' => $it['desfecho_processo'] ?? null,
+                'case_id' => $it['cs_id'] ?? null,
                 'parcelas' => array(),
                 'total_saldo' => 0,
                 'max_atraso' => 0,
@@ -167,6 +170,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ch-col-header { padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.3rem; }
 .ch-col-body { padding:.5rem; }
 .ch-card { background:#fff;border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;margin-bottom:.5rem;cursor:grab;transition:box-shadow .2s,transform .15s; }
+.ch-card.desf-bloqueado { border-left:4px solid #dc2626; background:#fffbfb; }
 .ch-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); transform:translateY(-1px); }
 .ch-card:active { cursor:grabbing; }
 .ch-col-body { min-height:100px; transition:background .15s; }
@@ -302,8 +306,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $grpId = 'grp_' . $colKey . '_' . $gi;
                     $ids = array_map(function($p){ return (int)$p['id']; }, $g['parcelas']);
                 ?>
-                <div class="ch-card" draggable="true" data-ids="<?= e(implode(',', $ids)) ?>" data-origem="<?= e($colKey) ?>" ondragstart="chDragStart(event, this)" ondragend="chDragEnd(event, this)">
+                <?php
+                $desfInfoG = function_exists('case_desfecho_info') ? case_desfecho_info($g['desfecho_processo']) : null;
+                $desfBloq = $desfInfoG && !$desfInfoG['cobravel'];
+                ?>
+                <div class="ch-card<?= $desfBloq ? ' desf-bloqueado' : '' ?>" draggable="true" data-ids="<?= e(implode(',', $ids)) ?>" data-origem="<?= e($colKey) ?>" data-desf="<?= e($g['desfecho_processo'] ?? '') ?>" ondragstart="chDragStart(event, this)" ondragend="chDragEnd(event, this)">
                     <!-- Header do cliente (clique expande/recolhe) -->
+                    <?php if ($desfBloq): ?>
+                    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:4px 8px;margin-bottom:.4rem;font-size:.68rem;font-weight:700;color:#991b1b;" title="<?= e($desfInfoG['alerta'] ?? '') ?>">
+                        ⚠️ <?= e($desfInfoG['label']) ?> — avaliar direito à cobrança
+                    </div>
+                    <?php endif; ?>
                     <div onclick="chToggleGrp('<?= $grpId ?>')" style="cursor:pointer;">
                         <div class="ch-card-name"><?= e($g['client_name'] ?: 'Sem nome') ?>
                             <span style="float:right;font-size:.72rem;color:#6b7280;" id="<?= $grpId ?>_ico">▸</span>
@@ -751,6 +764,7 @@ function chDragStart(ev, card) {
     _chDragData = {
         ids: card.getAttribute('data-ids'),
         origem: card.getAttribute('data-origem'),
+        desf: card.getAttribute('data-desf') || '',
     };
     card.style.opacity = '.45';
     if (ev.dataTransfer) {
@@ -804,6 +818,13 @@ function chDrop(ev, colDestino) {
     var acao = mapAcao[colDestino];
     if (!acao) return;
     var n = ids.split(',').length;
+    // Nota: guardamos desf em _chDragData no chDragStart. Como esse já foi resetado,
+    // lemos do próprio card origem via querySelector antes de movimentar.
+    var origemCard = document.querySelector('.ch-card[data-ids="' + ids + '"]');
+    var desf = origemCard ? (origemCard.getAttribute('data-desf') || '') : '';
+    if (desf === 'extinto_sem_julgamento' || desf === 'desistencia') {
+        if (!confirm('⚠️ ATENÇÃO JURÍDICA\n\nO processo deste cliente está com desfecho "' + desf.replace(/_/g, ' ') + '".\n\nIsso pode IMPEDIR ou LIMITAR a cobrança de honorários contratuais. Confira o contrato e a jurisprudência antes de prosseguir.\n\nTem certeza que quer avançar?')) return;
+    }
     if (!confirm('Mover ' + n + ' parcela(s) para "' + colDestino + '"? Uma sugestão de mensagem será gerada na Caixa de Envios.')) return;
     var form = document.createElement('form');
     form.method = 'POST';
