@@ -74,6 +74,30 @@ $contactIcons = [
     'presencial' => '🤝', 'reuniao' => '📅', 'nota' => '📝',
 ];
 
+// ─── Resumo financeiro (só pros autorizados) ───
+$finInfo = null;
+if (function_exists('can_access_financeiro') && can_access_financeiro() && !empty($client['asaas_customer_id'])) {
+    try {
+        $stmtF = $pdo->prepare(
+            "SELECT
+                SUM(CASE WHEN status IN ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH') THEN valor_pago ELSE 0 END) AS recebido,
+                SUM(CASE WHEN status = 'PENDING' THEN valor ELSE 0 END) AS pendente,
+                SUM(CASE WHEN status = 'OVERDUE' THEN valor ELSE 0 END) AS vencido,
+                COUNT(CASE WHEN status = 'OVERDUE' THEN 1 END) AS qtd_vencidas,
+                COUNT(CASE WHEN status = 'PENDING' THEN 1 END) AS qtd_pendentes,
+                COUNT(*) AS total_cobrancas,
+                MIN(CASE WHEN status = 'OVERDUE' THEN vencimento END) AS primeiro_vencido,
+                MAX(CASE WHEN status IN ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH') THEN data_pagamento END) AS ultimo_pagamento
+             FROM asaas_cobrancas WHERE client_id = ?"
+        );
+        $stmtF->execute(array($clientId));
+        $finInfo = $stmtF->fetch();
+        if ($finInfo && $finInfo['primeiro_vencido']) {
+            $finInfo['dias_atraso'] = (int)((time() - strtotime($finInfo['primeiro_vencido'])) / 86400);
+        }
+    } catch (Exception $e) { $finInfo = null; }
+}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -177,6 +201,47 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
         <?php endif; ?>
     </div>
 </div>
+
+<?php if ($finInfo && (int)$finInfo['total_cobrancas'] > 0):
+    $temVencido = (float)$finInfo['vencido'] > 0;
+    $borda = $temVencido ? '#dc2626' : '#059669';
+    $bg    = $temVencido ? 'linear-gradient(135deg,#fef2f2,#fee2e2)' : 'linear-gradient(135deg,#f0fdf4,#dcfce7)';
+?>
+<div class="card" style="margin-bottom:1.25rem;border-left:5px solid <?= $borda ?>;background:<?= $bg ?>;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;background:transparent;border-bottom:1px solid rgba(0,0,0,.06);">
+        <h3 style="margin:0;"><?= $temVencido ? '⚠️ Situação Financeira — INADIMPLENTE' : '💰 Situação Financeira' ?></h3>
+        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $clientId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Ver extrato completo →</a>
+    </div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:1rem;">
+            <div>
+                <div style="font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">💵 Recebido</div>
+                <div style="font-size:1.3rem;font-weight:800;color:#059669;">R$ <?= number_format((float)$finInfo['recebido'], 2, ',', '.') ?></div>
+                <?php if ($finInfo['ultimo_pagamento']): ?><div style="font-size:.7rem;color:var(--text-muted);">último: <?= date('d/m/Y', strtotime($finInfo['ultimo_pagamento'])) ?></div><?php endif; ?>
+            </div>
+            <div>
+                <div style="font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">📋 A vencer</div>
+                <div style="font-size:1.3rem;font-weight:800;color:#b45309;">R$ <?= number_format((float)$finInfo['pendente'], 2, ',', '.') ?></div>
+                <div style="font-size:.7rem;color:var(--text-muted);"><?= (int)$finInfo['qtd_pendentes'] ?> parcela(s)</div>
+            </div>
+            <div>
+                <div style="font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">🚨 Vencido</div>
+                <div style="font-size:1.3rem;font-weight:800;color:<?= $temVencido ? '#dc2626' : '#6b7280' ?>;">R$ <?= number_format((float)$finInfo['vencido'], 2, ',', '.') ?></div>
+                <?php if ($temVencido): ?>
+                    <div style="font-size:.72rem;font-weight:700;color:#991b1b;"><?= (int)$finInfo['qtd_vencidas'] ?> parc. · <?= (int)($finInfo['dias_atraso'] ?? 0) ?>d atraso</div>
+                <?php else: ?>
+                    <div style="font-size:.7rem;color:#166534;font-weight:600;">✓ Em dia</div>
+                <?php endif; ?>
+            </div>
+            <div>
+                <div style="font-size:.7rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px;">📊 Total</div>
+                <div style="font-size:1.3rem;font-weight:800;color:var(--petrol-900);"><?= (int)$finInfo['total_cobrancas'] ?></div>
+                <div style="font-size:.7rem;color:var(--text-muted);">cobranças geradas</div>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Tabs -->
 <div class="tabs">
