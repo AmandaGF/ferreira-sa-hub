@@ -37,6 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($user) {
                 login_user($user);
+                // Limpa flashes de erro antigos (ex: "Faça login..." que ficou da tentativa anterior)
+                unset($_SESSION['flash']['error'], $_SESSION['flash']['warning']);
                 flash_set('success', 'Bem-vindo(a), ' . $user['name'] . '!');
                 redirect(url('modules/painel/'));
             } else {
