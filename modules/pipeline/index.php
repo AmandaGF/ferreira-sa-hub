@@ -231,6 +231,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </form>
         <a href="<?= module_url('planilha', 'importar.php?destino=pipeline') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
         <a href="<?= module_url('pipeline', 'lead_form.php') ?>" class="btn btn-primary btn-sm">+ Novo Lead</a>
+        <a href="<?= module_url('pipeline', 'revisar_financeiro.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#f59e0b;border-color:#f59e0b;">💰 Revisar Financeiro</a>
         <a href="<?= module_url('pipeline', 'perdidos.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Perdidos</a>
     </div>
 </div>
