@@ -1,9 +1,12 @@
 <?php
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 echo "Cases recentes (top 15) e seus clientes:\n\n";
 $rows = $pdo->query("SELECT cs.id, cs.client_id, cs.client_title, cs.case_type, cs.status, cs.case_number,
