@@ -67,14 +67,22 @@ try {
     )->fetchAll();
 } catch (Exception $e) {}
 
-// ─── Últimas cobranças ───
+// ─── Cobranças do mês selecionado ───
 $ultimasCobrancas = array();
+$totalCobrancasMes = 0;
 try {
-    $ultimasCobrancas = $pdo->query(
+    $stmt = $pdo->prepare(
         "SELECT ac.*, cl.name as client_name FROM asaas_cobrancas ac
          LEFT JOIN clients cl ON cl.id = ac.client_id
-         ORDER BY ac.created_at DESC LIMIT 15"
-    )->fetchAll();
+         WHERE DATE_FORMAT(ac.vencimento,'%Y-%m') = ?
+         ORDER BY ac.vencimento DESC, ac.id DESC LIMIT 50"
+    );
+    $stmt->execute(array($mesSel));
+    $ultimasCobrancas = $stmt->fetchAll();
+
+    $c = $pdo->prepare("SELECT COUNT(*) FROM asaas_cobrancas WHERE DATE_FORMAT(vencimento,'%Y-%m') = ?");
+    $c->execute(array($mesSel));
+    $totalCobrancasMes = (int)$c->fetchColumn();
 } catch (Exception $e) {}
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -185,11 +193,15 @@ echo voltar_ao_processo_html();
     </div>
 </div>
 
-<!-- Últimas cobranças -->
+<!-- Cobranças do mês selecionado -->
 <div class="fin-section" style="margin-bottom:1.25rem;">
-    <h4>🕐 Últimas Cobranças</h4>
+    <h4>🕐 Cobranças de <?= $mesNome ?>/<?= $anoSel ?>
+        <span style="font-weight:400;color:var(--text-muted);font-size:.8rem;">
+            (<?= count($ultimasCobrancas) ?> de <?= $totalCobrancasMes ?>)
+        </span>
+    </h4>
     <?php if (empty($ultimasCobrancas)): ?>
-        <p style="text-align:center;color:var(--text-muted);padding:1rem;">Nenhuma cobrança registrada. Clique em "Sincronizar Asaas" ou crie uma nova.</p>
+        <p style="text-align:center;color:var(--text-muted);padding:1rem;">Nenhuma cobrança com vencimento em <?= $mesNome ?>/<?= $anoSel ?>.</p>
     <?php else: ?>
     <table class="fin-table">
         <thead><tr><th>Cliente</th><th>Descrição</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
