@@ -1,0 +1,144 @@
+<?php
+/**
+ * Caixa de Envios WhatsApp — revisão de mensagens sugeridas pelo sistema.
+ * Origens: andamento_visivel, processo_distribuido, cobranca_* (triggers automáticos).
+ */
+require_once __DIR__ . '/../../core/middleware.php';
+require_login();
+
+$pdo = db();
+$pageTitle = 'Caixa de Envios WhatsApp';
+
+$statusSel = $_GET['status'] ?? 'pendente';
+if (!in_array($statusSel, array('pendente','enviada','descartada','todas'), true)) $statusSel = 'pendente';
+
+$where = ''; $params = array();
+if ($statusSel !== 'todas') { $where = 'WHERE f.status = ?'; $params[] = $statusSel; }
+
+$stmt = $pdo->prepare("
+    SELECT f.*, cl.name AS client_name_real
+    FROM zapi_fila_envio f
+    LEFT JOIN clients cl ON cl.id = f.client_id
+    {$where}
+    ORDER BY f.created_at DESC
+    LIMIT 200
+");
+$stmt->execute($params);
+$rows = $stmt->fetchAll();
+
+$contagem = $pdo->query("SELECT status, COUNT(*) AS n FROM zapi_fila_envio GROUP BY status")->fetchAll(PDO::FETCH_KEY_PAIR);
+
+$origemLabels = array(
+    'andamento_visivel'    => array('📋 Andamento', '#0ea5e9'),
+    'processo_distribuido' => array('⚖️ Distribuição', '#059669'),
+    'cobranca_vencendo'    => array('💰 Cobrança', '#b45309'),
+    'cobranca_vencida'     => array('🚨 Vencida', '#dc2626'),
+    'outro'                => array('📨 Outro', '#6b7280'),
+);
+
+require_once APP_ROOT . '/templates/layout_start.php';
+?>
+<style>
+.fila-head { background:linear-gradient(135deg,#052228,#0d3640); color:#fff; border-radius:12px; padding:1rem 1.25rem; margin-bottom:1rem; }
+.fila-head h2 { font-size:1.1rem; margin:0 0 .25rem; }
+.fila-head .sub { font-size:.8rem; color:rgba(255,255,255,.7); }
+.fila-tabs { display:flex; gap:.3rem; margin-bottom:1rem; flex-wrap:wrap; }
+.fila-tab { padding:6px 14px; background:#fff; border:1.5px solid var(--border); border-radius:20px; font-size:.8rem; font-weight:600; cursor:pointer; text-decoration:none; color:var(--text); }
+.fila-tab.active { background:var(--petrol-900); color:#fff; border-color:var(--petrol-900); }
+.fila-item { background:#fff; border:1px solid var(--border); border-left:4px solid #ccc; border-radius:10px; padding:1rem 1.15rem; margin-bottom:.75rem; }
+.fila-item.pendente { border-left-color:#f59e0b; }
+.fila-item.enviada { border-left-color:#059669; opacity:.75; }
+.fila-item.descartada { border-left-color:#6b7280; opacity:.5; }
+.fila-badge { display:inline-block; padding:2px 10px; border-radius:12px; font-size:.68rem; font-weight:700; color:#fff; }
+.fila-msg-preview { background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:.6rem .8rem; margin-top:.5rem; font-size:.82rem; white-space:pre-wrap; max-height:120px; overflow-y:auto; }
+.fila-acoes { display:flex; gap:.4rem; margin-top:.6rem; flex-wrap:wrap; }
+.fila-acoes button { padding:6px 14px; border:none; border-radius:6px; cursor:pointer; font-size:.78rem; font-weight:600; }
+</style>
+
+<div class="fila-head">
+    <h2>📬 Caixa de Envios WhatsApp</h2>
+    <div class="sub">Mensagens sugeridas pelo sistema aguardando sua revisão e aprovação</div>
+</div>
+
+<div class="fila-tabs">
+    <a href="?status=pendente" class="fila-tab <?= $statusSel === 'pendente' ? 'active' : '' ?>">⏳ Pendentes (<?= (int)($contagem['pendente'] ?? 0) ?>)</a>
+    <a href="?status=enviada" class="fila-tab <?= $statusSel === 'enviada' ? 'active' : '' ?>">✅ Enviadas (<?= (int)($contagem['enviada'] ?? 0) ?>)</a>
+    <a href="?status=descartada" class="fila-tab <?= $statusSel === 'descartada' ? 'active' : '' ?>">🗑 Descartadas (<?= (int)($contagem['descartada'] ?? 0) ?>)</a>
+    <a href="?status=todas" class="fila-tab <?= $statusSel === 'todas' ? 'active' : '' ?>">Todas</a>
+</div>
+
+<?php if (empty($rows)): ?>
+    <div style="text-align:center;padding:3rem;color:var(--text-muted);background:#fff;border-radius:10px;">
+        Nenhuma mensagem com status "<?= e($statusSel) ?>" 🎉
+    </div>
+<?php else: ?>
+    <?php foreach ($rows as $r):
+        $origem = $origemLabels[$r['origem']] ?? $origemLabels['outro'];
+        $nome = $r['client_name_real'] ?: $r['nome_contato'] ?: '(sem nome)';
+    ?>
+    <div class="fila-item <?= e($r['status']) ?>" id="fila_<?= (int)$r['id'] ?>">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
+            <div>
+                <span class="fila-badge" style="background:<?= $origem[1] ?>;"><?= $origem[0] ?></span>
+                <strong style="margin-left:.5rem;color:var(--petrol-900);"><?= e($nome) ?></strong>
+                <span style="font-size:.75rem;color:var(--text-muted);margin-left:.3rem;"><?= e($r['telefone']) ?></span>
+            </div>
+            <div style="font-size:.72rem;color:var(--text-muted);">
+                Sugerido: <?= date('d/m H:i', strtotime($r['created_at'])) ?>
+                <?php if ($r['status'] === 'enviada'): ?> · ✅ enviada <?= date('d/m H:i', strtotime($r['enviada_em'])) ?><?php endif; ?>
+                <?php if ($r['status'] === 'descartada'): ?> · 🗑 descartada <?= date('d/m H:i', strtotime($r['descartada_em'])) ?><?php endif; ?>
+            </div>
+        </div>
+        <div class="fila-msg-preview"><?= e($r['mensagem']) ?></div>
+        <?php if ($r['status'] === 'pendente'): ?>
+        <div class="fila-acoes">
+            <button style="background:#25d366;color:#fff;" onclick="filaEnviar(<?= (int)$r['id'] ?>, '<?= preg_replace('/\D/', '', $r['telefone']) ?>', <?= json_encode($nome) ?>, <?= json_encode($r['mensagem']) ?>, '<?= e($r['canal_sugerido']) ?>', <?= (int)$r['client_id'] ?>)">✓ Revisar e enviar</button>
+            <button style="background:#f3f4f6;border:1px solid #d1d5db;color:#374151;" onclick="filaDescartar(<?= (int)$r['id'] ?>)">🗑 Descartar</button>
+        </div>
+        <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+<?php endif; ?>
+
+<script>
+function filaEnviar(filaId, telefone, nome, mensagem, canal, clientId) {
+    waSenderOpen({
+        telefone: telefone,
+        nome: nome,
+        mensagem: mensagem,
+        canal: canal,
+        clientId: clientId,
+        onSuccess: function(d) {
+            // Marca a fila como enviada
+            var fd = new FormData();
+            fd.append('action', 'fila_marcar_enviada');
+            fd.append('fila_id', filaId);
+            fd.append('csrf_token', window.FSA_CSRF);
+            fetch(window.FSA_WHATSAPP_API_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(r){ return r.json(); })
+                .then(function(){
+                    var el = document.getElementById('fila_' + filaId);
+                    if (el) { el.classList.remove('pendente'); el.classList.add('enviada'); el.querySelector('.fila-acoes').remove(); }
+                });
+        }
+    });
+}
+
+function filaDescartar(filaId) {
+    if (!confirm('Descartar esta sugestão?')) return;
+    var fd = new FormData();
+    fd.append('action', 'fila_descartar');
+    fd.append('fila_id', filaId);
+    fd.append('csrf_token', window.FSA_CSRF);
+    fetch(window.FSA_WHATSAPP_API_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.ok) {
+                var el = document.getElementById('fila_' + filaId);
+                if (el) { el.classList.remove('pendente'); el.classList.add('descartada'); el.querySelector('.fila-acoes').remove(); }
+            } else alert('Falha: ' + (d.error || '?'));
+        });
+}
+</script>
+
+<?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

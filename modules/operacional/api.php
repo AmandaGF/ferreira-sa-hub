@@ -194,6 +194,27 @@ switch ($action) {
                         '[vara_juizo]' => $procVara ?: 'A definir',
                         '[tipo_acao]' => $procTipo ?: ($currentCase['case_type'] ?: ''),
                     ), $caseId);
+
+                    // Sugestão de WhatsApp na fila (revisão manual)
+                    require_once APP_ROOT . '/core/functions_zapi.php';
+                    $cliStmt = $pdo->prepare("SELECT id, name, phone FROM clients WHERE id = ?");
+                    $cliStmt->execute(array($currentCase['client_id']));
+                    $cli = $cliStmt->fetch();
+                    if ($cli && $cli['phone']) {
+                        $primeiroNome = explode(' ', $cli['name'])[0];
+                        $msgDist = "Olá {$primeiroNome}! 🏛️\n\nInformamos que o seu processo foi *distribuído* com sucesso:\n\n"
+                                 . "• Processo: {$procNumero}\n"
+                                 . "• Vara/Juízo: " . ($procVara ?: 'A definir') . "\n"
+                                 . ($procTipo ? "• Tipo: {$procTipo}\n" : '')
+                                 . "\nAgora o caso segue em tramitação judicial. Você pode acompanhar pela Central VIP ou nos perguntar a qualquer momento.\n\n"
+                                 . "_Ferreira & Sá Advocacia_";
+                        zapi_fila_enfileirar('processo_distribuido', (int)$cli['id'], $cli['phone'], $msgDist, array(
+                            'case_id' => $caseId,
+                            'nome' => $cli['name'],
+                            'canal' => '24',
+                            'criada_por' => current_user_id(),
+                        ));
+                    }
                 }
 
                 // GAMIFICAÇÃO: processo distribuído
@@ -1111,7 +1132,32 @@ switch ($action) {
                     "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,?)"
                 )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, $visivelCliente, current_user_id(), $createdAt));
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
-                flash_set('success', 'Andamento registrado.');
+
+                // Se visível ao cliente → sugere mensagem de WhatsApp na fila pra revisão
+                if ($visivelCliente) {
+                    require_once APP_ROOT . '/core/functions_zapi.php';
+                    $cStmt = $pdo->prepare("SELECT cl.id, cl.name, cl.phone, cs.title FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?");
+                    $cStmt->execute(array($caseId));
+                    $cInfo = $cStmt->fetch();
+                    if ($cInfo && $cInfo['phone'] && $cInfo['id']) {
+                        $primeiroNome = explode(' ', $cInfo['name'])[0];
+                        $dataFmt = date('d/m/Y', strtotime($dataAnd));
+                        $msgAnd = "Olá {$primeiroNome}! 📋\n\nHouve uma novidade no seu caso *" . ($cInfo['title'] ?: 'processo') . "*:\n\n"
+                                . "• Data: {$dataFmt}\n"
+                                . "• Andamento: " . mb_substr($descAnd, 0, 400, 'UTF-8')
+                                . (mb_strlen($descAnd, 'UTF-8') > 400 ? '...' : '') . "\n\n"
+                                . "Você também pode acompanhar pela Central VIP. Qualquer dúvida, estamos à disposição.\n\n"
+                                . "_Ferreira & Sá Advocacia_";
+                        zapi_fila_enfileirar('andamento_visivel', (int)$cInfo['id'], $cInfo['phone'], $msgAnd, array(
+                            'case_id' => $caseId,
+                            'nome' => $cInfo['name'],
+                            'canal' => '24',
+                            'criada_por' => current_user_id(),
+                        ));
+                    }
+                }
+
+                flash_set('success', 'Andamento registrado.' . ($visivelCliente ? ' 💬 Sugestão de WhatsApp na Caixa de Envios.' : ''));
             } catch (Exception $e) {
                 flash_set('error', 'Erro ao salvar andamento: ' . $e->getMessage());
             }

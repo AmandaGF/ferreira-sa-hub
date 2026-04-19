@@ -42,6 +42,39 @@ function zapi_instancia_configurada($ddd) {
 }
 
 /**
+ * Adiciona sugestão de mensagem à fila (caixa de envios pendentes).
+ * Uso: zapi_fila_enfileirar('andamento', $clientId, $telefone, 'Olá...', array('case_id' => 123));
+ */
+function zapi_fila_enfileirar($origem, $clientId, $telefone, $mensagem, $opts = array()) {
+    $pdo = db();
+    try {
+        // Evita duplicar: se já existe pendente pro mesmo client + origem + mensagem recente, ignora
+        $stmtDup = $pdo->prepare("SELECT id FROM zapi_fila_envio
+            WHERE origem = ? AND client_id = ? AND status = 'pendente'
+              AND mensagem = ? AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR) LIMIT 1");
+        $stmtDup->execute(array($origem, $clientId, $mensagem));
+        if ($stmtDup->fetchColumn()) return null; // já tem sugestão igual recente
+
+        $sql = "INSERT INTO zapi_fila_envio (origem, client_id, case_id, lead_id, telefone, nome_contato, canal_sugerido, mensagem, criada_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $pdo->prepare($sql)->execute(array(
+            $origem,
+            $clientId ?: null,
+            $opts['case_id'] ?? null,
+            $opts['lead_id'] ?? null,
+            preg_replace('/\D/', '', $telefone),
+            $opts['nome'] ?? null,
+            in_array($opts['canal'] ?? '24', array('21','24'), true) ? $opts['canal'] : '24',
+            $mensagem,
+            $opts['criada_por'] ?? null,
+        ));
+        return (int)$pdo->lastInsertId();
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+/**
  * Envia texto via Z-API.
  * @return array ['ok' => bool, 'data' => mixed, 'http_code' => int]
  */

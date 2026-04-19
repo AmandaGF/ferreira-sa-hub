@@ -17,7 +17,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
-                  'salvar_drive');
+                  'salvar_drive',
+                  'fila_marcar_enviada', 'fila_descartar');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -632,6 +633,26 @@ if ($action === 'enviar_rapido') {
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'conversa_id' => $conv['id'] ?? null));
+    exit;
+}
+
+// ── FILA DE ENVIOS: marcar como enviada ──
+if ($action === 'fila_marcar_enviada') {
+    $fid = (int)($_POST['fila_id'] ?? 0);
+    if (!$fid) { echo json_encode(array('error' => 'fila_id obrigatório')); exit; }
+    $pdo->prepare("UPDATE zapi_fila_envio SET status='enviada', enviada_por=?, enviada_em=NOW() WHERE id=? AND status='pendente'")
+        ->execute(array($userId, $fid));
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── FILA DE ENVIOS: descartar ──
+if ($action === 'fila_descartar') {
+    $fid = (int)($_POST['fila_id'] ?? 0);
+    if (!$fid) { echo json_encode(array('error' => 'fila_id obrigatório')); exit; }
+    $pdo->prepare("UPDATE zapi_fila_envio SET status='descartada', descartada_por=?, descartada_em=NOW() WHERE id=? AND status='pendente'")
+        ->execute(array($userId, $fid));
+    echo json_encode(array('ok' => true));
     exit;
 }
 
