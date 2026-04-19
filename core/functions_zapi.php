@@ -338,14 +338,43 @@ function zapi_extrai_arquivo($payload, $tipo) {
 }
 
 /**
- * Horário comercial: seg-sex 10h às 18h.
+ * Horário comercial configurável via configuracoes (zapi_horario_*).
+ * Defaults: seg-sex 10h às 18h.
  */
 function zapi_fora_horario() {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = array('inicio' => 10, 'fim' => 18, 'dias' => array('1','2','3','4','5'));
+        try {
+            $rows = db()->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_horario_%' OR chave = 'zapi_dias_uteis'")->fetchAll();
+            foreach ($rows as $r) {
+                if ($r['chave'] === 'zapi_horario_inicio') $cache['inicio'] = (int)$r['valor'];
+                if ($r['chave'] === 'zapi_horario_fim')    $cache['fim']    = (int)$r['valor'];
+                if ($r['chave'] === 'zapi_dias_uteis')     $cache['dias']   = explode(',', $r['valor']);
+            }
+        } catch (Exception $e) {}
+    }
     $hora = (int)date('H');
-    $dia  = (int)date('N'); // 1=seg .. 7=dom
-    if ($dia >= 6) return true;               // sáb/dom
-    if ($hora < 10 || $hora >= 18) return true;
+    $dia  = (string)(int)date('N');
+    if (!in_array($dia, $cache['dias'], true)) return true;
+    if ($hora < $cache['inicio'] || $hora >= $cache['fim']) return true;
     return false;
+}
+
+/**
+ * Lê toggle de automação (chave) do banco.
+ */
+function zapi_auto_cfg($chave, $default = '') {
+    static $cfg = null;
+    if ($cfg === null) {
+        $cfg = array();
+        try {
+            foreach (db()->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_auto_%'")->fetchAll() as $r) {
+                $cfg[$r['chave']] = $r['valor'];
+            }
+        } catch (Exception $e) {}
+    }
+    return $cfg[$chave] ?? $default;
 }
 
 /**

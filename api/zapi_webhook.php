@@ -82,6 +82,10 @@ try {
 
             $msgId = zapi_salvar_mensagem_recebida($conv['id'], $payload, $tipo, $conteudo, $arquivo, $zapiMsgId);
 
+            // Checa se é primeira mensagem da conversa (antes de atualizar o contador)
+            $totalMsgs = (int)$pdo->query("SELECT COUNT(*) FROM zapi_mensagens WHERE conversa_id = " . (int)$conv['id'] . " AND direcao = 'recebida'")->fetchColumn();
+            $ehPrimeira = ($totalMsgs === 1);
+
             // Atualiza resumo da conversa
             $ultMsg = $conteudo ?: ('[' . $tipo . ']');
             $pdo->prepare(
@@ -91,9 +95,35 @@ try {
                  WHERE id = ?"
             )->execute(array(mb_substr($ultMsg, 0, 500), $nome, $conv['id']));
 
-            // Auto-resposta fora do horário (1ª mensagem do dia da conversa)
-            if (zapi_fora_horario() && (int)$conv['nao_lidas'] === 0) {
-                $tpl = zapi_get_template('Fora do horário', array('nome' => $nome ?: 'cliente'));
+            // ── AUTOMAÇÃO 1: Fora do horário ──
+            if (zapi_auto_cfg('zapi_auto_fora_horario', '1') === '1' && zapi_fora_horario() && (int)$conv['nao_lidas'] === 0) {
+                $tplNome = zapi_auto_cfg('zapi_auto_fora_horario_tpl', 'Fora do horário');
+                $tpl = zapi_get_template($tplNome, array('nome' => $nome ?: 'cliente'));
+                if ($tpl) {
+                    zapi_send_text($numero, $telefone, $tpl);
+                    $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_bot, status) VALUES (?, 'enviada', 'texto', ?, 1, 'enviada')")
+                        ->execute(array($conv['id'], $tpl));
+                }
+            }
+
+            // ── AUTOMAÇÃO 2: Boas-vindas ao primeiro contato ──
+            if (zapi_auto_cfg('zapi_auto_boasvindas', '0') === '1' && $ehPrimeira && !zapi_fora_horario()) {
+                $canalBv = zapi_auto_cfg('zapi_auto_boasvindas_canal', '21');
+                if ($canalBv === 'ambos' || $canalBv === $numero) {
+                    $tplNome = zapi_auto_cfg('zapi_auto_boasvindas_tpl', 'Boas-vindas Comercial');
+                    $tpl = zapi_get_template($tplNome, array('nome' => $nome ?: 'cliente'));
+                    if ($tpl) {
+                        zapi_send_text($numero, $telefone, $tpl);
+                        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_bot, status) VALUES (?, 'enviada', 'texto', ?, 1, 'enviada')")
+                            ->execute(array($conv['id'], $tpl));
+                    }
+                }
+            }
+
+            // ── AUTOMAÇÃO 3: Confirmação de documento no DDD 24 ──
+            if (zapi_auto_cfg('zapi_auto_doc_24', '0') === '1' && $numero === '24' && in_array($tipo, array('documento','imagem','video'), true)) {
+                $tplNome = zapi_auto_cfg('zapi_auto_doc_24_tpl', 'Confirmação de documentos');
+                $tpl = zapi_get_template($tplNome, array('nome' => $nome ?: 'cliente'));
                 if ($tpl) {
                     zapi_send_text($numero, $telefone, $tpl);
                     $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_bot, status) VALUES (?, 'enviada', 'texto', ?, 1, 'enviada')")
