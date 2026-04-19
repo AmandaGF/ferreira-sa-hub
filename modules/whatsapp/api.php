@@ -320,6 +320,20 @@ if ($action === 'importar_todos') {
     exit;
 }
 
+// ── DEBUG: resposta crua do Z-API chat-messages (gestão+) ────────
+if ($action === 'debug_zapi_fetch' && has_min_role('gestao')) {
+    $convId = (int)($_GET['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    $stmt = $pdo->prepare("SELECT co.*, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
+    $stmt->execute(array($convId));
+    $c = $stmt->fetch();
+    if (!$c) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+    $debug = null;
+    $raw = zapi_fetch_chat_messages($c['ddd'], $c['telefone'], 5, $debug);
+    echo json_encode(array('ok' => true, 'ddd' => $c['ddd'], 'telefone' => $c['telefone'], 'debug' => $debug, 'raw' => $raw), JSON_PRETTY_PRINT);
+    exit;
+}
+
 // ── DEBUG: última mensagem recebida (pra ver estrutura do payload) ─
 if ($action === 'debug_ultima_midia' && has_min_role('gestao')) {
     $row = $pdo->query("SELECT * FROM zapi_mensagens WHERE direcao='recebida' AND tipo IN ('imagem','video','documento','audio') ORDER BY id DESC LIMIT 1")->fetch();

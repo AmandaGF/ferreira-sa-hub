@@ -335,7 +335,7 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
  * Busca histórico de mensagens de um telefone na Z-API.
  * @return array|null lista de mensagens (raw) ou null em erro
  */
-function zapi_fetch_chat_messages($ddd, $telefone, $limit = 50) {
+function zapi_fetch_chat_messages($ddd, $telefone, $limit = 50, &$debugInfo = null) {
     $inst = zapi_get_instancia($ddd);
     if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
     $cfg = zapi_get_config();
@@ -354,7 +354,11 @@ function zapi_fetch_chat_messages($ddd, $telefone, $limit = 50) {
     ));
     $resp = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
     curl_close($ch);
+
+    $debugInfo = array('url' => $url, 'http_code' => $code, 'curl_err' => $err, 'body_preview' => substr($resp, 0, 500));
+
     if ($code < 200 || $code >= 300) return null;
     $data = json_decode($resp, true);
     return is_array($data) ? $data : null;
@@ -398,28 +402,55 @@ function zapi_sincronizar_historico_conversa($convId, $limit = 50) {
     $conv = $stmt->fetch();
     if (!$conv) return array('erro' => 'Conversa não encontrada', 'importadas' => 0);
 
-    $msgs = zapi_fetch_chat_messages($conv['ddd'], $conv['telefone'], $limit);
-    if ($msgs === null) return array('erro' => 'Falha ao consultar Z-API', 'importadas' => 0);
+    $raw = zapi_fetch_chat_messages($conv['ddd'], $conv['telefone'], $limit);
+    if ($raw === null) return array('erro' => 'Falha ao consultar Z-API', 'importadas' => 0);
+
+    // A resposta pode ser array direto OU {messages: [...]} OU {data: [...]}
+    $msgs = $raw;
+    if (isset($raw['messages']) && is_array($raw['messages'])) $msgs = $raw['messages'];
+    elseif (isset($raw['data']) && is_array($raw['data'])) $msgs = $raw['data'];
+    elseif (!isset($raw[0]) && is_array($raw)) {
+        // Objeto único — envolver em array
+        $msgs = array($raw);
+    }
 
     $importadas = 0;
+    $detalhes   = array();
     foreach ($msgs as $m) {
-        $zapiId = $m['messageId'] ?? '';
-        if (!$zapiId) continue;
+        if (!is_array($m)) continue;
+        // Z-API usa diferentes nomes: messageId, id, _id, zaapId, keyId
+        $zapiId = $m['messageId'] ?? ($m['id'] ?? ($m['_id'] ?? ($m['zaapId'] ?? ($m['keyId'] ?? ''))));
+        if (!$zapiId) {
+            // Fallback: usar hash estável do payload pra evitar perda total
+            $zapiId = 'h_' . substr(md5(json_encode($m)), 0, 20);
+        }
 
         // Evitar duplicata
         $chk = $pdo->prepare("SELECT id FROM zapi_mensagens WHERE zapi_message_id = ? LIMIT 1");
         $chk->execute(array($zapiId));
         if ($chk->fetchColumn()) continue;
 
-        $fromMe  = !empty($m['fromMe']);
+        $fromMe  = !empty($m['fromMe']) || !empty($m['isFromMe']);
         $direcao = $fromMe ? 'enviada' : 'recebida';
         $tipo    = zapi_detecta_tipo($m);
         $cont    = zapi_extrai_conteudo($m, $tipo);
         $arq     = zapi_extrai_arquivo($m, $tipo);
 
-        // Timestamp (ms → datetime)
-        $ts = $m['momment'] ?? ($m['timestamp'] ?? null);
-        $dateStr = $ts ? date('Y-m-d H:i:s', (int)($ts / 1000)) : date('Y-m-d H:i:s');
+        // Fallback: se não achou texto, tentar outras chaves comuns
+        if (!$cont) {
+            $cont = $m['body'] ?? ($m['message'] ?? ($m['text'] ?? ($m['conversation'] ?? '')));
+            if (is_array($cont)) $cont = $cont['message'] ?? ($cont['body'] ?? '');
+        }
+
+        // Timestamp (segundos ou ms)
+        $ts = $m['momment'] ?? ($m['timestamp'] ?? ($m['messageTimestamp'] ?? ($m['t'] ?? null)));
+        if ($ts) {
+            $tsInt = (int)$ts;
+            if ($tsInt > 10000000000) $tsInt = (int)($tsInt / 1000); // ms → s
+            $dateStr = date('Y-m-d H:i:s', $tsInt);
+        } else {
+            $dateStr = date('Y-m-d H:i:s');
+        }
 
         $pdo->prepare(
             "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
@@ -432,7 +463,11 @@ function zapi_sincronizar_historico_conversa($convId, $limit = 50) {
         ));
         $importadas++;
     }
-    return array('importadas' => $importadas, 'total_recebido' => count($msgs));
+    return array(
+        'importadas'      => $importadas,
+        'total_recebido'  => count($msgs),
+        'primeiro_sample' => isset($msgs[0]) ? $msgs[0] : null,  // pra debug quando importadas=0
+    );
 }
 
 /**

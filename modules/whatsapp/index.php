@@ -409,10 +409,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
     window.waSincronizar = function() {
-        if (!confirm('Baixar as últimas 50 mensagens do WhatsApp desta conversa?\n(Mensagens já salvas não serão duplicadas.)')) return;
-        acaoConversa('sincronizar_conversa', { limite: 50 }).then(function(d){
+        var q = prompt('Quantas mensagens antigas baixar desta conversa?\n(máximo 500, padrão 200)', '200');
+        if (q === null) return;
+        var limite = Math.min(Math.max(parseInt(q, 10) || 200, 1), 500);
+        acaoConversa('sincronizar_conversa', { limite: limite }).then(function(d){
             if (d.error) { alert('Erro: ' + d.error); return; }
-            alert('Importadas: ' + d.importadas + ' / ' + d.total + ' do histórico.');
+            alert('Importadas: ' + d.importadas + ' / ' + d.total + ' do histórico.\n(Duplicadas foram ignoradas.)');
             window.waAbrir(convAtiva);
         });
     };
