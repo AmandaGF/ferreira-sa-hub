@@ -193,7 +193,7 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
     </div>
     <div class="client-actions">
         <?php if ($client['phone']): ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm" style="border:none;cursor:pointer;">💬 WhatsApp</button>
         <?php endif; ?>
         <?php if (!$isReadOnly): ?>
             <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>

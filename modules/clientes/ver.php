@@ -141,7 +141,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <div class="cli-profile-actions">
         <?php if ($client['phone']): ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm">💬 WhatsApp</button>
         <?php endif; ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
@@ -233,7 +233,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <?php if ($temVencido && $client['phone']): ?>
         <div style="margin-top:1rem;padding-top:.8rem;border-top:1px dashed rgba(220,38,38,.3);display:flex;gap:.5rem;flex-wrap:wrap;">
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>?text=<?= rawurlencode('Olá ' . explode(' ', $client['name'])[0] . '! Somos do escritório Ferreira & Sá Advocacia. Identificamos cobranças em aberto no seu cadastro. Pode nos retornar quando possível?') ?>" target="_blank" class="btn btn-sm" style="background:#25d366;color:#fff;">💬 Cobrar pelo WhatsApp</a>
+            <?php $msgCobranca = 'Olá ' . explode(' ', $client['name'])[0] . '! Somos do escritório Ferreira & Sá Advocacia. Identificamos cobranças em aberto no seu cadastro. Pode nos retornar quando possível?'; ?>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= json_encode($msgCobranca) ?>})" class="btn btn-sm" style="background:#25d366;color:#fff;border:none;">💬 Cobrar pelo WhatsApp</button>
         </div>
         <?php endif; ?>
     </div>

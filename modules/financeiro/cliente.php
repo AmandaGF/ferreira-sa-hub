@@ -90,7 +90,7 @@ echo voltar_ao_processo_html();
     </div>
     <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap;">
         <?php if ($client['phone']): ?>
-        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>" target="_blank" class="btn btn-success btn-sm" style="font-size:.72rem;">💬 WhatsApp</a>
+        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:''})" class="btn btn-success btn-sm" style="font-size:.72rem;">💬 WhatsApp</button>
         <?php endif; ?>
         <a href="<?= module_url('clientes', 'ver.php?id=' . $clientId) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);font-size:.72rem;">👤 Ver cadastro</a>
         <?php if (($totalPendente + $totalVencido) > 0): ?>
@@ -138,8 +138,10 @@ echo voltar_ao_processo_html();
             <div style="display:flex;gap:4px;flex-shrink:0;">
                 <?php if ($cob['invoice_url']): ?><a href="<?= e($cob['invoice_url']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:4px;text-decoration:none;">Fatura</a><?php endif; ?>
                 <?php if ($cob['status'] === 'PENDING' || $cob['status'] === 'OVERDUE'): ?>
-                    <?php if ($client['phone'] && $cob['invoice_url']): ?>
-                    <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>?text=<?= urlencode("Olá " . $client['name'] . ", segue o link da sua cobrança:\n" . $cob['invoice_url'] . "\n\nValor: R$ " . number_format($cob['valor'], 2, ',', '.') . "\nVencimento: " . date('d/m/Y', strtotime($cob['vencimento'])) . "\n\n_Ferreira & Sá Advocacia_") ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;text-decoration:none;">Enviar</a>
+                    <?php if ($client['phone'] && $cob['invoice_url']):
+                        $msgCob = "Olá " . $client['name'] . ", segue o link da sua cobrança:\n" . $cob['invoice_url'] . "\n\nValor: R$ " . number_format($cob['valor'], 2, ',', '.') . "\nVencimento: " . date('d/m/Y', strtotime($cob['vencimento'])) . "\n\n_Ferreira & Sá Advocacia_";
+                    ?>
+                    <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= json_encode($msgCob) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
                     <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>

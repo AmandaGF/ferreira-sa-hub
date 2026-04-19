@@ -176,7 +176,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                      . "Vantagens do acordo:\n✅ Evita processo judicial\n✅ Evita negativação no SPC/Serasa\n✅ Resolve de forma rápida e amigável\n\n"
                      . "Podemos conversar?\n\n_Ferreira & Sá Advocacia_";
             ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $client['phone']) ?>?text=<?= rawurlencode($msg) ?>" target="_blank" class="btn btn-success btn-sm">💬 Enviar resumo por WhatsApp</a>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$clientId ?>,canal:'24',mensagem:<?= json_encode($msg) ?>})" class="btn btn-success btn-sm" style="border:none;">💬 Enviar resumo por WhatsApp</button>
             <?php endif; ?>
         </div>
     </form>
