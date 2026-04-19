@@ -16,13 +16,13 @@ foreach ($anos as $r) {
 
 echo "\n--- USUÁRIOS (todos, ativos ou não) ---\n";
 try {
-    $stmt = $pdo->prepare("SELECT id, name, email, role, active FROM users ORDER BY name");
+    $stmt = $pdo->prepare("SELECT id, name, email, role, is_active FROM users ORDER BY name");
     $stmt->execute();
     $all = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo "Total: " . count($all) . "\n";
     foreach ($all as $r) {
         echo sprintf("id=%-3s  %-35s  %-42s  role=%-12s active=%s\n",
-            $r['id'] ?? '?', $r['name'] ?? '?', $r['email'] ?? '?', $r['role'] ?? '?', $r['active'] ?? '?');
+            $r['id'] ?? '?', $r['name'] ?? '?', $r['email'] ?? '?', $r['role'] ?? '?', $r['is_active'] ?? '?');
     }
 } catch (Exception $e) {
     echo "ERRO: " . $e->getMessage() . "\n";
