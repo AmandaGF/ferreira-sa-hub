@@ -47,13 +47,6 @@ try {
         case 'MessageReceived':
         case 'message': {
             $fromMe = !empty($payload['fromMe']);
-            if ($fromMe) {
-                // Mensagens que EU enviei pelo WhatsApp (não pelo Hub) — ignoro pra não duplicar
-                $log("[{$numero}] fromMe=true, ignorado");
-                echo json_encode(array('status' => 'ignored_fromMe'));
-                exit;
-            }
-
             $telefone  = $payload['phone'] ?? ($payload['author'] ?? '');
             $nome      = $payload['senderName'] ?? ($payload['chatName'] ?? null);
             $zapiMsgId = $payload['messageId'] ?? '';
@@ -62,6 +55,20 @@ try {
                 $log("[{$numero}] sem telefone, ignorado");
                 echo json_encode(array('status' => 'no_phone'));
                 exit;
+            }
+
+            // Se fromMe, a mensagem foi ENVIADA pelo celular (ou pelo Hub).
+            // Verificar se já existe no banco (Hub insere antes de chamar Z-API, então já estaria lá).
+            // Se não existe → foi pelo celular e precisamos salvar pra espelhar no Hub.
+            if ($fromMe) {
+                $ja = $pdo->prepare("SELECT id FROM zapi_mensagens WHERE zapi_message_id = ? LIMIT 1");
+                $ja->execute(array($zapiMsgId));
+                if ($ja->fetchColumn()) {
+                    $log("[{$numero}] fromMe já existe (Hub enviou) msgId={$zapiMsgId}, ignorado");
+                    echo json_encode(array('status' => 'ignored_duplicate'));
+                    exit;
+                }
+                $log("[{$numero}] fromMe NOVO — mensagem enviada pelo celular msgId={$zapiMsgId}");
             }
 
             $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome);
@@ -78,6 +85,31 @@ try {
             // Se ainda ficou como 'outro', logar payload completo pra análise
             if ($tipo === 'outro') {
                 $log("[{$numero}] TIPO_OUTRO payload=" . substr(json_encode($payload), 0, 2000));
+            }
+
+            if ($fromMe) {
+                // Mensagem enviada pelo celular — espelhar como 'enviada' no Hub
+                $tiposValidos = array('texto','imagem','documento','audio','video','sticker','localizacao','contato','outro');
+                if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outro';
+                $pdo->prepare(
+                    "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
+                        arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status)
+                     VALUES (?, ?, 'enviada', ?, ?, ?, ?, ?, ?, 'enviada')"
+                )->execute(array(
+                    $conv['id'], $zapiMsgId, $tipo, $conteudo,
+                    $arquivo['url']  ?? null, $arquivo['nome'] ?? null,
+                    $arquivo['mime'] ?? null, $arquivo['tamanho'] ?? null,
+                ));
+                $msgId = (int)$pdo->lastInsertId();
+
+                // Atualiza resumo (sem incrementar não-lidas)
+                $ultMsg = $conteudo ?: ('[' . $tipo . ']');
+                $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
+                    ->execute(array(mb_substr($ultMsg, 0, 500), $conv['id']));
+
+                $log("[{$numero}] fromMe salvo msg_id={$msgId} conv_id={$conv['id']} tipo={$tipo}");
+                echo json_encode(array('status' => 'ok_fromMe', 'msg_id' => $msgId, 'conv_id' => $conv['id']));
+                break; // não disparar automações quando nós que mandamos
             }
 
             $msgId = zapi_salvar_mensagem_recebida($conv['id'], $payload, $tipo, $conteudo, $arquivo, $zapiMsgId);
