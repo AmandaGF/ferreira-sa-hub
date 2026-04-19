@@ -136,19 +136,40 @@ $docsClientes = $pdo->query(
             <table style="width:100%;border-collapse:collapse;font-size:.82rem;">
                 <thead><tr style="background:var(--petrol-900);color:#fff;">
                     <th style="padding:.5rem .75rem;text-align:left;">Cliente</th>
-                    <th style="padding:.5rem .75rem;text-align:left;">Título</th>
+                    <th style="padding:.5rem .75rem;text-align:left;">Título / Arquivo</th>
                     <th style="padding:.5rem .75rem;text-align:left;">Processo</th>
                     <th style="padding:.5rem .75rem;text-align:left;">Data</th>
-                    <th style="padding:.5rem .75rem;text-align:left;">Status</th>
+                    <th style="padding:.5rem .75rem;text-align:center;">Ações</th>
                 </tr></thead>
                 <tbody>
                 <?php foreach ($docsClientes as $dc): ?>
                 <tr style="border-bottom:1px solid var(--border);">
                     <td style="padding:.5rem .75rem;font-weight:600;"><?= e($dc['client_name'] ?: '?') ?></td>
-                    <td style="padding:.5rem .75rem;"><?= e($dc['titulo']) ?></td>
+                    <td style="padding:.5rem .75rem;">
+                        <a href="<?= module_url('salavip', 'download_cliente.php?id=' . $dc['id']) ?>" target="_blank" style="color:var(--rose);font-weight:600;text-decoration:none;">📎 <?= e($dc['titulo']) ?></a>
+                        <?php if (!empty($dc['arquivo_nome'])): ?><br><span style="font-size:.72rem;color:var(--text-muted);"><?= e($dc['arquivo_nome']) ?></span><?php endif; ?>
+                    </td>
                     <td style="padding:.5rem .75rem;color:var(--text-muted);"><?= e($dc['processo_titulo'] ?: '-') ?></td>
-                    <td style="padding:.5rem .75rem;"><?= date('d/m/Y', strtotime($dc['criado_em'])) ?></td>
-                    <td style="padding:.5rem .75rem;"><span style="background:#f59e0b;color:#fff;padding:2px 8px;border-radius:9999px;font-size:.7rem;font-weight:600;">Pendente</span></td>
+                    <td style="padding:.5rem .75rem;"><?= date('d/m/Y H:i', strtotime($dc['criado_em'])) ?></td>
+                    <td style="padding:.5rem .75rem;text-align:center;">
+                        <div style="display:flex;gap:.3rem;justify-content:center;">
+                            <a href="<?= module_url('salavip', 'download_cliente.php?id=' . $dc['id']) ?>" target="_blank" class="btn btn-outline btn-sm" style="font-size:.7rem;padding:3px 8px;" title="Visualizar">👁</a>
+                            <?php if (has_min_role('gestao')): ?>
+                            <form method="POST" action="<?= module_url('salavip', 'doc_action.php') ?>" style="display:inline;" onsubmit="return confirm('Aceitar este documento?');">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="doc_id" value="<?= $dc['id'] ?>">
+                                <input type="hidden" name="acao" value="aceitar">
+                                <button type="submit" class="btn btn-sm" style="background:#22c55e;color:#fff;font-size:.7rem;padding:3px 8px;border:none;border-radius:6px;cursor:pointer;" title="Aceitar">✅</button>
+                            </form>
+                            <form method="POST" action="<?= module_url('salavip', 'doc_action.php') ?>" style="display:inline;" onsubmit="return confirm('Rejeitar este documento?');">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="doc_id" value="<?= $dc['id'] ?>">
+                                <input type="hidden" name="acao" value="rejeitar">
+                                <button type="submit" class="btn btn-sm" style="background:#ef4444;color:#fff;font-size:.7rem;padding:3px 8px;border:none;border-radius:6px;cursor:pointer;" title="Rejeitar">❌</button>
+                            </form>
+                            <?php endif; ?>
+                        </div>
+                    </td>
                 </tr>
                 <?php endforeach; ?>
                 </tbody>
