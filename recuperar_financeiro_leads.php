@@ -63,10 +63,23 @@ foreach ($docs as $d) {
     if (!is_array($p)) continue;
 
     // Campos que nos interessam
-    $valor  = $p['valor_honorarios']  ?? ($p['valor_acao'] ?? '');
-    $forma  = $p['forma_pagamento']   ?? '';
-    $venc   = $p['dia_vencimento']    ?? ($p['vencimento_parcela'] ?? '');
-    $exito  = $p['exito_percentual']  ?? ($p['exito'] ?? '');
+    $valor        = $p['valor_honorarios']  ?? ($p['valor_acao'] ?? '');
+    $forma        = $p['forma_pagamento']   ?? '';
+    $diaVenc      = $p['dia_vencimento']    ?? ($p['vencimento_parcela'] ?? '');
+    $mesInicio    = $p['mes_inicio']        ?? '';
+    $exito        = $p['percentual_risco']  ?? ($p['exito_percentual'] ?? ($p['exito'] ?? ''));
+    $numParcelas  = $p['num_parcelas']      ?? '';
+    $valorParcela = $p['valor_parcela']     ?? '';
+
+    // Monta string de vencimento combinando dia + mês de início
+    if ($diaVenc && $mesInicio) $venc = "Todo dia {$diaVenc} — início em {$mesInicio}";
+    elseif ($diaVenc) $venc = "Todo dia {$diaVenc}";
+    else $venc = '';
+
+    // Enriquece forma_pagamento com parcelamento se disponível
+    if ($forma && $numParcelas && $valorParcela) {
+        $forma = "{$forma} — {$numParcelas}x de {$valorParcela}";
+    }
 
     if (!$valor && !$forma && !$venc) { $pulados++; continue; }
 
@@ -116,13 +129,20 @@ foreach ($docs as $d) {
         if (empty($updates)) continue;
 
         echo "  → Lead #{$l['id']} ({$l['name']}, stage={$l['stage']}) — contrato de " . date('d/m/Y', strtotime($d['created_at'])) . "\n";
-        foreach ($updates as $u) echo "      $u\n";
+        // Mostrar os valores reais que serão escritos
+        $valIdx = 0;
+        foreach ($updates as $u) {
+            $fieldName = explode(' =', $u)[0];
+            $displayVal = $vals[$valIdx] ?? '(null)';
+            echo "      {$fieldName} = {$displayVal}\n";
+            $valIdx++;
+        }
 
         if ($aplicar) {
             $vals[] = $l['id'];
             $pdo->prepare("UPDATE pipeline_leads SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE id = ?")->execute($vals);
-            $atualizouAlgum = true;
         }
+        $atualizouAlgum = true; // conta em simulação também
     }
     if ($atualizouAlgum) $recuperados++;
     echo "\n";
