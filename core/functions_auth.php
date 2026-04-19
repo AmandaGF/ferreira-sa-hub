@@ -66,6 +66,7 @@ function _permission_defaults()
         'whatsapp_bot'        => array('admin','gestao'),
         'whatsapp_dashboard'  => array('admin','gestao'),
         'whatsapp_templates'  => array('admin','gestao'),
+        'whatsapp_config'     => array('admin','gestao'),
     );
 }
 

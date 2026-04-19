@@ -22,8 +22,9 @@ $menuItems = array(
     array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
 
     array('section' => '💬 WhatsApp'),
-    array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'), 'id' => 'whatsapp_21', 'roles' => $all),
-    array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'), 'id' => 'whatsapp_24', 'roles' => $all),
+    array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'),   'id' => 'whatsapp_21',     'roles' => $all),
+    array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'),   'id' => 'whatsapp_24',     'roles' => $all),
+    array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/config.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
 
     array('section' => 'Atendimento'),
     array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all),
