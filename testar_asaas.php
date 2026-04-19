@@ -12,10 +12,11 @@ foreach ($stmt->fetchAll() as $r) $cfg[$r['chave']] = $r['valor'];
 
 $apiKey = $cfg['asaas_api_key'] ?? '';
 $env    = $cfg['asaas_env'] ?? 'sandbox';
-$base   = $env === 'production' ? 'https://api.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
+$bases = $env === 'production'
+    ? array('https://api.asaas.com/api/v3', 'https://api.asaas.com/v3', 'https://www.asaas.com/api/v3')
+    : array('https://sandbox.asaas.com/api/v3', 'https://api-sandbox.asaas.com/v3');
 
 echo "=== Testar endpoints Asaas ({$env}) ===\n";
-echo "Base: {$base}\n";
 echo "Chave: " . substr($apiKey, 0, 14) . "...\n\n";
 
 function testar($url, $headers) {
@@ -34,17 +35,17 @@ function testar($url, $headers) {
 
 $headers = array('access_token: ' . $apiKey, 'Content-Type: application/json', 'User-Agent: FerreiraSaHub/1.0');
 
-$endpoints = array(
-    '/finance/balance',
-    '/myAccount/balance',
-    '/customers?limit=1',
-    '/payments?limit=1',
-    '/subscriptions?limit=1',
-);
+$endpoints = array('/customers?limit=1', '/finance/balance', '/myAccount/balance', '/payments?limit=1');
 
-foreach ($endpoints as $ep) {
-    $r = testar($base . $ep, $headers);
-    echo "--- GET {$ep} ---\n";
-    echo "HTTP {$r['code']}\n";
-    echo "Body: " . substr($r['body'], 0, 200) . "\n\n";
+foreach ($bases as $base) {
+    echo "######## BASE: {$base} ########\n";
+    foreach ($endpoints as $ep) {
+        $r = testar($base . $ep, $headers);
+        echo "--- GET {$ep} ---\n";
+        echo "HTTP {$r['code']}\n";
+        echo "Body: " . substr($r['body'], 0, 200) . "\n";
+        if ($r['code'] === 200) echo "✅ FUNCIONOU!\n";
+        echo "\n";
+    }
+    echo "\n";
 }
