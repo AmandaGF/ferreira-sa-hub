@@ -392,7 +392,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})" title="Enviar WhatsApp direto">💬</button>
                         <?php endif; ?>
                         <?php if ($g['client_id']): ?>
-                        <a href="<?= module_url('whatsapp', 'fila.php?client_id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#b45309;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Ver notificações pendentes deste cliente na Caixa de Envios">📬</a>
+                        <a href="<?= module_url('whatsapp', 'fila.php?client_id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#b45309;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Ver notificações pendentes na Caixa de Envios">📬</a>
+                        <a href="<?= module_url('financeiro', 'cliente.php?id=' . (int)$g['client_id']) ?>" target="_blank" class="ch-card-btn" style="background:#052228;color:#fff;text-decoration:none;display:inline-flex;align-items:center;" onclick="event.stopPropagation();" title="Abrir ficha financeira completa (Asaas + proposta de acordo)">💰</a>
                         <?php endif; ?>
                     </div>
                 </div>
