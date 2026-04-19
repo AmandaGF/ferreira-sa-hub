@@ -400,4 +400,32 @@ if (document.readyState === 'loading') {
 } else {
     _sidebarRestorePrefs();
 }
+
+// ── PRESERVAR SCROLL DA SIDEBAR AO NAVEGAR ──────────────
+(function(){
+    var sidebarNav = document.getElementById('sidebarNav');
+    if (!sidebarNav) return;
+    var KEY = 'fsa_sidebar_scroll';
+
+    // Salvar ao clicar em qualquer link da sidebar
+    sidebarNav.addEventListener('click', function(e){
+        var link = e.target.closest('a.sidebar-link');
+        if (!link) return;
+        try { localStorage.setItem(KEY, String(sidebarNav.scrollTop)); } catch(_) {}
+    });
+    // Também salvar ao scrollar (debounced)
+    var scrollTimer;
+    sidebarNav.addEventListener('scroll', function(){
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(function(){
+            try { localStorage.setItem(KEY, String(sidebarNav.scrollTop)); } catch(_) {}
+        }, 200);
+    });
+
+    // Restaurar imediatamente ao carregar (antes de render pra não piscar)
+    try {
+        var saved = parseInt(localStorage.getItem(KEY) || '0', 10);
+        if (saved > 0) sidebarNav.scrollTop = saved;
+    } catch(_) {}
+})();
 </script>

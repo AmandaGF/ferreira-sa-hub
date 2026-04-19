@@ -68,6 +68,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('salavip', 'ver_mensagem.php?thread_id=' . $threadId));
     }
 
+    if ($action === 'alterar_status') {
+        $novoStatus = $_POST['novo_status'] ?? '';
+        $validos = array('aberta','respondida','aguardando','fechada');
+        if (in_array($novoStatus, $validos, true)) {
+            $pdo->prepare("UPDATE salavip_threads SET status = ?, atualizado_em = NOW() WHERE id = ?")->execute(array($novoStatus, $threadId));
+            audit_log('salavip_thread_status', 'salavip_threads', $threadId, "→ {$novoStatus}");
+            flash_set('success', 'Status alterado para "' . $novoStatus . '".');
+        } else {
+            flash_set('error', 'Status inválido.');
+        }
+        redirect(module_url('salavip', 'ver_mensagem.php?thread_id=' . $threadId));
+    }
+
     if ($action === 'responder') {
         $mensagem = trim($_POST['mensagem'] ?? '');
         if (!$mensagem) {
@@ -174,13 +187,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <h3 style="margin-bottom:.2rem;"><?= e($thread['assunto']) ?></h3>
             <span class="text-sm text-muted">Por <?= e($thread['client_name']) ?> &middot; <?= date('d/m/Y H:i', strtotime($thread['criado_em'])) ?></span>
         </div>
-        <div style="display:flex;gap:.4rem;align-items:center;">
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
             <span class="badge badge-<?= $statusBadge[$thread['status']] ?? 'gestao' ?>">
                 <?= $statusLabels[$thread['status']] ?? e($thread['status']) ?>
             </span>
             <?php if (!empty($thread['categoria'])): ?>
                 <span class="badge" style="background:var(--petrol-100);color:var(--petrol-900);"><?= e($thread['categoria']) ?></span>
             <?php endif; ?>
+            <form method="POST" style="display:inline-flex;align-items:center;gap:4px;margin-left:.5rem;">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="alterar_status">
+                <label style="font-size:.7rem;color:var(--text-muted);">Alterar para:</label>
+                <select name="novo_status" onchange="if(confirm('Alterar status para ' + this.options[this.selectedIndex].text + '?')) this.form.submit(); else this.value = '';" class="form-control" style="font-size:.75rem;padding:3px 8px;max-width:180px;">
+                    <option value="">Escolher...</option>
+                    <?php if ($thread['status'] !== 'aberta'): ?><option value="aberta">🟡 Reabrir (Aberta)</option><?php endif; ?>
+                    <?php if ($thread['status'] !== 'respondida'): ?><option value="respondida">🔵 Em andamento</option><?php endif; ?>
+                    <?php if ($thread['status'] !== 'aguardando'): ?><option value="aguardando">🟠 Aguardando cliente</option><?php endif; ?>
+                    <?php if ($thread['status'] !== 'fechada'): ?><option value="fechada">✅ Fechar / Resolvido</option><?php endif; ?>
+                </select>
+            </form>
         </div>
     </div>
     <div class="card-body">
