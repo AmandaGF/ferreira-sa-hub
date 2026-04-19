@@ -15,7 +15,8 @@ $action = $_REQUEST['action'] ?? '';
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
-                  'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta');
+                  'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
+                  'deletar_mensagem', 'editar_mensagem');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -281,6 +282,62 @@ if ($action === 'remover_etiqueta') {
     $etqId  = (int)($_POST['etiqueta_id'] ?? 0);
     $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
         ->execute(array($convId, $etqId));
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── DELETAR MENSAGEM (remove do WhatsApp e marca no banco) ──
+if ($action === 'deletar_mensagem') {
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    if (!$msgId) { echo json_encode(array('error' => 'mensagem_id obrigatório')); exit; }
+    $m = $pdo->prepare("SELECT m.*, co.telefone, co.canal
+                        FROM zapi_mensagens m JOIN zapi_conversas co ON co.id = m.conversa_id
+                        WHERE m.id = ?");
+    $m->execute(array($msgId));
+    $msg = $m->fetch();
+    if (!$msg) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+    if ($msg['direcao'] !== 'enviada') { echo json_encode(array('error' => 'Só dá pra apagar mensagens enviadas pelo Hub')); exit; }
+    if (!$msg['zapi_message_id']) { echo json_encode(array('error' => 'Mensagem sem ID Z-API — não foi efetivamente enviada')); exit; }
+
+    $r = zapi_delete_message($msg['canal'], $msg['telefone'], $msg['zapi_message_id']);
+    if (empty($r['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($r['http_code'] ?? '?') . ' — ' . json_encode($r['data'] ?? '')));
+        exit;
+    }
+    // Marca como apagada no banco (preserva histórico)
+    $pdo->prepare("UPDATE zapi_mensagens SET conteudo = '[mensagem apagada]', tipo = 'outro', status = 'deletada', arquivo_url = NULL WHERE id = ?")
+        ->execute(array($msgId));
+    audit_log('zapi_delete_msg', 'zapi_mensagens', $msgId);
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── EDITAR MENSAGEM (reenvia via Z-API com flag edit) ──
+if ($action === 'editar_mensagem') {
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    $novo  = trim($_POST['novo_texto'] ?? '');
+    if (!$msgId || !$novo) { echo json_encode(array('error' => 'mensagem_id e novo_texto obrigatórios')); exit; }
+    $m = $pdo->prepare("SELECT m.*, co.telefone, co.canal
+                        FROM zapi_mensagens m JOIN zapi_conversas co ON co.id = m.conversa_id
+                        WHERE m.id = ?");
+    $m->execute(array($msgId));
+    $msg = $m->fetch();
+    if (!$msg) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+    if ($msg['direcao'] !== 'enviada') { echo json_encode(array('error' => 'Só dá pra editar mensagens enviadas pelo Hub')); exit; }
+    if ($msg['tipo'] !== 'texto') { echo json_encode(array('error' => 'Só dá pra editar texto')); exit; }
+    if (!$msg['zapi_message_id']) { echo json_encode(array('error' => 'Mensagem sem ID Z-API')); exit; }
+
+    // WhatsApp só permite editar até 15 min
+    $idadeMin = (time() - strtotime($msg['created_at'])) / 60;
+    if ($idadeMin > 15) { echo json_encode(array('error' => 'Passou de 15 min — WhatsApp não permite mais editar. Apague e reenvie.')); exit; }
+
+    $r = zapi_edit_message($msg['canal'], $msg['telefone'], $msg['zapi_message_id'], $novo);
+    if (empty($r['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($r['http_code'] ?? '?') . ' — ' . json_encode($r['data'] ?? '')));
+        exit;
+    }
+    $pdo->prepare("UPDATE zapi_mensagens SET conteudo = ? WHERE id = ?")->execute(array($novo, $msgId));
+    audit_log('zapi_edit_msg', 'zapi_mensagens', $msgId);
     echo json_encode(array('ok' => true));
     exit;
 }

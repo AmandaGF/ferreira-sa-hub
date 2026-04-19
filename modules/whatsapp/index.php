@@ -71,6 +71,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-msg { max-width:70%;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:.5rem .75rem;font-size:.83rem;box-shadow:0 1px 2px rgba(0,0,0,.04); }
 .wa-msg.sent { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
 .wa-msg.bot  { background:#ede9fe;border-color:#c4b5fd; }
+.wa-msg.deleted { opacity:.5;font-style:italic; }
+.wa-msg:hover .wa-msg-actions { display:flex !important; }
 .wa-msg-tag { font-size:.62rem;font-weight:700;margin-bottom:2px; }
 .wa-msg-time { font-size:.62rem;color:#9ca3af;text-align:right;margin-top:3px; }
 .wa-chat-input { padding:.5rem .6rem;border-top:1px solid var(--border);background:#fff;display:flex;gap:.4rem;align-items:flex-end; }
@@ -210,6 +212,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var templatesCache = null;
     var etiquetasCache = null;
     var arquivoPendente = null; // {file, previewUrl}
+    var convNomeAtual = ''; // nome do contato da conversa aberta (pra {{nome}})
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
@@ -286,6 +289,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     function renderConversa(d) {
         var c = d.conversa;
         var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
+        convNomeAtual = nome; // guarda pra substituição de {{nome}}
 
         // Header com ações
         var head = document.getElementById('waChatHeadContainer');
@@ -342,8 +346,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 var cls = 'wa-msg';
                 if (m.direcao === 'enviada') cls += ' sent';
                 if (+m.enviado_por_bot) cls += ' bot';
-                html += '<div class="wa-msg-row '+dir+'">';
-                html += '<div class="'+cls+'">';
+                if (m.status === 'deletada') cls += ' deleted';
+                html += '<div class="wa-msg-row '+dir+'" data-msg-id="'+m.id+'">';
+                html += '<div class="'+cls+'" style="position:relative;">';
+                // Botões hover (apagar/editar) só pra mensagens enviadas pelo Hub e não deletadas
+                if (m.direcao === 'enviada' && m.status !== 'deletada' && m.zapi_message_id) {
+                    html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    if (m.tipo === 'texto') html += '<button onclick="waEditarMsg('+m.id+')" title="Editar (até 15 min)" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">✏️</button>';
+                    html += '<button onclick="waDeletarMsg('+m.id+')" title="Apagar" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">🗑</button>';
+                    html += '</div>';
+                }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
                 else if (m.direcao === 'enviada' && m.enviado_por_name) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
                 // Mídia (imagem/vídeo/áudio/documento)
@@ -392,6 +404,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waEnviar = function() {
         if (!convAtiva) return;
         var txt = document.getElementById('waInput').value.trim();
+        // Safety net: se ainda tiver {{nome}} no texto, substitui antes de enviar
+        if (txt && /\{\{[a-z_]+\}\}/i.test(txt)) {
+            var primeiroNome = (convNomeAtual || '').split(/\s+/)[0] || '';
+            var agora = new Date();
+            txt = txt.replace(/\{\{nome\}\}/gi, primeiroNome)
+                     .replace(/\{\{data\}\}/gi, agora.toLocaleDateString('pt-BR'))
+                     .replace(/\{\{hora\}\}/gi, agora.toTimeString().substr(0,5));
+            document.getElementById('waInput').value = txt;
+        }
 
         // Se há arquivo pendente, enviar ele com o texto como caption
         if (arquivoPendente) {
@@ -582,6 +603,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var action = ativar ? 'ativar_bot' : 'desativar_bot';
         acaoConversa(action).then(function(){ window.waAbrir(convAtiva); carregarLista(); });
     };
+
+    // ── APAGAR / EDITAR MENSAGEM ─────────────────────────
+    window.waDeletarMsg = function(msgId) {
+        if (!confirm('Apagar esta mensagem no WhatsApp do cliente também? Esta ação é irreversível.')) return;
+        var fd = new FormData();
+        fd.append('action', 'deletar_mensagem');
+        fd.append('mensagem_id', msgId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+            carregarLista();
+        });
+    };
+
+    window.waEditarMsg = function(msgId) {
+        var row = document.querySelector('.wa-msg-row[data-msg-id="'+msgId+'"] .wa-msg');
+        if (!row) return;
+        // Extrair o texto atual (remove spans de tag/tempo/ações)
+        var atual = '';
+        row.childNodes.forEach(function(n){
+            if (n.nodeType === 1 && (n.className === 'wa-msg-actions' || n.className === 'wa-msg-tag' || n.className === 'wa-msg-time')) return;
+            atual += (n.textContent || '');
+        });
+        atual = atual.trim();
+        var novo = prompt('Editar mensagem (máx 15 min após envio):', atual);
+        if (novo === null || novo.trim() === '' || novo === atual) return;
+        var fd = new FormData();
+        fd.append('action', 'editar_mensagem');
+        fd.append('mensagem_id', msgId);
+        fd.append('novo_texto', novo);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+            carregarLista();
+        });
+    };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
@@ -736,6 +795,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         menu.innerHTML = html;
     }
     window.waUsarTemplate = function(txt) {
+        // Substituir variáveis antes de colar no input
+        var primeiroNome = (convNomeAtual || '').split(/\s+/)[0] || '';
+        var agora = new Date();
+        var dataStr = agora.toLocaleDateString('pt-BR');
+        var horaStr = agora.toTimeString().substr(0,5);
+        txt = txt.replace(/\{\{nome\}\}/gi, primeiroNome);
+        txt = txt.replace(/\{\{data\}\}/gi, dataStr);
+        txt = txt.replace(/\{\{hora\}\}/gi, horaStr);
         document.getElementById('waInput').value = txt;
         document.getElementById('waTemplatesMenu').classList.remove('open');
         document.getElementById('waInput').focus();

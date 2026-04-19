@@ -128,6 +128,67 @@ function zapi_send_document($ddd, $telefone, $doc, $fileName, $caption = '') {
     return _zapi_post($url, $headers, $body);
 }
 
+/**
+ * Deleta uma mensagem no WhatsApp via Z-API (remove para todos).
+ */
+function zapi_delete_message($ddd, $telefone, $zapiMessageId) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $telefone_norm = zapi_normaliza_telefone($telefone);
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token']
+         . '/messages?phone=' . urlencode($telefone_norm)
+         . '&messageId=' . urlencode($zapiMessageId)
+         . '&owner=true';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_CUSTOMREQUEST  => 'DELETE',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    return array(
+        'ok'        => ($code >= 200 && $code < 300),
+        'http_code' => $code,
+        'data'      => json_decode($resp, true) ?: $resp,
+        'erro'      => $err,
+    );
+}
+
+/**
+ * Edita uma mensagem de texto já enviada (WhatsApp permite até 15 min).
+ */
+function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-text';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'     => zapi_normaliza_telefone($telefone),
+        'message'   => $novoTexto,
+        'messageId' => $zapiMessageId,  // indicador de edit
+        'editMessage' => true,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
 function _zapi_post($url, $headers, $body) {
     $ch = curl_init($url);
     curl_setopt_array($ch, array(
