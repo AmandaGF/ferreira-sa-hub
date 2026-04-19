@@ -747,24 +747,29 @@ function saveCell(el) {
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
         var ok = false, errMsg = '';
+        // 401 = sessão expirada → modal visual
+        if (xhr.status === 401 && window.fsaMostrarSessaoExpirada) {
+            window.fsaMostrarSessaoExpirada();
+            if (td) td.classList.add('save-error');
+            return;
+        }
         if (xhr.status === 200) {
             try {
                 var resp = JSON.parse(xhr.responseText);
                 if (resp && resp.ok) ok = true;
                 else errMsg = (resp && resp.error) ? resp.error : 'Resposta inválida';
             } catch(e) {
-                errMsg = 'Servidor retornou resposta não-JSON (sessão pode ter expirado). Recarregue a página (F5).';
+                errMsg = 'Resposta não-JSON. Recarregue (F5).';
             }
         } else {
             try { var j = JSON.parse(xhr.responseText); errMsg = j.error || ('HTTP ' + xhr.status); }
-            catch(e) { errMsg = 'HTTP ' + xhr.status + ' — sessão pode ter expirado. Recarregue (F5).'; }
+            catch(e) { errMsg = 'HTTP ' + xhr.status; }
         }
         if (td) {
             if (ok) {
                 td.classList.add('saved'); setTimeout(function(){ td.classList.remove('saved'); }, 1500);
             } else {
                 td.classList.add('save-error'); td.title = 'ERRO: ' + errMsg;
-                // Alert apenas no primeiro erro pra não floodar
                 if (!window._pipeErrShown) { window._pipeErrShown = true; alert('⚠️ Falha ao salvar: ' + errMsg); setTimeout(function(){ window._pipeErrShown = false; }, 5000); }
             }
         }

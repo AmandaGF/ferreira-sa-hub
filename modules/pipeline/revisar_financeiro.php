@@ -262,12 +262,17 @@ function saveField(el) {
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
         var ok = false, msg = '';
+        if (xhr.status === 401 && window.fsaMostrarSessaoExpirada) {
+            window.fsaMostrarSessaoExpirada();
+            el.classList.add('save-error');
+            return;
+        }
         try {
             var r = JSON.parse(xhr.responseText);
             if (r && r.ok) ok = true;
             else msg = r.error || 'Falha desconhecida';
         } catch(e) {
-            msg = 'Resposta inválida (sessão pode ter expirado — recarregue F5).';
+            msg = 'Resposta inválida.';
         }
         if (ok) {
             el.classList.add('saved-flash');
