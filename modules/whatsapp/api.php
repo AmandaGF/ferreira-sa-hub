@@ -18,7 +18,7 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
                   'salvar_drive',
-                  'fila_marcar_enviada', 'fila_descartar');
+                  'fila_marcar_enviada', 'fila_descartar', 'fila_editar');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -642,6 +642,18 @@ if ($action === 'fila_marcar_enviada') {
     if (!$fid) { echo json_encode(array('error' => 'fila_id obrigatório')); exit; }
     $pdo->prepare("UPDATE zapi_fila_envio SET status='enviada', enviada_por=?, enviada_em=NOW() WHERE id=? AND status='pendente'")
         ->execute(array($userId, $fid));
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── FILA DE ENVIOS: editar texto da mensagem ──
+if ($action === 'fila_editar') {
+    $fid = (int)($_POST['fila_id'] ?? 0);
+    $novoTexto = trim($_POST['mensagem'] ?? '');
+    if (!$fid || !$novoTexto) { echo json_encode(array('error' => 'Parâmetros obrigatórios')); exit; }
+    $pdo->prepare("UPDATE zapi_fila_envio SET mensagem = ? WHERE id = ? AND status = 'pendente'")
+        ->execute(array($novoTexto, $fid));
+    audit_log('fila_editar_msg', 'zapi_fila_envio', $fid);
     echo json_encode(array('ok' => true));
     exit;
 }

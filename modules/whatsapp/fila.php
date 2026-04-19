@@ -89,11 +89,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php if ($r['status'] === 'descartada'): ?> · 🗑 descartada <?= date('d/m H:i', strtotime($r['descartada_em'])) ?><?php endif; ?>
             </div>
         </div>
-        <div class="fila-msg-preview"><?= e($r['mensagem']) ?></div>
+        <div class="fila-msg-preview" id="fila_<?= (int)$r['id'] ?>_preview"><?= e($r['mensagem']) ?></div>
+        <textarea id="fila_<?= (int)$r['id'] ?>_editor" style="display:none;width:100%;min-height:120px;padding:.6rem .8rem;border:1.5px solid #B87333;border-radius:8px;font-size:.82rem;font-family:inherit;resize:vertical;margin-top:.3rem;"><?= e($r['mensagem']) ?></textarea>
         <?php if ($r['status'] === 'pendente'): ?>
-        <div class="fila-acoes">
-            <button style="background:#25d366;color:#fff;" onclick="filaEnviar(<?= (int)$r['id'] ?>, '<?= preg_replace('/\D/', '', $r['telefone']) ?>', <?= json_encode($nome) ?>, <?= json_encode($r['mensagem']) ?>, '<?= e($r['canal_sugerido']) ?>', <?= (int)$r['client_id'] ?>)">✓ Revisar e enviar</button>
+        <div class="fila-acoes" id="fila_<?= (int)$r['id'] ?>_acoes">
+            <button style="background:#25d366;color:#fff;" onclick="filaEnviar(<?= (int)$r['id'] ?>, '<?= preg_replace('/\D/', '', $r['telefone']) ?>', <?= json_encode($nome) ?>, '<?= e($r['canal_sugerido']) ?>', <?= (int)$r['client_id'] ?>)">✓ Revisar e enviar</button>
+            <button style="background:#eff6ff;border:1px solid #93c5fd;color:#1e40af;" onclick="filaEditarInline(<?= (int)$r['id'] ?>)">✏ Editar texto</button>
             <button style="background:#f3f4f6;border:1px solid #d1d5db;color:#374151;" onclick="filaDescartar(<?= (int)$r['id'] ?>)">🗑 Descartar</button>
+        </div>
+        <div id="fila_<?= (int)$r['id'] ?>_edicao" style="display:none;margin-top:.5rem;gap:.4rem;">
+            <button style="background:#B87333;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;" onclick="filaSalvarEdicao(<?= (int)$r['id'] ?>)">💾 Salvar alterações</button>
+            <button style="background:#f3f4f6;border:1px solid #d1d5db;color:#374151;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;margin-left:.3rem;" onclick="filaCancelarEdicao(<?= (int)$r['id'] ?>)">Cancelar</button>
         </div>
         <?php endif; ?>
     </div>
@@ -101,7 +107,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <script>
-function filaEnviar(filaId, telefone, nome, mensagem, canal, clientId) {
+function filaEnviar(filaId, telefone, nome, canal, clientId) {
+    // Pega a mensagem ATUAL (possivelmente editada) do textarea ou preview
+    var editor = document.getElementById('fila_' + filaId + '_editor');
+    var preview = document.getElementById('fila_' + filaId + '_preview');
+    var mensagem = (editor && editor.value) ? editor.value : (preview ? preview.textContent : '');
+
     waSenderOpen({
         telefone: telefone,
         nome: nome,
@@ -122,6 +133,42 @@ function filaEnviar(filaId, telefone, nome, mensagem, canal, clientId) {
                 });
         }
     });
+}
+
+function filaEditarInline(filaId) {
+    document.getElementById('fila_' + filaId + '_preview').style.display = 'none';
+    document.getElementById('fila_' + filaId + '_editor').style.display = 'block';
+    document.getElementById('fila_' + filaId + '_acoes').style.display = 'none';
+    document.getElementById('fila_' + filaId + '_edicao').style.display = 'block';
+    document.getElementById('fila_' + filaId + '_editor').focus();
+}
+function filaCancelarEdicao(filaId) {
+    var preview = document.getElementById('fila_' + filaId + '_preview');
+    var editor = document.getElementById('fila_' + filaId + '_editor');
+    // Restaura o texto original do preview
+    editor.value = preview.textContent;
+    preview.style.display = 'block';
+    editor.style.display = 'none';
+    document.getElementById('fila_' + filaId + '_acoes').style.display = 'flex';
+    document.getElementById('fila_' + filaId + '_edicao').style.display = 'none';
+}
+function filaSalvarEdicao(filaId) {
+    var editor = document.getElementById('fila_' + filaId + '_editor');
+    var novoTexto = (editor.value || '').trim();
+    if (!novoTexto) { alert('Mensagem vazia.'); return; }
+    var fd = new FormData();
+    fd.append('action', 'fila_editar');
+    fd.append('fila_id', filaId);
+    fd.append('mensagem', novoTexto);
+    fd.append('csrf_token', window.FSA_CSRF);
+    fetch(window.FSA_WHATSAPP_API_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.ok) {
+                document.getElementById('fila_' + filaId + '_preview').textContent = novoTexto;
+                filaCancelarEdicao(filaId);
+            } else alert('Falha ao salvar: ' + (d.error || '?'));
+        });
 }
 
 function filaDescartar(filaId) {
