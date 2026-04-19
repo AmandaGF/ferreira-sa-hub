@@ -354,9 +354,21 @@ function zapi_extrai_conteudo($payload, $tipo) {
         if (isset($payload['extendedTextMessage']['text'])) return $payload['extendedTextMessage']['text'];
         return '';
     }
-    if ($tipo === 'imagem') return $payload['image']['caption'] ?? '[imagem]';
-    if ($tipo === 'video')  return $payload['video']['caption'] ?? '[vídeo]';
-    if ($tipo === 'documento') return $payload['document']['caption'] ?? ($payload['document']['fileName'] ?? '[documento]');
+    if ($tipo === 'imagem') {
+        $cap = $payload['image']['caption'] ?? ($payload['imageMessage']['caption'] ?? '');
+        return $cap !== '' ? $cap : '[imagem]';
+    }
+    if ($tipo === 'video') {
+        $cap = $payload['video']['caption'] ?? ($payload['videoMessage']['caption'] ?? '');
+        return $cap !== '' ? $cap : '[vídeo]';
+    }
+    if ($tipo === 'documento') {
+        $cap = $payload['document']['caption'] ?? ($payload['documentMessage']['caption'] ?? '');
+        $nome = $payload['document']['fileName'] ?? ($payload['documentMessage']['fileName'] ?? '');
+        if ($cap !== '') return $cap;
+        if ($nome !== '') return $nome;
+        return '[documento]';
+    }
     if ($tipo === 'audio')  return '[áudio]';
     if ($tipo === 'sticker') return '[figurinha]';
     if ($tipo === 'localizacao') {

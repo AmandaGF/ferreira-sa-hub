@@ -149,7 +149,12 @@ try {
             $msgId  = $payload['messageId'] ?? ($payload['ids'][0] ?? '');
             $status = $payload['status'] ?? '';
             if ($msgId) {
-                $pdo->prepare("UPDATE zapi_mensagens SET status = ?, entregue = IF(? IN ('DELIVERED','RECEIVED','READ'), 1, entregue), lida = IF(?='READ', 1, lida) WHERE zapi_message_id = ?")
+                // NÃO atualiza status se a mensagem foi apagada via Hub (preserva status='deletada')
+                $pdo->prepare("UPDATE zapi_mensagens
+                               SET status = ?,
+                                   entregue = IF(? IN ('DELIVERED','RECEIVED','READ'), 1, entregue),
+                                   lida = IF(?='READ', 1, lida)
+                               WHERE zapi_message_id = ? AND status != 'deletada'")
                     ->execute(array($status, $status, $status, $msgId));
             }
             echo json_encode(array('status' => 'ok'));
