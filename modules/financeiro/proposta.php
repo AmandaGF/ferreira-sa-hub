@@ -65,9 +65,8 @@ $semJurosMulta = isset($_GET['sem_jm']) ? ((int)$_GET['sem_jm'] === 1) : $tirarJ
 $prazoProposta = $_GET['prazo'] ?? date('Y-m-d', strtotime('+7 days'));
 $observacoes   = trim($_GET['obs'] ?? '');
 
-// Estimativas de execução judicial (evitar/simular) — CPC art. 85 §1º e custas
+// Estimativa de execução judicial — honorários sucumbenciais (CPC art. 85 §1º)
 $honExecPct = isset($_GET['hon_exec']) ? max(0, min(30, (int)$_GET['hon_exec'])) : 10;  // 10% padrão
-$custas     = isset($_GET['custas']) ? max(0, (float)$_GET['custas']) : 200.00;         // R$ 200 padrão
 
 // Conforme CLÁUSULA 5.1 do contrato padrão do escritório:
 // "multa pecuniária de 20%, juros de mora de 1% ao mês e correção monetária"
@@ -92,7 +91,7 @@ $totalComAcrescimos += $totalPendente; // pendente não tem acréscimo ainda
 
 // Estimativa se virar execução judicial (pra convencer o cliente a acordar agora)
 $honExec = $totalVencido * ($honExecPct / 100);  // 10% sobre nominal vencido (CPC 85 §1º)
-$totalSeExecutar = $totalComAcrescimos + $honExec + $custas;
+$totalSeExecutar = $totalComAcrescimos + $honExec;
 
 // Valor final da proposta (SEM os acréscimos de execução — esses só se ir pra execução de fato)
 $baseProposta = $semJurosMulta ? $totalOriginal : $totalComAcrescimos;
@@ -188,12 +187,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="text" name="obs" value="<?= e($observacoes) ?>" placeholder="Ex: pagamento à vista via PIX">
             </div>
             <div>
-                <label title="Honorários de execução — CPC art. 85 §1º">Hon. execução (%)</label>
+                <label title="Honorários sucumbenciais da execução — CPC art. 85 §1º">Hon. execução (%)</label>
                 <input type="number" name="hon_exec" min="0" max="30" value="<?= $honExecPct ?>">
-            </div>
-            <div>
-                <label title="Custas processuais estimadas">Custas estim. (R$)</label>
-                <input type="number" step="0.01" name="custas" value="<?= $custas ?>">
             </div>
         </div>
 
@@ -294,18 +289,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <table style="margin-top:1rem;">
             <tr><td style="font-weight:700;">Total vencido (valor nominal):</td><td style="text-align:right;">R$ <?= number_format($totalVencido, 2, ',', '.') ?></td></tr>
-            <?php if (($totalMulta + $totalJuros) > 0): ?>
-            <tr style="<?= $semJurosMulta ? 'color:#9ca3af;' : '' ?>">
+            <?php if (($totalMulta + $totalJuros) > 0 && !$semJurosMulta): ?>
+            <tr>
                 <td style="font-weight:600;padding-left:1rem;">+ Multa contratual (20% sobre o valor nominal):</td>
-                <td style="text-align:right;"><?= $semJurosMulta ? '<span style="text-decoration:line-through;">R$ ' . number_format($totalMulta, 2, ',', '.') . '</span> <span style="color:#059669;font-weight:700;">(ZERADA)</span>' : 'R$ ' . number_format($totalMulta, 2, ',', '.') ?></td>
+                <td style="text-align:right;">R$ <?= number_format($totalMulta, 2, ',', '.') ?></td>
             </tr>
-            <tr style="<?= $semJurosMulta ? 'color:#9ca3af;' : '' ?>">
+            <tr>
                 <td style="font-weight:600;padding-left:1rem;">+ Juros de mora (1% ao mês, pro-rata dia):</td>
-                <td style="text-align:right;"><?= $semJurosMulta ? '<span style="text-decoration:line-through;">R$ ' . number_format($totalJuros, 2, ',', '.') . '</span> <span style="color:#059669;font-weight:700;">(ZERADOS)</span>' : 'R$ ' . number_format($totalJuros, 2, ',', '.') ?></td>
+                <td style="text-align:right;">R$ <?= number_format($totalJuros, 2, ',', '.') ?></td>
             </tr>
             <tr style="background:#f9fafb;">
                 <td style="font-weight:700;padding-left:1rem;">Subtotal com acréscimos contratuais:</td>
-                <td style="text-align:right;font-weight:700;"><?= $semJurosMulta ? '<span style="text-decoration:line-through;color:#9ca3af;">R$ ' . number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') . '</span>' : 'R$ ' . number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') ?></td>
+                <td style="text-align:right;font-weight:700;">R$ <?= number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') ?></td>
             </tr>
             <?php endif; ?>
             <tr><td style="font-weight:700;">Total a vencer:</td><td style="text-align:right;">R$ <?= number_format($totalPendente, 2, ',', '.') ?></td></tr>
@@ -317,12 +312,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <strong style="color:#991b1b;font-size:.92rem;">⚖️ Se o débito não for quitado e for à execução judicial, somam-se ainda:</strong>
             <table style="margin-top:.4rem;">
                 <tr><td style="padding-left:1rem;">+ Honorários advocatícios da execução (<?= $honExecPct ?>% — CPC art. 85 §1º):</td><td style="text-align:right;color:#991b1b;">R$ <?= number_format($honExec, 2, ',', '.') ?></td></tr>
-                <tr><td style="padding-left:1rem;">+ Custas processuais estimadas:</td><td style="text-align:right;color:#991b1b;">R$ <?= number_format($custas, 2, ',', '.') ?></td></tr>
-                <tr><td style="padding-left:1rem;font-style:italic;color:#6b7280;font-size:.78rem;">+ Correção monetária (não inclusa — varia conforme índice oficial)</td><td style="text-align:right;font-size:.78rem;color:#6b7280;">—</td></tr>
-                <tr style="background:#fef2f2;border-top:2px solid #dc2626;"><td style="font-weight:800;color:#991b1b;">TOTAL PROVÁVEL EM EXECUÇÃO:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.1rem;">R$ <?= number_format($totalSeExecutar, 2, ',', '.') ?></td></tr>
+                <tr><td style="padding-left:1rem;font-style:italic;color:#6b7280;font-size:.78rem;">+ Correção monetária e custas processuais (não inclusas — a apurar)</td><td style="text-align:right;font-size:.78rem;color:#6b7280;">—</td></tr>
+                <tr style="background:#fef2f2;border-top:2px solid #dc2626;"><td style="font-weight:800;color:#991b1b;">TOTAL ESTIMADO EM EXECUÇÃO:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.1rem;">R$ <?= number_format($totalSeExecutar, 2, ',', '.') ?></td></tr>
             </table>
         </div>
-        <p style="font-size:.7rem;color:#64748b;font-style:italic;margin-top:-.5rem;">Acréscimos calculados conforme <strong>cláusula 5.1 do contrato de honorários</strong>: multa pecuniária de 20% + juros de mora de 1% ao mês pro-rata dia + correção monetária.<?= $semJurosMulta ? ' <strong style="color:#059669;">Nesta proposta, os acréscimos foram ISENTADOS.</strong>' : '' ?></p>
+        <?php if (!$semJurosMulta): ?>
+        <p style="font-size:.7rem;color:#64748b;font-style:italic;margin-top:-.5rem;">Acréscimos calculados conforme <strong>cláusula 5.1 do contrato de honorários</strong>: multa pecuniária de 20% + juros de mora de 1% ao mês pro-rata dia + correção monetária.</p>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if (($totalVencido + $totalPendente) > 0): ?>
