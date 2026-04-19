@@ -249,18 +249,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Filtros + Toggle -->
 <div class="op-topbar">
-    <div style="display:flex;align-items:center;gap:1rem;">
-        <h3 style="margin:0;">Kanban Operacional</h3>
-        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+        <h3 style="margin:0;white-space:nowrap;">Kanban Operacional</h3>
+        <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;flex-shrink:0;">
             <button onclick="toggleOpView('kanban')" id="btnOpKanban" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;transition:all .2s;">📋 Kanban</button>
             <button onclick="toggleOpView('tabela')" id="btnOpTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
         </div>
-    </div>
-    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
-        <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Novo Processo</a>
-        <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
-        <form method="GET" class="op-filters">
-            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:160px;" onkeydown="if(event.key==='Enter')this.form.submit()">
+        <form method="GET" class="op-filters" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="🔎 Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:200px;" onkeydown="if(event.key==='Enter')this.form.submit()">
             <input type="month" name="mes" value="<?= e($filterMonth) ?>" class="op-filter-select" style="min-width:120px;" onchange="this.form.submit()">
             <select name="priority" class="op-filter-select" onchange="this.form.submit()">
                 <option value="">Prioridade</option>
@@ -277,9 +273,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </select>
             <?php endif; ?>
             <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth): ?>
-                <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">Limpar</a>
+                <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">✕ Limpar</a>
             <?php endif; ?>
         </form>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0;">
+        <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Novo Processo</a>
+        <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
     </div>
 </div>
 

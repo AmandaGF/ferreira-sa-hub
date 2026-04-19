@@ -109,10 +109,15 @@ function cdRender() {
     var tabs = ['geral','comercial','operacional','docs','financeiro','agenda','historico'];
     var tabLabels = {geral:'Geral',comercial:'Comercial',operacional:'Operacional',docs:'Docs',financeiro:'Financeiro',agenda:'Agenda',historico:'Hist.'};
     var tabsHtml = '';
+    var qtdComentarios = (d.comments || []).length;
     tabs.forEach(function(t) {
         if (t === 'comercial' && !d.can_comercial) return;
         if (t === 'financeiro' && !d.can_financeiro) return;
-        tabsHtml += '<button class="cd-tab' + (t === _cdTab ? ' active' : '') + '" data-tab="' + t + '" onclick="cdMudarTab(\'' + t + '\')">' + tabLabels[t] + '</button>';
+        var label = tabLabels[t];
+        if (t === 'geral' && qtdComentarios > 0) {
+            label += ' <span style="background:#B87333;color:#fff;font-size:.58rem;font-weight:800;padding:1px 5px;border-radius:10px;margin-left:3px;">💬 ' + qtdComentarios + '</span>';
+        }
+        tabsHtml += '<button class="cd-tab' + (t === _cdTab ? ' active' : '') + '" data-tab="' + t + '" onclick="cdMudarTab(\'' + t + '\')">' + label + '</button>';
     });
     document.getElementById('cdTabs').innerHTML = tabsHtml;
 
@@ -170,13 +175,46 @@ function cdRenderTab() {
             }
             h += '</div>';
         }
-        // Comentarios
-        h += '<div class="cd-s"><h5>Comentários</h5>';
-        h += '<textarea id="cdNewComment" style="width:100%;font-size:.82rem;padding:8px;border:1.5px solid #e5e7eb;border-radius:8px;resize:vertical;min-height:50px;" placeholder="Escrever..."></textarea>';
-        h += '<button onclick="cdAddComment()" style="background:#B87333;color:#fff;border:none;padding:4px 14px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;margin-top:4px;">Comentar</button>';
-        (d.comments || []).forEach(function(cm) {
-            h += '<div style="padding:6px 0;border-top:1px solid #f3f4f6;margin-top:4px;"><strong style="font-size:.75rem;">' + _e(cm.user_name) + '</strong> <span style="font-size:.62rem;color:#94a3b8;">' + _d(cm.created_at) + '</span><div style="font-size:.8rem;margin-top:2px;">' + _e(cm.message) + '</div></div>';
-        });
+        // Comentários — visual tipo chat-bubble
+        var cmts = d.comments || [];
+        var cmtCor = function(nome) {
+            // Cor determinística pelo hash simples do nome — consistente entre renderizações
+            var hash = 0;
+            for (var i = 0; i < (nome||'').length; i++) hash = ((hash << 5) - hash) + nome.charCodeAt(i);
+            var paleta = ['#052228','#B87333','#4A7C74','#8B5A3C','#5B2D8E','#0ea5e9','#059669','#d97706','#dc2626','#6366f1'];
+            return paleta[Math.abs(hash) % paleta.length];
+        };
+        var cmtIniciais = function(nome) {
+            if (!nome) return '?';
+            var p = nome.trim().split(/\s+/);
+            return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase();
+        };
+        h += '<div class="cd-s" style="background:linear-gradient(180deg,#fffbeb,#fff);border:1px solid #fde68a;border-radius:12px;padding:.9rem 1rem;">';
+        h += '<h5 style="display:flex;align-items:center;gap:.4rem;margin:0 0 .6rem;color:#78350f;">💬 Comentários <span style="background:#B87333;color:#fff;font-size:.62rem;font-weight:800;padding:1px 7px;border-radius:10px;">' + cmts.length + '</span></h5>';
+        // Input de novo comentário
+        h += '<div style="margin-bottom:.8rem;">';
+        h +=   '<textarea id="cdNewComment" style="width:100%;font-size:.85rem;padding:10px;border:1.5px solid #fde68a;border-radius:10px;resize:vertical;min-height:60px;background:#fff;font-family:inherit;" placeholder="Escreva um comentário..."></textarea>';
+        h +=   '<button onclick="cdAddComment()" style="background:#B87333;color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer;margin-top:6px;">💬 Comentar</button>';
+        h += '</div>';
+        // Lista de comentários em bubbles
+        if (cmts.length === 0) {
+            h += '<div style="text-align:center;color:#a16207;padding:.6rem;font-size:.78rem;font-style:italic;">Nenhum comentário ainda. Seja o primeiro!</div>';
+        } else {
+            cmts.forEach(function(cm) {
+                var cor = cmtCor(cm.user_name);
+                var ini = cmtIniciais(cm.user_name);
+                h += '<div style="display:flex;gap:.6rem;align-items:flex-start;padding:.5rem 0;border-top:1px solid #fef3c7;">';
+                h +=   '<div style="width:32px;height:32px;border-radius:50%;background:' + cor + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.72rem;flex-shrink:0;">' + ini + '</div>';
+                h +=   '<div style="flex:1;min-width:0;">';
+                h +=     '<div style="display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap;margin-bottom:2px;">';
+                h +=       '<strong style="font-size:.8rem;color:#0f2140;">' + _e(cm.user_name) + '</strong>';
+                h +=       '<span style="font-size:.65rem;color:#94a3b8;">' + _d(cm.created_at) + '</span>';
+                h +=     '</div>';
+                h +=     '<div style="font-size:.85rem;color:#1f2937;line-height:1.4;background:#fff;border:1px solid #fde68a;border-radius:10px 10px 10px 2px;padding:.5rem .7rem;white-space:pre-wrap;word-wrap:break-word;">' + _e(cm.message) + '</div>';
+                h +=   '</div>';
+                h += '</div>';
+            });
+        }
         h += '</div>';
 
     } else if (_cdTab === 'comercial' && l) {
