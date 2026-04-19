@@ -237,9 +237,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Kanban -->
-<div id="viewKanban" style="display:grid;grid-template-columns:repeat(<?= count($stages) ?>,minmax(155px,1fr));gap:.4rem;min-height:400px;overflow-x:auto;">
+<style>
+#viewKanban::-webkit-scrollbar { height:10px; }
+#viewKanban::-webkit-scrollbar-track { background:#f1f5f9; border-radius:5px; }
+#viewKanban::-webkit-scrollbar-thumb { background:var(--petrol-500); border-radius:5px; }
+#viewKanban::-webkit-scrollbar-thumb:hover { background:var(--petrol-900); }
+#viewKanban .pipe-col { width:240px; min-width:240px; flex-shrink:0; scroll-snap-align:start; display:flex; flex-direction:column; }
+@media (max-width: 768px) { #viewKanban .pipe-col { width:220px; min-width:220px; } }
+</style>
+<div id="viewKanban" style="display:flex;gap:.5rem;min-height:400px;overflow-x:auto;padding-bottom:.5rem;scroll-snap-type:x proximity;">
     <?php foreach ($stages as $stageKey => $stage): ?>
-    <div style="display:flex;flex-direction:column;min-width:0;">
+    <div class="pipe-col">
         <div class="kanban-header" style="background:<?= $stage['color'] ?>;">
             <span><?= $stage['icon'] ?> <?= $stage['label'] ?></span>
             <span class="count"><?= count($byStage[$stageKey]) ?></span>

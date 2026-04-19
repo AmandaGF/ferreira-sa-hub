@@ -125,8 +125,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ch-kpi-val { font-size:1.25rem;font-weight:800;line-height:1; }
 .ch-kpi-label { font-size:.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-top:.1rem; }
 /* Kanban */
-.ch-kanban { display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;margin-bottom:1rem; }
-.ch-col { background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border);min-height:300px; }
+.ch-kanban { display:flex;gap:.6rem;margin-bottom:1rem;overflow-x:auto;padding-bottom:.5rem;scroll-snap-type:x proximity; }
+.ch-kanban::-webkit-scrollbar { height:10px; }
+.ch-kanban::-webkit-scrollbar-track { background:#f1f5f9;border-radius:5px; }
+.ch-kanban::-webkit-scrollbar-thumb { background:var(--petrol-500);border-radius:5px; }
+.ch-kanban::-webkit-scrollbar-thumb:hover { background:var(--petrol-900); }
+.ch-col { background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border);min-height:300px;width:260px;min-width:260px;flex-shrink:0;scroll-snap-align:start; }
 .ch-col-header { padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.3rem; }
 .ch-col-body { padding:.5rem; }
 .ch-card { background:#fff;border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;margin-bottom:.5rem;cursor:pointer;transition:box-shadow .2s; }
@@ -144,8 +148,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 /* Modal */
 .ch-modal { display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center; }
 .ch-modal-box { background:#fff;border-radius:12px;padding:1.5rem;max-width:550px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto; }
-@media (max-width:1200px) { .ch-kanban { grid-template-columns:repeat(3,1fr); } .ch-kpi { grid-template-columns:repeat(3,1fr); } }
-@media (max-width:768px) { .ch-kanban { grid-template-columns:1fr; } .ch-kpi { grid-template-columns:repeat(2,1fr); } }
+@media (max-width:1200px) { .ch-kpi { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:768px) { .ch-col { width:240px;min-width:240px; } .ch-kpi { grid-template-columns:repeat(2,1fr); } }
 </style>
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">

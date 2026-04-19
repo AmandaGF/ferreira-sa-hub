@@ -163,9 +163,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-kpi-value { font-size:1.2rem; font-weight:800; color:var(--petrol-900); }
 .op-kpi-label { font-size:.62rem; color:var(--text-muted); text-transform:uppercase; }
 
-.op-board { display:grid; grid-template-columns:repeat(<?= count($columns) ?>, 1fr); gap:.5rem; min-height:450px; overflow-x:auto; }
-.op-column { display:flex; flex-direction:column; min-width:0; }
-.op-col-header { padding:.55rem .7rem; border-radius:var(--radius) var(--radius) 0 0; color:#fff; font-weight:700; font-size:.68rem; display:flex; justify-content:space-between; align-items:center; }
+.op-board { display:flex; gap:.5rem; min-height:450px; overflow-x:auto; padding-bottom:.5rem; scroll-snap-type:x proximity; }
+.op-board::-webkit-scrollbar { height:10px; }
+.op-board::-webkit-scrollbar-track { background:#f1f5f9; border-radius:5px; }
+.op-board::-webkit-scrollbar-thumb { background:var(--petrol-500); border-radius:5px; }
+.op-board::-webkit-scrollbar-thumb:hover { background:var(--petrol-900); }
+.op-column { display:flex; flex-direction:column; width:240px; min-width:240px; flex-shrink:0; scroll-snap-align:start; }
+.op-col-header { padding:.55rem .7rem; border-radius:var(--radius) var(--radius) 0 0; color:#fff; font-weight:700; font-size:.72rem; display:flex; justify-content:space-between; align-items:center; gap:.3rem; }
+.op-col-header > :first-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .op-col-header .count { background:rgba(255,255,255,.25); padding:.1rem .4rem; border-radius:100px; font-size:.6rem; }
 .op-col-body { flex:1; background:var(--bg); border:1px solid var(--border); border-top:none; border-radius:0 0 var(--radius) var(--radius); padding:.35rem; display:flex; flex-direction:column; gap:.35rem; min-height:80px; overflow-y:auto; max-height:70vh; }
 .op-col-body.drag-over { background:rgba(99,102,241,.08); border-color:rgba(99,102,241,.4); }
@@ -173,7 +178,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card { background:var(--bg-card); border-radius:var(--radius); padding:.6rem .7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:grab; transition:all var(--transition); }
 .op-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .op-card.dragging { opacity:.4; cursor:grabbing; }
-.op-card-name { font-weight:700; font-size:.78rem; color:var(--petrol-900); margin-bottom:.15rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.op-card-name { font-weight:700; font-size:.78rem; color:var(--petrol-900); margin-bottom:.2rem; line-height:1.25; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .op-card-client { font-size:.65rem; color:var(--text-muted); margin-bottom:.2rem; }
 .op-card-badges { display:flex; gap:.15rem; flex-wrap:wrap; margin-bottom:.25rem; }
 .op-card-badge { font-size:.55rem; font-weight:700; padding:.1rem .3rem; border-radius:4px; color:#fff; text-transform:uppercase; }
@@ -198,8 +203,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-empty { text-align:center; padding:1rem .5rem; color:var(--text-muted); font-size:.7rem; }
 
 .page-content { max-width:none !important; padding:.75rem !important; }
-@media (max-width: 1024px) { .op-board { grid-template-columns:repeat(3, 1fr); } }
-@media (max-width: 768px) { .op-board { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width: 768px) { .op-column { width:220px; min-width:220px; } }
 </style>
 
 <!-- Banner: Documentos Pendentes (colapsável) -->
