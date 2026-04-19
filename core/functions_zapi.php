@@ -168,6 +168,7 @@ function zapi_delete_message($ddd, $telefone, $zapiMessageId) {
 
 /**
  * Edita uma mensagem de texto já enviada (WhatsApp permite até 15 min).
+ * Endpoint dedicado da Z-API: /send-message-edit
  */
 function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
     $inst = zapi_get_instancia($ddd);
@@ -175,16 +176,15 @@ function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
         return array('ok' => false, 'erro' => 'Instância não configurada');
     }
     $cfg = zapi_get_config();
-    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-text';
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-message-edit';
 
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
     $body = array(
         'phone'     => zapi_normaliza_telefone($telefone),
-        'message'   => $novoTexto,
-        'messageId' => $zapiMessageId,  // indicador de edit
-        'editMessage' => true,
+        'messageId' => $zapiMessageId,
+        'text'      => $novoTexto,
     );
     return _zapi_post($url, $headers, $body);
 }
