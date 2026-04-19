@@ -184,7 +184,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- Mensagens por hora -->
     <div class="wd-panel">
         <h3>📈 Mensagens por hora (hoje)</h3>
-        <canvas id="chartHora" height="80"></canvas>
+        <div style="position:relative;height:260px;width:100%;">
+            <canvas id="chartHora"></canvas>
+        </div>
     </div>
 
     <!-- Conversas por atendente -->
