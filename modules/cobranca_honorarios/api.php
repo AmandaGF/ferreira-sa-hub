@@ -267,6 +267,20 @@ if ($action === 'criar_cobranca') {
     redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
 
+// ── Voltar parcelas para 'atrasado' (drag-and-drop reverso) ──
+if ($action === 'voltar_atrasado') {
+    $ids = array_map('intval', (array)($_POST['cobranca_ids'] ?? array()));
+    if (empty($ids)) { flash_set('error', 'Nada a mover.'); redirect(module_url('cobranca_honorarios')); }
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $pdo->prepare("UPDATE honorarios_cobranca SET status = 'atrasado', updated_at = NOW() WHERE id IN ($ph)")
+        ->execute($ids);
+    $hist = $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_por) VALUES (?, 'observacao', 'Card devolvido para Atrasado', ?)");
+    foreach ($ids as $cid) $hist->execute(array($cid, $userId));
+    audit_log('hc_voltar_atrasado', 'honorarios_cobranca', 0, "ids=[" . implode(',', $ids) . "]");
+    flash_set('success', count($ids) . ' parcela(s) devolvidas para "Atrasado".');
+    redirect(module_url('cobranca_honorarios'));
+}
+
 // ── Avançar etapa EM MASSA (todas as parcelas de 1 cliente de uma vez) ──
 if ($action === 'avancar_etapa_massa') {
     $ids = array_map('intval', (array)($_POST['cobranca_ids'] ?? array()));

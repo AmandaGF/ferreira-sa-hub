@@ -166,8 +166,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ch-col { background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border);min-height:300px;width:260px;min-width:260px;flex-shrink:0;scroll-snap-align:start; }
 .ch-col-header { padding:.6rem .8rem;border-bottom:1px solid var(--border);font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:.3rem; }
 .ch-col-body { padding:.5rem; }
-.ch-card { background:#fff;border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;margin-bottom:.5rem;cursor:pointer;transition:box-shadow .2s; }
-.ch-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); }
+.ch-card { background:#fff;border:1px solid var(--border);border-radius:8px;padding:.6rem .7rem;margin-bottom:.5rem;cursor:grab;transition:box-shadow .2s,transform .15s; }
+.ch-card:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); transform:translateY(-1px); }
+.ch-card:active { cursor:grabbing; }
+.ch-col-body { min-height:100px; transition:background .15s; }
+.ch-col-body.drag-over { background:rgba(184,115,51,.1); border:2px dashed #B87333; border-radius:8px; }
 .ch-card-name { font-weight:700;font-size:.82rem;color:var(--petrol-900); }
 .ch-card-tipo { font-size:.68rem;color:var(--text-muted); }
 .ch-card-valor { font-size:.9rem;font-weight:800;color:#dc2626;margin:.2rem 0; }
@@ -274,7 +277,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?= $col['icon'] ?> <?= $col['label'] ?>
                 <span style="margin-left:auto;background:<?= $col['color'] ?>;color:#fff;padding:1px 7px;border-radius:9px;font-size:.65rem;"><?= count($col['items']) ?></span>
             </div>
-            <div class="ch-col-body">
+            <div class="ch-col-body" data-col="<?= e($colKey) ?>" ondragover="chDragOver(event)" ondragleave="chDragLeave(event)" ondrop="chDrop(event, '<?= e($colKey) ?>')">
                 <?php if (empty($col['grupos'])): ?>
                     <p style="text-align:center;color:var(--text-muted);font-size:.72rem;padding:1.5rem .5rem;">Nenhum</p>
                 <?php endif; ?>
@@ -289,8 +292,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php foreach ($col['grupos'] as $gi => $g):
                     $qtd = count($g['parcelas']);
                     $grpId = 'grp_' . $colKey . '_' . $gi;
+                    $ids = array_map(function($p){ return (int)$p['id']; }, $g['parcelas']);
                 ?>
-                <div class="ch-card">
+                <div class="ch-card" draggable="true" data-ids="<?= e(implode(',', $ids)) ?>" data-origem="<?= e($colKey) ?>" ondragstart="chDragStart(event, this)" ondragend="chDragEnd(event, this)">
                     <!-- Header do cliente (clique expande/recolhe) -->
                     <div onclick="chToggleGrp('<?= $grpId ?>')" style="cursor:pointer;">
                         <div class="ch-card-name"><?= e($g['client_name'] ?: 'Sem nome') ?>
@@ -705,6 +709,79 @@ function chToggleGrp(id) {
     if (!el) return;
     if (el.style.display === 'none') { el.style.display = 'block'; if (ico) ico.textContent = '▾'; }
     else { el.style.display = 'none'; if (ico) ico.textContent = '▸'; }
+}
+
+// ── Drag & Drop: arrastar card entre colunas ──
+var _chDragData = null;
+
+function chDragStart(ev, card) {
+    _chDragData = {
+        ids: card.getAttribute('data-ids'),
+        origem: card.getAttribute('data-origem'),
+    };
+    card.style.opacity = '.45';
+    if (ev.dataTransfer) {
+        ev.dataTransfer.effectAllowed = 'move';
+        try { ev.dataTransfer.setData('text/plain', _chDragData.ids); } catch(e) {}
+    }
+}
+function chDragEnd(ev, card) {
+    card.style.opacity = '';
+    document.querySelectorAll('.ch-col-body').forEach(function(b){ b.classList.remove('drag-over'); });
+}
+function chDragOver(ev) {
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    ev.currentTarget.classList.add('drag-over');
+}
+function chDragLeave(ev) {
+    ev.currentTarget.classList.remove('drag-over');
+}
+function chDrop(ev, colDestino) {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove('drag-over');
+    if (!_chDragData) return;
+    var origem = _chDragData.origem;
+    var ids = _chDragData.ids;
+    _chDragData = null;
+    if (origem === colDestino) return; // mesma coluna, ignora
+
+    // Mapear coluna destino → ação
+    var mapAcao = {
+        'notificado_1': 'notificar_1',
+        'notificado_2': 'notificar_2',
+        'notificado_extrajudicial': 'notificar_extrajudicial',
+    };
+    if (colDestino === 'judicial') {
+        alert('Para mover pra Judicial, use o botão "→ Judicial" no próprio card (exige motivo e data).');
+        return;
+    }
+    if (colDestino === 'atrasado') {
+        if (!confirm('Voltar este card para "Atrasado"? Isso vai retirar o status de notificação atual.')) return;
+        var form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '<?= module_url('cobranca_honorarios', 'api.php') ?>';
+        var idsArr = ids.split(',');
+        var html = '<input type="hidden" name="action" value="voltar_atrasado">' + '<?= csrf_input() ?>';
+        idsArr.forEach(function(id){ html += '<input type="hidden" name="cobranca_ids[]" value="' + id + '">'; });
+        form.innerHTML = html;
+        document.body.appendChild(form); form.submit();
+        return;
+    }
+    var acao = mapAcao[colDestino];
+    if (!acao) return;
+    var n = ids.split(',').length;
+    if (!confirm('Mover ' + n + ' parcela(s) para "' + colDestino + '"? Uma sugestão de mensagem será gerada na Caixa de Envios.')) return;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url('cobranca_honorarios', 'api.php') ?>';
+    var idsArr = ids.split(',');
+    var html = '<input type="hidden" name="action" value="avancar_etapa_massa">' +
+               '<input type="hidden" name="proxima_etapa" value="' + acao + '">' +
+               '<?= csrf_input() ?>';
+    idsArr.forEach(function(id){ html += '<input type="hidden" name="cobranca_ids[]" value="' + id + '">'; });
+    form.innerHTML = html;
+    document.body.appendChild(form); form.submit();
 }
 
 function registrarPagamento(id, saldo) {
