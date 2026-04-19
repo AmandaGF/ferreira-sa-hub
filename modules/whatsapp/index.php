@@ -820,6 +820,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
                 document.body.appendChild(modal);
             }
+            // Mapa status → { label, cor, icon } (espelha modules/operacional/index.php)
+            var statusMap = {
+                'aguardando_docs'         : { label: 'Contrato — Aguardando Docs', cor: '#f59e0b', icon: '📄' },
+                'em_elaboracao'           : { label: 'Pasta Apta',                 cor: '#059669', icon: '✔️' },
+                'em_andamento'            : { label: 'Em Execução',                cor: '#0ea5e9', icon: '⚙️' },
+                'doc_faltante'            : { label: 'Doc Faltante',               cor: '#dc2626', icon: '⚠️' },
+                'suspenso'                : { label: 'Suspenso',                   cor: '#5B2D8E', icon: '⏸️' },
+                'aguardando_prazo'        : { label: 'Aguard. Distribuição',       cor: '#8b5cf6', icon: '⏳' },
+                'distribuido'             : { label: 'Processo Distribuído',       cor: '#15803d', icon: '🏛️' },
+                'kanban_prev'             : { label: 'Kanban PREV',                cor: '#3B4FA0', icon: '🏛️' },
+                'parceria_previdenciario' : { label: 'Parceria',                   cor: '#06b6d4', icon: '🤝' },
+                'cancelado'               : { label: 'Cancelado',                  cor: '#6b7280', icon: '❌' },
+                'arquivado'               : { label: 'Arquivado',                  cor: '#6b7280', icon: '📦' }
+            };
+            function pilulaStatus(s) {
+                var info = statusMap[s] || { label: s || '—', cor: '#6b7280', icon: '•' };
+                return '<span style="display:inline-flex;align-items:center;gap:4px;background:'+info.cor+';color:#fff;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:600;">'+info.icon+' '+escapeHtml(info.label)+'</span>';
+            }
+
             var html = '<div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);">';
             html += '<h3 style="margin:0 0 .4rem;color:#0f2140;">📁 Salvar no Google Drive</h3>';
             html += '<p style="font-size:.85rem;color:#6b7280;margin:0 0 1rem;">Escolha em qual caso do cliente esse arquivo deve ser salvo (vai na pasta do Drive do caso):</p>';
@@ -831,8 +850,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 if (hasFolder) html += 'onclick="waConfirmarDrive('+msgId+', '+c.id+')"';
                 html += '>';
                 html += '<div style="font-weight:600;color:#0f2140;">'+escapeHtml(c.client_title||'(sem título)')+'</div>';
-                html += '<div style="font-size:.75rem;color:#6b7280;">'+escapeHtml(c.case_type||'')+' · status='+escapeHtml(c.status||'')+'</div>';
-                if (!hasFolder) html += '<div style="font-size:.72rem;color:#dc2626;margin-top:2px;">⚠️ Caso sem pasta no Drive — crie no Kanban Operacional primeiro</div>';
+                html += '<div style="font-size:.75rem;color:#6b7280;margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+                if (c.case_type) html += '<span>'+escapeHtml(c.case_type)+'</span>';
+                html += '<span style="color:#9ca3af;">Status:</span>'+pilulaStatus(c.status);
+                html += '</div>';
+                if (!hasFolder) html += '<div style="font-size:.72rem;color:#dc2626;margin-top:4px;">⚠️ Caso sem pasta no Drive — crie no Kanban Operacional primeiro</div>';
                 html += '</div>';
             });
             html += '</div>';
