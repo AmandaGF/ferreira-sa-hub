@@ -276,20 +276,82 @@ if ($action === 'avancar_etapa_massa') {
         'notificar_2' => 'notificado_2',
         'notificar_extrajudicial' => 'notificado_extrajudicial',
     );
+    $etapaHistMap = array(
+        'notificar_1' => 'notificacao_1',
+        'notificar_2' => 'notificacao_2',
+        'notificar_extrajudicial' => 'notificacao_extrajudicial',
+    );
     if (!isset($mapStatus[$proxEtapa]) || empty($ids)) {
         flash_set('error', 'Parâmetros inválidos.');
         redirect(module_url('cobranca_honorarios'));
     }
     $novoStatus = $mapStatus[$proxEtapa];
-    $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $stmt = $pdo->prepare("UPDATE honorarios_cobranca SET status = ?, updated_at = NOW() WHERE id IN ($placeholders)");
-    $stmt->execute(array_merge(array($novoStatus), $ids));
-    $n = $stmt->rowCount();
-    // Log em histórico pra cada uma
-    $hist = $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_por) VALUES (?, ?, 'Avanço em massa (agrupado por cliente)', ?)");
-    foreach ($ids as $cid) $hist->execute(array($cid, $proxEtapa, $userId));
-    audit_log('hc_avancar_massa', 'honorarios_cobranca', 0, "ids=[" . implode(',', $ids) . "] novo={$novoStatus}");
-    flash_set('success', "{$n} parcela(s) avançadas pra '{$novoStatus}'.");
+
+    // Pegar dados do cliente + parcelas antes de atualizar status
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmtP = $pdo->prepare(
+        "SELECT hc.*, cl.id as cli_id, cl.name as client_name, cl.phone as client_phone
+         FROM honorarios_cobranca hc LEFT JOIN clients cl ON cl.id = hc.client_id
+         WHERE hc.id IN ($ph)"
+    );
+    $stmtP->execute($ids);
+    $parcelas = $stmtP->fetchAll();
+
+    // Atualiza status em massa
+    $stmtUpd = $pdo->prepare("UPDATE honorarios_cobranca SET status = ?, updated_at = NOW() WHERE id IN ($ph)");
+    $stmtUpd->execute(array_merge(array($novoStatus), $ids));
+    $n = count($parcelas);
+
+    // Monta mensagem consolidada pro cliente (soma de parcelas + maior vencimento/atraso)
+    $cliente = $parcelas[0] ?? null;
+    $totalSaldo = 0; $venMaisAntigo = null;
+    foreach ($parcelas as $p) {
+        $totalSaldo += ((float)$p['valor_total'] - (float)$p['valor_pago']);
+        if (!$venMaisAntigo || $p['vencimento'] < $venMaisAntigo) $venMaisAntigo = $p['vencimento'];
+    }
+
+    // Carrega template de mensagem conforme etapa
+    $config = $pdo->query("SELECT * FROM honorarios_config ORDER BY id LIMIT 1")->fetch();
+    $template = '';
+    if ($proxEtapa === 'notificar_1' && !empty($config['msg_notificacao_1'])) $template = $config['msg_notificacao_1'];
+    elseif ($proxEtapa === 'notificar_2' && !empty($config['msg_notificacao_2'])) $template = $config['msg_notificacao_2'];
+    elseif ($proxEtapa === 'notificar_extrajudicial') $template = "Prezado(a) [Nome], notificamos EXTRAJUDICIALMENTE sobre débito pendente no valor de R$ [valor] (vencimento mais antigo: [data]). Solicitamos regularização em até 10 dias úteis para evitar medidas judiciais. _Ferreira & Sá Advocacia_";
+
+    $msg = $template;
+    if ($cliente) {
+        $msg = str_replace('[Nome]', $cliente['client_name'] ?: 'Cliente', $msg);
+        $msg = str_replace('[valor]', number_format($totalSaldo, 2, ',', '.'), $msg);
+        $msg = str_replace('[data]', $venMaisAntigo ? date('d/m/Y', strtotime($venMaisAntigo)) : '', $msg);
+        if ($n > 1) $msg .= "\n\n_(Referente a {$n} parcelas em aberto)_";
+    }
+
+    // Enfileira 1 sugestão na Caixa de Envios (pra Amanda/equipe revisar e enviar)
+    $filaId = null;
+    if ($cliente && $cliente['client_phone'] && $msg) {
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $filaId = zapi_fila_enfileirar(
+            'cobranca_' . $proxEtapa,
+            (int)$cliente['cli_id'],
+            $cliente['client_phone'],
+            $msg,
+            array('nome' => $cliente['client_name'], 'canal' => '24', 'criada_por' => $userId)
+        );
+    }
+
+    // Log no histórico de cada parcela (como SUGESTÃO, não envio)
+    $etapaHist = $etapaHistMap[$proxEtapa];
+    $hist = $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_via, enviado_por) VALUES (?, ?, ?, ?, ?)");
+    foreach ($ids as $cid) {
+        $hist->execute(array($cid, $etapaHist,
+            $filaId ? "Sugestão de mensagem enfileirada na Caixa de Envios WhatsApp (id fila #{$filaId}). Revisar antes de enviar." : "Status avançado sem envio (sem telefone/template).",
+            'manual', $userId));
+    }
+    audit_log('hc_avancar_massa', 'honorarios_cobranca', 0, "ids=[" . implode(',', $ids) . "] novo={$novoStatus} fila_id={$filaId}");
+
+    $fm = $filaId
+        ? "{$n} parcela(s) movidas. 💬 Sugestão de mensagem na Caixa de Envios — revise e envie."
+        : "{$n} parcela(s) movidas (sem telefone do cliente, nada foi sugerido).";
+    flash_set('success', $fm);
     redirect(module_url('cobranca_honorarios'));
 }
 
@@ -333,13 +395,12 @@ if ($action === 'avancar_etapa') {
 
     // Preparar mensagem WhatsApp
     $msg = '';
-    $enviado_via = 'whatsapp';
     if ($proxEtapa === 'notificar_1' && $config && $config['msg_notificacao_1']) {
         $msg = $config['msg_notificacao_1'];
     } elseif ($proxEtapa === 'notificar_2' && $config && $config['msg_notificacao_2']) {
         $msg = $config['msg_notificacao_2'];
     } elseif ($proxEtapa === 'notificar_extrajudicial') {
-        $msg = 'Notificação extrajudicial enviada. Prazo de 10 dias para pagamento.';
+        $msg = "Prezado(a) [Nome], notificamos EXTRAJUDICIALMENTE sobre débito pendente no valor de R$ [valor] (vencimento: [data]). Solicitamos regularização em até 10 dias úteis para evitar medidas judiciais. _Ferreira & Sá Advocacia_";
     }
 
     // Substituir variáveis
@@ -347,19 +408,31 @@ if ($action === 'avancar_etapa') {
     $msg = str_replace('[valor]', number_format($saldo, 2, ',', '.'), $msg);
     $msg = str_replace('[data]', date('d/m/Y', strtotime($cob['vencimento'])), $msg);
 
+    // Enfileira na Caixa de Envios WhatsApp pra revisão manual (não envia automático)
+    $filaId = null;
+    if ($cob['client_phone'] && $msg) {
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $filaId = zapi_fila_enfileirar(
+            'cobranca_' . $proxEtapa,
+            (int)$cob['client_id'],
+            $cob['client_phone'],
+            $msg,
+            array('nome' => $cob['client_name'], 'canal' => '24', 'criada_por' => $userId)
+        );
+    }
+
     // Histórico
-    $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_via, enviado_por) VALUES (?, ?, ?, ?, ?)")
-        ->execute(array($cobId, $etapaHist, $msg, $enviado_via, $userId));
+    $descHist = $filaId
+        ? "Sugestão enfileirada na Caixa de Envios WhatsApp (id #{$filaId}) — revise e envie."
+        : "Status avançado (sem telefone/template configurado).";
+    $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_via, enviado_por) VALUES (?, ?, ?, 'manual', ?)")
+        ->execute(array($cobId, $etapaHist, $descHist, $userId));
 
-    audit_log('cobranca_avancar', 'honorarios_cobranca', $cobId, "Avançou para $novoStatus");
-
-    // Abrir WhatsApp automaticamente
-    if ($cob['client_phone']) {
-        $phone = preg_replace('/\D/', '', $cob['client_phone']);
-        $waUrl = 'https://wa.me/55' . $phone . '?text=' . urlencode($msg);
-        flash_set('success', 'Etapa avançada. <a href="' . $waUrl . '" target="_blank" style="color:#25d366;font-weight:700;">📱 Abrir WhatsApp</a>');
+    audit_log('cobranca_avancar', 'honorarios_cobranca', $cobId, "Avançou para $novoStatus fila_id={$filaId}");
+    if ($filaId) {
+        flash_set('success', '✅ Status atualizado. 💬 Sugestão de mensagem na <a href="' . module_url('whatsapp', 'fila.php') . '" style="color:#B87333;font-weight:700;text-decoration:underline;">Caixa de Envios</a> — revise e envie.');
     } else {
-        flash_set('success', 'Etapa avançada para ' . $novoStatus . '.');
+        flash_set('success', 'Status atualizado (sem telefone do cliente ou template configurado).');
     }
     redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
