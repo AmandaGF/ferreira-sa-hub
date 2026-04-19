@@ -57,7 +57,23 @@ foreach (array('21', '24') as $ddd) {
         curl_close($ch);
         if ($code !== 200) { $falhas++; $log("[{$ddd}] {$nome}: HTTP {$code} — " . substr($r, 0, 80)); }
     }
-    if ($falhas === 0) $log("[{$ddd}] todos os 4 webhooks re-afirmados OK");
+
+    // Garantir que notify-sent-by-me está ATIVADO — espelha msgs enviadas pelo celular
+    $ch = curl_init($base . '/update-notify-sent-by-me');
+    curl_setopt_array($ch, array(
+        CURLOPT_CUSTOMREQUEST  => 'PUT',
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_POSTFIELDS     => json_encode(array('value' => true)),
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_TIMEOUT        => 10,
+    ));
+    $r = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code !== 200) { $falhas++; $log("[{$ddd}] notify-sent-by-me: HTTP {$code} — " . substr($r, 0, 80)); }
+
+    if ($falhas === 0) $log("[{$ddd}] todos os webhooks + notify-sent-by-me re-afirmados OK");
 }
 
 $log("=== FIM ===\n");
