@@ -42,10 +42,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? 'responder';
 
     if ($action === 'fechar_thread') {
+        $motivo = trim($_POST['motivo_fechamento'] ?? '');
         $pdo->prepare("UPDATE salavip_threads SET status = 'fechada', atualizado_em = NOW() WHERE id = ?")->execute([$threadId]);
-        audit_log('salavip_thread_fechar', 'salavip_threads', $threadId);
+        // Registra motivo opcional como mensagem interna (só equipe vê — origem=conecta)
+        if ($motivo !== '') {
+            $userName = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+            $userName->execute([current_user_id()]);
+            $userName = $userName->fetchColumn() ?: 'Equipe';
+            $pdo->prepare("INSERT INTO salavip_mensagens (thread_id, origem, remetente_id, remetente_nome, mensagem, lida_equipe, lida_cliente, criado_em)
+                           VALUES (?, 'conecta', ?, ?, ?, 1, 0, NOW())")
+                ->execute(array($threadId, current_user_id(), $userName, '[Conversa fechada sem resposta] Motivo: ' . $motivo));
+        }
+        audit_log('salavip_thread_fechar', 'salavip_threads', $threadId, $motivo);
         flash_set('success', 'Conversa fechada.');
         redirect(module_url('salavip'));
+    }
+
+    if ($action === 'apagar_msg') {
+        $msgId = (int)($_POST['msg_id'] ?? 0);
+        // Só apaga mensagens da EQUIPE (não do cliente)
+        $pdo->prepare("DELETE FROM salavip_mensagens WHERE id = ? AND thread_id = ? AND origem = 'conecta'")
+            ->execute(array($msgId, $threadId));
+        audit_log('salavip_msg_apagar', 'salavip_mensagens', $msgId);
+        flash_set('success', 'Mensagem apagada.');
+        redirect(module_url('salavip', 'ver_mensagem.php?thread_id=' . $threadId));
     }
 
     if ($action === 'responder') {

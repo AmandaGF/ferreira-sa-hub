@@ -67,21 +67,67 @@ if ($sortParam && isset($validSorts[$sortParam])) {
     $orderBy = "FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC";
 }
 
-$stmt = $pdo->prepare(
-    "SELECT t.*, u.name as requester_name,
-     GROUP_CONCAT(u2.name SEPARATOR ', ') as assignees,
-     (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = t.id) as msg_count
-     FROM tickets t
-     LEFT JOIN users u ON u.id = t.requester_id
-     LEFT JOIN ticket_assignees ta ON ta.ticket_id = t.id
-     LEFT JOIN users u2 ON u2.id = ta.user_id
-     $whereStr
-     GROUP BY t.id
-     ORDER BY $orderBy
-     LIMIT 100"
-);
-$stmt->execute($params);
-$tickets = $stmt->fetchAll();
+if ($filterOrigem === 'clientes') {
+    // ── Aba Chamados de Clientes: puxa de salavip_threads ──
+    // Mapeia status salavip → status ticket: aberta → aberto, respondida → em_andamento, fechada → resolvido
+    $mapStatus = array('aberta' => 'aberto', 'respondida' => 'em_andamento', 'aguardando' => 'aguardando', 'fechada' => 'resolvido');
+    $whereThreads = array();
+    $paramsThreads = array();
+    if ($filterStatus) {
+        // Inverso — mapeia ticket status pra salavip
+        $revMap = array('aberto' => 'aberta', 'em_andamento' => 'respondida', 'resolvido' => 'fechada', 'aguardando' => 'aguardando');
+        if (isset($revMap[$filterStatus])) {
+            $whereThreads[] = "st.status = ?";
+            $paramsThreads[] = $revMap[$filterStatus];
+        }
+    } elseif (!$showArquivados) {
+        $whereThreads[] = "st.status != 'fechada'";
+    }
+    if ($search) {
+        $whereThreads[] = "(st.assunto LIKE ? OR c.name LIKE ?)";
+        $paramsThreads[] = '%' . $search . '%';
+        $paramsThreads[] = '%' . $search . '%';
+    }
+    $whereStrThreads = $whereThreads ? 'WHERE ' . implode(' AND ', $whereThreads) : '';
+
+    $stmt = $pdo->prepare(
+        "SELECT st.id, st.assunto AS title, 'Central VIP' AS category, NULL AS department,
+                'normal' AS priority, st.status AS status_raw,
+                c.id AS client_id, c.name AS client_name, c.phone AS client_contact,
+                st.processo_id AS case_id, cs.case_number, cs.title AS case_title,
+                NULL AS due_date, NULL AS resolved_at, st.criado_em AS created_at, st.atualizado_em AS updated_at,
+                'salavip' AS origem, NULL AS sla_prazo,
+                c.name AS requester_name, NULL AS assignees,
+                (SELECT COUNT(*) FROM salavip_mensagens WHERE thread_id = st.id) AS msg_count
+         FROM salavip_threads st
+         LEFT JOIN clients c ON c.id = st.cliente_id
+         LEFT JOIN cases cs ON cs.id = st.processo_id
+         $whereStrThreads
+         ORDER BY FIELD(st.status, 'aberta','respondida','aguardando','fechada'), st.criado_em DESC
+         LIMIT 100"
+    );
+    $stmt->execute($paramsThreads);
+    $tickets = $stmt->fetchAll();
+    // Mapear status pra usar mesmos labels/badges dos tickets
+    foreach ($tickets as &$t) { $t['status'] = $mapStatus[$t['status_raw']] ?? 'aberto'; }
+    unset($t);
+} else {
+    $stmt = $pdo->prepare(
+        "SELECT t.*, u.name as requester_name,
+         GROUP_CONCAT(u2.name SEPARATOR ', ') as assignees,
+         (SELECT COUNT(*) FROM ticket_messages WHERE ticket_id = t.id) as msg_count
+         FROM tickets t
+         LEFT JOIN users u ON u.id = t.requester_id
+         LEFT JOIN ticket_assignees ta ON ta.ticket_id = t.id
+         LEFT JOIN users u2 ON u2.id = ta.user_id
+         $whereStr
+         GROUP BY t.id
+         ORDER BY $orderBy
+         LIMIT 100"
+    );
+    $stmt->execute($params);
+    $tickets = $stmt->fetchAll();
+}
 
 // KPIs
 $kpi = $pdo->query("SELECT
@@ -96,13 +142,20 @@ $statusIcons = array('aberto' => '🟡', 'em_andamento' => '🔵', 'aguardando' 
 $priorityBadge = array('urgente' => 'danger', 'normal' => 'gestao', 'baixa' => 'colaborador');
 
 // Contadores por status (respeitando aba origem)
-$origemFilter = $filterOrigem === 'clientes'
-    ? "origem = 'salavip'"
-    : "(origem IS NULL OR origem != 'salavip')";
 $statusCounts = array();
 try {
-    $scRows = $pdo->query("SELECT status, COUNT(*) as cnt FROM tickets WHERE $origemFilter GROUP BY status")->fetchAll();
-    foreach ($scRows as $sc) $statusCounts[$sc['status']] = (int)$sc['cnt'];
+    if ($filterOrigem === 'clientes') {
+        // Conta salavip_threads mapeando status
+        $scRows = $pdo->query("SELECT status, COUNT(*) as cnt FROM salavip_threads GROUP BY status")->fetchAll();
+        $mapSC = array('aberta' => 'aberto', 'respondida' => 'em_andamento', 'aguardando' => 'aguardando', 'fechada' => 'resolvido');
+        foreach ($scRows as $sc) {
+            $k = $mapSC[$sc['status']] ?? 'aberto';
+            $statusCounts[$k] = ($statusCounts[$k] ?? 0) + (int)$sc['cnt'];
+        }
+    } else {
+        $scRows = $pdo->query("SELECT status, COUNT(*) as cnt FROM tickets WHERE (origem IS NULL OR origem != 'salavip') GROUP BY status")->fetchAll();
+        foreach ($scRows as $sc) $statusCounts[$sc['status']] = (int)$sc['cnt'];
+    }
 } catch (Exception $e) {}
 $totalTickets = array_sum($statusCounts);
 
@@ -111,7 +164,7 @@ $countEquipe = 0;
 $countClientes = 0;
 try {
     $countEquipe = (int)$pdo->query("SELECT COUNT(*) FROM tickets WHERE (origem IS NULL OR origem != 'salavip') AND status NOT IN ('resolvido','cancelado')")->fetchColumn();
-    $countClientes = (int)$pdo->query("SELECT COUNT(*) FROM tickets WHERE origem = 'salavip' AND status NOT IN ('resolvido','cancelado')")->fetchColumn();
+    $countClientes = (int)$pdo->query("SELECT COUNT(*) FROM salavip_threads WHERE status != 'fechada'")->fetchColumn();
 } catch (Exception $e) {}
 
 // Categorias existentes
@@ -285,7 +338,7 @@ function filtrarHelpdesk(param, value) {
                     <?php foreach ($tickets as $t): ?>
                     <tr>
                         <td class="text-sm text-muted"><?= $t['id'] ?></td>
-                        <td><a href="<?= module_url('helpdesk', 'ver.php?id=' . $t['id']) ?>" class="font-bold" style="color:var(--petrol-900);"><?= e($t['title']) ?></a></td>
+                        <td><a href="<?= ($t['origem'] ?? '') === 'salavip' ? url('modules/salavip/ver_mensagem.php?thread_id=' . $t['id']) : module_url('helpdesk', 'ver.php?id=' . $t['id']) ?>" class="font-bold" style="color:var(--petrol-900);"><?= e($t['title']) ?></a></td>
                         <td class="text-sm"><?= e($t['category'] ?: '—') ?></td>
                         <td><span class="badge badge-<?= $priorityBadge[$t['priority']] ?? 'gestao' ?>"><?= e($t['priority']) ?></span></td>
                         <td><span class="badge badge-<?= $statusBadge[$t['status']] ?? 'gestao' ?>"><?= $statusLabels[$t['status']] ?? $t['status'] ?></span></td>
