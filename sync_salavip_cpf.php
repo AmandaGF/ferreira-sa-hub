@@ -3,7 +3,10 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 $pdo = db();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 echo "=== SINCRONIZAR CPF/CNPJ entre CRM e Central VIP ===\n\n";
 
@@ -16,7 +19,12 @@ $sql = "SELECT su.id as su_id, su.cpf as su_cpf, su.nome_exibicao,
           AND REPLACE(REPLACE(REPLACE(REPLACE(c.cpf,'.',''),'-',''),'/',''),' ','')
            != REPLACE(REPLACE(REPLACE(REPLACE(su.cpf,'.',''),'-',''),'/',''),' ','')";
 
-$divergencias = $pdo->query($sql)->fetchAll();
+try {
+    $divergencias = $pdo->query($sql)->fetchAll();
+} catch (Exception $e) {
+    echo "ERRO SQL: " . $e->getMessage() . "\n";
+    exit;
+}
 echo "Divergências encontradas: " . count($divergencias) . "\n\n";
 
 $aplicar = isset($_GET['aplicar']) && $_GET['aplicar'] === '1';
