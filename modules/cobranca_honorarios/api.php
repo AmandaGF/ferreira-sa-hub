@@ -341,7 +341,11 @@ if ($action === 'avancar_etapa_massa') {
     $msg = $template;
     if ($cliente) {
         $msg = str_replace('[Nome]', $cliente['client_name'] ?: 'Cliente', $msg);
-        $msg = str_replace('[valor]', number_format($totalSaldo, 2, ',', '.'), $msg);
+        // [valor] = total ATUALIZADO (com multa+juros) quando há acréscimos, senão nominal
+        $valorTemplate = ($totalMulta + $totalJuros > 0) ? $totalComAcrescimos : $totalSaldo;
+        $msg = str_replace('[valor]', number_format($valorTemplate, 2, ',', '.'), $msg);
+        $msg = str_replace('[valor_nominal]', number_format($totalSaldo, 2, ',', '.'), $msg);
+        $msg = str_replace('[valor_atualizado]', number_format($totalComAcrescimos, 2, ',', '.'), $msg);
         $msg = str_replace('[data]', $venMaisAntigo ? date('d/m/Y', strtotime($venMaisAntigo)) : '', $msg);
 
         // Detalhamento automático dos acréscimos contratuais (cláusula 5.1)
@@ -442,7 +446,10 @@ if ($action === 'avancar_etapa') {
 
     // Substituir variáveis
     $msg = str_replace('[Nome]', $cob['client_name'] ?: '', $msg);
-    $msg = str_replace('[valor]', number_format($saldo, 2, ',', '.'), $msg);
+    $valorTmpl = ($multaIn + $jurosIn > 0) ? $totalAtualizado : $saldo;
+    $msg = str_replace('[valor]', number_format($valorTmpl, 2, ',', '.'), $msg);
+    $msg = str_replace('[valor_nominal]', number_format($saldo, 2, ',', '.'), $msg);
+    $msg = str_replace('[valor_atualizado]', number_format($totalAtualizado, 2, ',', '.'), $msg);
     $msg = str_replace('[data]', date('d/m/Y', strtotime($cob['vencimento'])), $msg);
 
     // Acréscimos contratuais detalhados automaticamente
