@@ -1171,22 +1171,51 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // Carrega etiquetas ativas para a barra de filtros
     carregarEtiquetasCache().then(renderEtqFilters);
 
+    // Helpers pra polling não-destrutivo
+    function conversaHash(d) {
+        if (!d || !d.mensagens) return '';
+        var last = d.mensagens[d.mensagens.length - 1] || {};
+        // count + id da última + status da última (pra detectar update de status)
+        return d.mensagens.length + '|' + (last.id || '') + '|' + (last.status || '') + '|' + (last.transcricao ? 'T' : '');
+    }
+    function audioTocando() {
+        var audios = document.querySelectorAll('#waChatBody audio, #waChatBody video');
+        for (var i = 0; i < audios.length; i++) {
+            if (!audios[i].paused) return true;
+        }
+        return false;
+    }
+    var ultimoHashConv = '';
+
     // Polling a cada 5s: atualiza lista + conversa aberta
     carregarLista();
     pollTimer = setInterval(function(){
         carregarLista();
         if (convAtiva) {
-            // Atualiza mensagens da conversa aberta
+            // Se tem áudio/vídeo tocando, não atualiza (pra não reiniciar a reprodução)
+            if (audioTocando()) return;
+
             fetch(apiUrl + '?action=abrir_conversa&id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
                 if (d.ok && d.mensagens) {
+                    var h = conversaHash(d);
+                    if (h === ultimoHashConv) return; // nada mudou, não rerenderiza
+                    ultimoHashConv = h;
+
                     var body = document.getElementById('waChatBody');
                     var scrollAtBottom = (body.scrollHeight - body.scrollTop - body.clientHeight) < 50;
                     renderConversa(d);
-                    if (!scrollAtBottom) body.scrollTop = body.scrollTop; // preserva scroll se user subiu
+                    if (!scrollAtBottom) body.scrollTop = body.scrollTop;
                 }
             });
         }
     }, 5000);
+
+    // Ao abrir manualmente uma conversa, reseta o hash pra forçar render
+    var _origAbrir = window.waAbrir;
+    window.waAbrir = function(id) {
+        ultimoHashConv = '';
+        return _origAbrir.apply(this, arguments);
+    };
 })();
 </script>
 
