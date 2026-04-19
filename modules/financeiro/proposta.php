@@ -17,10 +17,26 @@ $client = $stmt->fetch();
 if (!$client) { redirect(module_url('financeiro')); }
 
 // Cobranças em aberto (PENDING + OVERDUE) e pagas (pra histórico)
-$vencidas = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE client_id = ? AND status = 'OVERDUE' ORDER BY vencimento ASC");
+// LEFT JOIN com honorarios_cobranca pra respeitar cancelamentos/pagamentos feitos no Kanban
+// Se a parcela foi cancelada ou quitada no Kanban, sai da proposta (consistência com a Notificação)
+$vencidas = $pdo->prepare(
+    "SELECT ac.*,
+            (SELECT hc.status FROM honorarios_cobranca hc WHERE hc.asaas_payment_id = ac.asaas_payment_id LIMIT 1) AS hc_status
+     FROM asaas_cobrancas ac
+     WHERE ac.client_id = ? AND ac.status = 'OVERDUE'
+     HAVING hc_status IS NULL OR hc_status NOT IN ('pago','cancelado')
+     ORDER BY ac.vencimento ASC"
+);
 $vencidas->execute(array($clientId)); $vencidas = $vencidas->fetchAll();
 
-$pendentes = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE client_id = ? AND status = 'PENDING' ORDER BY vencimento ASC");
+$pendentes = $pdo->prepare(
+    "SELECT ac.*,
+            (SELECT hc.status FROM honorarios_cobranca hc WHERE hc.asaas_payment_id = ac.asaas_payment_id LIMIT 1) AS hc_status
+     FROM asaas_cobrancas ac
+     WHERE ac.client_id = ? AND ac.status = 'PENDING'
+     HAVING hc_status IS NULL OR hc_status NOT IN ('pago','cancelado')
+     ORDER BY ac.vencimento ASC"
+);
 $pendentes->execute(array($clientId)); $pendentes = $pendentes->fetchAll();
 
 $pagas = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE client_id = ? AND status IN ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH') ORDER BY data_pagamento DESC");
