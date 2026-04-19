@@ -48,7 +48,10 @@ try {
         case 'message': {
             $fromMe = !empty($payload['fromMe']);
             $telefone  = $payload['phone'] ?? ($payload['author'] ?? '');
-            $nome      = $payload['senderName'] ?? ($payload['chatName'] ?? null);
+            $chatName  = $payload['chatName'] ?? null;
+            // Se fromMe, senderName é o NOSSO escritório — usa chatName (destinatário).
+            // Se não fromMe, senderName é o contato real.
+            $nome = $fromMe ? $chatName : ($payload['senderName'] ?? $chatName);
             $zapiMsgId = $payload['messageId'] ?? '';
 
             if (!$telefone) {
@@ -59,7 +62,6 @@ try {
 
             // Se fromMe, a mensagem foi ENVIADA pelo celular (ou pelo Hub).
             // Verificar se já existe no banco (Hub insere antes de chamar Z-API, então já estaria lá).
-            // Se não existe → foi pelo celular e precisamos salvar pra espelhar no Hub.
             if ($fromMe) {
                 $ja = $pdo->prepare("SELECT id FROM zapi_mensagens WHERE zapi_message_id = ? LIMIT 1");
                 $ja->execute(array($zapiMsgId));
@@ -68,10 +70,23 @@ try {
                     echo json_encode(array('status' => 'ignored_duplicate'));
                     exit;
                 }
-                $log("[{$numero}] fromMe NOVO — mensagem enviada pelo celular msgId={$zapiMsgId}");
+                $log("[{$numero}] fromMe NOVO — mensagem enviada pelo celular msgId={$zapiMsgId} phone={$telefone}");
             }
 
-            $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome);
+            // Se o phone é um @lid (ID interno do Multi-Device, não o número real),
+            // tentar achar a conversa existente pelo chatName pra não duplicar.
+            $ehLid = (strpos($telefone, '@lid') !== false);
+            $conv = null;
+            if ($ehLid && $chatName) {
+                $q = $pdo->prepare("SELECT * FROM zapi_conversas WHERE canal = ? AND nome_contato = ?
+                                    ORDER BY ultima_msg_em DESC LIMIT 1");
+                $q->execute(array($numero, $chatName));
+                $conv = $q->fetch();
+                if ($conv) $log("[{$numero}] LID {$telefone} → usando conversa existente #{$conv['id']} ({$chatName})");
+            }
+            if (!$conv) {
+                $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome);
+            }
             if (!$conv) {
                 $log("[{$numero}] falha ao criar conversa");
                 echo json_encode(array('status' => 'conv_error'));
