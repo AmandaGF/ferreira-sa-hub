@@ -618,25 +618,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
 
+    // ⚠️ Z-API não suporta editar de verdade — fazemos "apagar + reenviar com texto pré-preenchido"
     window.waEditarMsg = function(msgId) {
         var row = document.querySelector('.wa-msg-row[data-msg-id="'+msgId+'"] .wa-msg');
         if (!row) return;
-        // Extrair o texto atual (remove spans de tag/tempo/ações)
         var atual = '';
         row.childNodes.forEach(function(n){
             if (n.nodeType === 1 && (n.className === 'wa-msg-actions' || n.className === 'wa-msg-tag' || n.className === 'wa-msg-time')) return;
             atual += (n.textContent || '');
         });
         atual = atual.trim();
-        var novo = prompt('Editar mensagem (máx 15 min após envio):', atual);
-        if (novo === null || novo.trim() === '' || novo === atual) return;
+        if (!confirm('Reenvio com edição:\n\n1. A mensagem original será APAGADA no WhatsApp\n2. O texto vai pro campo de envio pra você editar\n3. Você corrige e clica Enviar\n\nContinuar?')) return;
+        // 1. Deleta a original
         var fd = new FormData();
-        fd.append('action', 'editar_mensagem');
+        fd.append('action', 'deletar_mensagem');
         fd.append('mensagem_id', msgId);
-        fd.append('novo_texto', novo);
         fd.append('csrf_token', csrf);
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
-            if (d.error) { alert('Erro: ' + d.error); return; }
+            if (d.error) { alert('Erro ao apagar original: ' + d.error); return; }
+            // 2. Coloca o texto no input pra editar
+            document.getElementById('waInput').value = atual;
+            document.getElementById('waInput').focus();
+            document.getElementById('waInput').setSelectionRange(atual.length, atual.length);
             window.waAbrir(convAtiva);
             carregarLista();
         });
