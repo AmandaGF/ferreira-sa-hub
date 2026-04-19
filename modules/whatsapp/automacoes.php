@@ -37,6 +37,10 @@ $defaults = array(
     'zapi_auto_doc_24_tpl'       => 'Confirmação de documentos',
     'zapi_signature_on'          => '0',
     'zapi_signature_format'      => '— {{atendente}}',
+    'zapi_auto_aniversario'      => '0',
+    'zapi_auto_aniversario_canal'=> '24',
+    'zapi_auto_aniversario_hora' => '9',
+    'zapi_auto_aniversario_tpl'  => '🎂 Aniversário Cliente',
 );
 
 // ── POST ────────────────────────────────────────────────
@@ -66,6 +70,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $up->execute(array('zapi_signature_on',     !empty($_POST['signature_on']) ? '1' : '0'));
     $up->execute(array('zapi_signature_format', trim($_POST['signature_format'] ?? '— {{atendente}}')));
+
+    $up->execute(array('zapi_auto_aniversario',       !empty($_POST['auto_aniversario']) ? '1' : '0'));
+    $up->execute(array('zapi_auto_aniversario_canal', in_array($_POST['auto_aniversario_canal'] ?? '24', array('21','24'), true) ? $_POST['auto_aniversario_canal'] : '24'));
+    $up->execute(array('zapi_auto_aniversario_hora',  (string)(int)($_POST['auto_aniversario_hora'] ?? 9)));
+    $up->execute(array('zapi_auto_aniversario_tpl',   trim($_POST['auto_aniversario_tpl'] ?? '')));
 
     audit_log('zapi_automacoes_salvar', 'configuracoes', 0);
     flash_set('success', 'Automações salvas.');
@@ -196,6 +205,47 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <div class="aut-card">
+        <h3>🎂 Aniversário — Envio Automático</h3>
+        <p class="aut-hint">Um cron diário checa aniversariantes do dia (campo <code>clients.birth_date</code>) e envia parabéns pelo WhatsApp. Não duplica se rodar várias vezes.</p>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="auto_aniversario" value="1" <?= $cfg['zapi_auto_aniversario'] === '1' ? 'checked' : '' ?>> Ativar envio automático no aniversário</label>
+        </div>
+        <div class="aut-row">
+            <label>Canal de envio</label>
+            <select name="auto_aniversario_canal" class="form-control" style="max-width:220px;">
+                <option value="21" <?= $cfg['zapi_auto_aniversario_canal'] === '21' ? 'selected' : '' ?>>DDD 21 (Comercial)</option>
+                <option value="24" <?= $cfg['zapi_auto_aniversario_canal'] === '24' ? 'selected' : '' ?>>DDD 24 (CX/Oper.)</option>
+            </select>
+        </div>
+        <div class="aut-row">
+            <label>Horário de envio</label>
+            <div><input type="number" name="auto_aniversario_hora" min="0" max="23" value="<?= e($cfg['zapi_auto_aniversario_hora']) ?>" class="form-control" style="width:100px;"> <span class="text-muted text-sm">h (ex: 9 = 9h)</span></div>
+        </div>
+        <div class="aut-row">
+            <label>Template</label>
+            <select name="auto_aniversario_tpl" class="form-control">
+                <?php foreach ($templates as $t): ?>
+                    <option value="<?= e($t['nome']) ?>" <?= $cfg['zapi_auto_aniversario_tpl'] === $t['nome'] ? 'selected' : '' ?>>
+                        <?= e($t['nome']) ?>
+                        <?php if ($t['categoria'] === 'aniversario'): ?> ⭐<?php endif; ?>
+                        (<?= e($t['canal']) ?>)
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div style="background:#f9fafb;border-radius:8px;padding:.6rem .8rem;margin-top:.5rem;font-size:.78rem;">
+            <strong>⚠️ Importante — setup do cron:</strong><br>
+            Precisa configurar no <strong>cPanel → Cron Jobs</strong> uma tarefa <em>de hora em hora</em> com o comando:<br>
+            <code style="font-size:.72rem;word-break:break-all;display:block;background:#fff;padding:.3rem;border-radius:4px;margin:.3rem 0;">curl -s "https://ferreiraesa.com.br/conecta/cron/zapi_aniversarios.php?key=fsa-hub-deploy-2026"</code>
+            Expressão cron: <code>0 * * * *</code> (roda no minuto 0 de toda hora). O script só envia se a hora atual bater com a configurada aqui.
+        </div>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;">
+            <button type="button" onclick="enviarAgora()" class="btn btn-outline btn-sm">🚀 Enviar parabéns de HOJE agora (teste)</button>
+            <a href="<?= url('cron/zapi_aniversarios.php?key=fsa-hub-deploy-2026&forcar=1') ?>" target="_blank" class="btn btn-outline btn-sm">📋 Ver log do envio manual</a>
+        </div>
+    </div>
+
+    <div class="aut-card">
         <h3>✍️ Assinatura do Atendente</h3>
         <p class="aut-hint">Quando ligada, toda mensagem que você enviar pelo Hub sai com a assinatura no final — assim o cliente sabe quem está falando. Use <code>{{atendente}}</code> pra inserir o nome do usuário logado.</p>
         <div class="aut-toggle-row">
@@ -210,5 +260,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <button type="submit" class="btn btn-primary">💾 Salvar automações</button>
 </form>
+
+<script>
+function enviarAgora() {
+    if (!confirm('Enviar parabéns AGORA para todos os aniversariantes de hoje (que ainda não foram parabenizados este ano)?\n\nUse apenas para teste ou quando quiser antecipar o horário.')) return;
+    window.open('<?= url('cron/zapi_aniversarios.php?key=fsa-hub-deploy-2026&forcar=1') ?>', '_blank');
+}
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
