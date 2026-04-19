@@ -7,11 +7,7 @@ $pdo = db();
 
 echo "=== Procurando Amanda, Luiz Eduardo e Rodrigo Gustavo ===\n\n";
 
-$rows = $pdo->query("SELECT id, name, email, role, active FROM users
-                     WHERE name LIKE '%Amanda%'
-                        OR name LIKE '%Luiz%'
-                        OR name LIKE '%Rodrigo%'
-                     ORDER BY name")->fetchAll();
+$rows = $pdo->query("SELECT id, name, email, role, active FROM users ORDER BY name")->fetchAll();
 foreach ($rows as $r) {
     echo sprintf("id=%-3d  %-30s  %-40s  role=%-12s active=%d\n",
         $r['id'], $r['name'], $r['email'], $r['role'], $r['active']);
