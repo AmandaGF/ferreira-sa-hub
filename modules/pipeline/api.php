@@ -6,11 +6,27 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_once __DIR__ . '/../../core/google_drive.php';
-require_login();
-if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
+
+// Detectar se é chamada AJAX (pra retornar JSON de erro em vez de redirect HTML)
+$_isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
+function _api_fail($msg, $code = 400) {
+    global $_isAjax;
+    if ($_isAjax) {
+        http_response_code($code);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(array('error' => $msg));
+        exit;
+    }
+    flash_set('error', $msg);
+    redirect(url('modules/dashboard/'));
+    exit;
+}
+
+if (!is_logged_in()) _api_fail('Sua sessão expirou. Recarregue a página (F5).', 401);
+if (!can_view_pipeline()) _api_fail('Sem permissão.', 403);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('pipeline')); }
-if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('pipeline')); }
+if (!validate_csrf()) _api_fail('Token CSRF inválido — sessão pode ter expirado. Recarregue a página (F5).', 419);
 
 $action = $_POST['action'] ?? '';
 $pdo = db();
@@ -384,20 +400,26 @@ switch ($action) {
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
             'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
             'data_agendamento','onboard_realizado','origem_lead');
-        if ($leadId && in_array($field, $allowed)) {
+        if (!$leadId) _api_fail('lead_id inválido.');
+        if (!in_array($field, $allowed, true)) _api_fail("Campo '{$field}' não autorizado.");
+
+        try {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
-            $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($value ?: null, $leadId));
-            // Sincronizar valor_acao → estimated_value_cents
-            if ($field === 'valor_acao') { sync_estimated_value($pdo, $leadId, $value ?: null); }
-            // GAMIFICAÇÃO: onboarding realizado
+            // IMPORTANTE: preserva string "0" e "0,00" (valores financeiros legítimos). Só NULLa se vazio de fato.
+            $valueToStore = ($value === '' || $value === null) ? null : $value;
+            $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($valueToStore, $leadId));
+            if ($field === 'valor_acao') { sync_estimated_value($pdo, $leadId, $valueToStore); }
             if ($field === 'onboard_realizado' && $value) {
                 $leadAssigned = $pdo->prepare("SELECT assigned_to FROM pipeline_leads WHERE id = ?");
                 $leadAssigned->execute(array($leadId));
                 $assignTo = (int)$leadAssigned->fetchColumn();
                 if ($assignTo) gamificar($assignTo, 'onboarding_realizado', $leadId, 'pipeline_leads');
             }
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        } catch (Exception $e) {
+            _api_fail('Erro ao salvar: ' . $e->getMessage(), 500);
         }
+
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'field' => $field, 'lead_id' => $leadId)); exit; }
         redirect(module_url('pipeline'));
         break;
 

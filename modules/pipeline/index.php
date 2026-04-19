@@ -320,6 +320,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid td.editable:focus-within { background:#fff;outline:2px solid var(--rose); }
 .tbl-grid td.editable input, .tbl-grid td.editable select { width:100%;border:none;background:transparent;font:inherit;padding:0;outline:none; }
 .tbl-grid td.saved::after { content:'✓';position:absolute;right:4px;top:50%;transform:translateY(-50%);color:var(--success);font-size:.7rem;font-weight:700;animation:fadeout 1.5s forwards; }
+.tbl-grid td.save-error { background:#fee2e2 !important;border:1px solid #ef4444 !important;position:relative; }
+.tbl-grid td.save-error::after { content:'⚠';position:absolute;right:4px;top:50%;transform:translateY(-50%);color:#ef4444;font-size:.75rem;font-weight:700; }
 @keyframes fadeout { 0%{opacity:1} 70%{opacity:1} 100%{opacity:0} }
 /* Linhas coloridas */
 .tbl-grid tbody tr[data-stage="cadastro_preenchido"] { border-left:4px solid #6366f1; }
@@ -743,7 +745,32 @@ function saveCell(el) {
     xhr.open('POST', '<?= module_url("pipeline", "api.php") ?>');
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        if (td) { td.classList.add('saved'); setTimeout(function() { td.classList.remove('saved'); }, 1500); }
+        var ok = false, errMsg = '';
+        if (xhr.status === 200) {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp && resp.ok) ok = true;
+                else errMsg = (resp && resp.error) ? resp.error : 'Resposta inválida';
+            } catch(e) {
+                errMsg = 'Servidor retornou resposta não-JSON (sessão pode ter expirado). Recarregue a página (F5).';
+            }
+        } else {
+            try { var j = JSON.parse(xhr.responseText); errMsg = j.error || ('HTTP ' + xhr.status); }
+            catch(e) { errMsg = 'HTTP ' + xhr.status + ' — sessão pode ter expirado. Recarregue (F5).'; }
+        }
+        if (td) {
+            if (ok) {
+                td.classList.add('saved'); setTimeout(function(){ td.classList.remove('saved'); }, 1500);
+            } else {
+                td.classList.add('save-error'); td.title = 'ERRO: ' + errMsg;
+                // Alert apenas no primeiro erro pra não floodar
+                if (!window._pipeErrShown) { window._pipeErrShown = true; alert('⚠️ Falha ao salvar: ' + errMsg); setTimeout(function(){ window._pipeErrShown = false; }, 5000); }
+            }
+        }
+    };
+    xhr.onerror = function() {
+        if (td) { td.classList.add('save-error'); }
+        if (!window._pipeErrShown) { window._pipeErrShown = true; alert('⚠️ Falha de rede ao salvar. Verifique sua conexão.'); setTimeout(function(){ window._pipeErrShown = false; }, 5000); }
     };
     xhr.send(formData);
 }
