@@ -203,3 +203,31 @@ if (!empty($__prazosUrgentes)):
     <?php endforeach; ?>
 </div>
 <?php endif; ?>
+
+<?php
+// ── Alerta de expiração do token Asaas — visível SÓ PRA AMANDA ──
+try {
+    $__cu = current_user();
+    $__isAmanda = $__cu && strtolower($__cu['email'] ?? '') === 'amandaguedesferreira@gmail.com';
+    if ($__isAmanda) {
+        $__exp = db()->query("SELECT valor FROM configuracoes WHERE chave = 'asaas_api_key_expires_at'")->fetchColumn();
+        if ($__exp) {
+            $__diasRest = (int)floor((strtotime($__exp) - time()) / 86400);
+            if ($__diasRest <= 15):
+?>
+<div style="background:linear-gradient(135deg,<?= $__diasRest < 0 ? '#7f1d1d,#991b1b' : '#d97706,#b45309' ?>);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;font-size:.82rem;display:flex;align-items:center;gap:.7rem;">
+    <span style="font-size:1.3rem;"><?= $__diasRest < 0 ? '⛔' : '⚠️' ?></span>
+    <div style="flex:1;">
+        <strong>
+            <?php if ($__diasRest < 0): ?>Chave Asaas VENCIDA há <?= abs($__diasRest) ?> dia(s)!<?php elseif ($__diasRest === 0): ?>Chave Asaas vence HOJE!<?php else: ?>Chave Asaas vence em <?= $__diasRest ?> dia(s) (<?= date('d/m', strtotime($__exp)) ?>)<?php endif; ?>
+        </strong>
+        <div style="font-size:.75rem;opacity:.9;margin-top:2px;">Gera uma nova em asaas.com → Integrações → Chaves de API e atualiza aqui.</div>
+    </div>
+    <a href="<?= url('modules/admin/asaas_config.php') ?>" style="background:#fff;color:#b45309;padding:.4rem .8rem;border-radius:6px;text-decoration:none;font-weight:700;font-size:.78rem;">Atualizar agora →</a>
+</div>
+<?php
+            endif;
+        }
+    }
+} catch (Exception $e) {}
+?>

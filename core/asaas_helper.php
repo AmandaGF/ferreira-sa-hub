@@ -17,7 +17,7 @@ function asaas_config() {
             if ($r['chave'] === 'asaas_env') $env = $r['valor'];
         }
     } catch (Exception $e) {}
-    $base = ($env === 'production') ? 'https://api.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
+    $base = ($env === 'production') ? 'https://api.asaas.com/v3' : 'https://sandbox.asaas.com/api/v3';
     $cfg = array('key' => $key, 'env' => $env, 'base' => $base);
     return $cfg;
 }

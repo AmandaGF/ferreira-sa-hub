@@ -184,9 +184,10 @@ $results[] = health_test('API Asaas (Financeiro)', function () {
         return array('ok' => false, 'message' => 'Chave Asaas não configurada em configuracoes');
     }
 
-    $base = ($env === 'production') ? 'https://api.asaas.com/api/v3' : 'https://sandbox.asaas.com/api/v3';
+    $base = ($env === 'production') ? 'https://api.asaas.com/v3' : 'https://sandbox.asaas.com/api/v3';
 
-    $ch = curl_init($base . '/finance/balance');
+    // /customers com limit=1 é o endpoint mais leve e universal pra validar token
+    $ch = curl_init($base . '/customers?limit=1');
     curl_setopt_array($ch, array(
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 8,
