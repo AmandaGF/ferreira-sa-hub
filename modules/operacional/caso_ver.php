@@ -1203,6 +1203,12 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
                        onblur="this.style.background='transparent'">
+                <?php if ($cp['field'] === 'drive_folder_url' && !empty($cp['value'])): ?>
+                    <a href="<?= e($cp['value']) ?>" target="_blank" rel="noopener" title="Abrir pasta no Google Drive"
+                       style="display:inline-flex;align-items:center;gap:4px;background:#4285f4;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;flex-shrink:0;margin-left:.4rem;">
+                        📁 Abrir
+                    </a>
+                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         </div>
