@@ -12,7 +12,7 @@ $userId = current_user_id();
 $action = $_REQUEST['action'] ?? '';
 
 // CSRF só para ações que mutam
-$mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'assumir_atendimento', 'atribuir', 'resolver',
+$mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
@@ -580,6 +580,58 @@ if ($action === 'enviar_audio') {
         ->execute(array($userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── ENVIO RÁPIDO (de qualquer tela do Hub) ───────────────
+// Usado por botões fora do WhatsApp: cobrança, ficha cliente, proposta, etc
+if ($action === 'enviar_rapido') {
+    $telefone = trim($_POST['telefone'] ?? '');
+    $mensagem = trim($_POST['mensagem'] ?? '');
+    $canal    = in_array($_POST['canal'] ?? '', array('21','24'), true) ? $_POST['canal'] : '24';
+    $clientId = (int)($_POST['client_id'] ?? 0) ?: null;
+    $leadId   = (int)($_POST['lead_id'] ?? 0) ?: null;
+    $nomeHint = trim($_POST['nome'] ?? '');
+
+    if (!$telefone || !$mensagem) {
+        echo json_encode(array('error' => 'Telefone e mensagem obrigatórios'));
+        exit;
+    }
+
+    // Envia via Z-API
+    $resp = zapi_send_text($canal, $telefone, $mensagem);
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+    $zapiId = '';
+    if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
+
+    // Busca/cria conversa pra espelhar no histórico
+    $conv = zapi_buscar_ou_criar_conversa($telefone, $canal, $nomeHint ?: null);
+    if ($conv) {
+        // Se passou client_id e a conversa ainda não tem, vincula
+        if ($clientId && !$conv['client_id']) {
+            $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")->execute(array($clientId, $conv['id']));
+        }
+        if ($leadId && !$conv['lead_id']) {
+            $pdo->prepare("UPDATE zapi_conversas SET lead_id = ? WHERE id = ?")->execute(array($leadId, $conv['id']));
+        }
+
+        $pdo->prepare(
+            "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo, enviado_por_id, status)
+             VALUES (?, ?, 'enviada', 'texto', ?, ?, 'enviada')"
+        )->execute(array($conv['id'], $zapiId, $mensagem, $userId));
+
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
+                       status = IF(status = 'aguardando', 'em_atendimento', status),
+                       atendente_id = COALESCE(atendente_id, ?)
+                       WHERE id = ?")
+            ->execute(array(mb_substr($mensagem, 0, 500), $userId, $conv['id']));
+    }
+
+    audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
+    echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'conversa_id' => $conv['id'] ?? null));
     exit;
 }
 

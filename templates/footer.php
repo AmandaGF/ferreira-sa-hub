@@ -2,11 +2,17 @@
     </main><!-- /.main-content -->
 </div><!-- /.app-layout -->
 
+<script>
+    // Variáveis globais pro wa_sender (envio direto de WhatsApp pelo Hub)
+    window.FSA_CSRF = '<?= generate_csrf_token() ?>';
+    window.FSA_WHATSAPP_API_URL = '<?= module_url('whatsapp', 'api.php') ?>';
+</script>
 <script src="<?= url('assets/js/conecta.js') ?>"></script>
 <script src="<?= url('assets/js/helpers.js') ?>"></script>
 <script src="<?= url('assets/js/drawer.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <script src="<?= url('assets/js/busca_cpf.js') ?>"></script>
 <script src="<?= url('assets/js/gamificacao-efeitos.js') ?>"></script>
+<script src="<?= url('assets/js/wa_sender.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('<?= url('sw.js') ?>').catch(function(){});}</script>
 
 <!-- Heartbeat: mantém sessão viva e CSRF sincronizado (pró-ativo) -->
