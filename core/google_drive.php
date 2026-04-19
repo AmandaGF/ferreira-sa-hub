@@ -61,3 +61,61 @@ function create_drive_folder($clientName, $caseType, $caseId, $caseTitle = '') {
 
     return array('success' => false, 'error' => 'HTTP ' . $httpCode . ': ' . $response);
 }
+
+/**
+ * Faz upload de um arquivo (via URL pública ou base64) para uma pasta do Drive.
+ * O Google Apps Script precisa ter um handler pra action=uploadFile.
+ *
+ * @param string $folderUrl URL completa da pasta do Drive (ex: https://drive.google.com/drive/folders/ABC123)
+ * @param string $fileName  Nome que o arquivo terá no Drive
+ * @param string $sourceUrl URL pública do arquivo pra baixar (ex: URL Z-API do arquivo recebido)
+ * @param string $mimeType  MIME type (ex: image/jpeg, application/pdf)
+ * @return array ['success' => bool, 'fileId' => ?, 'fileUrl' => ?, 'error' => ?]
+ */
+function upload_file_to_drive($folderUrl, $fileName, $sourceUrl, $mimeType = '') {
+    if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
+        return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL não configurado');
+    }
+
+    // Extrai o ID da pasta da URL completa
+    $folderId = '';
+    if (preg_match('/folders\/([a-zA-Z0-9_-]+)/', $folderUrl, $m)) {
+        $folderId = $m[1];
+    } else {
+        return array('success' => false, 'error' => 'URL da pasta do Drive inválida: ' . $folderUrl);
+    }
+
+    $payload = json_encode(array(
+        'action'    => 'uploadFile',
+        'folderId'  => $folderId,
+        'fileName'  => $fileName,
+        'sourceUrl' => $sourceUrl,
+        'mimeType'  => $mimeType,
+    ));
+
+    $ch = curl_init(GOOGLE_APPS_SCRIPT_URL);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT        => 60,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) return array('success' => false, 'error' => 'cURL: ' . $err);
+    $data = json_decode($resp, true);
+    if ($http === 200 && !empty($data['fileId'])) {
+        return array(
+            'success' => true,
+            'fileId'  => $data['fileId'],
+            'fileUrl' => $data['fileUrl'] ?? null,
+        );
+    }
+    return array('success' => false, 'error' => 'HTTP ' . $http . ': ' . $resp);
+}

@@ -16,7 +16,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'a
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
-                  'deletar_mensagem', 'editar_mensagem');
+                  'deletar_mensagem', 'editar_mensagem',
+                  'salvar_drive');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -362,6 +363,74 @@ if ($action === 'editar_mensagem') {
     $pdo->prepare("UPDATE zapi_mensagens SET conteudo = ? WHERE id = ?")->execute(array($novo, $msgId));
     audit_log('zapi_edit_msg', 'zapi_mensagens', $msgId);
     echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── LISTAR CASOS DO CLIENTE (pra escolher pasta do Drive) ──
+if ($action === 'casos_do_cliente') {
+    $convId = (int)($_GET['conversa_id'] ?? 0);
+    $conv = $pdo->prepare("SELECT client_id FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv || !$conv['client_id']) { echo json_encode(array('ok' => true, 'casos' => array(), 'erro' => 'Conversa sem cliente vinculado')); exit; }
+
+    $cases = $pdo->prepare("SELECT id, client_title, case_type, drive_folder_url, status
+                            FROM cases WHERE client_id = ?
+                            ORDER BY status = 'arquivado' ASC, created_at DESC");
+    $cases->execute(array($conv['client_id']));
+    echo json_encode(array('ok' => true, 'casos' => $cases->fetchAll()));
+    exit;
+}
+
+// ── SALVAR ARQUIVO NO DRIVE ──────────────────────────────
+if ($action === 'salvar_drive') {
+    require_once APP_ROOT . '/core/google_drive.php';
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if (!$msgId || !$caseId) { echo json_encode(array('error' => 'Parâmetros obrigatórios')); exit; }
+
+    // Buscar a mensagem
+    $msg = $pdo->prepare("SELECT m.*, co.client_id FROM zapi_mensagens m
+                          JOIN zapi_conversas co ON co.id = m.conversa_id
+                          WHERE m.id = ?");
+    $msg->execute(array($msgId));
+    $msg = $msg->fetch();
+    if (!$msg) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+    if (!$msg['arquivo_url']) { echo json_encode(array('error' => 'Mensagem sem arquivo')); exit; }
+    if ($msg['arquivo_salvo_drive']) { echo json_encode(array('error' => 'Arquivo já salvo no Drive')); exit; }
+
+    // Pegar a pasta do Drive do caso escolhido
+    $case = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ? AND client_id = ?");
+    $case->execute(array($caseId, $msg['client_id']));
+    $caseRow = $case->fetch();
+    if (!$caseRow || !$caseRow['drive_folder_url']) {
+        echo json_encode(array('error' => 'Caso sem pasta no Drive. Crie a pasta primeiro pelo Kanban Operacional.'));
+        exit;
+    }
+
+    // Nome do arquivo: nome original ou deriva da extensão + timestamp
+    $nomeFinal = $msg['arquivo_nome'] ?: ('whatsapp_' . date('Ymd_His') . '_' . $msgId);
+    if (!pathinfo($nomeFinal, PATHINFO_EXTENSION)) {
+        $ext = 'bin';
+        if ($msg['arquivo_mime']) {
+            $ext = preg_replace('/.*\//', '', $msg['arquivo_mime']);
+            if ($msg['tipo'] === 'imagem') $ext = 'jpg';
+            elseif ($msg['tipo'] === 'video') $ext = 'mp4';
+            elseif ($msg['tipo'] === 'audio') $ext = 'ogg';
+        }
+        $nomeFinal .= '.' . $ext;
+    }
+
+    $r = upload_file_to_drive($caseRow['drive_folder_url'], $nomeFinal, $msg['arquivo_url'], $msg['arquivo_mime'] ?? '');
+    if (empty($r['success'])) {
+        echo json_encode(array('error' => 'Falha no upload: ' . ($r['error'] ?? '?')));
+        exit;
+    }
+
+    $pdo->prepare("UPDATE zapi_mensagens SET arquivo_salvo_drive = 1, drive_file_id = ? WHERE id = ?")
+        ->execute(array($r['fileId'] ?? '', $msgId));
+    audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']}");
+    echo json_encode(array('ok' => true, 'fileUrl' => $r['fileUrl'] ?? null));
     exit;
 }
 

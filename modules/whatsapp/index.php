@@ -358,6 +358,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
                 else if (m.direcao === 'enviada' && m.enviado_por_name) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
+                // Botão "Salvar no Drive" pra arquivos RECEBIDOS (tem arquivo_url e não foi salvo ainda)
+                if (m.direcao === 'recebida' && m.arquivo_url && m.tipo !== 'texto') {
+                    if (+m.arquivo_salvo_drive) {
+                        html += '<div style="font-size:.68rem;color:#22c55e;font-weight:700;margin-bottom:3px;">✅ Salvo no Drive</div>';
+                    } else {
+                        html += '<button onclick="waSalvarDrive('+m.id+')" style="background:#4285f4;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;margin-bottom:5px;display:block;">📁 Salvar no Drive</button>';
+                    }
+                }
                 // Mídia (imagem/vídeo/áudio/documento)
                 if (m.arquivo_url) {
                     if (m.tipo === 'imagem') {
@@ -602,6 +610,58 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waToggleBot = function(ativar) {
         var action = ativar ? 'ativar_bot' : 'desativar_bot';
         acaoConversa(action).then(function(){ window.waAbrir(convAtiva); carregarLista(); });
+    };
+
+    // ── SALVAR ARQUIVO NO DRIVE ──────────────────────────
+    window.waSalvarDrive = function(msgId) {
+        if (!convAtiva) return;
+        // Buscar casos do cliente desta conversa
+        fetch(apiUrl + '?action=casos_do_cliente&conversa_id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
+            if (d.erro) { alert('⚠️ ' + d.erro); return; }
+            if (!d.casos || d.casos.length === 0) { alert('Nenhum caso encontrado pra esse cliente. Crie o caso no Kanban Operacional primeiro.'); return; }
+            // Montar modal
+            var modal = document.getElementById('waDriveModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'waDriveModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+                document.body.appendChild(modal);
+            }
+            var html = '<div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);">';
+            html += '<h3 style="margin:0 0 .4rem;color:#0f2140;">📁 Salvar no Google Drive</h3>';
+            html += '<p style="font-size:.85rem;color:#6b7280;margin:0 0 1rem;">Escolha em qual caso do cliente esse arquivo deve ser salvo (vai na pasta do Drive do caso):</p>';
+            html += '<div style="max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:.4rem;">';
+            d.casos.forEach(function(c){
+                var hasFolder = !!c.drive_folder_url;
+                var estilo = hasFolder ? 'cursor:pointer;background:#f9fafb;' : 'background:#fee2e2;cursor:not-allowed;';
+                html += '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:.6rem .8rem;'+estilo+'" ';
+                if (hasFolder) html += 'onclick="waConfirmarDrive('+msgId+', '+c.id+')"';
+                html += '>';
+                html += '<div style="font-weight:600;color:#0f2140;">'+escapeHtml(c.client_title||'(sem título)')+'</div>';
+                html += '<div style="font-size:.75rem;color:#6b7280;">'+escapeHtml(c.case_type||'')+' · status='+escapeHtml(c.status||'')+'</div>';
+                if (!hasFolder) html += '<div style="font-size:.72rem;color:#dc2626;margin-top:2px;">⚠️ Caso sem pasta no Drive — crie no Kanban Operacional primeiro</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            html += '<div style="text-align:right;margin-top:1rem;"><button onclick="document.getElementById(\'waDriveModal\').remove()" style="background:#f3f4f6;border:1px solid #d1d5db;padding:8px 16px;border-radius:8px;cursor:pointer;">Cancelar</button></div>';
+            html += '</div>';
+            modal.innerHTML = html;
+        });
+    };
+    window.waConfirmarDrive = function(msgId, caseId) {
+        var modal = document.getElementById('waDriveModal');
+        if (modal) modal.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;"><strong>Salvando no Drive...</strong></div>';
+        var fd = new FormData();
+        fd.append('action', 'salvar_drive');
+        fd.append('mensagem_id', msgId);
+        fd.append('case_id', caseId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (modal) modal.remove();
+            if (d.error) { alert('⚠️ Falha: ' + d.error); return; }
+            alert('✅ Arquivo salvo no Drive!' + (d.fileUrl ? '\n\nURL: ' + d.fileUrl : ''));
+            window.waAbrir(convAtiva);
+        });
     };
 
     // ── APAGAR / EDITAR MENSAGEM ─────────────────────────

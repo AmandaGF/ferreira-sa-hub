@@ -1,0 +1,56 @@
+═══════════════════════════════════════════════════════════════════
+SNIPPET GOOGLE APPS SCRIPT — UPLOAD DE ARQUIVO PARA DRIVE
+═══════════════════════════════════════════════════════════════════
+
+Cole este código DENTRO da função doPost(e) do seu Apps Script atual
+(aquele que já cria pastas dos casos), ANTES da parte que cria pasta.
+
+```javascript
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+
+    // ───── Upload de arquivo do WhatsApp ─────
+    if (data.action === 'uploadFile') {
+      var folder = DriveApp.getFolderById(data.folderId);
+      var response = UrlFetchApp.fetch(data.sourceUrl, {
+        muteHttpExceptions: true,
+        followRedirects: true
+      });
+      var blob = response.getBlob();
+      if (data.fileName) blob.setName(data.fileName);
+      if (data.mimeType) blob.setContentType(data.mimeType);
+      var file = folder.createFile(blob);
+      return ContentService.createTextOutput(JSON.stringify({
+        fileId:  file.getId(),
+        fileUrl: file.getUrl()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ───── (seu código existente de criar pasta fica aqui embaixo) ─────
+    // Se tiver: if (data.folderName) { ... cria pasta ... }
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      error: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+```
+
+═══════════════════════════════════════════════════════════════════
+PASSOS:
+1. Abra seu Google Apps Script atual (o mesmo que cria pastas)
+2. Edite a função doPost(e) — cole o bloco "Upload de arquivo" no TOPO
+3. Mantenha seu código antigo de criar pastas logo abaixo
+4. Salve
+5. Deploy → Nova versão (ou "Gerenciar deploys" → atualizar versão)
+6. A URL do Apps Script continua a mesma
+
+TESTE:
+- No WhatsApp Hub, abra uma conversa de cliente
+- Se o cliente mandou um arquivo (PDF, foto, etc.), vai aparecer
+  botão azul "📁 Salvar no Drive" sobre a mensagem
+- Clique → escolha o caso → aguarde ~3s → arquivo salvo na pasta
+  do Drive do caso
+═══════════════════════════════════════════════════════════════════
