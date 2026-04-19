@@ -19,10 +19,11 @@ if (!$client) { redirect(module_url('financeiro')); }
 // Cobranças em aberto (PENDING + OVERDUE) e pagas (pra histórico)
 // LEFT JOIN com honorarios_cobranca pra respeitar cancelamentos/pagamentos feitos no Kanban
 // Se a parcela foi cancelada ou quitada no Kanban, sai da proposta (consistência com a Notificação)
+// BINARY no JOIN contorna mix de collations entre asaas_cobrancas e honorarios_cobranca
 $vencidas = $pdo->prepare(
     "SELECT ac.*, hc.status AS hc_status
      FROM asaas_cobrancas ac
-     LEFT JOIN honorarios_cobranca hc ON hc.asaas_payment_id = ac.asaas_payment_id
+     LEFT JOIN honorarios_cobranca hc ON BINARY hc.asaas_payment_id = BINARY ac.asaas_payment_id
      WHERE ac.client_id = ? AND ac.status = 'OVERDUE'
        AND (hc.status IS NULL OR hc.status NOT IN ('pago','cancelado'))
      ORDER BY ac.vencimento ASC"
@@ -32,7 +33,7 @@ $vencidas->execute(array($clientId)); $vencidas = $vencidas->fetchAll();
 $pendentes = $pdo->prepare(
     "SELECT ac.*, hc.status AS hc_status
      FROM asaas_cobrancas ac
-     LEFT JOIN honorarios_cobranca hc ON hc.asaas_payment_id = ac.asaas_payment_id
+     LEFT JOIN honorarios_cobranca hc ON BINARY hc.asaas_payment_id = BINARY ac.asaas_payment_id
      WHERE ac.client_id = ? AND ac.status = 'PENDING'
        AND (hc.status IS NULL OR hc.status NOT IN ('pago','cancelado'))
      ORDER BY ac.vencimento ASC"
