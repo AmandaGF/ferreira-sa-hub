@@ -13,6 +13,14 @@ try {
     $_svMsgsNaoLidas = (int)db()->query("SELECT COUNT(*) FROM salavip_mensagens WHERE origem='salavip' AND lida_equipe=0")->fetchColumn();
 } catch (Exception $e) {}
 
+// Contar mensagens WhatsApp não lidas por canal
+$_waNaoLidas21 = 0; $_waNaoLidas24 = 0; $_waFilaPendente = 0;
+try {
+    $_waNaoLidas21 = (int)db()->query("SELECT IFNULL(SUM(nao_lidas),0) FROM zapi_conversas WHERE canal='21' AND status != 'arquivado'")->fetchColumn();
+    $_waNaoLidas24 = (int)db()->query("SELECT IFNULL(SUM(nao_lidas),0) FROM zapi_conversas WHERE canal='24' AND status != 'arquivado'")->fetchColumn();
+    $_waFilaPendente = (int)db()->query("SELECT COUNT(*) FROM zapi_fila_envio WHERE status='pendente'")->fetchColumn();
+} catch (Exception $e) {}
+
 $all = array('admin','gestao','comercial','cx','operacional','estagiario','colaborador');
 $equipe = array('admin','gestao','comercial','cx','operacional','estagiario'); // todos exceto colaborador
 $menuItems = array(
@@ -22,9 +30,9 @@ $menuItems = array(
     array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
 
     array('section' => '💬 WhatsApp'),
-    array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'),   'id' => 'whatsapp_21',     'roles' => $all),
-    array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'),   'id' => 'whatsapp_24',     'roles' => $all),
-    array('label' => 'Caixa de Envios',   'icon' => '📬', 'href' => url('modules/whatsapp/fila.php'),    'id' => 'whatsapp_fila',   'roles' => $all),
+    array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'),   'id' => 'whatsapp_21',     'roles' => $all, 'badge' => $_waNaoLidas21),
+    array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'),   'id' => 'whatsapp_24',     'roles' => $all, 'badge' => $_waNaoLidas24),
+    array('label' => 'Caixa de Envios',   'icon' => '📬', 'href' => url('modules/whatsapp/fila.php'),    'id' => 'whatsapp_fila',   'roles' => $all, 'badge' => $_waFilaPendente, 'badgeCor' => '#b45309'),
     array('label' => 'Dashboard WhatsApp', 'icon' => '📊', 'href' => url('modules/whatsapp/dashboard.php'), 'id' => 'whatsapp_dashboard', 'roles' => array('admin','gestao')),
     array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/central.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
 
@@ -141,6 +149,7 @@ body.dark-mode .lead-name,.dark-mode .op-card-name { color:var(--text) !importan
 body.dark-mode .kanban-body,.dark-mode .op-col-body { background:var(--bg) !important;border-color:var(--border) !important; }
 body.dark-mode .pipeline-stats .stat-card,.dark-mode .op-kpi { background:var(--bg-card) !important;border-color:var(--border) !important; }
 body.dark-mode a { color:var(--rose); }
+@keyframes sidebarPulse { 0%,100% { box-shadow:0 0 0 2px rgba(220,38,38,.2); } 50% { box-shadow:0 0 0 5px rgba(220,38,38,0); } }
 </style>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -208,6 +217,10 @@ body.dark-mode a { color:var(--rose); }
                             <span class="sidebar-link-label"><?= e($item['label']) ?></span>
                             <?php if ($item['id'] === 'salavip' && $_svMsgsNaoLidas > 0): ?>
                                 <span style="background:#dc2626;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:9px;margin-left:auto;font-weight:700;"><?= $_svMsgsNaoLidas ?></span>
+                            <?php elseif (!empty($item['badge']) && (int)$item['badge'] > 0):
+                                $bdgCor = $item['badgeCor'] ?? '#dc2626';
+                            ?>
+                                <span style="background:<?= e($bdgCor) ?>;color:#fff;font-size:.6rem;padding:1px 6px;border-radius:9px;margin-left:auto;font-weight:700;box-shadow:0 0 0 2px rgba(220,38,38,.2);animation:sidebarPulse 2s ease-in-out infinite;"><?= (int)$item['badge'] ?></span>
                             <?php endif; ?>
                         </a>
                         <button type="button" class="sidebar-fav-btn" data-fav-id="<?= e($item['id']) ?>" data-fav-label="<?= e($item['label']) ?>" data-fav-icon="<?= e($item['icon']) ?>" data-fav-href="<?= e($item['href']) ?>" onclick="toggleFavorito(this, event)" title="Fixar nos favoritos">☆</button>
