@@ -20,21 +20,21 @@ if (!$client) { redirect(module_url('financeiro')); }
 // LEFT JOIN com honorarios_cobranca pra respeitar cancelamentos/pagamentos feitos no Kanban
 // Se a parcela foi cancelada ou quitada no Kanban, sai da proposta (consistência com a Notificação)
 $vencidas = $pdo->prepare(
-    "SELECT ac.*,
-            (SELECT hc.status FROM honorarios_cobranca hc WHERE hc.asaas_payment_id = ac.asaas_payment_id LIMIT 1) AS hc_status
+    "SELECT ac.*, hc.status AS hc_status
      FROM asaas_cobrancas ac
+     LEFT JOIN honorarios_cobranca hc ON hc.asaas_payment_id = ac.asaas_payment_id
      WHERE ac.client_id = ? AND ac.status = 'OVERDUE'
-     HAVING hc_status IS NULL OR hc_status NOT IN ('pago','cancelado')
+       AND (hc.status IS NULL OR hc.status NOT IN ('pago','cancelado'))
      ORDER BY ac.vencimento ASC"
 );
 $vencidas->execute(array($clientId)); $vencidas = $vencidas->fetchAll();
 
 $pendentes = $pdo->prepare(
-    "SELECT ac.*,
-            (SELECT hc.status FROM honorarios_cobranca hc WHERE hc.asaas_payment_id = ac.asaas_payment_id LIMIT 1) AS hc_status
+    "SELECT ac.*, hc.status AS hc_status
      FROM asaas_cobrancas ac
+     LEFT JOIN honorarios_cobranca hc ON hc.asaas_payment_id = ac.asaas_payment_id
      WHERE ac.client_id = ? AND ac.status = 'PENDING'
-     HAVING hc_status IS NULL OR hc_status NOT IN ('pago','cancelado')
+       AND (hc.status IS NULL OR hc.status NOT IN ('pago','cancelado'))
      ORDER BY ac.vencimento ASC"
 );
 $pendentes->execute(array($clientId)); $pendentes = $pendentes->fetchAll();
