@@ -39,8 +39,10 @@ function _permission_defaults()
     $todos = array('admin','gestao','comercial','cx','operacional','estagiario','colaborador');
     return array(
         'dashboard'           => $todos,
-        'dashboard_comercial' => $todos,
-        'dashboard_operacional' => $todos,
+        // Comercial e Operacional: só admin por default. Gestores específicos
+        // (Luiz, Rodrigo) recebem via user_permissions (override individual).
+        'dashboard_comercial' => array('admin'),
+        'dashboard_operacional' => array('admin'),
         'portal'              => $todos,
         'helpdesk'            => $todos,
         'agenda'              => $todos,

@@ -36,6 +36,9 @@ $mesAnterior = date('Y-m', strtotime('-1 month'));
 $ML = array('','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez');
 $mesNome = $ML[(int)date('n')];
 $tab = $_GET['tab'] ?? 'geral';
+// Proteção: acesso direto por URL (?tab=comercial/operacional) exige permissão
+if ($tab === 'comercial' && !can_access('dashboard_comercial')) { $tab = 'geral'; }
+if ($tab === 'operacional' && !can_access('dashboard_operacional')) { $tab = 'geral'; }
 
 // Helper: query segura
 function qval($pdo, $sql) { try { return (int)$pdo->query($sql)->fetchColumn(); } catch (Exception $e) { return 0; } }
@@ -358,15 +361,16 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
 <?php if ($tab === 'geral'): ?>
 <!-- ═══════════════ ABA GERAL ═══════════════ -->
 <div class="kpi-grid">
-    <a href="?tab=comercial" class="kpi-card">
+    <?php $_canCom = can_access('dashboard_comercial'); ?>
+    <a href="<?= $_canCom ? '?tab=comercial' : module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon green">✅</div>
-        <div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div>
+        <div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?php if ($_canCom): ?><?= comparativo($contratosMes, $contratosMesAnt) ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?><?php endif; ?></div>
     </a>
     <a href="<?= module_url('pipeline') ?>" class="kpi-card">
         <div class="kpi-icon blue">📝</div>
         <div><div class="kpi-value"><?= $aguardandoContrato ?></div><div class="kpi-label">Aguardando Assinatura</div><div class="kpi-sub">Assinatura pendente</div></div>
     </a>
-    <a href="?tab=operacional" class="kpi-card">
+    <a href="<?= can_access('dashboard_operacional') ? '?tab=operacional' : module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon <?= $prazos7dias > 0 ? 'red' : 'green' ?>">⏰</div>
         <div><div class="kpi-value"><?= $prazos7dias ?></div><div class="kpi-label">Prazos em 7 dias</div><?php if ($prazos7dias > 0): ?><div class="kpi-sub" style="color:#dc2626;">Atenção!</div><?php endif; ?></div>
     </a>
@@ -377,7 +381,7 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
         <div class="kpi-icon green">📂</div>
         <div><div class="kpi-value"><?= $pastasAptas ?></div><div class="kpi-label">Pastas Aptas</div></div>
     </a>
-    <a href="?tab=operacional" class="kpi-card">
+    <a href="<?= can_access('dashboard_operacional') ? '?tab=operacional' : module_url('operacional') ?>" class="kpi-card">
         <div class="kpi-icon orange">🏛️</div>
         <div><div class="kpi-value"><?= $distribuidos ?></div><div class="kpi-label">Distribuídos em <?= $mesNome ?></div><?= comparativo($distribuidos, $distribuidosAnt) ?></div>
     </a>
