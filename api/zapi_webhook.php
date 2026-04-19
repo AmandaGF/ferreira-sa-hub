@@ -120,6 +120,13 @@ try {
                 }
             }
 
+            // ── BOT IA (DDD 21 apenas, se bot_ativo nessa conversa) ──
+            if ($numero === '21' && (int)$conv['bot_ativo'] === 1 && zapi_auto_cfg('zapi_bot_ia_ativo', '0') === '1') {
+                require_once APP_ROOT . '/core/functions_bot_ia.php';
+                try { bot_ia_processar($conv['id'], $conteudo); }
+                catch (Exception $e) { $log("[{$numero}] BOT_IA ERRO: " . $e->getMessage()); }
+            }
+
             // ── AUTOMAÇÃO 3: Confirmação de documento no DDD 24 ──
             if (zapi_auto_cfg('zapi_auto_doc_24', '0') === '1' && $numero === '24' && in_array($tipo, array('documento','imagem','video'), true)) {
                 $tplNome = zapi_auto_cfg('zapi_auto_doc_24_tpl', 'Confirmação de documentos');

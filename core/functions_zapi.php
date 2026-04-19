@@ -210,12 +210,19 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
         } catch (Exception $e) {}
     }
 
-    // Bot IA desligado por default — só ativa quando Checkpoint 1.4 estiver pronto
+    // Bot IA auto-ativado em novas conversas DDD 21 se setting ligado
+    $botAtivo = 0;
+    if ($ddd_instancia === '21'
+        && zapi_auto_cfg('zapi_bot_ia_ativo',     '0') === '1'
+        && zapi_auto_cfg('zapi_bot_ia_auto_novas','0') === '1') {
+        $botAtivo = 1;
+    }
+
     $pdo->prepare(
         "INSERT INTO zapi_conversas (instancia_id, telefone, nome_contato, client_id, lead_id, canal, bot_ativo, status)
-         VALUES (?, ?, ?, ?, ?, ?, 0, 'aguardando')"
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'aguardando')"
     )->execute(array(
-        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia
+        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo
     ));
     $newId = (int)$pdo->lastInsertId();
     return $pdo->query("SELECT * FROM zapi_conversas WHERE id = $newId")->fetch();

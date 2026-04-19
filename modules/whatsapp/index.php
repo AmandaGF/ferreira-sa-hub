@@ -294,6 +294,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var head = document.getElementById('waChatHeadContainer');
         var actions = '<div class="wa-chat-actions">';
         actions += '<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>';
+        if (c.canal === '21') {
+            if (+c.bot_ativo) actions += '<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>';
+            else               actions += '<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>';
+        }
         if (!c.atendente_id || +c.atendente_id !== <?= (int)$user['id'] ?>) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
@@ -577,6 +581,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         return fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); });
     }
     window.waAssumir   = function() { acaoConversa('assumir_atendimento').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+    window.waToggleBot = function(ativar) {
+        var action = ativar ? 'ativar_bot' : 'desativar_bot';
+        acaoConversa(action).then(function(){ window.waAbrir(convAtiva); carregarLista(); });
+    };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
     // ── EDITAR NOME DA CONVERSA ─────────────────────────

@@ -42,6 +42,9 @@ $defaults = array(
     'zapi_auto_aniversario_hora'   => '9',
     'zapi_auto_aniversario_tpl'    => '🎂 Aniversário — Clássico',
     'zapi_auto_aniversario_variar' => '1',
+    'zapi_bot_ia_ativo'            => '0',
+    'zapi_bot_ia_auto_novas'       => '0',
+    'zapi_bot_ia_prompt'           => '',
 );
 
 // ── POST ────────────────────────────────────────────────
@@ -78,6 +81,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $up->execute(array('zapi_auto_aniversario_tpl',    trim($_POST['auto_aniversario_tpl'] ?? '')));
     $up->execute(array('zapi_auto_aniversario_variar', !empty($_POST['auto_aniversario_variar']) ? '1' : '0'));
 
+    $up->execute(array('zapi_bot_ia_ativo',       !empty($_POST['bot_ia_ativo']) ? '1' : '0'));
+    $up->execute(array('zapi_bot_ia_auto_novas',  !empty($_POST['bot_ia_auto_novas']) ? '1' : '0'));
+    $up->execute(array('zapi_bot_ia_prompt',      trim($_POST['bot_ia_prompt'] ?? '')));
+
     audit_log('zapi_automacoes_salvar', 'configuracoes', 0);
     flash_set('success', 'Automações salvas.');
     redirect(module_url('whatsapp', 'automacoes.php'));
@@ -92,6 +99,10 @@ $diasArr = explode(',', $cfg['zapi_dias_uteis']);
 
 // Lista de templates ativos pra dropdown
 $templates = $pdo->query("SELECT nome, canal, categoria FROM zapi_templates WHERE ativo = 1 ORDER BY nome")->fetchAll();
+
+// Prompt do bot: usa default se vazio
+require_once APP_ROOT . '/core/functions_bot_ia.php';
+$botPromptAtual = $cfg['zapi_bot_ia_prompt'] ?: bot_ia_prompt_default();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -247,6 +258,30 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="margin-top:.5rem;display:flex;gap:.5rem;">
             <button type="button" onclick="enviarAgora()" class="btn btn-outline btn-sm">🚀 Enviar parabéns de HOJE agora (teste)</button>
             <a href="<?= url('cron/zapi_aniversarios.php?key=fsa-hub-deploy-2026&forcar=1') ?>" target="_blank" class="btn btn-outline btn-sm">📋 Ver log do envio manual</a>
+        </div>
+    </div>
+
+    <div class="aut-card" style="border-color:#7c3aed;">
+        <h3 style="color:#7c3aed;">🤖 Bot IA — Recepção Automática (DDD 21)</h3>
+        <p class="aut-hint">Quando ligado, o bot responde automaticamente as primeiras mensagens no <strong>DDD 21 (Comercial)</strong>, coleta informações (nome, área, breve descrição) e transfere para humano em situações urgentes ou quando o cliente pedir.</p>
+        <p class="aut-hint">Usa Claude Haiku (Anthropic) — custo aproximado: <strong>R$ 0,003 por resposta</strong>. Requer <code>ANTHROPIC_API_KEY</code> configurada em <code>config.php</code>.</p>
+
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="bot_ia_ativo" value="1" <?= $cfg['zapi_bot_ia_ativo'] === '1' ? 'checked' : '' ?>> <strong>Ativar Bot IA</strong> (senão, o bot nunca responde)</label>
+        </div>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="bot_ia_auto_novas" value="1" <?= $cfg['zapi_bot_ia_auto_novas'] === '1' ? 'checked' : '' ?>> Ativar bot automaticamente em <strong>novas conversas</strong> do DDD 21 (sem isso, você precisa ativar manualmente em cada conversa)</label>
+        </div>
+
+        <div style="margin-top:.8rem;">
+            <label class="text-sm" style="font-weight:600;">System Prompt (instruções para o bot)</label>
+            <textarea name="bot_ia_prompt" rows="14" class="form-control" style="font-family:monospace;font-size:.78rem;"><?= e($botPromptAtual) ?></textarea>
+            <p class="aut-hint">Edite com cuidado — é isso que define o tom e as regras do bot. Para restaurar o padrão, apague tudo e salve.</p>
+        </div>
+
+        <div style="background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;padding:.6rem .8rem;margin-top:.5rem;font-size:.78rem;">
+            <strong>Palavras que disparam transferência automática para humano:</strong><br>
+            <em>urgente, urgência, emergência, violência, agressão, ameaça, preso, criança em risco, socorro, humano, atendente, advogada, Amanda, falar com alguém...</em>
         </div>
     </div>
 

@@ -21,6 +21,10 @@ $menuItems = array(
     array('label' => 'Dashboard',       'icon' => '📊', 'href' => url('modules/dashboard/'),       'id' => 'dashboard',       'roles' => $all),
     array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
 
+    array('section' => '💬 WhatsApp'),
+    array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'), 'id' => 'whatsapp_21', 'roles' => $all),
+    array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'), 'id' => 'whatsapp_24', 'roles' => $all),
+
     array('section' => 'Atendimento'),
     array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all),
 
@@ -29,8 +33,6 @@ $menuItems = array(
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $equipe),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $equipe),
-    array('label' => 'WhatsApp (21) Comercial', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'), 'id' => 'whatsapp_21', 'roles' => $all),
-    array('label' => 'WhatsApp (24) CX/Oper.',  'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'), 'id' => 'whatsapp_24', 'roles' => $all),
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $equipe),
