@@ -442,30 +442,69 @@ require_once APP_ROOT . '/templates/layout_start.php';
         enviarArquivoBlob(file, caption).then(function(){ e.target.value = ''; });
     });
 
-    // ── COLAR IMAGEM DIRETO (Ctrl+V) ────────────────────
-    document.getElementById('waInput').addEventListener('paste', function(e){
+    // ── COLAR IMAGEM DIRETO (Ctrl+V em qualquer lugar do chat) ──
+    function handlePaste(e) {
         if (!convAtiva) return;
-        var items = (e.clipboardData || window.clipboardData).items;
-        if (!items) return;
-        for (var i = 0; i < items.length; i++) {
-            var it = items[i];
-            if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
-                e.preventDefault();
-                var blob = it.getAsFile();
-                if (!blob) continue;
-                // Dar um nome útil (preservar extensão)
-                var ext = (it.type.split('/')[1] || 'png').split('+')[0];
-                var nomedMeta = { name: 'colado_' + Date.now() + '.' + ext };
-                // Clonar blob com nome (File API)
-                var fileComNome = new File([blob], nomedMeta.name, { type: it.type });
-                var caption = document.getElementById('waInput').value.trim();
-                if (confirm('Enviar imagem colada' + (caption ? ' com a legenda "' + caption + '"' : '') + '?')) {
-                    enviarArquivoBlob(fileComNome, caption);
+        var cd = e.clipboardData || window.clipboardData;
+        if (!cd) return;
+
+        // Tentar via items primeiro (moderno)
+        var items = cd.items;
+        if (items && items.length) {
+            for (var i = 0; i < items.length; i++) {
+                var it = items[i];
+                if (it.kind === 'file' && it.type && it.type.indexOf('image/') === 0) {
+                    e.preventDefault();
+                    var blob = it.getAsFile();
+                    if (!blob) continue;
+                    processarImagemColada(blob, it.type);
+                    return;
                 }
-                return;
             }
         }
-        // Se não era imagem, deixa o paste padrão acontecer (texto normal)
+        // Fallback: cd.files (alguns navegadores antigos)
+        if (cd.files && cd.files.length) {
+            for (var j = 0; j < cd.files.length; j++) {
+                var f = cd.files[j];
+                if (f.type && f.type.indexOf('image/') === 0) {
+                    e.preventDefault();
+                    processarImagemColada(f, f.type);
+                    return;
+                }
+            }
+        }
+        // Se não era imagem, deixa o paste padrão (texto normal)
+    }
+
+    function processarImagemColada(blob, mime) {
+        var ext = (mime.split('/')[1] || 'png').split('+')[0];
+        var nome = 'colado_' + Date.now() + '.' + ext;
+        var fileComNome;
+        try {
+            fileComNome = new File([blob], nome, { type: mime });
+        } catch (err) {
+            // Alguns navegadores (Safari antigo) não têm File constructor
+            fileComNome = blob;
+            fileComNome.name = nome;
+        }
+        var caption = document.getElementById('waInput').value.trim();
+        var msg = 'Enviar imagem colada' + (caption ? ' com a legenda "' + caption + '"' : '') + '?';
+        if (confirm(msg)) {
+            enviarArquivoBlob(fileComNome, caption);
+        }
+    }
+
+    // Anexa o paste no textarea E no container do chat inteiro (captura tudo)
+    ['waInput', 'waChatBody', 'waWrap'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('paste', handlePaste);
+    });
+    // E também no documento inteiro como fallback, quando conversa está aberta
+    document.addEventListener('paste', function(e){
+        if (!convAtiva) return;
+        // Se já foi tratado por outro listener mais específico, defaultPrevented estará true
+        if (e.defaultPrevented) return;
+        handlePaste(e);
     });
 
     // ── AÇÕES NA CONVERSA ───────────────────────────────

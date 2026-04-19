@@ -37,10 +37,11 @@ $defaults = array(
     'zapi_auto_doc_24_tpl'       => 'Confirmação de documentos',
     'zapi_signature_on'          => '0',
     'zapi_signature_format'      => '— {{atendente}}',
-    'zapi_auto_aniversario'      => '0',
-    'zapi_auto_aniversario_canal'=> '24',
-    'zapi_auto_aniversario_hora' => '9',
-    'zapi_auto_aniversario_tpl'  => '🎂 Aniversário Cliente',
+    'zapi_auto_aniversario'        => '0',
+    'zapi_auto_aniversario_canal'  => '24',
+    'zapi_auto_aniversario_hora'   => '9',
+    'zapi_auto_aniversario_tpl'    => '🎂 Aniversário — Clássico',
+    'zapi_auto_aniversario_variar' => '1',
 );
 
 // ── POST ────────────────────────────────────────────────
@@ -71,10 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $up->execute(array('zapi_signature_on',     !empty($_POST['signature_on']) ? '1' : '0'));
     $up->execute(array('zapi_signature_format', trim($_POST['signature_format'] ?? '— {{atendente}}')));
 
-    $up->execute(array('zapi_auto_aniversario',       !empty($_POST['auto_aniversario']) ? '1' : '0'));
-    $up->execute(array('zapi_auto_aniversario_canal', in_array($_POST['auto_aniversario_canal'] ?? '24', array('21','24'), true) ? $_POST['auto_aniversario_canal'] : '24'));
-    $up->execute(array('zapi_auto_aniversario_hora',  (string)(int)($_POST['auto_aniversario_hora'] ?? 9)));
-    $up->execute(array('zapi_auto_aniversario_tpl',   trim($_POST['auto_aniversario_tpl'] ?? '')));
+    $up->execute(array('zapi_auto_aniversario',        !empty($_POST['auto_aniversario']) ? '1' : '0'));
+    $up->execute(array('zapi_auto_aniversario_canal',  in_array($_POST['auto_aniversario_canal'] ?? '24', array('21','24'), true) ? $_POST['auto_aniversario_canal'] : '24'));
+    $up->execute(array('zapi_auto_aniversario_hora',   (string)(int)($_POST['auto_aniversario_hora'] ?? 9)));
+    $up->execute(array('zapi_auto_aniversario_tpl',    trim($_POST['auto_aniversario_tpl'] ?? '')));
+    $up->execute(array('zapi_auto_aniversario_variar', !empty($_POST['auto_aniversario_variar']) ? '1' : '0'));
 
     audit_log('zapi_automacoes_salvar', 'configuracoes', 0);
     flash_set('success', 'Automações salvas.');
@@ -209,6 +211,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <p class="aut-hint">Um cron diário checa aniversariantes do dia (campo <code>clients.birth_date</code>) e envia parabéns pelo WhatsApp. Não duplica se rodar várias vezes.</p>
         <div class="aut-toggle-row">
             <label><input type="checkbox" name="auto_aniversario" value="1" <?= $cfg['zapi_auto_aniversario'] === '1' ? 'checked' : '' ?>> Ativar envio automático no aniversário</label>
+        </div>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="auto_aniversario_variar" value="1" <?= $cfg['zapi_auto_aniversario_variar'] === '1' ? 'checked' : '' ?>> Variar mensagens aleatoriamente (usa todos os templates categoria "aniversario")</label>
         </div>
         <div class="aut-row">
             <label>Canal de envio</label>

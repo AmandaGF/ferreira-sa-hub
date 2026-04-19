@@ -38,16 +38,25 @@ $cfg = array(
     'ativo'  => '0',
     'canal'  => '24',
     'hora'   => '9',
-    'tpl'    => '🎂 Aniversário Cliente',
+    'tpl'    => '🎂 Aniversário — Clássico',
+    'variar' => '1',
 );
 try {
     foreach ($pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_auto_aniversario%'")->fetchAll() as $r) {
-        if ($r['chave'] === 'zapi_auto_aniversario')       $cfg['ativo'] = $r['valor'];
-        if ($r['chave'] === 'zapi_auto_aniversario_canal') $cfg['canal'] = $r['valor'];
-        if ($r['chave'] === 'zapi_auto_aniversario_hora')  $cfg['hora']  = $r['valor'];
-        if ($r['chave'] === 'zapi_auto_aniversario_tpl')   $cfg['tpl']   = $r['valor'];
+        if ($r['chave'] === 'zapi_auto_aniversario')        $cfg['ativo']  = $r['valor'];
+        if ($r['chave'] === 'zapi_auto_aniversario_canal')  $cfg['canal']  = $r['valor'];
+        if ($r['chave'] === 'zapi_auto_aniversario_hora')   $cfg['hora']   = $r['valor'];
+        if ($r['chave'] === 'zapi_auto_aniversario_tpl')    $cfg['tpl']    = $r['valor'];
+        if ($r['chave'] === 'zapi_auto_aniversario_variar') $cfg['variar'] = $r['valor'];
     }
 } catch (Exception $e) { echo "ERRO config: " . $e->getMessage() . "\n"; exit; }
+
+// Pre-carregar lista de variações (categoria 'aniversario', ativas)
+$variacoes = array();
+if ($cfg['variar'] === '1') {
+    $variacoes = $pdo->query("SELECT nome FROM zapi_templates WHERE categoria = 'aniversario' AND ativo = 1")->fetchAll(PDO::FETCH_COLUMN);
+    if (!$variacoes) $variacoes = array($cfg['tpl']);
+}
 
 if ($cfg['ativo'] !== '1') { echo "Automação desligada em Automações → '🎂 Aniversário'.\n"; exit; }
 
@@ -85,14 +94,20 @@ if (empty($clientes)) { echo "Nada a enviar.\n"; exit; }
 $ok = 0; $falhas = 0;
 foreach ($clientes as $c) {
     $nome = explode(' ', trim($c['name']))[0];
-    $msg  = zapi_get_template($cfg['tpl'], array('nome' => $nome));
-    if (!$msg) { echo "  [SKIP] {$c['name']} — template '{$cfg['tpl']}' não encontrado\n"; continue; }
+    // Se variar estiver ligado, sorteia um template da categoria por aniversariante
+    if ($cfg['variar'] === '1' && !empty($variacoes)) {
+        $tplNome = $variacoes[array_rand($variacoes)];
+    } else {
+        $tplNome = $cfg['tpl'];
+    }
+    $msg = zapi_get_template($tplNome, array('nome' => $nome));
+    if (!$msg) { echo "  [SKIP] {$c['name']} — template '{$tplNome}' não encontrado\n"; continue; }
 
     $r = zapi_send_text($cfg['canal'], $c['phone'], $msg);
     if (!empty($r['ok'])) {
         $pdo->prepare("INSERT IGNORE INTO birthday_greetings (client_id, year, sent_by) VALUES (?, ?, NULL)")
             ->execute(array($c['id'], $year));
-        echo "  [OK] {$c['name']} ({$c['phone']})\n";
+        echo "  [OK] {$c['name']} ({$c['phone']}) — tpl: {$tplNome}\n";
         $ok++;
     } else {
         echo "  [FALHA] {$c['name']} ({$c['phone']}) — HTTP " . ($r['http_code'] ?? '?') . " " . json_encode($r['data'] ?? '') . "\n";
