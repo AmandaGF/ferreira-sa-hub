@@ -539,6 +539,57 @@ switch ($action) {
         }
         exit;
 
+    case 'criar_cliente_da_parte':
+        header('Content-Type: application/json');
+        $name = trim($_POST['name'] ?? '');
+        if (!$name) { echo json_encode(array('error' => 'Nome obrigatório')); exit; }
+
+        // Evitar duplicata: se já existe com mesmo CPF OU nome idêntico, reutiliza
+        $cpf = preg_replace('/\D/', '', $_POST['cpf'] ?? '');
+        $existing = null;
+        if ($cpf) {
+            $q = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cpf,''),'.',''),'-',''),'/',''),' ','') = ? LIMIT 1");
+            $q->execute(array($cpf));
+            $existing = $q->fetchColumn();
+        }
+        if (!$existing) {
+            $q = $pdo->prepare("SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1");
+            $q->execute(array($name));
+            $existing = $q->fetchColumn();
+        }
+        if ($existing) {
+            echo json_encode(array('ok' => true, 'client_id' => (int)$existing, 'reutilizado' => true));
+            exit;
+        }
+
+        // Inserir novo cliente
+        try {
+            $pdo->prepare(
+                "INSERT INTO clients (name, cpf, rg, birth_date, phone, email, profession, marital_status,
+                  address_street, address_city, address_state, address_zip, source, notes, created_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'cadastro_parte_processo', 'Cadastrado a partir da parte do processo', NOW())"
+            )->execute(array(
+                $name,
+                $_POST['cpf'] ?? null,
+                $_POST['rg'] ?? null,
+                (!empty($_POST['birth_date']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_POST['birth_date'])) ? $_POST['birth_date'] : null,
+                $_POST['phone'] ?? null,
+                $_POST['email'] ?? null,
+                $_POST['profession'] ?? null,
+                $_POST['marital_status'] ?? null,
+                $_POST['address_street'] ?? null,
+                $_POST['address_city'] ?? null,
+                $_POST['address_state'] ?? null,
+                $_POST['address_zip'] ?? null,
+            ));
+            $newId = (int)$pdo->lastInsertId();
+            audit_log('client_criar_da_parte', 'clients', $newId, "Criado via form de parte: {$name}");
+            echo json_encode(array('ok' => true, 'client_id' => $newId));
+        } catch (Exception $e) {
+            echo json_encode(array('error' => 'Erro ao criar: ' . $e->getMessage()));
+        }
+        exit;
+
     case 'update_parceria':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $isParceria = (int)($_POST['is_parceria'] ?? 0);

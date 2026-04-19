@@ -2609,7 +2609,14 @@ function buscarClienteParaVincular(q) {
                 var clientes = JSON.parse(x.responseText);
                 box.innerHTML = '';
                 if (clientes.length === 0) {
-                    box.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.78rem;">Nenhum cliente encontrado</div>';
+                    var btn = document.createElement('div');
+                    btn.style.cssText = 'padding:.7rem .85rem;cursor:pointer;font-size:.8rem;background:#eff6ff;color:#1e40af;border-left:4px solid #3b82f6;font-weight:600;';
+                    btn.innerHTML = '➕ Cadastrar <strong>' + q + '</strong> como novo cliente (usa os dados preenchidos)';
+                    btn.onmouseover = function(){ this.style.background = '#dbeafe'; };
+                    btn.onmouseout  = function(){ this.style.background = '#eff6ff'; };
+                    btn.onclick = function() { cadastrarClienteDaParte(); };
+                    box.innerHTML = '';
+                    box.appendChild(btn);
                 } else {
                     clientes.forEach(function(c) {
                         var div = document.createElement('div');
@@ -2649,6 +2656,41 @@ document.addEventListener('click', function(e) {
     var box = document.getElementById('parteClienteResultados');
     if (box && !box.contains(e.target) && e.target.id !== 'parteClienteBuscaInput') box.style.display = 'none';
 });
+
+// Cadastra um novo cliente com os dados preenchidos no form da parte
+function cadastrarClienteDaParte() {
+    var nome = (document.getElementById('parteNome').value || document.getElementById('parteClienteBuscaInput').value).trim();
+    if (!nome) { alert('Informe o nome da parte antes.'); return; }
+    var dados = new FormData();
+    dados.append('action', 'criar_cliente_da_parte');
+    dados.append('name', nome);
+    dados.append('cpf', (document.getElementById('parteCpf') || {value:''}).value || '');
+    dados.append('rg', (document.getElementById('parteRg') || {value:''}).value || '');
+    dados.append('phone', (document.getElementById('parteTelefone') || {value:''}).value || '');
+    dados.append('email', (document.getElementById('parteEmail') || {value:''}).value || '');
+    dados.append('birth_date', (document.getElementById('parteNascimento') || {value:''}).value || '');
+    dados.append('profession', (document.getElementById('parteProfissao') || {value:''}).value || '');
+    dados.append('marital_status', (document.getElementById('parteEstadoCivil') || {value:''}).value || '');
+    dados.append('address_street', (document.getElementById('parteEndereco') || {value:''}).value || '');
+    dados.append('address_city', (document.getElementById('parteCidade') || {value:''}).value || '');
+    dados.append('address_state', (document.getElementById('parteUf') || {value:''}).value || '');
+    dados.append('address_zip', (document.getElementById('parteCep') || {value:''}).value || '');
+    dados.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: dados, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.ok && d.client_id) {
+                document.getElementById('parteClientId').value = d.client_id;
+                document.getElementById('parteClienteNome').textContent = '✓ ' + nome + ' (cadastrado agora)';
+                document.getElementById('parteClienteBuscaInput').value = nome;
+                document.getElementById('parteClienteResultados').style.display = 'none';
+                alert('✅ Cliente cadastrado! Agora é só salvar a parte.');
+            } else {
+                alert('❌ Falha ao cadastrar: ' + ((d && d.error) || 'erro desconhecido'));
+            }
+        })
+        .catch(function(err){ alert('Erro: ' + err); });
+}
 
 function buscarCepParte() {
     var cep = document.getElementById('parteCep').value.replace(/\D/g,'');
