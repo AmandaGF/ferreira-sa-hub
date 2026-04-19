@@ -119,7 +119,7 @@ function _fila_link($status, $clientFilter) {
         <textarea id="fila_<?= (int)$r['id'] ?>_editor" style="display:none;width:100%;min-height:120px;padding:.6rem .8rem;border:1.5px solid #B87333;border-radius:8px;font-size:.82rem;font-family:inherit;resize:vertical;margin-top:.3rem;"><?= e($r['mensagem']) ?></textarea>
         <?php if ($r['status'] === 'pendente'): ?>
         <div class="fila-acoes" id="fila_<?= (int)$r['id'] ?>_acoes">
-            <button style="background:#25d366;color:#fff;" onclick="filaEnviar(<?= (int)$r['id'] ?>, '<?= preg_replace('/\D/', '', $r['telefone']) ?>', <?= json_encode($nome) ?>, '<?= e($r['canal_sugerido']) ?>', <?= (int)$r['client_id'] ?>)">✓ Revisar e enviar</button>
+            <button type="button" style="background:#25d366;color:#fff;" onclick="filaEnviar(<?= (int)$r['id'] ?>, '<?= preg_replace('/\D/', '', $r['telefone']) ?>', <?= e(json_encode($nome, JSON_UNESCAPED_UNICODE)) ?>, '<?= e($r['canal_sugerido']) ?>', <?= (int)$r['client_id'] ?>)">✓ Revisar e enviar</button>
             <button style="background:#eff6ff;border:1px solid #93c5fd;color:#1e40af;" onclick="filaEditarInline(<?= (int)$r['id'] ?>)">✏ Editar texto</button>
             <button style="background:#f3f4f6;border:1px solid #d1d5db;color:#374151;" onclick="filaDescartar(<?= (int)$r['id'] ?>)">🗑 Descartar</button>
         </div>
