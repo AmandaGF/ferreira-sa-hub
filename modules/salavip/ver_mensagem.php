@@ -178,7 +178,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .thread-info dd { color:var(--petrol-900); font-weight:500; margin:0 0 .5rem 0; }
 </style>
 
-<a href="<?= module_url('salavip') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar</a>
+<?php
+// Detectar de onde o usuário veio pra o botão Voltar ficar consistente
+$backUrl = module_url('salavip');
+$backLabel = 'Voltar à Central VIP';
+$ref = $_SERVER['HTTP_REFERER'] ?? '';
+if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem=clientes') !== false) {
+    $backUrl = url('modules/helpdesk/?origem=clientes');
+    $backLabel = 'Voltar aos Chamados de Clientes';
+}
+?>
+<a href="<?= e($backUrl) ?>" class="btn btn-outline btn-sm mb-2">&larr; <?= e($backLabel) ?></a>
 
 <!-- Thread Header -->
 <div class="card mb-2">
