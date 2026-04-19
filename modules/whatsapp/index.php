@@ -159,8 +159,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="em_atendimento">Em atend.</button>
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
+                <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
             </div>
-            <div class="wa-filters" id="waEtqFilters" style="max-height:60px;overflow-y:auto;"></div>
+            <!-- Chip da etiqueta selecionada (aparece só quando filtro ativo) -->
+            <div id="waEtqChipAtivo" style="display:none;align-items:center;gap:6px;"></div>
+            <!-- Popover com lista de etiquetas (escondido por default) -->
+            <div id="waEtqPopoverFiltro" style="display:none;position:absolute;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:.5rem;z-index:300;min-width:200px;max-height:260px;overflow-y:auto;"></div>
         </div>
         <div class="wa-list" id="waList">
             <div class="wa-empty">Carregando...</div>
@@ -758,21 +762,65 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
     function renderEtqFilters() {
         if (!etiquetasCache) return;
-        var bar = document.getElementById('waEtqFilters');
-        var html = '';
+        // Renderiza só o CHIP da etiqueta ativa (se houver)
+        var chip = document.getElementById('waEtqChipAtivo');
+        if (etiquetaFiltro) {
+            var ativa = etiquetasCache.find(function(e){ return +e.id === +etiquetaFiltro; });
+            if (ativa) {
+                chip.innerHTML = '<span style="font-size:.7rem;color:#6b7280;">Filtrando:</span>' +
+                    '<span style="background:'+escapeHtml(ativa.cor)+';color:#fff;padding:2px 8px;border-radius:10px;font-size:.7rem;font-weight:700;display:inline-flex;align-items:center;gap:4px;">' +
+                    escapeHtml(ativa.nome) +
+                    '<span onclick="waFiltrarPorEtiqueta(0)" style="cursor:pointer;opacity:.85;">✕</span></span>';
+                chip.style.display = 'flex';
+            }
+            // Deixa o botão Etiqueta com fundo colorido
+            var btn = document.getElementById('waBtnFiltroEtq');
+            if (btn) { btn.style.background = ativa.cor; btn.style.color = '#fff'; btn.style.borderColor = ativa.cor; }
+        } else {
+            chip.innerHTML = '';
+            chip.style.display = 'none';
+            var btn = document.getElementById('waBtnFiltroEtq');
+            if (btn) { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
+        }
+    }
+
+    window.waToggleFiltroEtqPopover = function(ev) {
+        ev.stopPropagation();
+        var pop = document.getElementById('waEtqPopoverFiltro');
+        if (pop.style.display === 'block') { pop.style.display = 'none'; return; }
+        if (!etiquetasCache) return;
+        // Posiciona popover logo abaixo do botão
+        var btn = ev.target;
+        var rect = btn.getBoundingClientRect();
+        pop.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+        pop.style.left = (rect.left + window.scrollX) + 'px';
+        var html = '<div style="font-size:.65rem;color:#6b7280;font-weight:700;margin-bottom:4px;padding:0 4px;">FILTRAR POR ETIQUETA</div>';
         etiquetasCache.forEach(function(et){
             var active = (+etiquetaFiltro === +et.id);
-            var style = active ? 'background:'+et.cor+';color:#fff;border-color:'+et.cor+';' : '';
-            html += '<button class="wa-etq-filter '+(active?'active':'')+'" style="'+style+'" onclick="waFiltrarPorEtiqueta('+et.id+')">' + escapeHtml(et.nome) + '</button>';
+            html += '<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;'+(active?'background:#f3f4f6;':'')+'" onmouseover="this.style.background=\'#f9fafb\'" onmouseout="this.style.background=\''+(active?'#f3f4f6':'transparent')+'\'" onclick="waFiltrarPorEtiqueta('+et.id+');">';
+            html += '<span style="background:'+escapeHtml(et.cor)+';color:#fff;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;">'+escapeHtml(et.nome)+'</span>';
+            if (active) html += '<span style="margin-left:auto;color:#22c55e;">✓</span>';
+            html += '</div>';
         });
-        if (etiquetaFiltro) html += '<button class="wa-etq-filter" onclick="waFiltrarPorEtiqueta(0)" style="color:#ef4444;">✕ Limpar</button>';
-        bar.innerHTML = html;
-    }
+        if (etiquetaFiltro) html += '<div style="border-top:1px solid #eee;margin-top:4px;padding-top:4px;"><div onclick="waFiltrarPorEtiqueta(0);" style="padding:5px 8px;color:#ef4444;font-size:.75rem;cursor:pointer;border-radius:6px;" onmouseover="this.style.background=\'#fee2e2\'" onmouseout="this.style.background=\'transparent\'">✕ Limpar filtro</div></div>';
+        pop.innerHTML = html;
+        pop.style.display = 'block';
+    };
+
     window.waFiltrarPorEtiqueta = function(id) {
         etiquetaFiltro = +id;
+        document.getElementById('waEtqPopoverFiltro').style.display = 'none';
         renderEtqFilters();
         carregarLista();
     };
+
+    // Fecha popover ao clicar fora
+    document.addEventListener('click', function(e){
+        var pop = document.getElementById('waEtqPopoverFiltro');
+        if (!pop) return;
+        if (e.target.closest('#waEtqPopoverFiltro') || e.target.closest('#waBtnFiltroEtq')) return;
+        pop.style.display = 'none';
+    });
     window.waToggleEtiquetas = function(ev) {
         ev.stopPropagation();
         var pop = document.getElementById('waEtqPopover');
