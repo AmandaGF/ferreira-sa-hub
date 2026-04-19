@@ -70,17 +70,36 @@ try {
 echo "\n7. Pegar últimas linhas do error log PHP:\n";
 // Tentar achar o error log do PHP
 $candidatos = array(
-    APP_ROOT . '/error_log',
     APP_ROOT . '/modules/financeiro/error_log',
+    APP_ROOT . '/error_log',
+    '/home7/ferre3151357/public_html/conecta/modules/financeiro/error_log',
     ini_get('error_log'),
-    '/home/ferreira/public_html/error_log',
 );
 foreach ($candidatos as $c) {
     if ($c && is_readable($c)) {
         $lines = file($c);
-        $tail = array_slice($lines, -20);
+        $tail = array_slice($lines, -25);
         echo "--- {$c} (últimas " . count($tail) . " linhas) ---\n";
         foreach ($tail as $l) echo "  " . trim($l) . "\n";
-        break;
+        echo "\n";
     }
+}
+
+echo "\n8. Executando index.php simulado (com captura de erro):\n";
+// Simular execução como se fosse a Amanda
+$_SESSION['user'] = array('id' => 1, 'role' => 'admin', 'name' => 'Amanda', 'email' => 'amandaguedesferreira@gmail.com');
+try {
+    ob_start();
+    include __DIR__ . '/modules/financeiro/index.php';
+    $out = ob_get_clean();
+    echo "   Executou sem exceção. Tamanho output: " . strlen($out) . "\n";
+    if (strpos($out, 'Fatal') !== false || strpos($out, 'error') !== false) {
+        echo "   Trecho com 'error':\n";
+        $pos = stripos($out, 'error');
+        echo "   " . substr($out, max(0,$pos-100), 400) . "\n";
+    }
+} catch (Throwable $e) {
+    ob_end_clean();
+    echo "   EXCEPTION: " . $e->getMessage() . "\n";
+    echo "   Arquivo: " . $e->getFile() . ":" . $e->getLine() . "\n";
 }
