@@ -85,6 +85,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-tpl-item strong { display:block;color:var(--text);margin-bottom:2px; }
 .wa-tpl-item span { color:var(--text-muted);font-size:.72rem; }
 .wa-not-config { padding:1.5rem;background:#fffbeb;border:1px solid #f59e0b;border-radius:10px;color:#78350f; }
+.wa-etiqueta { display:inline-block;padding:1px 7px;border-radius:10px;font-size:.62rem;font-weight:700;color:#fff;margin-right:3px;margin-top:2px;letter-spacing:.2px; }
+.wa-etq-bar { display:flex;gap:3px;flex-wrap:wrap;margin-top:2px; }
+.wa-etq-remove { cursor:pointer;margin-left:3px;opacity:.8; }
+.wa-etq-remove:hover { opacity:1; }
+.wa-etq-popover { position:absolute;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.15);padding:.5rem;z-index:200;display:none;min-width:220px;max-height:300px;overflow-y:auto; }
+.wa-etq-popover.open { display:block; }
+.wa-etq-opt { display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;font-size:.78rem; }
+.wa-etq-opt:hover { background:#f3f4f6; }
+.wa-etq-opt .wa-etiqueta { font-size:.7rem; }
+.wa-name-edit { background:transparent;border:1px dashed var(--border);border-radius:4px;padding:2px 6px;font-size:.9rem;font-weight:700;min-width:150px; }
+.wa-name-display { cursor:pointer;border-bottom:1px dashed transparent;padding:2px 0;font-size:.9rem;font-weight:700; }
+.wa-name-display:hover { border-bottom-color:var(--text-muted); }
+.wa-etq-filter { padding:3px 8px;border-radius:10px;font-size:.68rem;background:#fff;border:1px solid var(--border);cursor:pointer;color:var(--text-muted);white-space:nowrap; }
+.wa-etq-filter.active { color:#fff !important;border-color:transparent !important; }
 @media (max-width:900px){ .wa-wrap{grid-template-columns:1fr;height:auto;} }
 </style>
 
@@ -105,6 +119,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (has_min_role('gestao')): ?>
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
             <a href="<?= module_url('whatsapp', 'templates.php') ?>" class="btn btn-outline btn-sm" title="Editar respostas rápidas e mensagens automáticas">📋 Templates</a>
+            <a href="<?= module_url('whatsapp', 'etiquetas.php') ?>" class="btn btn-outline btn-sm" title="Gerenciar etiquetas">🏷 Etiquetas</a>
             <a href="<?= module_url('whatsapp', 'automacoes.php') ?>" class="btn btn-outline btn-sm" title="Configurar horário e automações">⚙️ Automações</a>
             <a href="<?= module_url('whatsapp', 'configurar.php') ?>" class="btn btn-outline btn-sm" title="Credenciais Z-API">🔑 Z-API</a>
         <?php endif; ?>
@@ -139,6 +154,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
             </div>
+            <div class="wa-filters" id="waEtqFilters" style="max-height:60px;overflow-y:auto;"></div>
         </div>
         <div class="wa-list" id="waList">
             <div class="wa-empty">Carregando...</div>
@@ -179,9 +195,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var csrf   = '<?= e($csrfToken) ?>';
     var filtroAtual = 'todos';
     var buscaAtual  = '';
+    var etiquetaFiltro = 0;
     var convAtiva   = null;
     var pollTimer   = null;
     var templatesCache = null;
+    var etiquetasCache = null;
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
@@ -204,6 +222,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // ── LISTA DE CONVERSAS ──────────────────────────────
     function carregarLista() {
         var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual);
+        if (etiquetaFiltro) url += '&etiqueta=' + etiquetaFiltro;
         fetch(url).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
             var list = document.getElementById('waList');
@@ -223,6 +242,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 if (+c.bot_ativo) html += '<span class="wa-bot-badge">🤖 BOT</span>';
                 html += '</div>';
                 html += '    <div class="wa-conv-preview">' + escapeHtml((c.ultima_mensagem||'').substr(0,60)) + '</div>';
+                if (c.etiquetas && c.etiquetas.length) {
+                    html += '    <div class="wa-etq-bar">';
+                    c.etiquetas.forEach(function(et){
+                        html += '<span class="wa-etiqueta" style="background:'+escapeHtml(et.cor)+';">'+escapeHtml(et.nome)+'</span>';
+                    });
+                    html += '    </div>';
+                }
                 html += '  </div>';
                 html += '  <div class="wa-conv-meta">';
                 html += '    <div>' + formatHora(c.ultima_msg_em) + '</div>';
@@ -254,6 +280,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Header com ações
         var head = document.getElementById('waChatHeadContainer');
         var actions = '<div class="wa-chat-actions">';
+        actions += '<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>';
         if (!c.atendente_id || +c.atendente_id !== <?= (int)$user['id'] ?>) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
@@ -268,10 +295,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_name) subTxt += ' · 🎯 Cliente';
         else if (c.lead_name) subTxt += ' · 📈 Lead';
 
+        // Etiquetas aplicadas
+        var etqHtml = '';
+        if (c.etiquetas && c.etiquetas.length) {
+            etqHtml = '<div style="display:flex;gap:3px;flex-wrap:wrap;margin-top:4px;">';
+            c.etiquetas.forEach(function(et){
+                etqHtml += '<span class="wa-etiqueta" style="background:'+escapeHtml(et.cor)+';">' + escapeHtml(et.nome) +
+                    ' <span class="wa-etq-remove" onclick="waRemoverEtiqueta('+et.id+')" title="Remover">×</span></span>';
+            });
+            etqHtml += '</div>';
+        }
+
         head.innerHTML =
-            '<strong>' + escapeHtml(nome) + '</strong>' +
-            '<span class="wa-head-sub">' + escapeHtml(subTxt) + '</span>' +
-            actions;
+            '<div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">' +
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                    '<span class="wa-name-display" onclick="waEditarNome()" id="waNomeDisplay" title="Clique para editar">' + escapeHtml(nome) + '</span>' +
+                '</div>' +
+                '<span class="wa-head-sub" style="margin-left:0;">' + escapeHtml(subTxt) + '</span>' +
+                etqHtml +
+            '</div>' +
+            actions +
+            '<div class="wa-etq-popover" id="waEtqPopover"></div>';
 
         // Body com mensagens
         var body = document.getElementById('waChatBody');
@@ -409,6 +453,122 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waAssumir   = function() { acaoConversa('assumir_atendimento').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+    // ── EDITAR NOME DA CONVERSA ─────────────────────────
+    window.waEditarNome = function() {
+        var disp = document.getElementById('waNomeDisplay');
+        if (!disp) return;
+        var atual = disp.textContent;
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'wa-name-edit';
+        input.value = atual;
+        input.maxLength = 150;
+        disp.replaceWith(input);
+        input.focus();
+        input.select();
+        var finalizar = function(salvar){
+            if (salvar && input.value.trim() !== atual) {
+                var fd = new FormData();
+                fd.append('action', 'editar_conversa');
+                fd.append('conversa_id', convAtiva);
+                fd.append('nome_contato', input.value.trim());
+                fd.append('csrf_token', csrf);
+                fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(){
+                    window.waAbrir(convAtiva);
+                    carregarLista();
+                });
+            } else {
+                window.waAbrir(convAtiva);
+            }
+        };
+        input.addEventListener('keydown', function(e){
+            if (e.key === 'Enter') { e.preventDefault(); finalizar(true); }
+            if (e.key === 'Escape') { e.preventDefault(); finalizar(false); }
+        });
+        input.addEventListener('blur', function(){ finalizar(true); });
+    };
+
+    // ── ETIQUETAS ───────────────────────────────────────
+    function carregarEtiquetasCache() {
+        return fetch(apiUrl + '?action=listar_etiquetas').then(function(r){ return r.json(); }).then(function(d){
+            if (d.ok) etiquetasCache = d.etiquetas;
+            return etiquetasCache;
+        });
+    }
+    function renderEtqFilters() {
+        if (!etiquetasCache) return;
+        var bar = document.getElementById('waEtqFilters');
+        var html = '';
+        etiquetasCache.forEach(function(et){
+            var active = (+etiquetaFiltro === +et.id);
+            var style = active ? 'background:'+et.cor+';color:#fff;border-color:'+et.cor+';' : '';
+            html += '<button class="wa-etq-filter '+(active?'active':'')+'" style="'+style+'" onclick="waFiltrarPorEtiqueta('+et.id+')">' + escapeHtml(et.nome) + '</button>';
+        });
+        if (etiquetaFiltro) html += '<button class="wa-etq-filter" onclick="waFiltrarPorEtiqueta(0)" style="color:#ef4444;">✕ Limpar</button>';
+        bar.innerHTML = html;
+    }
+    window.waFiltrarPorEtiqueta = function(id) {
+        etiquetaFiltro = +id;
+        renderEtqFilters();
+        carregarLista();
+    };
+    window.waToggleEtiquetas = function(ev) {
+        ev.stopPropagation();
+        var pop = document.getElementById('waEtqPopover');
+        if (!pop) return;
+        if (pop.classList.contains('open')) { pop.classList.remove('open'); return; }
+        // Popover abaixo do botão
+        var rect = ev.target.getBoundingClientRect();
+        var parentRect = pop.parentElement.getBoundingClientRect();
+        pop.style.top  = (rect.bottom - parentRect.top + 4) + 'px';
+        pop.style.right = '8px';
+        fetch(apiUrl + '?action=listar_etiquetas&conversa_id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
+            if (!d.ok) return;
+            var html = '<div style="font-size:.7rem;color:#6b7280;font-weight:700;margin-bottom:4px;padding:0 4px;">CLIQUE PARA APLICAR/REMOVER</div>';
+            d.etiquetas.forEach(function(et){
+                var check = +et.aplicada ? '✅' : '';
+                html += '<div class="wa-etq-opt" onclick="waToggleEtq('+et.id+', '+(+et.aplicada?1:0)+')">';
+                html += '<span class="wa-etiqueta" style="background:'+escapeHtml(et.cor)+';">'+escapeHtml(et.nome)+'</span>';
+                html += '<span style="margin-left:auto;">'+check+'</span>';
+                html += '</div>';
+            });
+            html += '<div style="border-top:1px solid #eee;margin-top:4px;padding-top:4px;"><a href="<?= module_url('whatsapp', 'etiquetas.php') ?>" target="_blank" style="font-size:.72rem;color:#6b7280;">+ Gerenciar etiquetas</a></div>';
+            pop.innerHTML = html;
+            pop.classList.add('open');
+        });
+    };
+    window.waToggleEtq = function(etqId, aplicada) {
+        var action = aplicada ? 'remover_etiqueta' : 'adicionar_etiqueta';
+        var fd = new FormData();
+        fd.append('action', action);
+        fd.append('conversa_id', convAtiva);
+        fd.append('etiqueta_id', etqId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(){
+            window.waAbrir(convAtiva);
+            carregarLista();
+            document.getElementById('waEtqPopover').classList.remove('open');
+        });
+    };
+    window.waRemoverEtiqueta = function(etqId) {
+        var fd = new FormData();
+        fd.append('action', 'remover_etiqueta');
+        fd.append('conversa_id', convAtiva);
+        fd.append('etiqueta_id', etqId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(){
+            window.waAbrir(convAtiva);
+            carregarLista();
+        });
+    };
+    // Fecha popover ao clicar fora
+    document.addEventListener('click', function(e){
+        var pop = document.getElementById('waEtqPopover');
+        if (pop && !e.target.closest('#waEtqPopover') && !e.target.closest('.wa-chat-actions')) {
+            pop.classList.remove('open');
+        }
+    });
+
     window.waSincronizar = function() {
         alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');
     };
@@ -509,6 +669,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // Verificar status automaticamente ao carregar
     waVerificarStatus();
+
+    // Carrega etiquetas ativas para a barra de filtros
+    carregarEtiquetasCache().then(renderEtqFilters);
 
     // Polling a cada 5s: atualiza lista + conversa aberta
     carregarLista();

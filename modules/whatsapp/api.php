@@ -14,7 +14,8 @@ $action = $_REQUEST['action'] ?? '';
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
-                  'sincronizar_conversa', 'importar_todos');
+                  'sincronizar_conversa', 'importar_todos',
+                  'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -37,22 +38,46 @@ if ($action === 'listar_conversas') {
         $params[] = "%$busca%"; $params[] = "%$busca%"; $params[] = "%$busca%";
     }
 
+    // Filtro adicional por etiqueta
+    $etiquetaId = (int)($_GET['etiqueta'] ?? 0);
+    $joinEtq = '';
+    if ($etiquetaId) {
+        $joinEtq = " INNER JOIN zapi_conversa_etiquetas ce_f ON ce_f.conversa_id = co.id AND ce_f.etiqueta_id = ? ";
+        array_unshift($params, $etiquetaId);
+    }
+
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.ultima_mensagem, co.ultima_msg_em, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
                    cl.name AS client_name,
                    pl.name AS lead_name,
-                   u.name AS atendente_name
+                   u.name AS atendente_name,
+                   (SELECT GROUP_CONCAT(CONCAT_WS('|', e.id, e.nome, e.cor) SEPARATOR '§')
+                    FROM zapi_conversa_etiquetas ce JOIN zapi_etiquetas e ON e.id = ce.etiqueta_id
+                    WHERE ce.conversa_id = co.id) AS etiquetas_raw
             FROM zapi_conversas co
             LEFT JOIN clients cl ON cl.id = co.client_id
             LEFT JOIN pipeline_leads pl ON pl.id = co.lead_id
             LEFT JOIN users u ON u.id = co.atendente_id
+            {$joinEtq}
             WHERE " . implode(' AND ', $where) . "
             ORDER BY COALESCE(co.ultima_msg_em, co.created_at) DESC
             LIMIT 200";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
+
+    // Parse etiquetas: "id|nome|cor§id|nome|cor" → array de {id,nome,cor}
+    foreach ($rows as &$r) {
+        $r['etiquetas'] = array();
+        if (!empty($r['etiquetas_raw'])) {
+            foreach (explode('§', $r['etiquetas_raw']) as $piece) {
+                $p = explode('|', $piece);
+                if (count($p) === 3) $r['etiquetas'][] = array('id' => $p[0], 'nome' => $p[1], 'cor' => $p[2]);
+            }
+        }
+        unset($r['etiquetas_raw']);
+    }
 
     // Status das instâncias
     $inst = array();
@@ -84,7 +109,7 @@ if ($action === 'abrir_conversa') {
     // Zera não lidas
     $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = 0 WHERE id = ?")->execute(array($id));
 
-    // Mensagens (últimas 80)
+    // Mensagens (últimas 200)
     $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name
                            FROM zapi_mensagens m
                            LEFT JOIN users u ON u.id = m.enviado_por_id
@@ -93,6 +118,13 @@ if ($action === 'abrir_conversa') {
                            LIMIT 200");
     $msgs->execute(array($id));
     $mensagens = $msgs->fetchAll();
+
+    // Etiquetas aplicadas nesta conversa
+    $etqStmt = $pdo->prepare("SELECT e.id, e.nome, e.cor FROM zapi_etiquetas e
+                              JOIN zapi_conversa_etiquetas ce ON ce.etiqueta_id = e.id
+                              WHERE ce.conversa_id = ? ORDER BY e.ordem");
+    $etqStmt->execute(array($id));
+    $conv['etiquetas'] = $etqStmt->fetchAll();
 
     echo json_encode(array('ok' => true, 'conversa' => $conv, 'mensagens' => $mensagens));
     exit;
@@ -109,7 +141,17 @@ if ($action === 'enviar_mensagem') {
     $conv = $conv->fetch();
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
-    $resp = zapi_send_text($conv['canal'], $conv['telefone'], $texto);
+    // Assinatura do atendente (configurável em Automações)
+    $assinar = zapi_auto_cfg('zapi_signature_on', '0') === '1';
+    $textoEnviar = $texto;
+    if ($assinar) {
+        $formato = zapi_auto_cfg('zapi_signature_format', '— {{atendente}}');
+        $nomeUser = current_user()['name'] ?? '';
+        $assinatura = str_replace('{{atendente}}', $nomeUser, $formato);
+        $textoEnviar = rtrim($texto) . "\n\n" . $assinatura;
+    }
+
+    $resp = zapi_send_text($conv['canal'], $conv['telefone'], $textoEnviar);
     if (empty($resp['ok'])) {
         echo json_encode(array('error' => 'Falha ao enviar: ' . ($resp['erro'] ?? 'HTTP ' . ($resp['http_code'] ?? '?')) . ' — ' . json_encode($resp['data'] ?? '')));
         exit;
@@ -120,13 +162,13 @@ if ($action === 'enviar_mensagem') {
 
     $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo, enviado_por_id, status)
                    VALUES (?, ?, 'enviada', 'texto', ?, ?, 'enviada')")
-        ->execute(array($convId, $zapiId, $texto, $userId));
+        ->execute(array($convId, $zapiId, $textoEnviar, $userId));
 
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                    status = IF(status = 'aguardando', 'em_atendimento', status),
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
-        ->execute(array(mb_substr($texto, 0, 500), $userId, $convId));
+        ->execute(array(mb_substr($textoEnviar, 0, 500), $userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId));
     exit;
@@ -195,6 +237,51 @@ if ($action === 'listar_templates') {
 if ($action === 'listar_usuarios') {
     $rows = $pdo->query("SELECT id, name, role FROM users WHERE active = 1 ORDER BY name ASC")->fetchAll();
     echo json_encode(array('ok' => true, 'usuarios' => $rows));
+    exit;
+}
+
+// ── EDITAR CONVERSA (nome, anotações) ───────────────────
+if ($action === 'editar_conversa') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $nome   = trim($_POST['nome_contato'] ?? '');
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    if (mb_strlen($nome) > 150) $nome = mb_substr($nome, 0, 150);
+    $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ? WHERE id = ?")->execute(array($nome ?: null, $convId));
+    audit_log('zapi_editar_conv', 'zapi_conversas', $convId, "nome={$nome}");
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── LISTAR ETIQUETAS (com flag de aplicada em conversa) ──
+if ($action === 'listar_etiquetas') {
+    $convId = (int)($_GET['conversa_id'] ?? 0);
+    $sql = "SELECT e.id, e.nome, e.cor, e.ordem,
+                   " . ($convId ? "(SELECT 1 FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = e.id) AS aplicada" : "0 as aplicada") . "
+            FROM zapi_etiquetas e WHERE e.ativo = 1 ORDER BY e.ordem, e.nome";
+    $stmt = $pdo->prepare($sql);
+    if ($convId) $stmt->execute(array($convId));
+    else $stmt->execute();
+    echo json_encode(array('ok' => true, 'etiquetas' => $stmt->fetchAll()));
+    exit;
+}
+
+// ── APLICAR ETIQUETA EM CONVERSA ─────────────────────────
+if ($action === 'adicionar_etiqueta') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $etqId  = (int)($_POST['etiqueta_id'] ?? 0);
+    if (!$convId || !$etqId) { echo json_encode(array('error' => 'Parâmetros inválidos')); exit; }
+    $pdo->prepare("INSERT IGNORE INTO zapi_conversa_etiquetas (conversa_id, etiqueta_id, aplicada_por) VALUES (?, ?, ?)")
+        ->execute(array($convId, $etqId, $userId));
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+if ($action === 'remover_etiqueta') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $etqId  = (int)($_POST['etiqueta_id'] ?? 0);
+    $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
+        ->execute(array($convId, $etqId));
+    echo json_encode(array('ok' => true));
     exit;
 }
 

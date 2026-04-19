@@ -35,6 +35,8 @@ $defaults = array(
     'zapi_auto_boasvindas_canal' => '21',
     'zapi_auto_doc_24'           => '0',
     'zapi_auto_doc_24_tpl'       => 'Confirmação de documentos',
+    'zapi_signature_on'          => '0',
+    'zapi_signature_format'      => '— {{atendente}}',
 );
 
 // ── POST ────────────────────────────────────────────────
@@ -61,6 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $up->execute(array('zapi_auto_doc_24',           !empty($_POST['auto_doc_24']) ? '1' : '0'));
     $up->execute(array('zapi_auto_doc_24_tpl',       trim($_POST['auto_doc_24_tpl'] ?? '')));
+
+    $up->execute(array('zapi_signature_on',     !empty($_POST['signature_on']) ? '1' : '0'));
+    $up->execute(array('zapi_signature_format', trim($_POST['signature_format'] ?? '— {{atendente}}')));
 
     audit_log('zapi_automacoes_salvar', 'configuracoes', 0);
     flash_set('success', 'Automações salvas.');
@@ -188,6 +193,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endforeach; ?>
             </select>
         </div>
+    </div>
+
+    <div class="aut-card">
+        <h3>✍️ Assinatura do Atendente</h3>
+        <p class="aut-hint">Quando ligada, toda mensagem que você enviar pelo Hub sai com a assinatura no final — assim o cliente sabe quem está falando. Use <code>{{atendente}}</code> pra inserir o nome do usuário logado.</p>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="signature_on" value="1" <?= $cfg['zapi_signature_on'] === '1' ? 'checked' : '' ?>> Ativar assinatura automática nas mensagens enviadas</label>
+        </div>
+        <div class="aut-row">
+            <label>Formato</label>
+            <input type="text" name="signature_format" value="<?= e($cfg['zapi_signature_format']) ?>" class="form-control" placeholder="— {{atendente}}">
+        </div>
+        <p class="aut-hint">Exemplos: <code>— {{atendente}}</code> · <code>— {{atendente}}, Ferreira & Sá</code> · <code>Atenciosamente,\n{{atendente}}</code></p>
     </div>
 
     <button type="submit" class="btn btn-primary">💾 Salvar automações</button>
