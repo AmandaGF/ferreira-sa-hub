@@ -316,13 +316,20 @@ if ($action === 'avancar_etapa_massa') {
     $stmtUpd->execute(array_merge(array($novoStatus), $ids));
     $n = count($parcelas);
 
-    // Monta mensagem consolidada pro cliente (soma de parcelas + maior vencimento/atraso)
+    // Monta mensagem consolidada pro cliente (soma nominal + juros/multa + maior vencimento/atraso)
     $cliente = $parcelas[0] ?? null;
-    $totalSaldo = 0; $venMaisAntigo = null;
+    $totalSaldo = 0; $venMaisAntigo = null; $totalJuros = 0; $totalMulta = 0;
     foreach ($parcelas as $p) {
-        $totalSaldo += ((float)$p['valor_total'] - (float)$p['valor_pago']);
+        $saldoP = (float)$p['valor_total'] - (float)$p['valor_pago'];
+        $totalSaldo += $saldoP;
         if (!$venMaisAntigo || $p['vencimento'] < $venMaisAntigo) $venMaisAntigo = $p['vencimento'];
+        $dias = (int)((time() - strtotime($p['vencimento'])) / 86400);
+        if ($dias > 0) {
+            $totalMulta += $saldoP * 0.20;              // 20% cláusula 5.1
+            $totalJuros += $saldoP * 0.01 * ($dias/30); // 1% a.m. pro-rata
+        }
     }
+    $totalComAcrescimos = $totalSaldo + $totalMulta + $totalJuros;
 
     // Carrega template de mensagem conforme etapa
     $config = $pdo->query("SELECT * FROM honorarios_config ORDER BY id LIMIT 1")->fetch();
@@ -336,6 +343,16 @@ if ($action === 'avancar_etapa_massa') {
         $msg = str_replace('[Nome]', $cliente['client_name'] ?: 'Cliente', $msg);
         $msg = str_replace('[valor]', number_format($totalSaldo, 2, ',', '.'), $msg);
         $msg = str_replace('[data]', $venMaisAntigo ? date('d/m/Y', strtotime($venMaisAntigo)) : '', $msg);
+
+        // Detalhamento automático dos acréscimos contratuais (cláusula 5.1)
+        if (($totalMulta + $totalJuros) > 0) {
+            $msg .= "\n\n*Composição do débito (cláusula 5.1 do contrato):*"
+                  . "\n• Valor nominal: R$ " . number_format($totalSaldo, 2, ',', '.')
+                  . "\n• Multa contratual (20%): R$ " . number_format($totalMulta, 2, ',', '.')
+                  . "\n• Juros de mora (1%/mês): R$ " . number_format($totalJuros, 2, ',', '.')
+                  . "\n• *Total atualizado: R$ " . number_format($totalComAcrescimos, 2, ',', '.') . "*"
+                  . "\n_(+ correção monetária pelos índices oficiais)_";
+        }
         if ($n > 1) $msg .= "\n\n_(Referente a {$n} parcelas em aberto)_";
     }
 
@@ -417,10 +434,26 @@ if ($action === 'avancar_etapa') {
         $msg = "Prezado(a) [Nome], notificamos EXTRAJUDICIALMENTE sobre débito pendente no valor de R$ [valor] (vencimento: [data]). Solicitamos regularização em até 10 dias úteis para evitar medidas judiciais. _Ferreira & Sá Advocacia_";
     }
 
+    // Calcula multa 20% + juros 1%/mês pro-rata dia (cláusula 5.1 do contrato)
+    $diasAtr = (int)((time() - strtotime($cob['vencimento'])) / 86400);
+    $multaIn = $diasAtr > 0 ? $saldo * 0.20 : 0;
+    $jurosIn = $diasAtr > 0 ? $saldo * 0.01 * ($diasAtr/30) : 0;
+    $totalAtualizado = $saldo + $multaIn + $jurosIn;
+
     // Substituir variáveis
     $msg = str_replace('[Nome]', $cob['client_name'] ?: '', $msg);
     $msg = str_replace('[valor]', number_format($saldo, 2, ',', '.'), $msg);
     $msg = str_replace('[data]', date('d/m/Y', strtotime($cob['vencimento'])), $msg);
+
+    // Acréscimos contratuais detalhados automaticamente
+    if (($multaIn + $jurosIn) > 0 && $msg) {
+        $msg .= "\n\n*Composição do débito (cláusula 5.1 do contrato):*"
+              . "\n• Valor nominal: R$ " . number_format($saldo, 2, ',', '.')
+              . "\n• Multa contratual (20%): R$ " . number_format($multaIn, 2, ',', '.')
+              . "\n• Juros de mora (1%/mês): R$ " . number_format($jurosIn, 2, ',', '.')
+              . "\n• *Total atualizado: R$ " . number_format($totalAtualizado, 2, ',', '.') . "*"
+              . "\n_(+ correção monetária pelos índices oficiais)_";
+    }
 
     // Enfileira na Caixa de Envios WhatsApp pra revisão manual (não envia automático)
     $filaId = null;
