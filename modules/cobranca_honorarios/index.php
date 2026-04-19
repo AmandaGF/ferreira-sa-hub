@@ -69,6 +69,14 @@ foreach ($filaCobranca as $item) {
     }
 }
 
+// Helper pra calcular multa+juros conforme cláusula 5.1
+function ch_calcular_acrescimos($saldo, $diasAtraso) {
+    if ($diasAtraso <= 0) return array('multa' => 0, 'juros' => 0, 'total' => $saldo);
+    $multa = $saldo * 0.20;
+    $juros = $saldo * 0.01 * ($diasAtraso / 30);
+    return array('multa' => $multa, 'juros' => $juros, 'total' => $saldo + $multa + $juros);
+}
+
 // Agrupar items por cliente dentro de cada coluna (1 card por cliente)
 foreach ($colunas as $ck => &$col) {
     $grupos = array();
@@ -86,20 +94,27 @@ foreach ($colunas as $ck => &$col) {
                 'case_id' => $it['cs_id'] ?? null,
                 'parcelas' => array(),
                 'total_saldo' => 0,
+                'total_multa' => 0,
+                'total_juros' => 0,
+                'total_atualizado' => 0,
                 'max_atraso' => 0,
                 'ultima_acao' => null,
             );
         }
         $saldo = (float)$it['valor_total'] - (float)$it['valor_pago'];
+        $acrescimos = ch_calcular_acrescimos($saldo, (int)$it['dias_atraso']);
         $grupos[$key]['parcelas'][] = $it;
-        $grupos[$key]['total_saldo'] += $saldo;
+        $grupos[$key]['total_saldo']     += $saldo;
+        $grupos[$key]['total_multa']     += $acrescimos['multa'];
+        $grupos[$key]['total_juros']     += $acrescimos['juros'];
+        $grupos[$key]['total_atualizado']+= $acrescimos['total'];
         if ((int)$it['dias_atraso'] > $grupos[$key]['max_atraso']) $grupos[$key]['max_atraso'] = (int)$it['dias_atraso'];
         if ($it['ultima_acao'] && (!$grupos[$key]['ultima_acao'] || $it['ultima_acao'] > $grupos[$key]['ultima_acao'])) {
             $grupos[$key]['ultima_acao'] = $it['ultima_acao'];
         }
     }
-    // Ordenar grupos: maior saldo primeiro
-    uasort($grupos, function($a, $b) { return $b['total_saldo'] <=> $a['total_saldo']; });
+    // Ordenar grupos: maior total atualizado primeiro
+    uasort($grupos, function($a, $b) { return $b['total_atualizado'] <=> $a['total_atualizado']; });
     $col['grupos'] = array_values($grupos);
 }
 unset($col);
@@ -321,8 +336,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="ch-card-name"><?= e($g['client_name'] ?: 'Sem nome') ?>
                             <span style="float:right;font-size:.72rem;color:#6b7280;" id="<?= $grpId ?>_ico">▸</span>
                         </div>
-                        <div class="ch-card-valor">R$ <?= number_format($g['total_saldo'], 2, ',', '.') ?>
-                            <span style="font-size:.65rem;font-weight:600;color:#6b7280;margin-left:.2rem;">total em aberto</span>
+                        <div class="ch-card-valor">R$ <?= number_format($g['total_atualizado'], 2, ',', '.') ?>
+                            <span style="font-size:.65rem;font-weight:600;color:#6b7280;margin-left:.2rem;" title="Valor nominal R$ <?= number_format($g['total_saldo'], 2, ',', '.') ?> + multa 20% + juros 1%/mês (cláusula 5.1)">total atualizado ⓘ</span>
+                        </div>
+                        <div style="font-size:.62rem;color:#6b7280;margin-top:-2px;">
+                            Nominal: R$ <?= number_format($g['total_saldo'], 2, ',', '.') ?>
+                            <?php if (($g['total_multa'] + $g['total_juros']) > 0): ?>
+                            &middot; + R$ <?= number_format($g['total_multa'] + $g['total_juros'], 2, ',', '.') ?> (juros+multa)
+                            <?php endif; ?>
                         </div>
                         <div class="ch-card-info">
                             <span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:700;"><?= $qtd ?> parcela<?= $qtd !== 1 ? 's' : '' ?></span>
@@ -339,6 +360,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php foreach ($g['parcelas'] as $p):
                             $saldoP = (float)$p['valor_total'] - (float)$p['valor_pago'];
                             $dAtr = max(0, (int)$p['dias_atraso']);
+                            $acP = ch_calcular_acrescimos($saldoP, $dAtr);
                         ?>
                         <div style="display:flex;justify-content:space-between;align-items:center;gap:.4rem;padding:.3rem 0;border-bottom:1px solid #f3f4f6;font-size:.72rem;">
                             <div style="flex:1;min-width:0;">
@@ -346,8 +368,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <div style="color:#9ca3af;font-size:.65rem;">Venc: <?= date('d/m/Y', strtotime($p['vencimento'])) ?> · <?= $dAtr ?>d</div>
                             </div>
                             <div style="text-align:right;">
-                                <div style="font-weight:800;color:#dc2626;">R$ <?= number_format($saldoP, 2, ',', '.') ?></div>
-                                <button onclick="event.stopPropagation();registrarPagamento(<?= $p['id'] ?>,<?= $saldoP ?>)" style="font-size:.62rem;background:#059669;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:2px;">💰 Pagar</button>
+                                <div style="font-weight:800;color:#dc2626;" title="Nominal: R$ <?= number_format($saldoP, 2, ',', '.') ?> + multa 20% + juros 1%/mês">R$ <?= number_format($acP['total'], 2, ',', '.') ?></div>
+                                <?php if ($dAtr > 0): ?>
+                                <div style="font-size:.58rem;color:#6b7280;">nom. R$ <?= number_format($saldoP, 2, ',', '.') ?></div>
+                                <?php endif; ?>
+                                <button onclick="event.stopPropagation();registrarPagamento(<?= $p['id'] ?>,<?= $acP['total'] ?>)" style="font-size:.62rem;background:#059669;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:2px;">💰 Pagar</button>
                                 <button onclick="event.stopPropagation();abrirDetalhe(<?= $p['id'] ?>)" style="font-size:.62rem;background:#6b7280;color:#fff;border:none;padding:2px 8px;border-radius:4px;cursor:pointer;margin-top:2px;">Ver</button>
                             </div>
                         </div>
@@ -362,7 +387,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </button>
                         <?php endif; ?>
                         <?php if ($g['client_phone']):
-                            $msgGrp = "Olá " . explode(' ', $g['client_name'])[0] . "! Identificamos *{$qtd} parcela" . ($qtd > 1 ? 's' : '') . " em aberto* totalizando *R$ " . number_format($g['total_saldo'], 2, ',', '.') . "*. Podemos conversar sobre a regularização? _Ferreira & Sá Advocacia_";
+                            $msgGrp = "Olá " . explode(' ', $g['client_name'])[0] . "! Identificamos *{$qtd} parcela" . ($qtd > 1 ? 's' : '') . " em aberto* com o valor atualizado de *R$ " . number_format($g['total_atualizado'], 2, ',', '.') . "* (nominal R$ " . number_format($g['total_saldo'], 2, ',', '.') . " + multa 20% + juros 1%/mês, cláusula 5.1). Podemos conversar sobre a regularização? _Ferreira & Sá Advocacia_";
                         ?>
                         <button class="ch-card-btn" style="background:#25d366;" onclick="event.stopPropagation();waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $g['client_phone']) ?>',nome:<?= json_encode($g['client_name']) ?>,clientId:<?= (int)$g['client_id'] ?>,canal:'24',mensagem:<?= json_encode($msgGrp) ?>})">💬</button>
                         <?php endif; ?>
