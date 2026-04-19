@@ -229,7 +229,7 @@ if ($action === 'importar_asaas') {
 
     audit_log('hc_importar_asaas', 'honorarios_cobranca', 0, "inseridas={$inseridas} atualizadas={$jaExistiam}");
     flash_set('success', "Importação Asaas concluída: {$inseridas} novas, {$jaExistiam} atualizadas (de " . count($rows) . " verificadas).");
-    redirect(module_url('cobranca_honorarios'));
+    redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
 
 // ── Criar cobrança (manual) ──
@@ -278,7 +278,7 @@ if ($action === 'voltar_atrasado') {
     foreach ($ids as $cid) $hist->execute(array($cid, $userId));
     audit_log('hc_voltar_atrasado', 'honorarios_cobranca', 0, "ids=[" . implode(',', $ids) . "]");
     flash_set('success', count($ids) . ' parcela(s) devolvidas para "Atrasado".');
-    redirect(module_url('cobranca_honorarios'));
+    redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
 
 // ── Avançar etapa EM MASSA (todas as parcelas de 1 cliente de uma vez) ──
@@ -387,7 +387,7 @@ if ($action === 'avancar_etapa_massa') {
         ? "{$n} parcela(s) movidas. 💬 Sugestão de mensagem na Caixa de Envios — revise e envie."
         : "{$n} parcela(s) movidas (sem telefone do cliente, nada foi sugerido).";
     flash_set('success', $fm);
-    redirect(module_url('cobranca_honorarios'));
+    redirect(module_url('cobranca_honorarios', '?aba=fila'));
 }
 
 // ── Avançar etapa ──
