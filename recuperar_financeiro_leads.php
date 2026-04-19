@@ -27,6 +27,24 @@ $docs = $pdo->query("
 ")->fetchAll();
 echo "Contratos encontrados no histórico: " . count($docs) . "\n\n";
 
+// DEBUG: mostrar params_json dos 3 primeiros contratos pra ver a estrutura real
+if (!empty($docs) && !$aplicar) {
+    echo "--- DEBUG: Estrutura JSON dos 3 últimos contratos (pra identificar campos corretos) ---\n";
+    foreach (array_slice($docs, 0, 3) as $d) {
+        echo "#{$d['id']} | doc_type={$d['doc_type']} | cliente={$d['client_name']} | data={$d['created_at']}\n";
+        $j = json_decode($d['params_json'], true);
+        if (is_array($j)) {
+            foreach ($j as $k => $v) {
+                $vs = is_array($v) ? json_encode($v) : (string)$v;
+                if (mb_strlen($vs) > 80) $vs = mb_substr($vs, 0, 80) . '...';
+                echo "    {$k}: {$vs}\n";
+            }
+        }
+        echo "\n";
+    }
+    echo "--- FIM DEBUG ---\n\n";
+}
+
 if (empty($docs)) {
     // Talvez o doc_type não contenha 'contrato'. Vamos listar os tipos existentes:
     echo "--- Tipos de documento no histórico (pra debug) ---\n";
