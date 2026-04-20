@@ -150,35 +150,58 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- KPIs -->
+<?php
+// Cada KPI linka pro inbox já filtrado. Se canal=todos, abre o 21 por padrão.
+$canalLink = ($canal === '21' || $canal === '24') ? $canal : '21';
+$inboxBase = module_url('whatsapp', '?canal=' . $canalLink);
+?>
+<style>
+.wd-card-link { text-decoration:none;color:inherit;display:block;transition:transform .15s, box-shadow .15s; }
+.wd-card-link:hover { transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.08); }
+.wd-card-link .wd-card { cursor:pointer; }
+</style>
+
+<!-- KPIs (clicáveis — linkam pro inbox já filtrado) -->
 <div class="wd-grid">
-    <div class="wd-card">
-        <div class="wd-num" style="color:#3b82f6;"><?= $kpiConvHoje ?></div>
-        <div class="wd-label">💬 Conversas hoje</div>
-    </div>
-    <div class="wd-card">
-        <div class="wd-num" style="color:#f59e0b;"><?= $kpiAguard ?></div>
-        <div class="wd-label">⏳ Aguardando</div>
-        <div class="wd-sub">sem atendente atribuído</div>
-    </div>
-    <div class="wd-card">
-        <div class="wd-num" style="color:#7c3aed;"><?= $kpiBot ?></div>
-        <div class="wd-label">🤖 Bot ativo</div>
-    </div>
-    <div class="wd-card">
-        <div class="wd-num" style="color:#22c55e;"><?= $kpiResolvHoje ?></div>
-        <div class="wd-label">✅ Resolvidas hoje</div>
-    </div>
-    <div class="wd-card">
-        <div class="wd-num"><?= $kpiMsgHoje ?></div>
-        <div class="wd-label">📬 Mensagens hoje</div>
-        <div class="wd-sub"><?= $kpiRecebHoje ?> recebidas · <?= $kpiEnvHoje ?> enviadas</div>
-    </div>
-    <div class="wd-card">
-        <div class="wd-num" style="color:#ec4899;"><?= $pctTransfer ?>%</div>
-        <div class="wd-label">🔄 Bot → Humano</div>
-        <div class="wd-sub"><?= $botTransferidas ?> de <?= $botAtendidas ?> (30d)</div>
-    </div>
+    <a href="<?= e($inboxBase) ?>" class="wd-card-link" title="Ver todas as conversas">
+        <div class="wd-card">
+            <div class="wd-num" style="color:#3b82f6;"><?= $kpiConvHoje ?></div>
+            <div class="wd-label">💬 Conversas hoje</div>
+        </div>
+    </a>
+    <a href="<?= e($inboxBase) ?>&status=aguardando" class="wd-card-link" title="Filtrar por status=aguardando">
+        <div class="wd-card">
+            <div class="wd-num" style="color:#f59e0b;"><?= $kpiAguard ?></div>
+            <div class="wd-label">⏳ Aguardando</div>
+            <div class="wd-sub">sem resposta do escritório</div>
+        </div>
+    </a>
+    <a href="<?= e($inboxBase) ?>&status=bot" class="wd-card-link" title="Filtrar por conversas com bot ativo">
+        <div class="wd-card">
+            <div class="wd-num" style="color:#7c3aed;"><?= $kpiBot ?></div>
+            <div class="wd-label">🤖 Bot ativo</div>
+        </div>
+    </a>
+    <a href="<?= e($inboxBase) ?>&status=resolvido" class="wd-card-link" title="Filtrar por status=resolvido">
+        <div class="wd-card">
+            <div class="wd-num" style="color:#22c55e;"><?= $kpiResolvHoje ?></div>
+            <div class="wd-label">✅ Resolvidas hoje</div>
+        </div>
+    </a>
+    <a href="<?= e($inboxBase) ?>" class="wd-card-link" title="Ver inbox completo">
+        <div class="wd-card">
+            <div class="wd-num"><?= $kpiMsgHoje ?></div>
+            <div class="wd-label">📬 Mensagens hoje</div>
+            <div class="wd-sub"><?= $kpiRecebHoje ?> recebidas · <?= $kpiEnvHoje ?> enviadas</div>
+        </div>
+    </a>
+    <a href="<?= e($inboxBase) ?>&status=em_atendimento" class="wd-card-link" title="Filtrar por conversas em atendimento">
+        <div class="wd-card">
+            <div class="wd-num" style="color:#ec4899;"><?= $pctTransfer ?>%</div>
+            <div class="wd-label">🔄 Bot → Humano</div>
+            <div class="wd-sub"><?= $botTransferidas ?> de <?= $botAtendidas ?> (30d)</div>
+        </div>
+    </a>
 </div>
 
 <div class="wd-row">

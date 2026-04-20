@@ -255,7 +255,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var canal  = '<?= e($canal) ?>';
     var apiUrl = '<?= module_url('whatsapp', 'api.php') ?>';
     var csrf   = '<?= e($csrfToken) ?>';
-    var filtroAtual = 'todos';
+    // Status inicial vem da URL (?status=aguardando|em_atendimento|bot|nao_lidas|resolvido)
+    // Útil pra linkar direto do Dashboard já filtrado.
+    var filtroAtual = <?= json_encode(in_array($_GET['status'] ?? '', array('aguardando','em_atendimento','bot','nao_lidas','resolvido'), true) ? $_GET['status'] : 'todos') ?>;
     var buscaAtual  = '';
     var etiquetaFiltro = 0;
     var atendenteFiltro = ''; // '' = todos, -1 = minhas, 0 = sem atendente, N = user id N
@@ -1717,6 +1719,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             filtroAtual = b.dataset.filter;
             carregarLista();
         });
+        // Se a URL trouxe ?status=X, já marca o botão correspondente como ativo
+        if (b.dataset.filter === filtroAtual) {
+            document.querySelectorAll('button.wa-filter[data-filter]').forEach(function(x){ x.classList.remove('active'); });
+            b.classList.add('active');
+        }
     });
     var stBusca;
     document.getElementById('waSearch').addEventListener('input', function(e){
