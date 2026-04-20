@@ -91,6 +91,18 @@ try {
                 $conv = $q->fetch();
                 if ($conv) $log("[{$numero}] LID {$telefone} → usando conversa existente #{$conv['id']} ({$chatName})");
             }
+            // Match reverso pra fechar brecha do @lid puro: se chega msg com
+            // telefone normal e já existe conversa @lid do mesmo canal com nome
+            // igual ao chatName atual, usa aquela (evita criar outra).
+            if (!$conv && !$ehLid && !$ehGrupo && !empty($chatName)) {
+                $qRev = $pdo->prepare("SELECT * FROM zapi_conversas
+                                        WHERE canal = ? AND nome_contato = ?
+                                          AND telefone LIKE '%@lid%'
+                                        ORDER BY ultima_msg_em DESC LIMIT 1");
+                $qRev->execute(array($numero, $chatName));
+                $conv = $qRev->fetch();
+                if ($conv) $log("[{$numero}] tel-real {$telefone} → absorveu conversa @lid existente #{$conv['id']} ({$chatName})");
+            }
             if (!$conv) {
                 $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, $ehGrupo);
             } elseif ($ehGrupo && !empty($chatName)) {
