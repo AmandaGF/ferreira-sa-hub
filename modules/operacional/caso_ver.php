@@ -1214,21 +1214,21 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         </div>
         <!-- Segredo de justiça -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;">
-            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">Segredo de Justiça</label>
-            <label style="display:flex;align-items:center;gap:.3rem;cursor:pointer;">
-                <input type="checkbox" id="chkSegredo" <?= !empty($case['segredo_justica']) ? 'checked' : '' ?>
-                       onchange="var lbl=document.getElementById('lblSegredo');lbl.textContent=this.checked?'Sim':'Não';lbl.style.color=this.checked?'#dc2626':'var(--text-muted)';salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.checked?'1':'0'})"
-                       style="width:16px;height:16px;">
-                <span id="lblSegredo" style="font-size:.72rem;font-weight:600;color:<?= !empty($case['segredo_justica']) ? '#dc2626' : 'var(--text-muted)' ?>;"><?= !empty($case['segredo_justica']) ? 'Sim' : 'Não' ?></span>
-            </label>
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">🔒 Segredo de Justiça</label>
+            <select onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.value});this.style.background=this.value==='1'?'#fee2e2':'#f9fafb';this.style.color=this.value==='1'?'#991b1b':'var(--text-muted)';"
+                    style="padding:3px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;background:<?= !empty($case['segredo_justica']) ? '#fee2e2' : '#f9fafb' ?>;color:<?= !empty($case['segredo_justica']) ? '#991b1b' : 'var(--text-muted)' ?>;">
+                <option value="0" <?= empty($case['segredo_justica']) ? 'selected' : '' ?>>Não (processo público)</option>
+                <option value="1" <?= !empty($case['segredo_justica']) ? 'selected' : '' ?>>🔒 Sim (sob segredo)</option>
+            </select>
         </div>
         <!-- Pro Bono -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;border-top:1px solid var(--border);">
-            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">Pro Bono</label>
-            <input type="checkbox" <?= !empty($case['pro_bono']) ? 'checked' : '' ?>
-                   onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'pro_bono'},value:this.checked?'1':'0'})"
-                   style="width:16px;height:16px;">
-            <span style="font-size:.72rem;color:<?= !empty($case['pro_bono']) ? '#059669' : 'var(--text-muted)' ?>;"><?= !empty($case['pro_bono']) ? '✓ Pro Bono' : 'Não' ?></span>
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">🤝 Pro Bono</label>
+            <select onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'pro_bono'},value:this.value});this.style.background=this.value==='1'?'#dcfce7':'#f9fafb';this.style.color=this.value==='1'?'#166534':'var(--text-muted)';"
+                    style="padding:3px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;background:<?= !empty($case['pro_bono']) ? '#dcfce7' : '#f9fafb' ?>;color:<?= !empty($case['pro_bono']) ? '#166534' : 'var(--text-muted)' ?>;">
+                <option value="0" <?= empty($case['pro_bono']) ? 'selected' : '' ?>>Não (cobrado)</option>
+                <option value="1" <?= !empty($case['pro_bono']) ? 'selected' : '' ?>>✓ Sim (gratuito)</option>
+            </select>
         </div>
 
         <!-- Desfecho do Processo (afeta cobrança de honorários) -->
