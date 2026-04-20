@@ -205,6 +205,11 @@ if ($action === 'abrir_conversa') {
     // Zera não lidas
     $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = 0 WHERE id = ?")->execute(array($id));
 
+    // Estado da trava de atendimento pro usuário atual (bloqueio de envio)
+    $lock = zapi_pode_enviar_conversa($id, $userId, 6);
+    $conv['lock_pode_enviar'] = !empty($lock['pode']) ? 1 : 0;
+    $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
+
     // Mensagens (últimas 200)
     $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name
                            FROM zapi_mensagens m
@@ -231,6 +236,14 @@ if ($action === 'enviar_mensagem') {
     $convId  = (int)($_POST['conversa_id'] ?? 0);
     $texto   = trim($_POST['mensagem'] ?? '');
     if (!$convId || !$texto) { echo json_encode(array('error' => 'Parâmetros inválidos')); exit; }
+
+    // Trava de atendimento: se outro usuário já assumiu e conversa tem atividade
+    // nas últimas 6h, bloqueia o envio. Amanda/Luiz sempre podem (bypass).
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    if (empty($lock['pode'])) {
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        exit;
+    }
 
     $conv = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
     $conv->execute(array($convId));
@@ -591,6 +604,14 @@ if ($action === 'enviar_arquivo') {
     $convId  = (int)($_POST['conversa_id'] ?? 0);
     $caption = trim($_POST['caption'] ?? '');
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    // Trava de atendimento (6h sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    if (empty($lock['pode'])) {
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        exit;
+    }
+
     if (empty($_FILES['arquivo']) || $_FILES['arquivo']['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(array('error' => 'Falha no upload'));
         exit;
@@ -661,6 +682,14 @@ if ($action === 'enviar_arquivo') {
 if ($action === 'enviar_audio') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    // Trava de atendimento (6h sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    if (empty($lock['pode'])) {
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        exit;
+    }
+
     if (empty($_FILES['audio']) || $_FILES['audio']['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(array('error' => 'Falha no upload do áudio'));
         exit;
@@ -733,6 +762,14 @@ if ($action === 'enviar_audio') {
 if ($action === 'enviar_sticker') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    // Trava de atendimento (6h sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    if (empty($lock['pode'])) {
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        exit;
+    }
+
     if (empty($_FILES['sticker']) || $_FILES['sticker']['error'] !== UPLOAD_ERR_OK) {
         echo json_encode(array('error' => 'Falha no upload do sticker'));
         exit;

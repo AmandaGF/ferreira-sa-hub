@@ -522,8 +522,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
 
         // Mostrar input de mensagem
-        document.getElementById('waChatInput').style.display = 'flex';
-        document.getElementById('waInput').focus();
+        var input = document.getElementById('waChatInput');
+        input.style.display = 'flex';
+
+        // Trava: se outro atendente assumiu e há atividade nas últimas 6h, desabilita envio.
+        // Remove banner antigo se existir.
+        var oldLock = document.getElementById('waLockBanner');
+        if (oldLock) oldLock.remove();
+        var travada = (+c.lock_pode_enviar === 0);
+        if (travada) {
+            var banner = document.createElement('div');
+            banner.id = 'waLockBanner';
+            banner.style.cssText = 'padding:.6rem .8rem;background:#fef3c7;border-top:1px solid #fcd34d;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.8rem;display:flex;align-items:center;gap:.5rem;';
+            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — você pode enviar só se assumir a conversa, ou após 6h sem interação.';
+            input.parentNode.insertBefore(banner, input);
+            // Desabilita controles de envio
+            ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
+                var el = document.getElementById(id); if (el) el.disabled = true;
+            });
+            // Desabilita botões de anexo/sticker/template
+            input.querySelectorAll('.wa-btn-tpl').forEach(function(b){ b.disabled = true; b.style.opacity = .4; });
+        } else {
+            // Reabilita (caso tenha vindo de conversa travada)
+            ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
+                var el = document.getElementById(id); if (el) el.disabled = false;
+            });
+            input.querySelectorAll('.wa-btn-tpl').forEach(function(b){ b.disabled = false; b.style.opacity = 1; });
+            document.getElementById('waInput').focus();
+        }
     }
 
     // ── ENVIAR MENSAGEM ou ARQUIVO PENDENTE ─────────────

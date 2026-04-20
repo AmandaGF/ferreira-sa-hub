@@ -813,6 +813,48 @@ function zapi_sync_foto_contato($convId) {
 }
 
 /**
+ * Verifica se um usuário pode enviar mensagem numa conversa.
+ * Regra: se a conversa tem atendente_id definido (assumida ou delegada), só o
+ * atendente pode enviar — A MENOS que a conversa esteja parada há mais de $horas
+ * horas (aí libera pra qualquer um). Admin (Amanda/Luiz) sempre pode.
+ *
+ * Retorna array:
+ *   ['pode' => true]                    → livre pra enviar
+ *   ['pode' => false, 'atendente_name'=>'X', 'atendente_id'=>N] → bloqueado
+ */
+function zapi_pode_enviar_conversa($convId, $userId, $horas = 6) {
+    $pdo = db();
+    $stmt = $pdo->prepare("SELECT co.atendente_id, u.name FROM zapi_conversas co
+                           LEFT JOIN users u ON u.id = co.atendente_id
+                           WHERE co.id = ?");
+    $stmt->execute(array($convId));
+    $row = $stmt->fetch();
+    if (!$row) return array('pode' => true); // conversa não existe, deixa seguir (outro handler vai barrar)
+
+    $atendente = (int)$row['atendente_id'];
+    if ($atendente === 0) return array('pode' => true);         // sem atendente, livre
+    if ($atendente === (int)$userId) return array('pode' => true); // eu sou o atendente
+
+    // Admin (Amanda/Luiz) sempre pode
+    if (function_exists('can_delegar_whatsapp') && can_delegar_whatsapp()) return array('pode' => true);
+
+    // Atividade recente (qualquer mensagem) mantém a trava
+    $q = $pdo->prepare("SELECT COUNT(*) FROM zapi_mensagens
+                        WHERE conversa_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL {$horas} HOUR)");
+    $q->execute(array($convId));
+    if ((int)$q->fetchColumn() === 0) {
+        // Sem atividade há mais de X horas → destrava
+        return array('pode' => true);
+    }
+
+    return array(
+        'pode'           => false,
+        'atendente_id'   => $atendente,
+        'atendente_name' => $row['name'] ?: 'outro atendente',
+    );
+}
+
+/**
  * Expira automaticamente delegações sem interação há mais de X horas.
  *
  * Uma delegação expira quando:
