@@ -400,7 +400,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         // Assumir só aparece quando a conversa está LIVRE pra mim:
         // - sem atendente (lock_pode_enviar=1 e atendente_id vazio)
-        // - ou passou 6h sem atividade (lock já destravou)
+        // - ou passou 30 minutos sem atividade (lock já destravou)
         // - ou sou admin (PODE_DELEGAR bypassa)
         // Se outro atendente já assumiu e há atividade recente, o botão some —
         // só Amanda/Luiz podem realocar via "Delegar".
@@ -408,7 +408,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
         if (PODE_DELEGAR) {
-            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 6h sem interação, destrava automaticamente.">🎯 Delegar</button>';
+            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 30 minutos sem interação, destrava automaticamente.">🎯 Delegar</button>';
             if (estaDelegada) {
                 actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
             }
@@ -547,7 +547,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var input = document.getElementById('waChatInput');
         input.style.display = 'flex';
 
-        // Trava: se outro atendente assumiu e há atividade nas últimas 6h, desabilita envio.
+        // Trava: se outro atendente assumiu e há atividade nas últimos 30 minutos, desabilita envio.
         // Remove banner antigo se existir.
         var oldLock = document.getElementById('waLockBanner');
         if (oldLock) oldLock.remove();
@@ -556,7 +556,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             var banner = document.createElement('div');
             banner.id = 'waLockBanner';
             banner.style.cssText = 'padding:.6rem .8rem;background:#fef3c7;border-top:1px solid #fcd34d;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.8rem;display:flex;align-items:center;gap:.5rem;';
-            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — apenas Amanda ou Luiz Eduardo podem delegar esta conversa para outra pessoa. Após 6h sem interação, destrava automaticamente.';
+            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — apenas Amanda ou Luiz Eduardo podem delegar esta conversa para outra pessoa. Após 30 minutos sem interação, destrava automaticamente.';
             input.parentNode.insertBefore(banner, input);
             // Desabilita controles de envio
             ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
@@ -1002,7 +1002,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
         overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
             + '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">🎯 Delegar conversa</h3>'
-            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação — OU até a conversa ficar 6h sem interação (então destrava sozinha).</p>'
+            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação — OU até a conversa ficar 30 minutos sem interação (então destrava sozinha).</p>'
             + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Delegar para:</label>'
             + '<select id="waDelegarAlvo" style="width:100%;padding:.5rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;">'
             + '<option value="">Selecione...</option>' + optsHtml + '</select>'

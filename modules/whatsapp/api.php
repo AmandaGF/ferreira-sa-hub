@@ -64,8 +64,8 @@ if (in_array($action, $mutantes, true)) {
 
 // ── LISTAR CONVERSAS ─────────────────────────────────────
 if ($action === 'listar_conversas') {
-    // Expira delegações sem interação há mais de 6h (lazy cleanup)
-    zapi_expirar_delegacoes_estale(6);
+    // Expira delegações sem interação há mais de 30 minutos (lazy cleanup)
+    zapi_expirar_delegacoes_estale(30);
 
     $canal   = $_GET['canal']   ?? '21';
     $status  = $_GET['status']  ?? '';
@@ -238,7 +238,7 @@ if ($action === 'abrir_conversa') {
     $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = 0 WHERE id = ?")->execute(array($id));
 
     // Estado da trava de atendimento pro usuário atual (bloqueio de envio)
-    $lock = zapi_pode_enviar_conversa($id, $userId, 6);
+    $lock = zapi_pode_enviar_conversa($id, $userId, 30);
     $conv['lock_pode_enviar'] = !empty($lock['pode']) ? 1 : 0;
     $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
 
@@ -281,10 +281,10 @@ if ($action === 'enviar_mensagem') {
     if (!$convId || !$texto) { echo json_encode(array('error' => 'Parâmetros inválidos')); exit; }
 
     // Trava de atendimento: se outro usuário já assumiu e conversa tem atividade
-    // nas últimas 6h, bloqueia o envio. Amanda/Luiz sempre podem (bypass).
-    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    // nas últimos 30 minutos, bloqueia o envio. Amanda/Luiz sempre podem (bypass).
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 30);
     if (empty($lock['pode'])) {
-        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa."));
         exit;
     }
 
@@ -329,18 +329,18 @@ if ($action === 'enviar_mensagem') {
 
 // ── ASSUMIR ATENDIMENTO (e desativar bot) ────────────────
 if ($action === 'assumir_atendimento') {
-    // Expira delegações paradas há mais de 6h antes de checar bloqueio
-    zapi_expirar_delegacoes_estale(6);
+    // Expira delegações paradas há mais de 30 minutos antes de checar bloqueio
+    zapi_expirar_delegacoes_estale(30);
 
     $convId = (int)($_POST['conversa_id'] ?? 0);
 
     // Bloqueia se outro usuário já assumiu/foi delegada E a conversa teve atividade
-    // nas últimas 6h. Pra realocar, Amanda ou Luiz Eduardo precisam usar "Delegar".
+    // nas últimos 30 minutos. Pra realocar, Amanda ou Luiz Eduardo precisam usar "Delegar".
     // Amanda/Luiz têm bypass (podem assumir quando quiserem).
-    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 30);
     if (empty($lock['pode'])) {
         echo json_encode(array(
-            'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Apenas Amanda ou Luiz Eduardo podem delegar para outra pessoa, ou aguarde 6h sem interação."
+            'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Apenas Amanda ou Luiz Eduardo podem delegar para outra pessoa, ou aguarde 30 minutos sem interação."
         ));
         exit;
     }
@@ -652,10 +652,10 @@ if ($action === 'enviar_arquivo') {
     $caption = trim($_POST['caption'] ?? '');
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
 
-    // Trava de atendimento (6h sem atividade destrava)
-    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    // Trava de atendimento (30 minutos sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 30);
     if (empty($lock['pode'])) {
-        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa."));
         exit;
     }
 
@@ -730,10 +730,10 @@ if ($action === 'enviar_audio') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
 
-    // Trava de atendimento (6h sem atividade destrava)
-    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    // Trava de atendimento (30 minutos sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 30);
     if (empty($lock['pode'])) {
-        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa."));
         exit;
     }
 
@@ -810,10 +810,10 @@ if ($action === 'enviar_sticker') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
 
-    // Trava de atendimento (6h sem atividade destrava)
-    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    // Trava de atendimento (30 minutos sem atividade destrava)
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 30);
     if (empty($lock['pode'])) {
-        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 6h sem interação, ou se assumir a conversa."));
+        echo json_encode(array('error' => "Esta conversa está com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa."));
         exit;
     }
 

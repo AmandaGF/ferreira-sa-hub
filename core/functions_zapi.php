@@ -815,15 +815,16 @@ function zapi_sync_foto_contato($convId) {
 /**
  * Verifica se um usuário pode enviar mensagem numa conversa.
  * Regra: se a conversa tem atendente_id definido (assumida ou delegada), só o
- * atendente pode enviar — A MENOS que a conversa esteja parada há mais de $horas
- * horas (aí libera pra qualquer um). Admin (Amanda/Luiz) sempre pode.
+ * atendente pode enviar — A MENOS que a conversa esteja parada há mais de
+ * $minutos minutos (aí libera pra qualquer um). Admin (Amanda/Luiz) sempre pode.
  *
  * Retorna array:
  *   ['pode' => true]                    → livre pra enviar
  *   ['pode' => false, 'atendente_name'=>'X', 'atendente_id'=>N] → bloqueado
  */
-function zapi_pode_enviar_conversa($convId, $userId, $horas = 6) {
+function zapi_pode_enviar_conversa($convId, $userId, $minutos = 30) {
     $pdo = db();
+    $minutos = (int)$minutos;
     $stmt = $pdo->prepare("SELECT co.atendente_id, u.name FROM zapi_conversas co
                            LEFT JOIN users u ON u.id = co.atendente_id
                            WHERE co.id = ?");
@@ -840,10 +841,10 @@ function zapi_pode_enviar_conversa($convId, $userId, $horas = 6) {
 
     // Atividade recente (qualquer mensagem) mantém a trava
     $q = $pdo->prepare("SELECT COUNT(*) FROM zapi_mensagens
-                        WHERE conversa_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL {$horas} HOUR)");
+                        WHERE conversa_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)");
     $q->execute(array($convId));
     if ((int)$q->fetchColumn() === 0) {
-        // Sem atividade há mais de X horas → destrava
+        // Sem atividade há mais de X minutos → destrava
         return array('pode' => true);
     }
 
@@ -855,29 +856,29 @@ function zapi_pode_enviar_conversa($convId, $userId, $horas = 6) {
 }
 
 /**
- * Expira automaticamente delegações sem interação há mais de X horas.
+ * Expira automaticamente delegações sem interação há mais de X minutos.
  *
  * Uma delegação expira quando:
- *   - foi feita há mais de $horas horas (delegada_em antigo) E
+ *   - foi feita há mais de $minutos minutos (delegada_em antigo) E
  *   - não houve mensagem nova na conversa no mesmo período
  *
  * Ou seja: se o cliente mandou nova msg ou o atendente respondeu recentemente,
- * a delegação se mantém. Se tudo parou há mais de 6h, libera.
+ * a delegação se mantém. Se tudo parou há mais de 30min, libera.
  *
  * Chamado lazily no listar_conversas e assumir_atendimento — não precisa cron.
  */
-function zapi_expirar_delegacoes_estale($horas = 6) {
+function zapi_expirar_delegacoes_estale($minutos = 30) {
     $pdo = db();
-    $horas = (int)$horas;
+    $minutos = (int)$minutos;
     try {
         $sql = "UPDATE zapi_conversas co
                 SET co.delegada = 0, co.delegada_por = NULL, co.delegada_em = NULL
                 WHERE co.delegada = 1
-                  AND (co.delegada_em IS NULL OR co.delegada_em < DATE_SUB(NOW(), INTERVAL {$horas} HOUR))
+                  AND (co.delegada_em IS NULL OR co.delegada_em < DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE))
                   AND NOT EXISTS (
                       SELECT 1 FROM zapi_mensagens m
                       WHERE m.conversa_id = co.id
-                        AND m.created_at > DATE_SUB(NOW(), INTERVAL {$horas} HOUR)
+                        AND m.created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)
                   )";
         $stmt = $pdo->prepare($sql);
         $stmt->execute();
