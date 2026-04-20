@@ -402,10 +402,30 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
     if (!$ehGrupo) $ehGrupo = zapi_eh_grupo($telefone);
     $telefone_norm = zapi_normaliza_telefone($telefone);
 
+    // 1) Match exato pelo telefone normalizado
     $stmt = $pdo->prepare("SELECT * FROM zapi_conversas WHERE telefone = ? AND instancia_id = ? LIMIT 1");
     $stmt->execute(array($telefone_norm, $inst['id']));
     $conv = $stmt->fetch();
     if ($conv) return $conv;
+
+    // 2) Se NÃO é grupo, tenta achar conversa existente do mesmo contato que
+    //    tenha sido gravada com outro formato (telefone real vs @lid do Multi-Device).
+    //    Match pelos últimos 10 dígitos é forte: número brasileiro completo
+    //    (DDD+9+8) cabe aí, e IDs @lid que colidissem por acaso nesses 10 dígitos
+    //    seriam uma coincidência altamente improvável.
+    if (!$ehGrupo) {
+        $digitsOnly = preg_replace('/\D/', '', str_replace(array('@lid','@g.us'), '', $telefone_norm));
+        if (strlen($digitsOnly) >= 10) {
+            $ult10 = substr($digitsOnly, -10);
+            $q2 = $pdo->prepare("SELECT * FROM zapi_conversas
+                                 WHERE instancia_id = ?
+                                   AND RIGHT(REPLACE(REPLACE(telefone,'@lid',''),'@g.us',''), 10) = ?
+                                 ORDER BY ultima_msg_em DESC LIMIT 1");
+            $q2->execute(array($inst['id'], $ult10));
+            $conv = $q2->fetch();
+            if ($conv) return $conv;
+        }
+    }
 
     // Criar nova
     // Só vincula cliente/lead se NÃO for grupo (grupos têm ID com 18+ dígitos e
