@@ -14,6 +14,29 @@ if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// Vincular / desvincular cobrança a um processo (case_id)
+if ($action === 'vincular_case') {
+    header('Content-Type: application/json');
+    $cobId = (int)($_POST['cobranca_id'] ?? 0);
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+
+    // Se caseId > 0, validar que o caso pertence ao mesmo cliente da cobrança
+    if ($caseId > 0) {
+        $chk = $pdo->prepare("SELECT cs.id FROM cases cs JOIN asaas_cobrancas ac ON ac.client_id = cs.client_id WHERE ac.id = ? AND cs.id = ?");
+        $chk->execute(array($cobId, $caseId));
+        if (!$chk->fetch()) { echo json_encode(array('error' => 'Processo não pertence a este cliente')); exit; }
+    }
+    $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE id = ?")
+        ->execute(array($caseId ?: null, $cobId));
+    // Sincroniza honorarios_cobranca se existir entrada
+    $pdo->prepare("UPDATE honorarios_cobranca SET case_id = ? WHERE asaas_payment_id = (SELECT asaas_payment_id FROM asaas_cobrancas WHERE id = ?)")
+        ->execute(array($caseId ?: null, $cobId));
+    audit_log('asaas_vincular_case', 'asaas_cobrancas', $cobId, "case_id={$caseId}");
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
 switch ($action) {
     case 'criar_cobranca':
         $clientId = (int)($_POST['client_id'] ?? 0);

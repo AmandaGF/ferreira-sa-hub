@@ -41,6 +41,14 @@ try {
     $cobrancas = $cobrancas->fetchAll();
 } catch (Exception $e) {}
 
+// Processos do cliente (pra vincular cobranças)
+$processosCliente = array();
+try {
+    $stmtProc = $pdo->prepare("SELECT id, title, case_number, status FROM cases WHERE client_id = ? ORDER BY created_at DESC");
+    $stmtProc->execute(array($clientId));
+    $processosCliente = $stmtProc->fetchAll();
+} catch (Exception $e) {}
+
 // Contratos
 $contratos = array();
 try {
@@ -121,15 +129,26 @@ echo voltar_ao_processo_html();
             $cor = asaas_status_cor($cob['status']);
             $label = asaas_status_label($cob['status']);
         ?>
-        <div class="cob-item">
+        <div class="cob-item" style="flex-wrap:wrap;">
             <div style="width:10px;height:10px;border-radius:50%;background:<?= $cor ?>;flex-shrink:0;"></div>
-            <div style="flex:1;">
+            <div style="flex:1;min-width:200px;">
                 <div style="font-size:.85rem;font-weight:600;"><?= e($cob['descricao'] ?: 'Cobrança') ?></div>
                 <div style="font-size:.7rem;color:var(--text-muted);">
                     <?= $cob['forma_pagamento'] ? strtoupper($cob['forma_pagamento']) . ' · ' : '' ?>
                     Vencimento: <?= date('d/m/Y', strtotime($cob['vencimento'])) ?>
                     <?php if ($cob['data_pagamento']): ?> · Pago em: <?= date('d/m/Y', strtotime($cob['data_pagamento'])) ?><?php endif; ?>
                 </div>
+                <?php if (!empty($processosCliente)): ?>
+                <div style="margin-top:3px;display:flex;align-items:center;gap:4px;">
+                    <span style="font-size:.62rem;color:var(--text-muted);">🔗 Processo:</span>
+                    <select onchange="vincularCobrancaProcesso(<?= (int)$cob['id'] ?>, this.value)" style="font-size:.68rem;padding:1px 5px;border:1px solid #e5e7eb;border-radius:4px;background:<?= $cob['case_id'] ? '#eff6ff' : '#f9fafb' ?>;color:<?= $cob['case_id'] ? '#1e40af' : '#6b7280' ?>;">
+                        <option value="0" <?= empty($cob['case_id']) ? 'selected' : '' ?>>— Sem vínculo (histórico)</option>
+                        <?php foreach ($processosCliente as $pr): ?>
+                        <option value="<?= $pr['id'] ?>" <?= (int)$cob['case_id'] === (int)$pr['id'] ? 'selected' : '' ?>><?= e(mb_substr($pr['title'] ?? 'Processo #' . $pr['id'], 0, 40)) ?><?= $pr['case_number'] ? ' (' . e(substr($pr['case_number'], 0, 20)) . ')' : '' ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <?php endif; ?>
             </div>
             <div style="text-align:right;">
                 <div style="font-size:.95rem;font-weight:800;color:<?= $cor ?>;">R$ <?= number_format($cob['valor'], 2, ',', '.') ?></div>
@@ -216,4 +235,29 @@ echo voltar_ao_processo_html();
     </form>
 </div></div>
 
+<script>
+function vincularCobrancaProcesso(cobId, caseId) {
+    var fd = new FormData();
+    fd.append('action', 'vincular_case');
+    fd.append('cobranca_id', cobId);
+    fd.append('case_id', caseId);
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url('financeiro', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch(e){ return { error: 'Resposta inválida' }; } }); })
+      .then(function(d){
+          if (d.ok) {
+              // Feedback visual rápido
+              var toast = document.createElement('div');
+              toast.textContent = caseId === '0' ? '✓ Desvinculado do processo' : '✓ Vinculado ao processo';
+              toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;z-index:100000;box-shadow:0 8px 24px rgba(0,0,0,.25);';
+              document.body.appendChild(toast);
+              setTimeout(function(){ toast.remove(); }, 2000);
+          } else {
+              alert('Falha: ' + (d.error || '?'));
+          }
+      });
+}
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
