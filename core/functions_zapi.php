@@ -641,6 +641,98 @@ function zapi_fetch_chats($ddd, $page = 1, $size = 50) {
 }
 
 /**
+ * Busca a URL da foto de perfil do contato via Z-API.
+ * Retorna a URL (string) ou null se não houver foto / erro.
+ */
+function zapi_fetch_profile_picture($ddd, $telefone) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
+    $cfg = zapi_get_config();
+    $phone = zapi_normaliza_telefone($telefone);
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token']
+         . '/profile-picture?phone=' . urlencode($phone);
+
+    $headers = array();
+    if (!empty($cfg['client_token'])) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    if ($code < 200 || $code >= 300) return null;
+    $json = json_decode($resp, true);
+    // Z-API retorna em 'link' normalmente; alguns endpoints variam ('url', 'imgUrl')
+    foreach (array('link', 'url', 'imgUrl', 'image') as $k) {
+        if (!empty($json[$k]) && is_string($json[$k])) return $json[$k];
+    }
+    return null;
+}
+
+/**
+ * Sincroniza a foto de perfil de uma conversa.
+ * - Atualiza zapi_conversas.foto_perfil_url + foto_perfil_atualizada.
+ * - Se conversa tem client_id e clients.foto_path está vazio, baixa a imagem
+ *   e salva em salavip_src/uploads/ + atualiza clients.foto_path.
+ *   Quando o cliente atualizar a foto pela Central VIP (foto_path já existe),
+ *   esta função NÃO sobrescreve.
+ */
+function zapi_sync_foto_contato($convId) {
+    $pdo = db();
+    $stmt = $pdo->prepare("SELECT co.id, co.telefone, co.client_id, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
+    $stmt->execute(array($convId));
+    $conv = $stmt->fetch();
+    if (!$conv) return array('ok' => false, 'erro' => 'Conversa não encontrada');
+
+    $link = zapi_fetch_profile_picture($conv['ddd'], $conv['telefone']);
+    try {
+        $pdo->prepare("UPDATE zapi_conversas SET foto_perfil_url = ?, foto_perfil_atualizada = NOW() WHERE id = ?")
+            ->execute(array($link, $conv['id']));
+    } catch (Exception $e) {}
+
+    $clientUpdated = false;
+    if ($link && $conv['client_id']) {
+        $cl = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?");
+        $cl->execute(array($conv['client_id']));
+        $existingFoto = $cl->fetchColumn();
+        if (empty($existingFoto)) {
+            // Baixa a imagem e salva localmente
+            $imgCh = curl_init($link);
+            curl_setopt_array($imgCh, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_TIMEOUT        => 20,
+                CURLOPT_SSL_VERIFYPEER => false,
+            ));
+            $imgData = curl_exec($imgCh);
+            $imgCode = curl_getinfo($imgCh, CURLINFO_HTTP_CODE);
+            $imgCT   = curl_getinfo($imgCh, CURLINFO_CONTENT_TYPE);
+            curl_close($imgCh);
+            if ($imgData && $imgCode >= 200 && $imgCode < 300 && strlen($imgData) > 100) {
+                $ext = 'jpg';
+                if (stripos($imgCT, 'png') !== false) $ext = 'png';
+                elseif (stripos($imgCT, 'webp') !== false) $ext = 'webp';
+                $filename = 'foto_wa_' . (int)$conv['client_id'] . '_' . time() . '.' . $ext;
+                $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/';
+                if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+                $destPath = $uploadDir . $filename;
+                if (@file_put_contents($destPath, $imgData)) {
+                    $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = ? AND (foto_path IS NULL OR foto_path = '')")
+                        ->execute(array($filename, $conv['client_id']));
+                    $clientUpdated = true;
+                }
+            }
+        }
+    }
+
+    return array('ok' => true, 'foto_url' => $link, 'client_updated' => $clientUpdated);
+}
+
+/**
  * Importa mensagens do histórico Z-API para uma conversa existente.
  * Retorna contagem de mensagens importadas (não duplica pelo zapi_message_id).
  */

@@ -55,7 +55,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start; }
 .wa-conv:hover { background:<?= $accentLight ?>; }
 .wa-conv.active { background:<?= $accentLight ?>;border-left:3px solid <?= $accentColor ?>; }
-.wa-avatar { width:36px;height:36px;border-radius:50%;background:<?= $accentColor ?>;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0; }
+.wa-avatar { width:36px;height:36px;border-radius:50%;background:<?= $accentColor ?>;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;overflow:hidden;position:relative; }
+.wa-avatar img { width:100%;height:100%;object-fit:cover;border-radius:50%;display:block; }
 .wa-conv-info { flex:1;min-width:0; }
 .wa-conv-name { font-weight:600;font-size:.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 .wa-conv-preview { font-size:.72rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px; }
@@ -127,6 +128,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </a>
         <?php if (has_min_role('gestao')): ?>
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
+            <button onclick="waAtualizarFotos(this)" class="btn btn-outline btn-sm" title="Busca foto de perfil do WhatsApp de cada contato. Se for cliente sem foto, salva no cadastro dele.">🖼️ Atualizar fotos</button>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
         <?php endif; ?>
     </div>
@@ -237,6 +239,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
+    // Renderiza HTML do avatar: prefere foto da Central VIP > foto do WhatsApp > iniciais.
+    // onerror restaura iniciais se a imagem falhar (ex: URL Z-API expirada).
+    function avatarHtml(c, nome) {
+        var src = '';
+        if (c && c.client_foto_path) {
+            src = '<?= url('/') ?>salavip/uploads/' + encodeURIComponent(c.client_foto_path);
+        } else if (c && c.foto_perfil_url) {
+            src = c.foto_perfil_url;
+        }
+        if (!src) return iniciais(nome);
+        var ini = iniciais(nome).replace(/'/g, "\\'");
+        return '<img src="' + src + '" alt="" onerror="this.parentNode.innerHTML=\'' + ini + '\';">';
+    }
     function formatTel(t) {
         if(!t) return '';
         var n = t.replace(/[^0-9]/g, '');
@@ -270,7 +285,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
                 var isActive = convAtiva === c.id ? 'active' : '';
                 html += '<div class="wa-conv '+isActive+'" data-id="'+c.id+'" onclick="waAbrir('+c.id+')">';
-                html += '  <div class="wa-avatar">' + iniciais(nome) + '</div>';
+                html += '  <div class="wa-avatar">' + avatarHtml(c, nome) + '</div>';
                 html += '  <div class="wa-conv-info">';
                 html += '    <div class="wa-conv-name">' + escapeHtml(nome);
                 if (+c.bot_ativo) html += '<span class="wa-bot-badge">🤖 BOT</span>';
@@ -1133,6 +1148,49 @@ require_once APP_ROOT . '/templates/layout_start.php';
             pop.classList.remove('open');
         }
     });
+
+    // Atualiza fotos de perfil em batch (25 por vez via backend).
+    // Roda até não achar mais conversas sem foto (ou atingir 8 batches = 200).
+    window.waAtualizarFotos = function(btn) {
+        if (!confirm('Buscar fotos de perfil do WhatsApp de todos os contatos?\n\nSe o contato for cliente cadastrado e ainda não tiver foto no cadastro, a foto do WhatsApp será salva no perfil dele (o cliente pode alterar depois pela Central VIP).')) return;
+        var total = 0, atualizadosClientes = 0, chamadas = 0;
+        var original = btn.textContent;
+        btn.disabled = true;
+        function proxima() {
+            chamadas++;
+            btn.textContent = '🖼️ Buscando... (' + total + ')';
+            var fd = new FormData();
+            fd.append('action', 'sync_fotos_todas');
+            fd.append('canal', canal);
+            fd.append('limit', '25');
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', apiUrl);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.onload = function() {
+                var r = {};
+                try { r = JSON.parse(xhr.responseText); } catch(e) {}
+                if (r && r.ok) {
+                    total += r.com_foto || 0;
+                    atualizadosClientes += r.clientes_atualizados || 0;
+                    if ((r.total || 0) >= 25 && chamadas < 8) {
+                        setTimeout(proxima, 400);
+                        return;
+                    }
+                }
+                btn.disabled = false;
+                btn.textContent = original;
+                alert('✓ Fotos atualizadas.\n\nContatos com foto: ' + total + '\nClientes com cadastro atualizado: ' + atualizadosClientes);
+                carregarLista();
+            };
+            xhr.onerror = function() {
+                btn.disabled = false;
+                btn.textContent = original;
+                alert('Erro de rede ao atualizar fotos.');
+            };
+            xhr.send(fd);
+        }
+        proxima();
+    };
 
     window.waSincronizar = function() {
         alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');

@@ -11,6 +11,14 @@ $pdo = db();
 $userId = current_user_id();
 $action = $_REQUEST['action'] ?? '';
 
+// Self-heal schema: colunas pra foto de perfil do contato (Z-API profile-picture)
+try {
+    $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_url VARCHAR(500) DEFAULT NULL");
+} catch (Exception $e) { /* coluna já existe */ }
+try {
+    $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_atualizada DATETIME DEFAULT NULL");
+} catch (Exception $e) { /* coluna já existe */ }
+
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
@@ -55,6 +63,8 @@ if ($action === 'listar_conversas') {
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
+                   co.foto_perfil_url,
+                   cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
                    pl.name AS lead_name,
                    u.name AS atendente_name,
@@ -101,6 +111,35 @@ if ($action === 'listar_conversas') {
     }
 
     echo json_encode(array('ok' => true, 'conversas' => $rows, 'instancias' => $inst));
+    exit;
+}
+
+// ── SYNC FOTO DE PERFIL (1 conversa) ─────────────────────
+if ($action === 'sync_foto_conversa') {
+    $id = (int)($_REQUEST['id'] ?? 0);
+    if (!$id) { echo json_encode(array('error' => 'ID inválido')); exit; }
+    $r = zapi_sync_foto_contato($id);
+    echo json_encode($r);
+    exit;
+}
+
+// ── SYNC FOTOS EM LOTE (batch de até 25 sem foto / stale) ─
+if ($action === 'sync_fotos_todas') {
+    $limit = min(25, (int)($_REQUEST['limit'] ?? 25));
+    $canal = isset($_REQUEST['canal']) ? $_REQUEST['canal'] : '';
+    $wh = "(co.foto_perfil_atualizada IS NULL OR co.foto_perfil_atualizada < DATE_SUB(NOW(), INTERVAL 7 DAY))";
+    $params = array();
+    if ($canal) { $wh .= " AND co.canal = ?"; $params[] = $canal; }
+    $stmt = $pdo->prepare("SELECT co.id FROM zapi_conversas co WHERE $wh ORDER BY co.foto_perfil_atualizada ASC, co.id DESC LIMIT " . (int)$limit);
+    $stmt->execute($params);
+    $ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $result = array('total' => count($ids), 'com_foto' => 0, 'clientes_atualizados' => 0);
+    foreach ($ids as $id) {
+        $r = zapi_sync_foto_contato((int)$id);
+        if (!empty($r['foto_url'])) $result['com_foto']++;
+        if (!empty($r['client_updated'])) $result['clientes_atualizados']++;
+    }
+    echo json_encode(array('ok' => true) + $result);
     exit;
 }
 
