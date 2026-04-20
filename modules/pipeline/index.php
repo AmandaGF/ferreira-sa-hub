@@ -357,6 +357,42 @@ $allLeadsFlat = array();
 foreach ($byStage as $stageKey => $stageLeads) {
     foreach ($stageLeads as $l) { $l['_stage_key'] = $stageKey; $allLeadsFlat[] = $l; }
 }
+
+// ── Ordenação server-side (antes da paginação) ─────────────────
+$sortCol = isset($_GET['sort']) ? $_GET['sort'] : '';
+$sortDir = (isset($_GET['dir']) && $_GET['dir'] === 'asc') ? 'asc' : 'desc';
+$sortMap = array(
+    'name' => 'name', 'phone' => 'phone', 'created_at' => 'created_at',
+    'case_type' => 'case_type', 'honorarios' => 'honorarios_cents',
+    'exito' => 'exito_percentual', 'vencimento' => 'vencimento_parcela',
+    'pgto' => 'forma_pagamento', 'responsavel' => 'assigned_name',
+    'urgencia' => 'urgencia', 'observacoes' => 'observacoes',
+    'nome_pasta' => 'nome_pasta', 'estado' => '_stage_key', 'pendencias' => 'pendencias',
+);
+if ($sortCol && isset($sortMap[$sortCol])) {
+    $f = $sortMap[$sortCol];
+    $isNum = in_array($f, array('honorarios_cents','exito_percentual'), true);
+    $isDate = ($f === 'created_at');
+    usort($allLeadsFlat, function($a, $b) use ($f, $sortDir, $isNum, $isDate) {
+        $av = isset($a[$f]) ? $a[$f] : null;
+        $bv = isset($b[$f]) ? $b[$f] : null;
+        // Vazios sempre por último (independente da direção)
+        $aEmpty = ($av === null || $av === '' || $av === '0' || $av === 0);
+        $bEmpty = ($bv === null || $bv === '' || $bv === '0' || $bv === 0);
+        if ($aEmpty && $bEmpty) return 0;
+        if ($aEmpty) return 1;
+        if ($bEmpty) return -1;
+        if ($isNum) {
+            $r = ((float)$av) <=> ((float)$bv);
+        } elseif ($isDate) {
+            $r = strtotime($av) <=> strtotime($bv);
+        } else {
+            $r = strcasecmp((string)$av, (string)$bv);
+        }
+        return ($sortDir === 'asc') ? $r : -$r;
+    });
+}
+
 $tabelaPage = max(1, (int)($_GET['tp'] ?? 1));
 $perPage = 25;
 $totalPages = max(1, ceil(count($allLeadsFlat) / $perPage));
@@ -407,22 +443,38 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
 </div>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;">
 <table class="tbl-grid" id="pipelineTableBody">
+<?php
+// Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
+$_sortLink = function($col, $label) use ($sortCol, $sortDir) {
+    $nextDir = ($sortCol === $col && $sortDir === 'asc') ? 'desc' : 'asc';
+    $params = $_GET;
+    $params['sort'] = $col;
+    $params['dir'] = $nextDir;
+    unset($params['tp']); // reset paginação
+    $url = '?' . http_build_query($params);
+    $arrow = '';
+    if ($sortCol === $col) {
+        $arrow = $sortDir === 'asc' ? ' ↑' : ' ↓';
+    }
+    return '<a href="' . htmlspecialchars($url) . '" style="color:inherit;text-decoration:none;display:block;">' . htmlspecialchars($label) . $arrow . '</a>';
+};
+?>
 <thead><tr>
     <th style="width:30px;text-align:center;cursor:default;">#</th>
-    <th onclick="sortTbl('pipelineTableBody',1)">Nome</th>
-    <th onclick="sortTbl('pipelineTableBody',2)">Contato</th>
-    <th onclick="sortTbl('pipelineTableBody',3)">Data Fech.</th>
-    <th onclick="sortTbl('pipelineTableBody',4)">Tipo de Ação</th>
-    <th onclick="sortTbl('pipelineTableBody',5)">Honorários (R$)</th>
-    <th onclick="sortTbl('pipelineTableBody',6)">Êxito (%)</th>
-    <th onclick="sortTbl('pipelineTableBody',7)">Vencto 1ª</th>
-    <th onclick="sortTbl('pipelineTableBody',8)">Pgto</th>
-    <th onclick="sortTbl('pipelineTableBody',9)">Responsável</th>
-    <th onclick="sortTbl('pipelineTableBody',10)">Urgência</th>
-    <th onclick="sortTbl('pipelineTableBody',11)">Observações</th>
-    <th onclick="sortTbl('pipelineTableBody',12)">Nome Pasta</th>
-    <th onclick="sortTbl('pipelineTableBody',13)">Estado</th>
-    <th onclick="sortTbl('pipelineTableBody',14)">Pendências</th>
+    <th><?= $_sortLink('name', 'Nome') ?></th>
+    <th><?= $_sortLink('phone', 'Contato') ?></th>
+    <th><?= $_sortLink('created_at', 'Data Fech.') ?></th>
+    <th><?= $_sortLink('case_type', 'Tipo de Ação') ?></th>
+    <th><?= $_sortLink('honorarios', 'Honorários (R$)') ?></th>
+    <th><?= $_sortLink('exito', 'Êxito (%)') ?></th>
+    <th><?= $_sortLink('vencimento', 'Vencto 1ª') ?></th>
+    <th><?= $_sortLink('pgto', 'Pgto') ?></th>
+    <th><?= $_sortLink('responsavel', 'Responsável') ?></th>
+    <th><?= $_sortLink('urgencia', 'Urgência') ?></th>
+    <th><?= $_sortLink('observacoes', 'Observações') ?></th>
+    <th><?= $_sortLink('nome_pasta', 'Nome Pasta') ?></th>
+    <th><?= $_sortLink('estado', 'Estado') ?></th>
+    <th><?= $_sortLink('pendencias', 'Pendências') ?></th>
     <th style="cursor:default;">Mover</th>
 </tr></thead>
 <tbody>
@@ -480,8 +532,13 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
 </div>
 <?php if ($totalPages > 1): ?>
 <div class="tbl-pag">
-    <?php for ($p = 1; $p <= $totalPages; $p++): ?>
-        <a href="?tp=<?= $p ?>" class="<?= $p === $tabelaPage ? 'active' : '' ?>"><?= $p ?></a>
+    <?php
+    $_pageParams = $_GET;
+    for ($p = 1; $p <= $totalPages; $p++):
+        $_pageParams['tp'] = $p;
+        $_pageUrl = '?' . http_build_query($_pageParams);
+    ?>
+        <a href="<?= htmlspecialchars($_pageUrl) ?>" class="<?= $p === $tabelaPage ? 'active' : '' ?>"><?= $p ?></a>
     <?php endfor; ?>
 </div>
 <?php endif; ?>
@@ -867,40 +924,8 @@ function filterPipelineByMes(ym) {
     window.location.search = params.toString();
 }
 
-// Ordenar tabela
-var _sortDirs = {};
-// Converte DD/MM/YYYY pra YYYY-MM-DD (ordenável). Null se não for data.
-function _parseBRDate(s) {
-    var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    return m ? m[3] + '-' + m[2] + '-' + m[1] : null;
-}
-function sortTbl(tableId, colIdx) {
-    var table = document.getElementById(tableId);
-    var tbody = table.querySelector('tbody');
-    var rows = Array.from(tbody.querySelectorAll('tr[data-stage]'));
-    var dir = _sortDirs[tableId + '_' + colIdx] === 'asc' ? 'desc' : 'asc';
-    _sortDirs[tableId + '_' + colIdx] = dir;
-    rows.sort(function(a, b) {
-        var av = (a.cells[colIdx] && a.cells[colIdx].textContent.trim()) || '';
-        var bv = (b.cells[colIdx] && b.cells[colIdx].textContent.trim()) || '';
-        // Vazios sempre por último (independente da direção)
-        if (!av && !bv) return 0;
-        if (!av) return 1;
-        if (!bv) return -1;
-        // 1. Data DD/MM/YYYY — compara como ISO
-        var ad = _parseBRDate(av), bd = _parseBRDate(bv);
-        if (ad && bd) return dir === 'asc' ? ad.localeCompare(bd) : bd.localeCompare(ad);
-        // 2. Número (honorários, %, etc.) — strip R$, pontos milhar e vírgula decimal
-        var an = parseFloat(av.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
-        var bn = parseFloat(bv.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
-        if (!isNaN(an) && !isNaN(bn) && /^[\d.,\sR$%-]+$/.test(av) && /^[\d.,\sR$%-]+$/.test(bv)) {
-            return dir === 'asc' ? an - bn : bn - an;
-        }
-        // 3. Texto
-        return dir === 'asc' ? av.localeCompare(bv, 'pt-BR') : bv.localeCompare(av, 'pt-BR');
-    });
-    rows.forEach(function(r) { tbody.appendChild(r); });
-}
+// Ordenação agora é server-side (via ?sort=col&dir=asc|desc no link do header).
+// Evita o bug antigo onde sort client-side só reordenava os 25 da página atual.
 
 // Exportar CSV
 function exportTableCSV(tableId, name) {
