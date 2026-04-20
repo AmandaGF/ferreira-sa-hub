@@ -39,6 +39,9 @@ if (in_array($action, $mutantes, true)) {
 
 // ── LISTAR CONVERSAS ─────────────────────────────────────
 if ($action === 'listar_conversas') {
+    // Expira delegações sem interação há mais de 6h (lazy cleanup)
+    zapi_expirar_delegacoes_estale(6);
+
     $canal   = $_GET['canal']   ?? '21';
     $status  = $_GET['status']  ?? '';
     $busca   = trim($_GET['q']  ?? '');
@@ -247,6 +250,9 @@ if ($action === 'enviar_mensagem') {
 
 // ── ASSUMIR ATENDIMENTO (e desativar bot) ────────────────
 if ($action === 'assumir_atendimento') {
+    // Expira delegações paradas há mais de 6h antes de checar bloqueio
+    zapi_expirar_delegacoes_estale(6);
+
     $convId = (int)($_POST['conversa_id'] ?? 0);
     // Bloqueia se conversa foi delegada pra outra pessoa (só quem delegou ou o alvo pode destravar).
     $check = $pdo->prepare("SELECT delegada, atendente_id FROM zapi_conversas WHERE id = ?");

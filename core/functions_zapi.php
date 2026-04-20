@@ -767,6 +767,39 @@ function zapi_sync_foto_contato($convId) {
 }
 
 /**
+ * Expira automaticamente delegações sem interação há mais de X horas.
+ *
+ * Uma delegação expira quando:
+ *   - foi feita há mais de $horas horas (delegada_em antigo) E
+ *   - não houve mensagem nova na conversa no mesmo período
+ *
+ * Ou seja: se o cliente mandou nova msg ou o atendente respondeu recentemente,
+ * a delegação se mantém. Se tudo parou há mais de 6h, libera.
+ *
+ * Chamado lazily no listar_conversas e assumir_atendimento — não precisa cron.
+ */
+function zapi_expirar_delegacoes_estale($horas = 6) {
+    $pdo = db();
+    $horas = (int)$horas;
+    try {
+        $sql = "UPDATE zapi_conversas co
+                SET co.delegada = 0, co.delegada_por = NULL, co.delegada_em = NULL
+                WHERE co.delegada = 1
+                  AND (co.delegada_em IS NULL OR co.delegada_em < DATE_SUB(NOW(), INTERVAL {$horas} HOUR))
+                  AND NOT EXISTS (
+                      SELECT 1 FROM zapi_mensagens m
+                      WHERE m.conversa_id = co.id
+                        AND m.created_at > DATE_SUB(NOW(), INTERVAL {$horas} HOUR)
+                  )";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute();
+        return $stmt->rowCount();
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+/**
  * Importa mensagens do histórico Z-API para uma conversa existente.
  * Retorna contagem de mensagens importadas (não duplica pelo zapi_message_id).
  */

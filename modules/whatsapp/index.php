@@ -384,7 +384,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
         if (PODE_DELEGAR) {
-            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava pra que só ele possa assumir)">🎯 Delegar</button>';
+            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 6h sem interação, destrava automaticamente.">🎯 Delegar</button>';
             if (estaDelegada) {
                 actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
             }
@@ -865,7 +865,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
         overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
             + '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">🎯 Delegar conversa</h3>'
-            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação.</p>'
+            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação — OU até a conversa ficar 6h sem interação (então destrava sozinha).</p>'
             + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Delegar para:</label>'
             + '<select id="waDelegarAlvo" style="width:100%;padding:.5rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;">'
             + '<option value="">Selecione...</option>' + optsHtml + '</select>'
