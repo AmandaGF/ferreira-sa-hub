@@ -26,24 +26,38 @@ $stages = array(
     'suspenso'            => array('label' => 'Suspenso',                   'color' => '#9ca3af', 'icon' => '⏸️', 'resp' => 'Admin'),
 );
 
+// Stages que só aparecem na Tabela (histórico), não no Kanban — pra renderizar badge.
+$stagesHistorico = array(
+    'finalizado' => array('label' => 'Finalizado (no Jurídico)', 'color' => '#1e40af', 'icon' => '🏛️'),
+    'perdido'    => array('label' => 'Perdido',                  'color' => '#991b1b', 'icon' => '💔'),
+    'arquivado'  => array('label' => 'Arquivado',                'color' => '#374151', 'icon' => '📦'),
+);
+
 // Filtros
 $searchPipeline = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 
-// Buscar leads (exceto finalizados)
-$pipeWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')";
-$pipeParams = array();
+// ══════════════════════════════════════════════════════════════════
+// DUAS QUERIES SEPARADAS — Kanban e Tabela têm regras diferentes:
+//
+// KANBAN  = leads ativos + fechados do MÊS ATUAL (vira o mês → sai)
+// TABELA  = todos os leads que fecharam alguma vez (converted_at preenchido)
+//           + leads ainda em fluxo (pra casos que foram add manualmente pela
+//            equipe já em stage pós-contrato — ver filtro de mês)
+// ══════════════════════════════════════════════════════════════════
+
+// ─── Query do KANBAN ─────────────────────────────────────────────
+// Mostra: leads que AINDA NÃO fecharam (converted_at IS NULL) + leads que
+// fecharam no mês atual (continuam no ciclo). Leads fechados em meses
+// anteriores somem automaticamente (vira o mês = recomeça o ciclo).
+$kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')
+                AND (pl.converted_at IS NULL
+                     OR DATE_FORMAT(pl.converted_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m'))";
+$kanbanParams = array();
 if ($searchPipeline) {
-    $pipeWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
+    $kanbanWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
     $s = "%$searchPipeline%";
-    $pipeParams = array($s, $s, $s);
-}
-if ($filterMonth) {
-    // Filtra por data real de fechamento do contrato (converted_at).
-    // Fallback pra created_at só quando converted_at é NULL (lead que ainda
-    // não assinou contrato mas pode ter sido cadastrado nesse mês).
-    $pipeWhere .= " AND DATE_FORMAT(COALESCE(pl.converted_at, pl.created_at), '%Y-%m') = ?";
-    $pipeParams[] = $filterMonth;
+    $kanbanParams = array($s, $s, $s);
 }
 
 $stmt = $pdo->prepare(
@@ -54,10 +68,10 @@ $stmt = $pdo->prepare(
      LEFT JOIN users u ON u.id = pl.assigned_to
      LEFT JOIN clients c ON c.id = pl.client_id
      LEFT JOIN cases cs ON cs.id = pl.linked_case_id
-     WHERE $pipeWhere
+     WHERE $kanbanWhere
      ORDER BY pl.updated_at DESC"
 );
-$stmt->execute($pipeParams);
+$stmt->execute($kanbanParams);
 $leads = $stmt->fetchAll();
 
 $byStage = array();
@@ -69,7 +83,37 @@ foreach ($leads as $lead) {
     }
 }
 
-// KPIs
+// ─── Query da TABELA (planilha de contratos fechados) ────────────
+// Mostra: TODOS os leads com converted_at preenchido (histórico completo
+// de contratos fechados), independente do stage ou mês. Nunca somem —
+// métricas e estatísticas precisam do histórico.
+$planilhaWhere = "pl.converted_at IS NOT NULL AND pl.stage NOT IN ('arquivado')";
+$planilhaParams = array();
+if ($searchPipeline) {
+    $planilhaWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
+    $s = "%$searchPipeline%";
+    $planilhaParams = array($s, $s, $s);
+}
+if ($filterMonth) {
+    // Filtro de mês opera sobre data real de fechamento (converted_at).
+    $planilhaWhere .= " AND DATE_FORMAT(pl.converted_at, '%Y-%m') = ?";
+    $planilhaParams[] = $filterMonth;
+}
+$stmtT = $pdo->prepare(
+    "SELECT pl.*, u.name as assigned_name, c.name as client_name,
+     DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
+     cs.drive_folder_url
+     FROM pipeline_leads pl
+     LEFT JOIN users u ON u.id = pl.assigned_to
+     LEFT JOIN clients c ON c.id = pl.client_id
+     LEFT JOIN cases cs ON cs.id = pl.linked_case_id
+     WHERE $planilhaWhere
+     ORDER BY pl.converted_at DESC"
+);
+$stmtT->execute($planilhaParams);
+$leadsPlanilha = $stmtT->fetchAll();
+
+// KPIs (baseados no Kanban — leads ativos do ciclo atual)
 $totalAtivos = count($leads);
 $contratosAssinados = count($byStage['contrato_assinado']) + count($byStage['agendado_docs']) + count($byStage['reuniao_cobranca']) + count($byStage['pasta_apta']);
 $pastasAptas = count($byStage['pasta_apta']);
@@ -356,16 +400,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
 </style>
 <?php
-// Tabela Comercial mostra APENAS leads que passaram por "contrato_assinado"
-// (converted_at preenchido). Leads ainda no funil antes da assinatura ficam só
-// no Kanban — a equipe trabalha o passo a passo lá, não aqui.
+// Tabela Comercial = planilha histórica de contratos fechados.
+// Vem de $leadsPlanilha (converted_at IS NOT NULL, sem filtro de mês do Kanban).
+// Leads nunca somem daqui — histórico preservado pra métricas/estatísticas.
 $allLeadsFlat = array();
-foreach ($byStage as $stageKey => $stageLeads) {
-    foreach ($stageLeads as $l) {
-        if (empty($l['converted_at'])) continue; // ainda não assinou contrato
-        $l['_stage_key'] = $stageKey;
-        $allLeadsFlat[] = $l;
-    }
+foreach ($leadsPlanilha as $l) {
+    $l['_stage_key'] = $l['stage'];
+    $allLeadsFlat[] = $l;
 }
 
 // ── Ordenação server-side (antes da paginação) ─────────────────
@@ -421,15 +462,13 @@ $tipos = array();
 foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
 sort($tipos);
 
-// Meses disponíveis no banco (para dropdown server-side de filtro por mês).
-// Usa data de fechamento real (converted_at) com fallback pra created_at quando NULL,
-// pra casar com o WHERE lá em cima.
+// Meses disponíveis no banco — só leads com contrato fechado (converted_at).
 $mesesDisponiveis = array();
 try {
     $mesesDisponiveis = $pdo->query(
-        "SELECT DATE_FORMAT(COALESCE(converted_at, created_at), '%Y-%m') AS ym
+        "SELECT DATE_FORMAT(converted_at, '%Y-%m') AS ym
          FROM pipeline_leads
-         WHERE stage NOT IN ('arquivado')
+         WHERE converted_at IS NOT NULL AND stage NOT IN ('arquivado')
          GROUP BY ym
          ORDER BY ym DESC"
     )->fetchAll(PDO::FETCH_COLUMN);
@@ -499,7 +538,8 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 </tr></thead>
 <tbody>
 <?php $n = $pOffset + 1; foreach ($pageLeads as $lead):
-    $sk = $lead['_stage_key']; $si = $stages[$sk];
+    $sk = $lead['_stage_key'];
+    $si = isset($stages[$sk]) ? $stages[$sk] : (isset($stagesHistorico[$sk]) ? $stagesHistorico[$sk] : array('label' => ucfirst($sk), 'color' => '#6b7280', 'icon' => '•'));
     $lid = (int)$lead['id'];
 ?>
 <tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>">
