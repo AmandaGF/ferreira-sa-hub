@@ -8,6 +8,18 @@ require_login();
 $pdo = db();
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
+// Balcão Virtual TJRJ: agendamento permitido só entre 11:00 e 17:00.
+// Retorna [ok, msg] — ok=false se horário fora da janela.
+function _balcao_valida_horario($datetime_str) {
+    $ts = strtotime((string)$datetime_str);
+    if ($ts === false) return array(true, '');
+    $mins = ((int)date('H', $ts)) * 60 + (int)date('i', $ts);
+    if ($mins < 11 * 60 || $mins > 17 * 60) {
+        return array(false, 'Balcão Virtual: horário permitido entre 11:00 e 17:00 (recebido ' . date('H:i', $ts) . ').');
+    }
+    return array(true, '');
+}
+
 // ── GET: buscar eventos (AJAX) ──────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     header('Content-Type: application/json; charset=utf-8');
@@ -226,6 +238,11 @@ if ($action === 'salvar') {
     if (!in_array($tipo, $tiposValidos)) $tipo = 'reuniao_cliente';
     if (!in_array($modalidade, $modalidadesValidas)) $modalidade = 'nao_aplicavel';
     if (!$dataFim) $dataFim = $dataInicio;
+
+    if ($tipo === 'balcao_virtual' && !$diaTodo) {
+        list($ok, $msg) = _balcao_valida_horario($dataInicio);
+        if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
+    }
 
     if ($id) {
         // Editar — todos os usuários logados podem editar compromissos
@@ -467,6 +484,13 @@ if ($action === 'remarcar') {
         echo json_encode(array('error' => 'Formato de data/hora inválido'));
         exit;
     }
+    $stmt = $pdo->prepare("SELECT tipo FROM agenda_eventos WHERE id = ?");
+    $stmt->execute(array($id));
+    $evTipo = $stmt->fetchColumn();
+    if ($evTipo === 'balcao_virtual') {
+        list($ok, $msg) = _balcao_valida_horario($novaData . ' ' . $novaHora . ':00');
+        if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
+    }
     $pdo->prepare("UPDATE agenda_eventos SET data_inicio=?, hora_inicio=?, status='agendado', updated_at=NOW() WHERE id=?")
         ->execute(array($novaData, $novaHora . ':00', $id));
     audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaData . ' ' . $novaHora);
@@ -495,6 +519,11 @@ if ($action === 'remarcar_novo') {
     if (!$original) {
         echo json_encode(array('error' => 'Evento não encontrado'));
         exit;
+    }
+
+    if (($original['tipo'] ?? '') === 'balcao_virtual' && empty($original['dia_todo'])) {
+        list($ok, $msg) = _balcao_valida_horario($novaData . ' ' . $novaHora . ':00');
+        if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
     }
 
     // 1. Marcar original como remarcado

@@ -302,6 +302,7 @@ if ($voltarCaso > 0): ?>
                 <input type="datetime-local" class="ag-fi" id="agDtFim">
             </div>
         </div>
+        <div id="agBalcaoHint" style="display:none;margin:-6px 0 10px;padding:8px 12px;background:#ecfeff;border-left:3px solid #0d9488;border-radius:6px;font-size:.78rem;color:#134e4a;">⏰ Balcão Virtual TJRJ: agendamento permitido apenas <strong>entre 11:00 e 17:00</strong>.</div>
 
         <div class="ag-fg">
             <label class="ag-fl">Modalidade</label>
@@ -966,12 +967,14 @@ function selTipo(tipo, btn) {
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
 
-    // Balcão Virtual: trocar label + responsável CX
+    // Balcão Virtual: trocar label + responsável CX + dica de horário
     var msgLabel = document.getElementById('agMsgLabel');
+    var balcaoHint = document.getElementById('agBalcaoHint');
     if (tipo === 'balcao_virtual') {
         msgLabel.textContent = 'Motivo do Balcão Virtual';
         msg.placeholder = 'Descreva o que precisa ser feito no Balcão Virtual...';
         document.getElementById('agMsgPreview').style.display = 'none';
+        if (balcaoHint) balcaoHint.style.display = 'block';
         // Selecionar primeiro CX como responsável
         if (CX_USER_IDS.length > 0) {
             document.getElementById('agResponsavel').value = CX_USER_IDS[0];
@@ -979,6 +982,7 @@ function selTipo(tipo, btn) {
     } else {
         msgLabel.textContent = 'Mensagem para o cliente (WhatsApp)';
         msg.placeholder = 'Variáveis: [nome], [data], [hora], [link_meet]';
+        if (balcaoHint) balcaoHint.style.display = 'none';
     }
 
     // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
@@ -1118,12 +1122,31 @@ document.getElementById('agDtInicio').addEventListener('change', function() {
 });
 document.getElementById('agClienteBusca').addEventListener('input', atualizarPreview);
 
+// Balcão Virtual: agendamento permitido só entre 11:00 e 17:00.
+// Retorna true se ok, false se fora da janela (e mostra alert).
+function _balcaoHorarioValido(dtLocalStr) {
+    if (!dtLocalStr) return true;
+    var m = dtLocalStr.match(/T(\d{2}):(\d{2})/);
+    if (!m) return true;
+    var mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    if (mins < 11 * 60 || mins > 17 * 60) {
+        alert('⏰ Balcão Virtual TJRJ: agendamento permitido apenas entre 11:00 e 17:00.\n\nHorário informado: ' + m[1] + ':' + m[2]);
+        return false;
+    }
+    return true;
+}
+
 // ── SALVAR ──────────────────────────────────────────────────
 function salvarEvento() {
     var titulo = document.getElementById('agTitulo').value.trim();
     if (!titulo) { document.getElementById('agTitulo').style.borderColor='#ef4444'; document.getElementById('agTitulo').focus(); return; }
     var dtInicio = document.getElementById('agDtInicio').value;
     if (!dtInicio) { document.getElementById('agDtInicio').style.borderColor='#ef4444'; return; }
+    if (tipoSelecionado === 'balcao_virtual' && !_balcaoHorarioValido(dtInicio)) {
+        document.getElementById('agDtInicio').style.borderColor = '#ef4444';
+        document.getElementById('agDtInicio').focus();
+        return;
+    }
 
     var fd = new FormData();
     fd.append('action', 'salvar');
@@ -1443,14 +1466,20 @@ function abrirRemarcar(id) {
     overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
     overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
 
+    var isBalcaoRemarcar = evOriginal && evOriginal.tipo === 'balcao_virtual';
+    var balcaoHintHtml = isBalcaoRemarcar
+        ? '<div style="margin:0 0 .75rem;padding:6px 10px;background:#ecfeff;border-left:3px solid #0d9488;border-radius:6px;font-size:.72rem;color:#134e4a;">⏰ Balcão Virtual: horário permitido <strong>entre 11:00 e 17:00</strong>.</div>'
+        : '';
+
     var modal = document.createElement('div');
     modal.style.cssText = 'background:#fff;border-radius:16px;padding:1.5rem;width:380px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);';
     modal.innerHTML = '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">Remarcar compromisso</h3>'
         + '<p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">' + (tituloOriginal || 'Evento #' + id) + '</p>'
+        + balcaoHintHtml
         + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Nova data</label>'
         + '<input type="date" id="remarcarData" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;" />'
         + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Novo hor\u00e1rio</label>'
-        + '<input type="time" id="remarcarHora" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;" />'
+        + '<input type="time" id="remarcarHora"' + (isBalcaoRemarcar ? ' min="11:00" max="17:00"' : '') + ' style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;" />'
         + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
         + '<button onclick="document.getElementById(\'remarcarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
         + '<button id="btnConfirmarRemarcar" style="padding:.45rem 1rem;border:none;border-radius:8px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;">Remarcar</button>'
@@ -1471,6 +1500,10 @@ function abrirRemarcar(id) {
         var novaData = document.getElementById('remarcarData').value;
         var novaHora = document.getElementById('remarcarHora').value;
         if (!novaData || !novaHora) { alert('Preencha data e hor\u00e1rio.'); return; }
+        if (isBalcaoRemarcar && !_balcaoHorarioValido(novaData + 'T' + novaHora)) {
+            document.getElementById('remarcarHora').focus();
+            return;
+        }
 
         this.disabled = true;
         this.textContent = 'Remarcando...';
