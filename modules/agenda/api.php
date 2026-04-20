@@ -294,6 +294,60 @@ if ($action === 'salvar') {
             } catch (Exception $e) { /* silenciar */ }
         }
 
+        // Registrar andamento no processo quando vinculado a um caso.
+        // prazo e reuniao_interna ficam fora: prazo tem cascade próprio (prazos_processuais);
+        // reuniao_interna é de staff e não entra no timeline do processo.
+        $tiposAndamento = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao');
+        if ($caseId && in_array($tipo, $tiposAndamento, true)) {
+            try {
+                $rotulos = array(
+                    'audiencia'       => 'Audiência',
+                    'reuniao_cliente' => 'Reunião com cliente',
+                    'onboarding'      => 'Onboarding',
+                    'mediacao_cejusc' => 'Mediação/CEJUSC',
+                    'balcao_virtual'  => 'Balcão Virtual',
+                    'ligacao'         => 'Ligação/Retorno',
+                );
+                $rotulo = $rotulos[$tipo] ?? 'Compromisso';
+                $dtEv  = strtotime($dataInicio);
+                $dataHumana = date('d/m/Y \à\s H:i', $dtEv);
+                $descAnd  = "📅 {$rotulo} agendada: {$titulo}\n";
+                $descAnd .= "🗓 Data: {$dataHumana}\n";
+                if ($modalidade === 'online') {
+                    $descAnd .= "🎥 Modalidade: Online" . ($meetLink ? " — {$meetLink}" : '') . "\n";
+                } elseif ($modalidade === 'presencial') {
+                    $descAnd .= "🏛 Modalidade: Presencial" . ($local ? " — {$local}" : '') . "\n";
+                } elseif ($local) {
+                    $descAnd .= "📍 Local: {$local}\n";
+                }
+
+                // Link de orientação sobre audiência (configurável). Só anexa se for audiência.
+                if ($tipo === 'audiencia') {
+                    try {
+                        $linkOrient = $pdo->query("SELECT valor FROM configuracoes WHERE chave='link_orientacao_audiencia' LIMIT 1")->fetchColumn();
+                    } catch (Exception $e) { $linkOrient = null; }
+                    if (!empty($linkOrient)) {
+                        $descAnd .= "\nℹ️ Orientações sobre audiência: {$linkOrient}";
+                    }
+                }
+
+                $tipoAnd = ($tipo === 'audiencia') ? 'audiencia' : 'observacao';
+                $visAnd  = $visivelCliente; // herda da lógica da agenda
+
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                     VALUES (?, ?, ?, ?, ?, ?, NOW())"
+                )->execute(array(
+                    $caseId,
+                    date('Y-m-d', $dtEv),
+                    $tipoAnd,
+                    trim($descAnd),
+                    $visAnd,
+                    current_user_id()
+                ));
+            } catch (Exception $e) { /* não bloqueia a criação do evento */ }
+        }
+
         audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
         echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => $newCsrf));
     }
