@@ -1208,6 +1208,10 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                        style="display:inline-flex;align-items:center;gap:4px;background:#4285f4;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;flex-shrink:0;margin-left:.4rem;">
                         📁 Abrir
                     </a>
+                    <button type="button" onclick="copiarLinkDrive(this, '<?= e($cp['value']) ?>')" title="Copiar link pra colar em mensagem"
+                            style="background:#6b7280;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;flex-shrink:0;margin-left:.3rem;">
+                        📋 Copiar
+                    </button>
                 <?php endif; ?>
             </div>
             <?php endforeach; ?>
@@ -1914,6 +1918,23 @@ function logWhatsApp(andamentoId) {
 
 // ── Edição inline campos do processo ──
 var _cvCsrf = '<?= generate_csrf_token() ?>';
+function copiarLinkDrive(btn, url) {
+    navigator.clipboard.writeText(url).then(function(){
+        var origText = btn.textContent;
+        btn.textContent = '✓ Copiado!';
+        btn.style.background = '#059669';
+        setTimeout(function(){ btn.textContent = origText; btn.style.background = '#6b7280'; }, 1500);
+    }).catch(function(){
+        // Fallback pra browsers sem clipboard API
+        var tmp = document.createElement('textarea');
+        tmp.value = url; document.body.appendChild(tmp); tmp.select();
+        try { document.execCommand('copy'); btn.textContent = '✓ Copiado!'; btn.style.background = '#059669';
+              setTimeout(function(){ btn.textContent = '📋 Copiar'; btn.style.background = '#6b7280'; }, 1500);
+        } catch(e) { alert('Link:\n' + url); }
+        tmp.remove();
+    });
+}
+
 function salvarCampoProcesso(el) {
     var id = el.dataset ? el.dataset.id : el.id;
     var field = el.dataset ? el.dataset.field : '';
