@@ -144,7 +144,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="?canal=21" class="wd-tab <?= $canal === '21' ? 'active' : '' ?>">DDD 21 (Comercial)</a>
         <a href="?canal=24" class="wd-tab <?= $canal === '24' ? 'active' : '' ?>">DDD 24 (CX)</a>
     </div>
-    <div style="margin-left:auto;">
+    <div style="margin-left:auto;display:flex;gap:.4rem;">
+        <a href="<?= module_url('whatsapp', 'relatorio.php') ?>" class="btn btn-primary btn-sm" style="background:#7c3aed;">📈 Relatórios detalhados</a>
         <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm">← Voltar</a>
     </div>
 </div>
