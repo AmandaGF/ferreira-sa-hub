@@ -333,12 +333,15 @@ if ($action === 'assumir_atendimento') {
     zapi_expirar_delegacoes_estale(6);
 
     $convId = (int)($_POST['conversa_id'] ?? 0);
-    // Bloqueia se conversa foi delegada pra outra pessoa (só quem delegou ou o alvo pode destravar).
-    $check = $pdo->prepare("SELECT delegada, atendente_id FROM zapi_conversas WHERE id = ?");
-    $check->execute(array($convId));
-    $conv = $check->fetch();
-    if ($conv && (int)$conv['delegada'] === 1 && (int)$conv['atendente_id'] !== $userId && !can_delegar_whatsapp()) {
-        echo json_encode(array('error' => 'Esta conversa foi delegada a outro atendente. Apenas o atendente designado ou um admin (Amanda/Luiz) podem assumir.'));
+
+    // Bloqueia se outro usuário já assumiu/foi delegada E a conversa teve atividade
+    // nas últimas 6h. Pra realocar, Amanda ou Luiz Eduardo precisam usar "Delegar".
+    // Amanda/Luiz têm bypass (podem assumir quando quiserem).
+    $lock = zapi_pode_enviar_conversa($convId, $userId, 6);
+    if (empty($lock['pode'])) {
+        echo json_encode(array(
+            'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Apenas Amanda ou Luiz Eduardo podem delegar para outra pessoa, ou aguarde 6h sem interação."
+        ));
         exit;
     }
     $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, bot_ativo = 0, status = 'em_atendimento' WHERE id = ?")

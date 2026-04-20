@@ -396,8 +396,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
         var souEuAtendente = (+c.atendente_id === <?= (int)$user['id'] ?>);
         var estaDelegada = !!(+c.delegada);
-        // Se delegada a outro e eu não sou admin delegador, não exibe Assumir.
-        if (!souEuAtendente && (!estaDelegada || PODE_DELEGAR)) {
+        var podeEnviar   = (+c.lock_pode_enviar === 1); // backend decidiu: livre, eu sou atendente, ou admin
+
+        // Assumir só aparece quando a conversa está LIVRE pra mim:
+        // - sem atendente (lock_pode_enviar=1 e atendente_id vazio)
+        // - ou passou 6h sem atividade (lock já destravou)
+        // - ou sou admin (PODE_DELEGAR bypassa)
+        // Se outro atendente já assumiu e há atividade recente, o botão some —
+        // só Amanda/Luiz podem realocar via "Delegar".
+        if (!souEuAtendente && podeEnviar) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
         if (PODE_DELEGAR) {
@@ -549,7 +556,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             var banner = document.createElement('div');
             banner.id = 'waLockBanner';
             banner.style.cssText = 'padding:.6rem .8rem;background:#fef3c7;border-top:1px solid #fcd34d;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.8rem;display:flex;align-items:center;gap:.5rem;';
-            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — você pode enviar só se assumir a conversa, ou após 6h sem interação.';
+            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — apenas Amanda ou Luiz Eduardo podem delegar esta conversa para outra pessoa. Após 6h sem interação, destrava automaticamente.';
             input.parentNode.insertBefore(banner, input);
             // Desabilita controles de envio
             ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
