@@ -39,7 +39,10 @@ if ($searchPipeline) {
     $pipeParams = array($s, $s, $s);
 }
 if ($filterMonth) {
-    $pipeWhere .= " AND DATE_FORMAT(pl.created_at, '%Y-%m') = ?";
+    // Filtra por data real de fechamento do contrato (converted_at).
+    // Fallback pra created_at só quando converted_at é NULL (lead que ainda
+    // não assinou contrato mas pode ter sido cadastrado nesse mês).
+    $pipeWhere .= " AND DATE_FORMAT(COALESCE(pl.converted_at, pl.created_at), '%Y-%m') = ?";
     $pipeParams[] = $filterMonth;
 }
 
@@ -411,13 +414,15 @@ $tipos = array();
 foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
 sort($tipos);
 
-// Meses disponíveis no banco (para dropdown server-side de filtro por mês)
+// Meses disponíveis no banco (para dropdown server-side de filtro por mês).
+// Usa data de fechamento real (converted_at) com fallback pra created_at quando NULL,
+// pra casar com o WHERE lá em cima.
 $mesesDisponiveis = array();
 try {
     $mesesDisponiveis = $pdo->query(
-        "SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym
+        "SELECT DATE_FORMAT(COALESCE(converted_at, created_at), '%Y-%m') AS ym
          FROM pipeline_leads
-         WHERE created_at IS NOT NULL AND stage NOT IN ('arquivado')
+         WHERE stage NOT IN ('arquivado')
          GROUP BY ym
          ORDER BY ym DESC"
     )->fetchAll(PDO::FETCH_COLUMN);

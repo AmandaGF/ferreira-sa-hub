@@ -1007,8 +1007,8 @@ switch ($action) {
                     $cdRow = $cd->fetch();
                     if ($cdRow) {
                         $pdo->prepare(
-                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, assigned_to, notes, created_at)
-                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,NOW())"
+                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, assigned_to, notes, converted_at, created_at)
+                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,NOW(),NOW())"
                         )->execute(array($clientIdDup, $newCaseId, $cdRow['name'], $cdRow['phone'], $cdRow['email'], 'duplicado', current_user_id(), 'Nova ação (duplicado)'));
                         $newLeadId = (int)$pdo->lastInsertId();
                         $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, changed_by, notes) VALUES (?,?,?,?)")
@@ -1078,8 +1078,8 @@ switch ($action) {
                     $cliDupRow = $cliDup->fetch();
                     if ($cliDupRow) {
                         $pdo->prepare(
-                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, notes, created_at)
-                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,?,NOW())"
+                            "INSERT INTO pipeline_leads (client_id, linked_case_id, name, phone, email, source, stage, case_type, assigned_to, notes, converted_at, created_at)
+                             VALUES (?,?,?,?,?,?,'contrato_assinado',?,?,?,NOW(),NOW())"
                         )->execute(array(
                             $origCase['client_id'], $newCaseId,
                             $cliDupRow['name'], $cliDupRow['phone'], $cliDupRow['email'],
