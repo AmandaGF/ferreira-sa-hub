@@ -21,6 +21,32 @@ try {
     $_waFilaPendente = (int)db()->query("SELECT COUNT(*) FROM zapi_fila_envio WHERE status='pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
+// Módulos de treinamento pendentes pro perfil do usuário
+$_treinaPendentes = 0;
+try {
+    $uid = current_user_id();
+    $roleU = current_user_role();
+    if ($uid && $roleU) {
+        // Total de módulos aplicáveis ao perfil
+        $st = db()->prepare("SELECT slug, perfis_alvo FROM treinamento_modulos WHERE ativo = 1");
+        $st->execute();
+        $slugsAplicaveis = array();
+        foreach ($st->fetchAll() as $m) {
+            $perfis = json_decode($m['perfis_alvo'], true) ?: array();
+            if (in_array('todos', $perfis, true) || in_array($roleU, $perfis, true)) {
+                $slugsAplicaveis[] = $m['slug'];
+            }
+        }
+        if ($slugsAplicaveis) {
+            $ph = implode(',', array_fill(0, count($slugsAplicaveis), '?'));
+            $st2 = db()->prepare("SELECT COUNT(*) FROM treinamento_progresso WHERE user_id = ? AND concluido = 1 AND modulo_slug IN ($ph)");
+            $st2->execute(array_merge(array($uid), $slugsAplicaveis));
+            $concluidos = (int)$st2->fetchColumn();
+            $_treinaPendentes = max(0, count($slugsAplicaveis) - $concluidos);
+        }
+    }
+} catch (Exception $e) {}
+
 $all = array('admin','gestao','comercial','cx','operacional','estagiario','colaborador');
 $equipe = array('admin','gestao','comercial','cx','operacional','estagiario'); // todos exceto colaborador
 $menuItems = array(
@@ -96,7 +122,7 @@ $menuItems = array(
     array('label' => 'Log Acessos',     'icon' => '📋', 'href' => url('modules/salavip/log.php'),      'id' => 'salavip_log',     'roles' => array('admin','gestao')),
 
     array('section' => 'Sistema'),
-    array('label' => 'Treinamento',     'icon' => '🎓', 'href' => url('modules/treinamento/'),      'id' => 'treinamento',     'roles' => $all),
+    array('label' => 'Treinamento',     'icon' => '🎓', 'href' => url('modules/treinamento/'),      'id' => 'treinamento',     'roles' => $all, 'badge' => $_treinaPendentes, 'badgeCor' => '#B87333'),
     array('label' => 'Usuários',        'icon' => '🛡️', 'href' => url('modules/usuarios/'),        'id' => 'usuarios',        'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin','gestao')),

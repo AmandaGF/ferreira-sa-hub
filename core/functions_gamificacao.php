@@ -23,6 +23,10 @@ function _gamificacao_eventos()
         'peticao_distribuicao'   => array('pts' => 50,  'area' => 'operacional',  'desc' => 'Petição para distribuição'),
         'prazo_cumprido'         => array('pts' => 25,  'area' => 'operacional',  'desc' => 'Prazo cumprido'),
         'tarefa_concluida'       => array('pts' => 10,  'area' => 'operacional',  'desc' => 'Tarefa concluída'),
+        // TREINAMENTO
+        'modulo_concluido'       => array('pts' => 50,  'area' => 'operacional',  'desc' => 'Módulo de treinamento concluído'),
+        'quiz_nota_maxima'       => array('pts' => 20,  'area' => 'operacional',  'desc' => 'Quiz com 100% de acerto'),
+        'treinamento_completo'   => array('pts' => 200, 'area' => 'operacional',  'desc' => 'Todos os módulos de treinamento concluídos'),
         // MANUAL
         'pontos_manuais'         => array('pts' => 0,   'area' => 'comercial',    'desc' => 'Pontos manuais'),
     );

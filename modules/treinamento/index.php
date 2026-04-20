@@ -1,345 +1,228 @@
 <?php
 /**
- * Ferreira & Sá Hub — Treinamento da Equipe
+ * Ferreira & Sá Hub — Central de Treinamento
+ * Grid com 23 módulos + progresso pessoal + ranking do treinamento.
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
 $pageTitle = 'Treinamento';
 $pdo = db();
+$user = current_user();
+$userId = (int)$user['id'];
+$role = current_user_role();
 
-// Buscar usuários ativos (exceto admin) para os chips
-$activeUsers = $pdo->query("SELECT name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+// Self-heal schema (caso a migração ainda não tenha rodado)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS treinamento_progresso (
+        id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL,
+        modulo_slug VARCHAR(50) NOT NULL, conteudo_visto TINYINT(1) DEFAULT 0,
+        missao_feita TINYINT(1) DEFAULT 0, quiz_concluido TINYINT(1) DEFAULT 0,
+        concluido TINYINT(1) DEFAULT 0, quiz_acertos INT DEFAULT 0,
+        quiz_tentativas INT DEFAULT 0, pontos_ganhos INT DEFAULT 0,
+        concluido_em DATETIME NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_user_modulo (user_id, modulo_slug)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
+$filtroPerfil = $_GET['perfil'] ?? 'todos';
+
+$modulos = $pdo->query(
+    "SELECT m.*,
+            COALESCE(p.conteudo_visto, 0) AS conteudo_visto,
+            COALESCE(p.missao_feita, 0) AS missao_feita,
+            COALESCE(p.quiz_concluido, 0) AS quiz_concluido,
+            COALESCE(p.concluido, 0) AS concluido,
+            COALESCE(p.pontos_ganhos, 0) AS pontos_ganhos
+     FROM treinamento_modulos m
+     LEFT JOIN treinamento_progresso p ON p.modulo_slug = m.slug AND p.user_id = {$userId}
+     WHERE m.ativo = 1
+     ORDER BY m.ordem ASC"
+)->fetchAll();
+
+$modulosFiltrados = $modulos;
+if ($filtroPerfil !== 'todos') {
+    $modulosFiltrados = array_filter($modulos, function($m) use ($filtroPerfil, $role){
+        $perfis = json_decode($m['perfis_alvo'], true) ?: array();
+        if ($filtroPerfil === 'meus') {
+            return in_array('todos', $perfis, true) || in_array($role, $perfis, true);
+        }
+        return in_array('todos', $perfis, true) || in_array($filtroPerfil, $perfis, true);
+    });
+}
+
+$total = count($modulos);
+$concluidos = count(array_filter($modulos, function($m){ return (int)$m['concluido'] === 1; }));
+$pontosTotais = array_sum(array_column($modulos, 'pontos_ganhos'));
+$pctProgresso = $total > 0 ? round($concluidos / $total * 100) : 0;
+
+$ranking = $pdo->query(
+    "SELECT u.id, u.name,
+            COUNT(CASE WHEN p.concluido = 1 THEN 1 END) AS concluidos,
+            COALESCE(SUM(p.pontos_ganhos), 0) AS pontos
+     FROM users u
+     LEFT JOIN treinamento_progresso p ON p.user_id = u.id
+     WHERE u.is_active = 1
+     GROUP BY u.id, u.name
+     HAVING concluidos > 0 OR pontos > 0
+     ORDER BY pontos DESC, concluidos DESC
+     LIMIT 10"
+)->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+
 <style>
-:root {
-  --primario: #052228;
-  --cobre: #B87333;
-  --cobre-claro: #D7AB90;
-  --cobre-suave: #F5EDE3;
-  --texto: #1A1A1A;
-  --cinza: #F4F4F4;
-  --cinza-medio: #E8E8E8;
-  --branco: #FFFFFF;
-  --verde-ok: #2D7A4F;
-  --vermelho: #CC0000;
-}
-.page-content { max-width:none !important; padding:0 !important; }
-.hero { background: linear-gradient(135deg, var(--primario) 0%, #0a3d47 100%); padding: 48px 32px 40px; text-align: center; position: relative; overflow: hidden; border-radius: 0 0 16px 16px; }
-.hero::before { content: ''; position: absolute; top: -60px; right: -60px; width: 300px; height: 300px; border: 1px solid rgba(184,115,51,0.2); border-radius: 50%; }
-.hero-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--cobre); margin-bottom: 12px; }
-.hero h1 { font-size: clamp(24px, 4vw, 38px); color: #fff; line-height: 1.2; margin-bottom: 14px; font-weight: 800; }
-.hero-sub { font-size: 15px; color: rgba(255,255,255,0.7); max-width: 480px; margin: 0 auto 24px; }
-.hero-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
-.chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(184,115,51,0.35); color: var(--cobre-claro); font-size: 12px; padding: 5px 14px; border-radius: 20px; }
-.hero-logo { position: absolute; top: 20px; right: 32px; }
-.hero-logo img { width: 48px; height: 48px; border-radius: 10px; opacity: 0.8; }
-
-.nav-modulos { background: var(--branco); border-bottom: 1px solid var(--cinza-medio); padding: 0 16px; display: flex; gap: 0; justify-content: center; overflow-x: auto; position: sticky; top: 60px; z-index: 50; }
-.nav-btn { background: none; border: none; border-bottom: 3px solid transparent; padding: 14px 16px; font-size: 13px; font-weight: 500; color: #888; cursor: pointer; white-space: nowrap; transition: all 0.2s; font-family: inherit; }
-.nav-btn:hover { color: var(--primario); }
-.nav-btn.ativo { color: var(--primario); border-bottom-color: var(--cobre); font-weight: 600; }
-
-.tr-main { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
-.modulo { display: none; animation: fadeIn 0.3s ease; }
-.modulo.ativo { display: block; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-.modulo-header { display: flex; align-items: center; gap: 14px; margin-bottom: 28px; }
-.modulo-icon { width: 48px; height: 48px; background: var(--primario); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-.modulo-titulo h2 { font-size: 22px; color: var(--primario); font-weight: 800; }
-.modulo-titulo p { font-size: 13px; color: #666; margin-top: 2px; }
-
-.secao { background: var(--branco); border-radius: 14px; padding: 28px; margin-bottom: 20px; border: 1px solid var(--cinza-medio); }
-.secao-titulo { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--cobre); margin-bottom: 18px; display: flex; align-items: center; gap: 10px; }
-.secao-titulo::after { content: ''; flex: 1; height: 1px; background: var(--cinza-medio); }
-
-.passos { display: flex; flex-direction: column; gap: 0; }
-.passo { display: flex; gap: 16px; padding-bottom: 20px; position: relative; }
-.passo:not(:last-child)::before { content: ''; position: absolute; left: 17px; top: 38px; bottom: 0; width: 2px; background: var(--cinza-medio); }
-.passo-num { width: 36px; height: 36px; background: var(--primario); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0; position: relative; z-index: 1; }
-.passo-conteudo h4 { font-size: 14px; font-weight: 600; color: var(--primario); margin-bottom: 4px; padding-top: 6px; }
-.passo-conteudo p { font-size: 13px; color: #555; line-height: 1.6; }
-
-.alerta { border-radius: 10px; padding: 12px 16px; font-size: 13px; margin: 12px 0; display: flex; gap: 10px; align-items: flex-start; }
-.alerta-ok { background: #EBF7F1; border-left: 4px solid var(--verde-ok); color: #1a4a2e; }
-.alerta-atencao { background: #FFF8EC; border-left: 4px solid var(--cobre); color: #5a3a00; }
-.alerta-erro { background: #FFF0F0; border-left: 4px solid var(--vermelho); color: #5a0000; }
-.alerta-icone { font-size: 16px; flex-shrink: 0; }
-
-.kanban-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 14px 0; }
-.kanban-coluna { background: var(--cinza); border-radius: 10px; padding: 12px; border: 1px solid var(--cinza-medio); }
-.kanban-coluna-num { font-size: 10px; font-weight: 700; color: var(--cobre); letter-spacing: 0.1em; margin-bottom: 3px; }
-.kanban-coluna-nome { font-size: 12px; font-weight: 600; color: var(--primario); margin-bottom: 4px; }
-.kanban-coluna-resp { font-size: 10px; color: #888; }
-.kanban-coluna-auto { margin-top: 6px; font-size: 10px; background: #EBF7F1; color: var(--verde-ok); padding: 2px 8px; border-radius: 20px; display: inline-block; font-weight: 600; }
-.kanban-coluna-manual { margin-top: 6px; font-size: 10px; background: #EBF2FF; color: #1a3a7a; padding: 2px 8px; border-radius: 20px; display: inline-block; font-weight: 600; }
-
-.regra { display: flex; gap: 14px; padding: 14px; background: var(--cinza); border-radius: 10px; margin-bottom: 8px; align-items: flex-start; }
-.regra-emoji { font-size: 18px; flex-shrink: 0; }
-.regra-texto h4 { font-size: 13px; font-weight: 600; color: var(--primario); margin-bottom: 3px; }
-.regra-texto p { font-size: 12px; color: #555; }
-
-.tabela-treino { width: 100%; border-collapse: collapse; font-size: 13px; }
-.tabela-treino th { background: var(--primario); color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 11px; letter-spacing: 0.05em; }
-.tabela-treino th:first-child { border-radius: 8px 0 0 0; }
-.tabela-treino th:last-child { border-radius: 0 8px 0 0; }
-.tabela-treino td { padding: 10px 14px; border-bottom: 1px solid var(--cinza-medio); vertical-align: top; }
-.tabela-treino tr:nth-child(even) td { background: var(--cinza); }
-
-.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
-.badge-comercial { background: #E8F0FF; color: #1a3a7a; }
-.badge-cx { background: #F0E8FF; color: #3a1a7a; }
-.badge-operacional { background: #EBF7F1; color: var(--verde-ok); }
-.badge-admin { background: #FFEEE8; color: #7a3a1a; }
-
-.dica { background: var(--cobre-suave); border: 1px solid rgba(184,115,51,0.2); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
-.dica-titulo { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--cobre); margin-bottom: 6px; }
-.dica p { font-size: 13px; color: #5a3a00; }
-
-.tr-footer { background: var(--primario); color: rgba(255,255,255,0.5); text-align: center; padding: 20px; font-size: 12px; margin-top: 40px; border-radius: 12px; }
-.tr-footer strong { color: var(--cobre); }
-
-@media (max-width: 768px) { .tr-main { padding: 16px 12px; } .secao { padding: 18px; } .kanban-grid { grid-template-columns: 1fr 1fr; } }
+.tr-wrap { max-width:1400px; margin:0 auto; }
+.tr-hero { background:linear-gradient(135deg, #052228, #0a3842); color:#fff; padding:1.5rem 2rem; border-radius:16px; margin-bottom:1.2rem; display:flex; gap:1.5rem; align-items:center; flex-wrap:wrap; }
+.tr-hero h1 { margin:0; font-family:'Cormorant Garamond', serif; font-weight:600; font-size:2rem; letter-spacing:.5px; }
+.tr-hero .tag { font-family:'Outfit', sans-serif; font-size:.9rem; opacity:.85; margin-top:3px; font-style:italic; color:#D7AB90; }
+.tr-prog-bar { flex:1; min-width:260px; background:rgba(255,255,255,.1); border-radius:999px; height:24px; overflow:hidden; position:relative; }
+.tr-prog-fill { height:100%; background:linear-gradient(90deg, #B87333, #D7AB90); border-radius:999px; transition:width .5s; }
+.tr-prog-text { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.78rem; font-weight:700; color:#fff; }
+.tr-stats { display:flex; gap:1.3rem; flex-wrap:wrap; }
+.tr-stats .stat { background:rgba(255,255,255,.08); padding:.6rem 1rem; border-radius:10px; }
+.tr-stats .stat .num { font-size:1.4rem; font-weight:700; font-family:'Outfit',sans-serif; }
+.tr-stats .stat .lbl { font-size:.65rem; text-transform:uppercase; letter-spacing:.4px; opacity:.85; }
+.tr-filters { display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1rem; }
+.tr-filter { padding:6px 14px; border-radius:999px; background:#fff; border:1.5px solid #e5e7eb; font-size:.78rem; font-weight:600; cursor:pointer; text-decoration:none; color:#052228; transition:all .15s; }
+.tr-filter:hover { border-color:#B87333; color:#B87333; }
+.tr-filter.active { background:#052228; color:#fff; border-color:#052228; }
+.tr-layout { display:grid; grid-template-columns:1fr 300px; gap:1.5rem; align-items:start; }
+@media (max-width:1024px) { .tr-layout { grid-template-columns:1fr; } }
+.tr-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem; }
+.tr-card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:1.2rem; display:flex; flex-direction:column; gap:.6rem; transition:all .2s; position:relative; text-decoration:none; color:inherit; }
+.tr-card:hover { border-color:#B87333; box-shadow:0 6px 20px rgba(184,115,51,.15); transform:translateY(-2px); }
+.tr-card.concluido { background:linear-gradient(135deg, #fff 0%, #f5ede3 100%); border-color:#B87333; }
+.tr-card .ico { font-size:2.2rem; line-height:1; }
+.tr-card h3 { font-family:'Cormorant Garamond', serif; font-size:1.25rem; margin:0; color:#052228; font-weight:600; line-height:1.1; }
+.tr-card .desc { font-size:.78rem; color:#6b7280; line-height:1.4; flex:1; }
+.tr-card .perfis { display:flex; gap:3px; flex-wrap:wrap; }
+.tr-card .perfil-pill { font-size:.58rem; background:#f5ede3; color:#78350f; padding:2px 7px; border-radius:999px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+.tr-card .prog { display:flex; gap:3px; margin-top:6px; }
+.tr-card .prog-step { flex:1; height:6px; background:#e5e7eb; border-radius:3px; }
+.tr-card .prog-step.done { background:#B87333; }
+.tr-card .meta { display:flex; justify-content:space-between; align-items:center; font-size:.72rem; color:#6b7280; margin-top:6px; }
+.tr-card .pts { font-weight:700; color:#B87333; }
+.tr-card .badge { position:absolute; top:10px; right:10px; font-size:.65rem; padding:2px 8px; border-radius:999px; font-weight:700; }
+.tr-card .badge.ok { background:#059669; color:#fff; }
+.tr-card .badge.andamento { background:#f59e0b; color:#fff; }
+.tr-sidebar { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:1.2rem; position:sticky; top:20px; }
+.tr-sidebar h3 { font-family:'Cormorant Garamond', serif; margin:0 0 .8rem; color:#052228; font-size:1.3rem; }
+.tr-rank-item { display:flex; align-items:center; gap:.6rem; padding:.5rem 0; border-bottom:1px solid #f3f4f6; }
+.tr-rank-item:last-child { border:none; }
+.tr-rank-pos { width:24px; height:24px; border-radius:50%; background:#f3f4f6; display:flex; align-items:center; justify-content:center; font-size:.72rem; font-weight:700; color:#6b7280; flex-shrink:0; }
+.tr-rank-pos.p1 { background:linear-gradient(135deg,#fbbf24,#d97706); color:#fff; }
+.tr-rank-pos.p2 { background:linear-gradient(135deg,#d1d5db,#9ca3af); color:#fff; }
+.tr-rank-pos.p3 { background:linear-gradient(135deg,#d7ab90,#b87333); color:#fff; }
+.tr-rank-info { flex:1; min-width:0; }
+.tr-rank-nome { font-size:.78rem; font-weight:600; color:#052228; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tr-rank-pts { font-size:.68rem; color:#6b7280; }
 </style>
 
-<div class="hero">
-  <div class="hero-logo"><img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" onerror="this.style.display='none'"></div>
-  <div class="hero-eyebrow">Material Interno — Equipe</div>
-  <h1>Bem-vindas ao<br>Ferreira & Sá Hub</h1>
-  <p class="hero-sub">Guia completo para usar o portal interno do escritório. Leia com atenção e consulte sempre que tiver dúvidas.</p>
-  <div class="hero-chips">
-    <?php foreach ($activeUsers as $u):
-        $firstName = explode(' ', trim($u['name']))[0];
+<div class="tr-wrap">
+
+<div class="tr-hero">
+    <div>
+        <h1>🎓 Central de Treinamento — F&S Hub</h1>
+        <div class="tag">"Domine o sistema. Ganhe pontos. Seja reconhecido."</div>
+    </div>
+    <div style="flex:1; min-width:260px;">
+        <div class="tr-prog-bar">
+            <div class="tr-prog-fill" style="width:<?= $pctProgresso ?>%;"></div>
+            <div class="tr-prog-text"><?= $concluidos ?>/<?= $total ?> módulos · <?= $pctProgresso ?>%</div>
+        </div>
+    </div>
+    <div class="tr-stats">
+        <div class="stat"><div class="num"><?= $pontosTotais ?></div><div class="lbl">🏆 Pontos</div></div>
+        <div class="stat"><div class="num"><?= $concluidos ?></div><div class="lbl">✅ Módulos</div></div>
+    </div>
+</div>
+
+<div class="tr-filters">
+    <?php
+    $filtros = array(
+        'todos' => 'Todos',
+        'meus'  => '⭐ Pro meu perfil (' . $role . ')',
+        'comercial' => 'Comercial',
+        'cx' => 'CX',
+        'operacional' => 'Operacional',
+        'admin' => 'Admin/Gestão',
+    );
+    foreach ($filtros as $k => $lbl):
+        $active = $filtroPerfil === $k ? 'active' : '';
     ?>
-        <span class="chip"><?= e($firstName) ?></span>
+        <a href="?perfil=<?= $k ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
     <?php endforeach; ?>
-  </div>
 </div>
 
-<nav class="nav-modulos">
-  <button class="nav-btn ativo" onclick="mostrar('kanban-comercial', this)">📋 Kanban Comercial</button>
-  <button class="nav-btn" onclick="mostrar('kanban-operacional', this)">⚙️ Kanban Operacional</button>
-  <button class="nav-btn" onclick="mostrar('documentos', this)">📄 Documentos</button>
-  <button class="nav-btn" onclick="mostrar('notificacoes', this)">💬 Notificações</button>
-  <button class="nav-btn" onclick="mostrar('portal-links', this)">🔗 Portal de Links</button>
-  <button class="nav-btn" onclick="mostrar('procuracao', this)">✍️ Regras de Procuração</button>
-</nav>
-
-<div class="tr-main">
-
-<!-- ═══ KANBAN COMERCIAL ═══ -->
-<div id="kanban-comercial" class="modulo ativo">
-  <div class="modulo-header">
-    <div class="modulo-icon">📋</div>
-    <div class="modulo-titulo"><h2>Kanban Comercial</h2><p>Acompanhamento do cliente desde o cadastro até a pasta apta</p></div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">As 10 colunas do Pipeline</div>
-    <div class="kanban-grid">
-      <div class="kanban-coluna"><div class="kanban-coluna-num">01</div><div class="kanban-coluna-nome">Cadastro Preenchido</div><div class="kanban-coluna-resp">Sistema</div><div class="kanban-coluna-auto">Automático</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">02</div><div class="kanban-coluna-nome">Elaboração Procuração / Contrato</div><div class="kanban-coluna-resp">Comercial</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">03</div><div class="kanban-coluna-nome">Link Enviado</div><div class="kanban-coluna-resp">Comercial</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">04</div><div class="kanban-coluna-nome">Contrato Assinado</div><div class="kanban-coluna-resp">Comercial</div><div class="kanban-coluna-auto">Gatilho Drive + Op.</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">05</div><div class="kanban-coluna-nome">Agendado + Docs Solicitados</div><div class="kanban-coluna-resp">CX</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">06</div><div class="kanban-coluna-nome">Reunião / Cobrando Docs</div><div class="kanban-coluna-resp">CX</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">07</div><div class="kanban-coluna-nome">Documento Faltante</div><div class="kanban-coluna-resp">Sistema</div><div class="kanban-coluna-auto">Espelho Operacional</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">08</div><div class="kanban-coluna-nome">Pasta Apta</div><div class="kanban-coluna-resp">CX</div><div class="kanban-coluna-auto">Some quando Op. inicia</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">09</div><div class="kanban-coluna-nome">Cancelado</div><div class="kanban-coluna-resp">Admin</div><div class="kanban-coluna-manual">Somente Admin</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">10</div><div class="kanban-coluna-nome">Suspenso</div><div class="kanban-coluna-resp">Admin</div><div class="kanban-coluna-manual">Somente Admin</div></div>
+<div class="tr-layout">
+    <div class="tr-grid">
+        <?php foreach ($modulosFiltrados as $m):
+            $perfis = json_decode($m['perfis_alvo'], true) ?: array();
+            $etapas = (int)$m['conteudo_visto'] + (int)$m['missao_feita'] + (int)$m['quiz_concluido'];
+            $concluido = (int)$m['concluido'] === 1;
+            $cardCls = $concluido ? 'concluido' : ($etapas > 0 ? 'andamento' : '');
+        ?>
+        <a href="<?= module_url('treinamento', 'modulo.php?slug=' . urlencode($m['slug'])) ?>" class="tr-card <?= $cardCls ?>">
+            <?php if ($concluido): ?>
+                <span class="badge ok">✓ Concluído</span>
+            <?php elseif ($etapas > 0): ?>
+                <span class="badge andamento">▶ <?= $etapas ?>/3</span>
+            <?php endif; ?>
+            <div class="ico"><?= e($m['icone']) ?></div>
+            <h3><?= e($m['titulo']) ?></h3>
+            <div class="desc"><?= e($m['descricao']) ?></div>
+            <div class="perfis">
+                <?php foreach ($perfis as $p): ?>
+                    <span class="perfil-pill"><?= e($p) ?></span>
+                <?php endforeach; ?>
+            </div>
+            <div class="prog">
+                <div class="prog-step <?= $m['conteudo_visto'] ? 'done' : '' ?>" title="Conteúdo"></div>
+                <div class="prog-step <?= $m['missao_feita']   ? 'done' : '' ?>" title="Missão"></div>
+                <div class="prog-step <?= $m['quiz_concluido'] ? 'done' : '' ?>" title="Quiz"></div>
+            </div>
+            <div class="meta">
+                <span>⏱ ~<?= $m['pontos'] >= 70 ? '15' : ($m['pontos'] >= 50 ? '10' : '5') ?> min</span>
+                <span class="pts">+<?= (int)$m['pontos'] ?> pts</span>
+            </div>
+        </a>
+        <?php endforeach; ?>
+        <?php if (empty($modulosFiltrados)): ?>
+            <div style="grid-column:1/-1;text-align:center;padding:2rem;color:#6b7280;">Nenhum módulo para este filtro.</div>
+        <?php endif; ?>
     </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Fluxo passo a passo</div>
-    <div class="passos">
-      <div class="passo"><div class="passo-num">1</div><div class="passo-conteudo"><h4>Cliente preenche o formulário de cadastro</h4><p>O card é criado automaticamente na coluna <strong>Cadastro Preenchido</strong>. Vocês não precisam fazer nada — ele já aparece com todos os dados que o cliente informou.</p></div></div>
-      <div class="passo"><div class="passo-num">2</div><div class="passo-conteudo"><h4>Elaborar procuração e contrato</h4><p>Mova o card para <strong>Elaboração Procuração / Contrato</strong>. Clique no card, vá em Documentos e gere a procuração e o contrato conforme o tipo de ação.</p></div></div>
-      <div class="passo"><div class="passo-num">3</div><div class="passo-conteudo"><h4>Enviar link para assinatura</h4><p>Faça o download do documento, suba no <strong>ZapSign</strong> e envie o link para o cliente. Mova o card para <strong>Link Enviado</strong>.</p></div></div>
-      <div class="passo"><div class="passo-num">4</div><div class="passo-conteudo"><h4>Confirmar assinatura do contrato</h4><p>Quando o cliente assinar, mova para <strong>Contrato Assinado</strong>. O sistema vai pedir o <strong>nome da pasta</strong> no formato <em>Nome do Cliente x Tipo de Ação</em>. Ao confirmar, a pasta é criada no Drive e o caso aparece no Kanban Operacional.</p><div class="alerta alerta-atencao"><span class="alerta-icone">⚠️</span><span>O nome da pasta no formato correto é essencial. Exemplo: <strong>Wendel Magno x Alimentos</strong></span></div></div></div>
-      <div class="passo"><div class="passo-num">5</div><div class="passo-conteudo"><h4>Agendar onboarding e solicitar documentos</h4><p>Mova para <strong>Agendado + Docs Solicitados</strong>. Agende a reunião de onboarding com o cliente e solicite os documentos necessários.</p></div></div>
-      <div class="passo"><div class="passo-num">6</div><div class="passo-conteudo"><h4>Cobrar documentos após a reunião</h4><p>Mova para <strong>Reunião / Cobrando Docs</strong>. O CX acompanha o recebimento da documentação.</p></div></div>
-      <div class="passo"><div class="passo-num">7</div><div class="passo-conteudo"><h4>Pasta apta — tudo certo!</h4><p>Quando toda a documentação estiver recebida, mova para <strong>Pasta Apta</strong>. O Operacional será notificado. O card some do Pipeline quando o Operacional iniciar a execução.</p><div class="alerta alerta-ok"><span class="alerta-icone">✅</span><span>Após a Pasta Apta, o comercial não precisa mais fazer nada neste caso.</span></div></div></div>
-    </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Regras importantes</div>
-    <div class="regra"><div class="regra-emoji">🔄</div><div class="regra-texto"><h4>Documento Faltante — vem do Operacional</h4><p>Se o Operacional sinalizar que falta um documento, o card vai automaticamente para <strong>Documento Faltante</strong>. O CX precisa cobrar o cliente.</p></div></div>
-    <div class="regra"><div class="regra-emoji">🚫</div><div class="regra-texto"><h4>Cancelado e Suspenso — somente Admin</h4><p>Apenas a Amanda pode mover um card para Cancelado ou Suspenso. Cancela nos dois Kanbans automaticamente.</p></div></div>
-    <div class="regra"><div class="regra-emoji">👁️</div><div class="regra-texto"><h4>Visão Kanban vs. Tabela</h4><p>Alterne entre Kanban (cards) e Tabela (Excel) no topo. Na tabela, edite campos direto na célula.</p></div></div>
-    <div class="regra"><div class="regra-emoji">📅</div><div class="regra-texto"><h4>Filtro por mês</h4><p>Use o filtro de mês no topo para ver só os clientes de um período específico.</p></div></div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Quem pode fazer o quê</div>
-    <table class="tabela-treino">
-      <tr><th>Ação</th><th>Quem pode</th></tr>
-      <tr><td>Criar novo lead manualmente</td><td><span class="badge badge-comercial">Comercial</span> <span class="badge badge-admin">Admin</span></td></tr>
-      <tr><td>Mover cards colunas 1–4</td><td><span class="badge badge-comercial">Comercial</span> <span class="badge badge-admin">Admin</span></td></tr>
-      <tr><td>Mover cards colunas 5–8</td><td><span class="badge badge-cx">CX</span> <span class="badge badge-admin">Admin</span></td></tr>
-      <tr><td>Cancelar ou suspender</td><td><span class="badge badge-admin">Admin apenas</span></td></tr>
-      <tr><td>Ver dados financeiros</td><td><span class="badge badge-comercial">Comercial</span> <span class="badge badge-admin">Admin</span></td></tr>
-    </table>
-  </div>
-</div>
 
-<!-- ═══ KANBAN OPERACIONAL ═══ -->
-<div id="kanban-operacional" class="modulo">
-  <div class="modulo-header"><div class="modulo-icon">⚙️</div><div class="modulo-titulo"><h2>Kanban Operacional</h2><p>Execução dos processos — do recebimento à distribuição</p></div></div>
-  <div class="secao">
-    <div class="secao-titulo">As 8 colunas do Operacional</div>
-    <div class="kanban-grid">
-      <div class="kanban-coluna"><div class="kanban-coluna-num">01</div><div class="kanban-coluna-nome">Contrato — Aguardando Docs</div><div class="kanban-coluna-resp">Sistema</div><div class="kanban-coluna-auto">Vem do Pipeline</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">02</div><div class="kanban-coluna-nome">Pasta Apta</div><div class="kanban-coluna-resp">Sistema</div><div class="kanban-coluna-auto">Vem do Pipeline</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">03</div><div class="kanban-coluna-nome">Em Execução</div><div class="kanban-coluna-resp">Operacional</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">04</div><div class="kanban-coluna-nome">Documento Faltante</div><div class="kanban-coluna-resp">Operacional</div><div class="kanban-coluna-auto">Notifica CX</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">05</div><div class="kanban-coluna-nome">Aguardando Distribuição</div><div class="kanban-coluna-resp">Operacional</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">06</div><div class="kanban-coluna-nome">Processo Distribuído</div><div class="kanban-coluna-resp">Operacional</div><div class="kanban-coluna-auto">Modal com nº</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">07</div><div class="kanban-coluna-nome">Parceria</div><div class="kanban-coluna-resp">Operacional</div><div class="kanban-coluna-manual">Manual</div></div>
-      <div class="kanban-coluna"><div class="kanban-coluna-num">08</div><div class="kanban-coluna-nome">Cancelado</div><div class="kanban-coluna-resp">Admin</div><div class="kanban-coluna-manual">Somente Admin</div></div>
-    </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Fluxo passo a passo</div>
-    <div class="passos">
-      <div class="passo"><div class="passo-num">1</div><div class="passo-conteudo"><h4>Novo caso chega em Aguardando Docs</h4><p>Quando o Comercial move para <strong>Contrato Assinado</strong>, o caso aparece automaticamente aqui.</p></div></div>
-      <div class="passo"><div class="passo-num">2</div><div class="passo-conteudo"><h4>Pasta Apta — pode começar!</h4><p>Quando o CX confirma que toda a documentação chegou, o caso move para <strong>Pasta Apta</strong>.</p></div></div>
-      <div class="passo"><div class="passo-num">3</div><div class="passo-conteudo"><h4>Iniciar a execução</h4><p>Mova para <strong>Em Execução</strong>. O card some do Pipeline automaticamente.</p><div class="alerta alerta-ok"><span class="alerta-icone">✅</span><span>Quando mover para Em Execução, o card some do Pipeline. Não é bug.</span></div></div></div>
-      <div class="passo"><div class="passo-num">4</div><div class="passo-conteudo"><h4>Documento Faltante</h4><p>Se faltar documento, mova para <strong>Documento Faltante</strong>. O CX é notificado automaticamente.</p><div class="alerta alerta-atencao"><span class="alerta-icone">⚠️</span><span>Preencha a descrição com cuidado — vai aparecer para o cliente.</span></div></div></div>
-      <div class="passo"><div class="passo-num">5</div><div class="passo-conteudo"><h4>Aguardando Distribuição</h4><p>Quando a petição estiver pronta mas ainda não distribuída.</p></div></div>
-      <div class="passo"><div class="passo-num">6</div><div class="passo-conteudo"><h4>Processo Distribuído</h4><p>Preencha: nº do processo, vara/juízo, tipo e data. Ou selecione <strong>Extrajudicial</strong> se for o caso.</p></div></div>
-      <div class="passo"><div class="passo-num">7</div><div class="passo-conteudo"><h4>Parceria</h4><p>Para casos com advogados parceiros externos. Selecione o parceiro da lista.</p></div></div>
-    </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Alertas automáticos</div>
-    <div class="regra"><div class="regra-emoji">🔔</div><div class="regra-texto"><h4>Pasta Apta há mais de 5 dias</h4><p>Alerta automático se não mover para Em Execução.</p></div></div>
-    <div class="regra"><div class="regra-emoji">🔔</div><div class="regra-texto"><h4>Documento Faltante há mais de 3 dias</h4><p>Alerta automático para o CX responsável.</p></div></div>
-    <div class="regra"><div class="regra-emoji">🔔</div><div class="regra-texto"><h4>Processo sem número há mais de 2 dias</h4><p>Alerta se distribuído sem número cadastrado.</p></div></div>
-  </div>
-</div>
-
-<!-- ═══ DOCUMENTOS ═══ -->
-<div id="documentos" class="modulo">
-  <div class="modulo-header"><div class="modulo-icon">📄</div><div class="modulo-titulo"><h2>Geração de Documentos</h2><p>Como gerar procuração, contrato e outros documentos pelo portal</p></div></div>
-  <div class="secao">
-    <div class="secao-titulo">Passo a passo</div>
-    <div class="passos">
-      <div class="passo"><div class="passo-num">1</div><div class="passo-conteudo"><h4>Abra o card do cliente</h4><p>No Kanban Comercial, clique no card do cliente.</p></div></div>
-      <div class="passo"><div class="passo-num">2</div><div class="passo-conteudo"><h4>Clique em Elaborar Documento</h4><p>Dentro do card, clique no botão <strong>📜 Elaborar Documento</strong>.</p></div></div>
-      <div class="passo"><div class="passo-num">3</div><div class="passo-conteudo"><h4>Escolha o modelo</h4><p>Selecione o tipo de documento e o tipo de ação do cliente.</p></div></div>
-      <div class="passo"><div class="passo-num">4</div><div class="passo-conteudo"><h4>Revise e gere</h4><p>O sistema preenche automaticamente com os dados do cliente. Revise e clique em <strong>Gerar Documento</strong>.</p></div></div>
-      <div class="passo"><div class="passo-num">5</div><div class="passo-conteudo"><h4>Enviar para assinatura</h4><p>Download, suba no <strong>ZapSign</strong> e envie o link pelo WhatsApp.</p></div></div>
-    </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Documentos disponíveis</div>
-    <table class="tabela-treino">
-      <tr><th>Documento</th><th>Quem usa</th><th>Observação</th></tr>
-      <tr><td>Procuração — Alimentos / Execução / Revisional</td><td><span class="badge badge-comercial">Comercial</span></td><td>No nome da criança</td></tr>
-      <tr><td>Procuração — Guarda / Convivência / Divórcio</td><td><span class="badge badge-comercial">Comercial</span></td><td>No nome do pai ou mãe</td></tr>
-      <tr><td>Contrato de Honorários</td><td><span class="badge badge-comercial">Comercial</span></td><td>Fixo ou risco</td></tr>
-      <tr><td>Declaração de Residência</td><td><span class="badge badge-cx">CX</span></td><td>Enviar pelo WhatsApp</td></tr>
-      <tr><td>Petição de Juntada</td><td><span class="badge badge-operacional">Operacional</span></td><td>Vincula ao nº do processo</td></tr>
-    </table>
-    <div class="dica"><div class="dica-titulo">💡 Dica</div><p>Para alterar o conteúdo do texto, baixe em <strong>Word (.docx)</strong> e edite antes de subir no ZapSign.</p></div>
-  </div>
-</div>
-
-<!-- ═══ NOTIFICAÇÕES ═══ -->
-<div id="notificacoes" class="modulo">
-  <div class="modulo-header"><div class="modulo-icon">💬</div><div class="modulo-titulo"><h2>Notificações e Mensagens</h2><p>Como enviar mensagens para clientes pelo portal</p></div></div>
-  <div class="secao">
-    <div class="secao-titulo">Mensagens automáticas</div>
-    <p style="font-size:13px;color:#555;margin-bottom:16px;">Enviadas automaticamente quando o caso muda de coluna:</p>
-    <table class="tabela-treino">
-      <tr><th>Quando</th><th>Mensagem</th><th>Canal</th></tr>
-      <tr><td>Contrato assinado</td><td>Boas-vindas ao escritório</td><td>WhatsApp + E-mail</td></tr>
-      <tr><td>Pasta Apta</td><td>Confirmação de recebimento dos documentos</td><td>WhatsApp + E-mail</td></tr>
-      <tr><td>Processo Distribuído</td><td>Número do processo</td><td>WhatsApp + E-mail</td></tr>
-      <tr><td>Documento Faltante</td><td>Pedido do documento</td><td>WhatsApp + E-mail</td></tr>
-    </table>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Enviar mensagem manual</div>
-    <div class="passos">
-      <div class="passo"><div class="passo-num">1</div><div class="passo-conteudo"><h4>Acesse Mensagens no menu lateral</h4><p>Clique em <strong>Mensagens</strong> e escolha o modelo de mensagem.</p></div></div>
-      <div class="passo"><div class="passo-num">2</div><div class="passo-conteudo"><h4>Clique em WhatsApp</h4><p>Informe o número do cliente. Vai abrir o WhatsApp Web com a mensagem pronta.</p></div></div>
-      <div class="passo"><div class="passo-num">3</div><div class="passo-conteudo"><h4>Marque como enviado</h4><p>Volte ao portal e marque como <strong>Enviado</strong> na aba de notificações.</p><div class="alerta alerta-atencao"><span class="alerta-icone">⚠️</span><span>O WhatsApp Web precisa estar conectado no computador.</span></div></div></div>
-    </div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Aniversários</div>
-    <div class="regra"><div class="regra-emoji">🎂</div><div class="regra-texto"><h4>Lista de aniversariantes</h4><p>Em <strong>Datas Especiais</strong>, veja aniversariantes do dia. Envie mensagem pelo WhatsApp e marque como enviado.</p></div></div>
-  </div>
-</div>
-
-<!-- ═══ PORTAL DE LINKS ═══ -->
-<div id="portal-links" class="modulo">
-  <div class="modulo-header"><div class="modulo-icon">🔗</div><div class="modulo-titulo"><h2>Portal de Links</h2><p>Todos os links úteis do escritório em um só lugar</p></div></div>
-  <div class="secao">
-    <div class="secao-titulo">O que você encontra aqui</div>
-    <div class="regra"><div class="regra-emoji">📋</div><div class="regra-texto"><h4>Formulários de cadastro</h4><p>Links para enviar aos clientes.</p></div></div>
-    <div class="regra"><div class="regra-emoji">📄</div><div class="regra-texto"><h4>Modelos de mensagem</h4><p>Textos prontos para enviar ao cliente.</p></div></div>
-    <div class="regra"><div class="regra-emoji">🔗</div><div class="regra-texto"><h4>Links dos sistemas</h4><p>PJe, TJRJ, JusBrasil, Receita Federal, etc.</p></div></div>
-    <div class="dica"><div class="dica-titulo">💡 Em construção</div><p>Se precisar de algum link que não está lá, avise a Amanda para adicionar.</p></div>
-  </div>
-</div>
-
-<!-- ═══ REGRAS DE PROCURAÇÃO ═══ -->
-<div id="procuracao" class="modulo">
-  <div class="modulo-header"><div class="modulo-icon">✍️</div><div class="modulo-titulo"><h2>Regras de Procuração</h2><p>Quem deve outorgar poderes em cada tipo de ação</p></div></div>
-  <div class="secao">
-    <div class="secao-titulo">Regra geral</div>
-    <div class="alerta alerta-atencao"><span class="alerta-icone">⚠️</span><div><strong>Atenção:</strong> correção identificada no treinamento. Algumas procurações estavam com o nome errado. Leia com atenção.</div></div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Procuração no nome da criança (filho/a)</div>
-    <p style="font-size:13px;color:#555;margin-bottom:14px;">Nestas ações, quem está pedindo é a criança — ela outorga poderes representada pelo pai ou mãe.</p>
-    <table class="tabela-treino">
-      <tr><th>Tipo de Ação</th><th>Quem outorga</th><th>Representado por</th></tr>
-      <tr><td>Pensão Alimentícia</td><td>A criança</td><td>Pai ou mãe responsável</td></tr>
-      <tr><td>Revisional de Alimentos</td><td>A criança</td><td>Pai ou mãe responsável</td></tr>
-      <tr><td>Execução de Alimentos</td><td>A criança</td><td>Pai ou mãe responsável</td></tr>
-    </table>
-    <div class="alerta alerta-ok" style="margin-top:14px;"><span class="alerta-icone">✅</span><span><strong>Exemplo:</strong> "HENRIQUE GABRIEL, representado por sua genitora THAIS CAROLINE..."</span></div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Procuração no nome do pai ou mãe</div>
-    <p style="font-size:13px;color:#555;margin-bottom:14px;">Nestas ações, quem pede é o adulto contratante.</p>
-    <table class="tabela-treino">
-      <tr><th>Tipo de Ação</th><th>Quem outorga</th></tr>
-      <tr><td>Guarda Unilateral ou Compartilhada</td><td>O pai ou mãe contratante</td></tr>
-      <tr><td>Regulamentação de Convivência</td><td>O pai ou mãe contratante</td></tr>
-      <tr><td>Divórcio</td><td>O cônjuge contratante</td></tr>
-      <tr><td>Investigação de Paternidade</td><td>O pai ou mãe contratante</td></tr>
-      <tr><td>Inventário</td><td>O herdeiro contratante</td></tr>
-    </table>
-    <div class="alerta alerta-erro" style="margin-top:14px;"><span class="alerta-icone">❌</span><span><strong>Erro comum:</strong> gerar procuração de guarda com o nome das crianças. Deve ser o nome do adulto.</span></div>
-  </div>
-  <div class="secao">
-    <div class="secao-titulo">Quando há alimentos E convivência juntos</div>
-    <div class="regra"><div class="regra-emoji">📋</div><div class="regra-texto"><h4>Gere duas procurações separadas</h4><p>Uma no nome da criança (alimentos) e outra no nome do pai/mãe (convivência).</p></div></div>
-    <div class="dica"><div class="dica-titulo">💡 Dica</div><p>No portal, escolha o modelo correto para cada ação. O sistema puxa o nome certo.</p></div>
-  </div>
+    <aside class="tr-sidebar">
+        <h3>🏆 Quem mais estudou</h3>
+        <?php if (empty($ranking)): ?>
+            <p style="color:#6b7280; font-size:.82rem;">Ninguém concluiu módulos ainda. Seja o primeiro!</p>
+        <?php else:
+            foreach ($ranking as $i => $r):
+                $pos = $i + 1;
+                $cls = $pos <= 3 ? 'p' . $pos : '';
+                $crown = $pos === 1 ? ' 👑' : '';
+        ?>
+            <div class="tr-rank-item">
+                <div class="tr-rank-pos <?= $cls ?>"><?= $pos ?></div>
+                <div class="tr-rank-info">
+                    <div class="tr-rank-nome"><?= e($r['name']) ?><?= $crown ?></div>
+                    <div class="tr-rank-pts"><?= (int)$r['concluidos'] ?> módulos · <?= (int)$r['pontos'] ?> pts</div>
+                </div>
+            </div>
+        <?php endforeach; endif; ?>
+        <?php if (has_min_role('gestao')): ?>
+            <hr style="border:none; border-top:1px solid #e5e7eb; margin:1rem 0;">
+            <a href="<?= module_url('treinamento', 'admin.php') ?>" style="display:block; padding:8px 12px; background:#052228; color:#fff; border-radius:8px; text-align:center; font-size:.78rem; font-weight:700; text-decoration:none;">📊 Progresso da Equipe</a>
+        <?php endif; ?>
+    </aside>
 </div>
 
 </div>
-
-<div class="tr-footer">
-  <strong>Ferreira & Sá Advocacia Especializada</strong> — Material interno de treinamento<br>
-  Dúvidas? Fale com a Amanda. Atualizado em Abril/2026.
-</div>
-
-<script>
-function mostrar(id, btn) {
-  document.querySelectorAll('.modulo').forEach(function(m) { m.classList.remove('ativo'); });
-  document.querySelectorAll('.nav-btn').forEach(function(b) { b.classList.remove('ativo'); });
-  document.getElementById(id).classList.add('ativo');
-  btn.classList.add('ativo');
-  window.scrollTo({ top: document.querySelector('.nav-modulos').offsetTop - 60, behavior: 'smooth' });
-}
-</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
