@@ -124,25 +124,36 @@ try {
             // REAÇÃO: associa à mensagem original em vez de criar msg nova.
             // - fromMe=false (contato reagiu): atualiza reacao_cliente
             // - fromMe=true  (atendente reagiu pelo celular): atualiza minha_reacao
-            // Z-API envia em payload.reaction.{value|reaction} + .msgId (ou similar).
+            // IMPORTANTE: reações NUNCA viram mensagem no chat, mesmo que o match falhe
+            // (evita poluir visual com "[reagiu com X]"). Se não achar alvo, loga pra análise
+            // e descarta silenciosamente.
             if ($tipo === 'reacao') {
                 $emoji = $payload['reaction']['value']
                       ?? ($payload['reaction']['reaction']
-                      ?? ($payload['reactionMessage']['text'] ?? ''));
+                      ?? ($payload['reactionMessage']['text']
+                      ?? ($payload['message']['reactionMessage']['text'] ?? '')));
+                // Varia bastante por versão Z-API: tentar múltiplos paths
                 $alvoId = $payload['reaction']['msgId']
                        ?? ($payload['reaction']['messageId']
-                       ?? ($payload['reactionMessage']['messageId'] ?? ''));
+                       ?? ($payload['reaction']['referencedMessage']['key']['id']
+                       ?? ($payload['reactionMessage']['messageId']
+                       ?? ($payload['message']['reactionMessage']['key']['id']
+                       ?? ($payload['referenceMessageId'] ?? '')))));
+                try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+                try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
                 if ($alvoId) {
-                    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
-                    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
                     $coluna = $fromMe ? 'minha_reacao' : 'reacao_cliente';
                     $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET {$coluna} = ? WHERE zapi_message_id = ? AND conversa_id = ?");
                     $stmtR->execute(array($emoji !== '' ? $emoji : null, $alvoId, $conv['id']));
-                    $log("[{$numero}] reacao " . ($fromMe ? 'fromMe' : 'contato') . " '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']}");
+                    $log("[{$numero}] reacao " . ($fromMe ? 'fromMe' : 'contato') . " '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']} rows=" . $stmtR->rowCount());
                     echo json_encode(array('status' => 'reaction_applied', 'emoji' => $emoji, 'fromMe' => $fromMe));
-                    break; // não grava como mensagem nova
+                } else {
+                    // Não achou alvo — log detalhado pra análise do payload, mas NÃO grava
+                    // mensagem no chat.
+                    $log("[{$numero}] REACAO_ORFA emoji='{$emoji}' fromMe=" . ($fromMe ? '1' : '0') . " conv={$conv['id']} payload=" . substr(json_encode($payload), 0, 1500));
+                    echo json_encode(array('status' => 'reaction_orphan', 'emoji' => $emoji));
                 }
-                // fallback: se não achou alvo, cai no fluxo padrão (grava como msg)
+                break; // sempre descarta como mensagem (não cai no INSERT)
             }
 
             if ($fromMe) {
