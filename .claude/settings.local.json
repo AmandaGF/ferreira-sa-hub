@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit *)",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/migrar_fix_grupos.php?key=fsa-hub-deploy-2026&exec=1\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/limpar_reacoes_fantasma.php?key=fsa-hub-deploy-2026&exec=1\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/migrar_mesclar_duplicatas.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -sI \"https://ferreiraesa.com.br/conecta/modules/whatsapp/\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/modules/financeiro/api.php?action=resumo_geral&key=diag\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/migrar_treinamento.php?key=fsa-hub-deploy-2026\")",
+      "Bash(php -v)",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/treinamento_export_md.php?key=fsa-hub-deploy-2026\")",
+      "Read(//tmp/**)"
+    ],
+    "additionalDirectories": [
+      "\\tmp",
+      "C:\\Users\\User"
+    ]
+  }
+}
