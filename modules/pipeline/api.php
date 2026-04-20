@@ -399,12 +399,26 @@ switch ($action) {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
             'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
-            'data_agendamento','onboard_realizado','origem_lead');
+            'data_agendamento','onboard_realizado','origem_lead','created_at');
         if (!$leadId) _api_fail('lead_id inválido.');
         if (!in_array($field, $allowed, true)) _api_fail("Campo '{$field}' não autorizado.");
 
         try {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
+            // created_at (data de fechamento) — aceita YYYY-MM-DD, preserva hora original.
+            if ($field === 'created_at') {
+                if ($value === '' || $value === null) {
+                    _api_fail('Data inválida (vazia).');
+                }
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) || !strtotime($value)) {
+                    _api_fail('Data inválida — use o formato AAAA-MM-DD.');
+                }
+                $stOrig = $pdo->prepare("SELECT created_at FROM pipeline_leads WHERE id = ?");
+                $stOrig->execute(array($leadId));
+                $origCreated = $stOrig->fetchColumn();
+                $horaParte = $origCreated ? date('H:i:s', strtotime($origCreated)) : '00:00:00';
+                $value = $value . ' ' . $horaParte;
+            }
             // IMPORTANTE: preserva string "0" e "0,00" (valores financeiros legítimos). Só NULLa se vazio de fato.
             $valueToStore = ($value === '' || $value === null) ? null : $value;
             $pdo->prepare("UPDATE pipeline_leads SET $field = ?, updated_at = NOW() WHERE id = ?")->execute(array($valueToStore, $leadId));

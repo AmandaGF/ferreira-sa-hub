@@ -488,7 +488,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     </td>
     <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
-    <td style="font-size:.72rem;"><?= $lead['created_at'] ? date('d/m/Y', strtotime($lead['created_at'])) : '' ?></td>
+    <td class="editable" style="min-width:120px;font-size:.72rem;"><input type="date" value="<?= $lead['created_at'] ? date('Y-m-d', strtotime($lead['created_at'])) : '' ?>" data-id="<?= $lid ?>" data-field="created_at" onchange="saveCell(this)" style="font-family:inherit;"></td>
     <td class="editable" style="min-width:100px;"><input value="<?= e($lead['case_type'] ?? '') ?>" data-id="<?= $lid ?>" data-field="case_type" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:100px;"><input type="text" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorarios(this)" placeholder="0,00"></td>
     <td class="editable" style="min-width:60px;"><input type="number" value="<?= e($lead['exito_percentual'] ?? '') ?>" data-id="<?= $lid ?>" data-field="exito_percentual" onchange="saveCell(this)" placeholder="%" step="1" min="0" max="100" style="width:55px;"></td>
