@@ -12,6 +12,23 @@ if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// Self-heal: tabela de anexos dos chamados (print screen / PDF / doc / imagem)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_attachments (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        ticket_id INT UNSIGNED NOT NULL,
+        message_id INT UNSIGNED NULL,
+        user_id INT UNSIGNED NOT NULL,
+        arquivo_nome VARCHAR(255) NOT NULL,
+        arquivo_path VARCHAR(255) NOT NULL,
+        arquivo_mime VARCHAR(80) NULL,
+        arquivo_tamanho INT UNSIGNED NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ticket (ticket_id),
+        INDEX idx_message (message_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
 switch ($action) {
     case 'update_status':
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
@@ -92,9 +109,53 @@ switch ($action) {
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         $message = clean_str($_POST['message'] ?? '', 5000);
 
-        if ($ticketId && $message) {
+        // Arquivos anexados (printscreen, PDF, doc, etc.) — opcional
+        $anexos = array();
+        if (!empty($_FILES['anexos']) && is_array($_FILES['anexos']['name'])) {
+            $destDir = APP_ROOT . '/files/helpdesk';
+            if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+            $allowedMime = array(
+                'image/png','image/jpeg','image/gif','image/webp',
+                'application/pdf',
+                'application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'text/plain',
+            );
+            $total = count($_FILES['anexos']['name']);
+            for ($i = 0; $i < $total && $i < 5; $i++) { // máx 5 por msg
+                if ((int)$_FILES['anexos']['error'][$i] !== UPLOAD_ERR_OK) continue;
+                $tmp = $_FILES['anexos']['tmp_name'][$i];
+                $nome = $_FILES['anexos']['name'][$i];
+                $mime = $_FILES['anexos']['type'][$i] ?: (mime_content_type($tmp) ?: 'application/octet-stream');
+                $tam  = (int)$_FILES['anexos']['size'][$i];
+                if ($tam > 10 * 1024 * 1024) { flash_set('error','Arquivo "' . $nome . '" maior que 10MB.'); continue; }
+                if (!in_array($mime, $allowedMime, true)) { flash_set('error','Formato não permitido: ' . $nome); continue; }
+                $nomeSafe = preg_replace('/[^A-Za-z0-9._-]/', '_', $nome);
+                $storedName = 'hd_' . $ticketId . '_' . uniqid('', true) . '_' . $nomeSafe;
+                $dest = $destDir . '/' . $storedName;
+                if (move_uploaded_file($tmp, $dest)) {
+                    @chmod($dest, 0644);
+                    $anexos[] = array('nome' => $nome, 'path' => $storedName, 'mime' => $mime, 'tamanho' => $tam);
+                }
+            }
+        }
+
+        // Permite enviar mensagem SÓ com anexo (sem texto) ou anexo + texto
+        if ($ticketId && ($message !== '' || !empty($anexos))) {
+            $msgContent = $message !== '' ? $message : '[' . count($anexos) . ' anexo(s)]';
             $pdo->prepare("INSERT INTO ticket_messages (ticket_id, user_id, sender_type, sender_id, message) VALUES (?,?,'equipe',?,?)")
-                ->execute([$ticketId, current_user_id(), current_user_id(), $message]);
+                ->execute([$ticketId, current_user_id(), current_user_id(), $msgContent]);
+            $msgId = (int)$pdo->lastInsertId();
+
+            // Persiste anexos vinculados à mensagem
+            if (!empty($anexos)) {
+                $stmtAnexo = $pdo->prepare("INSERT INTO ticket_attachments (ticket_id, message_id, user_id, arquivo_nome, arquivo_path, arquivo_mime, arquivo_tamanho) VALUES (?,?,?,?,?,?,?)");
+                foreach ($anexos as $a) {
+                    $stmtAnexo->execute(array($ticketId, $msgId, current_user_id(), $a['nome'], $a['path'], $a['mime'], $a['tamanho']));
+                }
+            }
+            // Força $message a ter algo pra não quebrar o fluxo @menções abaixo
+            if ($message === '') $message = $msgContent;
 
             // Auto mudar status para em_andamento se estava aberto
             $stmt = $pdo->prepare('SELECT status, title FROM tickets WHERE id = ?');

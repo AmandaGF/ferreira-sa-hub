@@ -18,6 +18,14 @@ if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
 
+// Whitelist: módulos financeiros só pra Amanda/Rodrigo/Luiz
+$slugsFinanceiros = array('financeiro', 'cobranca-honorarios');
+$slugReq = $_REQUEST['slug'] ?? '';
+if ($slugReq && in_array($slugReq, $slugsFinanceiros, true) && !can_access_financeiro()) {
+    echo json_encode(array('error' => 'Treinamento restrito'));
+    exit;
+}
+
 // Helper: garante linha em treinamento_progresso
 function prog_upsert(PDO $pdo, $userId, $slug) {
     $pdo->prepare("INSERT IGNORE INTO treinamento_progresso (user_id, modulo_slug) VALUES (?, ?)")

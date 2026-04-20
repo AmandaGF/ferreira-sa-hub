@@ -36,6 +36,18 @@ $messages = $pdo->prepare(
 $messages->execute([$ticketId]);
 $messages = $messages->fetchAll();
 
+// Anexos (agrupados por message_id)
+$anexosPorMsg = array();
+try {
+    $anexStmt = $pdo->prepare("SELECT * FROM ticket_attachments WHERE ticket_id = ? ORDER BY id ASC");
+    $anexStmt->execute(array($ticketId));
+    foreach ($anexStmt->fetchAll() as $a) {
+        $mid = (int)$a['message_id'];
+        if (!isset($anexosPorMsg[$mid])) $anexosPorMsg[$mid] = array();
+        $anexosPorMsg[$mid][] = $a;
+    }
+} catch (Exception $e) {}
+
 // Cliente e Processo vinculados
 $linkedClient = null; $linkedCase = null;
 if (!empty($ticket['client_id'])) {
@@ -317,25 +329,139 @@ echo voltar_ao_processo_html();
                         </span>
                     </div>
                     <div class="msg-text"><?= nl2br(highlight_mentions(e($msg['message']))) ?></div>
+                    <?php
+                    $anexosMsg = $anexosPorMsg[(int)$msg['id']] ?? array();
+                    if (!empty($anexosMsg)): ?>
+                    <div style="margin-top:.5rem; display:flex; flex-wrap:wrap; gap:6px;">
+                        <?php foreach ($anexosMsg as $a):
+                            $isImg = strpos($a['arquivo_mime'] ?? '', 'image/') === 0;
+                            $downloadUrl = module_url('helpdesk', 'download.php?id=' . (int)$a['id']);
+                            $kb = round((int)$a['arquivo_tamanho'] / 1024);
+                        ?>
+                            <?php if ($isImg): ?>
+                                <a href="<?= e($downloadUrl) ?>" target="_blank" style="text-decoration:none;" title="<?= e($a['arquivo_nome']) ?> (<?= $kb ?>KB)">
+                                    <img src="<?= e($downloadUrl) ?>" style="max-width:240px; max-height:200px; border:1px solid #e5e7eb; border-radius:8px; display:block;">
+                                </a>
+                            <?php else:
+                                $ico = strpos($a['arquivo_mime'] ?? '','pdf')!==false ? '📄' :
+                                       (strpos($a['arquivo_mime'] ?? '','word')!==false ? '📝' :
+                                       (strpos($a['arquivo_mime'] ?? '','sheet')!==false || strpos($a['arquivo_mime'] ?? '','excel')!==false ? '📊' : '📎')); ?>
+                                <a href="<?= e($downloadUrl) ?>" target="_blank" style="display:inline-flex; gap:6px; align-items:center; padding:6px 10px; background:#f3f4f6; border:1px solid #e5e7eb; border-radius:8px; text-decoration:none; color:#052228; font-size:.78rem;">
+                                    <span><?= $ico ?></span>
+                                    <span><?= e($a['arquivo_nome']) ?></span>
+                                    <span style="color:#6b7280; font-size:.68rem;">(<?= $kb ?>KB)</span>
+                                </a>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php endif; ?>
                 </div>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
 
         <!-- Nova mensagem -->
-        <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" enctype="multipart/form-data" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);" id="formMsgHelpdesk">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_message">
             <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
             <div class="mention-wrap">
                 <div class="mention-dropdown" id="mentionDropdown"></div>
-                <textarea name="message" id="msgTextarea" class="form-textarea" rows="3" placeholder="Escreva uma mensagem... Use @nome para mencionar alguém" required></textarea>
+                <textarea name="message" id="msgTextarea" class="form-textarea" rows="3" placeholder="Escreva uma mensagem... Use @nome para mencionar alguém. Você pode enviar SÓ anexos (sem texto) também."></textarea>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.35rem;">
-                <span style="font-size:.68rem;color:var(--text-muted);">💡 Digite <strong>@</strong> para mencionar um colega</span>
+
+            <!-- Upload de anexos (printscreen, PDF, doc, etc.) -->
+            <div id="hdAnexosPreview" style="display:none; margin-top:6px; padding:8px; background:#f9fafb; border:1px dashed #d1d5db; border-radius:8px;"></div>
+            <input type="file" name="anexos[]" id="hdFileInput" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt" style="display:none;">
+
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.35rem;gap:.5rem;flex-wrap:wrap;">
+                <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
+                    <button type="button" onclick="document.getElementById('hdFileInput').click()" class="btn btn-outline btn-sm" title="Anexar printscreen, PDF ou documento (máx 5 arquivos, 10MB cada)">📎 Anexar</button>
+                    <span style="font-size:.68rem;color:var(--text-muted);">💡 <strong>@</strong> menciona · Ctrl+V cola imagem direto</span>
+                </div>
                 <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
             </div>
         </form>
+
+<script>
+(function(){
+    var fileInput = document.getElementById('hdFileInput');
+    var preview = document.getElementById('hdAnexosPreview');
+    var textarea = document.getElementById('msgTextarea');
+    var form = document.getElementById('formMsgHelpdesk');
+    var pendingFiles = [];
+
+    function renderPreview() {
+        if (pendingFiles.length === 0) { preview.style.display = 'none'; preview.innerHTML = ''; return; }
+        preview.style.display = 'block';
+        preview.innerHTML = pendingFiles.map(function(f, i){
+            var icon = f.type.indexOf('image/') === 0 ? '🖼️' :
+                       f.type.indexOf('pdf') >= 0 ? '📄' :
+                       f.type.indexOf('word') >= 0 ? '📝' :
+                       f.type.indexOf('sheet') >= 0 || f.type.indexOf('excel') >= 0 ? '📊' : '📎';
+            var kb = Math.round(f.size/1024);
+            return '<div style="display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:4px 8px; margin:3px; font-size:.75rem;">' +
+                   icon + ' ' + (f.name.length > 28 ? f.name.substring(0,25)+'…' : f.name) +
+                   ' <span style="color:#6b7280;">(' + kb + 'KB)</span>' +
+                   ' <button type="button" onclick="window._hdRemoveFile(' + i + ')" style="background:none;border:none;color:#dc2626;cursor:pointer;font-weight:700;padding:0 4px;">✕</button>' +
+                   '</div>';
+        }).join('');
+    }
+
+    window._hdRemoveFile = function(idx) {
+        pendingFiles.splice(idx, 1);
+        syncFileInput();
+        renderPreview();
+    };
+
+    function syncFileInput() {
+        // FileInput não aceita atribuição direta de FileList. Usamos DataTransfer.
+        var dt = new DataTransfer();
+        pendingFiles.forEach(function(f){ dt.items.add(f); });
+        fileInput.files = dt.files;
+    }
+
+    fileInput.addEventListener('change', function(e){
+        var files = Array.from(e.target.files || []);
+        files.forEach(function(f){
+            if (f.size > 10 * 1024 * 1024) { alert('Arquivo "' + f.name + '" maior que 10MB — pulando.'); return; }
+            if (pendingFiles.length >= 5) { alert('Máx 5 anexos por mensagem.'); return; }
+            pendingFiles.push(f);
+        });
+        syncFileInput();
+        renderPreview();
+    });
+
+    // Ctrl+V de imagem direto no textarea anexa como arquivo
+    textarea.addEventListener('paste', function(e){
+        var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+                var blob = it.getAsFile();
+                if (!blob) continue;
+                if (pendingFiles.length >= 5) { alert('Máx 5 anexos.'); return; }
+                // Renomeia pra algo reconhecível
+                var ts = new Date().toISOString().replace(/[:.]/g,'-');
+                var ext = (it.type.split('/')[1] || 'png').split('+')[0];
+                var newFile = new File([blob], 'printscreen_' + ts + '.' + ext, { type: it.type });
+                pendingFiles.push(newFile);
+                syncFileInput();
+                renderPreview();
+                e.preventDefault();
+            }
+        }
+    });
+
+    // Se não tiver texto E não tiver anexo, bloqueia submit
+    form.addEventListener('submit', function(e){
+        if (!textarea.value.trim() && pendingFiles.length === 0) {
+            e.preventDefault();
+            alert('Escreva uma mensagem ou anexe ao menos um arquivo.');
+        }
+    });
+})();
+</script>
     </div>
 </div>
 

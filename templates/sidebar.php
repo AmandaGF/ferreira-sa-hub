@@ -27,11 +27,14 @@ try {
     $uid = current_user_id();
     $roleU = current_user_role();
     if ($uid && $roleU) {
-        // Total de módulos aplicáveis ao perfil
+        // Total de módulos aplicáveis ao perfil (respeita whitelist financeira)
+        $slugsFinanceiros = array('financeiro', 'cobranca-honorarios');
+        $podeFinanceiro = function_exists('can_access_financeiro') && can_access_financeiro();
         $st = db()->prepare("SELECT slug, perfis_alvo FROM treinamento_modulos WHERE ativo = 1");
         $st->execute();
         $slugsAplicaveis = array();
         foreach ($st->fetchAll() as $m) {
+            if (!$podeFinanceiro && in_array($m['slug'], $slugsFinanceiros, true)) continue;
             $perfis = json_decode($m['perfis_alvo'], true) ?: array();
             if (in_array('todos', $perfis, true) || in_array($roleU, $perfis, true)) {
                 $slugsAplicaveis[] = $m['slug'];

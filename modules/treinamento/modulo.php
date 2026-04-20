@@ -19,6 +19,13 @@ $stmt->execute(array($slug));
 $modulo = $stmt->fetch();
 if (!$modulo) { flash_set('error','Módulo não encontrado.'); redirect(module_url('treinamento')); }
 
+// Whitelist: módulos financeiros só pra Amanda/Rodrigo/Luiz (mesma regra do módulo real)
+$slugsFinanceiros = array('financeiro', 'cobranca-honorarios');
+if (in_array($slug, $slugsFinanceiros, true) && !can_access_financeiro()) {
+    flash_set('error','Este treinamento é restrito.');
+    redirect(module_url('treinamento'));
+}
+
 // Cria/carrega progresso
 $pdo->prepare("INSERT IGNORE INTO treinamento_progresso (user_id, modulo_slug) VALUES (?, ?)")
     ->execute(array($userId, $slug));

@@ -41,6 +41,14 @@ $modulos = $pdo->query(
      ORDER BY m.ordem ASC"
 )->fetchAll();
 
+// Módulos restritos por whitelist (mesma regra do módulo financeiro real)
+$slugsFinanceiros = array('financeiro', 'cobranca-honorarios');
+if (!can_access_financeiro()) {
+    $modulos = array_values(array_filter($modulos, function($m) use ($slugsFinanceiros){
+        return !in_array($m['slug'], $slugsFinanceiros, true);
+    }));
+}
+
 $modulosFiltrados = $modulos;
 if ($filtroPerfil !== 'todos') {
     $modulosFiltrados = array_filter($modulos, function($m) use ($filtroPerfil, $role){
