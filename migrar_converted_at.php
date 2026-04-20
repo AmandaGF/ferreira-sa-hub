@@ -88,20 +88,29 @@ if (count($comHistorico) > 0) {
     }
 }
 
-echo '<h2>🟡 Sem histórico (edge case): ' . count($semHistorico) . '</h2>';
-echo '<p class="muted">Esses não têm registro em pipeline_history da transição pra contrato_assinado. Geralmente são leads antigos criados antes do histórico existir. Vão ficar como estão — você pode editar manualmente depois pelo botão "Data Fech." da planilha.</p>';
+echo '<h2>🟡 Sem histórico — fallback created_at→converted_at: ' . count($semHistorico) . '</h2>';
+echo '<p class="muted">Esses não têm registro em pipeline_history. Como estão em stage pós-contrato (pasta_apta/finalizado/etc.), por definição já assinaram. Vou usar <code>created_at</code> como proxy da data de fechamento — a data mais próxima da realidade que temos. Você pode refinar manualmente depois pelo botão "Data Fech." da planilha.</p>';
 
 if (count($semHistorico) > 0) {
-    echo '<table><tr><th>ID</th><th>Lead</th><th>Stage</th><th>created_at</th></tr>';
+    echo '<table><tr><th>ID</th><th>Lead</th><th>Stage</th><th>created_at (será copiado para converted_at)</th></tr>';
     foreach ($semHistorico as $c) {
         echo '<tr>';
         echo '<td>' . (int)$c['id'] . '</td>';
         echo '<td>' . htmlspecialchars($c['name']) . '</td>';
-        echo '<td>' . htmlspecialchars($c['stage']) . '</td>';
-        echo '<td>' . htmlspecialchars($c['created_at']) . '</td>';
+        echo '<td><span class="badge ok">' . htmlspecialchars($c['stage']) . '</span></td>';
+        echo '<td><strong>' . htmlspecialchars($c['created_at']) . '</strong></td>';
         echo '</tr>';
     }
     echo '</table>';
+
+    if (!$dryRun) {
+        $up2 = $pdo->prepare("UPDATE pipeline_leads SET converted_at = created_at WHERE id = ? AND converted_at IS NULL AND created_at IS NOT NULL");
+        $aplic2 = 0;
+        foreach ($semHistorico as $c) {
+            if ($up2->execute(array($c['id']))) $aplic2 += $up2->rowCount();
+        }
+        echo '<p class="badge ok">✓ ' . $aplic2 . ' lead(s) com converted_at preenchido via fallback (created_at).</p>';
+    }
 }
 
 // Rodapé

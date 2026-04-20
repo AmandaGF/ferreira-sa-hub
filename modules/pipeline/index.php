@@ -356,9 +356,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-pag a.active { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
 </style>
 <?php
+// Tabela Comercial mostra APENAS leads que passaram por "contrato_assinado"
+// (converted_at preenchido). Leads ainda no funil antes da assinatura ficam só
+// no Kanban — a equipe trabalha o passo a passo lá, não aqui.
 $allLeadsFlat = array();
 foreach ($byStage as $stageKey => $stageLeads) {
-    foreach ($stageLeads as $l) { $l['_stage_key'] = $stageKey; $allLeadsFlat[] = $l; }
+    foreach ($stageLeads as $l) {
+        if (empty($l['converted_at'])) continue; // ainda não assinou contrato
+        $l['_stage_key'] = $stageKey;
+        $allLeadsFlat[] = $l;
+    }
 }
 
 // ── Ordenação server-side (antes da paginação) ─────────────────
