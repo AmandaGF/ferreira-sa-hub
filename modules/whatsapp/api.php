@@ -25,6 +25,21 @@ try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_em DATETIME DEF
 // Self-heal: colunas pra reações a mensagens (emoji reaction)
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+// Self-heal: biblioteca de stickers compartilhada pela equipe
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_stickers (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        arquivo_path VARCHAR(255) NOT NULL,
+        arquivo_mime VARCHAR(60) DEFAULT NULL,
+        nome VARCHAR(100) DEFAULT NULL,
+        tags VARCHAR(200) DEFAULT NULL,
+        favorito TINYINT(1) NOT NULL DEFAULT 0,
+        usos INT UNSIGNED NOT NULL DEFAULT 0,
+        criado_por INT DEFAULT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_favorito (favorito, usos)
+    )");
+} catch (Exception $e) {}
 
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
@@ -36,7 +51,10 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
                   'gerar_link_salavip',
                   'delegar_conversa', 'remover_delegacao',
-                  'enviar_sticker', 'enviar_reacao');
+                  'enviar_sticker', 'enviar_reacao',
+                  'sticker_biblioteca_add', 'sticker_biblioteca_enviar',
+                  'sticker_biblioteca_remover', 'sticker_biblioteca_favoritar',
+                  'sticker_biblioteca_add_from_msg');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }

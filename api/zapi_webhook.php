@@ -122,6 +122,8 @@ try {
             }
 
             // REAÇÃO: associa à mensagem original em vez de criar msg nova.
+            // - fromMe=false (contato reagiu): atualiza reacao_cliente
+            // - fromMe=true  (atendente reagiu pelo celular): atualiza minha_reacao
             // Z-API envia em payload.reaction.{value|reaction} + .msgId (ou similar).
             if ($tipo === 'reacao') {
                 $emoji = $payload['reaction']['value']
@@ -132,10 +134,12 @@ try {
                        ?? ($payload['reactionMessage']['messageId'] ?? ''));
                 if ($alvoId) {
                     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
-                    $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET reacao_cliente = ? WHERE zapi_message_id = ? AND conversa_id = ?");
+                    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+                    $coluna = $fromMe ? 'minha_reacao' : 'reacao_cliente';
+                    $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET {$coluna} = ? WHERE zapi_message_id = ? AND conversa_id = ?");
                     $stmtR->execute(array($emoji !== '' ? $emoji : null, $alvoId, $conv['id']));
-                    $log("[{$numero}] reacao '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']}");
-                    echo json_encode(array('status' => 'reaction_applied', 'emoji' => $emoji));
+                    $log("[{$numero}] reacao " . ($fromMe ? 'fromMe' : 'contato') . " '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']}");
+                    echo json_encode(array('status' => 'reaction_applied', 'emoji' => $emoji, 'fromMe' => $fromMe));
                     break; // não grava como mensagem nova
                 }
                 // fallback: se não achou alvo, cai no fluxo padrão (grava como msg)
