@@ -239,9 +239,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
     function iniciais(n) { if(!n) return '?'; var p=n.trim().split(/\s+/); return (p[0][0]+(p[1]?p[1][0]:'')).toUpperCase(); }
-    // Renderiza HTML do avatar: prefere foto da Central VIP > foto do WhatsApp > iniciais.
+    // Renderiza HTML do avatar: grupo → 👥; senão prefere foto da Central VIP > foto do WhatsApp > iniciais.
     // onerror restaura iniciais se a imagem falhar (ex: URL Z-API expirada).
     function avatarHtml(c, nome) {
+        if (c && +c.eh_grupo) return '👥';
         var src = '';
         if (c && c.client_foto_path) {
             src = '<?= url('/') ?>salavip/uploads/' + encodeURIComponent(c.client_foto_path);

@@ -49,9 +49,16 @@ try {
             $fromMe = !empty($payload['fromMe']);
             $telefone  = $payload['phone'] ?? ($payload['author'] ?? '');
             $chatName  = $payload['chatName'] ?? null;
-            // Se fromMe, senderName é o NOSSO escritório — usa chatName (destinatário).
-            // Se não fromMe, senderName é o contato real.
-            $nome = $fromMe ? $chatName : ($payload['senderName'] ?? $chatName);
+            $ehGrupo   = zapi_eh_grupo($telefone, $payload);
+            // Se é grupo, sempre usa chatName (nome do grupo). senderName seria o membro
+            // específico que escreveu — criaria confusão no CRM.
+            // Se é conversa 1:1 fromMe, senderName = nosso escritório → usa chatName.
+            // Se é conversa 1:1 não fromMe, senderName = o contato real.
+            if ($ehGrupo) {
+                $nome = $chatName ?: ('Grupo ' . substr(preg_replace('/[^0-9]/', '', $telefone), -6));
+            } else {
+                $nome = $fromMe ? $chatName : ($payload['senderName'] ?? $chatName);
+            }
             $zapiMsgId = $payload['messageId'] ?? '';
 
             if (!$telefone) {
@@ -85,7 +92,7 @@ try {
                 if ($conv) $log("[{$numero}] LID {$telefone} → usando conversa existente #{$conv['id']} ({$chatName})");
             }
             if (!$conv) {
-                $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome);
+                $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, $ehGrupo);
             }
             if (!$conv) {
                 $log("[{$numero}] falha ao criar conversa");

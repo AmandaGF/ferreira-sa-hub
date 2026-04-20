@@ -63,7 +63,7 @@ if ($action === 'listar_conversas') {
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
-                   co.foto_perfil_url,
+                   co.foto_perfil_url, COALESCE(co.eh_grupo, 0) AS eh_grupo,
                    cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
                    pl.name AS lead_name,

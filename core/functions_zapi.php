@@ -298,14 +298,35 @@ function _zapi_post($url, $headers, $body) {
 
 /**
  * Normaliza telefone para formato internacional Z-API (5521999999999).
+ * Se for ID de grupo (@g.us), preserva o sufixo pra distinguir.
  */
 function zapi_normaliza_telefone($telefone) {
-    $num = preg_replace('/[^0-9]/', '', $telefone);
-    // Se começa com 0, remove
-    if (strlen($num) > 11 && substr($num, 0, 1) === '0') $num = ltrim($num, '0');
-    // Se não começa com 55 (Brasil), adiciona
-    if (strlen($num) === 10 || strlen($num) === 11) $num = '55' . $num;
-    return $num;
+    $raw = (string)$telefone;
+    $ehGrupo = strpos($raw, '@g.us') !== false || strpos($raw, '@broadcast') !== false;
+    $num = preg_replace('/[^0-9]/', '', $raw);
+    if (!$ehGrupo) {
+        // Se começa com 0, remove
+        if (strlen($num) > 11 && substr($num, 0, 1) === '0') $num = ltrim($num, '0');
+        // Se não começa com 55 (Brasil), adiciona
+        if (strlen($num) === 10 || strlen($num) === 11) $num = '55' . $num;
+        return $num;
+    }
+    // Grupo: preserva @g.us pra diferenciar de telefones reais
+    return $num . '@g.us';
+}
+
+/**
+ * Detecta se o payload da Z-API representa uma conversa de grupo.
+ */
+function zapi_eh_grupo($telefone_raw, $payload = null) {
+    if (is_string($telefone_raw) && (strpos($telefone_raw, '@g.us') !== false || strpos($telefone_raw, '@broadcast') !== false)) {
+        return true;
+    }
+    if (is_array($payload)) {
+        if (!empty($payload['isGroup'])) return true;
+        if (!empty($payload['participantPhone'])) return true; // só existe em grupos
+    }
+    return false;
 }
 
 /**
@@ -326,11 +347,13 @@ function zapi_extrai_ddd($telefone) {
  * Busca ou cria uma conversa com base em telefone + DDD da instância.
  * @return array linha da conversa com id
  */
-function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato = null) {
+function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato = null, $ehGrupo = false) {
     $pdo = db();
     $inst = zapi_get_instancia($ddd_instancia);
     if (!$inst) return null;
 
+    // Detecção de grupo — preserva sufixo @g.us no normaliza e evita vincular cliente por coincidência de dígitos.
+    if (!$ehGrupo) $ehGrupo = zapi_eh_grupo($telefone);
     $telefone_norm = zapi_normaliza_telefone($telefone);
 
     $stmt = $pdo->prepare("SELECT * FROM zapi_conversas WHERE telefone = ? AND instancia_id = ? LIMIT 1");
@@ -339,35 +362,41 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
     if ($conv) return $conv;
 
     // Criar nova
-    // Tenta casar com client/lead existente pelo telefone
+    // Só vincula cliente/lead se NÃO for grupo (grupos têm ID com 18+ dígitos e
+    // substr(-9) casaria por coincidência com telefones de cliente reais).
     $clientId = null;
     $leadId   = null;
-    try {
-        $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
-        $stmt->execute(array('%' . substr($telefone_norm, -9)));
-        $clientId = $stmt->fetchColumn() ?: null;
-    } catch (Exception $e) {}
-    if (!$clientId) {
+    if (!$ehGrupo) {
         try {
-            $stmt = $pdo->prepare("SELECT id FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
             $stmt->execute(array('%' . substr($telefone_norm, -9)));
-            $leadId = $stmt->fetchColumn() ?: null;
+            $clientId = $stmt->fetchColumn() ?: null;
         } catch (Exception $e) {}
+        if (!$clientId) {
+            try {
+                $stmt = $pdo->prepare("SELECT id FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'(',''),')',''),'-','') LIKE ? LIMIT 1");
+                $stmt->execute(array('%' . substr($telefone_norm, -9)));
+                $leadId = $stmt->fetchColumn() ?: null;
+            } catch (Exception $e) {}
+        }
     }
 
-    // Bot IA auto-ativado em novas conversas DDD 21 se setting ligado
+    // Bot IA auto-ativado em novas conversas DDD 21 se setting ligado (nunca em grupos).
     $botAtivo = 0;
-    if ($ddd_instancia === '21'
+    if (!$ehGrupo && $ddd_instancia === '21'
         && zapi_auto_cfg('zapi_bot_ia_ativo',     '0') === '1'
         && zapi_auto_cfg('zapi_bot_ia_auto_novas','0') === '1') {
         $botAtivo = 1;
     }
 
+    // Self-heal coluna eh_grupo (idempotente)
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN eh_grupo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
     $pdo->prepare(
-        "INSERT INTO zapi_conversas (instancia_id, telefone, nome_contato, client_id, lead_id, canal, bot_ativo, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'aguardando')"
+        "INSERT INTO zapi_conversas (instancia_id, telefone, nome_contato, client_id, lead_id, canal, bot_ativo, status, eh_grupo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'aguardando', ?)"
     )->execute(array(
-        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo
+        $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo, $ehGrupo ? 1 : 0
     ));
     $newId = (int)$pdo->lastInsertId();
     return $pdo->query("SELECT * FROM zapi_conversas WHERE id = $newId")->fetch();
@@ -684,10 +713,15 @@ function zapi_fetch_profile_picture($ddd, $telefone) {
  */
 function zapi_sync_foto_contato($convId) {
     $pdo = db();
-    $stmt = $pdo->prepare("SELECT co.id, co.telefone, co.client_id, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
+    $stmt = $pdo->prepare("SELECT co.id, co.telefone, co.client_id, co.eh_grupo, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
     $stmt->execute(array($convId));
     $conv = $stmt->fetch();
     if (!$conv) return array('ok' => false, 'erro' => 'Conversa não encontrada');
+    // Grupos não têm foto de perfil individual e, pior, poderiam ser
+    // vinculados erroneamente a um cliente. Pula completamente.
+    if (!empty($conv['eh_grupo']) || strpos((string)$conv['telefone'], '@g.us') !== false) {
+        return array('ok' => true, 'foto_url' => null, 'client_updated' => false, 'skipped' => 'grupo');
+    }
 
     $link = zapi_fetch_profile_picture($conv['ddd'], $conv['telefone']);
     try {
