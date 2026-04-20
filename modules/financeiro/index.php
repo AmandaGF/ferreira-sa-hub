@@ -134,7 +134,8 @@ echo voltar_ao_processo_html();
             </select>
         </form>
     </div>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+        <a href="<?= module_url('financeiro', 'cobrancas.php') ?>" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#7c3aed;" title="Ver todas as cobranças com filtros por período, status, busca etc">📋 Todas as cobranças</a>
         <a href="<?= module_url('financeiro', 'sync.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca cobranças dos últimos 30 dias no Asaas">🔄 Sincronizar Asaas</a>
         <button onclick="document.getElementById('modalCobranca').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;">+ Nova Cobrança</button>
     </div>
