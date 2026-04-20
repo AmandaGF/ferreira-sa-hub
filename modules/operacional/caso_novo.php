@@ -68,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $drive_folder_url   = trim($_POST['drive_folder_url'] ?? '');
     $notes              = trim($_POST['notes'] ?? '');
     $status             = trim($_POST['status'] ?? 'em_andamento');
+    $migracao_antigo    = isset($_POST['migracao_antigo']) ? 1 : 0;
 
     // Validacoes basicas
     $errors = array();
@@ -98,9 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $isIncidental = $principalId ? 1 : 0;
 
     $sql = "INSERT INTO cases
-        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, regional, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, processo_principal_id, tipo_relacao, tipo_vinculo, is_incidental, created_at, updated_at)
+        (client_id, parte_re_nome, parte_re_cpf_cnpj, filhos_json, title, case_type, case_number, court, comarca, comarca_uf, regional, sistema_tribunal, segredo_justica, departamento, category, distribution_date, status, priority, responsible_user_id, drive_folder_url, notes, processo_principal_id, tipo_relacao, tipo_vinculo, is_incidental, kanban_oculto, created_at, updated_at)
         VALUES
-        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :regional, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, :principal_id, :tipo_relacao, :tipo_vinculo, :is_incidental, NOW(), NOW())";
+        (:client_id, :parte_re_nome, :parte_re_cpf_cnpj, :filhos_json, :title, :case_type, :case_number, :court, :comarca, :comarca_uf, :regional, :sistema_tribunal, :segredo_justica, :departamento, :category, :distribution_date, :status, :priority, :responsible_user_id, :drive_folder_url, :notes, :principal_id, :tipo_relacao, :tipo_vinculo, :is_incidental, :kanban_oculto, NOW(), NOW())";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute(array(
@@ -129,6 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ':tipo_relacao'       => $tipoRelacao,
         ':tipo_vinculo'       => $tipoVinculo,
         ':is_incidental'      => $isIncidental,
+        ':kanban_oculto'      => $migracao_antigo,
     ));
 
     $newId = (int)$pdo->lastInsertId();
@@ -719,6 +721,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label>Observações</label>
                         <textarea name="notes" class="form-input" placeholder="Informações adicionais sobre o caso..."></textarea>
                     </div>
+                </div>
+
+                <!-- Migração do sistema antigo -->
+                <div style="margin-top:1rem;padding:.75rem 1rem;background:#fef3c7;border-left:4px solid #d97706;border-radius:6px;">
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.85rem;color:#78350f;font-weight:600;">
+                        <input type="checkbox" name="migracao_antigo" value="1" style="width:18px;height:18px;cursor:pointer;">
+                        <span>🗂️ Migração do sistema antigo — não criar card em nenhum Kanban</span>
+                    </label>
+                    <p style="margin:.4rem 0 0 26px;font-size:.72rem;color:#92400e;line-height:1.4;">
+                        Marque se este processo já existe no sistema antigo e está só sendo cadastrado aqui pra histórico. A pasta é criada normalmente (você acessa por Processos/Clientes), mas NÃO aparece nos Kanbans Operacional/PREV.
+                    </p>
                 </div>
 
                 <!-- Submit -->
