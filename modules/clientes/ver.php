@@ -197,9 +197,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Card Financeiro / Inadimplência -->
 <div class="card" style="margin-bottom:1.25rem;border-left:5px solid <?= $borda ?>;background:<?= $bg ?>;">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;background:transparent;border-bottom:1px solid rgba(0,0,0,.06);">
-        <h3 style="margin:0;">
-            <?= $temVencido ? '⚠️ Situação Financeira — INADIMPLENTE' : '💰 Situação Financeira' ?>
-        </h3>
+        <div>
+            <h3 style="margin:0;">
+                <?= $temVencido ? '⚠️ Situação Financeira do Cliente — INADIMPLENTE' : '💰 Situação Financeira do Cliente' ?>
+            </h3>
+            <div style="font-size:.7rem;color:var(--text-muted);margin-top:2px;">Histórico consolidado no Asaas — inclui todos os processos do cliente</div>
+        </div>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $clientId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Ver extrato completo →</a>
     </div>
     <div class="card-body">
