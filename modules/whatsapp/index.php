@@ -1480,9 +1480,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
 
     // ── FILTROS / BUSCA / POLLING ───────────────────────
-    document.querySelectorAll('.wa-filter').forEach(function(b){
+    // Só pros botões de status com data-filter — evita capturar select de atendente
+    // e o botão de etiqueta (que tem handler próprio).
+    document.querySelectorAll('button.wa-filter[data-filter]').forEach(function(b){
         b.addEventListener('click', function(){
-            document.querySelectorAll('.wa-filter').forEach(function(x){ x.classList.remove('active'); });
+            document.querySelectorAll('button.wa-filter[data-filter]').forEach(function(x){ x.classList.remove('active'); });
             b.classList.add('active');
             filtroAtual = b.dataset.filter;
             carregarLista();
