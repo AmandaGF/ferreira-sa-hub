@@ -321,14 +321,10 @@ if ($action === 'salvar') {
                     $descAnd .= "📍 Local: {$local}\n";
                 }
 
-                // Link de orientação sobre audiência (configurável). Só anexa se for audiência.
+                // Link de orientação sobre audiência — mesmo link da mensagem WhatsApp
+                // enviada ao cliente (ver msgsPadrao.audiencia em modules/agenda/index.php).
                 if ($tipo === 'audiencia') {
-                    try {
-                        $linkOrient = $pdo->query("SELECT valor FROM configuracoes WHERE chave='link_orientacao_audiencia' LIMIT 1")->fetchColumn();
-                    } catch (Exception $e) { $linkOrient = null; }
-                    if (!empty($linkOrient)) {
-                        $descAnd .= "\nℹ️ Orientações sobre audiência: {$linkOrient}";
-                    }
+                    $descAnd .= "\nℹ️ Orientações sobre a audiência: https://www.ferreiraesa.com.br/audiencias/";
                 }
 
                 $tipoAnd = ($tipo === 'audiencia') ? 'audiencia' : 'observacao';
