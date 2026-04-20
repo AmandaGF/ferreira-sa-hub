@@ -39,19 +39,21 @@ echo '<style>body{font-family:Inter,Arial,sans-serif;max-width:1200px;margin:2re
 echo '<h1>Corrigir conversas de grupo do WhatsApp</h1>';
 echo '<p class="muted">Modo: <strong>' . ($dryRun ? 'DRY RUN (só mostra)' : 'EXECUÇÃO REAL') . '</strong></p>';
 
-// 1. Identificar candidatos a grupo. Heurística refinada:
+// 1. Identificar candidatos a grupo. Heurística refinada (idempotente — re-rodar é OK):
 //    - Contém '@g.us' (certeza)
 //    - Começa com '12036' ou '12034' E tem 18+ dígitos (IDs típicos de grupo
 //      WhatsApp no formato novo)
+//    - eh_grupo = 1 (já marcado anteriormente, pra garantir rename do nome)
 //    - EXCLUI '@lid' (é individual Multi-Device, não grupo)
 $sql = "SELECT co.id, co.telefone, co.nome_contato, co.client_id, co.foto_perfil_url,
+               COALESCE(co.eh_grupo, 0) AS ja_grupo,
                cl.name AS client_name, cl.foto_path AS client_foto_path
         FROM zapi_conversas co
         LEFT JOIN clients cl ON cl.id = co.client_id
-        WHERE COALESCE(co.eh_grupo, 0) = 0
-          AND co.telefone NOT LIKE '%@lid%'
+        WHERE co.telefone NOT LIKE '%@lid%'
           AND (
-              co.telefone LIKE '%@g.us%'
+              COALESCE(co.eh_grupo, 0) = 1
+              OR co.telefone LIKE '%@g.us%'
               OR (co.telefone LIKE '12036%' AND CHAR_LENGTH(co.telefone) >= 15)
               OR (co.telefone LIKE '12034%' AND CHAR_LENGTH(co.telefone) >= 15)
           )
@@ -83,10 +85,16 @@ if (count($candidatos) > 0) {
 
     if (!$dryRun) {
         $upConv = $pdo->prepare("UPDATE zapi_conversas SET eh_grupo = 1, foto_perfil_url = NULL, client_id = NULL, lead_id = NULL WHERE id = ?");
+        // Renomeia nome_contato das conversas que eram grupo mas tinham nome de cliente
+        // gravado errado. Próxima mensagem do grupo vai atualizar pro chatName real.
+        $upNome = $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ? WHERE id = ? AND (nome_contato IS NULL OR nome_contato NOT LIKE '👥%')");
         $upCli  = $pdo->prepare("UPDATE clients SET foto_path = NULL WHERE id = ? AND foto_path = ?");
-        $convsFixadas = 0; $clientesLimpos = 0;
+        $convsFixadas = 0; $clientesLimpos = 0; $nomesFixados = 0;
         foreach ($candidatos as $c) {
             if ($upConv->execute(array($c['id']))) $convsFixadas += $upConv->rowCount();
+            // Nome genérico até chegar nova mensagem do grupo (aí o webhook seta o chatName real).
+            $nomeGenerico = '👥 Grupo (aguardando nome)';
+            if ($upNome->execute(array($nomeGenerico, $c['id']))) $nomesFixados += $upNome->rowCount();
             if ($c['client_id'] && !empty($c['client_foto_path']) && strpos($c['client_foto_path'], 'foto_wa_') === 0) {
                 if ($upCli->execute(array($c['client_id'], $c['client_foto_path']))) {
                     $clientesLimpos += $upCli->rowCount();
@@ -94,6 +102,7 @@ if (count($candidatos) > 0) {
             }
         }
         echo '<p class="badge ok">✓ ' . $convsFixadas . ' conversa(s) marcada(s) como grupo + cliente deslinkado.</p>';
+        echo '<p class="badge ok">✓ ' . $nomesFixados . ' conversa(s) renomeada(s) pra "👥 Grupo (aguardando nome)". Próxima msg do grupo atualiza pro nome real.</p>';
         echo '<p class="badge ok">✓ ' . $clientesLimpos . ' cliente(s) com foto <code>foto_wa_*</code> suspeita limpa (volta pras iniciais).</p>';
     }
 }

@@ -93,6 +93,18 @@ try {
             }
             if (!$conv) {
                 $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, $ehGrupo);
+            } elseif ($ehGrupo && !empty($chatName)) {
+                // Conversa de grupo já existente: mantém nome_contato sincronizado com
+                // o chatName atual (nome do grupo pode ter mudado, ou foi gravado
+                // errado antes do fix de detecção de grupo).
+                $nomeAtual = $conv['nome_contato'] ?? '';
+                $novoNomeGrupo = '👥 ' . $chatName;
+                if ($nomeAtual !== $novoNomeGrupo) {
+                    $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ?, eh_grupo = 1 WHERE id = ?")
+                        ->execute(array($novoNomeGrupo, $conv['id']));
+                    $conv['nome_contato'] = $novoNomeGrupo;
+                    $conv['eh_grupo'] = 1;
+                }
             }
             if (!$conv) {
                 $log("[{$numero}] falha ao criar conversa");
