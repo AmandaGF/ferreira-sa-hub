@@ -1023,26 +1023,28 @@ if ($action === 'enviar_rapido') {
         exit;
     }
 
-    // Trava de atendimento: se já existe conversa pra esse telefone+canal,
-    // respeita quem é o atendente atual.
-    try {
-        $inst = zapi_get_instancia($canal);
-        if ($inst) {
-            $telNorm = zapi_normaliza_telefone($telefone);
-            $qConv = $pdo->prepare("SELECT id FROM zapi_conversas WHERE telefone = ? AND instancia_id = ? LIMIT 1");
-            $qConv->execute(array($telNorm, $inst['id']));
-            $cid = (int)$qConv->fetchColumn();
-            if ($cid) {
-                $lock = zapi_pode_enviar_conversa($cid, $userId, 30);
-                if (empty($lock['pode'])) {
-                    echo json_encode(array(
-                        'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa no módulo WhatsApp."
-                    ));
-                    exit;
+    // Trava de atendimento só vale no canal 21 (Comercial). CX/Operacional (24)
+    // é colaborativo — qualquer pessoa envia, sem restrição.
+    if ($canal !== '24') {
+        try {
+            $inst = zapi_get_instancia($canal);
+            if ($inst) {
+                $telNorm = zapi_normaliza_telefone($telefone);
+                $qConv = $pdo->prepare("SELECT id FROM zapi_conversas WHERE telefone = ? AND instancia_id = ? LIMIT 1");
+                $qConv->execute(array($telNorm, $inst['id']));
+                $cid = (int)$qConv->fetchColumn();
+                if ($cid) {
+                    $lock = zapi_pode_enviar_conversa($cid, $userId, 30);
+                    if (empty($lock['pode'])) {
+                        echo json_encode(array(
+                            'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa no módulo WhatsApp."
+                        ));
+                        exit;
+                    }
                 }
             }
-        }
-    } catch (Exception $e) { /* se falhar checagem, permite (best-effort) */ }
+        } catch (Exception $e) { /* se falhar checagem, permite (best-effort) */ }
+    }
 
     // Envia via Z-API
     $resp = zapi_send_text($canal, $telefone, $mensagem);

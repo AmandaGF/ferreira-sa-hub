@@ -407,11 +407,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (!souEuAtendente && podeEnviar) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
-        if (PODE_DELEGAR) {
+        // Delegação só faz sentido no canal 21 (Comercial) — CX/Operacional (24) é colaborativo.
+        if (PODE_DELEGAR && c.canal === '21') {
             actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 30 minutos sem interação, destrava automaticamente.">🎯 Delegar</button>';
             if (estaDelegada) {
                 actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
             }
+        }
+        // Mesclar é util em ambos os canais (duplicatas Multi-Device acontecem nos 2)
+        if (PODE_DELEGAR) {
             actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
         }
         if (c.status !== 'resolvido') {

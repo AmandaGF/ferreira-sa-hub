@@ -845,12 +845,17 @@ function zapi_sync_foto_contato($convId) {
 function zapi_pode_enviar_conversa($convId, $userId, $minutos = 30) {
     $pdo = db();
     $minutos = (int)$minutos;
-    $stmt = $pdo->prepare("SELECT co.atendente_id, u.name FROM zapi_conversas co
+    $stmt = $pdo->prepare("SELECT co.canal, co.atendente_id, u.name FROM zapi_conversas co
                            LEFT JOIN users u ON u.id = co.atendente_id
                            WHERE co.id = ?");
     $stmt->execute(array($convId));
     $row = $stmt->fetch();
     if (!$row) return array('pode' => true); // conversa não existe, deixa seguir (outro handler vai barrar)
+
+    // Canal 24 (CX/Operacional) é colaborativo — qualquer atendente envia,
+    // assume e responde sem restrição. Trava só vale no canal 21 (Comercial),
+    // onde cada lead tem um dono único.
+    if ((string)$row['canal'] === '24') return array('pode' => true);
 
     $atendente = (int)$row['atendente_id'];
     if ($atendente === 0) return array('pode' => true);         // sem atendente, livre
