@@ -72,7 +72,7 @@ if ($caseFilt > 0) {
 if ($busca !== '') {
     // Busca por nome OU CPF OU número Asaas OU nº processo vinculado
     $digits = preg_replace('/\D/', '', $busca);
-    $sub = "(cl.name LIKE ? OR cl.cpf LIKE ? OR ac.asaas_id LIKE ?";
+    $sub = "(cl.name LIKE ? OR cl.cpf LIKE ? OR ac.asaas_payment_id LIKE ?";
     $likeBusca = '%' . $busca . '%';
     $likeDigits = '%' . ($digits !== '' ? $digits : $busca) . '%';
     $params[] = $likeBusca;
@@ -142,7 +142,7 @@ if (isset($_GET['csv'])) {
             $r['status'] ?: '',
             $r['forma_pagamento'] ?: '',
             ($r['case_title'] ? $r['case_title'] : '') . ($r['case_number'] ? ' — ' . $r['case_number'] : ''),
-            $r['asaas_id'] ?: '',
+            $r['asaas_payment_id'] ?: '',
             $r['descricao'] ?: '',
         ), ';');
     }
@@ -356,7 +356,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <td class="num" style="color:#059669;"><?= $r['valor_pago'] > 0 ? 'R$ ' . number_format((float)$r['valor_pago'], 2, ',', '.') : '—' ?></td>
             <td><span class="cobr-status" style="background:<?= e($st[1]) ?>;"><?= e($st[0]) ?></span></td>
             <td style="font-size:.72rem;"><?= e($r['forma_pagamento'] ?: '—') ?></td>
-            <td style="font-family:monospace;font-size:.68rem;color:var(--text-muted);"><?= e($r['asaas_id'] ?? '—') ?></td>
+            <td style="font-family:monospace;font-size:.68rem;color:var(--text-muted);"><?= e($r['asaas_payment_id'] ?? '—') ?></td>
         </tr>
         <?php endforeach; ?>
     </tbody>
