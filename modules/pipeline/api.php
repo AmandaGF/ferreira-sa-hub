@@ -399,24 +399,26 @@ switch ($action) {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
             'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
-            'data_agendamento','onboard_realizado','origem_lead','created_at');
+            'data_agendamento','onboard_realizado','origem_lead','converted_at');
         if (!$leadId) _api_fail('lead_id inválido.');
         if (!in_array($field, $allowed, true)) _api_fail("Campo '{$field}' não autorizado.");
 
         try {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
-            // created_at (data de fechamento) — aceita YYYY-MM-DD, preserva hora original.
-            if ($field === 'created_at') {
+            // converted_at (data de fechamento do contrato) — aceita YYYY-MM-DD.
+            // Preserva hora original do converted_at se já existia; senão usa 12:00:00.
+            // NÃO toca em created_at (histórico de criação do lead fica intacto).
+            if ($field === 'converted_at') {
                 if ($value === '' || $value === null) {
                     _api_fail('Data inválida (vazia).');
                 }
                 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) || !strtotime($value)) {
                     _api_fail('Data inválida — use o formato AAAA-MM-DD.');
                 }
-                $stOrig = $pdo->prepare("SELECT created_at FROM pipeline_leads WHERE id = ?");
+                $stOrig = $pdo->prepare("SELECT converted_at FROM pipeline_leads WHERE id = ?");
                 $stOrig->execute(array($leadId));
-                $origCreated = $stOrig->fetchColumn();
-                $horaParte = $origCreated ? date('H:i:s', strtotime($origCreated)) : '00:00:00';
+                $origConv = $stOrig->fetchColumn();
+                $horaParte = $origConv ? date('H:i:s', strtotime($origConv)) : '12:00:00';
                 $value = $value . ' ' . $horaParte;
             }
             // IMPORTANTE: preserva string "0" e "0,00" (valores financeiros legítimos). Só NULLa se vazio de fato.

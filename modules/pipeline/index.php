@@ -372,10 +372,18 @@ $sortMap = array(
 if ($sortCol && isset($sortMap[$sortCol])) {
     $f = $sortMap[$sortCol];
     $isNum = in_array($f, array('honorarios_cents','exito_percentual'), true);
+    // 'created_at' é o que o cabeçalho "Data Fech." envia — mas a coluna mostra
+    // converted_at com fallback, então o sort precisa casar (COALESCE).
     $isDate = ($f === 'created_at');
-    usort($allLeadsFlat, function($a, $b) use ($f, $sortDir, $isNum, $isDate) {
-        $av = isset($a[$f]) ? $a[$f] : null;
-        $bv = isset($b[$f]) ? $b[$f] : null;
+    $useCoalesceDate = ($sortCol === 'created_at');
+    usort($allLeadsFlat, function($a, $b) use ($f, $sortDir, $isNum, $isDate, $useCoalesceDate) {
+        if ($useCoalesceDate) {
+            $av = !empty($a['converted_at']) ? $a['converted_at'] : (isset($a['created_at']) ? $a['created_at'] : null);
+            $bv = !empty($b['converted_at']) ? $b['converted_at'] : (isset($b['created_at']) ? $b['created_at'] : null);
+        } else {
+            $av = isset($a[$f]) ? $a[$f] : null;
+            $bv = isset($b[$f]) ? $b[$f] : null;
+        }
         // Vazios sempre por último (independente da direção)
         $aEmpty = ($av === null || $av === '' || $av === '0' || $av === 0);
         $bEmpty = ($bv === null || $bv === '' || $bv === '0' || $bv === 0);
@@ -488,7 +496,12 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     </td>
     <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:120px;font-size:.72rem;"><input type="date" value="<?= $lead['created_at'] ? date('Y-m-d', strtotime($lead['created_at'])) : '' ?>" data-id="<?= $lid ?>" data-field="created_at" onchange="saveCell(this)" style="font-family:inherit;"></td>
+    <?php
+        $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
+        $_isFallback = empty($lead['converted_at']);
+        $_tooltip = $_isFallback ? 'Lead ainda não assinou contrato — mostrando data de cadastro. Editar aqui define a data de fechamento.' : 'Data em que o contrato foi assinado.';
+    ?>
+    <td class="editable" style="min-width:120px;font-size:.72rem;<?= $_isFallback ? 'opacity:.65;font-style:italic;' : '' ?>" title="<?= e($_tooltip) ?>"><input type="date" value="<?= $_dataFechamento ? date('Y-m-d', strtotime($_dataFechamento)) : '' ?>" data-id="<?= $lid ?>" data-field="converted_at" onchange="saveCell(this)" style="font-family:inherit;<?= $_isFallback ? 'font-style:italic;color:#6b7280;' : '' ?>"></td>
     <td class="editable" style="min-width:100px;"><input value="<?= e($lead['case_type'] ?? '') ?>" data-id="<?= $lid ?>" data-field="case_type" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:100px;"><input type="text" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorarios(this)" placeholder="0,00"></td>
     <td class="editable" style="min-width:60px;"><input type="number" value="<?= e($lead['exito_percentual'] ?? '') ?>" data-id="<?= $lid ?>" data-field="exito_percentual" onchange="saveCell(this)" placeholder="%" step="1" min="0" max="100" style="width:55px;"></td>
