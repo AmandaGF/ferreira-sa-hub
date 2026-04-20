@@ -32,6 +32,43 @@ function current_user_name(): string
     return $_SESSION['user']['name'] ?? '';
 }
 
+/**
+ * Nome do usuário pra atendimento WhatsApp.
+ * 1. Se o usuário preencheu users.wa_display_name, usa esse.
+ * 2. Senão, computa "primeiro + último sobrenome" do nome completo.
+ *    Ex: "Amanda Guedes Ferreira" → "Amanda Ferreira"
+ *        "Luiz Eduardo de Sá Silva" → "Luiz Silva"
+ *        "Naiara Gama Dourado" → "Naiara Dourado"
+ *        "Maria" → "Maria" (só um nome)
+ *
+ * Aceita user_id (int) OU array (user row) OU null (usa o logado).
+ */
+function user_display_name($userOrId = null): string
+{
+    $arr = null;
+    if (is_array($userOrId)) {
+        $arr = $userOrId;
+    } elseif (is_int($userOrId) && $userOrId > 0) {
+        try {
+            $stmt = db()->prepare("SELECT name, wa_display_name FROM users WHERE id = ?");
+            $stmt->execute(array($userOrId));
+            $arr = $stmt->fetch() ?: null;
+        } catch (Exception $e) {}
+    } else {
+        $arr = current_user();
+    }
+    if (!$arr) return '';
+
+    $display = trim($arr['wa_display_name'] ?? '');
+    if ($display !== '') return $display;
+
+    $full = trim($arr['name'] ?? '');
+    if ($full === '') return '';
+    $parts = preg_split('/\s+/', $full);
+    if (count($parts) < 2) return $full;
+    return $parts[0] . ' ' . end($parts);
+}
+
 // ─── Login / Logout ─────────────────────────────────────
 function login_user(array $user): void
 {

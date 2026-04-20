@@ -28,6 +28,17 @@ $accentLight = $isComercial ? '#fdf5ed' : '#eef2f8';
 $csrfToken = generate_csrf_token();
 $podeDelegar = can_delegar_whatsapp(); // só Amanda (1) e Luiz Eduardo (6)
 
+// Nome de atendimento do usuário logado (custom ou "primeiro + último")
+$meuDisplayName = user_display_name();
+$meuDisplayCustom = '';
+try {
+    // Auto-heal + pega o custom atual
+    try { db()->exec("ALTER TABLE users ADD COLUMN wa_display_name VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
+    $st = db()->prepare("SELECT wa_display_name FROM users WHERE id = ?");
+    $st->execute(array($user['id']));
+    $meuDisplayCustom = (string)$st->fetchColumn();
+} catch (Exception $e) {}
+
 // Lista de usuários ativos (pra filtro de atendente e dropdown de delegação)
 $usuariosAtivos = array();
 try {
@@ -136,6 +147,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (has_min_role('gestao')): ?>
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
             <button onclick="waAtualizarFotos(this)" class="btn btn-outline btn-sm" title="Busca foto de perfil do WhatsApp de cada contato. Se for cliente sem foto, salva no cadastro dele.">🖼️ Atualizar fotos</button>
+            <button onclick="waAbrirMeuNome()" class="btn btn-outline btn-sm" title="Editar o nome que aparece acima das suas mensagens / na assinatura enviada ao cliente">✍️ Meu nome</button>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
         <?php endif; ?>
     </div>
@@ -256,6 +268,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var PODE_DELEGAR = <?= $podeDelegar ? 'true' : 'false' ?>;
     var USUARIOS = <?= json_encode(array_map(function($u){ return array('id'=>(int)$u['id'],'name'=>$u['name']); }, $usuariosAtivos), JSON_UNESCAPED_UNICODE) ?>;
     var MEU_USER_ID = <?= (int)$user['id'] ?>;
+    var MEU_NOME_ATUAL  = <?= json_encode($meuDisplayName, JSON_UNESCAPED_UNICODE) ?>; // nome já exibido (custom ou auto)
+    var MEU_NOME_CUSTOM = <?= json_encode($meuDisplayCustom, JSON_UNESCAPED_UNICODE) ?>; // override salvo (ou '')
+    var MEU_NOME_COMPLETO = <?= json_encode($user['name'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
 
     // Gera cor determinística por user_id (hash simples → HSL)
     function corAtendente(userId) {
@@ -1417,6 +1432,54 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waSincronizar = function() {
         alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');
+    };
+
+    // Modal "Meu nome de atendimento" — nome que aparece acima das próprias
+    // mensagens no chat interno e na assinatura enviada ao cliente.
+    // Padrão: primeiro + último sobrenome do cadastro (ex: "Amanda Guedes Ferreira"
+    // → "Amanda Ferreira"). Editável por cada usuário.
+    window.waAbrirMeuNome = function() {
+        var overlay = document.createElement('div');
+        overlay.id = 'waMeuNomeOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+        // Computa padrão "primeiro + último" do nome completo pra mostrar como exemplo
+        var partes = (MEU_NOME_COMPLETO || '').trim().split(/\s+/);
+        var padraoAuto = partes.length >= 2 ? (partes[0] + ' ' + partes[partes.length-1]) : (partes[0] || '');
+        overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:480px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .25rem;font-size:1rem;color:#052228;">✍️ Meu nome de atendimento</h3>'
+            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">É o nome que aparece acima das suas mensagens no chat interno e na assinatura enviada ao cliente (se estiver ligada em Configurações).</p>'
+            + '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.6rem .8rem;margin-bottom:1rem;font-size:.8rem;">'
+            +   '<div style="color:#6b7280;font-size:.7rem;margin-bottom:2px;">Nome no cadastro:</div>'
+            +   '<div style="font-weight:600;color:#052228;">' + escapeHtml(MEU_NOME_COMPLETO) + '</div>'
+            +   '<div style="color:#6b7280;font-size:.7rem;margin:6px 0 2px;">Padrão automático (primeiro + último):</div>'
+            +   '<div style="font-weight:600;color:#052228;">' + escapeHtml(padraoAuto) + '</div>'
+            + '</div>'
+            + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Nome personalizado (deixe vazio pra usar o padrão):</label>'
+            + '<input type="text" id="waMeuNomeInput" maxlength="100" value="' + escapeHtml(MEU_NOME_CUSTOM) + '" placeholder="' + escapeHtml(padraoAuto) + '" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.9rem;margin-bottom:1rem;">'
+            + '<p style="font-size:.7rem;color:#6b7280;margin:-.5rem 0 1rem;">Para não mostrar nome algum, vá em <strong>⚙️ Configurações → Automações</strong> e desligue "Mostrar nome do atendente" e/ou "Assinatura do atendente".</p>'
+            + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
+            + '<button onclick="document.getElementById(\'waMeuNomeOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
+            + '<button id="waBtnSalvarNome" style="padding:.45rem 1rem;border:none;border-radius:8px;background:#b08d6e;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;">Salvar</button>'
+            + '</div></div>';
+        document.body.appendChild(overlay);
+        document.getElementById('waMeuNomeInput').focus();
+        document.getElementById('waBtnSalvarNome').onclick = function() {
+            var novo = document.getElementById('waMeuNomeInput').value.trim();
+            var fd = new FormData();
+            fd.append('action', 'salvar_display_name');
+            fd.append('csrf_token', csrf);
+            fd.append('wa_display_name', novo);
+            this.disabled = true; this.textContent = 'Salvando...';
+            fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(r){
+                if (r && r.error) { alert(r.error); return; }
+                MEU_NOME_ATUAL = r.display_name || novo || padraoAuto;
+                MEU_NOME_CUSTOM = novo;
+                overlay.remove();
+                if (convAtiva) window.waAbrir(convAtiva);
+                alert('✓ Nome salvo: ' + MEU_NOME_ATUAL);
+            });
+        };
     };
 
     // ── TEMPLATES (respostas rápidas) ───────────────────

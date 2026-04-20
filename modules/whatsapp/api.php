@@ -25,6 +25,8 @@ try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_em DATETIME DEF
 // Self-heal: colunas pra reações a mensagens (emoji reaction)
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+// Self-heal: wa_display_name em users (nome curto exibido nas mensagens WhatsApp)
+try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_display_name VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
 // Self-heal: biblioteca de stickers compartilhada pela equipe
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_stickers (
@@ -54,7 +56,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'enviar_sticker', 'enviar_reacao',
                   'sticker_biblioteca_add', 'sticker_biblioteca_enviar',
                   'sticker_biblioteca_remover', 'sticker_biblioteca_favoritar',
-                  'sticker_biblioteca_add_from_msg');
+                  'sticker_biblioteca_add_from_msg',
+                  'salvar_display_name');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -111,6 +114,7 @@ if ($action === 'listar_conversas') {
                    co.foto_perfil_url, COALESCE(co.eh_grupo, 0) AS eh_grupo,
                    cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
+                   u.wa_display_name AS atendente_display_name,
                    pl.name AS lead_name,
                    u.name AS atendente_name,
                    (SELECT m.conteudo FROM zapi_mensagens m
@@ -135,6 +139,7 @@ if ($action === 'listar_conversas') {
     $rows = $stmt->fetchAll();
 
     // Parse etiquetas: "id|nome|cor§id|nome|cor" → array de {id,nome,cor}
+    // + substitui atendente_name pelo display name curto (custom ou primeiro+último)
     foreach ($rows as &$r) {
         $r['etiquetas'] = array();
         if (!empty($r['etiquetas_raw'])) {
@@ -144,6 +149,14 @@ if ($action === 'listar_conversas') {
             }
         }
         unset($r['etiquetas_raw']);
+        // Display name curto
+        if (!empty($r['atendente_name'])) {
+            $r['atendente_name'] = user_display_name(array(
+                'name' => $r['atendente_name'],
+                'wa_display_name' => $r['atendente_display_name'] ?? null,
+            ));
+        }
+        unset($r['atendente_display_name']);
     }
 
     // Status das instâncias
@@ -188,11 +201,21 @@ if ($action === 'sync_fotos_todas') {
     exit;
 }
 
+// ── MEU NOME DE ATENDIMENTO (display name WhatsApp) ──────
+if ($action === 'salvar_display_name') {
+    $novo = trim($_POST['wa_display_name'] ?? '');
+    if (mb_strlen($novo) > 100) { echo json_encode(array('error' => 'Nome muito longo (máx 100 caracteres).')); exit; }
+    $pdo->prepare("UPDATE users SET wa_display_name = ? WHERE id = ?")
+        ->execute(array($novo !== '' ? $novo : null, $userId));
+    echo json_encode(array('ok' => true, 'display_name' => user_display_name()));
+    exit;
+}
+
 // ── ABRIR CONVERSA (zera não lidas + retorna mensagens) ──
 if ($action === 'abrir_conversa') {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, pl.name AS lead_name,
-                                  u.name AS atendente_name
+                                  u.name AS atendente_name, u.wa_display_name AS atendente_display_name
                            FROM zapi_conversas co
                            LEFT JOIN clients cl ON cl.id = co.client_id
                            LEFT JOIN pipeline_leads pl ON pl.id = co.lead_id
@@ -201,6 +224,15 @@ if ($action === 'abrir_conversa') {
     $stmt->execute(array($id));
     $conv = $stmt->fetch();
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    // Display name curto do atendente
+    if (!empty($conv['atendente_name'])) {
+        $conv['atendente_name'] = user_display_name(array(
+            'name' => $conv['atendente_name'],
+            'wa_display_name' => $conv['atendente_display_name'] ?? null,
+        ));
+    }
+    unset($conv['atendente_display_name']);
 
     // Zera não lidas
     $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = 0 WHERE id = ?")->execute(array($id));
@@ -211,7 +243,7 @@ if ($action === 'abrir_conversa') {
     $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
 
     // Mensagens (últimas 200)
-    $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name
+    $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name
                            FROM zapi_mensagens m
                            LEFT JOIN users u ON u.id = m.enviado_por_id
                            WHERE m.conversa_id = ?
@@ -219,6 +251,17 @@ if ($action === 'abrir_conversa') {
                            LIMIT 200");
     $msgs->execute(array($id));
     $mensagens = $msgs->fetchAll();
+    // Display name curto por mensagem
+    foreach ($mensagens as &$_m) {
+        if (!empty($_m['enviado_por_name'])) {
+            $_m['enviado_por_name'] = user_display_name(array(
+                'name' => $_m['enviado_por_name'],
+                'wa_display_name' => $_m['enviado_por_display_name'] ?? null,
+            ));
+        }
+        unset($_m['enviado_por_display_name']);
+    }
+    unset($_m);
 
     // Etiquetas aplicadas nesta conversa
     $etqStmt = $pdo->prepare("SELECT e.id, e.nome, e.cor FROM zapi_etiquetas e
@@ -250,12 +293,13 @@ if ($action === 'enviar_mensagem') {
     $conv = $conv->fetch();
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
-    // Assinatura do atendente (configurável em Automações)
+    // Assinatura do atendente (configurável em Automações) — usa o nome curto
+    // do usuário (wa_display_name ou 'primeiro + último' automático).
     $assinar = zapi_auto_cfg('zapi_signature_on', '0') === '1';
     $textoEnviar = $texto;
     if ($assinar) {
         $formato = zapi_auto_cfg('zapi_signature_format', '— {{atendente}}');
-        $nomeUser = current_user()['name'] ?? '';
+        $nomeUser = user_display_name();
         $assinatura = str_replace('{{atendente}}', $nomeUser, $formato);
         $textoEnviar = rtrim($texto) . "\n\n" . $assinatura;
     }
