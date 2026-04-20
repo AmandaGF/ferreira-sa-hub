@@ -903,21 +903,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             });
         };
 
-        // Tenta pré-checar o estado da permissão pra avisar antes de chamar getUserMedia
-        if (navigator.permissions && navigator.permissions.query) {
-            navigator.permissions.query({ name: 'microphone' }).then(function(st) {
-                if (st.state === 'denied') {
-                    mostrarAjudaMicrofone('🚫 O microfone está BLOQUEADO pra este site (Permissão negada anteriormente).');
-                } else {
-                    iniciar();
-                }
-            }).catch(function() {
-                // API Permissions não suporta 'microphone' nesse browser — tenta direto
-                iniciar();
-            });
-        } else {
-            iniciar();
-        }
+        // SEMPRE tenta direto. A API Permissions às vezes retorna 'denied' mesmo
+        // quando o site estaria autorizado — só o getUserMedia é autoridade final.
+        iniciar();
     };
 
     window.waCancelarGravacao = function() {
