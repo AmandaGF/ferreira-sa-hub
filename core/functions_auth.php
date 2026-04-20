@@ -90,6 +90,20 @@ function can_access_financeiro()
     return in_array((int)$uid, $autorizados, true);
 }
 
+/**
+ * Só Amanda (1) e Luiz Eduardo (6) podem delegar conversas do WhatsApp
+ * pra outros atendentes. Qualquer usuário continua podendo "Assumir"
+ * conversas livres (sem atendente); delegadas ficam bloqueadas pra quem
+ * não é o atendente alvo.
+ */
+function can_delegar_whatsapp()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    $autorizados = array(1, 6); // Amanda, Luiz Eduardo
+    return in_array((int)$uid, $autorizados, true);
+}
+
 function can_access($module)
 {
     static $overrides = null;

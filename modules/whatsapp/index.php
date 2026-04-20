@@ -26,6 +26,13 @@ $accentColor = $isComercial ? '#b08d6e' : '#0f3460';
 $accentLight = $isComercial ? '#fdf5ed' : '#eef2f8';
 
 $csrfToken = generate_csrf_token();
+$podeDelegar = can_delegar_whatsapp(); // só Amanda (1) e Luiz Eduardo (6)
+
+// Lista de usuários ativos (pra filtro de atendente e dropdown de delegação)
+$usuariosAtivos = array();
+try {
+    $usuariosAtivos = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+} catch (Exception $e) {}
 
 // Config: mostrar nome do atendente no chat interno (default: sim)
 $mostrarNomeAtendente = '1';
@@ -162,6 +169,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
+                <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;" title="Filtrar por atendente">
+                    <option value="">👥 Atendente</option>
+                    <option value="-1">👤 Minhas</option>
+                    <option value="0">⚪ Sem atendente</option>
+                    <?php foreach ($usuariosAtivos as $u): ?>
+                        <option value="<?= (int)$u['id'] ?>"><?= e(explode(' ', $u['name'])[0]) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <!-- Chip da etiqueta selecionada (aparece só quando filtro ativo) -->
             <div id="waEtqChipAtivo" style="display:none;align-items:center;gap:6px;"></div>
@@ -229,12 +244,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var filtroAtual = 'todos';
     var buscaAtual  = '';
     var etiquetaFiltro = 0;
+    var atendenteFiltro = ''; // '' = todos, -1 = minhas, 0 = sem atendente, N = user id N
     var convAtiva   = null;
     var pollTimer   = null;
     var templatesCache = null;
     var etiquetasCache = null;
     var arquivoPendente = null; // {file, previewUrl}
     var convNomeAtual = ''; // nome do contato da conversa aberta (pra {{nome}})
+    var PODE_DELEGAR = <?= $podeDelegar ? 'true' : 'false' ?>;
+    var USUARIOS = <?= json_encode(array_map(function($u){ return array('id'=>(int)$u['id'],'name'=>$u['name']); }, $usuariosAtivos), JSON_UNESCAPED_UNICODE) ?>;
+    var MEU_USER_ID = <?= (int)$user['id'] ?>;
+
+    // Gera cor determinística por user_id (hash simples → HSL)
+    function corAtendente(userId) {
+        if (!userId) return null;
+        var h = 0, s = String(userId);
+        for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
+        var hue = h % 360;
+        return 'hsl(' + hue + ', 60%, 50%)';
+    }
     var mostrarNomeAtendente = <?= $mostrarNomeAtendente === '1' ? 'true' : 'false' ?>; // config
 
     function escapeHtml(s) { return (s||'').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -270,8 +298,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
 
     // ── LISTA DE CONVERSAS ──────────────────────────────
+    window.waSetFiltroAtendente = function(v) {
+        atendenteFiltro = v;
+        carregarLista();
+    };
+
     function carregarLista() {
         var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual);
+        if (atendenteFiltro !== '') url += '&atendente=' + encodeURIComponent(atendenteFiltro);
         if (etiquetaFiltro) url += '&etiqueta=' + etiquetaFiltro;
         fetch(url).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
@@ -285,7 +319,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             d.conversas.forEach(function(c){
                 var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
                 var isActive = convAtiva === c.id ? 'active' : '';
-                html += '<div class="wa-conv '+isActive+'" data-id="'+c.id+'" onclick="waAbrir('+c.id+')">';
+                // Borda esquerda com cor do atendente (se houver); se delegada, bordas mais espessa.
+                var cor = corAtendente(c.atendente_id);
+                var borderStyle = '';
+                if (cor) {
+                    var espessura = +c.delegada ? '5px' : '3px';
+                    borderStyle = 'border-left:' + espessura + ' solid ' + cor + ';';
+                }
+                html += '<div class="wa-conv '+isActive+'" data-id="'+c.id+'" style="'+borderStyle+'" onclick="waAbrir('+c.id+')">';
                 html += '  <div class="wa-avatar">' + avatarHtml(c, nome) + '</div>';
                 html += '  <div class="wa-conv-info">';
                 html += '    <div class="wa-conv-name">' + escapeHtml(nome);
@@ -336,8 +377,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             if (+c.bot_ativo) actions += '<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>';
             else               actions += '<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>';
         }
-        if (!c.atendente_id || +c.atendente_id !== <?= (int)$user['id'] ?>) {
+        var souEuAtendente = (+c.atendente_id === <?= (int)$user['id'] ?>);
+        var estaDelegada = !!(+c.delegada);
+        // Se delegada a outro e eu não sou admin delegador, não exibe Assumir.
+        if (!souEuAtendente && (!estaDelegada || PODE_DELEGAR)) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
+        }
+        if (PODE_DELEGAR) {
+            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava pra que só ele possa assumir)">🎯 Delegar</button>';
+            if (estaDelegada) {
+                actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
+            }
         }
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
@@ -348,7 +398,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         actions += '</div>';
 
         var subTxt = formatTel(c.telefone);
-        if (c.atendente_name) subTxt += ' · 👤 ' + c.atendente_name;
+        if (c.atendente_name) {
+            var atLabel = c.atendente_name;
+            if (+c.delegada) atLabel = '🎯 ' + atLabel + ' (delegada)';
+            subTxt += ' · 👤 ' + atLabel;
+        }
         if (c.client_name) subTxt += ' · 🎯 Cliente';
         else if (c.lead_name) subTxt += ' · 📈 Lead';
 
@@ -790,7 +844,60 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (extra) for (var k in extra) fd.append(k, extra[k]);
         return fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); });
     }
-    window.waAssumir   = function() { acaoConversa('assumir_atendimento').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+    window.waAssumir = function() {
+        acaoConversa('assumir_atendimento').then(function(r){
+            if (r && r.error) { alert(r.error); return; }
+            window.waAbrir(convAtiva); carregarLista();
+        });
+    };
+
+    // Modal de delegação — só aparece pra Amanda/Luiz (PODE_DELEGAR = true).
+    // Quando delegada, só o alvo (ou outro admin) pode assumir.
+    window.waAbrirDelegar = function() {
+        if (!PODE_DELEGAR) return;
+        if (!convAtiva) return;
+        var optsHtml = USUARIOS.map(function(u){
+            return '<option value="' + u.id + '">' + u.name + '</option>';
+        }).join('');
+        var overlay = document.createElement('div');
+        overlay.id = 'waDelegarOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+        overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">🎯 Delegar conversa</h3>'
+            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação.</p>'
+            + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Delegar para:</label>'
+            + '<select id="waDelegarAlvo" style="width:100%;padding:.5rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;">'
+            + '<option value="">Selecione...</option>' + optsHtml + '</select>'
+            + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
+            + '<button onclick="document.getElementById(\'waDelegarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
+            + '<button id="waBtnConfirmarDelegar" style="padding:.45rem 1rem;border:none;border-radius:8px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;">Delegar</button>'
+            + '</div></div>';
+        document.body.appendChild(overlay);
+        document.getElementById('waBtnConfirmarDelegar').onclick = function() {
+            var alvo = document.getElementById('waDelegarAlvo').value;
+            if (!alvo) { alert('Escolha um atendente.'); return; }
+            var fd = new FormData();
+            fd.append('action', 'delegar_conversa');
+            fd.append('csrf_token', csrf);
+            fd.append('conversa_id', convAtiva);
+            fd.append('atendente_id', alvo);
+            this.disabled = true; this.textContent = 'Delegando...';
+            fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(r){
+                if (r && r.error) { alert(r.error); }
+                else { overlay.remove(); window.waAbrir(convAtiva); carregarLista(); }
+            });
+        };
+    };
+
+    window.waRemoverDelegacao = function() {
+        if (!PODE_DELEGAR || !convAtiva) return;
+        if (!confirm('Remover a delegação? Qualquer atendente poderá assumir a conversa.')) return;
+        acaoConversa('remover_delegacao').then(function(r){
+            if (r && r.error) { alert(r.error); return; }
+            window.waAbrir(convAtiva); carregarLista();
+        });
+    };
     window.waToggleBot = function(ativar) {
         var action = ativar ? 'ativar_bot' : 'desativar_bot';
         acaoConversa(action).then(function(){ window.waAbrir(convAtiva); carregarLista(); });

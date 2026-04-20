@@ -18,6 +18,10 @@ try {
 try {
     $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_atualizada DATETIME DEFAULT NULL");
 } catch (Exception $e) { /* coluna já existe */ }
+// Self-heal: colunas pra delegação de conversas
+try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_por INT DEFAULT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_em DATETIME DEFAULT NULL"); } catch (Exception $e) {}
 
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
@@ -27,7 +31,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'deletar_mensagem', 'editar_mensagem',
                   'salvar_drive',
                   'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
-                  'gerar_link_salavip');
+                  'gerar_link_salavip',
+                  'delegar_conversa', 'remover_delegacao');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -44,6 +49,20 @@ if ($action === 'listar_conversas') {
         if ($status === 'bot')  $where[] = 'co.bot_ativo = 1';
         elseif ($status === 'nao_lidas') $where[] = 'co.nao_lidas > 0';
         else { $where[] = 'co.status = ?'; $params[] = $status; }
+    }
+
+    // Filtro por atendente (0 = sem atendente, -1 = minhas)
+    if (isset($_GET['atendente']) && $_GET['atendente'] !== '') {
+        $at = (int)$_GET['atendente'];
+        if ($at === -1) {
+            $where[] = 'co.atendente_id = ?';
+            $params[] = $userId;
+        } elseif ($at === 0) {
+            $where[] = 'co.atendente_id IS NULL';
+        } else {
+            $where[] = 'co.atendente_id = ?';
+            $params[] = $at;
+        }
     }
     if ($busca !== '') {
         $where[] = '(co.nome_contato LIKE ? OR co.telefone LIKE ? OR cl.name LIKE ?)';
@@ -63,6 +82,7 @@ if ($action === 'listar_conversas') {
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
+                   COALESCE(co.delegada, 0) AS delegada, co.delegada_por,
                    co.foto_perfil_url, COALESCE(co.eh_grupo, 0) AS eh_grupo,
                    cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
@@ -228,6 +248,14 @@ if ($action === 'enviar_mensagem') {
 // ── ASSUMIR ATENDIMENTO (e desativar bot) ────────────────
 if ($action === 'assumir_atendimento') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
+    // Bloqueia se conversa foi delegada pra outra pessoa (só quem delegou ou o alvo pode destravar).
+    $check = $pdo->prepare("SELECT delegada, atendente_id FROM zapi_conversas WHERE id = ?");
+    $check->execute(array($convId));
+    $conv = $check->fetch();
+    if ($conv && (int)$conv['delegada'] === 1 && (int)$conv['atendente_id'] !== $userId && !can_delegar_whatsapp()) {
+        echo json_encode(array('error' => 'Esta conversa foi delegada a outro atendente. Apenas o atendente designado ou um admin (Amanda/Luiz) podem assumir.'));
+        exit;
+    }
     $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, bot_ativo = 0, status = 'em_atendimento' WHERE id = ?")
         ->execute(array($userId, $convId));
     audit_log('zapi_assumir', 'zapi_conversas', $convId);
@@ -235,7 +263,53 @@ if ($action === 'assumir_atendimento') {
     exit;
 }
 
-// ── ATRIBUIR PARA OUTRO USUÁRIO ──────────────────────────
+// ── DELEGAR CONVERSA (só Amanda e Luiz) ──────────────────
+if ($action === 'delegar_conversa') {
+    if (!can_delegar_whatsapp()) {
+        echo json_encode(array('error' => 'Apenas Amanda e Luiz Eduardo podem delegar conversas.'));
+        exit;
+    }
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $alvoId = (int)($_POST['atendente_id'] ?? 0);
+    if (!$convId || !$alvoId) {
+        echo json_encode(array('error' => 'Dados incompletos')); exit;
+    }
+    // Confirma que o alvo é usuário ativo
+    $u = $pdo->prepare("SELECT id, name FROM users WHERE id = ? AND is_active = 1");
+    $u->execute(array($alvoId));
+    $alvo = $u->fetch();
+    if (!$alvo) { echo json_encode(array('error' => 'Atendente alvo inválido ou inativo.')); exit; }
+
+    $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, delegada = 1, delegada_por = ?, delegada_em = NOW(), bot_ativo = 0, status = 'em_atendimento' WHERE id = ?")
+        ->execute(array($alvoId, $userId, $convId));
+
+    // Notifica o atendente alvo
+    try {
+        notify($alvoId, 'Nova conversa delegada a você',
+            'Você recebeu uma conversa do WhatsApp — abra o módulo pra atender.',
+            'info', url('modules/whatsapp/?conversa=' . $convId), '📩');
+    } catch (Exception $e) {}
+
+    audit_log('zapi_delegar', 'zapi_conversas', $convId, "Delegada para {$alvo['name']} (user={$alvoId})");
+    echo json_encode(array('ok' => true, 'alvo_name' => $alvo['name']));
+    exit;
+}
+
+// ── REMOVER DELEGAÇÃO (libera pra qualquer um assumir) ───
+if ($action === 'remover_delegacao') {
+    if (!can_delegar_whatsapp()) {
+        echo json_encode(array('error' => 'Apenas Amanda e Luiz Eduardo podem remover delegação.'));
+        exit;
+    }
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $pdo->prepare("UPDATE zapi_conversas SET delegada = 0, delegada_por = NULL, delegada_em = NULL WHERE id = ?")
+        ->execute(array($convId));
+    audit_log('zapi_remover_delegacao', 'zapi_conversas', $convId);
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── ATRIBUIR PARA OUTRO USUÁRIO (legado — mantido pra retrocompatibilidade) ─
 if ($action === 'atribuir') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     $alvoId = (int)($_POST['atendente_id'] ?? 0);
