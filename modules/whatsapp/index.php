@@ -825,58 +825,99 @@ require_once APP_ROOT . '/templates/layout_start.php';
             return;
         }
 
-        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
-            recStream = stream;
-            recChunks = [];
-            recCancelada = false;
-            // Escolhe um mime suportado; webm/opus funciona no Chrome/Edge, fallback pra default
-            var mime = '';
-            if (window.MediaRecorder) {
-                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
-                else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
-                else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime = 'audio/ogg;codecs=opus';
-                else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
-            }
-            try {
-                mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-            } catch (err) {
-                alert('Não foi possível iniciar o gravador: ' + err);
-                fecharStream();
-                return;
-            }
+        // Mensagem amigável com passo a passo pra desbloquear microfone
+        function mostrarAjudaMicrofone(titulo) {
+            alert(titulo + '\n\n' +
+                  'Como liberar:\n' +
+                  '1️⃣ Clique no cadeado 🔒 (ou ⚙️ / ⓘ) ao lado da URL no topo do navegador\n' +
+                  '2️⃣ Procure "Microfone" na lista\n' +
+                  '3️⃣ Mude pra "Permitir" (ou remova a regra de bloqueio)\n' +
+                  '4️⃣ Feche e abra esta aba de novo (Ctrl+F5)\n\n' +
+                  'Se não encontrar a opção, vá em:\n' +
+                  '• Chrome: chrome://settings/content/microphone → remover ferreiraesa.com.br dos bloqueados\n' +
+                  '• Edge: edge://settings/content/microphone → mesma coisa');
+        }
 
-            mediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) recChunks.push(e.data); };
-            mediaRecorder.onstop = function(){
-                paraTimer();
-                fecharStream();
-                mostrarBarraGravacao(false);
-                if (recCancelada || recChunks.length === 0) { mediaRecorder = null; return; }
-
-                var usedMime = mediaRecorder.mimeType || 'audio/webm';
-                var blob = new Blob(recChunks, { type: usedMime });
-                mediaRecorder = null;
-                // Duração mínima: 500ms
-                if ((Date.now() - recInicio) < 500) { alert('Áudio curto demais.'); return; }
-                enviarAudioBlob(blob, usedMime);
-            };
-
-            mediaRecorder.start();
-            recInicio = Date.now();
-            mostrarBarraGravacao(true);
-            recTimerInt = setInterval(function(){
-                var s = Math.floor((Date.now() - recInicio) / 1000);
-                var mm = Math.floor(s / 60), ss = s % 60;
-                document.getElementById('waRecTimer').textContent =
-                    ('0'+mm).slice(-2) + ':' + ('0'+ss).slice(-2);
-                // Limite 5 minutos
-                if (s >= 300) {
-                    recCancelada = false;
-                    mediaRecorder.stop();
+        // Pré-check: se a permissão já está 'denied', não adianta chamar getUserMedia.
+        // A API Permissions pode não estar disponível em todos os browsers — nesse caso só tentamos.
+        var iniciar = function() {
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
+                recStream = stream;
+                recChunks = [];
+                recCancelada = false;
+                var mime = '';
+                if (window.MediaRecorder) {
+                    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
+                    else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
+                    else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime = 'audio/ogg;codecs=opus';
+                    else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
                 }
-            }, 250);
-        }).catch(function(err){
-            alert('Permissão de microfone negada ou erro: ' + err.message);
-        });
+                try {
+                    mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+                } catch (err) {
+                    alert('Não foi possível iniciar o gravador: ' + err);
+                    fecharStream();
+                    return;
+                }
+
+                mediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) recChunks.push(e.data); };
+                mediaRecorder.onstop = function(){
+                    paraTimer();
+                    fecharStream();
+                    mostrarBarraGravacao(false);
+                    if (recCancelada || recChunks.length === 0) { mediaRecorder = null; return; }
+
+                    var usedMime = mediaRecorder.mimeType || 'audio/webm';
+                    var blob = new Blob(recChunks, { type: usedMime });
+                    mediaRecorder = null;
+                    if ((Date.now() - recInicio) < 500) { alert('Áudio curto demais.'); return; }
+                    enviarAudioBlob(blob, usedMime);
+                };
+
+                mediaRecorder.start();
+                recInicio = Date.now();
+                mostrarBarraGravacao(true);
+                recTimerInt = setInterval(function(){
+                    var s = Math.floor((Date.now() - recInicio) / 1000);
+                    var mm = Math.floor(s / 60), ss = s % 60;
+                    document.getElementById('waRecTimer').textContent =
+                        ('0'+mm).slice(-2) + ':' + ('0'+ss).slice(-2);
+                    if (s >= 300) {
+                        recCancelada = false;
+                        mediaRecorder.stop();
+                    }
+                }, 250);
+            }).catch(function(err){
+                // Mensagens específicas por tipo de erro
+                if (err && err.name === 'NotAllowedError') {
+                    mostrarAjudaMicrofone('🚫 O microfone está BLOQUEADO pra este site.');
+                } else if (err && err.name === 'NotFoundError') {
+                    alert('🎤 Nenhum microfone encontrado.\n\nVerifique se seu microfone está conectado e reconhecido pelo Windows (botão Iniciar → Configurações → Sistema → Som).');
+                } else if (err && err.name === 'NotReadableError') {
+                    alert('🎤 O microfone está em uso por outro programa.\n\nFeche outros aplicativos que possam estar usando (Zoom, Teams, Meet, WhatsApp Desktop, Discord) e tente novamente.');
+                } else if (err && err.name === 'AbortError') {
+                    alert('🎤 Acesso ao microfone foi interrompido. Tente novamente.');
+                } else {
+                    alert('Erro ao acessar microfone: ' + (err && err.name ? err.name + ' — ' : '') + (err && err.message ? err.message : err));
+                }
+            });
+        };
+
+        // Tenta pré-checar o estado da permissão pra avisar antes de chamar getUserMedia
+        if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions.query({ name: 'microphone' }).then(function(st) {
+                if (st.state === 'denied') {
+                    mostrarAjudaMicrofone('🚫 O microfone está BLOQUEADO pra este site (Permissão negada anteriormente).');
+                } else {
+                    iniciar();
+                }
+            }).catch(function() {
+                // API Permissions não suporta 'microphone' nesse browser — tenta direto
+                iniciar();
+            });
+        } else {
+            iniciar();
+        }
     };
 
     window.waCancelarGravacao = function() {
