@@ -7,6 +7,13 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
+// Dashboard é whitelist: só Amanda, Rodrigo e Luiz Eduardo.
+// Demais usuários vão pra Painel do Dia (tela mais operacional, sem KPIs gerais).
+if (!can_access_dashboard()) {
+    $destino = function_exists('module_url') ? module_url('painel') : url('modules/painel/');
+    redirect($destino);
+}
+
 $pageTitle = 'Dashboard';
 $user = current_user();
 $role = current_user_role();

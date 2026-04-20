@@ -104,6 +104,19 @@ function can_delegar_whatsapp()
     return in_array((int)$uid, $autorizados, true);
 }
 
+/**
+ * Dashboard do sistema — whitelist rígida por user_id.
+ * Só Amanda (1), Rodrigo (3) e Luiz Eduardo (6) têm acesso.
+ * Demais usuários são redirecionados (sem tela de KPIs gerais).
+ */
+function can_access_dashboard()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    $autorizados = array(1, 3, 6); // Amanda, Rodrigo, Luiz Eduardo
+    return in_array((int)$uid, $autorizados, true);
+}
+
 function can_access($module)
 {
     static $overrides = null;
@@ -111,6 +124,10 @@ function can_access($module)
     // ── Override rígido pro financeiro ──
     if ($module === 'faturamento' || $module === 'financeiro') {
         return can_access_financeiro();
+    }
+    // ── Override rígido pro dashboard ──
+    if ($module === 'dashboard') {
+        return can_access_dashboard();
     }
 
     $role = current_user_role();
