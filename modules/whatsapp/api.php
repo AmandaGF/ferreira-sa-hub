@@ -57,7 +57,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'sticker_biblioteca_add', 'sticker_biblioteca_enviar',
                   'sticker_biblioteca_remover', 'sticker_biblioteca_favoritar',
                   'sticker_biblioteca_add_from_msg',
-                  'salvar_display_name');
+                  'salvar_display_name',
+                  'mesclar_conversas');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -198,6 +199,82 @@ if ($action === 'sync_fotos_todas') {
         if (!empty($r['client_updated'])) $result['clientes_atualizados']++;
     }
     echo json_encode(array('ok' => true) + $result);
+    exit;
+}
+
+// ── LISTAR DUPLICATAS POTENCIAIS (Amanda/Luiz) ────────────
+// Retorna conversas que podem ser a mesma pessoa pra outra conversa de
+// referência: mesmo canal, nome_contato igual OU últimos 8 dígitos do telefone
+// batem. Exclui a própria conversa.
+if ($action === 'listar_duplicatas') {
+    if (!can_delegar_whatsapp()) { echo json_encode(array('error' => 'Apenas Amanda/Luiz podem mesclar conversas.')); exit; }
+    $convId = (int)($_GET['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'ID inválido')); exit; }
+    $base = $pdo->prepare("SELECT id, canal, telefone, nome_contato FROM zapi_conversas WHERE id = ?");
+    $base->execute(array($convId));
+    $b = $base->fetch();
+    if (!$b) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+    // Últimos 8 dígitos só do telefone, pra match robusto (ignora prefixos/sufixos).
+    $digits = preg_replace('/\D/', '', $b['telefone']);
+    $ult8 = substr($digits, -8);
+    $q = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
+                               (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
+                        FROM zapi_conversas co
+                        WHERE canal = ? AND id != ?
+                          AND (
+                              (nome_contato IS NOT NULL AND nome_contato != '' AND nome_contato = ?)
+                              OR (CHAR_LENGTH(?) >= 6 AND REPLACE(telefone,'@lid','') LIKE ?)
+                          )
+                        ORDER BY ultima_msg_em DESC LIMIT 20");
+    $q->execute(array($b['canal'], $b['id'], $b['nome_contato'] ?? '', $ult8, '%' . $ult8));
+    $rows = $q->fetchAll();
+    echo json_encode(array('ok' => true, 'base' => $b, 'candidatas' => $rows));
+    exit;
+}
+
+// ── MESCLAR CONVERSAS (Amanda/Luiz) ───────────────────────
+// Migra todas as mensagens e etiquetas da origem pra destino, depois apaga
+// a origem. Usado quando mesmo contato gerou duas conversas (ex: Multi-Device
+// alternando entre @lid e telefone real).
+if ($action === 'mesclar_conversas') {
+    if (!can_delegar_whatsapp()) { echo json_encode(array('error' => 'Apenas Amanda/Luiz podem mesclar conversas.')); exit; }
+    $origemId  = (int)($_POST['origem_id'] ?? 0);
+    $destinoId = (int)($_POST['destino_id'] ?? 0);
+    if (!$origemId || !$destinoId || $origemId === $destinoId) {
+        echo json_encode(array('error' => 'IDs inválidos')); exit;
+    }
+    // Valida mesmo canal
+    $ck = $pdo->prepare("SELECT id, canal FROM zapi_conversas WHERE id IN (?, ?)");
+    $ck->execute(array($origemId, $destinoId));
+    $rows = $ck->fetchAll();
+    if (count($rows) !== 2 || $rows[0]['canal'] !== $rows[1]['canal']) {
+        echo json_encode(array('error' => 'Conversas inválidas ou de canais diferentes')); exit;
+    }
+    try {
+        $pdo->beginTransaction();
+        // Move mensagens
+        $pdo->prepare("UPDATE zapi_mensagens SET conversa_id = ? WHERE conversa_id = ?")
+            ->execute(array($destinoId, $origemId));
+        // Move etiquetas evitando duplicata (etiqueta já aplicada no destino)
+        $pdo->prepare("UPDATE IGNORE zapi_conversa_etiquetas SET conversa_id = ? WHERE conversa_id = ?")
+            ->execute(array($destinoId, $origemId));
+        $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ?")
+            ->execute(array($origemId));
+        // Apaga a origem
+        $pdo->prepare("DELETE FROM zapi_conversas WHERE id = ?")->execute(array($origemId));
+        // Atualiza resumo do destino (última msg + contagem)
+        $pdo->prepare("UPDATE zapi_conversas co
+                       SET ultima_mensagem = (SELECT conteudo FROM zapi_mensagens WHERE conversa_id = co.id ORDER BY id DESC LIMIT 1),
+                           ultima_msg_em   = (SELECT created_at FROM zapi_mensagens WHERE conversa_id = co.id ORDER BY id DESC LIMIT 1)
+                       WHERE id = ?")->execute(array($destinoId));
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        echo json_encode(array('error' => 'Falha ao mesclar: ' . $e->getMessage()));
+        exit;
+    }
+    audit_log('zapi_mesclar', 'zapi_conversas', $destinoId, "Origem #{$origemId} mesclada em #{$destinoId}");
+    echo json_encode(array('ok' => true, 'destino_id' => $destinoId));
     exit;
 }
 
