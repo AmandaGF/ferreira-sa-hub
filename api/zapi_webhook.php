@@ -121,6 +121,26 @@ try {
                 $log("[{$numero}] TIPO_OUTRO payload=" . substr(json_encode($payload), 0, 2000));
             }
 
+            // REAÇÃO: associa à mensagem original em vez de criar msg nova.
+            // Z-API envia em payload.reaction.{value|reaction} + .msgId (ou similar).
+            if ($tipo === 'reacao') {
+                $emoji = $payload['reaction']['value']
+                      ?? ($payload['reaction']['reaction']
+                      ?? ($payload['reactionMessage']['text'] ?? ''));
+                $alvoId = $payload['reaction']['msgId']
+                       ?? ($payload['reaction']['messageId']
+                       ?? ($payload['reactionMessage']['messageId'] ?? ''));
+                if ($alvoId) {
+                    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+                    $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET reacao_cliente = ? WHERE zapi_message_id = ? AND conversa_id = ?");
+                    $stmtR->execute(array($emoji !== '' ? $emoji : null, $alvoId, $conv['id']));
+                    $log("[{$numero}] reacao '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']}");
+                    echo json_encode(array('status' => 'reaction_applied', 'emoji' => $emoji));
+                    break; // não grava como mensagem nova
+                }
+                // fallback: se não achou alvo, cai no fluxo padrão (grava como msg)
+            }
+
             if ($fromMe) {
                 // Mensagem enviada pelo celular — espelhar como 'enviada' no Hub
                 $tiposValidos = array('texto','imagem','documento','audio','video','sticker','localizacao','contato','outro');

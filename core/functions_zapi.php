@@ -187,6 +187,52 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
 }
 
 /**
+ * Envia sticker via Z-API.
+ * $sticker: URL HTTPS de um .webp OU base64 (data URI).
+ * Stickers do WhatsApp são sempre .webp 512x512.
+ */
+function zapi_send_sticker($ddd, $telefone, $sticker) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-sticker';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'   => zapi_normaliza_telefone($telefone),
+        'sticker' => $sticker,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
+/**
+ * Envia reação (emoji) a uma mensagem específica via Z-API.
+ * $emoji pode ser '' pra remover a reação.
+ */
+function zapi_send_reaction($ddd, $telefone, $zapiMessageId, $emoji) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
+        return array('ok' => false, 'erro' => 'Instância não configurada');
+    }
+    $cfg = zapi_get_config();
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-reaction';
+
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $body = array(
+        'phone'     => zapi_normaliza_telefone($telefone),
+        'messageId' => $zapiMessageId,
+        'reaction'  => $emoji,
+    );
+    return _zapi_post($url, $headers, $body);
+}
+
+/**
  * Deleta uma mensagem no WhatsApp via Z-API (remove para todos).
  */
 function zapi_delete_message($ddd, $telefone, $zapiMessageId) {

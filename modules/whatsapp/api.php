@@ -22,6 +22,9 @@ try {
 try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_por INT DEFAULT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_em DATETIME DEFAULT NULL"); } catch (Exception $e) {}
+// Self-heal: colunas pra reações a mensagens (emoji reaction)
+try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
 
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
@@ -32,7 +35,8 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'salvar_drive',
                   'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
                   'gerar_link_salavip',
-                  'delegar_conversa', 'remover_delegacao');
+                  'delegar_conversa', 'remover_delegacao',
+                  'enviar_sticker', 'enviar_reacao');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
@@ -701,6 +705,101 @@ if ($action === 'enviar_audio') {
         ->execute(array($userId, $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── ENVIAR STICKER (figurinha) ───────────────────────────
+// Aceita upload de arquivo .webp (ou image convertida). WhatsApp espera
+// stickers em formato webp 512x512. Outros formatos são enviados como está
+// e a Z-API faz conversão quando possível.
+if ($action === 'enviar_sticker') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    if (empty($_FILES['sticker']) || $_FILES['sticker']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(array('error' => 'Falha no upload do sticker'));
+        exit;
+    }
+
+    $conv = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $tmp = $_FILES['sticker']['tmp_name'];
+    $mime = $_FILES['sticker']['type'] ?: (mime_content_type($tmp) ?: 'image/webp');
+    $tam  = (int)$_FILES['sticker']['size'];
+    if ($tam > 2 * 1024 * 1024) { echo json_encode(array('error' => 'Sticker maior que 2 MB')); exit; }
+
+    $destDir = APP_ROOT . '/files/whatsapp';
+    if (!is_dir($destDir)) @mkdir($destDir, 0755, true);
+    $ext = 'webp';
+    if (strpos($mime, 'png') !== false) $ext = 'png';
+    elseif (strpos($mime, 'jpeg') !== false || strpos($mime, 'jpg') !== false) $ext = 'jpg';
+    elseif (strpos($mime, 'gif') !== false) $ext = 'gif';
+    $storedName = 'wa_sticker_' . uniqid('', true) . '.' . $ext;
+    $dest = $destDir . '/' . $storedName;
+    if (!move_uploaded_file($tmp, $dest)) {
+        echo json_encode(array('error' => 'Falha ao salvar sticker no servidor'));
+        exit;
+    }
+    @chmod($dest, 0644);
+    $publicUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br') . '/conecta/files/whatsapp/' . rawurlencode($storedName);
+
+    $resp = zapi_send_sticker($conv['canal'], $conv['telefone'], $publicUrl);
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+
+    $zapiId = '';
+    if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
+
+    $pdo->prepare(
+        "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
+            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, enviado_por_id, status)
+         VALUES (?, ?, 'enviada', 'sticker', '[figurinha]', ?, ?, ?, ?, ?, 'enviada')"
+    )->execute(array($convId, $zapiId, $publicUrl, $storedName, $mime, $tam, $userId));
+
+    $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[figurinha]', ultima_msg_em = NOW(),
+                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   atendente_id = COALESCE(atendente_id, ?)
+                   WHERE id = ?")
+        ->execute(array($userId, $convId));
+
+    echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
+    exit;
+}
+
+// ── REAGIR A UMA MENSAGEM (emoji) ────────────────────────
+// Envia uma reação (emoji) a uma mensagem específica. emoji='' remove.
+if ($action === 'enviar_reacao') {
+    $msgId  = (int)($_POST['mensagem_id'] ?? 0);
+    $emoji  = trim($_POST['emoji'] ?? '');
+    if (!$msgId) { echo json_encode(array('error' => 'mensagem_id obrigatório')); exit; }
+
+    $m = $pdo->prepare("SELECT m.id, m.zapi_message_id, m.conversa_id, c.telefone, c.canal
+                         FROM zapi_mensagens m JOIN zapi_conversas c ON c.id = m.conversa_id
+                         WHERE m.id = ?");
+    $m->execute(array($msgId));
+    $row = $m->fetch();
+    if (!$row) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+    if (empty($row['zapi_message_id'])) {
+        echo json_encode(array('error' => 'Mensagem sem ID Z-API (não é possível reagir)'));
+        exit;
+    }
+
+    $resp = zapi_send_reaction($row['canal'], $row['telefone'], $row['zapi_message_id'], $emoji);
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+
+    // Salva a reação na própria mensagem (coluna JSON simples).
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+    $pdo->prepare("UPDATE zapi_mensagens SET minha_reacao = ? WHERE id = ?")
+        ->execute(array($emoji !== '' ? $emoji : null, $msgId));
+
+    echo json_encode(array('ok' => true));
     exit;
 }
 

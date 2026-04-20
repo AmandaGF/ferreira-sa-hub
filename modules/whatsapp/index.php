@@ -220,8 +220,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="wa-chat-input" id="waChatInput" style="display:none;">
             <button class="wa-btn-tpl" onclick="waToggleTemplates()" title="Respostas rápidas">📋</button>
             <button class="wa-btn-tpl" onclick="document.getElementById('waFile').click()" title="Anexar imagem ou documento">📎</button>
+            <button class="wa-btn-tpl" onclick="document.getElementById('waSticker').click()" title="Enviar figurinha (.webp / imagem)">🎭</button>
             <button class="wa-btn-tpl" id="waBtnMic" onclick="waGravarAudio()" title="Gravar áudio">🎤</button>
             <input type="file" id="waFile" style="display:none;" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar">
+            <input type="file" id="waSticker" style="display:none;" accept="image/webp,image/png,image/jpeg,image/gif" onchange="waEnviarSticker(this.files[0])">
             <textarea id="waInput" placeholder="Digite uma mensagem ou cole uma imagem (Ctrl+V)..." rows="1"></textarea>
             <!-- Barra de gravação (mostra no lugar do textarea enquanto grava) -->
             <div id="waRecBar" style="display:none;flex:1;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ef4444;border-radius:8px;background:#fef2f2;">
@@ -445,8 +447,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 // Botões hover (apagar/editar) só pra mensagens enviadas pelo Hub e não deletadas
                 if (m.direcao === 'enviada' && m.status !== 'deletada' && m.zapi_message_id) {
                     html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     if (m.tipo === 'texto') html += '<button onclick="waEditarMsg('+m.id+')" title="Editar (até 15 min)" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">✏️</button>';
                     html += '<button onclick="waDeletarMsg('+m.id+')" title="Apagar" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">🗑</button>';
+                    html += '</div>';
+                }
+                // Hover de reagir também pra mensagens recebidas
+                if (m.direcao === 'recebida' && m.status !== 'deletada' && m.zapi_message_id) {
+                    html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     html += '</div>';
                 }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
@@ -486,6 +495,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 } else if (!m.arquivo_url) {
                     // Fallback: se não tem arquivo nem texto útil, mostra o tipo
                     html += '<div style="color:#9ca3af;font-style:italic;">' + escapeHtml(m.conteudo||'[' + m.tipo + ']') + '</div>';
+                }
+                // Reações: minha (do atendente) e do cliente. Bolinhas pequenas abaixo da mensagem.
+                if (m.minha_reacao || m.reacao_cliente) {
+                    html += '<div style="display:flex;gap:3px;margin-top:3px;flex-wrap:wrap;">';
+                    if (m.minha_reacao) {
+                        html += '<span title="Sua reação — clique pra remover" onclick="waReagir('+m.id+',\'\')" style="background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:1px 8px;font-size:.85rem;cursor:pointer;">' + escapeHtml(m.minha_reacao) + '</span>';
+                    }
+                    if (m.reacao_cliente) {
+                        html += '<span title="Reação do contato" style="background:#fef3c7;border:1px solid #fde68a;border-radius:20px;padding:1px 8px;font-size:.85rem;">' + escapeHtml(m.reacao_cliente) + '</span>';
+                    }
+                    html += '</div>';
                 }
                 var statusIcon = '';
                 if (m.direcao === 'enviada') {
@@ -596,6 +616,75 @@ require_once APP_ROOT . '/templates/layout_start.php';
             waEnviar();
         }
     });
+
+    // ── ENVIAR STICKER ──────────────────────────────────
+    window.waEnviarSticker = function(file) {
+        if (!convAtiva) { alert('Selecione uma conversa primeiro.'); document.getElementById('waSticker').value=''; return; }
+        if (!file) return;
+        if (file.size > 2 * 1024 * 1024) { alert('Sticker maior que 2 MB.'); document.getElementById('waSticker').value=''; return; }
+        var fd = new FormData();
+        fd.append('action', 'enviar_sticker');
+        fd.append('conversa_id', convAtiva);
+        fd.append('sticker', file, file.name || 'sticker.webp');
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            document.getElementById('waSticker').value = '';
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+            carregarLista();
+        }).catch(function(err){
+            document.getElementById('waSticker').value = '';
+            alert('Falha: ' + err);
+        });
+    };
+
+    // ── REAGIR A UMA MENSAGEM ────────────────────────────
+    window.waReagir = function(msgId, emoji) {
+        var fd = new FormData();
+        fd.append('action', 'enviar_reacao');
+        fd.append('mensagem_id', msgId);
+        fd.append('emoji', emoji);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+        });
+        var pop = document.getElementById('waReacaoPopover');
+        if (pop) pop.remove();
+    };
+
+    window.waAbrirReacaoPicker = function(btn, msgId) {
+        var old = document.getElementById('waReacaoPopover');
+        if (old) old.remove();
+        var pop = document.createElement('div');
+        pop.id = 'waReacaoPopover';
+        pop.style.cssText = 'position:absolute;background:#fff;border:1px solid #e5e7eb;border-radius:20px;padding:4px 8px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:500;display:flex;gap:4px;';
+        var emojis = ['❤️','👍','👎','😂','😮','😢','🙏','🔥'];
+        emojis.forEach(function(e){
+            var b = document.createElement('button');
+            b.textContent = e;
+            b.style.cssText = 'background:none;border:none;font-size:1.2rem;cursor:pointer;padding:4px;border-radius:6px;';
+            b.onmouseover = function(){ b.style.background = '#f3f4f6'; };
+            b.onmouseout  = function(){ b.style.background = 'none'; };
+            b.onclick = function(ev){ ev.stopPropagation(); window.waReagir(msgId, e); };
+            pop.appendChild(b);
+        });
+        var remover = document.createElement('button');
+        remover.textContent = '✕';
+        remover.title = 'Remover reação';
+        remover.style.cssText = 'background:none;border:none;font-size:.9rem;cursor:pointer;padding:4px 6px;border-radius:6px;color:#6b7280;';
+        remover.onclick = function(ev){ ev.stopPropagation(); window.waReagir(msgId, ''); };
+        pop.appendChild(remover);
+        var rect = btn.getBoundingClientRect();
+        pop.style.top = (rect.top + window.scrollY - 42) + 'px';
+        pop.style.left = (rect.left + window.scrollX) + 'px';
+        document.body.appendChild(pop);
+        setTimeout(function(){
+            document.addEventListener('click', function closer(e){
+                if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', closer); }
+            });
+        }, 10);
+    };
 
     // ── ENVIO DE ARQUIVO (imagem ou documento) ──────────
     function enviarArquivoBlob(file, caption) {
