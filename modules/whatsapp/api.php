@@ -906,7 +906,10 @@ if ($action === 'enviar_reacao') {
 }
 
 // ── ENVIO RÁPIDO (de qualquer tela do Hub) ───────────────
-// Usado por botões fora do WhatsApp: cobrança, ficha cliente, proposta, etc
+// Usado por botões fora do WhatsApp: cobrança, ficha cliente, proposta,
+// portal (link Central VIP), etc. Respeita a trava de atendimento: se
+// já existe conversa travada com outro atendente (e há atividade nas
+// últimas 30 min), bloqueia. Amanda/Luiz têm bypass.
 if ($action === 'enviar_rapido') {
     $telefone = trim($_POST['telefone'] ?? '');
     $mensagem = trim($_POST['mensagem'] ?? '');
@@ -919,6 +922,27 @@ if ($action === 'enviar_rapido') {
         echo json_encode(array('error' => 'Telefone e mensagem obrigatórios'));
         exit;
     }
+
+    // Trava de atendimento: se já existe conversa pra esse telefone+canal,
+    // respeita quem é o atendente atual.
+    try {
+        $inst = zapi_get_instancia($canal);
+        if ($inst) {
+            $telNorm = zapi_normaliza_telefone($telefone);
+            $qConv = $pdo->prepare("SELECT id FROM zapi_conversas WHERE telefone = ? AND instancia_id = ? LIMIT 1");
+            $qConv->execute(array($telNorm, $inst['id']));
+            $cid = (int)$qConv->fetchColumn();
+            if ($cid) {
+                $lock = zapi_pode_enviar_conversa($cid, $userId, 30);
+                if (empty($lock['pode'])) {
+                    echo json_encode(array(
+                        'error' => "Esta conversa está em atendimento com {$lock['atendente_name']}. Você só pode enviar depois de 30 minutos sem interação, ou se assumir a conversa no módulo WhatsApp."
+                    ));
+                    exit;
+                }
+            }
+        }
+    } catch (Exception $e) { /* se falhar checagem, permite (best-effort) */ }
 
     // Envia via Z-API
     $resp = zapi_send_text($canal, $telefone, $mensagem);
