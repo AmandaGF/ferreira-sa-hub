@@ -47,12 +47,17 @@ $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 // ══════════════════════════════════════════════════════════════════
 
 // ─── Query do KANBAN ─────────────────────────────────────────────
-// Mostra: leads que AINDA NÃO fecharam (converted_at IS NULL) + leads que
-// fecharam no mês atual (continuam no ciclo). Leads fechados em meses
-// anteriores somem automaticamente (vira o mês = recomeça o ciclo).
+// Mostra todos os leads em estágios ativos, COM UMA EXCEÇÃO: leads
+// em 'pasta_apta' ou 'cancelado' só ficam no Kanban no mês em que
+// entraram nesse estágio. Ao virar o mês, somem (reinicia o ciclo).
+// Os demais stages (contrato_assinado, agendado_docs, reuniao_cobranca,
+// doc_faltante, etc.) ficam sempre, porque ainda exigem trabalho do
+// comercial independente do mês.
 $kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')
-                AND (pl.converted_at IS NULL
-                     OR DATE_FORMAT(pl.converted_at, '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m'))";
+                AND (
+                    pl.stage NOT IN ('pasta_apta','cancelado')
+                    OR DATE_FORMAT(COALESCE(pl.converted_at, pl.updated_at), '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
+                )";
 $kanbanParams = array();
 if ($searchPipeline) {
     $kanbanWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
