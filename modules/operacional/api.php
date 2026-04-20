@@ -652,12 +652,15 @@ switch ($action) {
         $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
         $dueDate = $_POST['due_date'] ?? null;
         if ($dueDate === '') $dueDate = null;
+        $tiposValidos = array('peticionar','juntar_documento','prazo','oficio','acordo','outros');
+        $tipo = $_POST['tipo'] ?? '';
+        if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outros';
         if ($caseId && $title) {
             $stmt = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM case_tasks WHERE case_id = ?');
             $stmt->execute(array($caseId));
             $nextOrder = (int)$stmt->fetchColumn();
-            $pdo->prepare('INSERT INTO case_tasks (case_id, title, assigned_to, due_date, sort_order) VALUES (?,?,?,?,?)')
-                ->execute(array($caseId, $title, $assignedTo, $dueDate, $nextOrder));
+            $pdo->prepare('INSERT INTO case_tasks (case_id, title, tipo, assigned_to, due_date, sort_order) VALUES (?,?,?,?,?,?)')
+                ->execute(array($caseId, $title, $tipo, $assignedTo, $dueDate, $nextOrder));
             flash_set('success', 'Tarefa adicionada.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));

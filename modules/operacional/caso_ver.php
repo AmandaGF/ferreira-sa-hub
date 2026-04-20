@@ -1433,12 +1433,20 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
         <?php endif; ?>
 
         <!-- Adicionar tarefa -->
-        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:flex;gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);">
+        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:flex;gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_task">
             <input type="hidden" name="case_id" value="<?= $caseId ?>">
-            <input type="text" name="title" class="form-input" placeholder="Nova tarefa..." required style="flex:1;">
-            <select name="assigned_to" class="form-select" style="width:140px;">
+            <input type="text" name="title" class="form-input" placeholder="Nova tarefa..." required style="flex:1;min-width:180px;">
+            <select name="tipo" class="form-select" style="width:150px;" title="Tipo da tarefa">
+                <option value="outros">Outros</option>
+                <option value="peticionar">Peticionar</option>
+                <option value="juntar_documento">Juntar Documento</option>
+                <option value="prazo">Prazo Processual</option>
+                <option value="oficio">Ofício</option>
+                <option value="acordo">Acordo/Conciliação</option>
+            </select>
+            <select name="assigned_to" class="form-select" style="width:130px;">
                 <option value="">Quem?</option>
                 <?php foreach ($users as $u): ?>
                     <option value="<?= $u['id'] ?>"><?= e($u['name']) ?></option>
