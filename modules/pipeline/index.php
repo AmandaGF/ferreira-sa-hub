@@ -366,8 +366,30 @@ $pageLeads = array_slice($allLeadsFlat, $pOffset, $perPage);
 $tipos = array();
 foreach ($allLeadsFlat as $l) { if ($l['case_type'] && !in_array($l['case_type'], $tipos)) $tipos[] = $l['case_type']; }
 sort($tipos);
+
+// Meses disponíveis no banco (para dropdown server-side de filtro por mês)
+$mesesDisponiveis = array();
+try {
+    $mesesDisponiveis = $pdo->query(
+        "SELECT DATE_FORMAT(created_at, '%Y-%m') AS ym
+         FROM pipeline_leads
+         WHERE created_at IS NOT NULL AND stage NOT IN ('arquivado')
+         GROUP BY ym
+         ORDER BY ym DESC"
+    )->fetchAll(PDO::FETCH_COLUMN);
+} catch (Exception $e) {}
+$mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'Jun','07'=>'Jul','08'=>'Ago','09'=>'Set','10'=>'Out','11'=>'Nov','12'=>'Dez');
 ?>
 <div class="tbl-toolbar">
+    <select id="filterMes" onchange="filterPipelineByMes(this.value)" class="tbl-filter" title="Filtrar por mês de cadastro">
+        <option value="">📅 Todos os meses</option>
+        <?php foreach ($mesesDisponiveis as $ym):
+            list($yy, $mm) = explode('-', $ym);
+            $label = ($mesesBR[$mm] ?? $mm) . '/' . $yy;
+        ?>
+            <option value="<?= e($ym) ?>" <?= $filterMonth === $ym ? 'selected' : '' ?>><?= e($label) ?></option>
+        <?php endforeach; ?>
+    </select>
     <select id="filterStage" onchange="filterPipelineTable()" class="tbl-filter">
         <option value="">Etapa</option>
         <?php foreach ($stages as $sk => $sv): ?><option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option><?php endforeach; ?>
@@ -380,7 +402,7 @@ sort($tipos);
         <option value="">Tipo</option>
         <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <span class="tbl-count"><?= count($allLeadsFlat) ?> leads</span>
+    <span class="tbl-count"><?= count($allLeadsFlat) ?> leads<?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?></span>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;">
@@ -835,8 +857,23 @@ function filterPipelineTable() {
     });
 }
 
+// Filtro de mês: server-side. Preserva busca (q) e aba de tabela.
+function filterPipelineByMes(ym) {
+    var params = new URLSearchParams(window.location.search);
+    if (ym) params.set('mes', ym); else params.delete('mes');
+    params.delete('tp'); // reset paginação ao trocar filtro
+    // Flag pra reabrir aba Tabela após reload
+    try { localStorage.setItem('pipeline_view', 'tabela'); } catch(e) {}
+    window.location.search = params.toString();
+}
+
 // Ordenar tabela
 var _sortDirs = {};
+// Converte DD/MM/YYYY pra YYYY-MM-DD (ordenável). Null se não for data.
+function _parseBRDate(s) {
+    var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? m[3] + '-' + m[2] + '-' + m[1] : null;
+}
 function sortTbl(tableId, colIdx) {
     var table = document.getElementById(tableId);
     var tbody = table.querySelector('tbody');
@@ -846,9 +883,20 @@ function sortTbl(tableId, colIdx) {
     rows.sort(function(a, b) {
         var av = (a.cells[colIdx] && a.cells[colIdx].textContent.trim()) || '';
         var bv = (b.cells[colIdx] && b.cells[colIdx].textContent.trim()) || '';
-        var an = parseFloat(av.replace(/[^\d.-]/g, ''));
-        var bn = parseFloat(bv.replace(/[^\d.-]/g, ''));
-        if (!isNaN(an) && !isNaN(bn)) return dir === 'asc' ? an - bn : bn - an;
+        // Vazios sempre por último (independente da direção)
+        if (!av && !bv) return 0;
+        if (!av) return 1;
+        if (!bv) return -1;
+        // 1. Data DD/MM/YYYY — compara como ISO
+        var ad = _parseBRDate(av), bd = _parseBRDate(bv);
+        if (ad && bd) return dir === 'asc' ? ad.localeCompare(bd) : bd.localeCompare(ad);
+        // 2. Número (honorários, %, etc.) — strip R$, pontos milhar e vírgula decimal
+        var an = parseFloat(av.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+        var bn = parseFloat(bv.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
+        if (!isNaN(an) && !isNaN(bn) && /^[\d.,\sR$%-]+$/.test(av) && /^[\d.,\sR$%-]+$/.test(bv)) {
+            return dir === 'asc' ? an - bn : bn - an;
+        }
+        // 3. Texto
         return dir === 'asc' ? av.localeCompare(bv, 'pt-BR') : bv.localeCompare(av, 'pt-BR');
     });
     rows.forEach(function(r) { tbody.appendChild(r); });
