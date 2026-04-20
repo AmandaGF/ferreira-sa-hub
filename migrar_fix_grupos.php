@@ -39,16 +39,22 @@ echo '<style>body{font-family:Inter,Arial,sans-serif;max-width:1200px;margin:2re
 echo '<h1>Corrigir conversas de grupo do WhatsApp</h1>';
 echo '<p class="muted">Modo: <strong>' . ($dryRun ? 'DRY RUN (só mostra)' : 'EXECUÇÃO REAL') . '</strong></p>';
 
-// 1. Identificar candidatos a grupo (não marcados ainda)
+// 1. Identificar candidatos a grupo. Heurística refinada:
+//    - Contém '@g.us' (certeza)
+//    - Começa com '12036' ou '12034' E tem 18+ dígitos (IDs típicos de grupo
+//      WhatsApp no formato novo)
+//    - EXCLUI '@lid' (é individual Multi-Device, não grupo)
 $sql = "SELECT co.id, co.telefone, co.nome_contato, co.client_id, co.foto_perfil_url,
                cl.name AS client_name, cl.foto_path AS client_foto_path
         FROM zapi_conversas co
         LEFT JOIN clients cl ON cl.id = co.client_id
         WHERE COALESCE(co.eh_grupo, 0) = 0
-          AND (co.telefone LIKE '%@g.us%'
-               OR CHAR_LENGTH(co.telefone) >= 15
-               OR co.telefone LIKE '12036%'
-               OR co.telefone LIKE '12034%')
+          AND co.telefone NOT LIKE '%@lid%'
+          AND (
+              co.telefone LIKE '%@g.us%'
+              OR (co.telefone LIKE '12036%' AND CHAR_LENGTH(co.telefone) >= 15)
+              OR (co.telefone LIKE '12034%' AND CHAR_LENGTH(co.telefone) >= 15)
+          )
         ORDER BY co.id DESC";
 $candidatos = $pdo->query($sql)->fetchAll();
 
