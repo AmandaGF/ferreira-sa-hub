@@ -192,14 +192,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="tm-box" id="quizContainer">
     <?php if (empty($perguntas)): ?>
         <p>Quiz deste módulo ainda em preparação.</p>
-    <?php elseif ($prog['quiz_concluido']): ?>
-        <div class="tm-quiz-result">
-            <div class="score">✓</div>
-            <h2>Quiz concluído!</h2>
-            <p>Você acertou <?= (int)$prog['quiz_acertos'] ?> de <?= count($perguntas) ?> (<?= round($prog['quiz_acertos']/max(count($perguntas),1)*100) ?>%).</p>
-            <p style="margin-top:1rem; color:#6b7280;">Módulo finalizado · <strong style="color:#B87333;">+<?= (int)$prog['pontos_ganhos'] ?> pts</strong> creditados 🏆</p>
-            <a href="?slug=<?= e($slug) ?>&aba=quiz&refazer=1" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">🔄 Refazer quiz</a>
-        </div>
+    <?php elseif ($prog['quiz_concluido']):
+        $totalQ = count($perguntas);
+        $pctAcerto = round($prog['quiz_acertos'] / max($totalQ, 1) * 100);
+        $moduloConcluido = (int)$prog['concluido'] === 1;
+        $falta = array();
+        if (!$prog['conteudo_visto']) $falta[] = array('📖 Ler conteúdo', 'conteudo');
+        if (!$prog['missao_feita'])   $falta[] = array('🎯 Fazer missão', 'missao');
+    ?>
+        <?php if ($moduloConcluido): ?>
+            <div class="tm-quiz-result">
+                <div class="score" style="color:#059669;">🎉</div>
+                <h2>Módulo concluído!</h2>
+                <p>Você acertou <?= (int)$prog['quiz_acertos'] ?> de <?= $totalQ ?> (<?= $pctAcerto ?>%).</p>
+                <p style="margin-top:1rem;">+<strong style="color:#B87333;"><?= (int)$prog['pontos_ganhos'] ?> pts</strong> creditados 🏆</p>
+                <a href="?slug=<?= e($slug) ?>&aba=quiz&refazer=1" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">🔄 Refazer quiz</a>
+            </div>
+        <?php else: ?>
+            <div class="tm-quiz-result">
+                <div class="score" style="color:#059669;">✅</div>
+                <h2 style="color:#059669;">Quiz aprovado!</h2>
+                <p>Você acertou <?= (int)$prog['quiz_acertos'] ?> de <?= $totalQ ?> (<?= $pctAcerto ?>%) — excelente!</p>
+                <p style="margin-top:1rem; color:#78350f; background:#fef3c7; padding:.8rem; border-radius:8px;">
+                    <strong>Pra finalizar o módulo e receber os +<?= (int)$modulo['pontos'] ?> pts, falta:</strong><br>
+                    <?= implode(' e ', array_map(function($f){ return $f[0]; }, $falta)) ?>
+                </p>
+                <div style="display:flex; gap:.5rem; justify-content:center; margin-top:1rem; flex-wrap:wrap;">
+                    <?php foreach ($falta as $f): ?>
+                        <a href="?slug=<?= e($slug) ?>&aba=<?= $f[1] ?>" class="tm-next-btn" style="text-decoration:none;"><?= e($f[0]) ?></a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
     <?php else: ?>
         <h2>❓ Quiz — <?= count($perguntas) ?> pergunta(s)</h2>
         <p style="color:#6b7280; font-size:.85rem;">Precisa acertar pelo menos <strong>70%</strong> pra concluir o módulo.</p>
