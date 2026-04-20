@@ -163,6 +163,13 @@ body.dark-mode a { color:var(--rose); }
         </div>
     </div>
 
+    <!-- Busca no menu -->
+    <div class="sidebar-search-wrap">
+        <input id="sidebarSearch" type="text" placeholder="🔍 Buscar no menu..." autocomplete="off"
+               onkeydown="if(event.key==='Escape'){this.value='';sidebarFiltrar('');}">
+        <span id="sidebarSearchClear" onclick="document.getElementById('sidebarSearch').value='';sidebarFiltrar('');this.style.display='none';" title="Limpar">✕</span>
+    </div>
+
     <nav class="sidebar-nav" id="sidebarNav">
         <?php
         // Processar os itens em seções agrupadas (para colapsar)
@@ -280,9 +287,23 @@ body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
 /* Collapsed sidebar: esconder chevrons e botões favoritos */
 .sidebar.collapsed .sidebar-section-chevron,
 .sidebar.collapsed .sidebar-fav-btn,
-.sidebar.collapsed .sidebar-link-label { display:none !important; }
+.sidebar.collapsed .sidebar-link-label,
+.sidebar.collapsed .sidebar-search-wrap { display:none !important; }
 .sidebar.collapsed .sidebar-section-items { max-height:none !important; }
 .sidebar.collapsed .sidebar-item-row .sidebar-link { padding-right:0; }
+
+/* Busca no sidebar */
+.sidebar-search-wrap { position:relative; padding:.5rem .8rem .4rem; }
+.sidebar-search-wrap input { width:100%; padding:6px 28px 6px 10px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:#fff; border-radius:8px; font-size:.78rem; outline:none; transition:background .15s, border-color .15s; }
+.sidebar-search-wrap input::placeholder { color:rgba(255,255,255,.45); }
+.sidebar-search-wrap input:focus { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3); }
+.sidebar-search-wrap #sidebarSearchClear { position:absolute; right:16px; top:50%; transform:translateY(-50%); color:rgba(255,255,255,.55); font-size:.72rem; cursor:pointer; display:none; padding:2px 5px; border-radius:3px; }
+.sidebar-search-wrap #sidebarSearchClear:hover { color:#fff; background:rgba(255,255,255,.1); }
+.sidebar-search-noresult { color:rgba(255,255,255,.55); font-style:italic; font-size:.75rem; text-align:center; padding:.75rem; display:none; }
+.sidebar-search-active .sidebar-section-items { max-height:2000px !important; }
+.sidebar-search-active .sidebar-section-header.collapsed .sidebar-section-chevron { transform:rotate(0deg); }
+/* Highlight do termo buscado */
+.sidebar-highlight { background:rgba(251,191,36,.45); color:#fff; border-radius:3px; padding:0 1px; }
 </style>
 
 <script>
@@ -325,6 +346,92 @@ function toggleSidebarSection(slug) {
         localStorage.setItem('sidebar_sections', JSON.stringify(state));
     } catch(e) {}
 }
+
+// ── Busca no menu lateral ──
+function sidebarFiltrar(q) {
+    q = (q || '').trim().toLowerCase();
+    var nav = document.getElementById('sidebarNav');
+    var btnClear = document.getElementById('sidebarSearchClear');
+    if (btnClear) btnClear.style.display = q ? 'inline-block' : 'none';
+
+    // Sem busca: restaura tudo
+    if (!q) {
+        nav.classList.remove('sidebar-search-active');
+        nav.querySelectorAll('.sidebar-item-row').forEach(function(row){
+            row.style.display = '';
+            var label = row.querySelector('.sidebar-link-label');
+            if (label && label.dataset.original) {
+                label.innerHTML = label.dataset.original;
+            }
+        });
+        nav.querySelectorAll('.sidebar-section-header, .sidebar-section-items').forEach(function(el){
+            el.style.display = '';
+        });
+        var nr = document.getElementById('sidebarNoResult');
+        if (nr) nr.style.display = 'none';
+        return;
+    }
+
+    // Com busca: força seções abertas, filtra itens por label
+    nav.classList.add('sidebar-search-active');
+    var totalVisiveis = 0;
+    nav.querySelectorAll('.sidebar-item-row').forEach(function(row){
+        var label = row.querySelector('.sidebar-link-label');
+        if (!label) return;
+        if (!label.dataset.original) label.dataset.original = label.textContent;
+        var texto = label.dataset.original.toLowerCase();
+        var bate = texto.indexOf(q) !== -1;
+        row.style.display = bate ? '' : 'none';
+        if (bate) {
+            totalVisiveis++;
+            // Highlight do termo
+            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+            label.innerHTML = label.dataset.original.replace(re, '<span class="sidebar-highlight">$1</span>');
+        }
+    });
+
+    // Esconde seção cujos itens ficaram todos invisíveis
+    nav.querySelectorAll('.sidebar-section-items').forEach(function(items){
+        var visiveis = items.querySelectorAll('.sidebar-item-row:not([style*="display: none"])').length;
+        var header = nav.querySelector('[data-section="' + items.id.replace('items_','') + '"]');
+        if (visiveis === 0) {
+            items.style.display = 'none';
+            if (header) header.style.display = 'none';
+        } else {
+            items.style.display = '';
+            if (header) header.style.display = '';
+        }
+    });
+
+    // Mensagem "sem resultados"
+    var nr = document.getElementById('sidebarNoResult');
+    if (!nr) {
+        nr = document.createElement('div');
+        nr.id = 'sidebarNoResult';
+        nr.className = 'sidebar-search-noresult';
+        nr.textContent = 'Nada encontrado. Tente outro termo.';
+        nav.appendChild(nr);
+    }
+    nr.style.display = totalVisiveis === 0 ? 'block' : 'none';
+}
+
+// Listener do input com debounce leve + Enter abre o primeiro resultado
+(function(){
+    var input = document.getElementById('sidebarSearch');
+    if (!input) return;
+    var t;
+    input.addEventListener('input', function(e){
+        clearTimeout(t);
+        t = setTimeout(function(){ sidebarFiltrar(e.target.value); }, 120);
+    });
+    input.addEventListener('keydown', function(e){
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var first = document.querySelector('#sidebarNav .sidebar-item-row:not([style*="display: none"]) .sidebar-link');
+            if (first) first.click();
+        }
+    });
+})();
 
 // ── Favoritos ──
 function getFavoritos() {
