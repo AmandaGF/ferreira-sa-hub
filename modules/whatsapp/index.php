@@ -1092,17 +1092,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
         overlay.id = 'waMesclarOverlay';
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
         overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
-        overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:560px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+        overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:620px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
             + '<h3 style="margin:0 0 .25rem;font-size:1rem;color:#052228;">🔗 Mesclar conversa</h3>'
             + '<p style="margin:0 0 .75rem;font-size:.78rem;color:#6b7280;">Escolha outra conversa do mesmo contato pra unificar. Todas as mensagens e etiquetas dela serão movidas pra conversa atualmente aberta. A outra será apagada.</p>'
-            + '<input id="waMesclarBusca" type="text" placeholder="🔍 Buscar por nome, telefone ou #ID da conversa" style="width:100%;padding:.55rem .75rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;">'
-            + '<div id="waMesclarLista" style="max-height:320px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">Carregando...</div>'
+            + '<div style="display:flex;gap:6px;margin-bottom:.75rem;">'
+            +   '<input id="waMesclarBusca" type="text" placeholder="🔍 Buscar por nome, telefone ou #ID" style="flex:1;padding:.55rem .75rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;">'
+            +   '<button id="waMesclarTodas" type="button" style="padding:.55rem .75rem;border:1.5px solid #7c3aed;background:#7c3aed;color:#fff;border-radius:8px;font-size:.78rem;cursor:pointer;font-weight:700;white-space:nowrap;">Mostrar todas</button>'
+            + '</div>'
+            + '<div id="waMesclarLista" style="max-height:380px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">Carregando...</div>'
             + '<p style="font-size:.72rem;color:#991b1b;margin:.75rem 0;">⚠ Ação irreversível.</p>'
             + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
             + '<button onclick="document.getElementById(\'waMesclarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
             + '<button id="waBtnConfirmarMesclar" disabled style="padding:.45rem 1rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;opacity:.5;">Mesclar selecionada</button>'
             + '</div></div>';
         document.body.appendChild(overlay);
+
+        document.getElementById('waMesclarTodas').onclick = function() {
+            document.getElementById('waMesclarBusca').value = '';
+            buscar('', true);
+        };
 
         function renderCands(cands) {
             var lista = document.getElementById('waMesclarLista');
@@ -1131,8 +1139,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
             });
         }
 
-        function buscar(q) {
-            var url = apiUrl + '?action=listar_duplicatas&conversa_id=' + convAtiva + (q ? '&q=' + encodeURIComponent(q) : '');
+        function buscar(q, todas) {
+            var url = apiUrl + '?action=listar_duplicatas&conversa_id=' + convAtiva
+                    + (q ? '&q=' + encodeURIComponent(q) : '')
+                    + (todas ? '&todas=1' : '');
             fetch(url).then(function(r){ return r.json(); }).then(function(d){
                 if (d.error) { alert(d.error); overlay.remove(); return; }
                 renderCands(d.candidatas || []);

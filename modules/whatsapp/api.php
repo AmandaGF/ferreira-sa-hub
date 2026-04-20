@@ -215,24 +215,33 @@ if ($action === 'listar_duplicatas') {
     $b = $base->fetch();
     if (!$b) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
-    $q = trim($_GET['q'] ?? '');
-    if ($q !== '') {
-        // Busca livre: nome OU telefone OU #ID
-        if (preg_match('/^#?(\d+)$/', $q, $m)) {
+    $q    = trim($_GET['q'] ?? '');
+    $todas = !empty($_GET['todas']); // se true, lista TODAS do canal (ignorando filtro)
+    if ($todas) {
+        $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
+                                    (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
+                             FROM zapi_conversas co
+                             WHERE canal = ? AND id != ?
+                             ORDER BY ultima_msg_em DESC LIMIT 100");
+        $st->execute(array($b['canal'], $b['id']));
+        $rows = $st->fetchAll();
+    } elseif ($q !== '') {
+        // Busca livre: nome OU telefone OU #ID — sem mínimo de caracteres
+        if (preg_match('/^#?(\d+)$/', $q, $m) && strlen($m[1]) <= 9) {
+            // Busca por ID se parece com ID (número curto)
             $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
                                         (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
                                  FROM zapi_conversas co WHERE canal = ? AND id = ? AND id != ? LIMIT 1");
             $st->execute(array($b['canal'], (int)$m[1], $b['id']));
         } else {
             $digitsQ = preg_replace('/\D/', '', $q);
-            $useDigits = strlen($digitsQ) >= 4;
             $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
                                         (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
                                  FROM zapi_conversas co
                                  WHERE canal = ? AND id != ?
-                                   AND (nome_contato LIKE ? OR (" . ($useDigits ? '1' : '0') . " AND REPLACE(telefone,'@lid','') LIKE ?))
-                                 ORDER BY ultima_msg_em DESC LIMIT 20");
-            $st->execute(array($b['canal'], $b['id'], '%' . $q . '%', '%' . $digitsQ . '%'));
+                                   AND (nome_contato LIKE ? OR REPLACE(telefone,'@lid','') LIKE ?)
+                                 ORDER BY ultima_msg_em DESC LIMIT 50");
+            $st->execute(array($b['canal'], $b['id'], '%' . $q . '%', '%' . ($digitsQ ?: $q) . '%'));
         }
         $rows = $st->fetchAll();
     } else {
