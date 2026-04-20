@@ -270,14 +270,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         fb.style.display = 'block';
                     });
                     btn.style.display = 'none';
-                    // Banner resultado
                     var resultado = document.createElement('div');
                     resultado.className = 'tm-quiz-result';
                     resultado.style.marginTop = '1.5rem';
+
                     if (d.concluido) {
-                        resultado.innerHTML = '<div class="score" style="color:#059669;">🎉</div><h2>Parabéns! Módulo concluído!</h2><p>Acertou ' + d.acertos + '/' + d.total + ' (' + d.percentual + '%)</p><p style="margin-top:1rem;">+<strong style="color:#B87333;">' + d.pontos + ' pontos</strong> creditados 🏆</p><a href="<?= module_url('treinamento') ?>" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">Voltar aos módulos</a>';
+                        // Cenário A: 70%+ E módulo concluído (3 etapas feitas)
+                        resultado.innerHTML = '<div class="score" style="color:#059669;">🎉</div>' +
+                            '<h2>Parabéns! Módulo concluído!</h2>' +
+                            '<p>Acertou ' + d.acertos + '/' + d.total + ' (' + d.percentual + '%)</p>' +
+                            '<p style="margin-top:1rem;">+<strong style="color:#B87333;">' + d.pontos + ' pontos</strong> creditados 🏆</p>' +
+                            '<a href="<?= module_url('treinamento') ?>" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">Voltar aos módulos</a>';
+                    } else if (d.quiz_passou) {
+                        // Cenário B: passou no quiz MAS faltou conteúdo/missão
+                        var falta = [];
+                        if (d.pendencias && d.pendencias.indexOf('conteudo') >= 0) falta.push('📖 marcar o conteúdo como lido');
+                        if (d.pendencias && d.pendencias.indexOf('missao') >= 0) falta.push('🎯 fazer a missão prática');
+                        var txt = falta.length ? falta.join(' e ') : 'marcar os outros passos';
+                        resultado.innerHTML = '<div class="score" style="color:#059669;">✅</div>' +
+                            '<h2 style="color:#059669;">Quiz aprovado!</h2>' +
+                            '<p>Acertou ' + d.acertos + '/' + d.total + ' (' + d.percentual + '%) — excelente!</p>' +
+                            '<p style="margin-top:1rem; color:#78350f; background:#fef3c7; padding:.8rem; border-radius:8px;"><strong>Pra concluir o módulo e receber os pontos, falta ' + txt + '.</strong></p>' +
+                            '<div style="display:flex; gap:.5rem; justify-content:center; margin-top:1rem; flex-wrap:wrap;">' +
+                                (d.pendencias.indexOf('conteudo') >= 0 ? '<a href="?slug=<?= e($slug) ?>&aba=conteudo" class="tm-next-btn" style="text-decoration:none;">📖 Ler conteúdo</a>' : '') +
+                                (d.pendencias.indexOf('missao') >= 0 ? '<a href="?slug=<?= e($slug) ?>&aba=missao" class="tm-next-btn" style="text-decoration:none;">🎯 Ir pra missão</a>' : '') +
+                            '</div>';
                     } else {
-                        resultado.innerHTML = '<div class="score" style="color:#dc2626;">💪</div><h2>Quase lá!</h2><p>Acertou ' + d.acertos + '/' + d.total + ' (' + d.percentual + '%)</p><p style="color:#6b7280;">Precisa de pelo menos 70%. Revise o conteúdo e tente novamente.</p><a href="?slug=<?= e($slug) ?>&aba=quiz&refazer=1" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">🔄 Tentar novamente</a>';
+                        // Cenário C: < 70% — não passou no quiz
+                        resultado.innerHTML = '<div class="score" style="color:#dc2626;">💪</div>' +
+                            '<h2>Quase lá!</h2>' +
+                            '<p>Acertou ' + d.acertos + '/' + d.total + ' (' + d.percentual + '%)</p>' +
+                            '<p style="color:#6b7280;">Precisa de pelo menos 70%. Revise o conteúdo e tente novamente.</p>' +
+                            '<a href="?slug=<?= e($slug) ?>&aba=quiz&refazer=1" class="tm-next-btn" style="text-decoration:none; margin-top:1rem; display:inline-block;">🔄 Tentar novamente</a>';
                     }
                     document.getElementById('quizContainer').appendChild(resultado);
                     resultado.scrollIntoView({ behavior: 'smooth' });

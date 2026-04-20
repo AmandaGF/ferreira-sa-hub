@@ -126,13 +126,19 @@ if ($action === 'salvar_quiz') {
 
     $concluido = false;
     $pontosGanhos = 0;
+    $pendencias = array();
     if ($atingiu) {
         prog_verificar_conclusao($pdo, $userId, $slug);
-        $p = $pdo->prepare("SELECT concluido, pontos_ganhos FROM treinamento_progresso WHERE user_id = ? AND modulo_slug = ?");
+        $p = $pdo->prepare("SELECT concluido, conteudo_visto, missao_feita, pontos_ganhos FROM treinamento_progresso WHERE user_id = ? AND modulo_slug = ?");
         $p->execute(array($userId, $slug));
         $row = $p->fetch();
         $concluido = (bool)($row['concluido'] ?? false);
         $pontosGanhos = (int)($row['pontos_ganhos'] ?? 0);
+        // Se quiz passou mas módulo ainda não concluiu, lista o que falta
+        if (!$concluido) {
+            if (!(int)($row['conteudo_visto'] ?? 0)) $pendencias[] = 'conteudo';
+            if (!(int)($row['missao_feita'] ?? 0))   $pendencias[] = 'missao';
+        }
         // Nota máxima = bônus
         if ($acertos === $total && function_exists('gamificar')) {
             try { gamificar($userId, 'quiz_nota_maxima', null, 'treinamento_quiz', 20); } catch (Exception $e) {}
@@ -144,7 +150,9 @@ if ($action === 'salvar_quiz') {
         'acertos' => $acertos,
         'total' => $total,
         'percentual' => $percentual,
+        'quiz_passou' => $atingiu,
         'concluido' => $concluido,
+        'pendencias' => $pendencias,  // ['conteudo', 'missao'] — o que falta pra concluir
         'pontos' => $pontosGanhos,
         'detalhes' => $detalhes,
     ));
