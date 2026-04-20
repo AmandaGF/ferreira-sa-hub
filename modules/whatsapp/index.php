@@ -1038,65 +1038,91 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
 
     // Modal de mesclagem de conversas duplicadas. Só Amanda/Luiz.
-    // Lista candidatas (mesmo canal + nome_contato igual OU últimos 8 dígitos
-    // do telefone batem) e permite escolher qual absorver.
+    // Traz candidatas automáticas + campo de busca livre (nome, telefone, #ID)
+    // pra casos onde @lid não compartilha dígitos com telefone real.
     window.waAbrirMesclar = function() {
         if (!PODE_DELEGAR || !convAtiva) return;
-        var url = apiUrl + '?action=listar_duplicatas&conversa_id=' + convAtiva;
-        fetch(url).then(function(r){ return r.json(); }).then(function(d){
-            if (d.error) { alert(d.error); return; }
-            var cands = d.candidatas || [];
 
-            var overlay = document.createElement('div');
-            overlay.id = 'waMesclarOverlay';
-            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
-            overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
-            var html = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:520px;max-width:92vw;max-height:80vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
-                + '<h3 style="margin:0 0 .25rem;font-size:1rem;color:#052228;">🔗 Mesclar conversa</h3>'
-                + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">Escolha outra conversa do mesmo contato pra unificar. Todas as mensagens e etiquetas da conversa selecionada serão movidas pra esta conversa atual. A conversa selecionada será apagada.</p>';
-            if (cands.length === 0) {
-                html += '<div style="padding:1rem;background:#f9fafb;border-radius:8px;text-align:center;color:#6b7280;font-size:.85rem;">Nenhuma conversa similar encontrada pelo nome ou telefone.</div>';
-            } else {
-                html += '<div style="max-height:320px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">';
-                cands.forEach(function(c){
-                    html += '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;">'
-                        + '<input type="radio" name="waMesclarCand" value="' + c.id + '" style="margin-top:4px;">'
-                        + '<div style="flex:1;min-width:0;">'
-                        +   '<div style="font-weight:600;font-size:.85rem;color:#052228;">' + escapeHtml(c.nome_contato || '(sem nome)') + '</div>'
-                        +   '<div style="font-size:.72rem;color:#6b7280;font-family:monospace;">' + escapeHtml(c.telefone || '') + '</div>'
-                        +   '<div style="font-size:.72rem;color:#6b7280;">' + (c.qt_msgs || 0) + ' msg(s) · última: ' + escapeHtml((c.ultima_mensagem || '').substring(0, 60)) + '</div>'
-                        + '</div></label>';
+        var overlay = document.createElement('div');
+        overlay.id = 'waMesclarOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+        overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:560px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .25rem;font-size:1rem;color:#052228;">🔗 Mesclar conversa</h3>'
+            + '<p style="margin:0 0 .75rem;font-size:.78rem;color:#6b7280;">Escolha outra conversa do mesmo contato pra unificar. Todas as mensagens e etiquetas dela serão movidas pra conversa atualmente aberta. A outra será apagada.</p>'
+            + '<input id="waMesclarBusca" type="text" placeholder="🔍 Buscar por nome, telefone ou #ID da conversa" style="width:100%;padding:.55rem .75rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;">'
+            + '<div id="waMesclarLista" style="max-height:320px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">Carregando...</div>'
+            + '<p style="font-size:.72rem;color:#991b1b;margin:.75rem 0;">⚠ Ação irreversível.</p>'
+            + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
+            + '<button onclick="document.getElementById(\'waMesclarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
+            + '<button id="waBtnConfirmarMesclar" disabled style="padding:.45rem 1rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;opacity:.5;">Mesclar selecionada</button>'
+            + '</div></div>';
+        document.body.appendChild(overlay);
+
+        function renderCands(cands) {
+            var lista = document.getElementById('waMesclarLista');
+            if (!cands || cands.length === 0) {
+                lista.innerHTML = '<div style="padding:1rem;text-align:center;color:#6b7280;font-size:.85rem;">Nenhuma conversa encontrada.<br><small>Tente buscar pelo telefone ou #ID.</small></div>';
+                document.getElementById('waBtnConfirmarMesclar').disabled = true;
+                document.getElementById('waBtnConfirmarMesclar').style.opacity = '.5';
+                return;
+            }
+            var html = '';
+            cands.forEach(function(c){
+                html += '<label style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;">'
+                    + '<input type="radio" name="waMesclarCand" value="' + c.id + '" style="margin-top:4px;">'
+                    + '<div style="flex:1;min-width:0;">'
+                    +   '<div style="font-weight:600;font-size:.85rem;color:#052228;">' + escapeHtml(c.nome_contato || '(sem nome)') + ' <span style="font-weight:400;color:#9ca3af;font-size:.72rem;">#' + c.id + '</span></div>'
+                    +   '<div style="font-size:.72rem;color:#6b7280;font-family:monospace;">' + escapeHtml(c.telefone || '') + '</div>'
+                    +   '<div style="font-size:.72rem;color:#6b7280;">' + (c.qt_msgs || 0) + ' msg(s) · ' + escapeHtml((c.ultima_mensagem || '').substring(0, 60)) + '</div>'
+                    + '</div></label>';
+            });
+            lista.innerHTML = html;
+            lista.querySelectorAll('input[name="waMesclarCand"]').forEach(function(r){
+                r.addEventListener('change', function(){
+                    var btn = document.getElementById('waBtnConfirmarMesclar');
+                    btn.disabled = false; btn.style.opacity = '1';
                 });
-                html += '</div>';
-            }
-            html += '<p style="font-size:.72rem;color:#991b1b;margin:.75rem 0;">⚠ Ação irreversível.</p>'
-                 + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
-                 + '<button onclick="document.getElementById(\'waMesclarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
-                 + '<button id="waBtnConfirmarMesclar" ' + (cands.length === 0 ? 'disabled' : '') + ' style="padding:.45rem 1rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;opacity:' + (cands.length === 0 ? '.5' : '1') + ';">Mesclar</button>'
-                 + '</div></div>';
-            overlay.innerHTML = html;
-            document.body.appendChild(overlay);
-            if (cands.length > 0) {
-                document.getElementById('waBtnConfirmarMesclar').onclick = function() {
-                    var sel = document.querySelector('input[name="waMesclarCand"]:checked');
-                    if (!sel) { alert('Selecione uma conversa.'); return; }
-                    if (!confirm('Confirma? Esta ação é irreversível.')) return;
-                    var fd = new FormData();
-                    fd.append('action', 'mesclar_conversas');
-                    fd.append('csrf_token', csrf);
-                    fd.append('origem_id', sel.value); // a selecionada será absorvida
-                    fd.append('destino_id', convAtiva); // esta conversa aberta = destino
-                    this.disabled = true; this.textContent = 'Mesclando...';
-                    fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(r){
-                        if (r && r.error) { alert(r.error); return; }
-                        overlay.remove();
-                        window.waAbrir(convAtiva);
-                        carregarLista();
-                        alert('✓ Conversas mescladas.');
-                    });
-                };
-            }
+            });
+        }
+
+        function buscar(q) {
+            var url = apiUrl + '?action=listar_duplicatas&conversa_id=' + convAtiva + (q ? '&q=' + encodeURIComponent(q) : '');
+            fetch(url).then(function(r){ return r.json(); }).then(function(d){
+                if (d.error) { alert(d.error); overlay.remove(); return; }
+                renderCands(d.candidatas || []);
+            });
+        }
+
+        // Carga inicial: critério automático (nome/dígitos)
+        buscar('');
+
+        // Busca com debounce
+        var debT;
+        document.getElementById('waMesclarBusca').addEventListener('input', function(e){
+            clearTimeout(debT);
+            var v = e.target.value.trim();
+            debT = setTimeout(function(){ buscar(v); }, 300);
         });
+
+        document.getElementById('waBtnConfirmarMesclar').onclick = function() {
+            var sel = document.querySelector('input[name="waMesclarCand"]:checked');
+            if (!sel) { alert('Selecione uma conversa.'); return; }
+            if (!confirm('Confirma? Esta ação é irreversível.')) return;
+            var fd = new FormData();
+            fd.append('action', 'mesclar_conversas');
+            fd.append('csrf_token', csrf);
+            fd.append('origem_id', sel.value); // a selecionada será absorvida
+            fd.append('destino_id', convAtiva); // esta conversa aberta = destino
+            this.disabled = true; this.textContent = 'Mesclando...';
+            fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(r){
+                if (r && r.error) { alert(r.error); return; }
+                overlay.remove();
+                window.waAbrir(convAtiva);
+                carregarLista();
+                alert('✓ Conversas mescladas.');
+            });
+        };
     };
     window.waToggleBot = function(ativar) {
         var action = ativar ? 'ativar_bot' : 'desativar_bot';

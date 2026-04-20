@@ -203,9 +203,9 @@ if ($action === 'sync_fotos_todas') {
 }
 
 // ── LISTAR DUPLICATAS POTENCIAIS (Amanda/Luiz) ────────────
-// Retorna conversas que podem ser a mesma pessoa pra outra conversa de
-// referência: mesmo canal, nome_contato igual OU últimos 8 dígitos do telefone
-// batem. Exclui a própria conversa.
+// Retorna conversas candidatas a duplicata pra uma conversa de referência.
+// - Sem ?q=... : critério automático (nome igual OU últimos 8 dígitos batem)
+// - Com ?q=... : busca livre por nome OU telefone OU ID (#123)
 if ($action === 'listar_duplicatas') {
     if (!can_delegar_whatsapp()) { echo json_encode(array('error' => 'Apenas Amanda/Luiz podem mesclar conversas.')); exit; }
     $convId = (int)($_GET['conversa_id'] ?? 0);
@@ -214,20 +214,43 @@ if ($action === 'listar_duplicatas') {
     $base->execute(array($convId));
     $b = $base->fetch();
     if (!$b) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
-    // Últimos 8 dígitos só do telefone, pra match robusto (ignora prefixos/sufixos).
-    $digits = preg_replace('/\D/', '', $b['telefone']);
-    $ult8 = substr($digits, -8);
-    $q = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
-                               (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
-                        FROM zapi_conversas co
-                        WHERE canal = ? AND id != ?
-                          AND (
-                              (nome_contato IS NOT NULL AND nome_contato != '' AND nome_contato = ?)
-                              OR (CHAR_LENGTH(?) >= 6 AND REPLACE(telefone,'@lid','') LIKE ?)
-                          )
-                        ORDER BY ultima_msg_em DESC LIMIT 20");
-    $q->execute(array($b['canal'], $b['id'], $b['nome_contato'] ?? '', $ult8, '%' . $ult8));
-    $rows = $q->fetchAll();
+
+    $q = trim($_GET['q'] ?? '');
+    if ($q !== '') {
+        // Busca livre: nome OU telefone OU #ID
+        if (preg_match('/^#?(\d+)$/', $q, $m)) {
+            $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
+                                        (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
+                                 FROM zapi_conversas co WHERE canal = ? AND id = ? AND id != ? LIMIT 1");
+            $st->execute(array($b['canal'], (int)$m[1], $b['id']));
+        } else {
+            $digitsQ = preg_replace('/\D/', '', $q);
+            $useDigits = strlen($digitsQ) >= 4;
+            $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
+                                        (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
+                                 FROM zapi_conversas co
+                                 WHERE canal = ? AND id != ?
+                                   AND (nome_contato LIKE ? OR (" . ($useDigits ? '1' : '0') . " AND REPLACE(telefone,'@lid','') LIKE ?))
+                                 ORDER BY ultima_msg_em DESC LIMIT 20");
+            $st->execute(array($b['canal'], $b['id'], '%' . $q . '%', '%' . $digitsQ . '%'));
+        }
+        $rows = $st->fetchAll();
+    } else {
+        // Critério automático
+        $digits = preg_replace('/\D/', '', $b['telefone']);
+        $ult8 = substr($digits, -8);
+        $st = $pdo->prepare("SELECT id, telefone, nome_contato, ultima_mensagem,
+                                    (SELECT COUNT(*) FROM zapi_mensagens m WHERE m.conversa_id = co.id) AS qt_msgs
+                             FROM zapi_conversas co
+                             WHERE canal = ? AND id != ?
+                               AND (
+                                   (nome_contato IS NOT NULL AND nome_contato != '' AND nome_contato = ?)
+                                   OR (CHAR_LENGTH(?) >= 6 AND REPLACE(telefone,'@lid','') LIKE ?)
+                               )
+                             ORDER BY ultima_msg_em DESC LIMIT 20");
+        $st->execute(array($b['canal'], $b['id'], $b['nome_contato'] ?? '', $ult8, '%' . $ult8));
+        $rows = $st->fetchAll();
+    }
     echo json_encode(array('ok' => true, 'base' => $b, 'candidatas' => $rows));
     exit;
 }
