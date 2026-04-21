@@ -433,8 +433,10 @@ if ($action === 'enviar_mensagem') {
                    VALUES (?, ?, ?, 'enviada', 'texto', ?, ?, 'enviada')")
         ->execute(array($convId, $zapiId, $replyTo ?: null, $textoEnviar, $userId));
 
+    // Reabre conversas resolvidas quando volta a haver troca de mensagens —
+    // aguardando/resolvido viram em_atendimento; também vincula atendente se vazio.
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
-                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
         ->execute(array(mb_substr($textoEnviar, 0, 500), $userId, $convId));
@@ -832,7 +834,7 @@ if ($action === 'enviar_arquivo') {
 
     $preview = $caption ?: ('[' . $tipo . '] ' . $nome);
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
-                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
         ->execute(array(mb_substr($preview, 0, 500), $userId, $convId));
@@ -909,7 +911,7 @@ if ($action === 'enviar_audio') {
     }
 
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[áudio]', ultima_msg_em = NOW(),
-                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
         ->execute(array($userId, $convId));
@@ -979,7 +981,7 @@ if ($action === 'enviar_sticker') {
     )->execute(array($convId, $zapiId, $publicUrl, $storedName, $mime, $tam, $userId));
 
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[figurinha]', ultima_msg_em = NOW(),
-                   status = IF(status = 'aguardando', 'em_atendimento', status),
+                   status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
                    atendente_id = COALESCE(atendente_id, ?)
                    WHERE id = ?")
         ->execute(array($userId, $convId));
@@ -1088,7 +1090,7 @@ if ($action === 'enviar_rapido') {
         )->execute(array($conv['id'], $zapiId, $mensagem, $userId));
 
         $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
-                       status = IF(status = 'aguardando', 'em_atendimento', status),
+                       status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
                        atendente_id = COALESCE(atendente_id, ?)
                        WHERE id = ?")
             ->execute(array(mb_substr($mensagem, 0, 500), $userId, $conv['id']));

@@ -211,12 +211,20 @@ try {
             $totalMsgs = (int)$pdo->query("SELECT COUNT(*) FROM zapi_mensagens WHERE conversa_id = " . (int)$conv['id'] . " AND direcao = 'recebida'")->fetchColumn();
             $ehPrimeira = ($totalMsgs === 1);
 
-            // Atualiza resumo da conversa
+            // Atualiza resumo da conversa.
+            // Se a conversa estava 'resolvido', REABRE automaticamente — cliente
+            // voltou a falar, precisa ser atendido de novo. Volta pra em_atendimento
+            // se tinha atendente, ou pra aguardando se não tinha.
             $ultMsg = $conteudo ?: ('[' . $tipo . ']');
             $pdo->prepare(
                 "UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                  nao_lidas = nao_lidas + 1,
-                 nome_contato = COALESCE(NULLIF(nome_contato,''), ?)
+                 nome_contato = COALESCE(NULLIF(nome_contato,''), ?),
+                 status = CASE
+                     WHEN status = 'resolvido' AND atendente_id IS NOT NULL THEN 'em_atendimento'
+                     WHEN status = 'resolvido' THEN 'aguardando'
+                     ELSE status
+                 END
                  WHERE id = ?"
             )->execute(array(mb_substr($ultMsg, 0, 500), $nome, $conv['id']));
 
