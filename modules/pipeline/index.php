@@ -602,7 +602,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <td class="editable" style="min-width:140px;">
         <?php
             $_fpValor = mb_strtoupper($lead['forma_pagamento'] ?? '');
-            $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA');
+            $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA', 'RISCO');
             // Match inteligente pra valores antigos — normaliza pras 5 opções da whitelist
             $_fpMapped = $_fpValor; // default
             if ($_fpValor && !in_array($_fpValor, $_formas, true)) {
