@@ -328,6 +328,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <th>Status</th>
             <th>Forma</th>
             <th>Asaas ID</th>
+            <th style="text-align:center;" title="Alterar vencto, dar baixa, cancelar">Ações</th>
         </tr>
     </thead>
     <tbody>
@@ -375,6 +376,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <td><span class="cobr-status" style="background:<?= e($st[1]) ?>;"><?= e($st[0]) ?></span></td>
             <td style="font-size:.72rem;"><?= e($r['forma_pagamento'] ?: '—') ?></td>
             <td style="font-family:monospace;font-size:.68rem;color:var(--text-muted);"><?= e($r['asaas_payment_id'] ?? '—') ?></td>
+            <td style="text-align:center;white-space:nowrap;">
+                <?php
+                    // Ações só fazem sentido se a cobrança está PENDING ou OVERDUE
+                    $_podeEditar = in_array($r['status'], array('PENDING','OVERDUE'), true);
+                ?>
+                <?php if ($_podeEditar): ?>
+                    <button type="button" title="Alterar data de vencimento"
+                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'vencto', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                            style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">📅</button>
+                    <button type="button" title="Dar baixa manual (receber em dinheiro/transferência fora do Asaas)"
+                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'baixa', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                            style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✓</button>
+                    <button type="button" title="Cancelar cobrança no Asaas"
+                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'cancelar', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                            style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✕</button>
+                <?php else: ?>
+                    <span style="color:#cbd5e1;font-size:.7rem;" title="Esta cobrança já está <?= e(asaas_status_label($r['status'])) ?> — sem ações disponíveis">—</span>
+                <?php endif; ?>
+            </td>
         </tr>
         <?php endforeach; ?>
     </tbody>
@@ -403,5 +423,56 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <p style="text-align:center;font-size:.72rem;color:var(--text-muted);margin-top:.4rem;">Página <?= $page ?> de <?= $totalPages ?> · <?= number_format($qtdTotal) ?> cobrança(s) no total</p>
 <?php endif; ?>
 <?php endif; ?>
+
+<script>
+// Ações sobre cobrança (alterar vencto / dar baixa / cancelar)
+(function(){
+    var CSRF = <?= json_encode(generate_csrf_token()) ?>;
+    var API  = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
+
+    window.cobAcao = function(cobId, tipo, vencimentoAtual, clienteNome, valorCobranca) {
+        var nomeCli = clienteNome ? ' — ' + clienteNome : '';
+        if (tipo === 'cancelar') {
+            if (!confirm('Cancelar esta cobrança' + nomeCli + '?\n\nIsto vai cancelar no Asaas também. Ação irreversível.')) return;
+            _cobSend(cobId, 'cobranca_cancelar', {});
+        } else if (tipo === 'vencto') {
+            var nova = prompt('Nova data de vencimento' + nomeCli + '\n(AAAA-MM-DD, ex: ' + new Date().toISOString().slice(0,10) + ')\n\nVencimento atual: ' + (vencimentoAtual || '—'), vencimentoAtual || '');
+            if (!nova) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(nova)) { alert('Data inválida. Use o formato AAAA-MM-DD.'); return; }
+            _cobSend(cobId, 'cobranca_alterar_vencimento', { nova_data: nova });
+        } else if (tipo === 'baixa') {
+            var hoje = new Date().toISOString().slice(0,10);
+            var data = prompt('Dar baixa MANUAL na cobrança' + nomeCli + '\n(marca como paga em dinheiro/transferência — fora do Asaas)\n\nData do pagamento (AAAA-MM-DD):', hoje);
+            if (!data) return;
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) { alert('Data inválida.'); return; }
+            var valorDefault = valorCobranca ? valorCobranca.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+            var valor = prompt('Valor recebido (pode ser diferente do cobrado, ex: desconto):', valorDefault);
+            if (valor === null) return;
+            _cobSend(cobId, 'cobranca_dar_baixa', { data_pagamento: data, valor: valor });
+        }
+    };
+
+    function _cobSend(cobId, action, extra) {
+        var body = 'action=' + encodeURIComponent(action) + '&cobranca_id=' + cobId + '&csrf_token=' + encodeURIComponent(CSRF);
+        for (var k in extra) body += '&' + k + '=' + encodeURIComponent(extra[k]);
+        fetch(API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body
+        })
+        .then(function(r){
+            if (r.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return null; }
+            return r.json();
+        })
+        .then(function(j){
+            if (!j) return;
+            if (j.csrf_expired) { alert('Sessão expirou. Recarregue a página.'); return; }
+            if (j.error) { alert('Erro: ' + j.error); return; }
+            location.reload();
+        })
+        .catch(function(e){ alert('Erro de conexão: ' + e.message); });
+    }
+})();
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

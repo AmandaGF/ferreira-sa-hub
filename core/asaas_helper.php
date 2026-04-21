@@ -74,6 +74,7 @@ function asaas_request($method, $endpoint, $data = null) {
 function asaas_get($endpoint) { return asaas_request('GET', $endpoint); }
 function asaas_post($endpoint, $data) { return asaas_request('POST', $endpoint, $data); }
 function asaas_delete($endpoint) { return asaas_request('DELETE', $endpoint); }
+function asaas_put($endpoint, $data) { return asaas_request('PUT', $endpoint, $data); }
 
 function limpar_cpf($cpf) { return preg_replace('/\D/', '', $cpf); }
 
@@ -202,6 +203,62 @@ function criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas
     );
 
     return asaas_post('/subscriptions', $data);
+}
+
+/**
+ * Cancelar cobrança no Asaas. Só funciona pra PENDING/OVERDUE.
+ * Atualiza cache local (asaas_cobrancas) setando status='CANCELED' após sucesso.
+ */
+function cancelar_cobranca_asaas($paymentId) {
+    if (!$paymentId) return array('error' => 'ID da cobrança ausente.');
+    $resp = asaas_delete('/payments/' . urlencode($paymentId));
+    if (isset($resp['error'])) return $resp;
+    // Asaas retorna {deleted:true, id:"pay_xxx"} em sucesso
+    try {
+        db()->prepare("UPDATE asaas_cobrancas SET status='CANCELED', ultima_sync=NOW() WHERE asaas_payment_id = ?")
+           ->execute(array($paymentId));
+    } catch (Exception $e) {}
+    return array('ok' => true, 'id' => $paymentId);
+}
+
+/**
+ * Alterar data de vencimento de cobrança no Asaas (só PENDING/OVERDUE).
+ * $novaData deve vir no formato YYYY-MM-DD.
+ */
+function alterar_vencimento_asaas($paymentId, $novaData) {
+    if (!$paymentId) return array('error' => 'ID da cobrança ausente.');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData)) return array('error' => 'Data inválida (use AAAA-MM-DD).');
+    $resp = asaas_put('/payments/' . urlencode($paymentId), array('dueDate' => $novaData));
+    if (isset($resp['error'])) return $resp;
+    try {
+        // Se estava OVERDUE e a nova data é futura, o Asaas volta pra PENDING automaticamente na próxima sync
+        $novoStatus = (strtotime($novaData) >= strtotime('today')) ? 'PENDING' : 'OVERDUE';
+        db()->prepare("UPDATE asaas_cobrancas SET vencimento=?, status=?, ultima_sync=NOW() WHERE asaas_payment_id = ?")
+           ->execute(array($novaData, $novoStatus, $paymentId));
+    } catch (Exception $e) {}
+    return array('ok' => true, 'id' => $paymentId, 'due_date' => $novaData);
+}
+
+/**
+ * Dar baixa manualmente (marcar como paga em dinheiro/transferência fora do Asaas).
+ * $dataPagamento = YYYY-MM-DD; $valor = valor recebido (pode ser diferente do nominal, ex: desconto).
+ */
+function baixar_cobranca_asaas($paymentId, $dataPagamento, $valor) {
+    if (!$paymentId) return array('error' => 'ID da cobrança ausente.');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPagamento)) return array('error' => 'Data inválida (use AAAA-MM-DD).');
+    $valor = (float)$valor;
+    if ($valor <= 0) return array('error' => 'Valor deve ser maior que zero.');
+    $resp = asaas_post('/payments/' . urlencode($paymentId) . '/receiveInCash', array(
+        'paymentDate' => $dataPagamento,
+        'value' => $valor,
+        'notifyCustomer' => false,
+    ));
+    if (isset($resp['error'])) return $resp;
+    try {
+        db()->prepare("UPDATE asaas_cobrancas SET status='RECEIVED_IN_CASH', data_pagamento=?, valor_pago=?, ultima_sync=NOW() WHERE asaas_payment_id = ?")
+           ->execute(array($dataPagamento, $valor, $paymentId));
+    } catch (Exception $e) {}
+    return array('ok' => true, 'id' => $paymentId, 'payment_date' => $dataPagamento, 'value' => $valor);
 }
 
 // Status labels e cores

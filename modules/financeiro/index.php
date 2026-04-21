@@ -298,17 +298,48 @@ echo voltar_ao_processo_html();
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="criar_cobranca">
 
-        <div style="margin-bottom:.6rem;">
+        <?php
+            $clientes = $pdo->query("SELECT id, name, cpf, asaas_customer_id FROM clients WHERE cpf IS NOT NULL AND cpf != '' ORDER BY name")->fetchAll();
+            $clientesJS = array_map(function($c){
+                return array('id'=>(int)$c['id'], 'name'=>$c['name'], 'asaas'=>!empty($c['asaas_customer_id']));
+            }, $clientes);
+        ?>
+        <div style="margin-bottom:.6rem;position:relative;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Cliente *</label>
-            <select name="client_id" class="form-select" required>
-                <option value="">— Selecionar —</option>
-                <?php
-                $clientes = $pdo->query("SELECT id, name, cpf, asaas_customer_id FROM clients WHERE cpf IS NOT NULL AND cpf != '' ORDER BY name")->fetchAll();
-                foreach ($clientes as $c): ?>
-                <option value="<?= $c['id'] ?>" <?= $c['asaas_customer_id'] ? '' : 'style="color:var(--text-muted);"' ?>><?= e($c['name']) ?> <?= $c['cpf'] ? '— ' . e($c['cpf']) : '' ?> <?= $c['asaas_customer_id'] ? '✓' : '(novo)' ?></option>
-                <?php endforeach; ?>
-            </select>
+            <input type="text" id="cobBuscaNome" class="form-input" placeholder="Digite o nome do cliente..." autocomplete="off" oninput="cobFiltrar(this.value)" onfocus="cobFiltrar(this.value)" required>
+            <input type="hidden" name="client_id" id="cobClienteId" required>
+            <div id="cobDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:240px;overflow-y:auto;background:#fff;border:1px solid var(--border);border-top:none;border-radius:0 0 6px 6px;z-index:10;box-shadow:0 8px 20px rgba(0,0,0,.12);"></div>
         </div>
+        <script>
+        var _cobClientes = <?= json_encode($clientesJS, JSON_UNESCAPED_UNICODE) ?>;
+        function cobFiltrar(q) {
+            var drop = document.getElementById('cobDropdown');
+            q = (q || '').trim().toLowerCase();
+            if (q.length < 1) { drop.style.display = 'none'; return; }
+            var matches = _cobClientes.filter(function(c){ return c.name.toLowerCase().indexOf(q) !== -1; }).slice(0, 30);
+            if (!matches.length) {
+                drop.innerHTML = '<div style="padding:.55rem .75rem;color:#999;font-size:.8rem;">Nenhum cliente encontrado</div>';
+            } else {
+                drop.innerHTML = matches.map(function(c){
+                    var tag = c.asaas ? '<span style="color:#059669;font-weight:700;margin-left:6px;">✓ Asaas</span>' : '<span style="color:#B87333;font-weight:600;margin-left:6px;">(novo)</span>';
+                    return '<div onclick="cobSelect(' + c.id + ',' + JSON.stringify(c.name) + ')" onmouseover="this.style.background=\'#f5ebe0\'" onmouseout="this.style.background=\'\'" style="padding:.5rem .75rem;cursor:pointer;font-size:.85rem;border-bottom:1px solid #f0f0f0;">' + c.name.replace(/</g,'&lt;') + tag + '</div>';
+                }).join('');
+            }
+            drop.style.display = 'block';
+        }
+        function cobSelect(id, nome) {
+            document.getElementById('cobClienteId').value = id;
+            document.getElementById('cobBuscaNome').value = nome;
+            document.getElementById('cobDropdown').style.display = 'none';
+        }
+        // Fecha dropdown ao clicar fora
+        document.addEventListener('click', function(e){
+            if (!e.target.closest('#cobDropdown') && e.target.id !== 'cobBuscaNome') {
+                var d = document.getElementById('cobDropdown');
+                if (d) d.style.display = 'none';
+            }
+        });
+        </script>
 
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Tipo</label>

@@ -92,6 +92,75 @@ if ($action === 'vincular_case_bulk') {
     exit;
 }
 
+// ═══ Ações sobre cobranças existentes (AJAX) ═══
+// Padrão: retorna JSON; recebe cobranca_id (id da tabela asaas_cobrancas)
+
+if ($action === 'cobranca_cancelar') {
+    header('Content-Type: application/json');
+    $cobId = (int)($_POST['cobranca_id'] ?? 0);
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    $cob = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE id = ?");
+    $cob->execute(array($cobId));
+    $cob = $cob->fetch();
+    if (!$cob) { echo json_encode(array('error' => 'Cobrança não encontrada')); exit; }
+    if (in_array($cob['status'], array('CANCELED','REFUNDED'), true)) {
+        echo json_encode(array('error' => 'Cobrança já está ' . asaas_status_label($cob['status']))); exit;
+    }
+    if (in_array($cob['status'], array('RECEIVED','CONFIRMED','RECEIVED_IN_CASH'), true)) {
+        echo json_encode(array('error' => 'Cobrança já foi paga — não pode ser cancelada. Use "Estornar" no painel do Asaas se necessário.')); exit;
+    }
+    $resp = cancelar_cobranca_asaas($cob['asaas_payment_id']);
+    if (isset($resp['error'])) { echo json_encode(array('error' => $resp['error'])); exit; }
+    audit_log('cobranca_cancelada', 'asaas_cobrancas', $cobId, 'Payment: ' . $cob['asaas_payment_id']);
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
+if ($action === 'cobranca_alterar_vencimento') {
+    header('Content-Type: application/json');
+    $cobId = (int)($_POST['cobranca_id'] ?? 0);
+    $novaData = $_POST['nova_data'] ?? '';
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData)) { echo json_encode(array('error' => 'Data inválida')); exit; }
+    $cob = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE id = ?");
+    $cob->execute(array($cobId));
+    $cob = $cob->fetch();
+    if (!$cob) { echo json_encode(array('error' => 'Cobrança não encontrada')); exit; }
+    if (!in_array($cob['status'], array('PENDING','OVERDUE'), true)) {
+        echo json_encode(array('error' => 'Só é possível alterar vencimento de cobrança pendente ou vencida. Status atual: ' . asaas_status_label($cob['status']))); exit;
+    }
+    $resp = alterar_vencimento_asaas($cob['asaas_payment_id'], $novaData);
+    if (isset($resp['error'])) { echo json_encode(array('error' => $resp['error'])); exit; }
+    audit_log('cobranca_vencto_alterado', 'asaas_cobrancas', $cobId, 'de ' . $cob['vencimento'] . ' → ' . $novaData);
+    echo json_encode(array('ok' => true, 'nova_data' => $novaData));
+    exit;
+}
+
+if ($action === 'cobranca_dar_baixa') {
+    header('Content-Type: application/json');
+    $cobId = (int)($_POST['cobranca_id'] ?? 0);
+    $dataPagto = $_POST['data_pagamento'] ?? '';
+    $valorRaw = $_POST['valor'] ?? '';
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPagto)) { echo json_encode(array('error' => 'Data de pagamento inválida')); exit; }
+    // Aceita "1234,56" ou "1234.56"
+    $valor = (float)str_replace(',', '.', str_replace('.', '', $valorRaw));
+    // Se não informou, tenta usar o valor da cobrança
+    $cob = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE id = ?");
+    $cob->execute(array($cobId));
+    $cob = $cob->fetch();
+    if (!$cob) { echo json_encode(array('error' => 'Cobrança não encontrada')); exit; }
+    if ($valor <= 0) $valor = (float)$cob['valor'];
+    if (!in_array($cob['status'], array('PENDING','OVERDUE'), true)) {
+        echo json_encode(array('error' => 'Só é possível dar baixa em cobrança pendente ou vencida. Status atual: ' . asaas_status_label($cob['status']))); exit;
+    }
+    $resp = baixar_cobranca_asaas($cob['asaas_payment_id'], $dataPagto, $valor);
+    if (isset($resp['error'])) { echo json_encode(array('error' => $resp['error'])); exit; }
+    audit_log('cobranca_baixa_manual', 'asaas_cobrancas', $cobId, "R$ " . number_format($valor,2,',','.') . " em " . $dataPagto);
+    echo json_encode(array('ok' => true, 'valor' => $valor, 'data' => $dataPagto));
+    exit;
+}
+
 // Criar cobrança Asaas a partir de um lead da Planilha Comercial
 // (botão 💰 Cobrar no pipeline/index.php)
 if ($action === 'criar_cobranca_lead') {
