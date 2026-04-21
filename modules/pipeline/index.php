@@ -716,7 +716,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             <select id="folderTipoAcao" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" onchange="atualizarNomePasta()">
                 <option value="">— Selecione —</option>
                 <?php
-                $tiposAcao = array('Alimentos','Revisão de Alimentos','Execução de Alimentos','Exoneração de Alimentos',
+                $tiposAcao = array('Alimentos','Revisão de Alimentos','Execução de Alimentos','Execução de Alimentos - Rito Prisão','Execução de Alimentos - Rito Penhora','Exoneração de Alimentos',
                     'Divórcio','Divórcio Consensual','Divórcio Litigioso','Guarda','Guarda Compartilhada',
                     'Regulamentação de Convivência','Convivência','Investigação de Paternidade',
                     'Medida Protetiva','Tutela de Urgência','Inventário','Usucapião',

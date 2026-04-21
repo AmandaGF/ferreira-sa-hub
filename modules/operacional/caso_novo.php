@@ -509,6 +509,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <option value="Alimentos">Alimentos</option>
                                 <option value="Revisional de Alimentos">Revisional de Alimentos</option>
                                 <option value="Execução de Alimentos">Execução de Alimentos</option>
+                                <option value="Execução de Alimentos - Rito Prisão">Execução de Alimentos - Rito Prisão</option>
+                                <option value="Execução de Alimentos - Rito Penhora">Execução de Alimentos - Rito Penhora</option>
                                 <option value="Exoneração de Alimentos">Exoneração de Alimentos</option>
                                 <option value="Oferta de Alimentos">Oferta de Alimentos</option>
                                 <option value="Divórcio Consensual">Divórcio Consensual</option>
