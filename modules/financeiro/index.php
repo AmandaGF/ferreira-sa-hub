@@ -389,6 +389,15 @@ echo voltar_ao_processo_html();
             </div>
         </div>
 
+        <div id="modoValorWrap1" style="display:none;margin-bottom:.5rem;padding:.4rem .6rem;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
+            <label style="font-size:.68rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.3px;">O valor que vou digitar é...</label>
+            <label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.8rem;margin-right:1rem;cursor:pointer;">
+                <input type="radio" name="modo_valor" value="total" checked onchange="atualizarCobUI1()"> 📊 Total do contrato
+            </label>
+            <label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.8rem;cursor:pointer;">
+                <input type="radio" name="modo_valor" value="parcela" onchange="atualizarCobUI1()"> 🧮 Valor de cada parcela
+            </label>
+        </div>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label id="labelValorCob1" style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Valor total (R$) *</label>
                 <input type="text" name="valor" id="valorCob1" class="form-input input-reais" required placeholder="0,00" oninput="atualizarCobUI1()">
@@ -417,20 +426,48 @@ echo voltar_ao_processo_html();
             var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
             var mostrarParcelas = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('camposParcelas').style.display = mostrarParcelas ? 'block' : 'none';
+
+            // Toggle total/parcela só faz sentido em 'parcelado'
+            // Recorrente: só por mensalidade (Asaas não aceita total). Única: só total.
+            var modoWrap = document.getElementById('modoValorWrap1');
+            var modoTotal = (document.querySelector('input[name="modo_valor"][value="total"]') || {}).checked;
+            if (tipo === 'parcelado') {
+                modoWrap.style.display = 'block';
+            } else {
+                modoWrap.style.display = 'none';
+                // força modo_valor=parcela pra recorrente (Asaas só aceita value por mensalidade)
+                if (tipo === 'recorrente') {
+                    var rp = document.querySelector('input[name="modo_valor"][value="parcela"]');
+                    if (rp) rp.checked = true;
+                    modoTotal = false;
+                }
+            }
+
             var lbl = document.getElementById('labelValorCob1');
-            if (tipo === 'parcelado') lbl.innerHTML = '💡 Valor de <u>cada parcela</u> (R$) *';
-            else if (tipo === 'recorrente') lbl.innerHTML = '💡 Valor de <u>cada mensalidade</u> (R$) *';
-            else lbl.innerHTML = 'Valor total (R$) *';
+            if (tipo === 'parcelado') {
+                lbl.innerHTML = modoTotal
+                    ? '📊 <u>Valor total do contrato</u> (R$) — o Asaas divide pelo nº de parcelas *'
+                    : '🧮 Valor de <u>cada parcela</u> (R$) — o Asaas multiplica pelo nº de parcelas *';
+            } else if (tipo === 'recorrente') {
+                lbl.innerHTML = '💡 Valor de <u>cada mensalidade</u> (R$) *';
+            } else {
+                lbl.innerHTML = 'Valor total (R$) *';
+            }
 
             var prev = document.getElementById('previewCob1');
             if (valor > 0 && parc > 1 && mostrarParcelas) {
-                var total = valor * parc;
-                var vStr = valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+                var total, parcela;
+                if (tipo === 'parcelado' && modoTotal) {
+                    total = valor; parcela = valor / parc;
+                } else {
+                    total = valor * parc; parcela = valor;
+                }
+                var pStr = parcela.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
                 var tStr = total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
                 if (tipo === 'parcelado') {
-                    prev.innerHTML = '📋 <b>' + parc + ' parcelas de R$ ' + vStr + '</b> — total <b>R$ ' + tStr + '</b>. Vence mensalmente a partir da data escolhida e <b>termina na última parcela</b>.';
+                    prev.innerHTML = '📋 <b>' + parc + ' parcelas de R$ ' + pStr + '</b> = total <b>R$ ' + tStr + '</b>. Vence mensalmente a partir da data escolhida e <b>termina na última parcela</b>.';
                 } else {
-                    prev.innerHTML = '🔄 Cobrança <b>mensal de R$ ' + vStr + '</b>, sem data de fim. Max ' + parc + ' mensalidades (ou cancele antes).';
+                    prev.innerHTML = '🔄 Cobrança <b>mensal de R$ ' + pStr + '</b>, sem data de fim. Max ' + parc + ' mensalidades (ou cancele antes).';
                 }
                 prev.style.display='block';
             } else { prev.style.display='none'; }

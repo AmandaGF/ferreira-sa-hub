@@ -183,25 +183,31 @@ function criar_cobranca_asaas($asaasCustomerId, $valor, $vencimento, $descricao,
 /**
  * Criar PARCELAMENTO no Asaas (N boletos/pix/cartão com fim definido).
  * Diferente de assinatura: gera exatamente $numParcelas cobranças com vencimento mensal
- * a partir de $primeiroVenc. Ideal pra honorários fechados (ex: 10x de R$1.000).
+ * a partir de $primeiroVenc. Ideal pra honorários fechados.
  *
- * $valorParcela = valor de cada parcela (R$). O Asaas calcula totalValue automaticamente.
+ * $valor pode ser total OU por parcela (define via $modoValor = 'total' | 'parcela').
+ *   - 'total':  Asaas divide o valor em N parcelas (totalValue)
+ *   - 'parcela': Asaas multiplica pelo N (installmentValue)
  */
-function criar_parcelamento_asaas($asaasCustomerId, $valorParcela, $numParcelas, $primeiroVenc, $descricao, $formaPagamento = 'BOLETO') {
+function criar_parcelamento_asaas($asaasCustomerId, $valor, $numParcelas, $primeiroVenc, $descricao, $formaPagamento = 'BOLETO', $modoValor = 'parcela') {
     $billingType = strtoupper($formaPagamento);
     if (!in_array($billingType, array('BOLETO', 'PIX', 'CREDIT_CARD', 'UNDEFINED'))) $billingType = 'UNDEFINED';
 
     $numParcelas = max(2, min(60, (int)$numParcelas));
-    $valorParcela = (float)$valorParcela;
+    $valor = (float)$valor;
 
     $data = array(
         'customer' => $asaasCustomerId,
         'billingType' => $billingType,
         'installmentCount' => $numParcelas,
-        'installmentValue' => $valorParcela,
         'dueDate' => $primeiroVenc,
         'description' => $descricao,
     );
+    if ($modoValor === 'total') {
+        $data['totalValue'] = $valor;
+    } else {
+        $data['installmentValue'] = $valor;
+    }
     return asaas_post('/payments', $data);
 }
 

@@ -313,23 +313,27 @@ switch ($action) {
         $asaasCustomerId = $vinculo['id'];
 
         if ($tipo === 'parcelado') {
-            // Parcelamento fixo: N boletos/pix/cartão com fim definido
-            $resp = criar_parcelamento_asaas($asaasCustomerId, $valor, $numParcelas, $vencimento, $descricao, $formaPag);
+            // modo_valor: 'total' (Asaas divide) ou 'parcela' (Asaas multiplica). Default 'parcela'.
+            $modoValor = ($_POST['modo_valor'] ?? 'parcela') === 'total' ? 'total' : 'parcela';
+            $valorTotal = $modoValor === 'total' ? $valor : ($valor * $numParcelas);
+            $valorParcela = $modoValor === 'total' ? ($valor / $numParcelas) : $valor;
+
+            $resp = criar_parcelamento_asaas($asaasCustomerId, $valor, $numParcelas, $vencimento, $descricao, $formaPag, $modoValor);
             if (isset($resp['error'])) {
                 flash_set('error', 'Erro Asaas: ' . $resp['error']);
                 redirect(module_url('financeiro'));
             }
-            // Salvar contrato (tipo fixo com N parcelas)
+            // Salvar contrato (tipo fixo com N parcelas) — sempre grava valor_total e valor_parcela corretos
             $pdo->prepare(
                 "INSERT INTO contratos_financeiros (client_id, case_id, tipo_honorario, valor_total, num_parcelas, valor_parcela, forma_pagamento, data_fechamento, created_by)
                  VALUES (?, ?, 'entrada_parcelas', ?, ?, ?, ?, CURDATE(), ?)"
-            )->execute(array($clientId, $caseId, $valor * $numParcelas, $numParcelas, $valor, strtolower($formaPag), current_user_id()));
+            )->execute(array($clientId, $caseId, $valorTotal, $numParcelas, $valorParcela, strtolower($formaPag), current_user_id()));
             // Sincroniza as N parcelas criadas
             sync_cobrancas_cliente($clientId, $asaasCustomerId);
             // Vincula ao processo as parcelas recém criadas (sem case_id ainda)
             $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE client_id = ? AND case_id IS NULL")
                 ->execute(array($caseId, $clientId));
-            flash_set('success', "Parcelamento criado! $numParcelas × R$ " . number_format($valor, 2, ',', '.') . " (" . strtoupper($formaPag) . ")");
+            flash_set('success', "Parcelamento criado! $numParcelas × R$ " . number_format($valorParcela, 2, ',', '.') . " = R$ " . number_format($valorTotal, 2, ',', '.') . " (" . strtoupper($formaPag) . ")");
 
         } elseif ($tipo === 'recorrente') {
             // Assinatura recorrente: mensal, SEM FIM (ou até maxPayments)
