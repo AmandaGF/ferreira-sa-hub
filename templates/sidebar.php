@@ -307,75 +307,102 @@ function fsaAbrirInstalar() {
     var body = document.getElementById('fsaInstalarBody');
     var modal = document.getElementById('fsaModalInstalar');
 
-    // Detecta estado atual
+    // Detecta estado
     var isStandalone = window.matchMedia('(display-mode: standalone)').matches
                     || window.navigator.standalone === true
                     || document.referrer.indexOf('android-app://') === 0;
     var ua = navigator.userAgent || '';
     var isiOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     var isAndroid = /Android/i.test(ua);
+    var hasPrompt = !!window._fsaDeferredPrompt;
 
-    // Bloco de instrução "onde achar" por plataforma — usado quando já instalado
-    var ondeAchar = '';
-    if (isAndroid) {
-        ondeAchar = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#1e40af;">'
-                  + '<strong>📍 Onde achar no Android:</strong><br>'
-                  + '1. Tela inicial — role e procure o ícone F&amp;S Hub<br>'
-                  + '2. Gaveta de apps (arraste de baixo pra cima) → role ou busque por "F&amp;S" ou "Hub"<br>'
-                  + '3. Se não aparecer em lugar nenhum, a instalação pode ter falhado — reinstale pelas instruções abaixo.'
-                  + '</div>';
-    } else if (isiOS) {
-        ondeAchar = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#1e40af;">'
-                  + '<strong>📍 Onde achar no iPhone/iPad:</strong><br>'
-                  + 'Tela inicial — procure o ícone F&amp;S Hub. Se não aparecer, deslize pra esquerda até a Biblioteca de Apps ou use a busca (deslize pra baixo na tela inicial). Se ainda não achar, reinstale pelas instruções abaixo.'
-                  + '</div>';
+    var html = '';
+
+    // 1) Alerta inicial se a detecção reportou "já instalado" mas usuária não acha
+    if (isStandalone) {
+        html += '<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;color:#9a3412;font-size:.8rem;">'
+             + '⚠️ <strong>Detectei que está em modo app agora.</strong> Se não acha o ícone no dispositivo, a instalação anterior pode estar "fantasma". Siga as instruções abaixo pra reinstalar direito.'
+             + '</div>';
     }
 
-    if (isStandalone) {
-        body.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.8rem 1rem;color:#166534;margin-bottom:.8rem;">✅ <strong>Você está no modo app agora!</strong> Essa janela é a versão instalada do Hub.</div>'
-            + ondeAchar;
-    } else if (window._fsaDeferredPrompt) {
-        // Android Chrome/Edge — evento disponível, dispara nativo
-        body.innerHTML = '<p style="margin:0 0 .8rem;">Clique abaixo pra instalar o Hub como aplicativo no seu dispositivo:</p>'
-            + '<button id="fsaInstalarGo" style="background:#B87333;color:#fff;border:none;padding:.7rem 1.2rem;border-radius:8px;font-weight:700;cursor:pointer;width:100%;font-size:.88rem;">📲 Instalar agora</button>';
+    // 2) Botão nativo (se disponível) — sempre oferecer como primeira opção
+    if (hasPrompt) {
+        html += '<p style="margin:0 0 .5rem;font-weight:600;">Instalação rápida:</p>'
+             + '<button id="fsaInstalarGo" style="background:#B87333;color:#fff;border:none;padding:.7rem 1.2rem;border-radius:8px;font-weight:700;cursor:pointer;width:100%;font-size:.88rem;margin-bottom:1rem;">📲 Instalar agora</button>';
+    }
+
+    // 3) Instruções manuais por plataforma — sempre visíveis
+    if (isiOS) {
+        html += '<p style="margin:.5rem 0 .4rem;font-weight:600;">📱 iPhone/iPad (Safari):</p>'
+             + '<ol style="padding-left:1.2rem;margin:0 0 .8rem;font-size:.85rem;">'
+             + '<li>Toque no ícone <strong>Compartilhar</strong> (quadrado com seta pra cima, barra inferior do Safari)</li>'
+             + '<li>Role até <strong>"Adicionar à Tela de Início"</strong></li>'
+             + '<li>Toque em <strong>Adicionar</strong> (canto superior direito)</li>'
+             + '</ol>'
+             + '<p style="margin:.5rem 0 .4rem;font-weight:600;">Se já instalou antes mas não acha:</p>'
+             + '<ol style="padding-left:1.2rem;margin:0;font-size:.85rem;">'
+             + '<li>Tela inicial → deslize pra esquerda até a <strong>Biblioteca de Apps</strong></li>'
+             + '<li>Ou na tela inicial: deslize pra baixo → busque <strong>"F&amp;S"</strong> ou <strong>"Hub"</strong> ou <strong>"Ferreira"</strong></li>'
+             + '<li>Se encontrar, segure o ícone → <strong>"Adicionar à Tela de Início"</strong></li>'
+             + '</ol>';
+    } else if (isAndroid) {
+        html += '<p style="margin:.5rem 0 .4rem;font-weight:600;">🤖 Android (Chrome):</p>'
+             + '<ol style="padding-left:1.2rem;margin:0 0 .8rem;font-size:.85rem;">'
+             + '<li>Toque no menu do Chrome (<strong>⋮</strong> no canto superior direito)</li>'
+             + '<li>Toque em <strong>"Instalar app"</strong> ou <strong>"Adicionar à tela inicial"</strong></li>'
+             + '<li>Confirme em <strong>Instalar</strong></li>'
+             + '</ol>'
+             + '<p style="margin:.5rem 0 .4rem;font-weight:600;">Se já instalou mas não acha:</p>'
+             + '<ol style="padding-left:1.2rem;margin:0 0 .8rem;font-size:.85rem;">'
+             + '<li>Deslize pra cima da tela inicial pra abrir a <strong>gaveta de apps</strong></li>'
+             + '<li>Na busca no topo, digite <strong>"F&amp;S"</strong> ou <strong>"Hub"</strong></li>'
+             + '<li>Se aparecer, segure e arraste pra tela inicial</li>'
+             + '</ol>'
+             + '<p style="margin:.5rem 0 .4rem;font-weight:600;color:#dc2626;">Se realmente não existe (instalação fantasma):</p>'
+             + '<ol style="padding-left:1.2rem;margin:0;font-size:.85rem;">'
+             + '<li><strong>Configurações → Apps</strong> → procure "Hub" ou "Chrome" → veja apps conectados</li>'
+             + '<li>Ou: Chrome → <strong>chrome://apps</strong> → se aparecer F&amp;S Hub, toque e segure → <strong>Desinstalar</strong></li>'
+             + '<li>Depois volte aqui e clique em <strong>Instalar agora</strong> de novo</li>'
+             + '</ol>';
+    } else {
+        html += '<p style="margin:.5rem 0 .4rem;font-weight:600;">💻 Computador (Chrome/Edge):</p>'
+             + '<ol style="padding-left:1.2rem;margin:0;font-size:.85rem;">'
+             + '<li>Barra de endereço: clique em <strong>⊕ Instalar</strong> à direita da URL</li>'
+             + '<li>Ou menu <strong>⋮</strong> → <strong>"Instalar F&amp;S Hub"</strong></li>'
+             + '<li>Confirme em <strong>Instalar</strong></li>'
+             + '</ol>';
+    }
+
+    // 4) Rodapé: estado detectado (ajuda pra diagnóstico)
+    html += '<details style="margin-top:1rem;font-size:.72rem;color:#64748b;">'
+         + '<summary style="cursor:pointer;color:#94a3b8;">Estado detectado</summary>'
+         + '<div style="padding:.4rem 0 0;font-family:monospace;">'
+         + 'Plataforma: ' + (isiOS ? 'iOS' : (isAndroid ? 'Android' : 'Desktop')) + '<br>'
+         + 'Standalone: ' + (isStandalone ? 'sim' : 'não') + '<br>'
+         + 'Prompt nativo disponível: ' + (hasPrompt ? 'sim' : 'não') + '<br>'
+         + 'UA: ' + ua.substring(0, 80)
+         + '</div></details>';
+
+    body.innerHTML = html;
+
+    if (hasPrompt && document.getElementById('fsaInstalarGo')) {
         document.getElementById('fsaInstalarGo').onclick = function() {
+            this.textContent = 'Aguardando...';
+            this.disabled = true;
             window._fsaDeferredPrompt.prompt();
             window._fsaDeferredPrompt.userChoice.then(function(choice) {
                 if (choice.outcome === 'accepted') {
-                    body.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.8rem 1rem;color:#166534;">✅ Instalado! Procure o ícone na tela inicial ou gaveta de apps.</div>';
+                    body.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.8rem 1rem;color:#166534;">✅ Instalado! Procure o ícone na tela inicial ou gaveta de apps do seu dispositivo.</div>';
                     localStorage.removeItem('fsa_install_dispensado');
+                } else {
+                    body.innerHTML = '<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:.8rem 1rem;color:#991b1b;">Instalação cancelada. Clique de novo no botão "Instalar como App" se quiser tentar outra vez.</div>';
                 }
                 window._fsaDeferredPrompt = null;
             });
         };
-    } else if (isiOS) {
-        body.innerHTML = '<p style="margin:0 0 .8rem;"><strong>iPhone/iPad:</strong></p>'
-            + '<ol style="padding-left:1.2rem;margin:0;">'
-            + '<li>Toque no botão de <strong>Compartilhar</strong> do Safari (quadrado com seta pra cima, na barra inferior)</li>'
-            + '<li>Role até encontrar <strong>"Adicionar à Tela de Início"</strong></li>'
-            + '<li>Toque em <strong>Adicionar</strong> no canto superior direito</li>'
-            + '</ol>'
-            + '<p style="margin:.8rem 0 0;font-size:.78rem;color:#64748b;">Depois de instalado, o Hub abrirá como app (sem barras do navegador) e poderá receber notificações.</p>';
-    } else if (isAndroid) {
-        body.innerHTML = '<p style="margin:0 0 .8rem;"><strong>Android (Chrome):</strong></p>'
-            + '<ol style="padding-left:1.2rem;margin:0;">'
-            + '<li>Toque no menu do Chrome (<strong>⋮</strong> no canto superior direito)</li>'
-            + '<li>Toque em <strong>"Instalar app"</strong> ou <strong>"Adicionar à tela inicial"</strong></li>'
-            + '<li>Confirme tocando em <strong>Instalar</strong></li>'
-            + '</ol>'
-            + '<p style="margin:.8rem 0 0;font-size:.78rem;color:#64748b;">Se a opção não aparecer, navegue no Hub por alguns minutos e tente de novo — o Chrome precisa de um mínimo de interação antes de liberar o prompt.</p>';
-    } else {
-        // Desktop
-        body.innerHTML = '<p style="margin:0 0 .8rem;"><strong>Computador (Chrome/Edge):</strong></p>'
-            + '<ol style="padding-left:1.2rem;margin:0;">'
-            + '<li>Na barra de endereço, clique no ícone <strong>⊕ Instalar</strong> à direita (ou no menu ⋮ → "Instalar F&amp;S Hub")</li>'
-            + '<li>Confirme tocando em <strong>Instalar</strong></li>'
-            + '</ol>'
-            + '<p style="margin:.8rem 0 0;font-size:.78rem;color:#64748b;">Depois de instalado, o Hub abre em janela própria como qualquer outro programa do computador.</p>';
     }
 
     modal.style.display = 'flex';
-    // Reset flag de dispensar — se ela está abrindo o modal manual, quer ver o prompt
     localStorage.removeItem('fsa_install_dispensado');
 }
 </script>
