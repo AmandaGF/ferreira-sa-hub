@@ -1607,6 +1607,13 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
         </div>
         <?php endif; ?>
 
+        <!-- Barra de ações: importação em lote + botão de novo andamento existente -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;">
+            <button type="button" onclick="abrirImportAndamentos()" class="btn btn-outline btn-sm" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af;font-size:.78rem;" title="Colar bloco pipe-delimited com vários andamentos de uma vez (gerado por IA a partir dos autos)">
+                📋 Importar em lote
+            </button>
+        </div>
+
         <!-- Formulario de novo andamento -->
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--border);">
             <?= csrf_input() ?>
@@ -2943,5 +2950,217 @@ function confirmarExclusao() {
     </form>
 </div></div>
 <?php endif; ?>
+
+<!-- ═══════════════════════════════════════════════════════
+     MODAL: IMPORTAÇÃO EM LOTE DE ANDAMENTOS
+     Passo 1: colar bloco pipe-delimited
+     Passo 2: prévia com status por linha + checkbox
+     Passo 3: gravar selecionados (transação atômica)
+═══════════════════════════════════════════════════════ -->
+<div id="modalImportAnd" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99999;align-items:flex-start;justify-content:center;padding:1.5rem;overflow-y:auto;">
+    <div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:1100px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);margin-top:1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">
+            <h3 style="margin:0;color:#052228;font-size:1.1rem;">📋 Importar Andamentos em Lote</h3>
+            <button type="button" onclick="fecharImportAndamentos()" style="background:#f3f4f6;border:none;border-radius:50%;width:32px;height:32px;cursor:pointer;font-size:1.2rem;">×</button>
+        </div>
+
+        <!-- Passo 1: textarea -->
+        <div id="impAndStep1">
+            <p style="margin:0 0 .6rem;font-size:.82rem;color:#475569;">
+                Cole abaixo o bloco gerado pela IA a partir dos autos. Formato: <strong>DATA|HORA|TIPO|DESCRICAO</strong> (uma linha por andamento).
+                <a href="#" onclick="document.getElementById('impAndExemplo').style.display = document.getElementById('impAndExemplo').style.display === 'block' ? 'none' : 'block'; return false;" style="color:#1e40af;">Ver formato esperado ▾</a>
+            </p>
+            <pre id="impAndExemplo" style="display:none;background:#f1f5f9;padding:.6rem .8rem;border-radius:6px;font-size:.72rem;overflow-x:auto;margin:0 0 .6rem;border:1px solid #e2e8f0;">DATA|HORA|TIPO|DESCRICAO
+2026-02-22|16:25|PROTOCOLO|Protocolo da petição inicial da Ação de Alimentos com pedido de fixação de alimentos provisórios.
+2026-02-25|16:53|DECISAO|Decisão deferindo gratuidade de justiça e arbitrando alimentos provisórios.
+2026-02-26||PUBLICACAO_DJEN|Disponibilização da decisão no DJEN (data fictícia).
+
+Tipos aceitos (lowercase, CAPS também funciona):
+protocolo, distribuicao, decisao, despacho, sentenca, acordao, ato_ordinatorio,
+certidao, intimacao, citacao, publicacao_djen, peticao_parte_autora, peticao_parte_re,
+manifestacao_mp, audiencia, mandado_expedido, cumprimento, recurso, acordo,
+diligencia, movimentacao, observacao
+
+HORA é opcional — use `||` se não tiver (aparecerá sem prefixo).
+Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
+            <textarea id="impAndTextarea" rows="18" placeholder="DATA|HORA|TIPO|DESCRICAO&#10;2026-02-22|16:25|PROTOCOLO|Texto da descrição..." style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-family:'Courier New',monospace;font-size:.78rem;resize:vertical;"></textarea>
+            <div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.75rem;">
+                <button type="button" onclick="fecharImportAndamentos()" style="background:#fff;border:1.5px solid #d1d5db;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem;">Cancelar</button>
+                <button type="button" id="impAndBtnAnalisar" onclick="analisarImportAndamentos()" style="background:#1e40af;color:#fff;border:none;padding:.5rem 1.3rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem;">🔎 Analisar</button>
+            </div>
+        </div>
+
+        <!-- Passo 2: prévia -->
+        <div id="impAndStep2" style="display:none;">
+            <div id="impAndResumo" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:.6rem .8rem;margin-bottom:.6rem;font-size:.82rem;color:#334155;"></div>
+            <div style="max-height:50vh;overflow-y:auto;border:1px solid #e5e7eb;border-radius:8px;">
+                <table id="impAndTabela" style="width:100%;border-collapse:collapse;font-size:.78rem;">
+                    <thead style="background:#f1f5f9;position:sticky;top:0;z-index:2;">
+                        <tr>
+                            <th style="padding:.5rem;text-align:center;width:28px;"><input type="checkbox" id="impAndCheckAll" onchange="impAndToggleAll(this)"></th>
+                            <th style="padding:.5rem;text-align:left;width:50px;">#</th>
+                            <th style="padding:.5rem;text-align:left;width:95px;">Data</th>
+                            <th style="padding:.5rem;text-align:left;width:60px;">Hora</th>
+                            <th style="padding:.5rem;text-align:left;width:150px;">Tipo</th>
+                            <th style="padding:.5rem;text-align:left;">Descrição</th>
+                            <th style="padding:.5rem;text-align:center;width:80px;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="impAndTbody"></tbody>
+                </table>
+            </div>
+            <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.75rem;align-items:center;">
+                <button type="button" onclick="impAndVoltar()" style="background:#fff;border:1.5px solid #d1d5db;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem;">← Voltar editar</button>
+                <div>
+                    <button type="button" onclick="fecharImportAndamentos()" style="background:#fff;border:1.5px solid #d1d5db;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.85rem;margin-right:.4rem;">Cancelar</button>
+                    <button type="button" id="impAndBtnGravar" onclick="gravarImportAndamentos()" style="background:#059669;color:#fff;border:none;padding:.5rem 1.3rem;border-radius:8px;cursor:pointer;font-weight:700;font-size:.85rem;">✓ Cadastrar selecionados (0)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var caseId = <?= (int)$caseId ?>;
+    var apiUrl = '<?= module_url('operacional', 'api.php') ?>';
+    var csrfTok = '<?= generate_csrf_token() ?>';
+    var parseados = [];  // resultado do analisar
+
+    window.abrirImportAndamentos = function() {
+        document.getElementById('impAndTextarea').value = '';
+        document.getElementById('impAndStep1').style.display = 'block';
+        document.getElementById('impAndStep2').style.display = 'none';
+        document.getElementById('modalImportAnd').style.display = 'flex';
+    };
+    window.fecharImportAndamentos = function() {
+        document.getElementById('modalImportAnd').style.display = 'none';
+    };
+    window.impAndVoltar = function() {
+        document.getElementById('impAndStep2').style.display = 'none';
+        document.getElementById('impAndStep1').style.display = 'block';
+    };
+
+    window.analisarImportAndamentos = function() {
+        var texto = document.getElementById('impAndTextarea').value;
+        if (!texto.trim()) { alert('Cole o bloco de andamentos primeiro.'); return; }
+        var btn = document.getElementById('impAndBtnAnalisar');
+        btn.disabled = true; btn.textContent = 'Analisando...';
+
+        var fd = new FormData();
+        fd.append('action', 'andamentos_importar_analisar');
+        fd.append('case_id', caseId);
+        fd.append('bloco', texto);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', csrfTok);
+
+        fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'}, body: fd })
+            .then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch(e) { return { error: 'HTTP ' + r.status + ': ' + t.substring(0,200) }; } }); })
+            .then(function(d){
+                btn.disabled = false; btn.textContent = '🔎 Analisar';
+                if (d.error) { alert('Falha: ' + d.error); return; }
+                if (d.csrf) csrfTok = d.csrf;
+                parseados = d.linhas || [];
+                renderImpAndPreview(d);
+            })
+            .catch(function(e){ btn.disabled = false; btn.textContent = '🔎 Analisar'; alert('Erro: ' + e.message); });
+    };
+
+    function escImpAnd(s) { return (s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+    function renderImpAndPreview(d) {
+        document.getElementById('impAndStep1').style.display = 'none';
+        document.getElementById('impAndStep2').style.display = 'block';
+
+        var resumo = document.getElementById('impAndResumo');
+        resumo.innerHTML = '<strong>' + d.total + '</strong> linha(s) processada(s): '
+                         + '<span style="color:#059669;font-weight:700;">✓ ' + d.total_ok + ' pronta(s)</span> · '
+                         + '<span style="color:#b45309;font-weight:700;">⚠ ' + d.total_warn + ' com aviso</span> · '
+                         + '<span style="color:#dc2626;font-weight:700;">✗ ' + d.total_err + ' com erro</span>';
+
+        var tbody = document.getElementById('impAndTbody');
+        var html = '';
+        parseados.forEach(function(p, idx) {
+            var statusCor = p.status === 'ok' ? '#059669' : (p.status === 'warn' ? '#b45309' : '#dc2626');
+            var statusIcon = p.status === 'ok' ? '✓' : (p.status === 'warn' ? '⚠' : '✗');
+            var statusLabel = p.status === 'ok' ? 'Pronto' : (p.status === 'warn' ? 'Atenção' : 'Erro');
+            var bg = p.status === 'ok' ? '#f0fdf4' : (p.status === 'warn' ? '#fffbeb' : '#fef2f2');
+            var canCheck = (p.status === 'ok' || p.status === 'warn');
+            html += '<tr style="border-bottom:1px solid #f3f4f6;background:' + bg + ';" data-idx="' + idx + '">';
+            html += '<td style="padding:.4rem;text-align:center;"><input type="checkbox" class="imp-and-cb" ' + (canCheck ? 'checked' : 'disabled') + ' onchange="impAndAtualizarContador()"></td>';
+            html += '<td style="padding:.4rem;color:#64748b;">#' + p.n + '</td>';
+            if (p.status !== 'erro') {
+                html += '<td style="padding:.4rem;font-family:monospace;">' + escImpAnd(p.data) + '</td>';
+                html += '<td style="padding:.4rem;font-family:monospace;">' + (p.hora ? escImpAnd(p.hora) : '<span style="color:#94a3b8;">—</span>') + '</td>';
+                var tipoHtml = '<code style="background:#e0e7ff;color:#1e40af;padding:1px 6px;border-radius:3px;">' + escImpAnd(p.tipo) + '</code>';
+                if (p.tipo_original && p.tipo_original.toLowerCase().replace(/\s+/g,'_') !== p.tipo) {
+                    tipoHtml += '<div style="font-size:.65rem;color:#94a3b8;margin-top:2px;">← ' + escImpAnd(p.tipo_original) + '</div>';
+                }
+                html += '<td style="padding:.4rem;">' + tipoHtml + '</td>';
+                html += '<td style="padding:.4rem;max-width:400px;"><div style="max-height:3em;overflow:hidden;line-height:1.5em;">' + escImpAnd(p.descricao) + '</div>';
+                if (p.aviso) html += '<div style="font-size:.68rem;color:#b45309;margin-top:2px;">⚠ ' + escImpAnd(p.aviso) + '</div>';
+                html += '</td>';
+            } else {
+                html += '<td colspan="4" style="padding:.4rem;color:#991b1b;">' + escImpAnd(p.motivo || 'Erro desconhecido') + '<div style="font-size:.68rem;color:#94a3b8;font-family:monospace;margin-top:2px;">' + escImpAnd(p.bruto || '') + '</div></td>';
+            }
+            html += '<td style="padding:.4rem;text-align:center;"><span style="color:' + statusCor + ';font-weight:700;">' + statusIcon + ' ' + statusLabel + '</span></td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+        impAndAtualizarContador();
+    }
+
+    window.impAndToggleAll = function(cb) {
+        document.querySelectorAll('.imp-and-cb').forEach(function(c){ if (!c.disabled) c.checked = cb.checked; });
+        impAndAtualizarContador();
+    };
+    window.impAndAtualizarContador = function() {
+        var n = document.querySelectorAll('.imp-and-cb:checked').length;
+        document.getElementById('impAndBtnGravar').textContent = '✓ Cadastrar selecionados (' + n + ')';
+        document.getElementById('impAndBtnGravar').disabled = (n === 0);
+    };
+
+    window.gravarImportAndamentos = function() {
+        var selecionados = [];
+        document.querySelectorAll('#impAndTbody tr').forEach(function(tr) {
+            var cb = tr.querySelector('.imp-and-cb');
+            if (cb && cb.checked) {
+                var idx = parseInt(tr.getAttribute('data-idx'), 10);
+                var p = parseados[idx];
+                if (p && p.status !== 'erro') {
+                    selecionados.push({ data: p.data, tipo: p.tipo, descricao: p.descricao });
+                }
+            }
+        });
+        if (!selecionados.length) { alert('Nenhum andamento selecionado.'); return; }
+        if (!confirm('Cadastrar ' + selecionados.length + ' andamento(s) neste processo?')) return;
+
+        var btn = document.getElementById('impAndBtnGravar');
+        btn.disabled = true; btn.textContent = 'Gravando...';
+
+        var fd = new FormData();
+        fd.append('action', 'andamentos_importar_gravar');
+        fd.append('case_id', caseId);
+        fd.append('selecionados', JSON.stringify(selecionados));
+        fd.append('<?= CSRF_TOKEN_NAME ?>', csrfTok);
+
+        fetch(apiUrl, { method: 'POST', credentials: 'same-origin', headers: {'X-Requested-With':'XMLHttpRequest'}, body: fd })
+            .then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch(e) { return { error: 'HTTP ' + r.status }; } }); })
+            .then(function(d){
+                if (d.error) { alert('Falha: ' + d.error); btn.disabled = false; btn.textContent = '✓ Cadastrar selecionados'; return; }
+                if (d.csrf) csrfTok = d.csrf;
+                // Toast de sucesso
+                var toast = document.createElement('div');
+                toast.textContent = '✓ ' + d.gravados + ' andamento(s) cadastrado(s) com sucesso.';
+                toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:12px 20px;border-radius:8px;font-weight:700;z-index:100001;box-shadow:0 8px 24px rgba(0,0,0,.25);';
+                document.body.appendChild(toast);
+                setTimeout(function(){ toast.remove(); }, 3500);
+                fecharImportAndamentos();
+                // Recarrega pra listar os andamentos novos
+                setTimeout(function(){ location.reload(); }, 1200);
+            })
+            .catch(function(e){ btn.disabled = false; btn.textContent = '✓ Cadastrar selecionados'; alert('Erro: ' + e.message); });
+    };
+})();
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

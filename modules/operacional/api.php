@@ -1449,10 +1449,14 @@ switch ($action) {
             'audiencia_designada'    => 'audiencia',
             'audiencia_realizada'    => 'audiencia',
             'audiencia'              => 'audiencia',
-            'peticao_parte_autora'   => 'peticao_juntada',
-            'peticao_parte_re'       => 'peticao_juntada',
+            // Petição: mantém distinção autor vs réu (peso jurídico operacional)
+            'peticao_parte_autora'   => 'peticao_parte_autora',
+            'peticao_parte_re'       => 'peticao_parte_re',
+            'peticao_autora'         => 'peticao_parte_autora',
+            'peticao_re'             => 'peticao_parte_re',
             'juntada_documento'      => 'peticao_juntada',
             'peticao_juntada'        => 'peticao_juntada',
+            'peticao'                => 'peticao_juntada', // fallback ambíguo
             'mandado_cumprido'       => 'cumprimento',
             'cumprimento'            => 'cumprimento',
             'conclusao'              => 'movimentacao',
@@ -1580,6 +1584,8 @@ switch ($action) {
             'audiencia','despacho','cumprimento','recurso','citacao','acordo','diligencia',
             'protocolo','distribuicao','ato_ordinatorio','certidao','publicacao_djen',
             'manifestacao_mp','mandado_expedido','acordao','chamado',
+            // Petições com distinção autor/réu (peso jurídico operacional):
+            'peticao_parte_autora','peticao_parte_re',
         );
         $uid = current_user_id();
         $gravados = 0; $erros = array();
