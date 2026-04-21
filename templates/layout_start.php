@@ -19,6 +19,104 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 <h1 class="topbar-title"><?= e($pageTitle ?? 'Painel') ?></h1>
             </div>
             <div class="topbar-right">
+                <!-- Busca Global -->
+                <div style="position:relative;" id="bgWrap">
+                    <div style="position:relative;display:flex;align-items:center;">
+                        <span style="position:absolute;left:10px;font-size:.85rem;opacity:.5;pointer-events:none;">🔍</span>
+                        <input type="text" id="bgInput" placeholder="Buscar no Hub... ( / )" autocomplete="off"
+                               style="padding:.4rem .6rem .4rem 30px;background:rgba(5,34,40,.05);border:1px solid rgba(5,34,40,.15);border-radius:8px;color:var(--petrol-900);font-size:.8rem;outline:none;width:180px;transition:width .15s;"
+                               onfocus="this.style.width='280px';this.style.background='#fff';"
+                               onblur="setTimeout(function(){document.getElementById('bgInput').style.width='180px';document.getElementById('bgInput').style.background='rgba(5,34,40,.05)';document.getElementById('bgDrop').style.display='none';},200);">
+                    </div>
+                    <div id="bgDrop" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:360px;max-height:520px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.15);z-index:9999;overflow-y:auto;"></div>
+                </div>
+                <style>
+                .bg-grupo{padding:.3rem .8rem;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#B87333;margin-top:.3rem;}
+                .bg-item{display:flex;align-items:center;gap:.6rem;padding:.45rem .8rem;color:var(--text);text-decoration:none;font-size:.8rem;transition:background .1s;cursor:pointer;}
+                .bg-item:hover{background:#f1f5f9;}
+                .bg-item-ico{font-size:1.05rem;flex-shrink:0;}
+                .bg-item-tit{font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+                .bg-item-sub{font-size:.68rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+                .bg-empty{padding:1.5rem;text-align:center;color:#94a3b8;font-size:.8rem;}
+                @media(max-width:700px){#bgInput{width:140px!important;}#bgInput:focus{width:200px!important;}#bgDrop{width:calc(100vw - 20px);right:-10px;}}
+                </style>
+                <script>
+                (function(){
+                    var bgTimer = null;
+                    var bgInput = document.getElementById('bgInput');
+                    var bgDrop  = document.getElementById('bgDrop');
+                    if (!bgInput) return;
+
+                    bgInput.addEventListener('input', function() {
+                        var q = this.value.trim();
+                        if (bgTimer) clearTimeout(bgTimer);
+                        if (q.length < 3) { bgDrop.style.display = 'none'; return; }
+                        bgTimer = setTimeout(function(){ bgExecutar(q); }, 250);
+                    });
+
+                    bgInput.addEventListener('keydown', function(ev) {
+                        if (ev.key === 'Escape') { this.value = ''; bgDrop.style.display = 'none'; this.blur(); }
+                    });
+
+                    // Atalho "/" global
+                    document.addEventListener('keydown', function(ev) {
+                        if (ev.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.isContentEditable) {
+                            ev.preventDefault();
+                            bgInput.focus();
+                        }
+                    });
+
+                    function bgExecutar(q) {
+                        var x = new XMLHttpRequest();
+                        x.open('GET', '<?= url('api/busca_global.php') ?>?q=' + encodeURIComponent(q));
+                        x.onload = function() {
+                            try {
+                                var r = JSON.parse(x.responseText);
+                                if (!r.ok) return;
+                                bgRender(r.grupos || {});
+                            } catch(e) {}
+                        };
+                        x.send();
+                    }
+
+                    function bgRender(grupos) {
+                        var base = '<?= rtrim(url(''), '/') ?>';
+                        var labels = {
+                            clientes:  'Clientes',
+                            processos: 'Processos',
+                            leads:     'Leads',
+                            tarefas:   'Minhas tarefas',
+                            wiki:      'Wiki'
+                        };
+                        var ordem = ['clientes','processos','leads','tarefas','wiki'];
+                        var html = '';
+                        var total = 0;
+                        ordem.forEach(function(k){
+                            var list = grupos[k];
+                            if (!list || !list.length) return;
+                            total += list.length;
+                            html += '<div class="bg-grupo">' + labels[k] + '</div>';
+                            list.forEach(function(it){
+                                html += '<a class="bg-item" href="' + base + '/' + it.url + '">'
+                                     +  '<span class="bg-item-ico">' + it.icon + '</span>'
+                                     +  '<div style="min-width:0;flex:1;">'
+                                     +  '<div class="bg-item-tit">' + bgEsc(it.titulo) + '</div>'
+                                     +  (it.subtitulo ? '<div class="bg-item-sub">' + bgEsc(it.subtitulo) + '</div>' : '')
+                                     +  '</div></a>';
+                            });
+                        });
+                        if (!total) html = '<div class="bg-empty">Nenhum resultado encontrado.</div>';
+                        bgDrop.innerHTML = html;
+                        bgDrop.style.display = 'block';
+                    }
+
+                    function bgEsc(s) {
+                        if (s == null) return '';
+                        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                    }
+                })();
+                </script>
+
                 <!-- Links Jurídicos -->
                 <div style="position:relative;" id="ljWrap">
                     <button id="ljBtn" onclick="document.getElementById('ljDrop').classList.toggle('lj-open');document.getElementById('ljBusca').value='';ljFiltrar('');" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:6px;color:var(--petrol-900);display:flex;align-items:center;gap:4px;" title="Links Jurídicos">

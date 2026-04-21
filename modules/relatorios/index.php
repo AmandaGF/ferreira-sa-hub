@@ -457,7 +457,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 📋 Formulários (<?= $periodoLabel ?>)
             </a>
             <a href="<?= module_url('relatorios', 'exportar.php?tipo=produtividade') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
-                📉 Produtividade
+                📉 Produtividade (CSV)
+            </a>
+            <a href="<?= module_url('relatorios', 'produtividade.php') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;background:#052228;color:#fff;">
+                📊 Produtividade (Dashboard)
             </a>
             <a href="<?= module_url('relatorios', 'exportar.php?tipo=aniversariantes&mes=' . $mesAniv) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
                 🎂 Aniversariantes (<?= $meses[$mesAniv] ?>)
