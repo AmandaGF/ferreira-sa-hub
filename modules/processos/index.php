@@ -76,6 +76,25 @@ elseif ($orderBy === 'atualizados') $orderSql = 'cs.updated_at DESC';
 elseif ($orderBy === 'prazo') $orderSql = 'cs.deadline ASC, c.name ASC';
 
 $whereStr = implode(' AND ', $where);
+
+// ── PAGINAÇÃO ──
+$perPage = 15;
+$pageNum = max(1, (int)($_GET['page'] ?? 1));
+$offset = ($pageNum - 1) * $perPage;
+
+// Total pra calcular número de páginas
+$stmtCount = $pdo->prepare(
+    "SELECT COUNT(*)
+     FROM cases cs
+     LEFT JOIN clients c ON c.id = cs.client_id
+     LEFT JOIN users u ON u.id = cs.responsible_user_id
+     WHERE $whereStr"
+);
+$stmtCount->execute($params);
+$totalProcessos = (int)$stmtCount->fetchColumn();
+$totalPaginas = max(1, (int)ceil($totalProcessos / $perPage));
+if ($pageNum > $totalPaginas) { $pageNum = $totalPaginas; $offset = ($pageNum - 1) * $perPage; }
+
 $stmt = $pdo->prepare(
     "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.cpf as client_cpf,
      u.name as responsible_name,
@@ -86,10 +105,38 @@ $stmt = $pdo->prepare(
      FROM cases cs
      LEFT JOIN clients c ON c.id = cs.client_id
      LEFT JOIN users u ON u.id = cs.responsible_user_id
-     WHERE $whereStr ORDER BY $orderSql LIMIT 200"
+     WHERE $whereStr ORDER BY $orderSql LIMIT $perPage OFFSET $offset"
 );
 $stmt->execute($params);
 $processos = $stmt->fetchAll();
+
+// ── ÚLTIMOS CADASTRADOS / DISTRIBUÍDOS (quadrinho no topo) ──
+$ultimosCadastrados = array();
+$ultimosDistribuidos = array();
+try {
+    $stmtCad = $pdo->query(
+        "SELECT cs.id, cs.title, cs.created_at, cs.case_number, c.name AS client_name, u.name AS responsible_name
+         FROM cases cs
+         LEFT JOIN clients c ON c.id = cs.client_id
+         LEFT JOIN users u ON u.id = cs.responsible_user_id
+         WHERE cs.case_number IS NOT NULL AND cs.case_number != ''
+           AND cs.status NOT IN ('arquivado','cancelado')
+         ORDER BY cs.created_at DESC
+         LIMIT 5"
+    );
+    $ultimosCadastrados = $stmtCad->fetchAll();
+
+    $stmtDist = $pdo->query(
+        "SELECT cs.id, cs.title, cs.updated_at, cs.case_number, c.name AS client_name, u.name AS responsible_name
+         FROM cases cs
+         LEFT JOIN clients c ON c.id = cs.client_id
+         LEFT JOIN users u ON u.id = cs.responsible_user_id
+         WHERE cs.status = 'distribuido'
+         ORDER BY cs.updated_at DESC
+         LIMIT 5"
+    );
+    $ultimosDistribuidos = $stmtDist->fetchAll();
+} catch (Exception $e) {}
 
 // Identificar quais processos são "principais" (têm filhos vinculados)
 $principaisIds = array();
@@ -148,6 +195,73 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .proc-table tr.vinculo-recurso { border-left:4px solid #d97706; background:rgba(217,119,6,.03); }
 .proc-badge-vinc { display:inline-block; padding:1px 6px; border-radius:4px; font-size:.6rem; font-weight:700; color:#fff; margin-left:.35rem; vertical-align:middle; }
 </style>
+
+<!-- Últimos processos (quadrinho informativo) -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;">
+    <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #0ea5e9;border-radius:var(--radius-md);padding:.6rem .85rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+            <strong style="font-size:.78rem;color:var(--petrol-900);">🆕 Últimos cadastrados</strong>
+            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+        </div>
+        <?php if (empty($ultimosCadastrados)): ?>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
+        <?php else: ?>
+            <?php foreach ($ultimosCadastrados as $uc):
+                $agoCad = time() - strtotime($uc['created_at']);
+                if     ($agoCad < 3600)  $agoCadLbl = floor($agoCad/60) . 'min atrás';
+                elseif ($agoCad < 86400) $agoCadLbl = floor($agoCad/3600) . 'h atrás';
+                elseif ($agoCad < 604800) $agoCadLbl = floor($agoCad/86400) . 'd atrás';
+                else                     $agoCadLbl = date('d/m', strtotime($uc['created_at']));
+            ?>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$uc['id']) ?>"
+                   style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($uc['title'] ?: 'Processo #' . $uc['id']) ?></div>
+                        <div style="font-size:.66rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($uc['client_name'] ?: '—') ?>
+                            <?= $uc['responsible_name'] ? ' · ' . e(explode(' ', $uc['responsible_name'])[0]) : '' ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;color:#0ea5e9;font-weight:600;white-space:nowrap;"><?= $agoCadLbl ?></span>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+
+    <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #15803d;border-radius:var(--radius-md);padding:.6rem .85rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+            <strong style="font-size:.78rem;color:var(--petrol-900);">🏛️ Últimos distribuídos</strong>
+            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+        </div>
+        <?php if (empty($ultimosDistribuidos)): ?>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
+        <?php else: ?>
+            <?php foreach ($ultimosDistribuidos as $ud):
+                $agoDist = time() - strtotime($ud['updated_at']);
+                if     ($agoDist < 3600)  $agoDistLbl = floor($agoDist/60) . 'min atrás';
+                elseif ($agoDist < 86400) $agoDistLbl = floor($agoDist/3600) . 'h atrás';
+                elseif ($agoDist < 604800) $agoDistLbl = floor($agoDist/86400) . 'd atrás';
+                else                      $agoDistLbl = date('d/m', strtotime($ud['updated_at']));
+            ?>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$ud['id']) ?>"
+                   style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ud['title'] ?: 'Processo #' . $ud['id']) ?>
+                            <?= $ud['case_number'] ? ' <span style="color:#64748b;font-weight:400;font-size:.66rem;">(' . e(substr($ud['case_number'], 0, 20)) . ')</span>' : '' ?>
+                        </div>
+                        <div style="font-size:.66rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ud['client_name'] ?: '—') ?>
+                            <?= $ud['responsible_name'] ? ' · ' . e(explode(' ', $ud['responsible_name'])[0]) : '' ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;color:#15803d;font-weight:600;white-space:nowrap;"><?= $agoDistLbl ?></span>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+<style>@media (max-width: 700px) { div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; } }</style>
 
 <!-- KPIs -->
 <div class="proc-stats">
@@ -315,6 +429,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </table>
     <?php endif; ?>
 </div>
+
+<?php if ($totalPaginas > 1): ?>
+<!-- Paginação -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-top:1rem;padding:.5rem 0;flex-wrap:wrap;gap:.5rem;">
+    <div style="font-size:.78rem;color:var(--text-muted);">
+        Mostrando <strong><?= ($offset + 1) ?>–<?= min($offset + $perPage, $totalProcessos) ?></strong> de <strong><?= $totalProcessos ?></strong> processos
+    </div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <?php
+        $qsBase = $_GET; unset($qsBase['page']);
+        $buildUrl = function($p) use ($qsBase) {
+            $qs = array_merge($qsBase, array('page' => $p));
+            return '?' . http_build_query($qs);
+        };
+
+        // Primeira / Anterior
+        if ($pageNum > 1): ?>
+            <a href="<?= $buildUrl(1) ?>" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;text-decoration:none;color:var(--text);background:#fff;">« Primeira</a>
+            <a href="<?= $buildUrl($pageNum - 1) ?>" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;text-decoration:none;color:var(--text);background:#fff;">‹ Anterior</a>
+        <?php endif;
+
+        // Números (janela deslizante)
+        $inicio = max(1, $pageNum - 2);
+        $fim = min($totalPaginas, $pageNum + 2);
+        if ($inicio > 1) echo '<span style="padding:5px 6px;color:var(--text-muted);font-size:.75rem;">...</span>';
+        for ($p = $inicio; $p <= $fim; $p++):
+            $isAtual = $p === $pageNum;
+        ?>
+            <a href="<?= $buildUrl($p) ?>" style="padding:5px 10px;border:1px solid <?= $isAtual ? 'var(--petrol-900)' : 'var(--border)' ?>;border-radius:6px;font-size:.75rem;text-decoration:none;font-weight:<?= $isAtual ? '700' : '400' ?>;color:<?= $isAtual ? '#fff' : 'var(--text)' ?>;background:<?= $isAtual ? 'var(--petrol-900)' : '#fff' ?>;min-width:32px;text-align:center;">
+                <?= $p ?>
+            </a>
+        <?php endfor;
+        if ($fim < $totalPaginas) echo '<span style="padding:5px 6px;color:var(--text-muted);font-size:.75rem;">...</span>';
+
+        // Próxima / Última
+        if ($pageNum < $totalPaginas): ?>
+            <a href="<?= $buildUrl($pageNum + 1) ?>" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;text-decoration:none;color:var(--text);background:#fff;">Próxima ›</a>
+            <a href="<?= $buildUrl($totalPaginas) ?>" style="padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-size:.75rem;text-decoration:none;color:var(--text);background:#fff;">Última »</a>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <?php $extraJs = <<<'JSEOF'
 function mudarPrioridade(caseId, valor, sel) {
