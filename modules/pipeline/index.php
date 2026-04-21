@@ -9,7 +9,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
-$pageTitle = 'Kanban Comercial II';
+$pageTitle = 'Kanban Comercial';
 $pdo = db();
 
 // Estágios do funil (conforme doc técnico)
@@ -416,9 +416,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 /* Tabela — table-layout:fixed respeita as larguras declaradas em <th> */
 .tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
-.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:6px 5px;text-align:left;font-size:.66rem;font-weight:700;letter-spacing:.2px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
-.tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.tbl-grid td { padding:3px 5px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 /* Colunas congeladas (# e Nome) — freeze via translateX sincronizado ao scroll horizontal (JS)
    Abordagem robusta: position:sticky tem muitos quirks em <table>; usamos relative + translateX. */
 .tbl-grid td.sticky-col-1, .tbl-grid th.sticky-col-1 { position:relative;z-index:2;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;will-change:transform; }
@@ -428,7 +428,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc !important; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0 !important; }
 /* Células em modo display (div) — respeitam largura com reticências */
-.cell-inline-display { display:block;width:100%;padding:3px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:text;border-radius:3px;line-height:1.4;min-height:20px; }
+.cell-inline-display { display:block;width:100%;padding:2px 4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:text;border-radius:3px;line-height:1.3;min-height:18px; }
 .cell-inline-display:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
 .tbl-grid tbody tr { transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
