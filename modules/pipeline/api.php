@@ -418,12 +418,18 @@ switch ($action) {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
             'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
-            'data_agendamento','onboard_realizado','origem_lead','converted_at');
+            'data_agendamento','onboard_realizado','origem_lead','converted_at','num_parcelas');
         if (!$leadId) _api_fail('lead_id inválido.');
         if (!in_array($field, $allowed, true)) _api_fail("Campo '{$field}' não autorizado.");
 
         try {
             if ($field === 'assigned_to') $value = (int)$value ?: null;
+            // num_parcelas: 1 a 60 parcelas (clamp)
+            if ($field === 'num_parcelas') {
+                $value = (int)$value;
+                if ($value < 1) $value = 1;
+                if ($value > 60) $value = 60;
+            }
             // converted_at (data de fechamento do contrato) — aceita YYYY-MM-DD.
             // Preserva hora original do converted_at se já existia; senão usa 12:00:00.
             // NÃO toca em created_at (histórico de criação do lead fica intacto).
