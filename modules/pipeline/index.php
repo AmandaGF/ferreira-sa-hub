@@ -127,9 +127,9 @@ $stmtT = $pdo->prepare(
 $stmtT->execute($planilhaParams);
 $leadsPlanilha = $stmtT->fetchAll();
 
-// Estatísticas do responsável filtrado (se houver)
+// Estatísticas do responsável filtrado — só admin vê (protege receita e performance individual)
 $respStats = null;
-if ($filterResp > 0) {
+if ($filterResp > 0 && has_min_role('admin')) {
     // Nome do responsável
     $stNm = $pdo->prepare("SELECT name FROM users WHERE id = ?");
     $stNm->execute(array($filterResp));
