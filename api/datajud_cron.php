@@ -34,17 +34,19 @@ echo "=== DataJud Sync — " . date('Y-m-d H:i:s') . " ===\n\n";
 
 // Buscar casos elegíveis: TODOS com número cadastrado,
 // exceto cancelados e arquivados, que não sincronizaram nas últimas 24h.
-// LIMIT 1000 cobre escritório com até ~1000 processos ativos — com rate limit
-// de 1s por case, demora até ~17min, toleravelmente dentro do horário de cron.
-$stmt = $pdo->query(
+// LIMIT default 1000 — com rate limit de 1s por case, ~17min.
+// Se vier ?limit=N via URL, usa esse valor (útil pra teste rápido pelo browser).
+$limiteReq = isset($_GET['limit']) ? max(1, min(1000, (int)$_GET['limit'])) : 1000;
+$stmt = $pdo->prepare(
     "SELECT id, title, case_number FROM cases
      WHERE case_number IS NOT NULL
        AND case_number != ''
        AND status NOT IN ('cancelado', 'arquivado')
        AND (datajud_ultima_sync IS NULL OR datajud_ultima_sync < NOW() - INTERVAL 24 HOUR)
      ORDER BY datajud_ultima_sync ASC
-     LIMIT 1000"
+     LIMIT " . (int)$limiteReq
 );
+$stmt->execute();
 $casos = $stmt->fetchAll();
 
 echo "Casos elegiveis: " . count($casos) . "\n\n";
