@@ -366,9 +366,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-filter { font-size:.8rem;padding:6px 10px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;color:var(--text);min-width:120px; }
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
-.tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-/* Tabela */
-.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem; }
+.tbl-wrap { border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm); }
+/* Tabela — table-layout:fixed respeita as larguras declaradas em <th> */
+.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
@@ -519,8 +519,8 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
     <span class="tbl-count"><?= count($allLeadsFlat) ?> leads<?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?></span>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
-<div class="tbl-wrap" style="max-height:75vh;overflow:auto;position:relative;">
-<table class="tbl-grid" id="pipelineTableBody">
+<div class="tbl-wrap" style="max-height:75vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
+<table class="tbl-grid" id="pipelineTableBody" style="width:2000px;min-width:2000px;">
 <?php
 // Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
 $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
