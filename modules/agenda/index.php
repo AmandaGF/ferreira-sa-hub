@@ -292,7 +292,7 @@ if ($voltarCaso > 0): ?>
             <input type="text" class="ag-fi" id="agTitulo" placeholder="Ex: Audiência — Wendel Magno x Alimentos">
         </div>
 
-        <div class="ag-fr">
+        <div class="ag-fr" id="agDtFields">
             <div class="ag-fg">
                 <label class="ag-fl">Data/hora início</label>
                 <input type="datetime-local" class="ag-fi" id="agDtInicio">
@@ -302,6 +302,39 @@ if ($voltarCaso > 0): ?>
                 <input type="datetime-local" class="ag-fi" id="agDtFim">
             </div>
         </div>
+
+        <!-- Versão Balcão Virtual: data + select de hora (só opções válidas 11h-17h) -->
+        <div class="ag-fr" id="agDtFieldsBalcao" style="display:none;">
+            <div class="ag-fg">
+                <label class="ag-fl">Data</label>
+                <input type="date" class="ag-fi" id="agBalcaoData">
+            </div>
+            <div class="ag-fg">
+                <label class="ag-fl">Horário (11h às 17h)</label>
+                <select class="ag-fi" id="agBalcaoHora">
+                    <option value="">— Escolher horário —</option>
+                    <?php
+                    // Gera slots de 30 em 30 minutos entre 11:00 e 17:00
+                    $inicio = 11 * 60; $fim = 17 * 60;
+                    for ($min = $inicio; $min <= $fim; $min += 30) {
+                        $hh = floor($min / 60); $mm = $min % 60;
+                        $label = sprintf('%02d:%02d', $hh, $mm);
+                        echo '<option value="' . $label . '">' . $label . '</option>';
+                    }
+                    ?>
+                </select>
+            </div>
+            <div class="ag-fg">
+                <label class="ag-fl">Duração</label>
+                <select class="ag-fi" id="agBalcaoDuracao">
+                    <option value="30">30 minutos</option>
+                    <option value="60" selected>1 hora</option>
+                    <option value="90">1h30</option>
+                    <option value="120">2 horas</option>
+                </select>
+            </div>
+        </div>
+
         <div id="agBalcaoHint" style="display:none;margin:-6px 0 10px;padding:8px 12px;background:#ecfeff;border-left:3px solid #0d9488;border-radius:6px;font-size:.78rem;color:#134e4a;">⏰ Balcão Virtual TJRJ: agendamento permitido apenas <strong>entre 11:00 e 17:00</strong>.</div>
 
         <div class="ag-fg">
@@ -967,9 +1000,11 @@ function selTipo(tipo, btn) {
     for (var k in msgsPadrao) { if (msgsPadrao[k] && msg.value.trim() === msgsPadrao[k].trim()) { msgEhPadrao = true; break; } }
     if (msgVazia || msgEhPadrao) msg.value = msgsPadrao[tipo] || '';
 
-    // Balcão Virtual: trocar label + responsável CX + dica de horário
+    // Balcão Virtual: trocar label + responsável CX + dica de horário + campos de data
     var msgLabel = document.getElementById('agMsgLabel');
     var balcaoHint = document.getElementById('agBalcaoHint');
+    var dtFieldsDefault = document.getElementById('agDtFields');
+    var dtFieldsBalcao = document.getElementById('agDtFieldsBalcao');
     if (tipo === 'balcao_virtual') {
         msgLabel.textContent = 'Motivo do Balcão Virtual';
         msg.placeholder = 'Descreva o que precisa ser feito no Balcão Virtual...';
@@ -979,10 +1014,17 @@ function selTipo(tipo, btn) {
         if (CX_USER_IDS.length > 0) {
             document.getElementById('agResponsavel').value = CX_USER_IDS[0];
         }
+        // Substituir campos de data: datetime-local → date + select de horário válido
+        if (dtFieldsDefault) dtFieldsDefault.style.display = 'none';
+        if (dtFieldsBalcao) dtFieldsBalcao.style.display = 'flex';
+        // Passa valor atual do datetime-local pros campos novos (se houver)
+        _balcaoSyncToFields();
     } else {
         msgLabel.textContent = 'Mensagem para o cliente (WhatsApp)';
         msg.placeholder = 'Variáveis: [nome], [data], [hora], [link_meet]';
         if (balcaoHint) balcaoHint.style.display = 'none';
+        if (dtFieldsDefault) dtFieldsDefault.style.display = 'flex';
+        if (dtFieldsBalcao) dtFieldsBalcao.style.display = 'none';
     }
 
     // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
@@ -998,6 +1040,59 @@ function selTipo(tipo, btn) {
     toggleMeet();
     atualizarPreview();
 }
+
+// Sincroniza valores entre datetime-local (default) e date+hora (balcão virtual)
+// → fields: copia do datetime-local pros campos do balcão
+function _balcaoSyncToFields() {
+    var dtIni = document.getElementById('agDtInicio').value;
+    var dtFim = document.getElementById('agDtFim').value;
+    if (dtIni) {
+        var parts = dtIni.split('T');
+        if (parts.length === 2) {
+            document.getElementById('agBalcaoData').value = parts[0];
+            var hora = parts[1].substring(0,5); // HH:MM
+            // Se a hora cair dentro de 11:00-17:00, seleciona; senão deixa vazio
+            var sel = document.getElementById('agBalcaoHora');
+            var valid = false;
+            for (var i = 0; i < sel.options.length; i++) {
+                if (sel.options[i].value === hora) { sel.selectedIndex = i; valid = true; break; }
+            }
+            if (!valid) sel.value = '';
+        }
+        // Duração: calcula diff entre início e fim
+        if (dtFim) {
+            var diffMin = Math.round((new Date(dtFim) - new Date(dtIni)) / 60000);
+            var selDur = document.getElementById('agBalcaoDuracao');
+            var achou = false;
+            for (var j = 0; j < selDur.options.length; j++) {
+                if (parseInt(selDur.options[j].value, 10) === diffMin) { selDur.selectedIndex = j; achou = true; break; }
+            }
+            if (!achou) selDur.value = '60'; // default 1h
+        }
+    }
+}
+// ← fields: copia do balcão pros datetime-local (pra submit)
+function _balcaoSyncFromFields() {
+    var data = document.getElementById('agBalcaoData').value;
+    var hora = document.getElementById('agBalcaoHora').value;
+    var duracao = parseInt(document.getElementById('agBalcaoDuracao').value, 10) || 60;
+    if (!data || !hora) return;
+    var dtIni = data + 'T' + hora;
+    document.getElementById('agDtInicio').value = dtIni;
+    // Fim = início + duração
+    var d = new Date(dtIni);
+    d.setMinutes(d.getMinutes() + duracao);
+    var pad = function(n){ return (n<10?'0':'') + n; };
+    var dtFim = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    document.getElementById('agDtFim').value = dtFim;
+}
+// Listeners dos campos balcão: qualquer mudança sincroniza pro hidden datetime-local
+document.addEventListener('DOMContentLoaded', function(){
+    ['agBalcaoData','agBalcaoHora','agBalcaoDuracao'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('change', _balcaoSyncFromFields);
+    });
+});
 
 function toggleMeet() {
     var isOnline = document.getElementById('agModalidade').value === 'online';
