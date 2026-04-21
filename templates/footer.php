@@ -143,31 +143,47 @@
         return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
     }
 
-    function pushSubscribe() {
-        if (!VAPID_PUBLIC || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    function pushSubscribe(onStatus) {
+        var say = onStatus || function(){};
+        if (!VAPID_PUBLIC) { say('erro', 'Chave VAPID ausente — rode migrar_push_subs.php'); return; }
+        if (!('serviceWorker' in navigator) || !('PushManager' in window)) { say('erro', 'Browser não suporta Web Push'); return; }
+
+        say('info', 'Aguardando service worker...');
         navigator.serviceWorker.ready.then(function(reg) {
+            say('info', 'Registrando subscription no browser...');
             return reg.pushManager.getSubscription().then(function(existing) {
-                if (existing) return existing;
+                if (existing) { say('info', 'Subscription existente encontrada'); return existing; }
                 return reg.pushManager.subscribe({
                     userVisibleOnly: true,
                     applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC)
                 });
             });
         }).then(function(sub) {
-            if (!sub) return;
+            if (!sub) { say('erro', 'pushManager.subscribe retornou vazio'); return; }
+            say('info', 'Enviando pro servidor...');
             var body = {
                 endpoint:   sub.endpoint,
                 p256dh:     arrayBufferToBase64url(sub.getKey('p256dh')),
                 auth:       arrayBufferToBase64url(sub.getKey('auth')),
                 user_agent: navigator.userAgent
             };
-            fetch(PUSH_SUB_URL, {
+            return fetch(PUSH_SUB_URL, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: {'Content-Type':'application/json'},
                 body: JSON.stringify(body)
-            });
-        }).catch(function(e) { console.warn('[Push] erro subscribe:', e); });
+            }).then(function(r) { return r.json().then(function(j){ return {status: r.status, body: j}; }); });
+        }).then(function(r) {
+            if (!r) return;
+            if (r.status >= 200 && r.status < 300 && r.body && r.body.ok) {
+                say('ok', '✅ Notificações ativadas! (' + (r.body.status || 'registrado') + ')');
+            } else {
+                say('erro', 'Servidor rejeitou: ' + JSON.stringify(r.body));
+            }
+        }).catch(function(e) {
+            say('erro', 'Falha: ' + (e && e.message ? e.message : e));
+            console.warn('[Push] erro subscribe:', e);
+        });
     }
 
     function perguntarPushDepois() {
@@ -189,9 +205,35 @@
                 + '<button id="fsaPushNo" style="background:transparent;color:#94a3b8;border:1px solid #334155;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.75rem;">Agora não</button></div>';
             document.body.appendChild(b);
             document.getElementById('fsaPushYes').onclick = function() {
+                var btn = this;
+                btn.disabled = true;
+                btn.textContent = 'Aguardando...';
+
+                // Função pra mostrar status dentro do próprio banner (troca o conteúdo)
+                var showStatus = function(tipo, msg) {
+                    var cor = tipo === 'ok' ? '#22c55e' : (tipo === 'erro' ? '#ef4444' : '#cbd5e1');
+                    b.innerHTML = '<div style="font-size:.82rem;color:' + cor + ';"><strong>' + (tipo === 'ok' ? '✅' : (tipo === 'erro' ? '❌' : '⏳')) + '</strong> ' + msg.replace(/</g,'&lt;') + '</div>'
+                        + '<button onclick="document.getElementById(\'fsaPushAsk\').remove()" style="margin-top:.5rem;background:transparent;color:#94a3b8;border:1px solid #334155;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:.72rem;">Fechar</button>';
+                };
+
+                if (Notification.permission === 'denied') {
+                    showStatus('erro', 'Notificações estão bloqueadas no browser. Clique no cadeado da URL → Permissões → Notificações → Permitir, e tente de novo.');
+                    return;
+                }
+
                 Notification.requestPermission().then(function(p) {
-                    if (p === 'granted') pushSubscribe();
-                    b.remove();
+                    if (p === 'denied') {
+                        showStatus('erro', 'Permissão negada. Pra ativar depois: cadeado da URL → Permissões → Notificações → Permitir.');
+                        return;
+                    }
+                    if (p === 'default') {
+                        showStatus('erro', 'Permissão não concedida (fechou o prompt sem responder). Tente de novo.');
+                        return;
+                    }
+                    // granted
+                    pushSubscribe(showStatus);
+                }).catch(function(e) {
+                    showStatus('erro', 'Erro ao pedir permissão: ' + e.message);
                 });
             };
             document.getElementById('fsaPushNo').onclick = function() {
