@@ -87,6 +87,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-conv-status-pill.aguardando { background:#f59e0b;color:#fff; }
 .wa-conv-status-pill.em_atendimento { background:#059669;color:#fff; }
 .wa-conv-status-pill.bot { background:#7c3aed;color:#fff; }
+/* Dropdown slash-command (/) */
+.wa-slash-item:last-child { border-bottom:none !important; }
+.wa-slash-item.selected { background:<?= $accentLight ?>;border-left:3px solid <?= $accentColor ?>; }
+.wa-slash-item:hover { background:<?= $accentLight ?>; }
 .wa-avatar { width:36px;height:36px;border-radius:50%;background:<?= $accentColor ?>;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;overflow:hidden;position:relative; }
 .wa-avatar img { width:100%;height:100%;object-fit:cover;border-radius:50%;display:block; }
 .wa-conv-info { flex:1;min-width:0; }
@@ -241,6 +245,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <button onclick="waCancelarPendente()" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;" title="Cancelar">✕</button>
         </div>
+
+        <!-- Dropdown de autocomplete slash (/) — pra escolher respostas rápidas digitando -->
+        <div id="waSlashDrop" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-width:420px;max-height:280px;overflow-y:auto;"></div>
 
         <!-- Barra de resposta (aparece quando clica em ↩ Responder numa mensagem) -->
         <div id="waReplyBar" style="display:none;align-items:center;gap:.5rem;padding:.45rem .75rem;background:#eff6ff;border-top:1px solid #bfdbfe;border-left:3px solid #2563eb;">
@@ -756,10 +763,137 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // Enter = enviar, Shift+Enter = nova linha
     document.addEventListener('keydown', function(e){
-        if (e.target.id === 'waInput' && e.key === 'Enter' && !e.shiftKey) {
+        if (e.target.id !== 'waInput') return;
+        var slashDrop = document.getElementById('waSlashDrop');
+        var slashAberto = slashDrop && slashDrop.style.display === 'block';
+
+        // Enter com dropdown aberto: escolhe o item selecionado, não envia
+        if (slashAberto && e.key === 'Enter') {
+            e.preventDefault();
+            var sel = slashDrop.querySelector('.wa-slash-item.selected');
+            if (sel) sel.click();
+            return;
+        }
+        if (slashAberto && e.key === 'Escape') {
+            e.preventDefault();
+            slashDrop.style.display = 'none';
+            return;
+        }
+        if (slashAberto && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+            e.preventDefault();
+            waSlashNavegar(e.key === 'ArrowDown' ? 1 : -1);
+            return;
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             waEnviar();
         }
+    });
+
+    // ── AUTOCOMPLETE com / (slash command) ──────────────
+    // Digite / seguido do nome da resposta rápida. Usa o mesmo templatesCache
+    // já carregado pelo botão de templates.
+    function waGarantirTemplates(cb) {
+        if (templatesCache !== null) { cb(); return; }
+        fetch(apiUrl + '?action=listar_templates&canal=' + canal).then(function(r){ return r.json(); }).then(function(d){
+            if (d.ok) templatesCache = d.templates; else templatesCache = [];
+            cb();
+        }).catch(function(){ templatesCache = []; cb(); });
+    }
+
+    var _waSlashStart = -1;  // posição onde começa o /
+    function waSlashFechar() {
+        var drop = document.getElementById('waSlashDrop');
+        if (drop) drop.style.display = 'none';
+        _waSlashStart = -1;
+    }
+
+    function waSlashNavegar(dir) {
+        var drop = document.getElementById('waSlashDrop');
+        if (!drop) return;
+        var items = drop.querySelectorAll('.wa-slash-item');
+        if (!items.length) return;
+        var atual = -1;
+        items.forEach(function(it, i){ if (it.classList.contains('selected')) atual = i; });
+        atual = (atual + dir + items.length) % items.length;
+        items.forEach(function(it, i){ it.classList.toggle('selected', i === atual); });
+        var sel = items[atual];
+        if (sel && sel.scrollIntoView) sel.scrollIntoView({block:'nearest'});
+    }
+
+    function waSlashRender(query) {
+        var drop = document.getElementById('waSlashDrop');
+        if (!drop || !templatesCache) return;
+        var q = (query || '').toLowerCase();
+        var resultados = templatesCache.filter(function(t){
+            return (t.nome || '').toLowerCase().indexOf(q) !== -1;
+        }).slice(0, 8);
+        if (!resultados.length) { drop.style.display = 'none'; return; }
+        var html = '';
+        resultados.forEach(function(t, i){
+            var preview = (t.conteudo || '').substr(0, 90).replace(/\n/g,' ');
+            html += '<div class="wa-slash-item ' + (i === 0 ? 'selected' : '') + '" data-nome="' + escapeHtml(t.nome) + '" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f3f4f6;">'
+                  + '<div style="font-weight:700;font-size:.82rem;color:#052228;">/' + escapeHtml(t.nome) + '</div>'
+                  + '<div style="font-size:.7rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(preview) + '</div>'
+                  + '</div>';
+        });
+        drop.innerHTML = html;
+
+        // Posiciona o dropdown ACIMA do input
+        var inp = document.getElementById('waInput');
+        var r = inp.getBoundingClientRect();
+        drop.style.left = r.left + 'px';
+        drop.style.top = (r.top - Math.min(280, resultados.length * 52) - 6 + window.scrollY) + 'px';
+        drop.style.minWidth = Math.max(260, r.width * 0.6) + 'px';
+        drop.style.display = 'block';
+
+        // Handlers nos itens
+        drop.querySelectorAll('.wa-slash-item').forEach(function(el){
+            el.addEventListener('mouseenter', function(){
+                drop.querySelectorAll('.wa-slash-item').forEach(function(x){ x.classList.remove('selected'); });
+                el.classList.add('selected');
+            });
+            el.addEventListener('click', function(){
+                var nome = el.getAttribute('data-nome');
+                var tpl = templatesCache.find(function(t){ return t.nome === nome; });
+                if (!tpl) return;
+                // Substitui o /query pelo texto do template (com variáveis resolvidas)
+                var inp = document.getElementById('waInput');
+                var txt = inp.value;
+                var antes = txt.substring(0, _waSlashStart);
+                var primeiroNome = (convNomeAtual || '').split(/\s+/)[0] || '';
+                var agora = new Date();
+                var conteudo = (tpl.conteudo || '')
+                    .replace(/\{\{nome\}\}/gi, primeiroNome)
+                    .replace(/\{\{data\}\}/gi, agora.toLocaleDateString('pt-BR'))
+                    .replace(/\{\{hora\}\}/gi, agora.toTimeString().substr(0,5));
+                inp.value = antes + conteudo;
+                waSlashFechar();
+                inp.focus();
+                // Move cursor pro fim
+                inp.selectionStart = inp.selectionEnd = inp.value.length;
+            });
+        });
+    }
+
+    // Listener do input: detecta /palavra
+    document.addEventListener('input', function(e){
+        if (e.target.id !== 'waInput') return;
+        var inp = e.target;
+        var val = inp.value;
+        var pos = inp.selectionStart || 0;
+        // Acha o último "/" antes do cursor que está no início ou após espaço/quebra
+        var trecho = val.substring(0, pos);
+        var match = trecho.match(/(^|\s)\/([\wáéíóúçãõâêîôûà-]{0,30})$/i);
+        if (!match) { waSlashFechar(); return; }
+        var query = match[2];
+        _waSlashStart = pos - query.length - 1; // posição do /
+        waGarantirTemplates(function(){ waSlashRender(query); });
+    });
+
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(e){
+        if (!e.target.closest('#waSlashDrop') && e.target.id !== 'waInput') waSlashFechar();
     });
 
     // ── ENVIAR STICKER ──────────────────────────────────
