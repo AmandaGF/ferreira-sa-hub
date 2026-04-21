@@ -317,12 +317,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
                 <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $stage['color'] ?>;"
-                     onclick="if(!window._dragging&&!event.target.closest('.lead-actions')&&!event.target.closest('.lead-cobrar-ico'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+                     onclick="if(window._dragging)return;var t=event.target;if(t.closest&&(t.closest('.lead-actions')||t.closest('.lead-cobrar-ico')||t.closest('button')||t.closest('a')||t.closest('select')))return;window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
                     <?php if (function_exists('can_access_financeiro') && can_access_financeiro()):
                         $_hasCli = (int)($lead['client_id'] ?? 0) > 0;
                     ?>
                         <button type="button" class="lead-cobrar-ico<?= $_hasCli ? '' : ' lead-cobrar-ico-off' ?>"
-                                onclick="event.stopPropagation();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>)"
+                                draggable="false"
+                                onmousedown="event.stopPropagation();"
+                                ondragstart="event.preventDefault();event.stopPropagation();return false;"
+                                ontouchstart="event.stopPropagation();"
+                                onclick="event.stopPropagation();event.preventDefault();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>);return false;"
                                 title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">💰</button>
                     <?php endif; ?>
                     <div class="lead-name"><?= e($lead['name']) ?></div>
