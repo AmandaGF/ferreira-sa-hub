@@ -54,6 +54,12 @@ require_once APP_ROOT . '/templates/sidebar.php';
                         bgTimer = setTimeout(function(){ bgExecutar(q); }, 250);
                     });
 
+                    // Previne o blur do input quando o usuário clica em um resultado —
+                    // assim o dropdown não fecha antes do clique no <a> registrar
+                    bgDrop.addEventListener('mousedown', function(ev) {
+                        ev.preventDefault();
+                    });
+
                     bgInput.addEventListener('keydown', function(ev) {
                         if (ev.key === 'Escape') { this.value = ''; bgDrop.style.display = 'none'; this.blur(); }
                     });
