@@ -187,9 +187,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.6rem .7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:grab; transition:all var(--transition); overflow:hidden; position:relative; }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
-.lead-cobrar-ico { position:absolute; top:6px; right:6px; background:rgba(184,115,51,.08); border:1px solid rgba(184,115,51,.25); color:#B87333; border-radius:6px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:.72rem; cursor:pointer; opacity:0; transition:all .15s; padding:0; }
+.lead-cobrar-ico { position:absolute; top:6px; right:6px; background:rgba(184,115,51,.08); border:1px solid rgba(184,115,51,.25); color:#B87333; border-radius:6px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:.72rem; cursor:pointer; opacity:.55; transition:all .15s; padding:0; }
 .lead-card:hover .lead-cobrar-ico { opacity:1; }
 .lead-cobrar-ico:hover { background:#B87333; color:#fff; transform:scale(1.08); }
+.lead-cobrar-ico-off { background:#f1f5f9; border-color:#cbd5e1; color:#94a3b8; }
 .lead-name { font-weight:700; font-size:.8rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lead-meta { font-size:.65rem; color:var(--text-muted); display:flex; flex-direction:column; gap:.1rem; }
 .lead-meta .phone { color:var(--success); }
@@ -317,10 +318,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
                 <div class="lead-card" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $stage['color'] ?>;"
                      onclick="if(!window._dragging&&!event.target.closest('.lead-actions')&&!event.target.closest('.lead-cobrar-ico'))window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
-                    <?php if (function_exists('can_access_financeiro') && can_access_financeiro() && (int)($lead['client_id'] ?? 0) > 0): ?>
-                        <button type="button" class="lead-cobrar-ico"
+                    <?php if (function_exists('can_access_financeiro') && can_access_financeiro()):
+                        $_hasCli = (int)($lead['client_id'] ?? 0) > 0;
+                    ?>
+                        <button type="button" class="lead-cobrar-ico<?= $_hasCli ? '' : ' lead-cobrar-ico-off' ?>"
                                 onclick="event.stopPropagation();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>)"
-                                title="Criar cobrança no Asaas com os dados deste lead">💰</button>
+                                title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">💰</button>
                     <?php endif; ?>
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
@@ -660,10 +663,15 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
                 echo '<span title="Cliente cadastrado no Asaas (' . e($_asaasId) . ') — ' . $_cobAtivas . ' cobrança(s) ativa(s)" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✓ SIM</span>';
             }
         ?>
-        <?php if (function_exists('can_access_financeiro') && can_access_financeiro() && (int)$lead['client_id'] > 0): ?>
+        <?php if (function_exists('can_access_financeiro') && can_access_financeiro()):
+            $_hasClient = (int)($lead['client_id'] ?? 0) > 0;
+            $_btnTitle = $_hasClient
+                ? 'Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma, parcelas)'
+                : 'Lead ainda sem cliente vinculado — vincule primeiro pelo cadastro do lead';
+        ?>
             <button type="button" onclick="criarCobrancaAsaas(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
-                    title="Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma de pagamento)"
-                    style="background:#B87333;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;cursor:pointer;margin-left:3px;">
+                    title="<?= e($_btnTitle) ?>"
+                    style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;cursor:pointer;margin-left:3px;<?= $_hasClient ? '' : 'opacity:.7;' ?>">
                 💰 Cobrar
             </button>
         <?php endif; ?>
