@@ -385,10 +385,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 $ppDoc = $pp['tipo_pessoa'] === 'juridica' ? ($pp['cnpj'] ?: '') : ($pp['cpf'] ?: '');
                                 $ppNome = $pp['tipo_pessoa'] === 'juridica' ? ($pp['razao_social'] ?: $pp['nome']) : $pp['nome'];
                         ?>
-                        <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
-                            <div style="width:140px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
-                                <select name="partes_papel[]" class="form-select" style="font-size:.82rem;background:#fef9c3;">
+                        <?php $_tipoPP = $pp['tipo_pessoa']==='juridica' ? 'juridica' : 'fisica'; ?>
+                        <div class="parte-row" style="display:grid;grid-template-columns:140px 1fr 1fr 28px;gap:.5rem;align-items:end;padding:.5rem .6rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:.5rem;">
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Papel</label>
+                                <select name="partes_papel[]" class="form-select" style="font-size:.82rem;">
                                     <?php if ($isRecursoCriacao): ?>
                                     <option value="reu" <?= $pp['papel']==='reu'?'selected':'' ?>>Recorrido</option>
                                     <option value="autor" <?= $pp['papel']==='autor'?'selected':'' ?>>Recorrente</option>
@@ -402,29 +403,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <option value="litisconsorte_passivo" <?= $pp['papel']==='litisconsorte_passivo'?'selected':'' ?>>Litis. Passivo</option>
                                 </select>
                             </div>
-                            <div style="width:100px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>
-                                <select name="partes_tipo[]" class="form-select" style="font-size:.82rem;background:#fef9c3;">
-                                    <option value="fisica" <?= $pp['tipo_pessoa']==='fisica'?'selected':'' ?>>PF</option>
-                                    <option value="juridica" <?= $pp['tipo_pessoa']==='juridica'?'selected':'' ?>>PJ</option>
-                                </select>
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:.4rem;">
+                                    CPF/CNPJ
+                                    <span class="parte-tipo-badge" data-tipo="<?= $_tipoPP ?>" style="padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;<?= $_tipoPP==='juridica' ? 'background:#dbeafe;color:#1e40af;' : 'background:#dcfce7;color:#166534;' ?>"><?= $_tipoPP==='juridica' ? 'PJ' : 'PF' ?></span>
+                                </label>
+                                <input type="hidden" name="partes_tipo[]" value="<?= $_tipoPP ?>">
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" value="<?= e($ppDoc) ?>" maxlength="18" data-busca-doc placeholder="Digite CPF ou CNPJ">
                             </div>
-                            <div style="width:150px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
-                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;background:#fef9c3;" value="<?= e($ppDoc) ?>" maxlength="18" data-busca-doc>
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Nome / Razão Social</label>
+                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" value="<?= e($ppNome) ?>">
                             </div>
-                            <div style="flex:1;min-width:180px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
-                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;background:#fef9c3;" value="<?= e($ppNome) ?>">
-                            </div>
-                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
+                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:4px;" title="Remover">&#10005;</button>
                         </div>
                         <?php endforeach; ?>
                         <?php else: ?>
                         <!-- Parte adversa padrão (em branco) -->
-                        <div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">
-                            <div style="width:140px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Papel</label>
+                        <div class="parte-row" style="display:grid;grid-template-columns:140px 1fr 1fr auto 28px;gap:.5rem;align-items:end;padding:.5rem .6rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:.5rem;">
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Papel</label>
                                 <select name="partes_papel[]" class="form-select" style="font-size:.82rem;">
                                     <?php if ($isRecursoCriacao): ?>
                                     <option value="reu" selected>Recorrido</option>
@@ -439,19 +437,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <option value="litisconsorte_passivo">Litis. Passivo</option>
                                 </select>
                             </div>
-                            <div style="width:100px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>
-                                <select name="partes_tipo[]" class="form-select" style="font-size:.82rem;">
-                                    <option value="fisica">PF</option>
-                                    <option value="juridica">PJ</option>
-                                </select>
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:.4rem;">
+                                    CPF/CNPJ
+                                    <span class="parte-tipo-badge" data-tipo="fisica" style="padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;background:#f1f5f9;color:#64748b;">—</span>
+                                </label>
+                                <input type="hidden" name="partes_tipo[]" value="fisica">
+                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="Digite CPF ou CNPJ" maxlength="18" data-busca-doc>
                             </div>
-                            <div style="width:150px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>
-                                <input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" data-busca-doc>
-                            </div>
-                            <div style="flex:1;min-width:180px;">
-                                <label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>
+                            <div>
+                                <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Nome / Razão Social</label>
                                 <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte">
                             </div>
                             <div style="display:flex;align-items:center;gap:4px;">
@@ -461,7 +456,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     <span class="parte-cliente-label">Cliente</span>
                                 </label>
                             </div>
-                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button>
+                            <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:4px;" title="Remover">&#10005;</button>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -890,22 +885,22 @@ var _isRecurso = <?= $isRecursoCriacao ? 'true' : 'false' ?>;
 function addParteRow() {
     var labelReu = _isRecurso ? 'Recorrido' : 'Réu';
     var labelAutor = _isRecurso ? 'Recorrente' : 'Autor';
-    var html = '<div class="parte-row" style="display:flex;gap:.4rem;align-items:end;margin-bottom:.4rem;flex-wrap:wrap;">'
-        + '<div style="width:140px;"><label style="font-size:.68rem;color:var(--text-muted);">Papel</label>'
+    var html = '<div class="parte-row" style="display:grid;grid-template-columns:140px 1fr 1fr auto 28px;gap:.5rem;align-items:end;padding:.5rem .6rem;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:.5rem;">'
+        + '<div><label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Papel</label>'
         + '<select name="partes_papel[]" class="form-select" style="font-size:.82rem;">'
         + '<option value="reu">' + labelReu + '</option><option value="autor">' + labelAutor + '</option>'
         + '<option value="representante_legal">Rep. Legal</option><option value="terceiro_interessado">3º Interessado</option>'
         + '<option value="litisconsorte_ativo">Litis. Ativo</option><option value="litisconsorte_passivo">Litis. Passivo</option></select></div>'
-        + '<div style="width:100px;"><label style="font-size:.68rem;color:var(--text-muted);">Tipo</label>'
-        + '<select name="partes_tipo[]" class="form-select" style="font-size:.82rem;"><option value="fisica">PF</option><option value="juridica">PJ</option></select></div>'
-        + '<div style="width:150px;"><label style="font-size:.68rem;color:var(--text-muted);">CPF/CNPJ</label>'
-        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="000.000.000-00" maxlength="18" data-busca-doc></div>'
-        + '<div style="flex:1;min-width:180px;"><label style="font-size:.68rem;color:var(--text-muted);">Nome / Razão Social</label>'
+        + '<div><label style="font-size:.68rem;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:.4rem;">CPF/CNPJ '
+        + '<span class="parte-tipo-badge" data-tipo="fisica" style="padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;background:#f1f5f9;color:#64748b;">—</span></label>'
+        + '<input type="hidden" name="partes_tipo[]" value="fisica">'
+        + '<input type="text" name="partes_doc[]" class="form-input" style="font-size:.82rem;" placeholder="Digite CPF ou CNPJ" maxlength="18" data-busca-doc></div>'
+        + '<div><label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Nome / Razão Social</label>'
         + '<input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" placeholder="Nome da parte"></div>'
         + '<div style="display:flex;align-items:center;gap:4px;"><input type="hidden" name="partes_client_id[]" value="0" class="parte-client-id">'
         + '<label style="font-size:.62rem;color:#B87333;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">'
         + '<input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" onchange="toggleParteCliente(this)"><span class="parte-cliente-label">Cliente</span></label></div>'
-        + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.9rem;padding:4px;" title="Remover">&#10005;</button></div>';
+        + '<button type="button" onclick="this.closest(\'.parte-row\').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:4px;" title="Remover">&#10005;</button></div>';
     document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
 }
 
@@ -922,14 +917,30 @@ function addParteRow() {
         var digitos = el.value.replace(/\D/g, '');
         var row = el.closest('.parte-row');
         if (row) {
-            var selTipo = row.querySelector('select[name="partes_tipo[]"]');
-            if (selTipo) {
-                if (digitos.length >= 12) {
-                    if (selTipo.value !== 'juridica') selTipo.value = 'juridica';
-                } else if (digitos.length >= 1) {
-                    // <=11 dígitos, inclusive incompleto → assume PF até provar contrário
-                    if (selTipo.value !== 'fisica') selTipo.value = 'fisica';
+            var hiddenTipo = row.querySelector('input[type="hidden"][name="partes_tipo[]"]');
+            var badge = row.querySelector('.parte-tipo-badge');
+            var novoTipo = null;
+            if (digitos.length >= 12) {
+                novoTipo = 'juridica';
+            } else if (digitos.length >= 1) {
+                novoTipo = 'fisica';
+            }
+            if (novoTipo) {
+                if (hiddenTipo) hiddenTipo.value = novoTipo;
+                if (badge) {
+                    badge.setAttribute('data-tipo', novoTipo);
+                    if (novoTipo === 'juridica') {
+                        badge.textContent = 'PJ';
+                        badge.style.cssText = 'padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;background:#dbeafe;color:#1e40af;';
+                    } else {
+                        badge.textContent = 'PF';
+                        badge.style.cssText = 'padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;background:#dcfce7;color:#166534;';
+                    }
                 }
+            } else if (badge) {
+                // Campo vazio — volta pro estado neutro
+                badge.textContent = '—';
+                badge.style.cssText = 'padding:1px 7px;border-radius:8px;font-size:.6rem;font-weight:700;background:#f1f5f9;color:#64748b;';
             }
         }
 
