@@ -314,6 +314,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         Nenhuma cobrança encontrada com esses filtros.
     </div>
 <?php else: ?>
+<!-- DEBUG v25: cobrancas.php — rendered at <?= date('Y-m-d H:i:s') ?> -->
+<div style="background:#eef2ff;padding:.35rem .6rem;border-radius:6px;font-size:.66rem;color:#3730a3;margin-bottom:.5rem;display:inline-block;">🔧 versão v25 · <?= date('H:i:s') ?> · se os botões não funcionarem: abra F12 e me mande o erro</div>
 <div style="overflow-x:auto;">
 <table class="cobr-tbl">
     <thead>
@@ -383,17 +385,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $_podeEditar = in_array($_statusUp, array('PENDING','OVERDUE'), true);
                 ?>
                 <?php if ($_podeEditar): ?>
-                    <button type="button" title="Alterar data de vencimento"
-                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'vencto', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                    <button type="button" title="Alterar data de vencimento [status=<?= e($r['status']) ?>]"
+                            onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'vencto', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
                             style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">📅</button>
-                    <button type="button" title="Dar baixa manual (receber em dinheiro/transferência fora do Asaas)"
-                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'baixa', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                    <button type="button" title="Dar baixa manual"
+                            onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'baixa', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
                             style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✓</button>
                     <button type="button" title="Cancelar cobrança no Asaas"
-                            onclick="cobAcao(<?= (int)$r['id'] ?>, 'cancelar', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                            onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'cancelar', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
                             style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✕</button>
                 <?php else: ?>
-                    <span style="color:#cbd5e1;font-size:.7rem;" title="Esta cobrança já está <?= e(asaas_status_label($r['status'])) ?> — sem ações disponíveis">—</span>
+                    <span style="color:#cbd5e1;font-size:.7rem;" title="status=<?= e($r['status']) ?> — sem ações">— <span style="font-size:.55rem;">[<?= e($r['status']) ?>]</span></span>
                 <?php endif; ?>
             </td>
         </tr>
@@ -431,6 +433,18 @@ window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
 </script>
 <script>
 <?php readfile(APP_ROOT . '/assets/js/cobranca_acoes.js'); ?>
+
+// Wrapper defensivo: se cobAcao não existir por qualquer motivo, alerta visível
+window.cobAcaoSafe = function(id, tipo, venc, nome, valor) {
+    console.info('[cobAcaoSafe] chamado', {id:id, tipo:tipo, venc:venc});
+    if (typeof window.cobAcao !== 'function') {
+        alert('⚠️ Erro: script de ações não carregou.\n\nPor favor:\n1. Feche o app\n2. Abra de novo\n3. Se ainda não funcionar, recarregue a página no navegador comum\n\n(Detalhe técnico: cobAcao is not defined)');
+        return;
+    }
+    try { window.cobAcao(id, tipo, venc, nome, valor); }
+    catch (e) { alert('Erro ao executar: ' + e.message); console.error(e); }
+};
+console.info('[cobrancas.php] JS pronto — cobAcao:', typeof window.cobAcao, '| CSRF definido:', !!window._COB_CSRF);
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

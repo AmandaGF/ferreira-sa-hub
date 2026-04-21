@@ -219,13 +219,13 @@ echo voltar_ao_processo_html();
                     <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= e(json_encode($msgCob)) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
                     <button type="button" title="Alterar data de vencimento"
-                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'vencto', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'vencto', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">📅</button>
                     <button type="button" title="Dar baixa manual (receber em dinheiro/transferência fora do Asaas)"
-                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'baixa', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'baixa', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">✓</button>
                     <button type="button" title="Cancelar cobrança no Asaas"
-                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'cancelar', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'cancelar', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">✕</button>
                 <?php endif; ?>
             </div>
@@ -417,5 +417,15 @@ window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
 </script>
 <script>
 <?php readfile(APP_ROOT . '/assets/js/cobranca_acoes.js'); ?>
+
+window.cobAcaoSafe = function(id, tipo, venc, nome, valor) {
+    if (typeof window.cobAcao !== 'function') {
+        alert('⚠️ Erro: script de ações não carregou.\n\nPor favor:\n1. Feche o app\n2. Abra de novo\n3. Se ainda não funcionar, recarregue a página');
+        return;
+    }
+    try { window.cobAcao(id, tipo, venc, nome, valor); }
+    catch (e) { alert('Erro: ' + e.message); console.error(e); }
+};
+console.info('[cliente.php] JS pronto — cobAcao:', typeof window.cobAcao);
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
