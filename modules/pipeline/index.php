@@ -1215,14 +1215,25 @@ function filterPipelineByMes(ym) {
         var wrap = document.querySelector('#viewTabela .tbl-wrap');
         if (!wrap) return;
         var cells = wrap.querySelectorAll('.sticky-col-1, .sticky-col-2');
-        if (!cells.length) return;
+        if (!cells.length) { console.warn('[freeze] sem células sticky-col'); return; }
         function sync(){
             var x = wrap.scrollLeft;
-            var tx = 'translateX(' + x + 'px)';
-            for (var i = 0; i < cells.length; i++) cells[i].style.transform = tx;
+            // "left" em position:relative funciona em <td>; "transform" é ignorado em table-cell no Chrome
+            for (var i = 0; i < cells.length; i++) {
+                cells[i].style.left = x + 'px';
+            }
         }
+        // Escuta scroll no wrapper E no window (fallback caso scroll esteja no body)
         wrap.addEventListener('scroll', sync, { passive: true });
-        sync(); // estado inicial
+        window.addEventListener('scroll', function(){
+            // Se o scrollLeft do body > 0, reposiciona assumindo scroll na página
+            var bodyX = window.scrollX || document.documentElement.scrollLeft || 0;
+            if (bodyX > 0 && wrap.scrollLeft === 0) {
+                for (var i = 0; i < cells.length; i++) cells[i].style.left = bodyX + 'px';
+            }
+        }, { passive: true });
+        sync();
+        console.info('[freeze] ativo —', cells.length, 'células congeladas no wrapper de', wrap.clientWidth + 'px (table:', wrap.scrollWidth + 'px)');
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFreeze);
     else initFreeze();
