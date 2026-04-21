@@ -373,13 +373,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px; }
 /* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:30px;z-index:2;background:#fff; }
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:180px;min-width:180px;max-width:180px; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
-.tbl-grid td.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.15); }
-.tbl-grid th.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.3); }
+/* Linha divisória fina no lado direito da coluna fixa (sem sombra invasiva) */
+.tbl-grid th.sticky-col-2::after, .tbl-grid td.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:1px;background:rgba(0,0,0,.1);pointer-events:none; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky; }
 .tbl-grid tbody tr { transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.12); }
