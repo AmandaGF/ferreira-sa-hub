@@ -18,22 +18,37 @@
 (function() {
     if (!('serviceWorker' in navigator)) return;
 
+    var _swReg = null;
     navigator.serviceWorker.register('<?= url('sw.js') ?>').then(function(reg) {
-        // Detecta nova versão disponível
+        _swReg = reg;
+        // Se já tem um SW em waiting quando a página carregou, mostra banner
+        if (reg.waiting && navigator.serviceWorker.controller) {
+            mostrarBannerUpdate(acionarUpdate);
+        }
+        // Detecta nova versão disponível durante a sessão
         reg.addEventListener('updatefound', function() {
             var nw = reg.installing;
             if (!nw) return;
             nw.addEventListener('statechange', function() {
                 if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-                    mostrarBannerUpdate(function() {
-                        nw.postMessage({ type: 'SKIP_WAITING' });
-                    });
+                    mostrarBannerUpdate(acionarUpdate);
                 }
             });
         });
     }).catch(function(){});
 
-    // Recarrega quando SW novo assume
+    function acionarUpdate() {
+        if (!_swReg) { location.reload(); return; }
+        var target = _swReg.waiting || _swReg.installing;
+        if (target) {
+            try { target.postMessage({ type: 'SKIP_WAITING' }); } catch (e) {}
+        }
+        // Fallback: se o controllerchange não disparar em 1.5s (comum em iOS/mobile),
+        // força reload — garante que a versão nova seja carregada sem o usuário ficar travado
+        setTimeout(function() { location.reload(); }, 1500);
+    }
+
+    // Recarrega quando SW novo assume (desktop geralmente)
     var reloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', function() {
         if (reloaded) return;
@@ -93,9 +108,14 @@
         var banner = document.createElement('div');
         banner.id = 'fsaUpdateBanner';
         banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#059669;color:#fff;padding:.55rem 1rem;text-align:center;font-size:.8rem;font-weight:600;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,.2);';
-        banner.innerHTML = '✨ Nova versão do Hub disponível. <button id="fsaUpdateNow" style="background:#fff;color:#059669;border:none;padding:3px 10px;border-radius:6px;margin-left:8px;cursor:pointer;font-weight:700;font-size:.78rem;">Atualizar agora</button>';
+        banner.innerHTML = '✨ Nova versão do Hub disponível. <button id="fsaUpdateNow" style="background:#fff;color:#059669;border:none;padding:4px 12px;border-radius:6px;margin-left:8px;cursor:pointer;font-weight:700;font-size:.78rem;-webkit-tap-highlight-color:transparent;">Atualizar agora</button>';
         document.body.appendChild(banner);
-        document.getElementById('fsaUpdateNow').onclick = callback;
+        document.getElementById('fsaUpdateNow').onclick = function() {
+            this.textContent = 'Atualizando...';
+            this.disabled = true;
+            this.style.opacity = '.7';
+            try { callback(); } catch (e) { location.reload(); }
+        };
     }
 
     // ── Web Push ──
