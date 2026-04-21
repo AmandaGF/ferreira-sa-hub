@@ -1212,6 +1212,10 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                             style="background:#6b7280;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;flex-shrink:0;margin-left:.3rem;">
                         📋 Copiar
                     </button>
+                    <a href="https://app.zapsign.com.br" target="_blank" rel="noopener" title="Abrir ZapSign em nova aba para enviar documento para assinatura"
+                       style="display:inline-flex;align-items:center;gap:4px;background:#7c3aed;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;flex-shrink:0;margin-left:.3rem;">
+                        ✍️ ZapSign
+                    </a>
                 <?php endif; ?>
             </div>
             <?php endforeach; ?>
