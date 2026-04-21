@@ -514,7 +514,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-csv:hover { opacity:.9; }
 .tbl-wrap { border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.82rem;table-layout:fixed; }
+.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.82rem; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
@@ -525,8 +525,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
 /* Colunas fixas: # + Caso grudam na esquerda ao rolar horizontalmente */
 /* Freeze via JS (position:relative + style.left no scroll). Sticky em <td> tem quirks em tabelas HTML. */
-.tbl-grid td.sticky-col-1, .tbl-grid th.sticky-col-1 { position:relative;z-index:2;box-sizing:border-box;width:36px;min-width:36px;max-width:36px;will-change:transform; }
-.tbl-grid td.sticky-col-2, .tbl-grid th.sticky-col-2 { position:relative;z-index:2;box-sizing:border-box;width:200px;min-width:200px;max-width:200px;will-change:transform;box-shadow:2px 0 4px -2px rgba(0,0,0,.18); }
+.tbl-grid td.sticky-col-1, .tbl-grid th.sticky-col-1 { position:relative;z-index:2;box-sizing:border-box;width:48px;min-width:48px;max-width:48px;will-change:transform;text-align:center; }
+.tbl-grid td.sticky-col-2, .tbl-grid th.sticky-col-2 { position:relative;z-index:2;box-sizing:border-box;width:240px;min-width:240px;max-width:240px;will-change:transform;box-shadow:2px 0 4px -2px rgba(0,0,0,.18); }
 .tbl-grid td.sticky-col-1, .tbl-grid td.sticky-col-2 { background:#fff !important; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900) !important;color:#fff !important; }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc !important; }
@@ -594,7 +594,7 @@ sort($opTipos);
     <button onclick="exportTableCSV('opTableBody','operacional')" class="tbl-csv">Exportar CSV</button>
 </div>
 <div class="tbl-wrap" style="max-height:72vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
-<table class="tbl-grid" id="opTableBody" style="width:1800px;min-width:1800px;">
+<table class="tbl-grid" id="opTableBody" style="min-width:1800px;">
 <thead><tr>
     <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)" style="width:30px;text-align:center;">#</th>
     <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)" style="min-width:160px;">Caso</th>
