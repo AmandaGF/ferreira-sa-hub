@@ -569,19 +569,23 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
 <?php if ($respStats && $respStats['total_contratos'] > 0):
     $_honorFmt = number_format(((float)$respStats['honor_cents']) / 100, 2, ',', '.');
     $_exitoFmt = $respStats['exito_medio'] !== null ? number_format((float)$respStats['exito_medio'], 1, ',', '.') : '—';
-    $_mesTxt = $filterMonth ? ' em ' . (($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : ' (todos os meses)';
 ?>
-<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem;padding:.75rem 1rem;background:linear-gradient(135deg,#fef3c7,#fed7aa);border:1px solid #fb923c;border-radius:10px;margin-bottom:.75rem;">
-    <div style="font-size:.68rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.4px;align-self:center;">📊 <?= e($respStats['nome']) ?><br><span style="font-weight:400;font-size:.62rem;">resumo<?= e($_mesTxt) ?></span></div>
-    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">📝 Contratos</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['total_contratos'] ?></div></div>
-    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">💰 Ticket total</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;">R$ <?= e($_honorFmt) ?></div></div>
-    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">🎯 Êxito médio</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= e($_exitoFmt) ?>%</div><div style="font-size:.58rem;color:#92400e;"><?= (int)$respStats['com_exito'] ?> c/ êxito</div></div>
-    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">✅ Pasta apta</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['pastas_aptas'] ?></div></div>
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;padding:.35rem .75rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin-bottom:.5rem;font-size:.72rem;color:#7c2d12;">
+    <span style="font-weight:800;"><?= e($respStats['nome']) ?>:</span>
+    <span title="Contratos fechados"><b><?= (int)$respStats['total_contratos'] ?></b> contratos</span>
+    <span style="color:#d1d5db;">·</span>
+    <span title="Ticket total">💰 R$ <b><?= e($_honorFmt) ?></b></span>
+    <span style="color:#d1d5db;">·</span>
+    <span title="Êxito médio de quem tem êxito > 0">🎯 <b><?= e($_exitoFmt) ?>%</b> <span style="opacity:.65;">(<?= (int)$respStats['com_exito'] ?>)</span></span>
+    <span style="color:#d1d5db;">·</span>
+    <span title="Pastas aptas">✅ <b><?= (int)$respStats['pastas_aptas'] ?></b></span>
     <?php if ((int)$respStats['cancelados'] > 0): ?>
-    <div><div style="font-size:.62rem;color:#991b1b;text-transform:uppercase;">❌ Cancelados</div><div style="font-size:1.2rem;font-weight:800;color:#991b1b;"><?= (int)$respStats['cancelados'] ?></div></div>
+        <span style="color:#d1d5db;">·</span>
+        <span title="Cancelados" style="color:#991b1b;">❌ <b><?= (int)$respStats['cancelados'] ?></b></span>
     <?php endif; ?>
     <?php if ((int)$respStats['risco'] > 0): ?>
-    <div><div style="font-size:.62rem;color:#7c2d12;text-transform:uppercase;">⚠️ À risco</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['risco'] ?></div></div>
+        <span style="color:#d1d5db;">·</span>
+        <span title="À risco">⚠️ <b><?= (int)$respStats['risco'] ?></b></span>
     <?php endif; ?>
 </div>
 <?php endif; ?>
