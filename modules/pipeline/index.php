@@ -374,7 +374,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px; }
 /* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
 .tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:180px;min-width:180px;max-width:180px; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:240px;min-width:240px;max-width:240px; }
+.tbl-grid td.sticky-col-2 input { width:100% !important;text-overflow:ellipsis; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
@@ -563,7 +564,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
-    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
+    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);"><input value="<?= e($lead['name']) ?>" title="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
     <?php
         $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
@@ -591,14 +592,28 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
         <?php
             $_fpValor = mb_strtoupper($lead['forma_pagamento'] ?? '');
             $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA');
+            // Match inteligente pra valores antigos — normaliza pras 5 opções da whitelist
+            $_fpMapped = $_fpValor; // default
+            if ($_fpValor && !in_array($_fpValor, $_formas, true)) {
+                $_upV = $_fpValor;
+                if (strpos($_upV, 'BOLETO') !== false) $_fpMapped = 'BOLETO';
+                elseif (strpos($_upV, 'CARTÃO') !== false || strpos($_upV, 'CARTAO') !== false) {
+                    $_fpMapped = (strpos($_upV, 'RECORRENTE') !== false) ? 'CRÉDITO RECORRENTE' : 'CARTÃO DE CRÉDITO';
+                }
+                elseif (strpos($_upV, 'CRÉDITO') !== false || strpos($_upV, 'CREDITO') !== false) {
+                    $_fpMapped = (strpos($_upV, 'RECORRENTE') !== false) ? 'CRÉDITO RECORRENTE' : 'CARTÃO DE CRÉDITO';
+                }
+                elseif (strpos($_upV, 'PIX') !== false) $_fpMapped = 'PIX RECORRENTE';
+                elseif (strpos($_upV, 'VISTA') !== false) $_fpMapped = 'À VISTA';
+            }
         ?>
         <select data-id="<?= $lid ?>" data-field="forma_pagamento" onchange="saveCell(this)">
             <option value="">—</option>
             <?php foreach ($_formas as $_fp): ?>
-                <option value="<?= e($_fp) ?>" <?= $_fpValor === $_fp ? 'selected' : '' ?>><?= e($_fp) ?></option>
+                <option value="<?= e($_fp) ?>" <?= $_fpMapped === $_fp ? 'selected' : '' ?>><?= e($_fp) ?></option>
             <?php endforeach; ?>
-            <?php if ($_fpValor && !in_array($_fpValor, $_formas, true)): ?>
-                <option value="<?= e($_fpValor) ?>" selected>(antigo) <?= e($_fpValor) ?></option>
+            <?php if ($_fpValor && !in_array($_fpMapped, $_formas, true)): ?>
+                <option value="<?= e($_fpValor) ?>" selected title="Valor antigo não reconhecido automaticamente — escolha a forma correta acima pra normalizar">⚠ <?= e($_fpValor) ?></option>
             <?php endif; ?>
         </select>
     </td>
