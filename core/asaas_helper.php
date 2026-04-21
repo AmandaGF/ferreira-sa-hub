@@ -181,6 +181,31 @@ function criar_cobranca_asaas($asaasCustomerId, $valor, $vencimento, $descricao,
 }
 
 /**
+ * Criar PARCELAMENTO no Asaas (N boletos/pix/cartão com fim definido).
+ * Diferente de assinatura: gera exatamente $numParcelas cobranças com vencimento mensal
+ * a partir de $primeiroVenc. Ideal pra honorários fechados (ex: 10x de R$1.000).
+ *
+ * $valorParcela = valor de cada parcela (R$). O Asaas calcula totalValue automaticamente.
+ */
+function criar_parcelamento_asaas($asaasCustomerId, $valorParcela, $numParcelas, $primeiroVenc, $descricao, $formaPagamento = 'BOLETO') {
+    $billingType = strtoupper($formaPagamento);
+    if (!in_array($billingType, array('BOLETO', 'PIX', 'CREDIT_CARD', 'UNDEFINED'))) $billingType = 'UNDEFINED';
+
+    $numParcelas = max(2, min(60, (int)$numParcelas));
+    $valorParcela = (float)$valorParcela;
+
+    $data = array(
+        'customer' => $asaasCustomerId,
+        'billingType' => $billingType,
+        'installmentCount' => $numParcelas,
+        'installmentValue' => $valorParcela,
+        'dueDate' => $primeiroVenc,
+        'description' => $descricao,
+    );
+    return asaas_post('/payments', $data);
+}
+
+/**
  * Criar assinatura recorrente no Asaas
  */
 function criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPagamento = 'PIX') {

@@ -375,8 +375,9 @@ echo voltar_ao_processo_html();
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Tipo</label>
                 <select name="tipo" class="form-select" id="tipoCobranca" onchange="atualizarCobUI1()">
-                    <option value="unica">Cobrança única</option>
-                    <option value="recorrente">Assinatura recorrente</option>
+                    <option value="unica">📄 Única (1 pagamento)</option>
+                    <option value="parcelado">💳 Parcelada (N boletos, termina)</option>
+                    <option value="recorrente">🔄 Assinatura recorrente (sem fim)</option>
                 </select>
             </div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Forma pagamento</label>
@@ -414,13 +415,23 @@ echo voltar_ao_processo_html();
             var vl = document.getElementById('valorCob1').value || '';
             var valor = parseFloat(vl.replace(/[^\d,]/g,'').replace(',','.')) || 0;
             var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
-            document.getElementById('camposParcelas').style.display = tipo === 'recorrente' ? 'block' : 'none';
-            document.getElementById('labelValorCob1').innerHTML = tipo === 'recorrente'
-                ? '💡 Valor de <u>cada parcela</u> (R$) *' : 'Valor total (R$) *';
+            var mostrarParcelas = (tipo === 'recorrente' || tipo === 'parcelado');
+            document.getElementById('camposParcelas').style.display = mostrarParcelas ? 'block' : 'none';
+            var lbl = document.getElementById('labelValorCob1');
+            if (tipo === 'parcelado') lbl.innerHTML = '💡 Valor de <u>cada parcela</u> (R$) *';
+            else if (tipo === 'recorrente') lbl.innerHTML = '💡 Valor de <u>cada mensalidade</u> (R$) *';
+            else lbl.innerHTML = 'Valor total (R$) *';
+
             var prev = document.getElementById('previewCob1');
-            if (tipo === 'recorrente' && valor > 0 && parc > 1) {
+            if (valor > 0 && parc > 1 && mostrarParcelas) {
                 var total = valor * parc;
-                prev.innerHTML = '📋 Será cobrado <b>R$ ' + valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b> por mês durante <b>' + parc + ' meses</b> — total contratado <b>R$ ' + total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b>.';
+                var vStr = valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+                var tStr = total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+                if (tipo === 'parcelado') {
+                    prev.innerHTML = '📋 <b>' + parc + ' parcelas de R$ ' + vStr + '</b> — total <b>R$ ' + tStr + '</b>. Vence mensalmente a partir da data escolhida e <b>termina na última parcela</b>.';
+                } else {
+                    prev.innerHTML = '🔄 Cobrança <b>mensal de R$ ' + vStr + '</b>, sem data de fim. Max ' + parc + ' mensalidades (ou cancele antes).';
+                }
                 prev.style.display='block';
             } else { prev.style.display='none'; }
         }

@@ -312,8 +312,27 @@ switch ($action) {
         }
         $asaasCustomerId = $vinculo['id'];
 
-        if ($tipo === 'recorrente') {
-            // Criar assinatura
+        if ($tipo === 'parcelado') {
+            // Parcelamento fixo: N boletos/pix/cartão com fim definido
+            $resp = criar_parcelamento_asaas($asaasCustomerId, $valor, $numParcelas, $vencimento, $descricao, $formaPag);
+            if (isset($resp['error'])) {
+                flash_set('error', 'Erro Asaas: ' . $resp['error']);
+                redirect(module_url('financeiro'));
+            }
+            // Salvar contrato (tipo fixo com N parcelas)
+            $pdo->prepare(
+                "INSERT INTO contratos_financeiros (client_id, case_id, tipo_honorario, valor_total, num_parcelas, valor_parcela, forma_pagamento, data_fechamento, created_by)
+                 VALUES (?, ?, 'entrada_parcelas', ?, ?, ?, ?, CURDATE(), ?)"
+            )->execute(array($clientId, $caseId, $valor * $numParcelas, $numParcelas, $valor, strtolower($formaPag), current_user_id()));
+            // Sincroniza as N parcelas criadas
+            sync_cobrancas_cliente($clientId, $asaasCustomerId);
+            // Vincula ao processo as parcelas recém criadas (sem case_id ainda)
+            $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE client_id = ? AND case_id IS NULL")
+                ->execute(array($caseId, $clientId));
+            flash_set('success', "Parcelamento criado! $numParcelas × R$ " . number_format($valor, 2, ',', '.') . " (" . strtoupper($formaPag) . ")");
+
+        } elseif ($tipo === 'recorrente') {
+            // Assinatura recorrente: mensal, SEM FIM (ou até maxPayments)
             $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPag);
             if (isset($resp['error'])) {
                 flash_set('error', 'Erro Asaas: ' . $resp['error']);
