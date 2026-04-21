@@ -98,12 +98,12 @@ foreach ($queries as $q) {
 // Popular níveis
 echo "\n--- Populando níveis ---\n";
 $niveis = array(
-    array(1, 'Estagiário',      0,     '🎓'),
-    array(2, 'Associado',       500,   '⭐'),
-    array(3, 'Advogado Jr',     1500,  '⚖️'),
-    array(4, 'Advogado Pleno',  3000,  '💼'),
-    array(5, 'Advogado Sênior', 6000,  '🏆'),
-    array(6, 'Sócio',           10000, '👑'),
+    array(1, 'Estagiário',      0,    '🎓'),
+    array(2, 'Associado',       150,  '⭐'),
+    array(3, 'Advogado Jr',     500,  '⚖️'),
+    array(4, 'Advogado Pleno',  1500, '💼'),
+    array(5, 'Advogado Sênior', 3500, '🏆'),
+    array(6, 'Sócio',           7500, '👑'),
 );
 $stmtNivel = $pdo->prepare("INSERT IGNORE INTO gamificacao_niveis (nivel_num, nome, pontos_minimos, badge_emoji) VALUES (?,?,?,?)");
 foreach ($niveis as $n) {
