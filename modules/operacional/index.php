@@ -596,8 +596,8 @@ sort($opTipos);
 <div class="tbl-wrap" style="max-height:72vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
 <table class="tbl-grid" id="opTableBody" style="min-width:1800px;">
 <thead><tr>
-    <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)" style="width:30px;text-align:center;">#</th>
-    <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)" style="min-width:160px;">Caso</th>
+    <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)">#</th>
+    <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)">Caso</th>
     <th onclick="sortTbl('opTableBody',2)">Cliente</th>
     <th onclick="sortTbl('opTableBody',3)">Tipo de Acao</th>
     <th onclick="sortTbl('opTableBody',4)">Responsavel</th>
@@ -1678,15 +1678,23 @@ function sortTbl(tableId, colIdx) {
 (function(){
     function initFreeze(){
         var wrap = document.querySelector('#viewOpTabela .tbl-wrap');
-        if (!wrap) return;
+        if (!wrap) { console.warn('[op-freeze] #viewOpTabela .tbl-wrap não encontrado'); return; }
         var cells = wrap.querySelectorAll('.sticky-col-1, .sticky-col-2');
-        if (!cells.length) return;
+        if (!cells.length) { console.warn('[op-freeze] sem células sticky-col'); return; }
         function sync(){
             var x = wrap.scrollLeft;
             for (var i = 0; i < cells.length; i++) cells[i].style.left = x + 'px';
         }
         wrap.addEventListener('scroll', sync, { passive: true });
+        // Fallback: se o scroll horizontal estiver no body em vez do wrapper
+        window.addEventListener('scroll', function(){
+            var bodyX = window.scrollX || document.documentElement.scrollLeft || 0;
+            if (bodyX > 0 && wrap.scrollLeft === 0) {
+                for (var i = 0; i < cells.length; i++) cells[i].style.left = bodyX + 'px';
+            }
+        }, { passive: true });
         sync();
+        console.info('[op-freeze] ativo —', cells.length, 'células | wrapper:', wrap.clientWidth + 'px | table:', wrap.scrollWidth + 'px | overflow?', wrap.scrollWidth > wrap.clientWidth);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFreeze);
     else initFreeze();
