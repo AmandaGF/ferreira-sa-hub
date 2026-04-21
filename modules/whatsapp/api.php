@@ -554,6 +554,18 @@ if ($action === 'desativar_bot') {
     exit;
 }
 
+// ── TOGGLE MOSTRAR NOMES ATENDENTE (só gestão) ───────────
+if ($action === 'toggle_mostrar_nomes') {
+    if (!has_min_role('gestao')) { echo json_encode(array('error' => 'Sem permissão — só gestão pode alterar.')); exit; }
+    $atual = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_mostrar_nome_interno'")->fetchColumn();
+    $novo = ($atual === '1') ? '0' : '1';
+    $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?,?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
+        ->execute(array('zapi_mostrar_nome_interno', $novo));
+    audit_log('zapi_config_toggle', 'configuracoes', null, 'zapi_mostrar_nome_interno = ' . $novo);
+    echo json_encode(array('ok' => true, 'novo' => $novo));
+    exit;
+}
+
 // ── TEMPLATES ────────────────────────────────────────────
 if ($action === 'listar_templates') {
     // Self-heal: coluna atalho pra slash autocomplete

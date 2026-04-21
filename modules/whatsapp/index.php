@@ -175,6 +175,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
             <button onclick="waAtualizarFotos(this)" class="btn btn-outline btn-sm" title="Busca foto de perfil do WhatsApp de cada contato. Se for cliente sem foto, salva no cadastro dele.">🖼️ Atualizar fotos</button>
             <button onclick="waAbrirMeuNome()" class="btn btn-outline btn-sm" title="Editar o nome que aparece acima das suas mensagens / na assinatura enviada ao cliente">✍️ Meu nome</button>
+            <?php if (has_min_role('gestao')): ?>
+            <button onclick="waToggleNomes(this)" id="btnToggleNomes"
+                    class="btn btn-outline btn-sm"
+                    title="Mostrar/ocultar o nome do atendente que aparece acima de cada mensagem no chat interno"
+                    style="<?= $mostrarNomeAtendente === '1' ? 'background:#059669;color:#fff;border-color:#059669;' : 'background:#fff;color:#6b7280;' ?>">
+                <?= $mostrarNomeAtendente === '1' ? '👁️ Nomes: LIGADO' : '🙈 Nomes: OCULTO' ?>
+            </button>
+            <?php endif; ?>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
         <?php endif; ?>
     </div>
@@ -1881,6 +1889,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waSincronizar = function() {
         alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');
+    };
+
+    // Toggle rápido "Mostrar nomes dos atendentes" — aplica a todos os usuários
+    window.waToggleNomes = function(btn) {
+        if (!confirm('Alternar a exibição do nome do atendente acima de cada mensagem no chat interno?\n\nEssa preferência vale pra equipe inteira.')) return;
+        var csrf = window._FSA_CSRF || csrf;
+        var fd = new FormData();
+        fd.append('action', 'toggle_mostrar_nomes');
+        fd.append('csrf_token', csrf);
+        btn.disabled = true;
+        var original = btn.innerHTML;
+        btn.innerHTML = '⏳ Aplicando...';
+        fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('Falha: ' + d.error); btn.innerHTML = original; btn.disabled = false; return; }
+                // Recarrega a página pra aplicar com a preferência nova (variável mostrarNomeAtendente embutida)
+                location.reload();
+            })
+            .catch(function(e){ alert('Erro: ' + e.message); btn.innerHTML = original; btn.disabled = false; });
     };
 
     // Modal "Meu nome de atendimento" — nome que aparece acima das próprias
