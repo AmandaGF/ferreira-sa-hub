@@ -452,9 +452,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (!souEuAtendente && podeEnviar) {
             actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
         }
-        // Delegação só faz sentido no canal 21 (Comercial) — CX/Operacional (24) é colaborativo.
-        if (PODE_DELEGAR && c.canal === '21') {
-            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 30 minutos sem interação, destrava automaticamente.">🎯 Delegar</button>';
+        // Delegação disponível em ambos os canais — Amanda/Luiz podem delegar qualquer conversa.
+        // No canal 24 (colaborativo), delegar também bloqueia os outros atendentes até destravar.
+        if (PODE_DELEGAR) {
+            var tipTxt = c.canal === '24'
+                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar (ou 30min sem atividade).'
+                : 'Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 30 minutos sem interação, destrava automaticamente.';
+            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="' + tipTxt + '">🎯 Delegar</button>';
             if (estaDelegada) {
                 actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
             }
