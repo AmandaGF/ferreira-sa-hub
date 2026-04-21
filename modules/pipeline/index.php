@@ -367,7 +367,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-.tbl-grid { width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem; }
+/* table-layout:fixed força as larguras declaradas a serem respeitadas
+   (senão o browser calcula com base no conteúdo e a Nome sticky
+   fica maior que 220px, invadindo a coluna Contato) */
+.tbl-grid { width:max-content;border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
@@ -535,21 +538,21 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 };
 ?>
 <thead><tr>
-    <th class="sticky-col-1" style="width:30px;text-align:center;cursor:default;">#</th>
-    <th class="sticky-col-2" style="min-width:160px;"><?= $_sortLink('name', 'Nome') ?></th>
-    <th><?= $_sortLink('phone', 'Contato') ?></th>
-    <th><?= $_sortLink('created_at', 'Data Fech.') ?></th>
-    <th><?= $_sortLink('case_type', 'Tipo de Ação') ?></th>
-    <th><?= $_sortLink('honorarios', 'Honorários (R$)') ?></th>
-    <th><?= $_sortLink('exito', 'Êxito (%)') ?></th>
-    <th><?= $_sortLink('vencimento', 'Vencto 1ª') ?></th>
-    <th><?= $_sortLink('pgto', 'Pgto') ?></th>
-    <th><?= $_sortLink('responsavel', 'Responsável') ?></th>
-    <th><?= $_sortLink('asaas', 'Asaas') ?></th>
-    <th><?= $_sortLink('urgencia', 'Urgência') ?></th>
-    <th><?= $_sortLink('observacoes', 'Observações') ?></th>
-    <th><?= $_sortLink('estado', 'Estado') ?></th>
-    <th style="cursor:default;">Mover</th>
+    <th class="sticky-col-1" style="width:36px;text-align:center;cursor:default;">#</th>
+    <th class="sticky-col-2" style="width:220px;"><?= $_sortLink('name', 'Nome') ?></th>
+    <th style="width:180px;"><?= $_sortLink('phone', 'Contato') ?></th>
+    <th style="width:120px;"><?= $_sortLink('created_at', 'Data Fech.') ?></th>
+    <th style="width:140px;"><?= $_sortLink('case_type', 'Tipo de Ação') ?></th>
+    <th style="width:130px;"><?= $_sortLink('honorarios', 'Honorários (R$)') ?></th>
+    <th style="width:80px;"><?= $_sortLink('exito', 'Êxito (%)') ?></th>
+    <th style="width:120px;"><?= $_sortLink('vencimento', 'Vencto 1ª') ?></th>
+    <th style="width:160px;"><?= $_sortLink('pgto', 'Pgto') ?></th>
+    <th style="width:110px;"><?= $_sortLink('responsavel', 'Responsável') ?></th>
+    <th style="width:120px;"><?= $_sortLink('asaas', 'Asaas') ?></th>
+    <th style="width:90px;"><?= $_sortLink('urgencia', 'Urgência') ?></th>
+    <th style="width:180px;"><?= $_sortLink('observacoes', 'Observações') ?></th>
+    <th style="width:130px;"><?= $_sortLink('estado', 'Estado') ?></th>
+    <th style="cursor:default;width:90px;">Mover</th>
     <?php if (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()): ?>
     <th style="cursor:default;width:40px;text-align:center;" title="Excluir lead irregular (só Amanda/Luiz)">🗑️</th>
     <?php endif; ?>
