@@ -21,6 +21,10 @@ require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions.php';
 
+// Cron pode levar vários minutos (rate limit 1s por processo × N casos)
+@set_time_limit(0);
+@ini_set('memory_limit', '512M');
+
 header('Content-Type: text/plain; charset=utf-8');
 
 $pdo = db();
@@ -29,7 +33,9 @@ $inicio = microtime(true);
 echo "=== DataJud Sync — " . date('Y-m-d H:i:s') . " ===\n\n";
 
 // Buscar casos elegíveis: TODOS com número cadastrado,
-// exceto cancelados e arquivados, que não sincronizaram nas últimas 24h
+// exceto cancelados e arquivados, que não sincronizaram nas últimas 24h.
+// LIMIT 1000 cobre escritório com até ~1000 processos ativos — com rate limit
+// de 1s por case, demora até ~17min, toleravelmente dentro do horário de cron.
 $stmt = $pdo->query(
     "SELECT id, title, case_number FROM cases
      WHERE case_number IS NOT NULL
@@ -37,7 +43,7 @@ $stmt = $pdo->query(
        AND status NOT IN ('cancelado', 'arquivado')
        AND (datajud_ultima_sync IS NULL OR datajud_ultima_sync < NOW() - INTERVAL 24 HOUR)
      ORDER BY datajud_ultima_sync ASC
-     LIMIT 50"
+     LIMIT 1000"
 );
 $casos = $stmt->fetchAll();
 
