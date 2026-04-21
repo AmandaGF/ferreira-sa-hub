@@ -1129,7 +1129,8 @@ function toggleView(view) {
         bk.style.background = 'var(--bg-card)'; bk.style.color = 'var(--text)';
         bt.style.background = 'var(--petrol-900)'; bt.style.color = '#fff';
     } else {
-        k.style.display = 'grid'; t.style.display = 'none';
+        // Kanban original é flex (colunas lado a lado com scroll horizontal)
+        k.style.display = 'flex'; t.style.display = 'none';
         bt.style.background = 'var(--bg-card)'; bt.style.color = 'var(--text)';
         bk.style.background = 'var(--petrol-900)'; bk.style.color = '#fff';
     }
