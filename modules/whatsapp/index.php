@@ -52,6 +52,13 @@ try {
     if ($r !== false && $r !== null) $mostrarNomeAtendente = $r;
 } catch (Exception $e) {}
 
+// Config: assinatura automática (nome no WhatsApp do cliente — externo)
+$assinaturaLigada = '0';
+try {
+    $r2 = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_signature_on'")->fetchColumn();
+    if ($r2 !== false && $r2 !== null) $assinaturaLigada = $r2;
+} catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -178,9 +185,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php if (has_min_role('gestao')): ?>
             <button onclick="waToggleNomes(this)" id="btnToggleNomes"
                     class="btn btn-outline btn-sm"
-                    title="Mostrar/ocultar o nome do atendente que aparece acima de cada mensagem no chat interno"
+                    title="Mostrar/ocultar o nome do atendente que aparece acima de cada mensagem no chat INTERNO (Hub)"
                     style="<?= $mostrarNomeAtendente === '1' ? 'background:#059669;color:#fff;border-color:#059669;' : 'background:#fff;color:#6b7280;' ?>">
-                <?= $mostrarNomeAtendente === '1' ? '👁️ Nomes: LIGADO' : '🙈 Nomes: OCULTO' ?>
+                <?= $mostrarNomeAtendente === '1' ? '👁️ Nomes internos: ON' : '🙈 Nomes internos: OFF' ?>
+            </button>
+            <button onclick="waToggleAssinatura(this)" id="btnToggleAssinatura"
+                    class="btn btn-outline btn-sm"
+                    title="Ligar/desligar assinatura '— Nome' que aparece no FIM das mensagens enviadas ao cliente (WhatsApp do celular dele)"
+                    style="<?= $assinaturaLigada === '1' ? 'background:#1e40af;color:#fff;border-color:#1e40af;' : 'background:#fff;color:#6b7280;' ?>">
+                <?= $assinaturaLigada === '1' ? '✍️ Assinatura: ON' : '✍️ Assinatura: OFF' ?>
             </button>
             <?php endif; ?>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
@@ -1893,11 +1906,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // Toggle rápido "Mostrar nomes dos atendentes" — aplica a todos os usuários
     window.waToggleNomes = function(btn) {
-        if (!confirm('Alternar a exibição do nome do atendente acima de cada mensagem no chat interno?\n\nEssa preferência vale pra equipe inteira.')) return;
-        var csrf = window._FSA_CSRF || csrf;
+        if (!confirm('Alternar a exibição do nome do atendente acima de cada mensagem no chat INTERNO do Hub?\n\nEssa preferência vale pra equipe inteira.')) return;
+        var csrf2 = window._FSA_CSRF || csrf;
         var fd = new FormData();
         fd.append('action', 'toggle_mostrar_nomes');
-        fd.append('csrf_token', csrf);
+        fd.append('csrf_token', csrf2);
         btn.disabled = true;
         var original = btn.innerHTML;
         btn.innerHTML = '⏳ Aplicando...';
@@ -1905,7 +1918,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             .then(function(r){ return r.json(); })
             .then(function(d){
                 if (d.error) { alert('Falha: ' + d.error); btn.innerHTML = original; btn.disabled = false; return; }
-                // Recarrega a página pra aplicar com a preferência nova (variável mostrarNomeAtendente embutida)
+                location.reload();
+            })
+            .catch(function(e){ alert('Erro: ' + e.message); btn.innerHTML = original; btn.disabled = false; });
+    };
+
+    // Toggle "Assinatura automática no WhatsApp do cliente" (externo)
+    window.waToggleAssinatura = function(btn) {
+        if (!confirm('Alternar a assinatura automática "— Nome" no fim das mensagens enviadas ao cliente (WhatsApp do celular dele)?\n\nAfeta todas as mensagens enviadas daqui em diante.')) return;
+        var csrf2 = window._FSA_CSRF || csrf;
+        var fd = new FormData();
+        fd.append('action', 'toggle_assinatura');
+        fd.append('csrf_token', csrf2);
+        btn.disabled = true;
+        var original = btn.innerHTML;
+        btn.innerHTML = '⏳ Aplicando...';
+        fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('Falha: ' + d.error); btn.innerHTML = original; btn.disabled = false; return; }
                 location.reload();
             })
             .catch(function(e){ alert('Erro: ' + e.message); btn.innerHTML = original; btn.disabled = false; });
