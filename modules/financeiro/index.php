@@ -374,7 +374,7 @@ echo voltar_ao_processo_html();
 
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Tipo</label>
-                <select name="tipo" class="form-select" id="tipoCobranca" onchange="toggleParcelas()">
+                <select name="tipo" class="form-select" id="tipoCobranca" onchange="atualizarCobUI1()">
                     <option value="unica">Cobrança única</option>
                     <option value="recorrente">Assinatura recorrente</option>
                 </select>
@@ -389,8 +389,8 @@ echo voltar_ao_processo_html();
         </div>
 
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Valor (R$) *</label>
-                <input type="text" name="valor" class="form-input input-reais" required placeholder="0,00">
+            <div style="flex:1;"><label id="labelValorCob1" style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Valor total (R$) *</label>
+                <input type="text" name="valor" id="valorCob1" class="form-input input-reais" required placeholder="0,00" oninput="atualizarCobUI1()">
             </div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Vencimento *</label>
                 <input type="date" name="vencimento" class="form-input" required value="<?= date('Y-m-d', strtotime('+3 days')) ?>">
@@ -400,13 +400,33 @@ echo voltar_ao_processo_html();
         <div id="camposParcelas" style="display:none;margin-bottom:.6rem;">
             <div style="display:flex;gap:.5rem;">
                 <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Nº Parcelas</label>
-                    <input type="number" name="num_parcelas" class="form-input" min="2" max="60" value="12">
+                    <input type="number" name="num_parcelas" id="parcelasCob1" class="form-input" min="2" max="60" value="12" oninput="atualizarCobUI1()">
                 </div>
                 <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Dia vencimento mensal</label>
                     <input type="number" name="dia_vencimento" class="form-input" min="1" max="28" value="10">
                 </div>
             </div>
         </div>
+        <div id="previewCob1" style="display:none;background:#f5ebe0;border-left:3px solid #B87333;padding:.5rem .7rem;margin-bottom:.6rem;border-radius:6px;font-size:.75rem;color:#3f2e1c;"></div>
+        <script>
+        function atualizarCobUI1(){
+            var tipo = document.getElementById('tipoCobranca').value;
+            var vl = document.getElementById('valorCob1').value || '';
+            var valor = parseFloat(vl.replace(/[^\d,]/g,'').replace(',','.')) || 0;
+            var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
+            document.getElementById('camposParcelas').style.display = tipo === 'recorrente' ? 'block' : 'none';
+            document.getElementById('labelValorCob1').innerHTML = tipo === 'recorrente'
+                ? '💡 Valor de <u>cada parcela</u> (R$) *' : 'Valor total (R$) *';
+            var prev = document.getElementById('previewCob1');
+            if (tipo === 'recorrente' && valor > 0 && parc > 1) {
+                var total = valor * parc;
+                prev.innerHTML = '📋 Será cobrado <b>R$ ' + valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b> por mês durante <b>' + parc + ' meses</b> — total contratado <b>R$ ' + total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b>.';
+                prev.style.display='block';
+            } else { prev.style.display='none'; }
+        }
+        // Compatibilidade: toggleParcelas ainda é chamado em outros lugares do arquivo
+        function toggleParcelas(){ atualizarCobUI1(); }
+        </script>
 
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Descrição</label>

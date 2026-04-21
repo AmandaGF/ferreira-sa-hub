@@ -378,8 +378,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <td style="font-family:monospace;font-size:.68rem;color:var(--text-muted);"><?= e($r['asaas_payment_id'] ?? '—') ?></td>
             <td style="text-align:center;white-space:nowrap;">
                 <?php
-                    // Ações só fazem sentido se a cobrança está PENDING ou OVERDUE
-                    $_podeEditar = in_array($r['status'], array('PENDING','OVERDUE'), true);
+                    // Ações só fazem sentido se a cobrança está PENDING ou OVERDUE (case-insensitive por segurança)
+                    $_statusUp = strtoupper((string)($r['status'] ?? ''));
+                    $_podeEditar = in_array($_statusUp, array('PENDING','OVERDUE'), true);
                 ?>
                 <?php if ($_podeEditar): ?>
                     <button type="button" title="Alterar data de vencimento"
@@ -428,6 +429,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 window._COB_CSRF = <?= json_encode(generate_csrf_token()) ?>;
 window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
 </script>
-<script src="<?= url('assets/js/cobranca_acoes.js') ?>?v=2"></script>
+<script>
+<?php readfile(APP_ROOT . '/assets/js/cobranca_acoes.js'); ?>
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

@@ -272,20 +272,37 @@ echo voltar_ao_processo_html();
 
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Tipo</label>
-                <select name="tipo" class="form-select" id="tipoCob2" onchange="document.getElementById('parcCob2').style.display=this.value==='recorrente'?'flex':'none';">
+                <select name="tipo" class="form-select" id="tipoCob2" onchange="atualizarCobUI2()">
                     <option value="unica">Única</option><option value="recorrente">Recorrente</option>
                 </select></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Pagamento</label>
                 <select name="forma_pagamento" class="form-select"><option value="PIX">PIX</option><option value="BOLETO">Boleto</option><option value="UNDEFINED">Todas</option></select></div>
         </div>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Valor (R$)</label><input type="text" name="valor" class="form-input input-reais" required placeholder="0,00"></div>
+            <div style="flex:1;"><label id="labelValorCob2" style="font-size:.75rem;font-weight:700;">Valor total (R$)</label><input type="text" name="valor" id="valorCob2" class="form-input input-reais" required placeholder="0,00" oninput="atualizarCobUI2()"></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Vencimento</label><input type="date" name="vencimento" class="form-input" required value="<?= date('Y-m-d', strtotime('+3 days')) ?>"></div>
         </div>
         <div id="parcCob2" style="display:none;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" class="form-input" min="2" max="60" value="12"></div>
+            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" id="parcelasCob2" class="form-input" min="2" max="60" value="12" oninput="atualizarCobUI2()"></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Dia venc.</label><input type="number" name="dia_vencimento" class="form-input" min="1" max="28" value="10"></div>
         </div>
+        <div id="previewCob2" style="display:none;background:#f5ebe0;border-left:3px solid #B87333;padding:.5rem .7rem;margin-bottom:.6rem;border-radius:6px;font-size:.75rem;color:#3f2e1c;"></div>
+        <script>
+        function atualizarCobUI2(){
+            var tipo = document.getElementById('tipoCob2').value;
+            var valor = parseFloat((document.getElementById('valorCob2').value || '').replace(/[^\d,]/g,'').replace(',','.')) || 0;
+            var parc = parseInt(document.getElementById('parcelasCob2').value, 10) || 1;
+            document.getElementById('parcCob2').style.display = tipo === 'recorrente' ? 'flex' : 'none';
+            document.getElementById('labelValorCob2').innerHTML = tipo === 'recorrente'
+                ? '💡 Valor de <u>cada parcela</u> (R$)' : 'Valor total (R$)';
+            var prev = document.getElementById('previewCob2');
+            if (tipo === 'recorrente' && valor > 0 && parc > 1) {
+                var total = valor * parc;
+                prev.innerHTML = '📋 Será cobrado <b>R$ ' + valor.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b> por mês durante <b>' + parc + ' meses</b> — total contratado <b>R$ ' + total.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}) + '</b>.';
+                prev.style.display='block';
+            } else { prev.style.display='none'; }
+        }
+        </script>
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;">Processo vinculado <span style="color:#dc2626;">*</span></label>
             <?php if (empty($processosCliente)): ?>
@@ -386,5 +403,7 @@ function vincularCobrancaProcesso(cobId, caseId) {
 window._COB_CSRF = <?= json_encode(generate_csrf_token()) ?>;
 window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
 </script>
-<script src="<?= url('assets/js/cobranca_acoes.js') ?>?v=2"></script>
+<script>
+<?php readfile(APP_ROOT . '/assets/js/cobranca_acoes.js'); ?>
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
