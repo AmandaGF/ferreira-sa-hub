@@ -86,7 +86,8 @@ function parseLinha($linha, $n, $mapaTipos) {
         $tipoFinal = 'observacao';
         $aviso = 'Tipo "' . $tipoRaw . '" NÃO reconhecido — salvo como observacao (revisar)';
     }
-    $descFinal = $horaOk ? '[' . $horaOk . '] ' . $descRaw : $descRaw;
+    // Descrição limpa — hora vai em coluna própria
+    $descFinal = preg_replace('/^\s*\[\d{1,2}:\d{2}\]\s*/', '', $descRaw);
     return array(
         'n'=>$n,'status'=>$aviso?'warn':'ok',
         'data'=>$dataRaw,'hora'=>$horaOk,'tipo_original'=>$tipoRaw,
@@ -137,13 +138,16 @@ $tiposPermitidos = array(
 );
 $aprovados = array_filter($parseados, function($p){ return in_array($p['status'], array('ok','warn'), true); });
 $idsInseridos = array();
+// Garante coluna hora_andamento
+try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN hora_andamento TIME NULL AFTER data_andamento"); } catch (Exception $e) {}
 try {
     $pdo->beginTransaction();
-    $stmt = $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at, tipo_origem, visivel_cliente)
-                           VALUES (?, ?, ?, ?, 1, NOW(), 'importacao_lote', 1)");
+    $stmt = $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, hora_andamento, tipo, descricao, created_by, created_at, tipo_origem, visivel_cliente)
+                           VALUES (?, ?, ?, ?, ?, 1, NOW(), 'importacao_lote', 1)");
     foreach ($aprovados as $p) {
         $tipoGravar = in_array($p['tipo'], $tiposPermitidos, true) ? $p['tipo'] : 'observacao';
-        $stmt->execute(array($testCaseId, $p['data'], $tipoGravar, $p['descricao']));
+        $horaSql = $p['hora'] ? $p['hora'] . ':00' : null;
+        $stmt->execute(array($testCaseId, $p['data'], $horaSql, $tipoGravar, $p['descricao']));
         $idsInseridos[] = (int)$pdo->lastInsertId();
     }
     $pdo->commit();
@@ -158,11 +162,11 @@ try {
 // ── 6) SELECT dos recém-inseridos ──
 echo "=== SELECT dos recém-inseridos (via id IN ...) ===\n\n";
 $ph = implode(',', array_fill(0, count($idsInseridos), '?'));
-$stmt = $pdo->prepare("SELECT id, case_id, data_andamento, tipo, LEFT(descricao,80) as desc_trunc, created_by, created_at, tipo_origem FROM case_andamentos WHERE id IN ($ph) ORDER BY data_andamento, id");
+$stmt = $pdo->prepare("SELECT id, case_id, data_andamento, hora_andamento, tipo, LEFT(descricao,70) as desc_trunc, tipo_origem FROM case_andamentos WHERE id IN ($ph) ORDER BY data_andamento, hora_andamento, id");
 $stmt->execute($idsInseridos);
 foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
-    echo sprintf("  #%-5d | case=%d | %s | %-20s | %s...\n",
-        $r['id'], $r['case_id'], $r['data_andamento'], $r['tipo'], $r['desc_trunc']
+    echo sprintf("  #%-5d | %s %s | %-20s | %s...\n",
+        $r['id'], $r['data_andamento'], ($r['hora_andamento'] ?: '  --:--  '), $r['tipo'], $r['desc_trunc']
     );
 }
 

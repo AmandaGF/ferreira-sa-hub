@@ -3127,7 +3127,7 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
                 var idx = parseInt(tr.getAttribute('data-idx'), 10);
                 var p = parseados[idx];
                 if (p && p.status !== 'erro') {
-                    selecionados.push({ data: p.data, tipo: p.tipo, descricao: p.descricao });
+                    selecionados.push({ data: p.data, hora: p.hora || '', tipo: p.tipo, descricao: p.descricao });
                 }
             }
         });

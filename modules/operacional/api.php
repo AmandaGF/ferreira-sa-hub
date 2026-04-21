@@ -1412,6 +1412,8 @@ switch ($action) {
 
     case 'andamentos_importar_analisar':
         if (!has_min_role('operacional')) { http_response_code(403); echo json_encode(array('error' => 'Acesso restrito — só operacional/gestão/admin podem importar andamentos.')); exit; }
+        // Self-heal: coluna hora_andamento pra gravar hora em campo estruturado
+        try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN hora_andamento TIME NULL AFTER data_andamento"); } catch (Exception $e) {}
         $caseId = (int)($_POST['case_id'] ?? 0);
         $texto  = (string)($_POST['bloco'] ?? '');
         if (!$caseId) { echo json_encode(array('error' => 'case_id ausente')); exit; }
@@ -1536,11 +1538,10 @@ switch ($action) {
                 $aviso = 'Tipo "' . $tipoRaw . '" não reconhecido — salvo como observacao (revisar manualmente)';
             }
 
-            // Descrição final: prefixa hora se veio (decisão B)
+            // Descrição limpa — hora vai pra coluna hora_andamento (campo estruturado)
+            // Se a IA mandou com prefixo [HH:MM] no começo, remove pra não duplicar
             $descFinal = $descRaw;
-            if ($horaOk !== '') {
-                $descFinal = '[' . $horaOk . '] ' . $descRaw;
-            }
+            $descFinal = preg_replace('/^\s*\[\d{1,2}:\d{2}\]\s*/', '', $descFinal);
 
             $status = $aviso ? 'warn' : 'ok';
             if ($status === 'ok') $totalOk++; else $totalWarn++;
@@ -1572,6 +1573,8 @@ switch ($action) {
 
     case 'andamentos_importar_gravar':
         if (!has_min_role('operacional')) { http_response_code(403); echo json_encode(array('error' => 'Acesso restrito')); exit; }
+        // Self-heal: garante coluna hora_andamento antes do INSERT
+        try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN hora_andamento TIME NULL AFTER data_andamento"); } catch (Exception $e) {}
         $caseId = (int)($_POST['case_id'] ?? 0);
         $rawJson = $_POST['selecionados'] ?? '';
         $itens = is_string($rawJson) ? json_decode($rawJson, true) : null;
@@ -1593,20 +1596,29 @@ switch ($action) {
         try {
             $pdo->beginTransaction();
             $stmt = $pdo->prepare(
-                "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at, tipo_origem, visivel_cliente)
-                 VALUES (?, ?, ?, ?, ?, NOW(), 'importacao_lote', 1)"
+                "INSERT INTO case_andamentos (case_id, data_andamento, hora_andamento, tipo, descricao, created_by, created_at, tipo_origem, visivel_cliente)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW(), 'importacao_lote', 1)"
             );
             foreach ($itens as $i => $item) {
                 $data = $item['data'] ?? '';
+                $hora = trim((string)($item['hora'] ?? ''));
                 $tipo = $item['tipo'] ?? 'observacao';
                 $desc = (string)($item['descricao'] ?? '');
                 if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
                     $erros[] = "Linha #{$i}: data inválida ($data)";
                     continue;
                 }
+                // Valida hora (opcional): HH:MM ou HH:MM:SS → normaliza pra HH:MM:00
+                $horaSql = null;
+                if ($hora !== '' && preg_match('/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', $hora, $m)) {
+                    $hh = (int)$m[1]; $mm = (int)$m[2]; $ss = isset($m[3]) ? (int)$m[3] : 0;
+                    if ($hh >= 0 && $hh <= 23 && $mm >= 0 && $mm <= 59 && $ss >= 0 && $ss <= 59) {
+                        $horaSql = sprintf('%02d:%02d:%02d', $hh, $mm, $ss);
+                    }
+                }
                 if (!in_array($tipo, $tiposPermitidos, true)) { $tipo = 'observacao'; }
                 if ($desc === '') { $erros[] = "Linha #{$i}: descrição vazia"; continue; }
-                $stmt->execute(array($caseId, $data, $tipo, $desc, $uid));
+                $stmt->execute(array($caseId, $data, $horaSql, $tipo, $desc, $uid));
                 $gravados++;
             }
 
