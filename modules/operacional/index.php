@@ -149,6 +149,33 @@ try { $parceirosAtivos = $pdo->query("SELECT id, nome, area FROM parceiros WHERE
 $priorityColors = array('urgente' => '#ef4444', 'alta' => '#f59e0b', 'normal' => '#6366f1', 'baixa' => '#9ca3af');
 $priorityLabels = array('urgente' => 'URGENTE', 'alta' => 'Alta', 'normal' => 'Normal', 'baixa' => 'Baixa');
 
+// Últimos cadastrados + últimos distribuídos (pro quadrinho no topo)
+$ultimosCadastrados = array();
+$ultimosDistribuidos = array();
+try {
+    $stmtCad = $pdo->query(
+        "SELECT cs.id, cs.title, cs.created_at, cs.case_number, c.name AS client_name, u.name AS responsible_name
+         FROM cases cs
+         LEFT JOIN clients c ON c.id = cs.client_id
+         LEFT JOIN users u ON u.id = cs.responsible_user_id
+         WHERE cs.status NOT IN ('arquivado','cancelado')
+         ORDER BY cs.created_at DESC
+         LIMIT 5"
+    );
+    $ultimosCadastrados = $stmtCad->fetchAll();
+
+    $stmtDist = $pdo->query(
+        "SELECT cs.id, cs.title, cs.updated_at, cs.case_number, c.name AS client_name, u.name AS responsible_name
+         FROM cases cs
+         LEFT JOIN clients c ON c.id = cs.client_id
+         LEFT JOIN users u ON u.id = cs.responsible_user_id
+         WHERE cs.status = 'distribuido'
+         ORDER BY cs.updated_at DESC
+         LIMIT 5"
+    );
+    $ultimosDistribuidos = $stmtDist->fetchAll();
+} catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -282,6 +309,80 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('planilha', 'importar.php?destino=operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Importar CSV</a>
     </div>
 </div>
+
+<!-- Últimos processos (quadrinho informativo) -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+    <!-- Últimos cadastrados -->
+    <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #0ea5e9;border-radius:var(--radius-md);padding:.6rem .85rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+            <strong style="font-size:.78rem;color:var(--petrol-900);">🆕 Últimos cadastrados</strong>
+            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+        </div>
+        <?php if (empty($ultimosCadastrados)): ?>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
+        <?php else: ?>
+            <?php foreach ($ultimosCadastrados as $uc):
+                $agoCad = time() - strtotime($uc['created_at']);
+                if     ($agoCad < 3600)  $agoCadLbl = floor($agoCad/60) . 'min atrás';
+                elseif ($agoCad < 86400) $agoCadLbl = floor($agoCad/3600) . 'h atrás';
+                elseif ($agoCad < 604800) $agoCadLbl = floor($agoCad/86400) . 'd atrás';
+                else                     $agoCadLbl = date('d/m', strtotime($uc['created_at']));
+            ?>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$uc['id']) ?>"
+                   style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"><?= e($uc['title'] ?: 'Processo #' . $uc['id']) ?></div>
+                        <div style="font-size:.66rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($uc['client_name'] ?: '—') ?>
+                            <?= $uc['responsible_name'] ? ' · ' . e(explode(' ', $uc['responsible_name'])[0]) : '' ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;color:#0ea5e9;font-weight:600;white-space:nowrap;"><?= $agoCadLbl ?></span>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+
+    <!-- Últimos distribuídos -->
+    <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #15803d;border-radius:var(--radius-md);padding:.6rem .85rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+            <strong style="font-size:.78rem;color:var(--petrol-900);">🏛️ Últimos distribuídos</strong>
+            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+        </div>
+        <?php if (empty($ultimosDistribuidos)): ?>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
+        <?php else: ?>
+            <?php foreach ($ultimosDistribuidos as $ud):
+                $agoDist = time() - strtotime($ud['updated_at']);
+                if     ($agoDist < 3600)  $agoDistLbl = floor($agoDist/60) . 'min atrás';
+                elseif ($agoDist < 86400) $agoDistLbl = floor($agoDist/3600) . 'h atrás';
+                elseif ($agoDist < 604800) $agoDistLbl = floor($agoDist/86400) . 'd atrás';
+                else                      $agoDistLbl = date('d/m', strtotime($ud['updated_at']));
+            ?>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$ud['id']) ?>"
+                   style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ud['title'] ?: 'Processo #' . $ud['id']) ?>
+                            <?= $ud['case_number'] ? ' <span style="color:#64748b;font-weight:400;">(' . e(substr($ud['case_number'], 0, 20)) . ')</span>' : '' ?>
+                        </div>
+                        <div style="font-size:.66rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ud['client_name'] ?: '—') ?>
+                            <?= $ud['responsible_name'] ? ' · ' . e(explode(' ', $ud['responsible_name'])[0]) : '' ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;color:#15803d;font-weight:600;white-space:nowrap;"><?= $agoDistLbl ?></span>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+</div>
+
+<style>
+@media (max-width: 700px) {
+    div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+}
+</style>
 
 <!-- Board Kanban -->
 <div class="op-board" id="viewOpKanban">
