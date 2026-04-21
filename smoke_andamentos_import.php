@@ -56,8 +56,10 @@ $mapaTipos = array(
     'certidao'=>'certidao','publicacao_djen'=>'publicacao_djen','manifestacao_mp'=>'manifestacao_mp',
     'mandado_expedido'=>'mandado_expedido','acordao'=>'acordao',
     'audiencia_designada'=>'audiencia','audiencia_realizada'=>'audiencia','audiencia'=>'audiencia',
-    'peticao_parte_autora'=>'peticao_juntada','peticao_parte_re'=>'peticao_juntada',
+    'peticao_parte_autora'=>'peticao_parte_autora','peticao_parte_re'=>'peticao_parte_re',
+    'peticao_autora'=>'peticao_parte_autora','peticao_re'=>'peticao_parte_re',
     'juntada_documento'=>'peticao_juntada','peticao_juntada'=>'peticao_juntada',
+    'peticao'=>'peticao_juntada',
     'mandado_cumprido'=>'cumprimento','cumprimento'=>'cumprimento',
     'conclusao'=>'movimentacao','remessa'=>'movimentacao','baixa'=>'movimentacao',
     'outros'=>'observacao',
@@ -135,6 +137,7 @@ $tiposPermitidos = array(
     'audiencia','despacho','cumprimento','recurso','citacao','acordo','diligencia',
     'protocolo','distribuicao','ato_ordinatorio','certidao','publicacao_djen',
     'manifestacao_mp','mandado_expedido','acordao','chamado',
+    'peticao_parte_autora','peticao_parte_re',
 );
 $aprovados = array_filter($parseados, function($p){ return in_array($p['status'], array('ok','warn'), true); });
 $idsInseridos = array();
