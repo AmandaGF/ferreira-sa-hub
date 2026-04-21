@@ -104,6 +104,12 @@ if ($filterMonth) {
     $planilhaWhere .= " AND DATE_FORMAT(pl.converted_at, '%Y-%m') = ?";
     $planilhaParams[] = $filterMonth;
 }
+// Filtro por responsável — server-side, persiste entre páginas/sort/etc
+$filterResp = isset($_GET['resp']) ? (int)$_GET['resp'] : 0;
+if ($filterResp > 0) {
+    $planilhaWhere .= " AND pl.assigned_to = ?";
+    $planilhaParams[] = $filterResp;
+}
 $stmtT = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
      c.asaas_customer_id AS asaas_customer_id,
@@ -120,6 +126,29 @@ $stmtT = $pdo->prepare(
 );
 $stmtT->execute($planilhaParams);
 $leadsPlanilha = $stmtT->fetchAll();
+
+// Estatísticas do responsável filtrado (se houver)
+$respStats = null;
+if ($filterResp > 0) {
+    // Nome do responsável
+    $stNm = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+    $stNm->execute(array($filterResp));
+    $respNome = (string)$stNm->fetchColumn();
+
+    $sqlStats = "SELECT
+        COUNT(*) AS total_contratos,
+        SUM(COALESCE(pl.honorarios_cents, 0)) AS honor_cents,
+        AVG(NULLIF(pl.exito_percentual, 0)) AS exito_medio,
+        SUM(CASE WHEN pl.exito_percentual > 0 THEN 1 ELSE 0 END) AS com_exito,
+        SUM(CASE WHEN pl.stage = 'pasta_apta' THEN 1 ELSE 0 END) AS pastas_aptas,
+        SUM(CASE WHEN pl.stage = 'cancelado' THEN 1 ELSE 0 END) AS cancelados,
+        SUM(CASE WHEN pl.forma_pagamento LIKE '%RISCO%' THEN 1 ELSE 0 END) AS risco
+        FROM pipeline_leads pl WHERE $planilhaWhere";
+    $stStats = $pdo->prepare($sqlStats);
+    $stStats->execute($planilhaParams);
+    $respStats = $stStats->fetch();
+    $respStats['nome'] = $respNome;
+}
 
 // KPIs (baseados no Kanban — leads ativos do ciclo atual)
 $totalAtivos = count($leads);
@@ -524,9 +553,11 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
         <option value="">Etapa</option>
         <?php foreach ($stages as $sk => $sv): ?><option value="<?= $sk ?>"><?= $sv['icon'] ?> <?= $sv['label'] ?></option><?php endforeach; ?>
     </select>
-    <select id="filterResp" onchange="filterPipelineTable()" class="tbl-filter">
-        <option value="">Responsável</option>
-        <?php foreach ($users as $u): ?><option value="<?= e($u['name']) ?>"><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
+    <select id="filterResp" onchange="filterPipelineByResp(this.value)" class="tbl-filter" title="Filtra por responsável (persiste entre páginas)">
+        <option value="0">👤 Responsável</option>
+        <?php foreach ($users as $u): ?>
+            <option value="<?= (int)$u['id'] ?>" <?= $filterResp === (int)$u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option>
+        <?php endforeach; ?>
     </select>
     <select id="filterType" onchange="filterPipelineTable()" class="tbl-filter">
         <option value="">Tipo</option>
@@ -535,6 +566,25 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
     <span class="tbl-count"><?= count($allLeadsFlat) ?> leads<?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?></span>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
+<?php if ($respStats && $respStats['total_contratos'] > 0):
+    $_honorFmt = number_format(((float)$respStats['honor_cents']) / 100, 2, ',', '.');
+    $_exitoFmt = $respStats['exito_medio'] !== null ? number_format((float)$respStats['exito_medio'], 1, ',', '.') : '—';
+    $_mesTxt = $filterMonth ? ' em ' . (($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : ' (todos os meses)';
+?>
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.5rem;padding:.75rem 1rem;background:linear-gradient(135deg,#fef3c7,#fed7aa);border:1px solid #fb923c;border-radius:10px;margin-bottom:.75rem;">
+    <div style="font-size:.68rem;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:.4px;align-self:center;">📊 <?= e($respStats['nome']) ?><br><span style="font-weight:400;font-size:.62rem;">resumo<?= e($_mesTxt) ?></span></div>
+    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">📝 Contratos</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['total_contratos'] ?></div></div>
+    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">💰 Ticket total</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;">R$ <?= e($_honorFmt) ?></div></div>
+    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">🎯 Êxito médio</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= e($_exitoFmt) ?>%</div><div style="font-size:.58rem;color:#92400e;"><?= (int)$respStats['com_exito'] ?> c/ êxito</div></div>
+    <div><div style="font-size:.62rem;color:#92400e;text-transform:uppercase;">✅ Pasta apta</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['pastas_aptas'] ?></div></div>
+    <?php if ((int)$respStats['cancelados'] > 0): ?>
+    <div><div style="font-size:.62rem;color:#991b1b;text-transform:uppercase;">❌ Cancelados</div><div style="font-size:1.2rem;font-weight:800;color:#991b1b;"><?= (int)$respStats['cancelados'] ?></div></div>
+    <?php endif; ?>
+    <?php if ((int)$respStats['risco'] > 0): ?>
+    <div><div style="font-size:.62rem;color:#7c2d12;text-transform:uppercase;">⚠️ À risco</div><div style="font-size:1.2rem;font-weight:800;color:#7c2d12;"><?= (int)$respStats['risco'] ?></div></div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
 <table class="tbl-grid" id="pipelineTableBody" style="width:2200px;min-width:2200px;">
 <?php
@@ -1272,6 +1322,16 @@ function filterPipelineTable() {
         if (tipo && row.dataset.type !== tipo) show = false;
         row.style.display = show ? '' : 'none';
     });
+}
+
+// Filtro de responsável: server-side. Preserva demais filtros, reseta paginação.
+// Recarrega a URL com ?resp=ID (0 = sem filtro) pra persistir entre páginas e ordenações.
+function filterPipelineByResp(respId) {
+    var params = new URLSearchParams(window.location.search);
+    if (respId && respId !== '0') params.set('resp', respId); else params.delete('resp');
+    params.delete('tp'); // reset paginação
+    try { localStorage.setItem('pipeline_view', 'tabela'); } catch(e) {}
+    window.location.search = params.toString();
 }
 
 // Filtro de mês: server-side. Preserva busca (q) e aba de tabela.
