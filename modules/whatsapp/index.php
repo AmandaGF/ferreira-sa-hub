@@ -264,14 +264,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
                 <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
-                <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;" title="Filtrar por atendente (bullet colorido = cor da conversa dele)">
-                    <option value="">👥 Atendente</option>
-                    <option value="-1">👤 Minhas</option>
-                    <option value="0">⚪ Sem atendente</option>
+                <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;font-weight:700;" title="Filtrar por atendente — nome vem na cor configurada">
+                    <option value="" style="color:#6b7280;font-weight:400;">👥 Atendente</option>
+                    <option value="-1" style="color:#6b7280;font-weight:400;">👤 Minhas</option>
+                    <option value="0" style="color:#6b7280;font-weight:400;">⚪ Sem atendente</option>
                     <?php foreach ($usuariosAtivos as $u):
-                        $_bullet = wa_cor_para_emoji($u['wa_color'] ?? '');
+                        $_cor = !empty($u['wa_color']) ? $u['wa_color'] : '#6b7280';
                     ?>
-                        <option value="<?= (int)$u['id'] ?>"><?= $_bullet ?> <?= e(explode(' ', $u['name'])[0]) ?></option>
+                        <option value="<?= (int)$u['id'] ?>" style="color:<?= e($_cor) ?>;font-weight:700;"><?= e(explode(' ', $u['name'])[0]) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>

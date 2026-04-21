@@ -489,6 +489,10 @@ function zapi_detecta_tipo($payload) {
     if (isset($payload['reaction']) || isset($payload['reactionMessage'])) return 'reacao';
     if (isset($payload['poll']) || isset($payload['pollCreationMessage'])) return 'enquete';
     if (isset($payload['buttonsResponseMessage']) || isset($payload['listResponseMessage'])) return 'botao';
+    // PIX copia-e-cola ou código de pagamento — trata como texto (payload BR Code é string)
+    if (isset($payload['paymentMessage']) || isset($payload['pixMessage']) || isset($payload['pixCodeMessage'])
+        || isset($payload['interactiveMessage']) || isset($payload['orderMessage'])
+        || isset($payload['sendPaymentMessage']) || isset($payload['requestPaymentMessage'])) return 'texto';
     // Texto em várias formas possíveis (Multi Device)
     if (isset($payload['text']['message'])) return 'texto';
     if (isset($payload['text']) && is_string($payload['text'])) return 'texto';
@@ -496,6 +500,10 @@ function zapi_detecta_tipo($payload) {
     if (isset($payload['message']) && is_string($payload['message'])) return 'texto';
     if (isset($payload['conversation']) && is_string($payload['conversation'])) return 'texto';
     if (isset($payload['extendedTextMessage']['text'])) return 'texto';
+    // Último recurso: varre o payload procurando string que parece BR Code (PIX copia-e-cola começa com 00020126)
+    $asStr = json_encode($payload);
+    if ($asStr && strpos($asStr, '00020126') !== false) return 'texto';
+    if ($asStr && strpos($asStr, 'br.gov.bcb.pix') !== false) return 'texto';
     return 'outro';
 }
 
