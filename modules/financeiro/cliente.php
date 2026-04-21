@@ -149,13 +149,34 @@ echo voltar_ao_processo_html();
 
 <!-- Cobranças -->
 <div style="background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:1.25rem;">
-    <div style="padding:1rem 1.15rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+    <div style="padding:1rem 1.15rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
         <h4 style="font-size:.88rem;font-weight:700;color:var(--petrol-900);">
             Cobranças (<?= count($cobrancas) ?>)
             <?php if ($filtroCase): ?><span style="font-size:.7rem;font-weight:500;color:#1e40af;">— só deste processo</span><?php endif; ?>
         </h4>
         <button onclick="document.getElementById('modalNovaCob').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;">+ Nova Cobrança</button>
     </div>
+
+    <?php if (!empty($cobrancas) && !empty($processosCliente)): ?>
+    <!-- Vínculo em LOTE (bulk) — aparece só se tem cobranças + processos -->
+    <div style="padding:.55rem 1.15rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;font-size:.75rem;">
+        <strong style="color:#1e40af;">🔗 Vincular em lote:</strong>
+        <select id="bulkVincCase" style="font-size:.75rem;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff;min-width:200px;">
+            <option value="">— Escolher processo —</option>
+            <option value="0">Desvincular todas (sem processo)</option>
+            <?php foreach ($processosCliente as $pr): ?>
+                <option value="<?= (int)$pr['id'] ?>"><?= e(mb_substr($pr['title'] ?: ('Processo #' . $pr['id']), 0, 60)) ?><?= $pr['case_number'] ? ' (' . e(substr($pr['case_number'], 0, 20)) . ')' : '' ?></option>
+            <?php endforeach; ?>
+        </select>
+        <select id="bulkVincEscopo" style="font-size:.75rem;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff;">
+            <option value="todas">Todas as cobranças</option>
+            <option value="sem_vinculo">Só as sem vínculo</option>
+            <option value="pendentes_vencidas">Só pendentes + vencidas</option>
+        </select>
+        <button type="button" onclick="vincularTodasAoProcesso(<?= (int)$clientId ?>)" class="btn btn-primary btn-sm" style="background:#1e40af;font-size:.72rem;">✓ Aplicar</button>
+        <span style="font-size:.68rem;color:#64748b;margin-left:auto;">ℹ️ Ou use o dropdown individual em cada linha abaixo</span>
+    </div>
+    <?php endif; ?>
 
     <?php if (empty($cobrancas)): ?>
         <div style="text-align:center;padding:2rem;color:var(--text-muted);">Nenhuma cobrança registrada.</div>
@@ -271,6 +292,45 @@ echo voltar_ao_processo_html();
 </div></div>
 
 <script>
+// Vincula TODAS as cobranças do cliente ao processo escolhido (bulk)
+function vincularTodasAoProcesso(clientId) {
+    var selCase = document.getElementById('bulkVincCase');
+    var selEscopo = document.getElementById('bulkVincEscopo');
+    if (!selCase.value && selCase.value !== '0') { alert('Escolha um processo primeiro.'); return; }
+    var caseId = selCase.value;
+    var escopo = selEscopo.value;
+
+    var desc = caseId === '0' ? 'DESVINCULAR' : 'vincular ao processo escolhido';
+    var escLbl = escopo === 'todas' ? 'TODAS as cobranças' : (escopo === 'sem_vinculo' ? 'só as sem vínculo' : 'só as pendentes + vencidas');
+    if (!confirm('Confirma ' + desc + ' (' + escLbl + ') deste cliente?')) return;
+
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+    var fd = new FormData();
+    fd.append('action', 'vincular_case_bulk');
+    fd.append('client_id', clientId);
+    fd.append('case_id', caseId);
+    fd.append('apenas', escopo);
+    fd.append('csrf_token', csrf);
+
+    fetch('<?= module_url('financeiro', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){
+        return r.text().then(function(t){ try { return { status: r.status, body: JSON.parse(t) }; } catch(e) { return { status: r.status, body: { error: 'Resposta inválida' } }; } });
+    }).then(function(res){
+        if (res.body.ok) {
+            var toast = document.createElement('div');
+            toast.textContent = '✓ ' + res.body.atualizadas + ' cobrança(s) atualizada(s).';
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:12px 18px;border-radius:8px;font-weight:700;z-index:100000;box-shadow:0 8px 24px rgba(0,0,0,.25);';
+            document.body.appendChild(toast);
+            setTimeout(function(){ toast.remove(); }, 2000);
+            setTimeout(function(){ location.reload(); }, 700);
+        } else {
+            alert('Falha: ' + (res.body.error || ('HTTP ' + res.status)));
+        }
+    }).catch(function(e){ alert('Erro de rede: ' + e.message); });
+}
+
 function vincularCobrancaProcesso(cobId, caseId) {
     // Usa token fresco do heartbeat se disponível, senão o da renderização
     var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';

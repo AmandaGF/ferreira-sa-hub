@@ -48,6 +48,50 @@ if ($action === 'vincular_case') {
     exit;
 }
 
+// Vincular TODAS as cobranças de um cliente a um processo específico (bulk)
+// Opcionalmente filtra por status (só pendentes, só vencidas, etc)
+if ($action === 'vincular_case_bulk') {
+    header('Content-Type: application/json');
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $caseId   = (int)($_POST['case_id'] ?? 0);
+    $apenas   = $_POST['apenas'] ?? 'todas'; // todas | sem_vinculo | pendentes_vencidas
+    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
+
+    // Valida que o caso pertence ao cliente (quando caseId > 0)
+    if ($caseId > 0) {
+        $chk = $pdo->prepare("SELECT id FROM cases WHERE id = ? AND client_id = ?");
+        $chk->execute(array($caseId, $clientId));
+        if (!$chk->fetch()) { echo json_encode(array('error' => 'Processo não pertence a este cliente')); exit; }
+    }
+
+    $where = "client_id = ?";
+    $params = array($clientId);
+    if ($apenas === 'sem_vinculo') {
+        $where .= " AND (case_id IS NULL OR case_id = 0)";
+    } elseif ($apenas === 'pendentes_vencidas') {
+        $where .= " AND status IN ('PENDING', 'OVERDUE')";
+    }
+
+    // Atualiza em asaas_cobrancas
+    $sql = "UPDATE asaas_cobrancas SET case_id = ? WHERE $where";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(array_merge(array($caseId ?: null), $params));
+    $atualizadas = $stmt->rowCount();
+
+    // Sincroniza em honorarios_cobranca (pelos asaas_payment_id dos registros afetados)
+    try {
+        $pdo->prepare("UPDATE honorarios_cobranca hc
+                       JOIN asaas_cobrancas ac ON BINARY ac.asaas_payment_id = BINARY hc.asaas_payment_id
+                       SET hc.case_id = ?
+                       WHERE ac.$where")
+            ->execute(array_merge(array($caseId ?: null), $params));
+    } catch (Exception $e) {}
+
+    audit_log('asaas_vincular_case_bulk', 'clients', $clientId, "case_id={$caseId}, apenas={$apenas}, atualizadas={$atualizadas}");
+    echo json_encode(array('ok' => true, 'atualizadas' => $atualizadas));
+    exit;
+}
+
 // Criar cobrança Asaas a partir de um lead da Planilha Comercial
 // (botão 💰 Cobrar no pipeline/index.php)
 if ($action === 'criar_cobranca_lead') {
