@@ -565,7 +565,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
     <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);"><input value="<?= e($lead['name']) ?>" title="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:150px;width:150px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)" title="<?= e($lead['phone'] ?? '') ?>"></td>
+    <td class="editable" style="min-width:180px;width:180px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)" title="<?= e($lead['phone'] ?? '') ?>"></td>
     <?php
         $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
         $_isFallback = empty($lead['converted_at']);
@@ -1056,6 +1056,24 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
 </script>
 
 <script>
+// Inputs na tabela mostram o FIM do texto quando valor é maior que a largura
+// (comportamento padrão do <input>). Força scrollLeft=0 pra começar do início.
+function scrollInputsParaInicio() {
+    var tbl = document.getElementById('pipelineTableBody');
+    if (!tbl) return;
+    tbl.querySelectorAll('input[type="text"], input:not([type])').forEach(function(inp){
+        try { inp.scrollLeft = 0; } catch(e) {}
+    });
+}
+// Roda no load + quando input perde foco (caret volta pro fim senão)
+document.addEventListener('DOMContentLoaded', scrollInputsParaInicio);
+setTimeout(scrollInputsParaInicio, 100);
+document.addEventListener('focusout', function(e){
+    if (e.target && e.target.closest && e.target.closest('#pipelineTableBody')) {
+        setTimeout(function(){ try { e.target.scrollLeft = 0; } catch(err) {} }, 0);
+    }
+});
+
 // Toggle Kanban / Tabela
 // Salvar célula inline via AJAX
 function saveCell(el) {
