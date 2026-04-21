@@ -54,6 +54,28 @@ foreach ($usuariosAtivos as $_u) {
     if (!empty($_u['wa_color'])) $atendentesCoresMap[(int)$_u['id']] = $_u['wa_color'];
 }
 
+// Converte cor hex → emoji de bullet colorido (pra usar como prefix em <option>)
+// Matching por proximidade aproximada do hue
+function wa_cor_para_emoji($hex) {
+    if (!$hex) return '⚪';
+    $hex = ltrim($hex, '#');
+    if (strlen($hex) !== 6) return '⚪';
+    $r = hexdec(substr($hex,0,2)); $g = hexdec(substr($hex,2,2)); $b = hexdec(substr($hex,4,2));
+    $max = max($r, $g, $b); $min = min($r, $g, $b);
+    if ($max - $min < 25 && $max > 200) return '⚪';
+    if ($max < 80) return '⚫';
+    if ($r > 200 && $g < 100 && $b < 100) return '🔴';
+    if ($r < 150 && $g > 150 && $b < 150) return '🟢';
+    if ($r < 150 && $g < 150 && $b > 180) return '🔵';
+    if ($r > 200 && $g > 200 && $b < 100) return '🟡';
+    if ($r > 200 && $g > 100 && $b < 100) return '🟠';
+    if ($r > 150 && $b > 150 && $g < 150) return '🟣';
+    if ($r > 200 && $g > 100 && $b > 150) return '🩷';
+    if ($r > 100 && $g > 50 && $b < 50) return '🟤';
+    if ($r < 150 && $g > 150 && $b > 150) return '🩵';
+    return '⚫';
+}
+
 // Config: mostrar nome do atendente no chat interno (default: sim)
 $mostrarNomeAtendente = '1';
 try {
@@ -242,12 +264,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
                 <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
-                <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;" title="Filtrar por atendente">
+                <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;" title="Filtrar por atendente (bullet colorido = cor da conversa dele)">
                     <option value="">👥 Atendente</option>
                     <option value="-1">👤 Minhas</option>
                     <option value="0">⚪ Sem atendente</option>
-                    <?php foreach ($usuariosAtivos as $u): ?>
-                        <option value="<?= (int)$u['id'] ?>"><?= e(explode(' ', $u['name'])[0]) ?></option>
+                    <?php foreach ($usuariosAtivos as $u):
+                        $_bullet = wa_cor_para_emoji($u['wa_color'] ?? '');
+                    ?>
+                        <option value="<?= (int)$u['id'] ?>"><?= $_bullet ?> <?= e(explode(' ', $u['name'])[0]) ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
