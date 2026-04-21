@@ -333,8 +333,10 @@ echo voltar_ao_processo_html();
                 drop.innerHTML = '<div style="padding:.55rem .75rem;color:#999;font-size:.8rem;">Nenhum cliente encontrado</div>';
             } else {
                 drop.innerHTML = matches.map(function(c){
+                    var nomeSafe = c.name.replace(/</g,'&lt;');
                     var tag = c.asaas ? '<span style="color:#059669;font-weight:700;margin-left:6px;">✓ Asaas</span>' : '<span style="color:#B87333;font-weight:600;margin-left:6px;">(novo)</span>';
-                    return '<div onclick="cobSelect(' + c.id + ',' + JSON.stringify(c.name) + ')" onmouseover="this.style.background=\'#f5ebe0\'" onmouseout="this.style.background=\'\'" style="padding:.5rem .75rem;cursor:pointer;font-size:.85rem;border-bottom:1px solid #f0f0f0;">' + c.name.replace(/</g,'&lt;') + tag + '</div>';
+                    // Usa data-* em vez de onclick inline — mais robusto, evita problemas com aspas/escape
+                    return '<div class="cob-item" data-cliid="' + c.id + '" data-cliname="' + nomeSafe.replace(/"/g,'&quot;') + '" style="padding:.5rem .75rem;cursor:pointer;font-size:.85rem;border-bottom:1px solid #f0f0f0;">' + nomeSafe + tag + '</div>';
                 }).join('');
             }
             drop.style.display = 'block';
@@ -346,6 +348,28 @@ echo voltar_ao_processo_html();
             // Popular select de casos com os processos deste cliente
             cobPopularCasos(id);
         }
+        // Event delegation — mousedown dispara antes do blur e antes do outer click listener
+        (function(){
+            var drop = document.getElementById('cobDropdown');
+            if (!drop) return;
+            drop.addEventListener('mousedown', function(e){
+                var item = e.target.closest('.cob-item');
+                if (!item) return;
+                e.preventDefault(); // impede blur do input
+                var id = parseInt(item.getAttribute('data-cliid'), 10);
+                var nome = item.getAttribute('data-cliname') || '';
+                // Decodifica &quot; e &lt;
+                var tmp = document.createElement('textarea'); tmp.innerHTML = nome; nome = tmp.value;
+                cobSelect(id, nome);
+            });
+            // Hover visual via delegation
+            drop.addEventListener('mouseover', function(e){
+                var it = e.target.closest('.cob-item'); if (it) it.style.background = '#f5ebe0';
+            });
+            drop.addEventListener('mouseout', function(e){
+                var it = e.target.closest('.cob-item'); if (it) it.style.background = '';
+            });
+        })();
         function cobPopularCasos(clientId) {
             var sel = document.getElementById('cobCaseSelect');
             if (!sel) return;
