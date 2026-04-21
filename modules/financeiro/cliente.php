@@ -272,27 +272,37 @@ echo voltar_ao_processo_html();
 
 <script>
 function vincularCobrancaProcesso(cobId, caseId) {
+    // Usa token fresco do heartbeat se disponível, senão o da renderização
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
     var fd = new FormData();
     fd.append('action', 'vincular_case');
     fd.append('cobranca_id', cobId);
     fd.append('case_id', caseId);
-    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fd.append('csrf_token', csrf);
     fetch('<?= module_url('financeiro', 'api.php') ?>', {
         method: 'POST', body: fd, credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    }).then(function(r){ return r.text().then(function(t){ try { return JSON.parse(t); } catch(e){ return { error: 'Resposta inválida' }; } }); })
-      .then(function(d){
-          if (d.ok) {
-              // Feedback visual rápido
-              var toast = document.createElement('div');
-              toast.textContent = caseId === '0' ? '✓ Desvinculado do processo' : '✓ Vinculado ao processo';
-              toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;z-index:100000;box-shadow:0 8px 24px rgba(0,0,0,.25);';
-              document.body.appendChild(toast);
-              setTimeout(function(){ toast.remove(); }, 2000);
-          } else {
-              alert('Falha: ' + (d.error || '?'));
-          }
-      });
+    }).then(function(r){
+        return r.text().then(function(t){
+            try { return { status: r.status, body: JSON.parse(t) }; }
+            catch(e) { return { status: r.status, body: { error: 'Resposta não-JSON (status ' + r.status + ')' } }; }
+        });
+    }).then(function(res){
+        var d = res.body || {};
+        if (d.csrf_expired) {
+            if (confirm('Token expirado. Recarregar a página pra pegar um novo?')) location.reload();
+            return;
+        }
+        if (d.ok) {
+            var toast = document.createElement('div');
+            toast.textContent = caseId === '0' ? '✓ Desvinculado do processo' : '✓ Vinculado ao processo';
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:10px 16px;border-radius:8px;font-weight:600;z-index:100000;box-shadow:0 8px 24px rgba(0,0,0,.25);';
+            document.body.appendChild(toast);
+            setTimeout(function(){ toast.remove(); }, 2000);
+        } else {
+            alert('Falha: ' + (d.error || '?'));
+        }
+    }).catch(function(e){ alert('Erro de rede: ' + e.message); });
 }
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

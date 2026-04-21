@@ -9,7 +9,18 @@ if (!can_access_financeiro()) { http_response_code(403); echo json_encode(array(
 require_once __DIR__ . '/../../core/asaas_helper.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('financeiro')); }
-if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('financeiro')); }
+
+$isAjax = (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest');
+
+if (!validate_csrf()) {
+    if ($isAjax) {
+        header('Content-Type: application/json', true, 403);
+        echo json_encode(array('error' => 'Token CSRF expirado — recarregue a página e tente de novo', 'csrf_expired' => true));
+        exit;
+    }
+    flash_set('error', 'Token inválido.');
+    redirect(module_url('financeiro'));
+}
 
 $action = $_POST['action'] ?? '';
 $pdo = db();
