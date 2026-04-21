@@ -216,10 +216,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.6rem .7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:grab; transition:all var(--transition); overflow:hidden; position:relative; }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
-.lead-cobrar-ico { position:absolute; top:6px; right:6px; background:#B87333; border:1px solid #8b5a26; color:#fff; border-radius:6px; padding:2px 7px; height:auto; display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:800; letter-spacing:.3px; cursor:pointer; opacity:.92; transition:all .15s; line-height:1.2; box-shadow:0 1px 3px rgba(0,0,0,.12); }
+.lead-cobrar-ico { position:absolute; top:4px; right:4px; background:#B87333; border:none; color:#fff; border-radius:4px; padding:0 5px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:800; cursor:pointer; opacity:.9; transition:all .15s; line-height:1; }
 .lead-card:hover .lead-cobrar-ico { opacity:1; }
-.lead-cobrar-ico:hover { background:#8b5a26; transform:scale(1.05); }
-.lead-cobrar-ico-off { background:#cbd5e1 !important; border-color:#94a3b8 !important; color:#64748b !important; opacity:.75; }
+.lead-cobrar-ico:hover { background:#8b5a26; transform:scale(1.1); }
+.lead-cobrar-ico-off { background:#cbd5e1 !important; color:#64748b !important; opacity:.7; }
 .lead-name { font-weight:700; font-size:.8rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lead-meta { font-size:.65rem; color:var(--text-muted); display:flex; flex-direction:column; gap:.1rem; }
 .lead-meta .phone { color:var(--success); }
@@ -356,7 +356,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 ondragstart="event.preventDefault();event.stopPropagation();return false;"
                                 ontouchstart="event.stopPropagation();"
                                 onclick="event.stopPropagation();event.preventDefault();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>);return false;"
-                                title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">R$ COBRAR</button>
+                                title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">R$</button>
                     <?php endif; ?>
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
@@ -725,14 +725,11 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             $_hasClient = (int)($lead['client_id'] ?? 0) > 0;
             $_btnTitle = $_hasClient
                 ? 'Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma, parcelas)'
-                : 'Lead ainda sem cliente vinculado — vincule primeiro pelo cadastro do lead';
+                : 'Lead ainda sem cliente vinculado — vincule primeiro';
         ?>
-            <br>
             <button type="button" onclick="criarCobrancaAsaas(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
                     title="<?= e($_btnTitle) ?>"
-                    style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:4px 10px;border-radius:8px;font-size:.7rem;font-weight:800;cursor:pointer;margin-top:4px;letter-spacing:.3px;<?= $_hasClient ? 'box-shadow:0 2px 4px rgba(184,115,51,.3);' : 'opacity:.7;' ?>">
-                R$ COBRAR
-            </button>
+                    style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:1px 6px;border-radius:8px;font-size:.6rem;font-weight:700;cursor:pointer;margin-left:3px;<?= $_hasClient ? '' : 'opacity:.7;' ?>">R$</button>
         <?php endif; ?>
     </td>
     <td class="editable" style="min-width:60px;"><input value="<?= e($lead['urgencia'] ?? '') ?>" data-id="<?= $lid ?>" data-field="urgencia" onchange="saveCell(this)"></td>
