@@ -376,13 +376,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 /* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
-/* Sticky removido temporariamente — não estava conseguindo respeitar
-   larguras declaradas e invadia a coluna Contato. Nome e # agora
-   rolam junto com as outras colunas. Se quiser sticky de volta, decidir
-   depois de validar que o telefone tá aparecendo OK. */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { width:36px;min-width:36px;max-width:36px;box-sizing:border-box; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { width:220px;min-width:220px;max-width:220px;box-sizing:border-box; }
-.tbl-grid td.sticky-col-2 input { max-width:100%;text-overflow:ellipsis; }
+/* Sticky de volta — agora com DIV em vez de INPUT na Nome (div respeita
+   text-overflow:ellipsis corretamente, input mostrava o FIM do texto) */
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px;box-sizing:border-box;overflow:hidden; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:220px;min-width:220px;max-width:220px;box-sizing:border-box;overflow:hidden; }
+.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
+.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
+.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
+/* Divider sutil entre sticky e resto */
+.tbl-grid td.sticky-col-2::after, .tbl-grid th.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:1px;background:rgba(0,0,0,.08);pointer-events:none; }
+/* Células em modo display (div) — respeitam largura com reticências */
+.cell-inline-display { display:block;width:100%;padding:3px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:text;border-radius:3px;line-height:1.4;min-height:20px; }
+.cell-inline-display:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
@@ -571,8 +576,8 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
-    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);"><input value="<?= e($lead['name']) ?>" title="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:180px;width:180px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)" title="<?= e($lead['phone'] ?? '') ?>"></td>
+    <td class="sticky-col-2" style="font-weight:700;color:var(--petrol-900);"><div class="cell-inline-display" title="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onclick="cellInlineEdit(this)"><?= e($lead['name']) ?></div></td>
+    <td style="width:180px;"><div class="cell-inline-display" title="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onclick="cellInlineEdit(this)"><?= e($lead['phone'] ?? '') ?: '<span style="color:#cbd5e1;">—</span>' ?></div></td>
     <?php
         $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
         $_isFallback = empty($lead['converted_at']);
@@ -1063,23 +1068,42 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
 </script>
 
 <script>
-// Inputs na tabela mostram o FIM do texto quando valor é maior que a largura
-// (comportamento padrão do <input>). Força scrollLeft=0 pra começar do início.
-function scrollInputsParaInicio() {
-    var tbl = document.getElementById('pipelineTableBody');
-    if (!tbl) return;
-    tbl.querySelectorAll('input[type="text"], input:not([type])').forEach(function(inp){
-        try { inp.scrollLeft = 0; } catch(e) {}
+// Edição inline: div exibe com ellipsis, clique troca por input temporário.
+// Resolve o bug do <input> mostrar o FIM do texto quando não cabe.
+function cellInlineEdit(div) {
+    if (div.querySelector('input')) return; // já em edição
+    var id = div.dataset.id;
+    var field = div.dataset.field;
+    var valor = div.title || div.textContent.trim();
+    if (valor === '—') valor = '';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = valor;
+    input.dataset.id = id;
+    input.dataset.field = field;
+    input.style.cssText = 'width:100%;border:2px solid var(--rose);background:#fff;padding:2px 6px;font:inherit;outline:none;border-radius:3px;';
+    div.innerHTML = '';
+    div.appendChild(input);
+    input.focus();
+    input.select();
+    var terminarEdicao = function(salvar) {
+        if (input.parentNode !== div) return; // já foi processado
+        var novoValor = input.value;
+        if (salvar && novoValor !== valor) {
+            saveCell(input); // reaproveita a função existente
+        }
+        div.innerHTML = novoValor ? escapeHtmlSimple(novoValor) : '<span style="color:#cbd5e1;">—</span>';
+        div.title = novoValor;
+    };
+    input.addEventListener('blur', function(){ terminarEdicao(true); });
+    input.addEventListener('keydown', function(ev){
+        if (ev.key === 'Enter') { ev.preventDefault(); input.blur(); }
+        if (ev.key === 'Escape') { ev.preventDefault(); terminarEdicao(false); }
     });
 }
-// Roda no load + quando input perde foco (caret volta pro fim senão)
-document.addEventListener('DOMContentLoaded', scrollInputsParaInicio);
-setTimeout(scrollInputsParaInicio, 100);
-document.addEventListener('focusout', function(e){
-    if (e.target && e.target.closest && e.target.closest('#pipelineTableBody')) {
-        setTimeout(function(){ try { e.target.scrollLeft = 0; } catch(err) {} }, 0);
-    }
-});
+function escapeHtmlSimple(s) {
+    return (s || '').replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+}
 
 // Toggle Kanban / Tabela
 // Salvar célula inline via AJAX
