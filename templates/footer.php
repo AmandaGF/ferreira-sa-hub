@@ -57,51 +57,19 @@
     });
 
     // ── Install prompt (Android/Chrome/Edge) ──
+    // Expõe o prompt globalmente pra botão permanente da sidebar acessá-lo
+    window._fsaDeferredPrompt = null;
     var deferredPrompt = null;
     window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         deferredPrompt = e;
-        // Só mostra se não foi dispensado antes (localStorage)
-        if (localStorage.getItem('fsa_install_dispensado') === '1') return;
-        mostrarBotaoInstalar();
+        window._fsaDeferredPrompt = e;
     });
 
     window.addEventListener('appinstalled', function() {
-        esconderBotaoInstalar();
         deferredPrompt = null;
+        window._fsaDeferredPrompt = null;
     });
-
-    function mostrarBotaoInstalar() {
-        if (document.getElementById('fsaInstallBtn')) return;
-        var btn = document.createElement('button');
-        btn.id = 'fsaInstallBtn';
-        btn.innerHTML = '📲 Instalar Hub';
-        btn.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#B87333;color:#fff;border:none;padding:.7rem 1.1rem;border-radius:999px;font-weight:700;font-size:.82rem;cursor:pointer;box-shadow:0 8px 24px rgba(184,115,51,.4);z-index:9998;display:flex;align-items:center;gap:.4rem;';
-        btn.onclick = function() {
-            if (!deferredPrompt) return;
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then(function() {
-                deferredPrompt = null;
-                esconderBotaoInstalar();
-            });
-        };
-        // Botão de dispensar
-        var close = document.createElement('span');
-        close.textContent = '×';
-        close.style.cssText = 'margin-left:4px;opacity:.7;font-size:1rem;line-height:1;padding:0 2px;';
-        close.onclick = function(ev) {
-            ev.stopPropagation();
-            localStorage.setItem('fsa_install_dispensado', '1');
-            esconderBotaoInstalar();
-        };
-        btn.appendChild(close);
-        document.body.appendChild(btn);
-    }
-
-    function esconderBotaoInstalar() {
-        var b = document.getElementById('fsaInstallBtn');
-        if (b) b.remove();
-    }
 
     function mostrarBannerUpdate(callback) {
         if (document.getElementById('fsaUpdateBanner')) return;
