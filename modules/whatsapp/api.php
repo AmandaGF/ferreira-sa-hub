@@ -556,8 +556,10 @@ if ($action === 'desativar_bot') {
 
 // ── TEMPLATES ────────────────────────────────────────────
 if ($action === 'listar_templates') {
+    // Self-heal: coluna atalho pra slash autocomplete
+    try { $pdo->exec("ALTER TABLE zapi_templates ADD COLUMN atalho VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
     $canal = $_GET['canal'] ?? '21';
-    $stmt = $pdo->prepare("SELECT id, nome, conteudo, categoria FROM zapi_templates
+    $stmt = $pdo->prepare("SELECT id, nome, atalho, conteudo, categoria FROM zapi_templates
                            WHERE ativo = 1 AND (canal = ? OR canal = 'ambos') ORDER BY nome ASC");
     $stmt->execute(array($canal));
     echo json_encode(array('ok' => true, 'templates' => $stmt->fetchAll()));

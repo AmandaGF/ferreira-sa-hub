@@ -13,6 +13,10 @@ $pdo = db();
 $pageTitle = 'Templates WhatsApp';
 $userId    = current_user_id();
 
+// Self-heal: coluna atalho (slash command) — uso com / no chat pra autocomplete
+try { $pdo->exec("ALTER TABLE zapi_templates ADD COLUMN atalho VARCHAR(50) DEFAULT NULL AFTER nome"); } catch (Exception $e) {}
+try { $pdo->exec("CREATE INDEX idx_zapi_tpl_atalho ON zapi_templates (atalho)"); } catch (Exception $e) {}
+
 // ── POST ────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf();
@@ -21,6 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'salvar') {
         $id        = (int)($_POST['id'] ?? 0);
         $nome      = trim($_POST['nome'] ?? '');
+        $atalho    = trim($_POST['atalho'] ?? '');
+        // Atalho: só letras, números, hífen e underscore; sem espaços nem acento; lowercase
+        $atalho = strtolower(preg_replace('/[^a-z0-9_-]/i', '', $atalho));
+        if ($atalho === '') $atalho = null;
         $conteudo  = trim($_POST['conteudo'] ?? '');
         $canal     = in_array($_POST['canal'] ?? 'ambos', array('21','24','ambos'), true) ? $_POST['canal'] : 'ambos';
         $categoria = trim($_POST['categoria'] ?? '');
@@ -29,14 +37,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$nome || !$conteudo) {
             flash_set('error', 'Nome e conteúdo são obrigatórios.');
         } else {
+            // Verifica se atalho já está em uso por outro template
+            if ($atalho) {
+                $chk = $pdo->prepare("SELECT id, nome FROM zapi_templates WHERE atalho = ? AND id != ?");
+                $chk->execute(array($atalho, $id));
+                $emUso = $chk->fetch();
+                if ($emUso) {
+                    flash_set('error', 'Atalho /' . $atalho . ' já está em uso pelo template "' . $emUso['nome'] . '". Escolha outro.');
+                    redirect(module_url('whatsapp', 'templates.php'));
+                }
+            }
             if ($id) {
-                $pdo->prepare("UPDATE zapi_templates SET nome=?, conteudo=?, canal=?, categoria=?, ativo=? WHERE id=?")
-                    ->execute(array($nome, $conteudo, $canal, $categoria, $ativo, $id));
+                $pdo->prepare("UPDATE zapi_templates SET nome=?, atalho=?, conteudo=?, canal=?, categoria=?, ativo=? WHERE id=?")
+                    ->execute(array($nome, $atalho, $conteudo, $canal, $categoria, $ativo, $id));
                 audit_log('zapi_tpl_editar', 'zapi_templates', $id, $nome);
                 flash_set('success', 'Template atualizado.');
             } else {
-                $pdo->prepare("INSERT INTO zapi_templates (nome, conteudo, canal, categoria, ativo, created_by) VALUES (?,?,?,?,?,?)")
-                    ->execute(array($nome, $conteudo, $canal, $categoria, $ativo, $userId));
+                $pdo->prepare("INSERT INTO zapi_templates (nome, atalho, conteudo, canal, categoria, ativo, created_by) VALUES (?,?,?,?,?,?,?)")
+                    ->execute(array($nome, $atalho, $conteudo, $canal, $categoria, $ativo, $userId));
                 $newId = (int)$pdo->lastInsertId();
                 audit_log('zapi_tpl_criar', 'zapi_templates', $newId, $nome);
                 flash_set('success', 'Template criado.');
@@ -112,10 +130,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="salvar">
             <input type="hidden" name="id" value="<?= $editTpl ? $editTpl['id'] : 0 ?>">
-            <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem;">
+            <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem;">
                 <div>
                     <label class="text-sm" style="font-weight:600;">Nome*</label>
                     <input type="text" name="nome" value="<?= e($editTpl['nome'] ?? '') ?>" class="form-control" required>
+                </div>
+                <div>
+                    <label class="text-sm" style="font-weight:600;">Atalho <span style="color:#64748b;font-weight:400;">(/ no chat)</span></label>
+                    <input type="text" name="atalho" value="<?= e($editTpl['atalho'] ?? '') ?>" class="form-control" placeholder="ex: boas, cobranca, docs" maxlength="50" pattern="[a-zA-Z0-9_-]+" title="Só letras, números, hífen ou underscore — sem espaços nem acento">
                 </div>
                 <div>
                     <label class="text-sm" style="font-weight:600;">Canal</label>
@@ -130,6 +152,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <input type="text" name="categoria" value="<?= e($editTpl['categoria'] ?? '') ?>" class="form-control" placeholder="recepcao, agenda, processo...">
                 </div>
             </div>
+            <p class="text-sm text-muted" style="margin:-.3rem 0 .5rem;">
+                💡 <strong>Atalho:</strong> digite <code>/</code> seguido do atalho no chat pra usar rapidamente (ex: <code>/boas</code>, <code>/docs</code>). Se vazio, pode usar o nome pra buscar.
+            </p>
             <label class="text-sm" style="font-weight:600;">Conteúdo*</label>
             <textarea name="conteudo" rows="5" class="form-control" required placeholder="Olá, {{nome}}! ..."><?= e($editTpl['conteudo'] ?? '') ?></textarea>
             <p class="text-sm text-muted" style="margin:.3rem 0;">Variáveis disponíveis: <code>{{nome}}</code>, <code>{{data}}</code>, <code>{{hora}}</code>, <code>{{numero_processo}}</code> — serão substituídas no envio automático.</p>

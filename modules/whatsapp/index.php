@@ -247,7 +247,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
 
         <!-- Dropdown de autocomplete slash (/) — pra escolher respostas rápidas digitando -->
-        <div id="waSlashDrop" style="display:none;position:absolute;z-index:50;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-width:420px;max-height:280px;overflow-y:auto;"></div>
+        <div id="waSlashDrop" style="display:none;position:fixed;z-index:9999;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);width:380px;max-width:90vw;max-height:280px;overflow-y:auto;"></div>
 
         <!-- Barra de resposta (aparece quando clica em ↩ Responder numa mensagem) -->
         <div id="waReplyBar" style="display:none;align-items:center;gap:.5rem;padding:.45rem .75rem;background:#eff6ff;border-top:1px solid #bfdbfe;border-left:3px solid #2563eb;">
@@ -825,26 +825,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var drop = document.getElementById('waSlashDrop');
         if (!drop || !templatesCache) return;
         var q = (query || '').toLowerCase();
+        // Filtra: primeiro por atalho (match exato no começo), depois por nome (substring)
         var resultados = templatesCache.filter(function(t){
-            return (t.nome || '').toLowerCase().indexOf(q) !== -1;
+            var atalho = (t.atalho || '').toLowerCase();
+            var nome = (t.nome || '').toLowerCase();
+            if (q === '') return true;
+            if (atalho && atalho.indexOf(q) === 0) return true;      // atalho começa com q
+            if (nome.indexOf(q) !== -1) return true;                  // nome contém q
+            return false;
         }).slice(0, 8);
         if (!resultados.length) { drop.style.display = 'none'; return; }
         var html = '';
         resultados.forEach(function(t, i){
             var preview = (t.conteudo || '').substr(0, 90).replace(/\n/g,' ');
-            html += '<div class="wa-slash-item ' + (i === 0 ? 'selected' : '') + '" data-nome="' + escapeHtml(t.nome) + '" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f3f4f6;">'
-                  + '<div style="font-weight:700;font-size:.82rem;color:#052228;">/' + escapeHtml(t.nome) + '</div>'
+            // Preferência: mostra /atalho se tem atalho, senão /nome
+            var label = t.atalho ? '/' + t.atalho : '/' + (t.nome || '').toLowerCase().replace(/\s+/g,'');
+            html += '<div class="wa-slash-item ' + (i === 0 ? 'selected' : '') + '" data-id="' + t.id + '" style="padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f3f4f6;">'
+                  + '<div style="display:flex;align-items:center;gap:.4rem;">'
+                  + '<div style="font-weight:700;font-size:.82rem;color:#052228;">' + escapeHtml(label) + '</div>'
+                  + (t.atalho ? '<div style="font-size:.68rem;color:#94a3b8;">— ' + escapeHtml(t.nome) + '</div>' : '')
+                  + '</div>'
                   + '<div style="font-size:.7rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(preview) + '</div>'
                   + '</div>';
         });
         drop.innerHTML = html;
 
-        // Posiciona o dropdown ACIMA do input
+        // Posiciona o dropdown ACIMA do input (position:fixed = relativo ao viewport)
         var inp = document.getElementById('waInput');
         var r = inp.getBoundingClientRect();
-        drop.style.left = r.left + 'px';
-        drop.style.top = (r.top - Math.min(280, resultados.length * 52) - 6 + window.scrollY) + 'px';
-        drop.style.minWidth = Math.max(260, r.width * 0.6) + 'px';
+        var alturaEstimada = Math.min(280, resultados.length * 52);
+        drop.style.left = Math.max(8, r.left) + 'px';
+        drop.style.top  = Math.max(8, r.top - alturaEstimada - 6) + 'px';
         drop.style.display = 'block';
 
         // Handlers nos itens
@@ -854,8 +865,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 el.classList.add('selected');
             });
             el.addEventListener('click', function(){
-                var nome = el.getAttribute('data-nome');
-                var tpl = templatesCache.find(function(t){ return t.nome === nome; });
+                var id = parseInt(el.getAttribute('data-id'), 10);
+                var tpl = templatesCache.find(function(t){ return +t.id === id; });
                 if (!tpl) return;
                 // Substitui o /query pelo texto do template (com variáveis resolvidas)
                 var inp = document.getElementById('waInput');

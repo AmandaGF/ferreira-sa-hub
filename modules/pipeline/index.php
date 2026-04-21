@@ -686,16 +686,21 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 var _pendingForm = null;
 var _pendingDragData = null;
 
-// Excluir lead irregular (só Amanda/Luiz)
+// Excluir lead irregular (só Amanda/Luiz) — usa duas confirmações em vez de prompt
 function excluirLeadPlanilha(leadId, nome) {
-    var msg = 'Remover "' + nome + '" SÓ DA PLANILHA COMERCIAL?\n\n'
-            + '✅ O cliente permanece cadastrado (CRM, Operacional, Financeiro).\n'
-            + '✅ Processos, documentos e cobranças ficam intactos.\n'
-            + '❌ Apenas o card/linha do Comercial é removido.\n\n'
-            + 'Use pra limpar cadastros irregulares (ex: cliente antigo que entrou como contrato recente).\n\n'
-            + 'Digite EXCLUIR pra confirmar (ação irreversível na planilha).';
-    var input = prompt(msg);
-    if (input !== 'EXCLUIR') return;
+    var msg1 = 'Remover "' + nome + '" SÓ DA PLANILHA COMERCIAL?\n\n'
+             + '✅ O cliente permanece cadastrado (CRM, Operacional, Financeiro).\n'
+             + '✅ Processos, documentos e cobranças ficam intactos.\n'
+             + '❌ Apenas a linha do Comercial é removida.\n\n'
+             + 'Confirma? (próxima tela pede confirmação final)';
+    if (!confirm(msg1)) return;
+    if (!confirm('⚠️ ÚLTIMA CONFIRMAÇÃO\n\nRemover "' + nome + '" da Planilha Comercial? Isso é irreversível (na planilha).')) return;
+
+    var btn = null;
+    try { btn = event && event.target && event.target.closest ? event.target.closest('button') : null; } catch(e) {}
+    var row = btn && btn.closest ? btn.closest('tr') : null;
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
     var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
     var fd = new FormData();
     fd.append('action', 'delete');
@@ -706,20 +711,30 @@ function excluirLeadPlanilha(leadId, nome) {
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     }).then(function(r){
         return r.text().then(function(t){
-            try { return { status: r.status, body: JSON.parse(t) }; }
-            catch(e) { return { status: r.status, body: {} }; }
+            var body = {};
+            try { body = JSON.parse(t); } catch(e) { body = { error: 'Resposta não-JSON', raw: t.substring(0,200) }; }
+            return { status: r.status, body: body };
         });
     }).then(function(res){
-        if (res.body.ok) {
-            // Remove a linha da tabela sem reload
-            var btn = document.activeElement;
-            var row = btn && btn.closest ? btn.closest('tr') : null;
+        console.log('[excluirLead] status=' + res.status, res.body);
+        if (res.body && res.body.ok) {
             if (row) row.remove();
-            alert('✓ Lead "' + nome + '" excluído.');
+            // Toast discreto em vez de alert
+            var toast = document.createElement('div');
+            toast.textContent = '✓ Lead "' + nome + '" removido da planilha.';
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#059669;color:#fff;padding:10px 18px;border-radius:8px;font-weight:600;z-index:100000;box-shadow:0 8px 24px rgba(0,0,0,.25);';
+            document.body.appendChild(toast);
+            setTimeout(function(){ toast.remove(); }, 3000);
         } else {
-            alert('Falha: ' + (res.body.error || ('HTTP ' + res.status)));
+            if (btn) { btn.disabled = false; btn.textContent = '🗑️'; }
+            var err = (res.body && res.body.error) ? res.body.error : ('HTTP ' + res.status);
+            alert('Falha ao excluir: ' + err);
         }
-    }).catch(function(e){ alert('Erro de rede: ' + e.message); });
+    }).catch(function(e){
+        if (btn) { btn.disabled = false; btn.textContent = '🗑️'; }
+        console.error('[excluirLead] erro de rede:', e);
+        alert('Erro de rede: ' + e.message);
+    });
 }
 
 function handleStageMove(select) {
