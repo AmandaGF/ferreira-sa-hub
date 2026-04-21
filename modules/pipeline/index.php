@@ -108,7 +108,9 @@ $stmtT = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
      c.asaas_customer_id AS asaas_customer_id,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
-     cs.drive_folder_url
+     cs.drive_folder_url,
+     (SELECT COUNT(*) FROM asaas_cobrancas ac WHERE ac.client_id = c.id) AS asaas_total_cobrancas,
+     (SELECT COUNT(*) FROM asaas_cobrancas ac WHERE ac.client_id = c.id AND ac.status NOT IN ('CANCELED','REFUNDED','REFUND_REQUESTED','REFUND_IN_PROGRESS')) AS asaas_cobrancas_ativas
      FROM pipeline_leads pl
      LEFT JOIN users u ON u.id = pl.assigned_to
      LEFT JOIN clients c ON c.id = pl.client_id
@@ -634,12 +636,22 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
         </select>
     </td>
-    <td style="text-align:center;min-width:120px;">
-        <?php if (!empty($lead['asaas_customer_id'])): ?>
-            <span title="Cliente cadastrado no Asaas (<?= e($lead['asaas_customer_id']) ?>)" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✓ SIM</span>
-        <?php else: ?>
-            <span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✕ NÃO</span>
-        <?php endif; ?>
+    <td style="text-align:center;min-width:140px;">
+        <?php
+            $_asaasId = $lead['asaas_customer_id'] ?? '';
+            $_totalCob = (int)($lead['asaas_total_cobrancas'] ?? 0);
+            $_cobAtivas = (int)($lead['asaas_cobrancas_ativas'] ?? 0);
+            if (empty($_asaasId)) {
+                // Cliente ainda não cadastrado no Asaas
+                echo '<span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✕ NÃO</span>';
+            } elseif ($_totalCob > 0 && $_cobAtivas === 0) {
+                // Cliente cadastrado, mas TODAS as cobranças foram canceladas/reembolsadas
+                echo '<span title="Cliente no Asaas, mas todas as ' . $_totalCob . ' cobrança(s) estão canceladas. Crie uma nova pra reativar." style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:.64rem;font-weight:700;">⊘ CANCELADA</span>';
+            } else {
+                // Cliente cadastrado com cobrança ativa (ou ainda sem cobrança — só customer)
+                echo '<span title="Cliente cadastrado no Asaas (' . e($_asaasId) . ') — ' . $_cobAtivas . ' cobrança(s) ativa(s)" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✓ SIM</span>';
+            }
+        ?>
         <?php if (function_exists('can_access_financeiro') && can_access_financeiro() && (int)$lead['client_id'] > 0): ?>
             <button type="button" onclick="criarCobrancaAsaas(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
                     title="Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma de pagamento)"

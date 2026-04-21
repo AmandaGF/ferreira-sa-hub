@@ -131,14 +131,17 @@ if (isset($_GET['csv'])) {
                {$whereStr} ORDER BY {$orderBy}";
     $sCsv = $pdo->prepare($sqlCsv);
     $sCsv->execute($params);
+    $statusPagosCsv = array('RECEIVED','CONFIRMED','RECEIVED_IN_CASH');
     while ($r = $sCsv->fetch()) {
+        // Valor pago só aparece se o status for de pagamento efetivo — evita alimentar somas com cobranças canceladas
+        $vPagoCsv = in_array($r['status'], $statusPagosCsv, true) ? (float)($r['valor_pago'] ?? 0) : 0;
         fputcsv($out, array(
             $r['vencimento'] ?: '',
             $r['data_pagamento'] ?: '',
             $r['cli_name'] ?: '',
             $r['cli_cpf'] ?: '',
             number_format((float)$r['valor'], 2, ',', '.'),
-            number_format((float)($r['valor_pago'] ?? 0), 2, ',', '.'),
+            number_format($vPagoCsv, 2, ',', '.'),
             $r['status'] ?: '',
             $r['forma_pagamento'] ?: '',
             ($r['case_title'] ? $r['case_title'] : '') . ($r['case_number'] ? ' — ' . $r['case_number'] : ''),
@@ -353,7 +356,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endif; ?>
             </td>
             <td class="num"><strong>R$ <?= number_format((float)$r['valor'], 2, ',', '.') ?></strong></td>
-            <td class="num" style="color:#059669;"><?= $r['valor_pago'] > 0 ? 'R$ ' . number_format((float)$r['valor_pago'], 2, ',', '.') : '—' ?></td>
+            <?php
+                // Valor Pago só aparece em verde se o status é de pagamento efetivo.
+                // Cobranças canceladas às vezes têm valor_pago > 0 no Asaas (tentativas, reembolsos etc) — não contam como receita.
+                $_pagosOk = array('RECEIVED','CONFIRMED','RECEIVED_IN_CASH');
+                $_vPago = (float)($r['valor_pago'] ?? 0);
+                $_pagoOk = in_array($r['status'], $_pagosOk, true) && $_vPago > 0;
+            ?>
+            <td class="num">
+                <?php if ($_pagoOk): ?>
+                    <span style="color:#059669;">R$ <?= number_format($_vPago, 2, ',', '.') ?></span>
+                <?php elseif ($_vPago > 0): ?>
+                    <span style="color:#9ca3af;text-decoration:line-through;font-size:.72rem;" title="Valor registrado no Asaas mas cobrança está <?= e($r['status']) ?> — NÃO conta como receita">R$ <?= number_format($_vPago, 2, ',', '.') ?></span>
+                <?php else: ?>
+                    <span style="color:var(--text-muted);">—</span>
+                <?php endif; ?>
+            </td>
             <td><span class="cobr-status" style="background:<?= e($st[1]) ?>;"><?= e($st[0]) ?></span></td>
             <td style="font-size:.72rem;"><?= e($r['forma_pagamento'] ?: '—') ?></td>
             <td style="font-family:monospace;font-size:.68rem;color:var(--text-muted);"><?= e($r['asaas_payment_id'] ?? '—') ?></td>
