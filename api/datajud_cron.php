@@ -35,19 +35,22 @@ echo "=== DataJud Sync — " . date('Y-m-d H:i:s') . " ===\n\n";
 // Buscar casos elegíveis: TODOS com número cadastrado,
 // exceto cancelados e arquivados, que não sincronizaram nas últimas 24h.
 // LIMIT default 1000 — com rate limit de 1s por case, ~17min.
-// Se vier ?limit=N via URL, usa esse valor (útil pra teste rápido pelo browser).
+// ?limit=N via URL = teste rápido. ?force=1 = ignora a janela de 24h.
 $limiteReq = isset($_GET['limit']) ? max(1, min(1000, (int)$_GET['limit'])) : 1000;
+$forceSync = isset($_GET['force']) && $_GET['force'] === '1';
+$wherePeriodo = $forceSync ? "" : "AND (datajud_ultima_sync IS NULL OR datajud_ultima_sync < NOW() - INTERVAL 24 HOUR)";
 $stmt = $pdo->prepare(
     "SELECT id, title, case_number FROM cases
      WHERE case_number IS NOT NULL
        AND case_number != ''
        AND status NOT IN ('cancelado', 'arquivado')
-       AND (datajud_ultima_sync IS NULL OR datajud_ultima_sync < NOW() - INTERVAL 24 HOUR)
+       $wherePeriodo
      ORDER BY datajud_ultima_sync ASC
      LIMIT " . (int)$limiteReq
 );
 $stmt->execute();
 $casos = $stmt->fetchAll();
+if ($forceSync) echo "⚠️  MODO FORCE ativo — ignorando janela de 24h\n\n";
 
 echo "Casos elegiveis: " . count($casos) . "\n\n";
 
