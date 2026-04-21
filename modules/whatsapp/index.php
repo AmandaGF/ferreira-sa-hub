@@ -70,9 +70,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-filter.active { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
 .wa-search { width:100%;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:.78rem; }
 .wa-list { flex:1;overflow-y:auto; }
-.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start; }
+.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:background .15s; }
 .wa-conv:hover { background:<?= $accentLight ?>; }
 .wa-conv.active { background:<?= $accentLight ?>;border-left:3px solid <?= $accentColor ?>; }
+/* Estado visual por status */
+.wa-conv[data-status="resolvido"] { background:#f1f5f9;opacity:.72; }
+.wa-conv[data-status="resolvido"] .wa-conv-name { color:#64748b;text-decoration:line-through;text-decoration-color:rgba(100,116,139,.5); }
+.wa-conv[data-status="resolvido"] .wa-conv-preview { font-style:italic; }
+.wa-conv[data-status="aguardando"] { background:rgba(251,191,36,.08); }
+.wa-conv[data-status="aguardando"] .wa-conv-name { color:#b45309; }
+.wa-conv[data-status="em_atendimento"] { background:rgba(5,150,105,.04); }
+.wa-conv[data-status="bot_ativo"] { background:rgba(139,92,246,.06); }
+.wa-conv.mine { border-right:3px solid #059669; }
+.wa-conv-status-pill { display:inline-block;padding:1px 6px;border-radius:8px;font-size:.58rem;font-weight:700;margin-left:4px;vertical-align:middle;letter-spacing:.3px;text-transform:uppercase; }
+.wa-conv-status-pill.resolvido { background:#64748b;color:#fff; }
+.wa-conv-status-pill.aguardando { background:#f59e0b;color:#fff; }
+.wa-conv-status-pill.em_atendimento { background:#059669;color:#fff; }
+.wa-conv-status-pill.bot { background:#7c3aed;color:#fff; }
 .wa-avatar { width:36px;height:36px;border-radius:50%;background:<?= $accentColor ?>;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;overflow:hidden;position:relative; }
 .wa-avatar img { width:100%;height:100%;object-fit:cover;border-radius:50%;display:block; }
 .wa-conv-info { flex:1;min-width:0; }
@@ -348,6 +362,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             d.conversas.forEach(function(c){
                 var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
                 var isActive = convAtiva === c.id ? 'active' : '';
+                // Status visual: prioriza bot ativo quando for o caso
+                var statusVis = c.status || 'aguardando';
+                if (+c.bot_ativo && statusVis !== 'resolvido') statusVis = 'bot_ativo';
+                // Se o usuário logado é o atendente, marca 'mine' (borda direita verde)
+                var ehMinha = (+c.atendente_id === MEU_USER_ID) ? 'mine' : '';
                 // Borda esquerda com cor do atendente (se houver); se delegada, bordas mais espessa.
                 var cor = corAtendente(c.atendente_id);
                 var borderStyle = '';
@@ -355,11 +374,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     var espessura = +c.delegada ? '5px' : '3px';
                     borderStyle = 'border-left:' + espessura + ' solid ' + cor + ';';
                 }
-                html += '<div class="wa-conv '+isActive+'" data-id="'+c.id+'" style="'+borderStyle+'" onclick="waAbrir('+c.id+')">';
+                html += '<div class="wa-conv '+isActive+' '+ehMinha+'" data-id="'+c.id+'" data-status="'+statusVis+'" style="'+borderStyle+'" onclick="waAbrir('+c.id+')">';
                 html += '  <div class="wa-avatar">' + avatarHtml(c, nome) + '</div>';
                 html += '  <div class="wa-conv-info">';
                 html += '    <div class="wa-conv-name">' + escapeHtml(nome);
-                if (+c.bot_ativo) html += '<span class="wa-bot-badge">🤖 BOT</span>';
+                // Pill de status: aparece se resolvido, aguardando, em_atendimento ou bot
+                var pillMap = { resolvido:'✓ Resolvido', aguardando:'⏳ Aguard.', em_atendimento:'● Em atend.', bot_ativo:'🤖 Bot' };
+                if (pillMap[statusVis]) {
+                    var pillCls = statusVis === 'bot_ativo' ? 'bot' : statusVis;
+                    html += ' <span class="wa-conv-status-pill '+pillCls+'">' + pillMap[statusVis] + '</span>';
+                } else if (+c.bot_ativo) {
+                    html += '<span class="wa-bot-badge">🤖 BOT</span>';
+                }
                 html += '</div>';
                 html += '    <div class="wa-conv-preview">' + escapeHtml((c.ultima_mensagem||'').substr(0,60)) + '</div>';
                 if (c.etiquetas && c.etiquetas.length) {
