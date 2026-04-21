@@ -586,6 +586,27 @@ if ($action === 'toggle_assinatura') {
     exit;
 }
 
+// ── CORES DOS ATENDENTES (admin only) ────────────────────
+if ($action === 'salvar_atendente_cor') {
+    if (!has_min_role('admin')) { echo json_encode(array('error' => 'Só admin pode editar cores.')); exit; }
+    $uid = (int)($_POST['user_id'] ?? 0);
+    $cor = trim($_POST['cor'] ?? '');
+    if (!$uid) { echo json_encode(array('error' => 'user_id obrigatório')); exit; }
+    if ($cor !== '' && !preg_match('/^#[0-9a-fA-F]{6}$/', $cor)) { echo json_encode(array('error' => 'Cor inválida (use formato #rrggbb)')); exit; }
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_color VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+    $pdo->prepare("UPDATE users SET wa_color = ? WHERE id = ?")->execute(array($cor ?: null, $uid));
+    audit_log('wa_cor_atendente', 'users', $uid, 'cor=' . ($cor ?: 'auto'));
+    echo json_encode(array('ok' => true, 'cor' => $cor ?: null));
+    exit;
+}
+if ($action === 'listar_atendentes_cores') {
+    if (!has_min_role('admin')) { echo json_encode(array('error' => 'Só admin')); exit; }
+    try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_color VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+    $rows = $pdo->query("SELECT id, name, role, wa_color FROM users WHERE is_active = 1 ORDER BY name ASC")->fetchAll();
+    echo json_encode(array('ok' => true, 'usuarios' => $rows));
+    exit;
+}
+
 // ── TEMPLATES ────────────────────────────────────────────
 if ($action === 'listar_templates') {
     // Self-heal: coluna atalho pra slash autocomplete

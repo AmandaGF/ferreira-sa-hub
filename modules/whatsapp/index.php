@@ -39,11 +39,20 @@ try {
     $meuDisplayCustom = (string)$st->fetchColumn();
 } catch (Exception $e) {}
 
+// Self-heal: coluna wa_color pra cor configurada por atendente (borda esquerda das conversas)
+try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_color VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+
 // Lista de usuários ativos (pra filtro de atendente e dropdown de delegação)
 $usuariosAtivos = array();
 try {
-    $usuariosAtivos = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+    $usuariosAtivos = $pdo->query("SELECT id, name, wa_color FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 } catch (Exception $e) {}
+
+// Mapa de cores { user_id: '#rrggbb' } — só entra se wa_color setado
+$atendentesCoresMap = array();
+foreach ($usuariosAtivos as $_u) {
+    if (!empty($_u['wa_color'])) $atendentesCoresMap[(int)$_u['id']] = $_u['wa_color'];
+}
 
 // Config: mostrar nome do atendente no chat interno (default: sim)
 $mostrarNomeAtendente = '1';
@@ -196,6 +205,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?= $assinaturaLigada === '1' ? '📱 Cliente vê assinatura: ON' : '📱 Cliente vê assinatura: OFF' ?>
             </button>
             <?php endif; ?>
+            <?php if (has_min_role('admin')): ?>
+            <button onclick="waAbrirCoresAtendentes()" class="btn btn-outline btn-sm" title="Escolher uma cor pra cada atendente (borda da conversa)">🎨 Cores</button>
+            <?php endif; ?>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
         <?php endif; ?>
     </div>
@@ -336,9 +348,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var MEU_NOME_CUSTOM = <?= json_encode($meuDisplayCustom, JSON_UNESCAPED_UNICODE) ?>; // override salvo (ou '')
     var MEU_NOME_COMPLETO = <?= json_encode($user['name'] ?? '', JSON_UNESCAPED_UNICODE) ?>;
 
-    // Gera cor determinística por user_id (hash simples → HSL)
+    // Cores manuais configuradas pelo admin (sobrepõem o hash automático)
+    var WA_CORES_ATENDENTES = <?= json_encode((object)$atendentesCoresMap) ?>;
+
+    // Retorna cor manual (se configurada) ou cor determinística por hash
     function corAtendente(userId) {
         if (!userId) return null;
+        if (WA_CORES_ATENDENTES[userId]) return WA_CORES_ATENDENTES[userId];
         var h = 0, s = String(userId);
         for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) & 0xffff;
         var hue = h % 360;
@@ -1941,6 +1957,90 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 location.reload();
             })
             .catch(function(e){ alert('Erro: ' + e.message); btn.innerHTML = original; btn.disabled = false; });
+    };
+
+    // Modal "Cores dos atendentes" — admin escolhe uma cor fixa pra cada atendente.
+    // A cor aparece na borda esquerda da conversa no inbox.
+    window.waAbrirCoresAtendentes = function() {
+        var PALETA = [
+            { nome: 'Vermelho', cor: '#dc2626' },
+            { nome: 'Verde', cor: '#059669' },
+            { nome: 'Lilás', cor: '#8b5cf6' },
+            { nome: 'Azul', cor: '#2563eb' },
+            { nome: 'Rosa', cor: '#ec4899' },
+            { nome: 'Laranja', cor: '#f97316' },
+            { nome: 'Amarelo', cor: '#eab308' },
+            { nome: 'Ciano', cor: '#0891b2' },
+            { nome: 'Verde-claro', cor: '#84cc16' },
+            { nome: 'Marrom', cor: '#92400e' },
+            { nome: 'Cinza', cor: '#64748b' },
+            { nome: 'Petróleo', cor: '#052228' },
+        ];
+        var overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
+
+        var fd = new FormData();
+        fd.append('action', 'listar_atendentes_cores');
+        fd.append('csrf_token', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch('<?= module_url('whatsapp', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (j.error) { alert('Erro: ' + j.error); overlay.remove(); return; }
+                var paletaHtml = PALETA.map(function(p){
+                    return '<span class="cor-opt" data-cor="' + p.cor + '" title="' + p.nome + '" style="display:inline-block;width:24px;height:24px;border-radius:50%;background:' + p.cor + ';cursor:pointer;border:2px solid #fff;box-shadow:0 0 0 1px #d1d5db;margin:0 3px 3px 0;"></span>';
+                }).join('');
+                var userRows = j.usuarios.map(function(u){
+                    var cor = u.wa_color || '';
+                    return '<div data-uid="' + u.id + '" style="display:flex;align-items:center;gap:.6rem;padding:.5rem;border-bottom:1px solid #f3f4f6;">' +
+                           '  <div class="cor-preview" style="width:16px;height:40px;border-radius:3px;background:' + (cor || '#e5e7eb') + ';flex-shrink:0;"></div>' +
+                           '  <div style="flex:1;"><div style="font-weight:700;font-size:.82rem;">' + escapeHtml(u.name) + '</div><div style="font-size:.68rem;color:#6b7280;text-transform:uppercase;">' + u.role + '</div></div>' +
+                           '  <div class="cor-wrap" style="display:flex;flex-wrap:wrap;justify-content:flex-end;max-width:260px;">' + paletaHtml + '</div>' +
+                           '  <input type="color" class="cor-custom" value="' + (cor || '#cccccc') + '" style="width:28px;height:28px;padding:0;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;" title="Cor personalizada">' +
+                           '  <button class="cor-clear" style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:3px 7px;font-size:.66rem;cursor:pointer;" title="Usar cor automática (hash)">✕</button>' +
+                           '</div>';
+                }).join('');
+                overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.25rem;width:640px;max-width:95vw;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">' +
+                    '<h3 style="margin:0 0 .25rem;font-size:1rem;color:#052228;">🎨 Cores dos atendentes</h3>' +
+                    '<p style="margin:0 0 .9rem;font-size:.75rem;color:#6b7280;">Escolha uma cor pra cada atendente. A cor aparece na borda esquerda da conversa no WhatsApp CRM. Mudanças são aplicadas imediatamente. ✕ volta pra cor automática.</p>' +
+                    '<div id="coresList" style="border:1px solid #e5e7eb;border-radius:8px;">' + userRows + '</div>' +
+                    '<div style="display:flex;justify-content:flex-end;margin-top:1rem;">' +
+                    '  <button id="coresFechar" style="padding:.55rem 1.2rem;background:#052228;color:#fff;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:.82rem;">Fechar</button>' +
+                    '</div>' +
+                    '</div>';
+                document.body.appendChild(overlay);
+                document.getElementById('coresFechar').onclick = function(){ overlay.remove(); location.reload(); };
+
+                // Handlers: clique em swatch, color picker custom, botão limpar
+                overlay.querySelectorAll('[data-uid]').forEach(function(row){
+                    var uid = row.getAttribute('data-uid');
+                    var preview = row.querySelector('.cor-preview');
+                    row.querySelectorAll('.cor-opt').forEach(function(opt){
+                        opt.onclick = function(){ salvarCor(uid, opt.getAttribute('data-cor'), preview, row.querySelector('.cor-custom')); };
+                    });
+                    row.querySelector('.cor-custom').onchange = function(e){
+                        salvarCor(uid, e.target.value, preview, e.target);
+                    };
+                    row.querySelector('.cor-clear').onclick = function(){
+                        salvarCor(uid, '', preview, row.querySelector('.cor-custom'));
+                    };
+                });
+
+                function salvarCor(uid, cor, preview, picker) {
+                    var fd2 = new FormData();
+                    fd2.append('action', 'salvar_atendente_cor');
+                    fd2.append('user_id', uid);
+                    fd2.append('cor', cor);
+                    fd2.append('csrf_token', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+                    fetch('<?= module_url('whatsapp', 'api.php') ?>', { method: 'POST', body: fd2, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function(r){ return r.json(); })
+                        .then(function(j2){
+                            if (j2.error) { alert('Erro: ' + j2.error); return; }
+                            preview.style.background = cor || '#e5e7eb';
+                            if (picker && cor) picker.value = cor;
+                        });
+                }
+            });
     };
 
     // Modal "Meu nome de atendimento" — nome que aparece acima das próprias
