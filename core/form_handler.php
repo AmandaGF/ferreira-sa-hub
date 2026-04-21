@@ -201,6 +201,16 @@ function process_form_submission($formType, $clientData, $payloadJson)
         '📋'
     );
 
+    // Web Push — notifica admin+gestão+comercial no dispositivo
+    if (function_exists('push_notify_role')) {
+        push_notify_role(
+            array('admin','gestao','comercial'),
+            '🆕 Novo lead: ' . $tipoLabel,
+            ($name ? $name : 'Cliente') . ' acabou de preencher o formulário',
+            '/conecta/modules/pipeline/'
+        );
+    }
+
     return array(
         'submission_id' => $submissionId,
         'client_id' => $clientId,

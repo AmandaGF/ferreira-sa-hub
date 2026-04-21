@@ -97,6 +97,96 @@
         document.body.appendChild(banner);
         document.getElementById('fsaUpdateNow').onclick = callback;
     }
+
+    // ── Web Push ──
+    <?php
+    try {
+        $__vapidRow = db()->query("SELECT valor FROM configuracoes WHERE chave = 'vapid_public'")->fetchColumn();
+    } catch (Exception $e) { $__vapidRow = ''; }
+    ?>
+    var VAPID_PUBLIC = '<?= e($__vapidRow ?: '') ?>';
+    var PUSH_SUB_URL = '<?= url('api/push_subscribe.php') ?>';
+
+    function urlBase64ToUint8Array(b64) {
+        var pad = '='.repeat((4 - b64.length % 4) % 4);
+        var b64std = (b64 + pad).replace(/-/g, '+').replace(/_/g, '/');
+        var raw = atob(b64std);
+        var out = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+        return out;
+    }
+
+    function arrayBufferToBase64url(buf) {
+        var bytes = new Uint8Array(buf);
+        var bin = '';
+        for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    }
+
+    function pushSubscribe() {
+        if (!VAPID_PUBLIC || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+        navigator.serviceWorker.ready.then(function(reg) {
+            return reg.pushManager.getSubscription().then(function(existing) {
+                if (existing) return existing;
+                return reg.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC)
+                });
+            });
+        }).then(function(sub) {
+            if (!sub) return;
+            var body = {
+                endpoint:   sub.endpoint,
+                p256dh:     arrayBufferToBase64url(sub.getKey('p256dh')),
+                auth:       arrayBufferToBase64url(sub.getKey('auth')),
+                user_agent: navigator.userAgent
+            };
+            fetch(PUSH_SUB_URL, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(body)
+            });
+        }).catch(function(e) { console.warn('[Push] erro subscribe:', e); });
+    }
+
+    function perguntarPushDepois() {
+        // Só pede se: VAPID configurado, não foi dispensado, permissão ainda é 'default'
+        if (!VAPID_PUBLIC) return;
+        if (localStorage.getItem('fsa_push_dispensado') === '1') return;
+        if (typeof Notification === 'undefined' || Notification.permission !== 'default') {
+            if (Notification && Notification.permission === 'granted') pushSubscribe();
+            return;
+        }
+        // Banner discreto 30s após o load, não modal intrusiva
+        setTimeout(function() {
+            if (document.getElementById('fsaPushAsk')) return;
+            var b = document.createElement('div');
+            b.id = 'fsaPushAsk';
+            b.style.cssText = 'position:fixed;bottom:16px;left:16px;background:#052228;color:#fff;padding:.8rem 1rem;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:9998;max-width:320px;font-size:.82rem;';
+            b.innerHTML = '🔔 <strong>Receber notificações do Hub?</strong><br><span style="opacity:.8;font-size:.75rem;">Novo lead, WhatsApp, prazo urgente — direto no seu dispositivo.</span><div style="margin-top:.6rem;display:flex;gap:.4rem;">'
+                + '<button id="fsaPushYes" style="background:#B87333;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-size:.75rem;">Ativar</button>'
+                + '<button id="fsaPushNo" style="background:transparent;color:#94a3b8;border:1px solid #334155;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.75rem;">Agora não</button></div>';
+            document.body.appendChild(b);
+            document.getElementById('fsaPushYes').onclick = function() {
+                Notification.requestPermission().then(function(p) {
+                    if (p === 'granted') pushSubscribe();
+                    b.remove();
+                });
+            };
+            document.getElementById('fsaPushNo').onclick = function() {
+                localStorage.setItem('fsa_push_dispensado', '1');
+                b.remove();
+            };
+        }, 30000);
+    }
+
+    // Se permissão já concedida, garante re-subscribe (útil após troca de dispositivo)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(pushSubscribe).catch(function(){});
+    } else {
+        perguntarPushDepois();
+    }
 })();
 </script>
 

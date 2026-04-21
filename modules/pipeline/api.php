@@ -152,6 +152,10 @@ switch ($action) {
                     if ($valorCents > 200000) {
                         gamificar($assignedTo, 'contrato_bonus_alto', $leadId, 'pipeline_leads');
                     }
+                    // Push notification pro usuário que fechou
+                    if (function_exists('push_notify')) {
+                        push_notify($assignedTo, '🏆 Contrato fechado!', $lead['name'] . ' — +50 pts', '/conecta/modules/pipeline/');
+                    }
                 }
 
                 // BLOCO 4: Notificar cliente — Boas-vindas

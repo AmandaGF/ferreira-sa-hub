@@ -2,7 +2,7 @@
 // Estratégia: network-first para HTML/API, cache-first para assets estáticos,
 // offline.html como fallback quando estiver sem rede.
 
-var CACHE_NAME = 'fshub-v5';
+var CACHE_NAME = 'fshub-v6';
 var OFFLINE_URL = '/conecta/offline.html';
 
 // Shell mínimo pré-cacheado — assets que compõem o layout base
@@ -104,4 +104,43 @@ self.addEventListener('message', function(event) {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
+});
+
+// ── Web Push ──
+self.addEventListener('push', function(event) {
+    var data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (e) { data = {}; }
+
+    var title = data.title || 'F&S Hub';
+    var options = {
+        body:    data.body || '',
+        icon:    '/conecta/assets/img/logo-sidebar.png',
+        badge:   '/conecta/assets/img/logo-sidebar.png',
+        data:    { url: data.url || '/conecta/' },
+        vibrate: [200, 100, 200],
+        requireInteraction: !!data.urgente,
+        tag:     data.tag || undefined
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', function(event) {
+    event.notification.close();
+    var targetUrl = (event.notification.data && event.notification.data.url) || '/conecta/';
+
+    event.waitUntil(
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(list) {
+            // Se já houver janela aberta, foca
+            for (var i = 0; i < list.length; i++) {
+                var c = list[i];
+                if (c.url.indexOf('/conecta/') !== -1 && 'focus' in c) {
+                    c.focus();
+                    if ('navigate' in c) { try { c.navigate(targetUrl); } catch (e) {} }
+                    return;
+                }
+            }
+            if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+        })
+    );
 });

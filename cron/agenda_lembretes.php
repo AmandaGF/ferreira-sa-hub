@@ -177,6 +177,10 @@ try {
 
         foreach ($notificar as $uid) {
             try { notify($uid, $titulo, $msg, $tipo, $link, $icon); } catch (Exception $ex) {}
+            // Push só pra prazos urgentes (hoje/amanhã) — evita barulho pra prazos distantes
+            if ($diasRestantes <= 1 && function_exists('push_notify')) {
+                try { push_notify($uid, $titulo, $msg, $link, ($diasRestantes <= 0)); } catch (Exception $ex) {}
+            }
         }
 
         // Marcar nível de alerta
