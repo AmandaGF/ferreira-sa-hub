@@ -371,10 +371,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
-.tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px; }
+.tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 /* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:240px;min-width:240px;max-width:240px; }
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px;box-sizing:border-box; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:220px;min-width:220px;max-width:220px;box-sizing:border-box; }
 .tbl-grid td.sticky-col-2 input { width:100% !important;text-overflow:ellipsis; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
@@ -565,7 +565,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
     <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);"><input value="<?= e($lead['name']) ?>" title="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:150px;width:150px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)" title="<?= e($lead['phone'] ?? '') ?>"></td>
     <?php
         $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
         $_isFallback = empty($lead['converted_at']);
