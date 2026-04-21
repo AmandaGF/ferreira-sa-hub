@@ -373,15 +373,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-/* Colunas fixas (# e Nome) — grudam ao rolar horizontalmente
-   TD (body) = fundo branco; TH (cabeçalho) = fundo petroleum (senão fica branco no branco) */
-.tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;box-shadow:2px 0 0 rgba(0,0,0,.05); }
-.tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.1); }
-.tbl-grid thead th.sticky-col-1 { position:sticky !important;left:0;z-index:4 !important;background:var(--petrol-900) !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px; }
-.tbl-grid thead th.sticky-col-2 { position:sticky !important;left:36px;z-index:4 !important;background:var(--petrol-900) !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.25); }
-.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
-.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
-.tbl-grid td.sticky-col-2::after, .tbl-grid th.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:2px;background:rgba(0,0,0,.1);pointer-events:none; }
+/* Colunas congeladas (# e Nome) — freeze via translateX sincronizado ao scroll horizontal (JS)
+   Abordagem robusta: position:sticky tem muitos quirks em <table>; usamos relative + translateX. */
+.tbl-grid td.sticky-col-1, .tbl-grid th.sticky-col-1 { position:relative;z-index:2;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;will-change:transform; }
+.tbl-grid td.sticky-col-2, .tbl-grid th.sticky-col-2 { position:relative;z-index:2;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;will-change:transform;box-shadow:2px 0 4px -2px rgba(0,0,0,.18); }
+.tbl-grid td.sticky-col-1, .tbl-grid td.sticky-col-2 { background:#fff !important; }
+.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900) !important;color:#fff !important; }
+.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc !important; }
+.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0 !important; }
 /* Células em modo display (div) — respeitam largura com reticências */
 .cell-inline-display { display:block;width:100%;padding:3px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:text;border-radius:3px;line-height:1.4;min-height:20px; }
 .cell-inline-display:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
@@ -1207,6 +1206,27 @@ function filterPipelineByMes(ym) {
 
 // Ordenação agora é server-side (via ?sort=col&dir=asc|desc no link do header).
 // Evita o bug antigo onde sort client-side só reordenava os 25 da página atual.
+
+// Freeze colunas # e Nome via translateX sincronizado ao scroll horizontal.
+// position:sticky em <td> tem muitos quirks (table-layout, ancestors com overflow/transform, etc).
+// Esta abordagem sempre funciona, independente do contexto.
+(function(){
+    function initFreeze(){
+        var wrap = document.querySelector('#viewTabela .tbl-wrap');
+        if (!wrap) return;
+        var cells = wrap.querySelectorAll('.sticky-col-1, .sticky-col-2');
+        if (!cells.length) return;
+        function sync(){
+            var x = wrap.scrollLeft;
+            var tx = 'translateX(' + x + 'px)';
+            for (var i = 0; i < cells.length; i++) cells[i].style.transform = tx;
+        }
+        wrap.addEventListener('scroll', sync, { passive: true });
+        sync(); // estado inicial
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initFreeze);
+    else initFreeze();
+})();
 
 // Exportar CSV
 function exportTableCSV(tableId, name) {
