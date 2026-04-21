@@ -30,6 +30,18 @@ try {
 } catch (Exception $e) {}
 
 switch ($action) {
+    case 'toggle_pin':
+        $ticketId = (int)($_POST['ticket_id'] ?? 0);
+        if (!$ticketId) { echo json_encode(array('error' => 'ticket_id inválido')); exit; }
+        if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
+        try { $pdo->exec("ALTER TABLE tickets ADD COLUMN pinned TINYINT(1) DEFAULT 0 AFTER status"); } catch (Exception $e) {}
+        $atual = (int)$pdo->query("SELECT COALESCE(pinned,0) FROM tickets WHERE id = " . $ticketId)->fetchColumn();
+        $novo = $atual ? 0 : 1;
+        $pdo->prepare("UPDATE tickets SET pinned = ?, updated_at = NOW() WHERE id = ?")->execute(array($novo, $ticketId));
+        audit_log('ticket_' . ($novo ? 'pinned' : 'unpinned'), 'ticket', $ticketId, 'Chamado ' . ($novo ? 'fixado' : 'desafixado'));
+        echo json_encode(array('ok' => true, 'pinned' => $novo));
+        exit;
+
     case 'update_status':
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         $status = $_POST['status'] ?? '';

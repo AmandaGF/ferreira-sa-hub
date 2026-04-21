@@ -161,7 +161,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </td>
                         <td class="text-sm">
                             <?php if ($c['phone']): ?>
-                                <a href="#" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $c['phone']) ?>',nome:<?= json_encode($c['name']) ?>,clientId:<?= (int)$c['id'] ?>,mensagem:''});return false;" style="color:var(--success);" title="Enviar WhatsApp pelo Hub">
+                                <a href="#" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $c['phone']) ?>',nome:<?= e(json_encode($c['name'])) ?>,clientId:<?= (int)$c['id'] ?>,mensagem:''});return false;" style="color:var(--success);" title="Enviar WhatsApp pelo Hub">
                                     <?= e($c['phone']) ?>
                                 </a>
                             <?php else: ?>—<?php endif; ?>

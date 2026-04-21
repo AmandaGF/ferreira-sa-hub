@@ -50,6 +50,9 @@ if ($search) {
 
 $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
+// Self-heal: coluna pinned (pra fixar tickets no topo independente de status)
+try { $pdo->exec("ALTER TABLE tickets ADD COLUMN pinned TINYINT(1) DEFAULT 0 AFTER status"); } catch (Exception $e) {}
+
 // Ordenação
 $sortParam = $_GET['sort'] ?? '';
 $sortDir = ($_GET['dir'] ?? 'desc') === 'asc' ? 'ASC' : 'DESC';
@@ -61,10 +64,11 @@ $validSorts = array(
     'data' => 't.created_at',
     'atualizado' => 't.updated_at',
 );
+// Pinned SEMPRE vem primeiro (prefixo do orderBy), independente da ordenação escolhida
 if ($sortParam && isset($validSorts[$sortParam])) {
-    $orderBy = $validSorts[$sortParam] . ' ' . $sortDir;
+    $orderBy = "COALESCE(t.pinned, 0) DESC, " . $validSorts[$sortParam] . ' ' . $sortDir;
 } else {
-    $orderBy = "FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC";
+    $orderBy = "COALESCE(t.pinned, 0) DESC, FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC";
 }
 
 if ($filterOrigem === 'clientes') {
@@ -338,7 +342,10 @@ function filtrarHelpdesk(param, value) {
                     <?php foreach ($tickets as $t): ?>
                     <tr>
                         <td class="text-sm text-muted"><?= $t['id'] ?></td>
-                        <td><a href="<?= ($t['origem'] ?? '') === 'salavip' ? url('modules/salavip/ver_mensagem.php?thread_id=' . $t['id']) : module_url('helpdesk', 'ver.php?id=' . $t['id']) ?>" class="font-bold" style="color:var(--petrol-900);"><?= e($t['title']) ?></a></td>
+                        <td>
+                            <?php if (!empty($t['pinned'])): ?><span title="Fixado no topo" style="margin-right:3px;">📌</span><?php endif; ?>
+                            <a href="<?= ($t['origem'] ?? '') === 'salavip' ? url('modules/salavip/ver_mensagem.php?thread_id=' . $t['id']) : module_url('helpdesk', 'ver.php?id=' . $t['id']) ?>" class="font-bold" style="color:var(--petrol-900);"><?= e($t['title']) ?></a>
+                        </td>
                         <td class="text-sm"><?= e($t['category'] ?: '—') ?></td>
                         <td><span class="badge badge-<?= $priorityBadge[$t['priority']] ?? 'gestao' ?>"><?= e($t['priority']) ?></span></td>
                         <td><span class="badge badge-<?= $statusBadge[$t['status']] ?? 'gestao' ?>"><?= $statusLabels[$t['status']] ?? $t['status'] ?></span></td>

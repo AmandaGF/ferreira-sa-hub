@@ -77,8 +77,9 @@ function calcular_juros_multa($valor, $diasAtraso) {
     return array('juros' => $juros, 'multa' => $multa, 'total' => $valor + $multa + $juros);
 }
 
-// Calcula totais com e sem acréscimos
-$totalOriginal = $totalVencido + $totalPendente; // valor nominal
+// Proposta considera SÓ parcelas vencidas (atrasadas). Parcelas a vencer continuam
+// no cronograma normal do cliente e não entram no cálculo do acordo.
+$totalOriginal = $totalVencido; // valor nominal (só vencidos)
 $totalComAcrescimos = 0;
 $totalJuros = 0; $totalMulta = 0;
 foreach ($vencidas as $v) {
@@ -87,7 +88,6 @@ foreach ($vencidas as $v) {
     $totalComAcrescimos += $r['total'];
     $totalJuros += $r['juros']; $totalMulta += $r['multa'];
 }
-$totalComAcrescimos += $totalPendente; // pendente não tem acréscimo ainda
 
 // Estimativa se virar execução judicial (pra convencer o cliente a acordar agora)
 $honExec = $totalVencido * ($honExecPct / 100);  // 10% sobre nominal vencido (CPC 85 §1º)
@@ -204,7 +204,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                      . "Vantagens do acordo:\n✅ Evita processo judicial\n✅ Evita negativação no SPC/Serasa\n✅ Resolve de forma rápida e amigável\n\n"
                      . "Podemos conversar?\n\n_Ferreira & Sá Advocacia_";
             ?>
-            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$clientId ?>,canal:'24',mensagem:<?= json_encode($msg) ?>})" class="btn btn-success btn-sm" style="border:none;">💬 Enviar resumo por WhatsApp</button>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$clientId ?>,canal:'24',mensagem:<?= e(json_encode($msg)) ?>})" class="btn btn-success btn-sm" style="border:none;">💬 Enviar resumo por WhatsApp</button>
             <?php endif; ?>
         </div>
     </form>
@@ -244,8 +244,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 
     <h2>2. Valores em Aberto</h2>
-    <?php if (empty($vencidas) && empty($pendentes)): ?>
-        <p style="color:#059669;">✅ Nenhum débito em aberto.</p>
+    <?php if (empty($vencidas)): ?>
+        <p style="color:#059669;">✅ Nenhuma parcela vencida. Esta proposta só se aplica a parcelas em atraso.</p>
     <?php else: ?>
         <?php if (!empty($vencidas)): ?>
             <h3 style="color:#dc2626;">🚨 Parcelas VENCIDAS</h3>
@@ -272,19 +272,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
 
         <?php if (!empty($pendentes)): ?>
-            <h3 style="color:#b45309;">📋 Parcelas a Vencer</h3>
-            <table>
-                <thead><tr><th>Descrição</th><th>Vencimento</th><th style="text-align:right;">Valor</th></tr></thead>
-                <tbody>
-                <?php foreach ($pendentes as $p): ?>
-                <tr>
-                    <td><?= e(mb_substr($p['descricao'] ?: 'Honorários Advocatícios', 0, 60)) ?></td>
-                    <td><?= date('d/m/Y', strtotime($p['vencimento'])) ?></td>
-                    <td style="text-align:right;font-weight:700;">R$ <?= number_format((float)$p['valor'], 2, ',', '.') ?></td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
+            <!-- Aviso informativo: parcelas futuras existem mas NÃO entram na proposta -->
+            <div style="background:#f1f5f9;border-left:3px solid #64748b;padding:.6rem .9rem;margin:.8rem 0;font-size:.82rem;color:#475569;">
+                ℹ️ O cliente tem <strong><?= count($pendentes) ?> parcela(s) ainda a vencer (R$ <?= number_format($totalPendente, 2, ',', '.') ?>)</strong> que continuam no cronograma normal e <strong>não fazem parte desta proposta</strong>.
+            </div>
         <?php endif; ?>
 
         <table style="margin-top:1rem;">
@@ -303,8 +294,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <td style="text-align:right;font-weight:700;">R$ <?= number_format($totalVencido + $totalMulta + $totalJuros, 2, ',', '.') ?></td>
             </tr>
             <?php endif; ?>
-            <tr><td style="font-weight:700;">Total a vencer:</td><td style="text-align:right;">R$ <?= number_format($totalPendente, 2, ',', '.') ?></td></tr>
-            <tr style="background:#fef2f2;"><td style="font-weight:800;">TOTAL DEVIDO <?= $semJurosMulta ? '(com isenção de juros+multa)' : '(com acréscimos contratuais)' ?>:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.05rem;">R$ <?= number_format($baseProposta, 2, ',', '.') ?></td></tr>
+            <tr style="background:#fef2f2;"><td style="font-weight:800;">TOTAL DA PROPOSTA <?= $semJurosMulta ? '(com isenção de juros+multa)' : '(só parcelas vencidas + acréscimos)' ?>:</td><td style="text-align:right;font-weight:800;color:#dc2626;font-size:1.05rem;">R$ <?= number_format($baseProposta, 2, ',', '.') ?></td></tr>
         </table>
 
         <!-- Simulação de execução judicial (convence o cliente a acordar) -->
@@ -321,7 +311,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     <?php endif; ?>
 
-    <?php if (($totalVencido + $totalPendente) > 0): ?>
+    <?php if ($totalVencido > 0): ?>
     <h2>3. Proposta Especial de Quitação</h2>
     <p>Em atenção ao histórico de relacionamento e considerando que <strong>o trabalho jurídico já foi prestado por nosso escritório</strong>, apresentamos abaixo uma <strong>proposta de acordo</strong> com condições especiais, <strong>exclusiva para pagamento à vista</strong> até a data de validade.</p>
 

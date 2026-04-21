@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'detalhe
     <!-- WhatsApp -->
     <?php if ($cob['client_phone']): ?>
     <div style="margin-bottom:1rem;">
-        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $cob['client_phone']) ?>',nome:<?= json_encode($cob['client_name']) ?>,clientId:<?= (int)$cob['client_id'] ?>,canal:'24',mensagem:''})"
+        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $cob['client_phone']) ?>',nome:<?= e(json_encode($cob['client_name'])) ?>,clientId:<?= (int)$cob['client_id'] ?>,canal:'24',mensagem:''})"
            class="btn btn-primary btn-sm" style="background:#25d366;font-size:.72rem;border:none;">
             📱 WhatsApp
         </button>

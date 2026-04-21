@@ -167,10 +167,18 @@ echo voltar_ao_processo_html();
 <div class="card mb-2">
     <div class="card-header" style="flex-wrap:wrap;gap:.5rem;">
         <div>
-            <h3 style="margin-bottom:.2rem;">#<?= $ticket['id'] ?> — <?= e($ticket['title']) ?></h3>
+            <h3 style="margin-bottom:.2rem;">
+                <?php if (!empty($ticket['pinned'])): ?><span title="Fixado no topo">📌</span> <?php endif; ?>
+                #<?= $ticket['id'] ?> — <?= e($ticket['title']) ?>
+            </h3>
             <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
                 <span class="text-sm text-muted">Por <?= e($ticket['requester_name']) ?> · <?= data_hora_br($ticket['created_at']) ?></span>
                 <span class="tk-time"><?= $prazoAtrasado ? '🔴' : '🕐' ?> <?= $tempoAberto ?></span>
+                <button type="button" onclick="toggleTicketPin(<?= (int)$ticket['id'] ?>, this)"
+                        style="background:<?= !empty($ticket['pinned']) ? '#fbbf24' : 'transparent' ?>;border:1px solid <?= !empty($ticket['pinned']) ? '#d97706' : '#cbd5e1' ?>;color:<?= !empty($ticket['pinned']) ? '#78350f' : '#64748b' ?>;padding:3px 9px;border-radius:6px;font-size:.7rem;font-weight:600;cursor:pointer;"
+                        title="<?= !empty($ticket['pinned']) ? 'Desafixar do topo' : 'Fixar no topo da lista' ?>">
+                    <?= !empty($ticket['pinned']) ? '📌 Fixado — clique p/ desafixar' : '📌 Fixar no topo' ?>
+                </button>
             </div>
         </div>
         <div class="flex gap-1" style="flex-wrap:wrap;">
@@ -649,6 +657,33 @@ function loadSideCases() {
 <?php if (!empty($ticket['client_id']) && empty($linkedCase)): ?>
 loadSideCases();
 <?php endif; ?>
+
+// ── Fixar / Desafixar chamado no topo ──
+function toggleTicketPin(ticketId, btn) {
+    var original = btn.innerHTML;
+    btn.innerHTML = '⏳ Atualizando...';
+    btn.disabled = true;
+    var fd = new FormData();
+    fd.append('action', 'toggle_pin');
+    fd.append('ticket_id', ticketId);
+    fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url("helpdesk", "api.php") ?>', { method: 'POST', credentials: 'same-origin', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j.error) { alert(j.error); btn.innerHTML = original; btn.disabled = false; return; }
+            if (j.pinned) {
+                btn.style.background = '#fbbf24'; btn.style.borderColor = '#d97706'; btn.style.color = '#78350f';
+                btn.innerHTML = '📌 Fixado — clique p/ desafixar';
+                btn.title = 'Desafixar do topo';
+            } else {
+                btn.style.background = 'transparent'; btn.style.borderColor = '#cbd5e1'; btn.style.color = '#64748b';
+                btn.innerHTML = '📌 Fixar no topo';
+                btn.title = 'Fixar no topo da lista';
+            }
+            btn.disabled = false;
+        })
+        .catch(function(){ alert('Erro ao atualizar.'); btn.innerHTML = original; btn.disabled = false; });
+}
 
 // ── Apagar mensagem ──
 function apagarMsg(msgId) {

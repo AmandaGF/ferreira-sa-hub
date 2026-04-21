@@ -130,7 +130,7 @@ echo voltar_ao_processo_html();
     </div>
     <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap;">
         <?php if ($client['phone']): ?>
-        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:''})" class="btn btn-success btn-sm" style="font-size:.72rem;">💬 WhatsApp</button>
+        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:''})" class="btn btn-success btn-sm" style="font-size:.72rem;">💬 WhatsApp</button>
         <?php endif; ?>
         <a href="<?= module_url('clientes', 'ver.php?id=' . $clientId) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);font-size:.72rem;">👤 Ver cadastro</a>
         <?php if (($totalPendente + $totalVencido) > 0): ?>
@@ -195,7 +195,7 @@ echo voltar_ao_processo_html();
                     <?php if ($client['phone'] && $cob['invoice_url']):
                         $msgCob = "Olá " . $client['name'] . ", segue o link da sua cobrança:\n" . $cob['invoice_url'] . "\n\nValor: R$ " . number_format($cob['valor'], 2, ',', '.') . "\nVencimento: " . date('d/m/Y', strtotime($cob['vencimento'])) . "\n\n_Ferreira & Sá Advocacia_";
                     ?>
-                    <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= json_encode($client['name']) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= json_encode($msgCob) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
+                    <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= e(json_encode($msgCob)) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
                     <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
