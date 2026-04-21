@@ -424,6 +424,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
         actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
+        if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         actions += '</div>';
@@ -1341,6 +1342,55 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
             })
             .catch(function(err){ alert('Falha: ' + err); });
+    };
+
+    // Abrir pasta do processo vinculado ao cliente da conversa.
+    // Se o cliente tem 1 processo: redireciona direto. Se tem vários: mostra picker.
+    window.waAbrirProcesso = function(clientId) {
+        if (!clientId) return;
+        var opApi = '<?= module_url('operacional', 'api.php') ?>';
+        var base = '<?= rtrim(url(''), '/') ?>';
+        fetch(opApi + '?action=buscar_casos_cliente&client_id=' + clientId, { credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                var casos = (d && d.casos) || [];
+                if (!casos.length) {
+                    alert('Esse cliente não tem processo cadastrado no Operacional.');
+                    return;
+                }
+                if (casos.length === 1) {
+                    window.open(base + '/modules/operacional/caso_ver.php?id=' + casos[0].id, '_blank');
+                    return;
+                }
+                // Múltiplos casos: mostra picker simples
+                var html = '<div id="waProcOverlay" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;">'
+                         + '<div style="background:#fff;border-radius:14px;padding:1.25rem 1.5rem;max-width:440px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.3);">'
+                         + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;">'
+                         + '<h3 style="margin:0;font-size:1rem;color:#052228;">⚖️ Qual processo abrir?</h3>'
+                         + '<button onclick="document.getElementById(\'waProcOverlay\').remove()" style="background:#f3f4f6;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;">×</button>'
+                         + '</div>'
+                         + '<p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem;">Este cliente tem ' + casos.length + ' processos. Escolha qual abrir:</p>'
+                         + '<div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem;">';
+                casos.forEach(function(cs){
+                    var titulo = cs.title || ('Processo #' + cs.id);
+                    var sub = '';
+                    if (cs.case_number) sub += cs.case_number;
+                    if (cs.status) sub += (sub ? ' · ' : '') + String(cs.status).replace(/_/g,' ');
+                    html += '<a href="' + base + '/modules/operacional/caso_ver.php?id=' + cs.id + '" target="_blank"'
+                          + ' style="display:block;padding:.6rem .8rem;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:var(--petrol-900);transition:background .15s;"'
+                          + ' onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'transparent\'">'
+                          + '<div style="font-weight:700;font-size:.85rem;">' + escapeHtml(titulo) + '</div>'
+                          + (sub ? '<div style="font-size:.7rem;color:#64748b;margin-top:2px;">' + escapeHtml(sub) + '</div>' : '')
+                          + '</a>';
+                });
+                html += '</div></div></div>';
+                var wrap = document.createElement('div');
+                wrap.innerHTML = html;
+                var overlay = wrap.firstChild;
+                overlay.addEventListener('click', function(ev){ if (ev.target === overlay) overlay.remove(); });
+                document.body.appendChild(overlay);
+            })
+            .catch(function(e){ alert('Erro ao buscar processos: ' + e.message); });
     };
 
     window.waCriarChamado = function() {
