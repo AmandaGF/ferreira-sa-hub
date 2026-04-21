@@ -187,10 +187,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.6rem .7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:grab; transition:all var(--transition); overflow:hidden; position:relative; }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
-.lead-cobrar-ico { position:absolute; top:6px; right:6px; background:rgba(184,115,51,.08); border:1px solid rgba(184,115,51,.25); color:#B87333; border-radius:6px; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:.72rem; cursor:pointer; opacity:.55; transition:all .15s; padding:0; }
+.lead-cobrar-ico { position:absolute; top:6px; right:6px; background:#B87333; border:1px solid #8b5a26; color:#fff; border-radius:6px; padding:2px 7px; height:auto; display:inline-flex; align-items:center; justify-content:center; font-size:.62rem; font-weight:800; letter-spacing:.3px; cursor:pointer; opacity:.92; transition:all .15s; line-height:1.2; box-shadow:0 1px 3px rgba(0,0,0,.12); }
 .lead-card:hover .lead-cobrar-ico { opacity:1; }
-.lead-cobrar-ico:hover { background:#B87333; color:#fff; transform:scale(1.08); }
-.lead-cobrar-ico-off { background:#f1f5f9; border-color:#cbd5e1; color:#94a3b8; }
+.lead-cobrar-ico:hover { background:#8b5a26; transform:scale(1.05); }
+.lead-cobrar-ico-off { background:#cbd5e1 !important; border-color:#94a3b8 !important; color:#64748b !important; opacity:.75; }
 .lead-name { font-weight:700; font-size:.8rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .lead-meta { font-size:.65rem; color:var(--text-muted); display:flex; flex-direction:column; gap:.1rem; }
 .lead-meta .phone { color:var(--success); }
@@ -327,7 +327,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 ondragstart="event.preventDefault();event.stopPropagation();return false;"
                                 ontouchstart="event.stopPropagation();"
                                 onclick="event.stopPropagation();event.preventDefault();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>);return false;"
-                                title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">💰</button>
+                                title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">R$ COBRAR</button>
                     <?php endif; ?>
                     <div class="lead-name"><?= e($lead['name']) ?></div>
                     <div class="lead-meta">
@@ -673,10 +673,11 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
                 ? 'Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma, parcelas)'
                 : 'Lead ainda sem cliente vinculado — vincule primeiro pelo cadastro do lead';
         ?>
+            <br>
             <button type="button" onclick="criarCobrancaAsaas(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
                     title="<?= e($_btnTitle) ?>"
-                    style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;cursor:pointer;margin-left:3px;<?= $_hasClient ? '' : 'opacity:.7;' ?>">
-                💰 Cobrar
+                    style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:4px 10px;border-radius:8px;font-size:.7rem;font-weight:800;cursor:pointer;margin-top:4px;letter-spacing:.3px;<?= $_hasClient ? 'box-shadow:0 2px 4px rgba(184,115,51,.3);' : 'opacity:.7;' ?>">
+                R$ COBRAR
             </button>
         <?php endif; ?>
     </td>
@@ -777,12 +778,18 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 var _pendingForm = null;
 var _pendingDragData = null;
 
-// Criar cobrança no Asaas a partir de uma linha da Planilha (só autorizados: Amanda/Rodrigo/Luiz)
+// Redireciona pra ficha financeira do cliente com modal já aberto e pré-preenchido.
+// Amanda REVISA valor, parcelas, vencimento, forma e processo antes de confirmar.
+// Se o user segurar Shift/Ctrl ao clicar, cria direto (modo rápido — legado).
 function criarCobrancaAsaas(leadId, nome) {
-    if (!confirm('Criar cobrança no Asaas para "' + nome + '"?\n\n'
-               + 'O sistema vai usar o valor, vencimento e forma de pagamento desta linha.\n\n'
-               + 'Se o cliente ainda não está cadastrado no Asaas, será cadastrado automaticamente.\n\n'
-               + 'Prossegue?')) return;
+    var modoRapido = window.event && (window.event.shiftKey || window.event.ctrlKey);
+    if (!modoRapido) {
+        // Modo padrão: abre ficha do cliente pra revisar dados antes de criar
+        window.location = '<?= module_url('financeiro', 'cliente.php') ?>?from_lead=' + leadId + '&abrir_nova_cobranca=1';
+        return;
+    }
+    // Modo rápido (Shift+clique): cria direto como antes
+    if (!confirm('Modo rápido: criar cobrança direto (sem revisar)?')) return;
 
     var btn = null;
     try { btn = event && event.target && event.target.closest ? event.target.closest('button') : null; } catch(e) {}

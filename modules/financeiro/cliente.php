@@ -10,7 +10,18 @@ require_once __DIR__ . '/../../core/asaas_helper.php';
 
 $pdo = db();
 $clientId = (int)($_GET['id'] ?? 0);
+
+// Se veio de "R$ Cobrar" do pipeline (from_lead=X), resolve o client_id pelo lead
+$fromLeadId = (int)($_GET['from_lead'] ?? 0);
+if (!$clientId && $fromLeadId) {
+    $st = $pdo->prepare("SELECT client_id FROM pipeline_leads WHERE id = ?");
+    $st->execute(array($fromLeadId));
+    $clientId = (int)$st->fetchColumn();
+    if (!$clientId) { flash_set('error', 'Lead #' . $fromLeadId . ' não está vinculado a um cliente. Vincule primeiro.'); redirect(module_url('pipeline')); }
+}
+
 if (!$clientId) { flash_set('error', 'Cliente não informado.'); redirect(module_url('financeiro')); }
+$abrirNovaCobranca = (($_GET['abrir_nova_cobranca'] ?? '') === '1');
 
 // Filtro opcional por processo específico (quando vindo do caso_ver.php)
 $fromCaseId = (int)($_GET['from_case'] ?? 0);
@@ -504,6 +515,13 @@ function vincularCobrancaProcesso(cobId, caseId) {
 <script>
 window._COB_CSRF = <?= json_encode(generate_csrf_token()) ?>;
 window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
+<?php if ($abrirNovaCobranca): ?>
+// Vindo de "R$ Cobrar" do Kanban/Planilha — abre o modal automaticamente pra revisão
+document.addEventListener('DOMContentLoaded', function(){
+    var m = document.getElementById('modalNovaCob');
+    if (m) { m.style.display = 'flex'; if (window.atualizarCobUI2) setTimeout(atualizarCobUI2, 50); }
+});
+<?php endif; ?>
 </script>
 <script>
 <?php readfile(APP_ROOT . '/assets/js/cobranca_acoes.js'); ?>
