@@ -66,17 +66,41 @@ $ordemSel = $_GET['ordem'] ?? 'atraso_desc';
 if (!isset($ordenacoes[$ordemSel])) $ordemSel = 'atraso_desc';
 $orderBy = $ordenacoes[$ordemSel]['sql'];
 
+// Filtro de mês da inadimplência (independente do select principal). Default vazio = todos.
+$mesInadSel = $_GET['mes_inad'] ?? '';
+$filtroMesInadSql = '';
+$paramsInad = array();
+if ($mesInadSel && preg_match('/^\d{4}-\d{2}$/', $mesInadSel)) {
+    $filtroMesInadSql = " AND DATE_FORMAT(ac.vencimento, '%Y-%m') = ?";
+    $paramsInad[] = $mesInadSel;
+}
+
 $listaInadimplentes = array();
+$totalInadMes = 0; $valorInadMes = 0;
 try {
-    $listaInadimplentes = $pdo->query(
+    $stmtInad = $pdo->prepare(
         "SELECT ac.client_id, cl.name, cl.phone, SUM(ac.valor) as valor_aberto,
          MIN(ac.vencimento) as primeiro_vencimento, DATEDIFF(CURDATE(), MIN(ac.vencimento)) as dias_atraso,
          COUNT(*) as qtd_parcelas
          FROM asaas_cobrancas ac
          LEFT JOIN clients cl ON cl.id = ac.client_id
-         WHERE ac.status = 'OVERDUE'
+         WHERE ac.status = 'OVERDUE'{$filtroMesInadSql}
          GROUP BY ac.client_id ORDER BY {$orderBy} LIMIT 50"
-    )->fetchAll();
+    );
+    $stmtInad->execute($paramsInad);
+    $listaInadimplentes = $stmtInad->fetchAll();
+
+    if ($mesInadSel) {
+        $stmtTot = $pdo->prepare(
+            "SELECT COUNT(DISTINCT ac.client_id) AS qtd, IFNULL(SUM(ac.valor),0) AS total
+             FROM asaas_cobrancas ac
+             WHERE ac.status = 'OVERDUE'{$filtroMesInadSql}"
+        );
+        $stmtTot->execute($paramsInad);
+        $rowTot = $stmtTot->fetch();
+        $totalInadMes = (int)$rowTot['qtd'];
+        $valorInadMes = (float)$rowTot['total'];
+    }
 } catch (Exception $e) {}
 
 // ─── Cobranças do mês selecionado ───
@@ -183,13 +207,22 @@ echo voltar_ao_processo_html();
     </div>
     <div class="fin-section">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
-            <h4 style="margin:0;">⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)</h4>
-            <form method="GET" style="margin:0;">
+            <h4 style="margin:0;">⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)<?php if ($mesInadSel): $mn = (int)substr($mesInadSel,5,2); $ma = substr($mesInadSel,0,4); ?><span style="font-weight:400;color:var(--text-muted);font-size:.82rem;"> em <?= ($ML[$mn] ?? '') . '/' . $ma ?></span><?php endif; ?></h4>
+            <form method="GET" style="margin:0;display:flex;gap:.35rem;flex-wrap:wrap;">
                 <?php foreach ($_GET as $k => $v): ?>
-                    <?php if ($k !== 'ordem' && is_scalar($v)): ?>
+                    <?php if ($k !== 'ordem' && $k !== 'mes_inad' && is_scalar($v)): ?>
                         <input type="hidden" name="<?= e($k) ?>" value="<?= e($v) ?>">
                     <?php endif; ?>
                 <?php endforeach; ?>
+                <select name="mes_inad" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;" title="Filtrar inadimplentes por mês de vencimento">
+                    <option value="">📅 Todos os meses</option>
+                    <?php foreach ($mesesDisponiveis as $m):
+                        $mn = (int)substr($m,5,2); $ma = substr($m,0,4);
+                        $label = ($ML[$mn] ?? '') . '/' . $ma;
+                    ?>
+                    <option value="<?= e($m) ?>" <?= $m === $mesInadSel ? 'selected' : '' ?>><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                </select>
                 <select name="ordem" onchange="this.form.submit()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;">
                     <?php foreach ($ordenacoes as $k => $o): ?>
                     <option value="<?= $k ?>" <?= $ordemSel === $k ? 'selected' : '' ?>><?= e($o['label']) ?></option>
@@ -197,6 +230,12 @@ echo voltar_ao_processo_html();
                 </select>
             </form>
         </div>
+        <?php if ($mesInadSel): ?>
+            <div style="background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.18);border-radius:8px;padding:.5rem .75rem;margin-bottom:.6rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
+                <span style="font-size:.78rem;color:#991b1b;font-weight:600;"><?= $totalInadMes ?> cliente<?= $totalInadMes !== 1 ? 's' : '' ?> com parcela vencida em <?= ($ML[(int)substr($mesInadSel,5,2)] ?? '') . '/' . substr($mesInadSel,0,4) ?></span>
+                <span style="font-size:.85rem;color:#dc2626;font-weight:800;">R$ <?= number_format($valorInadMes, 2, ',', '.') ?></span>
+            </div>
+        <?php endif; ?>
         <?php if (empty($listaInadimplentes)): ?>
             <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhum inadimplente 🎉</p>
         <?php else: ?>
