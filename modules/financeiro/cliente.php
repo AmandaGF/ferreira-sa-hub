@@ -372,5 +372,5 @@ function vincularCobrancaProcesso(cobId, caseId) {
 window._COB_CSRF = <?= json_encode(generate_csrf_token()) ?>;
 window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
 </script>
-<script src="<?= url('assets/js/cobranca_acoes.js') ?>?v=1"></script>
+<script src="<?= url('assets/js/cobranca_acoes.js') ?>?v=2"></script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
