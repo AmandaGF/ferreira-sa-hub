@@ -1743,17 +1743,29 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                 $tipoIcons = array(
                     'movimentacao'=>'📋','despacho'=>'📤','decisao'=>'⚖️','sentenca'=>'🏛️',
                     'audiencia'=>'🎤','peticao_juntada'=>'📎','intimacao'=>'📬','citacao'=>'📨',
-                    'acordo'=>'🤝','recurso'=>'📑','cumprimento'=>'✅','diligencia'=>'🔍','observacao'=>'💬'
+                    'acordo'=>'🤝','recurso'=>'📑','cumprimento'=>'✅','diligencia'=>'🔍','observacao'=>'💬',
+                    // Novos tipos da importação em lote
+                    'protocolo'=>'📝','distribuicao'=>'📤','ato_ordinatorio'=>'📋','certidao'=>'📜',
+                    'publicacao_djen'=>'📰','manifestacao_mp'=>'⚖️','mandado_expedido'=>'📨','acordao'=>'🏛️',
+                    'peticao_parte_autora'=>'📎','peticao_parte_re'=>'📎','chamado'=>'🎫',
                 );
                 $tipoCores = array(
                     'movimentacao'=>'#888','despacho'=>'#B87333','decisao'=>'#052228','sentenca'=>'#052228',
                     'audiencia'=>'#6B4C9A','peticao_juntada'=>'#059669','intimacao'=>'#dc2626','citacao'=>'#dc2626',
-                    'acordo'=>'#2D7A4F','recurso'=>'#1a3a7a','cumprimento'=>'#059669','diligencia'=>'#B87333','observacao'=>'#888'
+                    'acordo'=>'#2D7A4F','recurso'=>'#1a3a7a','cumprimento'=>'#059669','diligencia'=>'#B87333','observacao'=>'#888',
+                    // Novos tipos da importação em lote
+                    'protocolo'=>'#0ea5e9','distribuicao'=>'#0ea5e9','ato_ordinatorio'=>'#B87333','certidao'=>'#6B4C9A',
+                    'publicacao_djen'=>'#d97706','manifestacao_mp'=>'#1a3a7a','mandado_expedido'=>'#dc2626','acordao'=>'#052228',
+                    'peticao_parte_autora'=>'#059669','peticao_parte_re'=>'#B87333','chamado'=>'#dc2626',
                 );
                 $tipoLabels = array(
                     'movimentacao'=>'Movimentação','despacho'=>'Despacho','decisao'=>'Decisão','sentenca'=>'Sentença',
                     'audiencia'=>'Audiência','peticao_juntada'=>'Petição juntada','intimacao'=>'Intimação','citacao'=>'Citação',
-                    'acordo'=>'Acordo','recurso'=>'Recurso','cumprimento'=>'Cumprimento','diligencia'=>'Diligência','observacao'=>'Observação'
+                    'acordo'=>'Acordo','recurso'=>'Recurso','cumprimento'=>'Cumprimento','diligencia'=>'Diligência','observacao'=>'Observação',
+                    // Novos tipos com acentuação e espaço corretos
+                    'protocolo'=>'Protocolo','distribuicao'=>'Distribuição','ato_ordinatorio'=>'Ato Ordinatório','certidao'=>'Certidão',
+                    'publicacao_djen'=>'Publicação DJEN','manifestacao_mp'=>'Manifestação do MP','mandado_expedido'=>'Mandado expedido','acordao'=>'Acórdão',
+                    'peticao_parte_autora'=>'Petição da parte autora','peticao_parte_re'=>'Petição da parte ré','chamado'=>'Chamado interno',
                 );
                 foreach ($andamentos as $and):
                     $icon = isset($tipoIcons[$and['tipo']]) ? $tipoIcons[$and['tipo']] : '📋';
