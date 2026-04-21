@@ -7,7 +7,7 @@ $pdo = db();
 $atual = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_signature_format'")->fetchColumn();
 echo "Formato atual: " . ($atual ?: '(não configurado)') . "\n";
 
-$novo = '*{{atendente}}*:';
+$novo = '*_{{atendente}}_*:';
 if (!$atual) {
     $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)")->execute(array('zapi_signature_format', $novo));
     echo "→ INSERIDO: $novo\n";

@@ -414,11 +414,11 @@ if ($action === 'enviar_mensagem') {
     $assinar = zapi_auto_cfg('zapi_signature_on', '0') === '1';
     $textoEnviar = $texto;
     if ($assinar) {
-        $formato = zapi_auto_cfg('zapi_signature_format', '*{{atendente}}*:');
+        $formato = zapi_auto_cfg('zapi_signature_format', '*_{{atendente}}_*:');
         $nomeUser = user_display_name();
         $assinatura = str_replace('{{atendente}}', $nomeUser, $formato);
-        // Prefixa a assinatura antes da mensagem (formato "*Nome*: mensagem")
-        $textoEnviar = $assinatura . ' ' . ltrim($texto);
+        // Prefixa a assinatura em linha própria (formato "*Nome*:\nmensagem")
+        $textoEnviar = $assinatura . "\n" . ltrim($texto);
     }
 
     $resp = zapi_send_text($conv['canal'], $conv['telefone'], $textoEnviar, $replyTo ?: null);
@@ -580,10 +580,10 @@ if ($action === 'toggle_assinatura') {
     // Garante formato default se nunca foi configurado. Formato novo: *Nome*: (prefix)
     $fmt = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_signature_format'")->fetchColumn();
     if (!$fmt) {
-        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('zapi_signature_format', '*{{atendente}}*:')")->execute();
+        $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('zapi_signature_format', '*_{{atendente}}_*:')")->execute();
     } elseif ($fmt === '— {{atendente}}') {
         // Migra do formato antigo (suffix) pro novo (prefix) se ainda estava no default antigo
-        $pdo->prepare("UPDATE configuracoes SET valor = '*{{atendente}}*:' WHERE chave = 'zapi_signature_format'")->execute();
+        $pdo->prepare("UPDATE configuracoes SET valor = '*_{{atendente}}_*:' WHERE chave = 'zapi_signature_format'")->execute();
     }
     audit_log('zapi_config_toggle', 'configuracoes', null, 'zapi_signature_on = ' . $novo);
     echo json_encode(array('ok' => true, 'novo' => $novo));
@@ -1127,10 +1127,10 @@ if ($action === 'enviar_rapido') {
     $assinar2 = zapi_auto_cfg('zapi_signature_on', '0') === '1';
     $mensagemFinal = $mensagem;
     if ($assinar2) {
-        $formato2 = zapi_auto_cfg('zapi_signature_format', '*{{atendente}}*:');
+        $formato2 = zapi_auto_cfg('zapi_signature_format', '*_{{atendente}}_*:');
         $nomeUser2 = user_display_name();
         $assinatura2 = str_replace('{{atendente}}', $nomeUser2, $formato2);
-        $mensagemFinal = $assinatura2 . ' ' . ltrim($mensagem);
+        $mensagemFinal = $assinatura2 . "\n" . ltrim($mensagem);
     }
     // Envia via Z-API
     $resp = zapi_send_text($canal, $telefone, $mensagemFinal);
