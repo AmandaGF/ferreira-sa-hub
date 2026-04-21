@@ -374,10 +374,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 /* Colunas fixas (# e Nome) — grudam ao rolar horizontalmente
-   Background SÓLIDO é obrigatório pra sticky funcionar em tabela */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;box-shadow:2px 0 0 rgba(0,0,0,.05); }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.1); }
-.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
+   TD (body) = fundo branco; TH (cabeçalho) = fundo petroleum (senão fica branco no branco) */
+.tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;box-shadow:2px 0 0 rgba(0,0,0,.05); }
+.tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.1); }
+.tbl-grid thead th.sticky-col-1 { position:sticky !important;left:0;z-index:4 !important;background:var(--petrol-900) !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px; }
+.tbl-grid thead th.sticky-col-2 { position:sticky !important;left:36px;z-index:4 !important;background:var(--petrol-900) !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.25); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
 .tbl-grid td.sticky-col-2::after, .tbl-grid th.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:2px;background:rgba(0,0,0,.1);pointer-events:none; }
