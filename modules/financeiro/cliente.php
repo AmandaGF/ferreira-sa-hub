@@ -64,6 +64,52 @@ try {
     $processosCliente = $stmtProc->fetchAll();
 } catch (Exception $e) {}
 
+// ═══ Pré-preencher modal Nova Cobrança ═══
+// Busca lead mais recente do cliente pra trazer: valor, forma_pagamento, num_parcelas, vencimento, case_type
+$preFill = array(
+    'valor' => '', 'forma' => 'PIX', 'parcelas' => 1, 'tipo' => 'unica',
+    'vencimento' => date('Y-m-d', strtotime('+3 days')), 'descricao' => 'Honorários Advocatícios',
+    'case_id' => 0, 'modo_valor' => 'total',
+);
+try {
+    $stmtLead = $pdo->prepare(
+        "SELECT honorarios_cents, valor_acao, num_parcelas, forma_pagamento, vencimento_parcela, case_type, linked_case_id
+         FROM pipeline_leads WHERE client_id = ? ORDER BY COALESCE(converted_at, created_at) DESC LIMIT 1"
+    );
+    $stmtLead->execute(array($clientId));
+    $lead = $stmtLead->fetch();
+    if ($lead) {
+        // Valor: prefere honorarios_cents (numérico). Envia como VALOR TOTAL (modo_valor=total).
+        if (!empty($lead['honorarios_cents'])) {
+            $preFill['valor'] = number_format($lead['honorarios_cents'] / 100, 2, ',', '.');
+        }
+        $preFill['parcelas'] = max(1, (int)($lead['num_parcelas'] ?? 1));
+        // Tipo deduzido: 1 parcela = única; 2+ = parcelada (nunca recorrente automático — Amanda escolhe)
+        $preFill['tipo'] = $preFill['parcelas'] > 1 ? 'parcelado' : 'unica';
+        // Forma pagamento: mapeia do texto do lead pro código Asaas
+        $fp = mb_strtoupper($lead['forma_pagamento'] ?? '');
+        if (strpos($fp, 'BOLETO') !== false) $preFill['forma'] = 'BOLETO';
+        elseif (strpos($fp, 'PIX') !== false) $preFill['forma'] = 'PIX';
+        elseif (strpos($fp, 'CARTÃO') !== false || strpos($fp, 'CARTAO') !== false || strpos($fp, 'CRÉDITO') !== false || strpos($fp, 'CREDITO') !== false) $preFill['forma'] = 'CREDIT_CARD';
+        // Vencimento: se vencimento_parcela do lead for data válida, usa
+        $vp = $lead['vencimento_parcela'] ?? '';
+        if ($vp) {
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $vp)) $preFill['vencimento'] = $vp;
+            elseif (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})/', $vp, $m)) $preFill['vencimento'] = $m[3] . '-' . $m[2] . '-' . $m[1];
+        }
+        // Descrição: usa tipo de ação se houver
+        if (!empty($lead['case_type'])) $preFill['descricao'] = 'Honorários — ' . $lead['case_type'];
+        // Processo: se já tem linked_case_id, pré-seleciona. Senão, pega o primeiro processo ativo do cliente.
+        if (!empty($lead['linked_case_id'])) {
+            $preFill['case_id'] = (int)$lead['linked_case_id'];
+        } elseif (!empty($processosCliente)) {
+            $preFill['case_id'] = (int)$processosCliente[0]['id'];
+        }
+    } elseif (!empty($processosCliente)) {
+        $preFill['case_id'] = (int)$processosCliente[0]['id'];
+    }
+} catch (Exception $e) {}
+
 // Contratos (filtra por case_id se vindo do caso_ver.php)
 $contratos = array();
 try {
@@ -154,7 +200,7 @@ echo voltar_ao_processo_html();
             Cobranças (<?= count($cobrancas) ?>)
             <?php if ($filtroCase): ?><span style="font-size:.7rem;font-weight:500;color:#1e40af;">— só deste processo</span><?php endif; ?>
         </h4>
-        <button onclick="document.getElementById('modalNovaCob').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;">+ Nova Cobrança</button>
+        <button onclick="document.getElementById('modalNovaCob').style.display='flex'; if(window.atualizarCobUI2) setTimeout(atualizarCobUI2, 0);" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;" title="Abre com dados do último lead pré-preenchidos — você só confere e ajusta">+ Nova Cobrança</button>
     </div>
 
     <?php if (!empty($cobrancas) && !empty($processosCliente)): ?>
@@ -270,15 +316,25 @@ echo voltar_ao_processo_html();
         <input type="hidden" name="action" value="criar_cobranca">
         <input type="hidden" name="client_id" value="<?= $clientId ?>">
 
+        <?php if ($preFill['valor']): ?>
+        <div style="background:#ecfdf5;border:1px solid #bbf7d0;border-radius:8px;padding:.5rem .7rem;margin-bottom:.6rem;font-size:.78rem;color:#166534;">
+            ✨ <b>Dados do lead preenchidos automaticamente</b> — confira e ajuste se precisar.
+        </div>
+        <?php endif; ?>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Tipo</label>
                 <select name="tipo" class="form-select" id="tipoCob2" onchange="atualizarCobUI2()">
-                    <option value="unica">📄 Única</option>
-                    <option value="parcelado">💳 Parcelada (N × — termina)</option>
-                    <option value="recorrente">🔄 Recorrente (sem fim)</option>
+                    <option value="unica" <?= $preFill['tipo']==='unica'?'selected':'' ?>>📄 Única</option>
+                    <option value="parcelado" <?= $preFill['tipo']==='parcelado'?'selected':'' ?>>💳 Parcelada (N × — termina)</option>
+                    <option value="recorrente" <?= $preFill['tipo']==='recorrente'?'selected':'' ?>>🔄 Recorrente (sem fim)</option>
                 </select></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Pagamento</label>
-                <select name="forma_pagamento" class="form-select"><option value="PIX">PIX</option><option value="BOLETO">Boleto</option><option value="UNDEFINED">Todas</option></select></div>
+                <select name="forma_pagamento" class="form-select">
+                    <option value="PIX" <?= $preFill['forma']==='PIX'?'selected':'' ?>>PIX</option>
+                    <option value="BOLETO" <?= $preFill['forma']==='BOLETO'?'selected':'' ?>>Boleto</option>
+                    <option value="CREDIT_CARD" <?= $preFill['forma']==='CREDIT_CARD'?'selected':'' ?>>Cartão</option>
+                    <option value="UNDEFINED">Todas</option>
+                </select></div>
         </div>
         <div id="modoValorWrap2" style="display:none;margin-bottom:.5rem;padding:.4rem .6rem;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
             <label style="font-size:.68rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;text-transform:uppercase;letter-spacing:.3px;">O valor que vou digitar é...</label>
@@ -290,11 +346,11 @@ echo voltar_ao_processo_html();
             </label>
         </div>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label id="labelValorCob2" style="font-size:.75rem;font-weight:700;">Valor total (R$)</label><input type="text" name="valor" id="valorCob2" class="form-input input-reais" required placeholder="0,00" oninput="atualizarCobUI2()"></div>
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Vencimento</label><input type="date" name="vencimento" class="form-input" required value="<?= date('Y-m-d', strtotime('+3 days')) ?>"></div>
+            <div style="flex:1;"><label id="labelValorCob2" style="font-size:.75rem;font-weight:700;">Valor total (R$)</label><input type="text" name="valor" id="valorCob2" class="form-input input-reais" required placeholder="0,00" value="<?= e($preFill['valor']) ?>" oninput="atualizarCobUI2()"></div>
+            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Vencimento</label><input type="date" name="vencimento" class="form-input" required value="<?= e($preFill['vencimento']) ?>"></div>
         </div>
         <div id="parcCob2" style="display:none;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" id="parcelasCob2" class="form-input" min="2" max="60" value="12" oninput="atualizarCobUI2()"></div>
+            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" id="parcelasCob2" class="form-input" min="2" max="60" value="<?= max(2, $preFill['parcelas']) ?>" oninput="atualizarCobUI2()"></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Dia venc.</label><input type="number" name="dia_vencimento" class="form-input" min="1" max="28" value="10"></div>
         </div>
         <div id="previewCob2" style="display:none;background:#f5ebe0;border-left:3px solid #B87333;padding:.5rem .7rem;margin-bottom:.6rem;border-radius:6px;font-size:.75rem;color:#3f2e1c;"></div>
@@ -358,12 +414,12 @@ echo voltar_ao_processo_html();
                 <select name="case_id" class="form-select" required>
                     <option value="">— Selecione o processo —</option>
                     <?php foreach ($processosCliente as $pr): ?>
-                        <option value="<?= (int)$pr['id'] ?>"><?= e($pr['title'] ?: 'Processo #' . $pr['id']) ?><?= $pr['case_number'] ? ' (' . e($pr['case_number']) . ')' : '' ?></option>
+                        <option value="<?= (int)$pr['id'] ?>" <?= $preFill['case_id'] === (int)$pr['id'] ? 'selected' : '' ?>><?= e($pr['title'] ?: 'Processo #' . $pr['id']) ?><?= $pr['case_number'] ? ' (' . e($pr['case_number']) . ')' : '' ?></option>
                     <?php endforeach; ?>
                 </select>
             <?php endif; ?>
         </div>
-        <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;">Descrição</label><input type="text" name="descricao" class="form-input" value="Honorários Advocatícios"></div>
+        <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;">Descrição</label><input type="text" name="descricao" class="form-input" value="<?= e($preFill['descricao']) ?>"></div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalNovaCob').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
             <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Criar</button>
