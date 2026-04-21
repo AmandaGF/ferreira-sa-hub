@@ -185,15 +185,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php if (has_min_role('gestao')): ?>
             <button onclick="waToggleNomes(this)" id="btnToggleNomes"
                     class="btn btn-outline btn-sm"
-                    title="Mostrar/ocultar o nome do atendente que aparece acima de cada mensagem no chat INTERNO (Hub)"
+                    title="Mostrar/ocultar o nome do atendente acima de cada mensagem — só afeta o chat INTERNO do Hub (equipe), não aparece pro cliente"
                     style="<?= $mostrarNomeAtendente === '1' ? 'background:#059669;color:#fff;border-color:#059669;' : 'background:#fff;color:#6b7280;' ?>">
-                <?= $mostrarNomeAtendente === '1' ? '👁️ Nomes internos: ON' : '🙈 Nomes internos: OFF' ?>
+                <?= $mostrarNomeAtendente === '1' ? 'Equipe vê quem atendeu: ON' : 'Equipe vê quem atendeu: OFF' ?>
             </button>
             <button onclick="waToggleAssinatura(this)" id="btnToggleAssinatura"
                     class="btn btn-outline btn-sm"
-                    title="Ligar/desligar assinatura '— Nome' que aparece no FIM das mensagens enviadas ao cliente (WhatsApp do celular dele)"
+                    title="Liga/desliga a assinatura '— Nome' no FIM de cada mensagem enviada ao cliente. ISTO É O QUE O CLIENTE VÊ NO CELULAR."
                     style="<?= $assinaturaLigada === '1' ? 'background:#1e40af;color:#fff;border-color:#1e40af;' : 'background:#fff;color:#6b7280;' ?>">
-                <?= $assinaturaLigada === '1' ? '✍️ Assinatura: ON' : '✍️ Assinatura: OFF' ?>
+                <?= $assinaturaLigada === '1' ? '📱 Cliente vê assinatura: ON' : '📱 Cliente vê assinatura: OFF' ?>
             </button>
             <?php endif; ?>
             <a href="<?= module_url('whatsapp', 'central.php') ?>" class="btn btn-outline btn-sm" title="Templates, Etiquetas, Automações, Z-API">⚙️ Configurações</a>
@@ -228,6 +228,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="em_atendimento">Em atend.</button>
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
+                <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
                 <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;" title="Filtrar por atendente">
                     <option value="">👥 Atendente</option>

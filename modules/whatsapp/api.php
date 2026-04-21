@@ -79,6 +79,9 @@ if ($action === 'listar_conversas') {
         if ($status === 'bot')  $where[] = 'co.bot_ativo = 1';
         elseif ($status === 'nao_lidas') $where[] = 'co.nao_lidas > 0';
         else { $where[] = 'co.status = ?'; $params[] = $status; }
+    } else {
+        // Padrão (sem filtro OU "todos"): oculta arquivadas. Só aparecem se usuário filtrar explicitamente por status=arquivado
+        $where[] = "co.status != 'arquivado'";
     }
 
     // Filtro por atendente (0 = sem atendente, -1 = minhas)
