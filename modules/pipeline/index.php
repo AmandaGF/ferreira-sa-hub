@@ -367,15 +367,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-/* Tabela — larguras fixas pra respeitar declarações de cada coluna */
-.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
+/* Tabela */
+.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-/* Colunas fixas (# e Nome) — grudam ao rolar horizontalmente */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff;box-sizing:border-box;overflow:hidden; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff;box-sizing:border-box;overflow:hidden; }
+/* Colunas fixas (# e Nome) — grudam ao rolar horizontalmente
+   Background SÓLIDO é obrigatório pra sticky funcionar em tabela */
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff !important;box-sizing:border-box;min-width:36px;width:36px;max-width:36px;box-shadow:2px 0 0 rgba(0,0,0,.05); }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff !important;box-sizing:border-box;min-width:220px;width:220px;max-width:220px;box-shadow:2px 0 3px -1px rgba(0,0,0,.1); }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
@@ -518,7 +519,7 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;position:relative;">
-<table class="tbl-grid" id="pipelineTableBody" style="width:1950px;">
+<table class="tbl-grid" id="pipelineTableBody">
 <?php
 // Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
 $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
