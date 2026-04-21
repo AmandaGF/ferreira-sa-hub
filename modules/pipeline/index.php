@@ -574,19 +574,52 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <td class="editable" style="min-width:100px;"><input value="<?= e($lead['case_type'] ?? '') ?>" data-id="<?= $lid ?>" data-field="case_type" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:100px;"><input type="text" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorarios(this)" placeholder="0,00"></td>
     <td class="editable" style="min-width:60px;"><input type="number" value="<?= e($lead['exito_percentual'] ?? '') ?>" data-id="<?= $lid ?>" data-field="exito_percentual" onchange="saveCell(this)" placeholder="%" step="1" min="0" max="100" style="width:55px;"></td>
-    <td class="editable" style="min-width:80px;"><input value="<?= e($lead['vencimento_parcela'] ?? '') ?>" data-id="<?= $lid ?>" data-field="vencimento_parcela" onchange="saveCell(this)"></td>
-    <td class="editable" style="min-width:70px;"><input value="<?= e($lead['forma_pagamento'] ?? '') ?>" data-id="<?= $lid ?>" data-field="forma_pagamento" onchange="saveCell(this)"></td>
+    <td class="editable" style="min-width:110px;">
+        <?php
+            $_venc = $lead['vencimento_parcela'] ?? '';
+            $_vencIso = '';
+            if ($_venc) {
+                // Aceita vários formatos — YYYY-MM-DD, DD/MM/YYYY, "dia 05", etc.
+                if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $_venc)) $_vencIso = $_venc;
+                elseif (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})/', $_venc, $m)) $_vencIso = $m[3] . '-' . $m[2] . '-' . $m[1];
+                else $_vencIso = '';
+            }
+        ?>
+        <input type="date" value="<?= e($_vencIso) ?>" data-id="<?= $lid ?>" data-field="vencimento_parcela" onchange="saveCell(this)" style="font-family:inherit;">
+    </td>
+    <td class="editable" style="min-width:140px;">
+        <?php
+            $_fpValor = mb_strtoupper($lead['forma_pagamento'] ?? '');
+            $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA');
+        ?>
+        <select data-id="<?= $lid ?>" data-field="forma_pagamento" onchange="saveCell(this)">
+            <option value="">—</option>
+            <?php foreach ($_formas as $_fp): ?>
+                <option value="<?= e($_fp) ?>" <?= $_fpValor === $_fp ? 'selected' : '' ?>><?= e($_fp) ?></option>
+            <?php endforeach; ?>
+            <?php if ($_fpValor && !in_array($_fpValor, $_formas, true)): ?>
+                <option value="<?= e($_fpValor) ?>" selected>(antigo) <?= e($_fpValor) ?></option>
+            <?php endif; ?>
+        </select>
+    </td>
     <td class="editable" style="min-width:80px;">
         <select data-id="<?= $lid ?>" data-field="assigned_to" onchange="saveCell(this)">
             <option value="">—</option>
             <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
         </select>
     </td>
-    <td style="text-align:center;min-width:70px;">
+    <td style="text-align:center;min-width:120px;">
         <?php if (!empty($lead['asaas_customer_id'])): ?>
-            <span title="Cliente cadastrado no Asaas (<?= e($lead['asaas_customer_id']) ?>)" style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:.68rem;font-weight:700;">✓ SIM</span>
+            <span title="Cliente cadastrado no Asaas (<?= e($lead['asaas_customer_id']) ?>)" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✓ SIM</span>
         <?php else: ?>
-            <span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 10px;border-radius:10px;font-size:.68rem;font-weight:700;">✕ NÃO</span>
+            <span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✕ NÃO</span>
+        <?php endif; ?>
+        <?php if (function_exists('can_access_financeiro') && can_access_financeiro() && (int)$lead['client_id'] > 0): ?>
+            <button type="button" onclick="criarCobrancaAsaas(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
+                    title="Criar cobrança no Asaas com os dados desta linha (valor, 1º vencimento, forma de pagamento)"
+                    style="background:#B87333;color:#fff;border:none;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;cursor:pointer;margin-left:3px;">
+                💰 Cobrar
+            </button>
         <?php endif; ?>
     </td>
     <td class="editable" style="min-width:60px;"><input value="<?= e($lead['urgencia'] ?? '') ?>" data-id="<?= $lid ?>" data-field="urgencia" onchange="saveCell(this)"></td>
@@ -685,6 +718,54 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 <script>
 var _pendingForm = null;
 var _pendingDragData = null;
+
+// Criar cobrança no Asaas a partir de uma linha da Planilha (só autorizados: Amanda/Rodrigo/Luiz)
+function criarCobrancaAsaas(leadId, nome) {
+    if (!confirm('Criar cobrança no Asaas para "' + nome + '"?\n\n'
+               + 'O sistema vai usar o valor, vencimento e forma de pagamento desta linha.\n\n'
+               + 'Se o cliente ainda não está cadastrado no Asaas, será cadastrado automaticamente.\n\n'
+               + 'Prossegue?')) return;
+
+    var btn = null;
+    try { btn = event && event.target && event.target.closest ? event.target.closest('button') : null; } catch(e) {}
+    if (btn) { btn.disabled = true; btn.textContent = 'Criando...'; }
+
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+    var fd = new FormData();
+    fd.append('action', 'criar_cobranca_lead');
+    fd.append('lead_id', leadId);
+    fd.append('csrf_token', csrf);
+
+    fetch('<?= module_url('financeiro', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){
+        return r.text().then(function(t){
+            var body = {};
+            try { body = JSON.parse(t); } catch(e) { body = { error: 'Resposta inválida (HTTP ' + r.status + ')' }; }
+            return { status: r.status, body: body };
+        });
+    }).then(function(res){
+        console.log('[criarCobrancaAsaas]', res.status, res.body);
+        if (res.body.ok) {
+            var msg = '✅ ' + (res.body.msg || 'Cobrança criada!');
+            if (res.body.invoice_url) {
+                if (confirm(msg + '\n\nAbrir link da fatura em nova aba?')) {
+                    window.open(res.body.invoice_url, '_blank');
+                }
+            } else {
+                alert(msg);
+            }
+            if (btn) { btn.disabled = false; btn.textContent = '✓ Criada'; btn.style.background = '#059669'; }
+        } else {
+            alert('❌ Falha: ' + (res.body.error || ('HTTP ' + res.status)));
+            if (btn) { btn.disabled = false; btn.textContent = '💰 Cobrar'; }
+        }
+    }).catch(function(e){
+        alert('Erro de rede: ' + e.message);
+        if (btn) { btn.disabled = false; btn.textContent = '💰 Cobrar'; }
+    });
+}
 
 // Excluir lead irregular (só Amanda/Luiz) — usa duas confirmações em vez de prompt
 function excluirLeadPlanilha(leadId, nome) {

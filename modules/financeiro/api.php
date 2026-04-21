@@ -48,6 +48,117 @@ if ($action === 'vincular_case') {
     exit;
 }
 
+// Criar cobrança Asaas a partir de um lead da Planilha Comercial
+// (botão 💰 Cobrar no pipeline/index.php)
+if ($action === 'criar_cobranca_lead') {
+    header('Content-Type: application/json');
+    $leadId = (int)($_POST['lead_id'] ?? 0);
+    if (!$leadId) { echo json_encode(array('error' => 'lead_id obrigatório')); exit; }
+
+    $l = $pdo->prepare("SELECT pl.*, c.id AS client_id_real, c.name AS client_name, c.cpf, c.asaas_customer_id
+                        FROM pipeline_leads pl
+                        LEFT JOIN clients c ON c.id = pl.client_id
+                        WHERE pl.id = ?");
+    $l->execute(array($leadId));
+    $lead = $l->fetch();
+    if (!$lead) { echo json_encode(array('error' => 'Lead não encontrado')); exit; }
+    if (!$lead['client_id_real']) { echo json_encode(array('error' => 'Lead não vinculado a cliente. Vincule primeiro pelo cadastro.')); exit; }
+    if (!$lead['cpf']) { echo json_encode(array('error' => 'Cliente sem CPF cadastrado. Atualize no CRM antes de criar cobrança.')); exit; }
+
+    // Valor: usa honorarios_cents ou estimated_value_cents
+    $valorCents = (int)($lead['honorarios_cents'] ?: ($lead['estimated_value_cents'] ?? 0));
+    if ($valorCents <= 0) { echo json_encode(array('error' => 'Valor dos honorários não informado — preencha a coluna "Honorários (R$)".')); exit; }
+    $valor = $valorCents / 100;
+
+    $venc = $lead['vencimento_parcela'] ?? '';
+    // Aceita YYYY-MM-DD ou DD/MM/YYYY
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $venc)) { $vencIso = $venc; }
+    elseif (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})/', $venc, $m)) { $vencIso = $m[3] . '-' . $m[2] . '-' . $m[1]; }
+    else { echo json_encode(array('error' => 'Data de 1º vencimento inválida — preencha a coluna "Vencto 1ª" (formato DD/MM/AAAA).')); exit; }
+
+    $formaTxt = mb_strtoupper(trim($lead['forma_pagamento'] ?? ''));
+    if (!$formaTxt) { echo json_encode(array('error' => 'Forma de pagamento não informada — escolha na coluna "Pgto".')); exit; }
+
+    // Vincular cliente no Asaas se ainda não vinculado
+    if (empty($lead['asaas_customer_id'])) {
+        $vinc = vincular_cliente_asaas((int)$lead['client_id_real']);
+        if (isset($vinc['error'])) { echo json_encode(array('error' => 'Falha ao vincular cliente no Asaas: ' . $vinc['error'])); exit; }
+        $asaasCustomerId = $vinc['id'];
+    } else {
+        $asaasCustomerId = $lead['asaas_customer_id'];
+    }
+
+    // Descrição automática
+    $descBase = 'Honorários advocatícios';
+    if (!empty($lead['case_type'])) $descBase .= ' — ' . $lead['case_type'];
+    $descBase .= ' (' . $lead['client_name'] . ')';
+
+    // Mapeia forma de pagamento → cobrança única vs subscription + billingType
+    // CARTÃO DE CRÉDITO → cobrança única CREDIT_CARD
+    // CRÉDITO RECORRENTE → subscription CREDIT_CARD (parcelado mensal)
+    // PIX RECORRENTE → subscription PIX
+    // BOLETO → cobrança única BOLETO
+    // À VISTA → cobrança única UNDEFINED (cliente escolhe qualquer forma)
+    $numParcelas = (int)($lead['num_parcelas'] ?? 1);
+    if ($numParcelas < 1) $numParcelas = 1;
+
+    $recorrente = false;
+    $billingType = 'UNDEFINED';
+    if (strpos($formaTxt, 'CARTÃO DE CRÉDITO') !== false || $formaTxt === 'CARTAO DE CREDITO') {
+        $billingType = 'CREDIT_CARD';
+    } elseif (strpos($formaTxt, 'CRÉDITO RECORRENTE') !== false || $formaTxt === 'CREDITO RECORRENTE') {
+        $billingType = 'CREDIT_CARD'; $recorrente = true;
+    } elseif (strpos($formaTxt, 'PIX RECORRENTE') !== false) {
+        $billingType = 'PIX'; $recorrente = true;
+    } elseif ($formaTxt === 'BOLETO') {
+        $billingType = 'BOLETO';
+    } elseif (strpos($formaTxt, 'VISTA') !== false) {
+        $billingType = 'UNDEFINED';
+    }
+
+    try {
+        if ($recorrente) {
+            if ($numParcelas < 2) $numParcelas = 12; // se não informou, assume 12 meses
+            $diaVenc = (int)date('d', strtotime($vencIso));
+            $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descBase, $billingType);
+        } else {
+            $resp = criar_cobranca_asaas($asaasCustomerId, $valor, $vencIso, $descBase, $billingType);
+        }
+        if (isset($resp['error'])) {
+            echo json_encode(array('error' => 'Asaas recusou: ' . (is_array($resp['error']) ? json_encode($resp['error']) : $resp['error'])));
+            exit;
+        }
+        $asaasId = $resp['id'] ?? null;
+        $invoiceUrl = $resp['invoiceUrl'] ?? ($resp['invoiceUrl'] ?? null);
+
+        // Persiste em asaas_cobrancas se for cobrança única (subscriptions geram payments automaticamente no webhook)
+        if (!$recorrente && $asaasId) {
+            try {
+                $pdo->prepare(
+                    "INSERT IGNORE INTO asaas_cobrancas (client_id, asaas_payment_id, asaas_customer_id, descricao, valor, vencimento, status, forma_pagamento, invoice_url, ultima_sync)
+                     VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, NOW())"
+                )->execute(array($lead['client_id_real'], $asaasId, $asaasCustomerId, $descBase, $valor, $vencIso, $billingType, $invoiceUrl));
+            } catch (Exception $e) {}
+        }
+
+        audit_log('asaas_cobranca_lead', 'lead', $leadId, 'Cobrança criada (' . ($recorrente ? 'subscription ' . $numParcelas . 'x' : 'avulsa') . ') — ' . $billingType . ' — R$ ' . number_format($valor, 2, ',', '.'));
+
+        echo json_encode(array(
+            'ok' => true,
+            'asaas_id' => $asaasId,
+            'invoice_url' => $invoiceUrl,
+            'recorrente' => $recorrente,
+            'msg' => $recorrente
+                ? 'Assinatura criada com sucesso (' . $numParcelas . 'x R$ ' . number_format($valor, 2, ',', '.') . ').'
+                : 'Cobrança criada com sucesso — R$ ' . number_format($valor, 2, ',', '.') . ' · venc ' . date('d/m/Y', strtotime($vencIso)),
+        ));
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Erro interno: ' . $e->getMessage()));
+        exit;
+    }
+}
+
 switch ($action) {
     case 'criar_cobranca':
         $clientId = (int)($_POST['client_id'] ?? 0);
