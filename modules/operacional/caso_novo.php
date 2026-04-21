@@ -909,6 +909,41 @@ function addParteRow() {
     document.getElementById('partesRows').insertAdjacentHTML('beforeend', html);
 }
 
+// Auto-detect PF/PJ + máscara + busca de nome (delegated, pega linhas estáticas e dinâmicas)
+(function() {
+    var container = document.getElementById('partesRows');
+    if (!container) return;
+
+    container.addEventListener('input', function(ev) {
+        var el = ev.target;
+        if (!el.matches || !el.matches('input[data-busca-doc]')) return;
+
+        // Conta dígitos e decide tipo ANTES de aplicar a máscara
+        var digitos = el.value.replace(/\D/g, '');
+        var row = el.closest('.parte-row');
+        if (row) {
+            var selTipo = row.querySelector('select[name="partes_tipo[]"]');
+            if (selTipo) {
+                if (digitos.length >= 12) {
+                    if (selTipo.value !== 'juridica') selTipo.value = 'juridica';
+                } else if (digitos.length >= 1) {
+                    // <=11 dígitos, inclusive incompleto → assume PF até provar contrário
+                    if (selTipo.value !== 'fisica') selTipo.value = 'fisica';
+                }
+            }
+        }
+
+        // Aplica máscara (CPF ou CNPJ conforme tamanho)
+        formatarCpfCnpj(el);
+    });
+
+    container.addEventListener('blur', function(ev) {
+        var el = ev.target;
+        if (!el.matches || !el.matches('input[data-busca-doc]')) return;
+        buscarDocParte(el);
+    }, true);
+})();
+
 // Toggle marcar parte como cliente — busca na base e vincula
 function toggleParteCliente(checkbox) {
     var row = checkbox.closest('.parte-row');
