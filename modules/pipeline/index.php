@@ -590,7 +590,7 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
 </div>
 <?php endif; ?>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
-<table class="tbl-grid" id="pipelineTableBody" style="width:2050px;min-width:2050px;">
+<table class="tbl-grid" id="pipelineTableBody" style="width:2060px;min-width:2060px;">
 <?php
 // Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
 $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
@@ -613,7 +613,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <th style="width:180px;"><?= $_sortLink('phone', 'Contato') ?></th>
     <th style="width:120px;"><?= $_sortLink('created_at', 'Data Fech.') ?></th>
     <th style="width:140px;"><?= $_sortLink('case_type', 'Tipo de Ação') ?></th>
-    <th style="width:95px;"><?= $_sortLink('honorarios', 'Honor. (R$)') ?></th>
+    <th style="width:105px;"><?= $_sortLink('honorarios', 'Honor. (R$)') ?></th>
     <th style="width:52px;cursor:default;" title="Em quantas parcelas (1 = à vista)">Parc.</th>
     <th style="width:90px;cursor:default;" title="Valor de cada parcela (calculado automaticamente)">Vlr Parc.</th>
     <th style="width:58px;"><?= $_sortLink('exito', 'Êxito') ?></th>
@@ -653,7 +653,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
         $_parcelas = max(1, (int)($lead['num_parcelas'] ?? 1));
         $_valorParcela = $_honor > 0 ? ($_honor / $_parcelas) : 0;
     ?>
-    <td class="editable" style="min-width:75px;"><input type="text" class="col-honor" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorariosRow(this)" placeholder="0,00"></td>
+    <td class="editable" style="min-width:85px;position:relative;"><span style="position:absolute;left:5px;top:50%;transform:translateY(-50%);font-size:.66rem;color:#6b7280;font-weight:700;pointer-events:none;z-index:1;">R$</span><input type="text" class="col-honor" value="<?= $lead['honorarios_cents'] ? number_format($lead['honorarios_cents']/100, 2, ',', '.') : e($lead['valor_acao'] ?? '') ?>" data-id="<?= $lid ?>" data-field="valor_acao" onchange="saveHonorariosRow(this)" placeholder="0,00" style="padding-left:22px;"></td>
     <td class="editable" style="min-width:42px;text-align:center;"><input type="number" class="col-parcelas" value="<?= $_parcelas ?>" data-id="<?= $lid ?>" data-field="num_parcelas" onchange="saveParcelas(this)" min="1" max="60" step="1" style="width:40px;text-align:center;" title="Número de parcelas (1 = à vista)"></td>
     <td class="col-valor-parcela" style="text-align:right;font-weight:600;color:var(--petrol-900);font-size:.7rem;min-width:70px;" data-id="<?= $lid ?>" title="Honorários ÷ Parcelas"><?= $_valorParcela > 0 ? 'R$ ' . number_format($_valorParcela, 2, ',', '.') : '<span style="color:#cbd5e1;">—</span>' ?></td>
     <td class="editable" style="min-width:42px;text-align:center;"><input type="number" value="<?= e($lead['exito_percentual'] ?? '') ?>" data-id="<?= $lid ?>" data-field="exito_percentual" onchange="saveCell(this)" placeholder="%" step="1" min="0" max="100" style="width:40px;text-align:center;"></td>
