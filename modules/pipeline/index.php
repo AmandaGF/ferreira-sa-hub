@@ -376,9 +376,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
 /* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px;box-sizing:border-box; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:220px;min-width:220px;max-width:220px;box-sizing:border-box; }
-.tbl-grid td.sticky-col-2 input { width:100% !important;text-overflow:ellipsis; }
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px !important;min-width:36px !important;max-width:36px !important;box-sizing:border-box;overflow:hidden; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:220px !important;min-width:220px !important;max-width:220px !important;box-sizing:border-box;overflow:hidden;contain:layout; }
+.tbl-grid td.sticky-col-2 input { max-width:200px;text-overflow:ellipsis; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
