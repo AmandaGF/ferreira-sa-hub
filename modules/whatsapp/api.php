@@ -1119,8 +1119,17 @@ if ($action === 'enviar_rapido') {
         } catch (Exception $e) { /* se falhar checagem, permite (best-effort) */ }
     }
 
+    // Aplica assinatura (se ligada) também no envio rápido (waSenderOpen)
+    $assinar2 = zapi_auto_cfg('zapi_signature_on', '0') === '1';
+    $mensagemFinal = $mensagem;
+    if ($assinar2) {
+        $formato2 = zapi_auto_cfg('zapi_signature_format', '— {{atendente}}');
+        $nomeUser2 = user_display_name();
+        $assinatura2 = str_replace('{{atendente}}', $nomeUser2, $formato2);
+        $mensagemFinal = rtrim($mensagem) . "\n\n" . $assinatura2;
+    }
     // Envia via Z-API
-    $resp = zapi_send_text($canal, $telefone, $mensagem);
+    $resp = zapi_send_text($canal, $telefone, $mensagemFinal);
     if (empty($resp['ok'])) {
         echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
         exit;

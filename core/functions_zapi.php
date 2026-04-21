@@ -648,7 +648,9 @@ function zapi_auto_cfg($chave, $default = '') {
     if ($cfg === null) {
         $cfg = array();
         try {
-            foreach (db()->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_auto_%'")->fetchAll() as $r) {
+            // Carrega TODAS as chaves zapi_* — assinatura (zapi_signature_*), bot (zapi_bot_*),
+            // automações (zapi_auto_*) e afins estão no mesmo cache.
+            foreach (db()->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_%'")->fetchAll() as $r) {
                 $cfg[$r['chave']] = $r['valor'];
             }
         } catch (Exception $e) {}
