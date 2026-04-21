@@ -346,6 +346,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <option value="perdido">❌ Perdido</option>
                             </select>
                         </form>
+                        <?php if (function_exists('can_access_financeiro') && can_access_financeiro() && (int)($lead['client_id'] ?? 0) > 0): ?>
+                            <button type="button" onclick="criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>)"
+                                    title="Criar cobrança no Asaas com os dados deste lead (valor, vencimento, forma, parcelas)"
+                                    style="background:#B87333;color:#fff;border:none;padding:3px 7px;border-radius:6px;font-size:.62rem;font-weight:700;cursor:pointer;">💰 Cobrar</button>
+                        <?php endif; ?>
                         <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>">
                             <?= csrf_input() ?>
                             <input type="hidden" name="action" value="delete">
