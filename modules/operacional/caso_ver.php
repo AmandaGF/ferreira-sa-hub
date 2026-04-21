@@ -1840,7 +1840,7 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                             <div style="display:flex;align-items:center;gap:6px;">
                                 <span style="font-size:.68rem;color:var(--text-muted);"><?= e($and['user_name'] ?: '') ?></span>
                                 <?php
-                                // Montar links WhatsApp para todos os clientes vinculados
+                                // Montar dados WhatsApp para todos os clientes vinculados (envio pelo Hub via waSenderOpen)
                                 $waAnds = array();
                                 $tipoAcaoRef = ($case['case_type'] && $case['case_type'] !== 'outro') ? ' — ' . $case['case_type'] : '';
                                 $refProcesso = $case['case_number'] ? " (Proc. " . $case['case_number'] . $tipoAcaoRef . ")" : ($case['title'] ? " (" . $case['title'] . ")" : "");
@@ -1849,21 +1849,26 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                                     if (!$phAnd) continue;
                                     $nomeCvAnd = explode(' ', trim($cvAnd['name']))[0];
                                     $msgAnd = "Olá " . $nomeCvAnd . ", informamos sobre o andamento do seu processo" . $refProcesso . ":\n\n*" . $lbl . "* - " . date('d/m/Y', strtotime($and['data_andamento'])) . "\n" . $and['descricao'] . "\n\nQualquer dúvida, estamos à disposição.\nFerreira e Sá Advocacia";
-                                    $waAnds[] = array('name' => $cvAnd['name'], 'url' => 'https://wa.me/55' . $phAnd . '?text=' . rawurlencode($msgAnd));
+                                    $waAnds[] = array(
+                                        'name'     => $cvAnd['name'],
+                                        'phone'    => $phAnd,
+                                        'clientId' => (int)$cvAnd['id'],
+                                        'msg'      => $msgAnd,
+                                    );
                                 }
                                 $jaEnviou = !empty($and['whatsapp_enviado_em']);
                                 ?>
-                                <?php if (count($waAnds) === 1): ?>
+                                <?php if (count($waAnds) === 1): $waC = $waAnds[0]; ?>
                                 <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;">
-                                    <a href="<?= e($waAnds[0]['url']) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;text-decoration:none;font-weight:600;" id="waBtn<?= $and['id'] ?>">Enviar</a>
+                                    <button type="button" onclick="waSenderOpen({telefone:<?= e(json_encode($waC['phone'])) ?>,nome:<?= e(json_encode($waC['name'])) ?>,clientId:<?= (int)$waC['clientId'] ?>,canal:'24',mensagem:<?= e(json_encode($waC['msg'])) ?>,onSuccess:function(){logWhatsApp(<?= (int)$and['id'] ?>);}});" style="background:#25D366;color:#fff;border:none;border-radius:4px;font-size:.7rem;padding:2px 8px;font-weight:600;cursor:pointer;" id="waBtn<?= $and['id'] ?>" title="Envia pelo Hub (Z-API) — abre modal para revisar antes de enviar">💬 Enviar</button>
                                     <?php if ($jaEnviou): ?><span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span><?php endif; ?>
                                 </span>
                                 <?php elseif (count($waAnds) > 1): ?>
                                 <span id="waBtnWrap<?= $and['id'] ?>" style="display:inline-flex;align-items:center;gap:4px;position:relative;">
-                                    <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;border:none;font-weight:600;cursor:pointer;" id="waBtn<?= $and['id'] ?>">Enviar ▾</button>
-                                    <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:2px;overflow:hidden;">
+                                    <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="background:#25D366;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 8px;border:none;font-weight:600;cursor:pointer;" id="waBtn<?= $and['id'] ?>">💬 Enviar ▾</button>
+                                    <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:2px;overflow:hidden;">
                                         <?php foreach ($waAnds as $wa): ?>
-                                        <a href="<?= e($wa['url']) ?>" target="_blank" onclick="logWhatsApp(<?= $and['id'] ?>)" style="display:block;padding:.45rem .75rem;color:#052228;text-decoration:none;font-size:.75rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wa['name']) ?></a>
+                                        <button type="button" onclick="this.closest('div').style.display='none';waSenderOpen({telefone:<?= e(json_encode($wa['phone'])) ?>,nome:<?= e(json_encode($wa['name'])) ?>,clientId:<?= (int)$wa['clientId'] ?>,canal:'24',mensagem:<?= e(json_encode($wa['msg'])) ?>,onSuccess:function(){logWhatsApp(<?= (int)$and['id'] ?>);}});" style="display:block;width:100%;text-align:left;padding:.45rem .75rem;background:none;color:#052228;border:none;cursor:pointer;font-size:.75rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wa['name']) ?></button>
                                         <?php endforeach; ?>
                                     </div>
                                     <?php if ($jaEnviou): ?><span style="font-size:.65rem;color:#059669;font-weight:600;" title="Enviado em <?= date('d/m/Y H:i', strtotime($and['whatsapp_enviado_em'])) ?>">✓ <?= date('d/m H:i', strtotime($and['whatsapp_enviado_em'])) ?></span><?php endif; ?>
