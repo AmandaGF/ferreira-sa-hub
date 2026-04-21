@@ -122,7 +122,7 @@ try {
          WHERE cs.case_number IS NOT NULL AND cs.case_number != ''
            AND cs.status NOT IN ('arquivado','cancelado')
          ORDER BY cs.created_at DESC
-         LIMIT 5"
+         LIMIT 3"
     );
     $ultimosCadastrados = $stmtCad->fetchAll();
 
@@ -133,7 +133,7 @@ try {
          LEFT JOIN users u ON u.id = cs.responsible_user_id
          WHERE cs.status = 'distribuido'
          ORDER BY cs.updated_at DESC
-         LIMIT 5"
+         LIMIT 3"
     );
     $ultimosDistribuidos = $stmtDist->fetchAll();
 } catch (Exception $e) {}
@@ -201,7 +201,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #0ea5e9;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
             <strong style="font-size:.78rem;color:var(--petrol-900);">🆕 Últimos cadastrados</strong>
-            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+            <span style="font-size:.65rem;color:#64748b;">3 mais recentes</span>
         </div>
         <?php if (empty($ultimosCadastrados)): ?>
             <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
@@ -231,7 +231,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #15803d;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
             <strong style="font-size:.78rem;color:var(--petrol-900);">🏛️ Últimos distribuídos</strong>
-            <span style="font-size:.65rem;color:#64748b;">5 mais recentes</span>
+            <span style="font-size:.65rem;color:#64748b;">3 mais recentes</span>
         </div>
         <?php if (empty($ultimosDistribuidos)): ?>
             <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
