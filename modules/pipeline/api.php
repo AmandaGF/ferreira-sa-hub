@@ -320,18 +320,21 @@ switch ($action) {
         break;
 
     case 'delete':
+        // IMPORTANTE: Remove APENAS o lead da Planilha Comercial (pipeline_leads + pipeline_history).
+        // NÃO toca em clients, cases, case_andamentos, asaas_cobrancas, honorarios_cobranca,
+        // agenda_eventos, etc. O cliente continua cadastrado no CRM/Operacional/Financeiro.
         if (!can_excluir_lead_pipeline()) _api_fail('Sem permissão — só Amanda ou Luiz Eduardo podem excluir leads.', 403);
         $leadId = (int)($_POST['lead_id'] ?? 0);
         if ($leadId) {
-            // Captura nome pra log + verificação se tem caso vinculado
             $stmtInfo = $pdo->prepare('SELECT name, linked_case_id FROM pipeline_leads WHERE id = ?');
             $stmtInfo->execute(array($leadId));
             $info = $stmtInfo->fetch();
             $nomeLead = $info ? $info['name'] : '(desconhecido)';
 
+            // Só 2 tabelas afetadas — ambas exclusivas da Planilha Comercial:
             $pdo->prepare('DELETE FROM pipeline_history WHERE lead_id = ?')->execute(array($leadId));
             $pdo->prepare('DELETE FROM pipeline_leads WHERE id = ?')->execute(array($leadId));
-            audit_log('lead_deleted', 'lead', $leadId, 'Lead "' . $nomeLead . '" excluído por ' . current_user_name());
+            audit_log('lead_deleted', 'lead', $leadId, 'Lead "' . $nomeLead . '" removido da Planilha Comercial por ' . current_user_name() . ' (cliente preservado)');
             if ($_isAjax) {
                 header('Content-Type: application/json');
                 echo json_encode(array('ok' => true));

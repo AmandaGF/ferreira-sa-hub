@@ -674,9 +674,12 @@ var _pendingDragData = null;
 
 // Excluir lead irregular (só Amanda/Luiz)
 function excluirLeadPlanilha(leadId, nome) {
-    var msg = 'Excluir DEFINITIVAMENTE o lead "' + nome + '"?\n\n'
-            + '⚠️ Esta ação não pode ser desfeita. Use só pra limpar cadastros irregulares (ex: cliente antigo que entrou como contrato recente).\n\n'
-            + 'Digite EXCLUIR no prompt pra confirmar.';
+    var msg = 'Remover "' + nome + '" SÓ DA PLANILHA COMERCIAL?\n\n'
+            + '✅ O cliente permanece cadastrado (CRM, Operacional, Financeiro).\n'
+            + '✅ Processos, documentos e cobranças ficam intactos.\n'
+            + '❌ Apenas o card/linha do Comercial é removido.\n\n'
+            + 'Use pra limpar cadastros irregulares (ex: cliente antigo que entrou como contrato recente).\n\n'
+            + 'Digite EXCLUIR pra confirmar (ação irreversível na planilha).';
     var input = prompt(msg);
     if (input !== 'EXCLUIR') return;
     var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
