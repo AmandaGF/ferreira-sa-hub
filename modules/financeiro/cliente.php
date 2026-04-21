@@ -286,6 +286,20 @@ echo voltar_ao_processo_html();
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" class="form-input" min="2" max="60" value="12"></div>
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Dia venc.</label><input type="number" name="dia_vencimento" class="form-input" min="1" max="28" value="10"></div>
         </div>
+        <div style="margin-bottom:.6rem;">
+            <label style="font-size:.75rem;font-weight:700;">Processo vinculado <span style="color:#dc2626;">*</span></label>
+            <?php if (empty($processosCliente)): ?>
+                <div style="padding:.55rem .75rem;background:#fef3c7;color:#92400e;border-radius:8px;font-size:.78rem;font-weight:600;">⚠️ Este cliente ainda não tem processo cadastrado. Crie um processo antes de gerar cobrança.</div>
+                <input type="hidden" name="case_id" value="">
+            <?php else: ?>
+                <select name="case_id" class="form-select" required>
+                    <option value="">— Selecione o processo —</option>
+                    <?php foreach ($processosCliente as $pr): ?>
+                        <option value="<?= (int)$pr['id'] ?>"><?= e($pr['title'] ?: 'Processo #' . $pr['id']) ?><?= $pr['case_number'] ? ' (' . e($pr['case_number']) . ')' : '' ?></option>
+                    <?php endforeach; ?>
+                </select>
+            <?php endif; ?>
+        </div>
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;">Descrição</label><input type="text" name="descricao" class="form-input" value="Honorários Advocatícios"></div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalNovaCob').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>

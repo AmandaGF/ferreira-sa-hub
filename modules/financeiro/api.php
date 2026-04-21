@@ -291,6 +291,19 @@ switch ($action) {
             redirect(module_url('financeiro'));
         }
 
+        // Processo é OBRIGATÓRIO — toda cobrança deve estar vinculada a um caso específico.
+        if (!$caseId) {
+            flash_set('error', 'Selecione o processo vinculado à cobrança.');
+            redirect(module_url('financeiro', 'cliente.php?id=' . $clientId));
+        }
+        // Validar que o processo pertence ao cliente
+        $chkCase = $pdo->prepare("SELECT id FROM cases WHERE id = ? AND client_id = ?");
+        $chkCase->execute(array($caseId, $clientId));
+        if (!$chkCase->fetchColumn()) {
+            flash_set('error', 'Processo não pertence a este cliente. Selecione um válido.');
+            redirect(module_url('financeiro', 'cliente.php?id=' . $clientId));
+        }
+
         // Vincular cliente no Asaas (se ainda não vinculado)
         $vinculo = vincular_cliente_asaas($clientId);
         if (isset($vinculo['error'])) {
@@ -315,6 +328,9 @@ switch ($action) {
 
             // Sincronizar parcelas criadas
             sync_cobrancas_cliente($clientId, $asaasCustomerId);
+            // Vincular ao processo TODAS as parcelas dessa assinatura que acabaram de ser criadas sem case_id
+            $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE client_id = ? AND case_id IS NULL")
+                ->execute(array($caseId, $clientId));
             flash_set('success', "Assinatura criada! $numParcelas parcelas de R$ " . number_format($valor, 2, ',', '.'));
 
         } else {
@@ -325,12 +341,12 @@ switch ($action) {
                 redirect(module_url('financeiro'));
             }
 
-            // Salvar no cache
+            // Salvar no cache — já com case_id vinculado
             $pdo->prepare(
-                "INSERT INTO asaas_cobrancas (client_id, contrato_id, asaas_payment_id, asaas_customer_id, descricao, valor, vencimento, status, forma_pagamento, link_boleto, invoice_url)
-                 VALUES (?, NULL, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)"
+                "INSERT INTO asaas_cobrancas (client_id, case_id, contrato_id, asaas_payment_id, asaas_customer_id, descricao, valor, vencimento, status, forma_pagamento, link_boleto, invoice_url)
+                 VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?)"
             )->execute(array(
-                $clientId, $resp['id'], $asaasCustomerId, $descricao, $valor, $vencimento,
+                $clientId, $caseId, $resp['id'], $asaasCustomerId, $descricao, $valor, $vencimento,
                 strtolower($formaPag),
                 isset($resp['bankSlipUrl']) ? $resp['bankSlipUrl'] : null,
                 isset($resp['invoiceUrl']) ? $resp['invoiceUrl'] : null,

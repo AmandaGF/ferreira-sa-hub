@@ -303,6 +303,17 @@ echo voltar_ao_processo_html();
             $clientesJS = array_map(function($c){
                 return array('id'=>(int)$c['id'], 'name'=>$c['name'], 'asaas'=>!empty($c['asaas_customer_id']));
             }, $clientes);
+            // Casos ativos agrupados por cliente (pro select dinâmico abaixo)
+            $casosByClient = array();
+            foreach ($pdo->query("SELECT cs.id, cs.title, cs.case_number, cs.client_id FROM cases cs WHERE cs.status NOT IN ('arquivado','cancelado') AND cs.client_id IS NOT NULL ORDER BY cs.created_at DESC") as $cs) {
+                $cid = (int)$cs['client_id'];
+                if (!isset($casosByClient[$cid])) $casosByClient[$cid] = array();
+                $casosByClient[$cid][] = array(
+                    'id' => (int)$cs['id'],
+                    'title' => $cs['title'] ?: ('Processo #' . $cs['id']),
+                    'number' => $cs['case_number'] ?: '',
+                );
+            }
         ?>
         <div style="margin-bottom:.6rem;position:relative;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Cliente *</label>
@@ -312,6 +323,7 @@ echo voltar_ao_processo_html();
         </div>
         <script>
         var _cobClientes = <?= json_encode($clientesJS, JSON_UNESCAPED_UNICODE) ?>;
+        var _cobCasosByClient = <?= json_encode($casosByClient, JSON_UNESCAPED_UNICODE) ?>;
         function cobFiltrar(q) {
             var drop = document.getElementById('cobDropdown');
             q = (q || '').trim().toLowerCase();
@@ -331,6 +343,25 @@ echo voltar_ao_processo_html();
             document.getElementById('cobClienteId').value = id;
             document.getElementById('cobBuscaNome').value = nome;
             document.getElementById('cobDropdown').style.display = 'none';
+            // Popular select de casos com os processos deste cliente
+            cobPopularCasos(id);
+        }
+        function cobPopularCasos(clientId) {
+            var sel = document.getElementById('cobCaseSelect');
+            if (!sel) return;
+            var casos = _cobCasosByClient[clientId] || [];
+            if (!casos.length) {
+                sel.innerHTML = '<option value="">⚠️ Este cliente não tem processos cadastrados — crie um antes</option>';
+                sel.disabled = true;
+            } else {
+                sel.disabled = false;
+                var html = '<option value="">— Selecione o processo —</option>';
+                casos.forEach(function(c){
+                    var num = c.number ? ' (' + c.number + ')' : '';
+                    html += '<option value="' + c.id + '">' + c.title + num + '</option>';
+                });
+                sel.innerHTML = html;
+            }
         }
         // Fecha dropdown ao clicar fora
         document.addEventListener('click', function(e){
@@ -383,15 +414,11 @@ echo voltar_ao_processo_html();
         </div>
 
         <div style="margin-bottom:.6rem;">
-            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Caso vinculado (opcional)</label>
-            <select name="case_id" class="form-select">
-                <option value="">— Nenhum —</option>
-                <?php
-                $casos = $pdo->query("SELECT cs.id, cs.title, cl.name FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id ORDER BY cs.created_at DESC LIMIT 50")->fetchAll();
-                foreach ($casos as $cs): ?>
-                <option value="<?= $cs['id'] ?>"><?= e($cs['title']) ?> — <?= e($cs['name'] ?: '') ?></option>
-                <?php endforeach; ?>
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Processo vinculado <span style="color:#dc2626;">*</span></label>
+            <select name="case_id" id="cobCaseSelect" class="form-select" required>
+                <option value="">— Selecione primeiro o cliente acima —</option>
             </select>
+            <div style="font-size:.64rem;color:var(--text-muted);margin-top:.2rem;">Selecione o cliente acima — os processos dele vão aparecer aqui automaticamente.</div>
         </div>
 
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
