@@ -102,12 +102,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-empty { padding:2rem 1rem;text-align:center;color:var(--text-muted);font-size:.85rem; }
 .wa-chat-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;padding:2rem; }
 .wa-chat-empty-ico { font-size:3rem;margin-bottom:.5rem;opacity:.4; }
-.wa-chat-head { padding:.6rem .9rem;background:#f9fafb;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap; }
+.wa-chat-head { padding:.6rem .9rem;background:#f9fafb;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem; }
 .wa-chat-head strong { font-size:.9rem; }
-.wa-chat-actions { margin-left:auto;display:flex;gap:.3rem;flex-wrap:wrap; }
-.wa-chat-actions button { padding:4px 8px;font-size:.72rem;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text); }
+.wa-chat-head .wa-name-display { font-weight:700;font-size:1rem;color:var(--petrol-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer; }
+.wa-chat-head .wa-head-sub { font-size:.75rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block; }
+/* Container dos botões: scroll horizontal quando não couber, sem wrap (mantém header compacto) */
+.wa-chat-actions { margin-left:auto;display:flex;gap:.3rem;flex-shrink:0;overflow-x:auto;max-width:60%;padding:2px 0;scrollbar-width:thin; }
+.wa-chat-actions::-webkit-scrollbar { height:5px; }
+.wa-chat-actions::-webkit-scrollbar-thumb { background:#cbd5e1;border-radius:3px; }
+.wa-chat-actions button { padding:5px 10px;font-size:.72rem;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;flex-shrink:0;font-weight:600; }
 .wa-chat-actions button:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
 .wa-chat-actions .btn-primary-sm { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
+@media (max-width:900px) {
+    .wa-chat-actions { max-width:100%;margin-left:0;margin-top:4px;width:100%; }
+    .wa-chat-head { flex-wrap:wrap; }
+}
 .wa-chat-body { flex:1;overflow-y:auto;padding:1rem;background:#faf8f5; }
 .wa-msg-row { display:flex;margin-bottom:.4rem; }
 .wa-msg-row.left { justify-content:flex-start; }
