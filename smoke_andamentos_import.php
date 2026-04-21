@@ -15,10 +15,20 @@ $pdo = db();
 
 // ── 1) CASE DE TESTE (cria temporário, usa admin=1 como autor) ──
 echo "=== PREPARANDO CASE DE TESTE ===\n";
-$pdo->prepare("INSERT INTO cases (title, case_type, status, client_id, created_at) VALUES (?,?,?,?,NOW())")
-    ->execute(array('[SMOKE TEST] Vanderleia x Alimentos', 'Alimentos', 'arquivado', 0));
-$testCaseId = (int)$pdo->lastInsertId();
-echo "Case ID de teste criado: $testCaseId\n\n";
+ob_implicit_flush(true); @ob_end_flush();
+try {
+    $pdo->prepare("INSERT INTO cases (title, case_type, status, client_id, created_at) VALUES (?,?,?,NULL,NOW())")
+        ->execute(array('[SMOKE TEST] Vanderleia x Alimentos', 'Alimentos', 'arquivado'));
+    $testCaseId = (int)$pdo->lastInsertId();
+    echo "Case ID de teste criado: $testCaseId\n\n";
+} catch (Exception $e) {
+    echo "FALHA ao criar case: " . $e->getMessage() . "\n";
+    // Fallback: usa o caso mais recente arquivado como teste
+    $testCaseId = (int)$pdo->query("SELECT id FROM cases WHERE status='arquivado' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    if (!$testCaseId) { echo "Nenhum case arquivado disponível. Abortando.\n"; exit; }
+    echo "Usando case arquivado existente como teste: $testCaseId (limpeza só remove os andamentos novos)\n\n";
+    $usouExistente = true;
+}
 
 // ── 2) BLOCO DE TESTE (o que a Amanda mandou) ──
 $bloco = <<<BLOCO
@@ -176,7 +186,14 @@ if (empty($warns)) {
 
 // ── 8) CLEANUP ──
 echo "\n=== LIMPEZA ===\n";
-$pdo->prepare("DELETE FROM case_andamentos WHERE case_id = ?")->execute(array($testCaseId));
-$pdo->prepare("DELETE FROM cases WHERE id = ?")->execute(array($testCaseId));
-echo "✓ Case de teste #$testCaseId deletado + andamentos associados removidos.\n";
+// Deleta apenas os andamentos inseridos no teste (por ID), não tudo do case
+$phDel = implode(',', array_fill(0, count($idsInseridos), '?'));
+$pdo->prepare("DELETE FROM case_andamentos WHERE id IN ($phDel)")->execute($idsInseridos);
+echo "✓ " . count($idsInseridos) . " andamento(s) de teste deletado(s).\n";
+if (empty($usouExistente)) {
+    $pdo->prepare("DELETE FROM cases WHERE id = ?")->execute(array($testCaseId));
+    echo "✓ Case de teste #$testCaseId deletado.\n";
+} else {
+    echo "ℹ️  Case #$testCaseId preservado (era um arquivado existente).\n";
+}
 echo "\n=== FIM ===\n";
