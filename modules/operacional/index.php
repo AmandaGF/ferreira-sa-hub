@@ -516,7 +516,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-wrap { border-radius:var(--radius-lg);border:1px solid var(--border);box-shadow:var(--shadow-sm); }
 .tbl-grid { border-collapse:separate;border-spacing:0;font-size:.82rem; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
-.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:11px 14px;text-align:left;font-size:.78rem;font-weight:700;letter-spacing:.2px;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.12);border-bottom:2px solid rgba(215,171,144,.35); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid th:last-child { border-right:none; }
 .tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
@@ -623,19 +623,19 @@ sort($opTipos);
 <div class="tbl-wrap" style="max-height:72vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
 <table class="tbl-grid" id="opTableBody" style="min-width:1800px;">
 <thead><tr>
-    <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)">#</th>
-    <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)">Caso</th>
-    <th onclick="sortTbl('opTableBody',2)">Cliente</th>
-    <th onclick="sortTbl('opTableBody',3)">Tipo de Acao</th>
-    <th onclick="sortTbl('opTableBody',4)">Responsavel</th>
-    <th onclick="sortTbl('opTableBody',5)">Status</th>
-    <th onclick="sortTbl('opTableBody',6)">Prioridade</th>
-    <th onclick="sortTbl('opTableBody',7)">N Processo</th>
-    <th onclick="sortTbl('opTableBody',8)">Vara / Juizo</th>
-    <th onclick="sortTbl('opTableBody',9)">Prazo</th>
-    <th onclick="sortTbl('opTableBody',10)">Observacoes</th>
-    <th onclick="sortTbl('opTableBody',11)">Cadastro</th>
-    <th style="cursor:default;">Mover</th>
+    <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)" title="Número da linha">#</th>
+    <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)" title="Título do caso">📋 Caso</th>
+    <th onclick="sortTbl('opTableBody',2)" title="Cliente principal">👤 Cliente</th>
+    <th onclick="sortTbl('opTableBody',3)" title="Tipo de ação">⚖️ Tipo de Ação</th>
+    <th onclick="sortTbl('opTableBody',4)" title="Advogado responsável">🧑‍💼 Responsável</th>
+    <th onclick="sortTbl('opTableBody',5)" title="Status atual do caso">📌 Status</th>
+    <th onclick="sortTbl('opTableBody',6)" title="Nível de prioridade">🔥 Prioridade</th>
+    <th onclick="sortTbl('opTableBody',7)" title="Número do processo judicial">🔢 Nº Processo</th>
+    <th onclick="sortTbl('opTableBody',8)" title="Vara e juízo de tramitação">🏛️ Vara / Juízo</th>
+    <th onclick="sortTbl('opTableBody',9)" title="Prazo fatal">⏰ Prazo</th>
+    <th onclick="sortTbl('opTableBody',10)" title="Observações gerais">📝 Observações</th>
+    <th onclick="sortTbl('opTableBody',11)" title="Data de cadastro no sistema">📅 Cadastro</th>
+    <th style="cursor:default;" title="Alterar status">↔️ Mover</th>
 </tr></thead>
 <tbody>
 <?php $n = $opOffset + 1; foreach ($pageCases as $cs):
@@ -667,9 +667,9 @@ sort($opTipos);
         </select>
     </td>
     <td class="editable" style="min-width:140px;"><input value="<?= e($cs['case_number'] ?? '') ?>" data-id="<?= $cid ?>" data-field="case_number" onchange="saveCaseCell(this)" placeholder="0000000-00.0000.0.00.0000"></td>
-    <td class="editable" style="min-width:120px;"><input value="<?= e($cs['court'] ?? '') ?>" data-id="<?= $cid ?>" data-field="court" onchange="saveCaseCell(this)" placeholder="Vara / Juizo"></td>
+    <td class="editable" style="min-width:120px;"><input value="<?= e($cs['court'] ?? '') ?>" data-id="<?= $cid ?>" data-field="court" onchange="saveCaseCell(this)" placeholder="Vara / Juízo"></td>
     <td class="editable" style="min-width:90px;"><input type="date" value="<?= e($cs['deadline'] ?? '') ?>" data-id="<?= $cid ?>" data-field="deadline" onchange="saveCaseCell(this)"></td>
-    <td class="editable" style="min-width:130px;max-width:200px;"><input value="<?= e($cs['notes'] ?? '') ?>" data-id="<?= $cid ?>" data-field="notes" onchange="saveCaseCell(this)" placeholder="Observacoes..." title="<?= e($cs['notes'] ?? '') ?>"></td>
+    <td class="editable" style="min-width:130px;max-width:200px;"><input value="<?= e($cs['notes'] ?? '') ?>" data-id="<?= $cid ?>" data-field="notes" onchange="saveCaseCell(this)" placeholder="Observações..." title="<?= e($cs['notes'] ?? '') ?>"></td>
     <td style="font-size:.72rem;"><?= date('d/m/Y', strtotime($cs['created_at'])) ?></td>
     <td class="cell-move" onclick="event.stopPropagation();">
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
@@ -735,7 +735,7 @@ sort($opTipos);
 
         <div style="margin-bottom:.75rem;">
             <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Novo titulo (opcional)</label>
-            <input type="text" id="mergeTitulo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Titulo atualizado apos a unificacao">
+            <input type="text" id="mergeTitulo" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Título atualizado após a unificação">
         </div>
 
         <div id="mergePreviewBox" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.6rem .8rem;margin-bottom:.75rem;font-size:.8rem;color:#1e40af;"></div>
