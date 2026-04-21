@@ -210,7 +210,7 @@ echo voltar_ao_processo_html();
                 <div style="font-size:.95rem;font-weight:800;color:<?= $cor ?>;">R$ <?= number_format($cob['valor'], 2, ',', '.') ?></div>
                 <span class="cob-badge" style="background:<?= $cor ?>;"><?= $label ?></span>
             </div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
+            <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;flex-wrap:wrap;">
                 <?php if ($cob['invoice_url']): ?><a href="<?= e($cob['invoice_url']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:4px;text-decoration:none;">Fatura</a><?php endif; ?>
                 <?php if ($cob['status'] === 'PENDING' || $cob['status'] === 'OVERDUE'): ?>
                     <?php if ($client['phone'] && $cob['invoice_url']):
@@ -218,12 +218,15 @@ echo voltar_ao_processo_html();
                     ?>
                     <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= e(json_encode($msgCob)) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
-                    <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>" style="display:inline;">
-                        <?= csrf_input() ?>
-                        <input type="hidden" name="action" value="cancelar_cobranca">
-                        <input type="hidden" name="cobranca_id" value="<?= $cob['id'] ?>">
-                        <button type="submit" onclick="return confirm('⚠️ ATENÇÃO!\n\nIsto vai CANCELAR a cobrança de R$ <?= number_format($cob['valor'], 2, ',', '.') ?> (venc <?= date('d/m/Y', strtotime($cob['vencimento'])) ?>).\n\nA parcela DEIXARÁ de aparecer no Kanban de Cobrança e na Proposta de Acordo.\n\nSó confirme se tem certeza que deseja DISPENSAR essa cobrança. Tem certeza?');" style="font-size:.65rem;background:#dc2626;color:#fff;border:none;padding:3px 8px;border-radius:4px;cursor:pointer;" title="Cancelar/dispensar esta cobrança">✕</button>
-                    </form>
+                    <button type="button" title="Alterar data de vencimento"
+                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'vencto', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">📅</button>
+                    <button type="button" title="Dar baixa manual (receber em dinheiro/transferência fora do Asaas)"
+                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'baixa', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">✓</button>
+                    <button type="button" title="Cancelar cobrança no Asaas"
+                            onclick="cobAcao(<?= (int)$cob['id'] ?>, 'cancelar', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">✕</button>
                 <?php endif; ?>
             </div>
         </div>
@@ -365,4 +368,9 @@ function vincularCobrancaProcesso(cobId, caseId) {
     }).catch(function(e){ alert('Erro de rede: ' + e.message); });
 }
 </script>
+<script>
+window._COB_CSRF = <?= json_encode(generate_csrf_token()) ?>;
+window._COB_API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
+</script>
+<script src="<?= url('assets/js/cobranca_acoes.js') ?>?v=1"></script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
