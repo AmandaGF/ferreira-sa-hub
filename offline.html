@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#052228">
+    <title>Sem conexão — F&amp;S Hub</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #052228 0%, #0d3640 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+        .wrap {
+            max-width: 380px;
+            text-align: center;
+            background: rgba(255,255,255,.06);
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 16px;
+            padding: 2rem 1.6rem;
+            backdrop-filter: blur(10px);
+        }
+        .icon { font-size: 3rem; margin-bottom: .8rem; }
+        h1 { font-size: 1.3rem; margin: 0 0 .4rem; font-weight: 700; }
+        p { margin: 0 0 1.3rem; color: rgba(255,255,255,.78); font-size: .9rem; line-height: 1.45; }
+        button {
+            background: #B87333;
+            color: #fff;
+            border: none;
+            padding: .7rem 1.3rem;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: .88rem;
+            transition: background .12s;
+        }
+        button:hover { background: #a05f22; }
+        .small { font-size: .72rem; color: rgba(255,255,255,.5); margin-top: 1.2rem; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="icon">📡</div>
+        <h1>Sem conexão</h1>
+        <p>Você está offline. O F&amp;S Hub precisa de internet pra carregar leads, casos e mensagens atualizadas.</p>
+        <button onclick="location.reload()">↻ Tentar de novo</button>
+        <div class="small">A conexão voltou? Clique acima.</div>
+    </div>
+    <script>
+        window.addEventListener('online', function() { location.reload(); });
+    </script>
+</body>
+</html>

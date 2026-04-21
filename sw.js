@@ -1,25 +1,39 @@
 // Ferreira & Sá Hub — Service Worker
-var CACHE_NAME = 'fshub-v3';
-var urlsToCache = [
+// Estratégia: network-first para HTML/API, cache-first para assets estáticos,
+// offline.html como fallback quando estiver sem rede.
+
+var CACHE_NAME = 'fshub-v5';
+var OFFLINE_URL = '/conecta/offline.html';
+
+// Shell mínimo pré-cacheado — assets que compõem o layout base
+var PRECACHE_URLS = [
+    OFFLINE_URL,
     '/conecta/assets/css/conecta.css',
     '/conecta/assets/js/conecta.js',
     '/conecta/assets/js/helpers.js',
     '/conecta/assets/js/drawer.js',
+    '/conecta/assets/js/wa_sender.js',
+    '/conecta/assets/js/busca_cpf.js',
+    '/conecta/assets/js/gamificacao-efeitos.js',
     '/conecta/assets/img/logo.png',
-    '/conecta/assets/img/logo-sidebar.png'
+    '/conecta/assets/img/logo-sidebar.png',
+    '/conecta/assets/img/favicon.svg'
 ];
 
-// Install — cache estático
+// Install — pré-cacheia shell
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function(cache) {
-            return cache.addAll(urlsToCache);
+            // addAll é atômico (falhou um, falha tudo). Usar add individual silencioso pra não quebrar o install
+            return Promise.all(PRECACHE_URLS.map(function(url) {
+                return cache.add(new Request(url, { cache: 'reload' })).catch(function() {});
+            }));
         })
     );
     self.skipWaiting();
 });
 
-// Activate — limpar caches antigos
+// Activate — limpa caches antigos
 self.addEventListener('activate', function(event) {
     event.waitUntil(
         caches.keys().then(function(names) {
@@ -32,24 +46,62 @@ self.addEventListener('activate', function(event) {
     self.clients.claim();
 });
 
-// Fetch — network first, fallback cache
+// Fetch — estratégia híbrida
 self.addEventListener('fetch', function(event) {
-    // Não cachear POST ou APIs
-    if (event.request.method !== 'GET') return;
-    if (event.request.url.indexOf('api.php') !== -1) return;
+    var req = event.request;
 
+    // Não interceptar não-GET
+    if (req.method !== 'GET') return;
+
+    var url = new URL(req.url);
+
+    // Não interceptar cross-origin (WhatsApp, Asaas, ReceitaWS etc)
+    if (url.origin !== self.location.origin) return;
+
+    // APIs internas — network-only (não cachear dados dinâmicos)
+    if (url.pathname.indexOf('/api.php') !== -1 ||
+        url.pathname.indexOf('/conecta/api/') !== -1 ||
+        url.pathname.indexOf('/api/') !== -1 ||
+        url.searchParams.has('action')) {
+        return; // deixa o navegador lidar
+    }
+
+    // Navegação (HTML) — network-first com fallback offline
+    if (req.mode === 'navigate' || (req.headers.get('accept') || '').indexOf('text/html') !== -1) {
+        event.respondWith(
+            fetch(req).catch(function() {
+                return caches.match(OFFLINE_URL);
+            })
+        );
+        return;
+    }
+
+    // Assets estáticos — cache-first com atualização em background
+    if (/\.(css|js|png|jpg|jpeg|svg|woff2?|ttf|ico)(\?|$)/i.test(url.pathname)) {
+        event.respondWith(
+            caches.match(req).then(function(cached) {
+                var fetchPromise = fetch(req).then(function(response) {
+                    if (response.ok) {
+                        var clone = response.clone();
+                        caches.open(CACHE_NAME).then(function(cache) { cache.put(req, clone); });
+                    }
+                    return response;
+                }).catch(function() { return cached; });
+                return cached || fetchPromise;
+            })
+        );
+        return;
+    }
+
+    // Default — network com fallback pra cache se existir
     event.respondWith(
-        fetch(event.request).then(function(response) {
-            // Cachear assets estáticos
-            if (response.ok && (event.request.url.match(/\.(css|js|png|jpg|woff2?)$/))) {
-                var clone = response.clone();
-                caches.open(CACHE_NAME).then(function(cache) {
-                    cache.put(event.request, clone);
-                });
-            }
-            return response;
-        }).catch(function() {
-            return caches.match(event.request);
-        })
+        fetch(req).catch(function() { return caches.match(req); })
     );
+});
+
+// Mensagem pra forçar ativação (chamado pelo app quando detecta SW novo)
+self.addEventListener('message', function(event) {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
 });

@@ -13,7 +13,92 @@
 <script src="<?= url('assets/js/busca_cpf.js') ?>"></script>
 <script src="<?= url('assets/js/gamificacao-efeitos.js') ?>"></script>
 <script src="<?= url('assets/js/wa_sender.js') ?>?v=<?= date('YmdHi') ?>"></script>
-<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('<?= url('sw.js') ?>').catch(function(){});}</script>
+<!-- PWA: service worker + install prompt + update banner -->
+<script>
+(function() {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.register('<?= url('sw.js') ?>').then(function(reg) {
+        // Detecta nova versão disponível
+        reg.addEventListener('updatefound', function() {
+            var nw = reg.installing;
+            if (!nw) return;
+            nw.addEventListener('statechange', function() {
+                if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+                    mostrarBannerUpdate(function() {
+                        nw.postMessage({ type: 'SKIP_WAITING' });
+                    });
+                }
+            });
+        });
+    }).catch(function(){});
+
+    // Recarrega quando SW novo assume
+    var reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (reloaded) return;
+        reloaded = true;
+        location.reload();
+    });
+
+    // ── Install prompt (Android/Chrome/Edge) ──
+    var deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        // Só mostra se não foi dispensado antes (localStorage)
+        if (localStorage.getItem('fsa_install_dispensado') === '1') return;
+        mostrarBotaoInstalar();
+    });
+
+    window.addEventListener('appinstalled', function() {
+        esconderBotaoInstalar();
+        deferredPrompt = null;
+    });
+
+    function mostrarBotaoInstalar() {
+        if (document.getElementById('fsaInstallBtn')) return;
+        var btn = document.createElement('button');
+        btn.id = 'fsaInstallBtn';
+        btn.innerHTML = '📲 Instalar Hub';
+        btn.style.cssText = 'position:fixed;bottom:16px;right:16px;background:#B87333;color:#fff;border:none;padding:.7rem 1.1rem;border-radius:999px;font-weight:700;font-size:.82rem;cursor:pointer;box-shadow:0 8px 24px rgba(184,115,51,.4);z-index:9998;display:flex;align-items:center;gap:.4rem;';
+        btn.onclick = function() {
+            if (!deferredPrompt) return;
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(function() {
+                deferredPrompt = null;
+                esconderBotaoInstalar();
+            });
+        };
+        // Botão de dispensar
+        var close = document.createElement('span');
+        close.textContent = '×';
+        close.style.cssText = 'margin-left:4px;opacity:.7;font-size:1rem;line-height:1;padding:0 2px;';
+        close.onclick = function(ev) {
+            ev.stopPropagation();
+            localStorage.setItem('fsa_install_dispensado', '1');
+            esconderBotaoInstalar();
+        };
+        btn.appendChild(close);
+        document.body.appendChild(btn);
+    }
+
+    function esconderBotaoInstalar() {
+        var b = document.getElementById('fsaInstallBtn');
+        if (b) b.remove();
+    }
+
+    function mostrarBannerUpdate(callback) {
+        if (document.getElementById('fsaUpdateBanner')) return;
+        var banner = document.createElement('div');
+        banner.id = 'fsaUpdateBanner';
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#059669;color:#fff;padding:.55rem 1rem;text-align:center;font-size:.8rem;font-weight:600;z-index:99999;box-shadow:0 2px 8px rgba(0,0,0,.2);';
+        banner.innerHTML = '✨ Nova versão do Hub disponível. <button id="fsaUpdateNow" style="background:#fff;color:#059669;border:none;padding:3px 10px;border-radius:6px;margin-left:8px;cursor:pointer;font-weight:700;font-size:.78rem;">Atualizar agora</button>';
+        document.body.appendChild(banner);
+        document.getElementById('fsaUpdateNow').onclick = callback;
+    }
+})();
+</script>
 
 <!-- Heartbeat: mantém sessão viva e CSRF sincronizado (pró-ativo) -->
 <script>

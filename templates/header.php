@@ -13,7 +13,8 @@
     <link rel="manifest" href="<?= url('manifest.json') ?>">
     <link rel="icon" type="image/svg+xml" href="<?= url('assets/img/favicon.svg') ?>">
     <link rel="icon" type="image/png" href="<?= url('assets/img/logo.png') ?>">
-    <link rel="apple-touch-icon" href="<?= url('assets/img/logo.png') ?>">
+    <link rel="apple-touch-icon" href="<?= url('assets/img/logo-sidebar.png') ?>">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?= url('assets/img/logo-sidebar.png') ?>">
     <title><?= e($pageTitle ?? 'Painel') ?> — F&amp;S Hub</title>
     <link rel="stylesheet" href="<?= url('assets/css/conecta.css') ?>">
     <?php if (!empty($extraCss)): ?>

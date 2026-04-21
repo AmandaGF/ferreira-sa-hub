@@ -12,34 +12,61 @@
     "lang": "pt-BR",
     "icons": [
         {
-            "src": "/conecta/assets/img/logo.png",
-            "sizes": "192x192",
-            "type": "image/png",
+            "src": "/conecta/assets/img/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
             "purpose": "any"
         },
         {
-            "src": "/conecta/assets/img/logo.png",
+            "src": "/conecta/assets/img/logo-sidebar.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/conecta/assets/img/logo-sidebar.png",
             "sizes": "512x512",
             "type": "image/png",
-            "purpose": "maskable"
+            "purpose": "any maskable"
         }
     ],
     "screenshots": [],
     "shortcuts": [
         {
             "name": "Dashboard",
+            "short_name": "Dashboard",
             "url": "/conecta/modules/dashboard/",
-            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
         },
         {
-            "name": "Kanban Operacional",
-            "url": "/conecta/modules/operacional/",
-            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
+            "name": "WhatsApp Comercial (21)",
+            "short_name": "WA 21",
+            "url": "/conecta/modules/whatsapp/?canal=21",
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
+        },
+        {
+            "name": "WhatsApp CX (24)",
+            "short_name": "WA 24",
+            "url": "/conecta/modules/whatsapp/?canal=24",
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
         },
         {
             "name": "Pipeline Comercial",
+            "short_name": "Pipeline",
             "url": "/conecta/modules/pipeline/",
-            "icons": [{"src": "/conecta/assets/img/logo.png", "sizes": "192x192"}]
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
+        },
+        {
+            "name": "Kanban Operacional",
+            "short_name": "Operacional",
+            "url": "/conecta/modules/operacional/",
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
+        },
+        {
+            "name": "Agenda",
+            "short_name": "Agenda",
+            "url": "/conecta/modules/agenda/",
+            "icons": [{"src": "/conecta/assets/img/logo-sidebar.png", "sizes": "192x192"}]
         }
     ]
 }
