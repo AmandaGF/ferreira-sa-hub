@@ -570,13 +570,13 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
     $_honorFmt = number_format(((float)$respStats['honor_cents']) / 100, 2, ',', '.');
     $_exitoFmt = $respStats['exito_medio'] !== null ? number_format((float)$respStats['exito_medio'], 1, ',', '.') : '—';
 ?>
-<div style="display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;padding:.35rem .75rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;margin-bottom:.5rem;font-size:.72rem;color:#7c2d12;">
+<div style="display:inline-flex;flex-wrap:wrap;align-items:center;gap:.45rem;padding:.2rem .55rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;margin-bottom:.4rem;font-size:.66rem;color:#7c2d12;width:auto;">
     <span style="font-weight:800;"><?= e($respStats['nome']) ?>:</span>
-    <span title="Contratos fechados"><b><?= (int)$respStats['total_contratos'] ?></b> contratos</span>
+    <span title="Contratos fechados"><b><?= (int)$respStats['total_contratos'] ?></b> contr.</span>
     <span style="color:#d1d5db;">·</span>
     <span title="Ticket total">💰 R$ <b><?= e($_honorFmt) ?></b></span>
     <span style="color:#d1d5db;">·</span>
-    <span title="Êxito médio de quem tem êxito > 0">🎯 <b><?= e($_exitoFmt) ?>%</b> <span style="opacity:.65;">(<?= (int)$respStats['com_exito'] ?>)</span></span>
+    <span title="Êxito médio">🎯 <b><?= e($_exitoFmt) ?>%</b></span>
     <span style="color:#d1d5db;">·</span>
     <span title="Pastas aptas">✅ <b><?= (int)$respStats['pastas_aptas'] ?></b></span>
     <?php if ((int)$respStats['cancelados'] > 0): ?>
