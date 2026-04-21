@@ -106,6 +106,7 @@ if ($filterMonth) {
 }
 $stmtT = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
+     c.asaas_customer_id AS asaas_customer_id,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
      cs.drive_folder_url
      FROM pipeline_leads pl
@@ -366,11 +367,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-.tbl-grid { width:100%;border-collapse:collapse;font-size:.78rem; }
-.tbl-grid thead { position:sticky;top:0;z-index:2; }
-.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
+.tbl-grid { width:100%;border-collapse:separate;border-spacing:0;font-size:.78rem; }
+.tbl-grid thead { position:sticky;top:0;z-index:3; }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px; }
+/* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:30px;z-index:2;background:#fff; }
+.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
+.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
+.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
+.tbl-grid td.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.15); }
+.tbl-grid th.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.3); }
 .tbl-grid tbody tr { transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.12); }
@@ -423,7 +432,7 @@ $sortMap = array(
     'exito' => 'exito_percentual', 'vencimento' => 'vencimento_parcela',
     'pgto' => 'forma_pagamento', 'responsavel' => 'assigned_name',
     'urgencia' => 'urgencia', 'observacoes' => 'observacoes',
-    'nome_pasta' => 'nome_pasta', 'estado' => '_stage_key', 'pendencias' => 'pendencias',
+    'asaas' => 'asaas_customer_id', 'estado' => '_stage_key',
 );
 if ($sortCol && isset($sortMap[$sortCol])) {
     $f = $sortMap[$sortCol];
@@ -524,8 +533,8 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 };
 ?>
 <thead><tr>
-    <th style="width:30px;text-align:center;cursor:default;">#</th>
-    <th><?= $_sortLink('name', 'Nome') ?></th>
+    <th class="sticky-col-1" style="width:30px;text-align:center;cursor:default;">#</th>
+    <th class="sticky-col-2" style="min-width:160px;"><?= $_sortLink('name', 'Nome') ?></th>
     <th><?= $_sortLink('phone', 'Contato') ?></th>
     <th><?= $_sortLink('created_at', 'Data Fech.') ?></th>
     <th><?= $_sortLink('case_type', 'Tipo de Ação') ?></th>
@@ -534,11 +543,10 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <th><?= $_sortLink('vencimento', 'Vencto 1ª') ?></th>
     <th><?= $_sortLink('pgto', 'Pgto') ?></th>
     <th><?= $_sortLink('responsavel', 'Responsável') ?></th>
+    <th><?= $_sortLink('asaas', 'Asaas') ?></th>
     <th><?= $_sortLink('urgencia', 'Urgência') ?></th>
     <th><?= $_sortLink('observacoes', 'Observações') ?></th>
-    <th><?= $_sortLink('nome_pasta', 'Nome Pasta') ?></th>
     <th><?= $_sortLink('estado', 'Estado') ?></th>
-    <th><?= $_sortLink('pendencias', 'Pendências') ?></th>
     <th style="cursor:default;">Mover</th>
     <?php if (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()): ?>
     <th style="cursor:default;width:40px;text-align:center;" title="Excluir lead irregular (só Amanda/Luiz)">🗑️</th>
@@ -551,10 +559,10 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     $lid = (int)$lead['id'];
 ?>
 <tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>">
-    <td style="text-align:center;color:#999;font-size:.7rem;">
+    <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
-    <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
+    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($lead['name']) ?>" data-id="<?= $lid ?>" data-field="name" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:110px;"><input value="<?= e($lead['phone'] ?? '') ?>" data-id="<?= $lid ?>" data-field="phone" onchange="saveCell(this)"></td>
     <?php
         $_dataFechamento = !empty($lead['converted_at']) ? $lead['converted_at'] : $lead['created_at'];
@@ -573,13 +581,18 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
         </select>
     </td>
+    <td style="text-align:center;min-width:70px;">
+        <?php if (!empty($lead['asaas_customer_id'])): ?>
+            <span title="Cliente cadastrado no Asaas (<?= e($lead['asaas_customer_id']) ?>)" style="background:#dcfce7;color:#166534;padding:2px 10px;border-radius:10px;font-size:.68rem;font-weight:700;">✓ SIM</span>
+        <?php else: ?>
+            <span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 10px;border-radius:10px;font-size:.68rem;font-weight:700;">✕ NÃO</span>
+        <?php endif; ?>
+    </td>
     <td class="editable" style="min-width:60px;"><input value="<?= e($lead['urgencia'] ?? '') ?>" data-id="<?= $lid ?>" data-field="urgencia" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:120px;max-width:180px;"><input value="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>" data-id="<?= $lid ?>" data-field="observacoes" onchange="saveCell(this)" title="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>"></td>
-    <td class="editable" style="min-width:140px;"><input value="<?= e($lead['nome_pasta'] ?? '') ?>" data-id="<?= $lid ?>" data-field="nome_pasta" onchange="saveCell(this)"></td>
     <td>
         <span class="tbl-badge" style="background:<?= $si['color'] ?>;font-size:.6rem;"><?= $si['icon'] ?> <?= $si['label'] ?></span>
     </td>
-    <td class="editable" style="min-width:100px;"><input value="<?= e($lead['pendencias'] ?? '') ?>" data-id="<?= $lid ?>" data-field="pendencias" onchange="saveCell(this)"></td>
     <td onclick="event.stopPropagation();" style="min-width:80px;">
         <form method="POST" action="<?= module_url('pipeline', 'api.php') ?>" data-lead-name="<?= e($lead['name']) ?>" data-case-type="<?= e($lead['case_type'] ?: '') ?>">
             <?= csrf_input() ?>
@@ -604,7 +617,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 </tr>
 <?php endforeach; ?>
 <?php if (empty($pageLeads)): ?>
-<tr><td colspan="<?= (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()) ? 17 : 16 ?>" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
+<tr><td colspan="<?= (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()) ? 16 : 15 ?>" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>

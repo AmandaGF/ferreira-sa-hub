@@ -514,15 +514,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-csv:hover { opacity:.9; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-.tbl-grid { width:100%;border-collapse:collapse;font-size:.82rem; }
-.tbl-grid thead { position:sticky;top:0;z-index:2; }
-.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15); }
+.tbl-grid { width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem; }
+.tbl-grid thead { position:sticky;top:0;z-index:3; }
+.tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid th:last-child { border-right:none; }
 .tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
 .tbl-grid tbody tr { cursor:pointer;transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
+/* Colunas fixas: # + Caso grudam na esquerda ao rolar horizontalmente */
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:30px;z-index:2;background:#fff; }
+.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
+.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
+.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
+.tbl-grid td.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.15); }
+.tbl-grid th.sticky-col-2 { box-shadow:2px 0 3px -2px rgba(0,0,0,.3); }
 .tbl-grid .cell-name { font-weight:700;color:var(--petrol-900); }
 .tbl-grid .cell-resp { color:var(--rose-dark);font-weight:600; }
 .tbl-badge { display:inline-block;padding:3px 10px;border-radius:12px;font-size:.7rem;font-weight:700;color:#fff; }
@@ -586,8 +594,8 @@ sort($opTipos);
 <div class="tbl-wrap" style="max-height:72vh;overflow-y:auto;">
 <table class="tbl-grid" id="opTableBody">
 <thead><tr>
-    <th onclick="sortTbl('opTableBody',0)" style="width:30px;text-align:center;">#</th>
-    <th onclick="sortTbl('opTableBody',1)">Caso</th>
+    <th class="sticky-col-1" onclick="sortTbl('opTableBody',0)" style="width:30px;text-align:center;">#</th>
+    <th class="sticky-col-2" onclick="sortTbl('opTableBody',1)" style="min-width:160px;">Caso</th>
     <th onclick="sortTbl('opTableBody',2)">Cliente</th>
     <th onclick="sortTbl('opTableBody',3)">Tipo de Acao</th>
     <th onclick="sortTbl('opTableBody',4)">Responsavel</th>
@@ -608,10 +616,10 @@ sort($opTipos);
     $cid = (int)$cs['id'];
 ?>
 <tr data-status="<?= $sk ?>" data-resp="<?= e($cs['responsible_name'] ?? '') ?>" data-type="<?= e($cs['case_type'] ?? '') ?>" data-case-type="<?= e($cs['case_type'] ?? '') ?>" data-case-id="<?= $cid ?>" data-case-number="<?= e($cs['case_number'] ?? '') ?>" data-court="<?= e($cs['court'] ?? '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>">
-    <td style="text-align:center;color:#999;font-size:.7rem;">
+    <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cid) ?>" style="color:#999;text-decoration:none;" title="Abrir pasta"><?= $n++ ?></a>
     </td>
-    <td class="editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)"></td>
+    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)"></td>
     <td style="font-size:.78rem;"><?= e($cs['client_name'] ?: '—') ?></td>
     <td class="editable" style="min-width:100px;"><input value="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>" data-id="<?= $cid ?>" data-field="case_type" onchange="saveCaseCell(this)"></td>
     <td class="editable" style="min-width:90px;">
