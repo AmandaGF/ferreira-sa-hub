@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional'))
 $action = $_POST['action'] ?? '';
 
 // Ações de leitura AJAX: não consomem CSRF (evita invalidar token para o próximo submit)
-$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case', 'log_whatsapp_andamento', 'toggle_visibilidade', 'edit_andamento');
+$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case', 'log_whatsapp_andamento', 'toggle_visibilidade', 'edit_andamento', 'andamentos_importar_analisar');
 $skipCsrf = $isAjax && in_array($action, $readOnlyActions);
 
 if (!$skipCsrf && !validate_csrf()) {
@@ -1404,6 +1404,216 @@ switch ($action) {
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
+
+    // ═══════════════════════════════════════════════════════
+    // IMPORTAÇÃO EM LOTE DE ANDAMENTOS (a partir de bloco
+    // pipe-delimited gerado por IA a partir dos autos)
+    // ═══════════════════════════════════════════════════════
+
+    case 'andamentos_importar_analisar':
+        if (!has_min_role('operacional')) { http_response_code(403); echo json_encode(array('error' => 'Acesso restrito — só operacional/gestão/admin podem importar andamentos.')); exit; }
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $texto  = (string)($_POST['bloco'] ?? '');
+        if (!$caseId) { echo json_encode(array('error' => 'case_id ausente')); exit; }
+        if (trim($texto) === '') { echo json_encode(array('error' => 'Bloco vazio')); exit; }
+
+        // Valida se o processo existe
+        $chk = $pdo->prepare("SELECT id, title FROM cases WHERE id = ?");
+        $chk->execute(array($caseId));
+        $caso = $chk->fetch();
+        if (!$caso) { echo json_encode(array('error' => 'Processo não encontrado')); exit; }
+
+        // Mapeamento de tipos da spec (lowercase) → tipos do Conecta
+        $mapaTipos = array(
+            // match direto (já existem)
+            'decisao'                => 'decisao',
+            'despacho'               => 'despacho',
+            'sentenca'               => 'sentenca',
+            'intimacao'              => 'intimacao',
+            'citacao'                => 'citacao',
+            'recurso'                => 'recurso',
+            'acordo'                 => 'acordo',
+            'diligencia'             => 'diligencia',
+            'movimentacao'           => 'movimentacao',
+            'observacao'             => 'observacao',
+            // novos valores aceitos (criados via spec)
+            'protocolo'              => 'protocolo',
+            'distribuicao'           => 'distribuicao',
+            'ato_ordinatorio'        => 'ato_ordinatorio',
+            'certidao'               => 'certidao',
+            'publicacao_djen'        => 'publicacao_djen',
+            'manifestacao_mp'        => 'manifestacao_mp',
+            'mandado_expedido'       => 'mandado_expedido',
+            'acordao'                => 'acordao',
+            // mapeados pra existentes (consolidação)
+            'audiencia_designada'    => 'audiencia',
+            'audiencia_realizada'    => 'audiencia',
+            'audiencia'              => 'audiencia',
+            'peticao_parte_autora'   => 'peticao_juntada',
+            'peticao_parte_re'       => 'peticao_juntada',
+            'juntada_documento'      => 'peticao_juntada',
+            'peticao_juntada'        => 'peticao_juntada',
+            'mandado_cumprido'       => 'cumprimento',
+            'cumprimento'            => 'cumprimento',
+            'conclusao'              => 'movimentacao',
+            'remessa'                => 'movimentacao',
+            'baixa'                  => 'movimentacao',
+            'outros'                 => 'observacao',
+        );
+
+        // Parse linha a linha
+        $linhas = preg_split("/\r\n|\r|\n/", $texto);
+        $parseados = array();
+        $totalOk = 0; $totalWarn = 0; $totalErr = 0;
+        $n = 0;
+        foreach ($linhas as $bruto) {
+            $linha = trim($bruto);
+            if ($linha === '') continue;
+            // Ignora cabeçalho literal
+            $up = mb_strtoupper($linha);
+            if (strpos($up, 'DATA|HORA|TIPO|DESC') === 0) continue;
+            $n++;
+
+            $partes = explode('|', $linha, 4);
+            if (count($partes) < 4) {
+                $parseados[] = array(
+                    'n' => $n, 'status' => 'erro',
+                    'motivo' => 'Linha precisa ter 4 campos separados por | (data, hora, tipo, descricao)',
+                    'bruto' => mb_substr($linha, 0, 150),
+                );
+                $totalErr++; continue;
+            }
+            list($dataRaw, $horaRaw, $tipoRaw, $descRaw) = array_map('trim', $partes);
+
+            // Valida data
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataRaw)) {
+                $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Data inválida (esperado AAAA-MM-DD)','bruto'=>mb_substr($linha,0,150));
+                $totalErr++; continue;
+            }
+            $ts = strtotime($dataRaw);
+            if (!$ts || date('Y-m-d', $ts) !== $dataRaw) {
+                $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Data inexistente no calendário','bruto'=>mb_substr($linha,0,150));
+                $totalErr++; continue;
+            }
+
+            // Hora opcional (formato HH:MM)
+            $horaOk = '';
+            if ($horaRaw !== '' && $horaRaw !== '-' && $horaRaw !== 'NULL') {
+                if (preg_match('/^\d{1,2}:\d{2}$/', $horaRaw)) {
+                    list($hh, $mm) = explode(':', $horaRaw);
+                    $hh = (int)$hh; $mm = (int)$mm;
+                    if ($hh >= 0 && $hh <= 23 && $mm >= 0 && $mm <= 59) {
+                        $horaOk = sprintf('%02d:%02d', $hh, $mm);
+                    }
+                }
+            }
+
+            // Descrição obrigatória
+            if ($descRaw === '') {
+                $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Descrição vazia','bruto'=>mb_substr($linha,0,150));
+                $totalErr++; continue;
+            }
+
+            // Tipo: normaliza pra lowercase + troca espaços por underscore
+            $tipoNorm = strtolower(trim($tipoRaw));
+            $tipoNorm = preg_replace('/\s+/', '_', $tipoNorm);
+            $tipoFinal = null;
+            $aviso = null;
+            if (isset($mapaTipos[$tipoNorm])) {
+                $tipoFinal = $mapaTipos[$tipoNorm];
+                // Se o tipo mapeado difere do normalizado (ex: audiencia_designada → audiencia),
+                // sinaliza mas segue
+                if ($tipoFinal !== $tipoNorm) {
+                    $aviso = 'Tipo "' . $tipoRaw . '" mapeado para "' . $tipoFinal . '"';
+                }
+            } else {
+                // Tipo desconhecido — cai em observacao com aviso
+                $tipoFinal = 'observacao';
+                $aviso = 'Tipo "' . $tipoRaw . '" não reconhecido — salvo como observacao (revisar manualmente)';
+            }
+
+            // Descrição final: prefixa hora se veio (decisão B)
+            $descFinal = $descRaw;
+            if ($horaOk !== '') {
+                $descFinal = '[' . $horaOk . '] ' . $descRaw;
+            }
+
+            $status = $aviso ? 'warn' : 'ok';
+            if ($status === 'ok') $totalOk++; else $totalWarn++;
+
+            $parseados[] = array(
+                'n'             => $n,
+                'status'        => $status,
+                'data'          => $dataRaw,
+                'hora'          => $horaOk,
+                'tipo_original' => $tipoRaw,
+                'tipo'          => $tipoFinal,
+                'descricao'     => $descFinal,
+                'aviso'         => $aviso,
+            );
+        }
+
+        echo json_encode(array(
+            'ok'       => true,
+            'case_id'  => $caseId,
+            'caso'     => $caso,
+            'total'    => count($parseados),
+            'total_ok' => $totalOk,
+            'total_warn' => $totalWarn,
+            'total_err' => $totalErr,
+            'linhas'   => $parseados,
+            'csrf'     => generate_csrf_token(),
+        ));
+        exit;
+
+    case 'andamentos_importar_gravar':
+        if (!has_min_role('operacional')) { http_response_code(403); echo json_encode(array('error' => 'Acesso restrito')); exit; }
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $rawJson = $_POST['selecionados'] ?? '';
+        $itens = is_string($rawJson) ? json_decode($rawJson, true) : null;
+        if (!$caseId) { echo json_encode(array('error' => 'case_id ausente')); exit; }
+        if (!is_array($itens) || !$itens) { echo json_encode(array('error' => 'Nenhum andamento selecionado pra gravar')); exit; }
+
+        // Valida processo + tipos permitidos (lista de valores aceitos lowercase)
+        $tiposPermitidos = array(
+            'movimentacao','observacao','peticao_juntada','intimacao','decisao','sentenca',
+            'audiencia','despacho','cumprimento','recurso','citacao','acordo','diligencia',
+            'protocolo','distribuicao','ato_ordinatorio','certidao','publicacao_djen',
+            'manifestacao_mp','mandado_expedido','acordao','chamado',
+        );
+        $uid = current_user_id();
+        $gravados = 0; $erros = array();
+
+        try {
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare(
+                "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, created_at, tipo_origem, visivel_cliente)
+                 VALUES (?, ?, ?, ?, ?, NOW(), 'importacao_lote', 1)"
+            );
+            foreach ($itens as $i => $item) {
+                $data = $item['data'] ?? '';
+                $tipo = $item['tipo'] ?? 'observacao';
+                $desc = (string)($item['descricao'] ?? '');
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+                    $erros[] = "Linha #{$i}: data inválida ($data)";
+                    continue;
+                }
+                if (!in_array($tipo, $tiposPermitidos, true)) { $tipo = 'observacao'; }
+                if ($desc === '') { $erros[] = "Linha #{$i}: descrição vazia"; continue; }
+                $stmt->execute(array($caseId, $data, $tipo, $desc, $uid));
+                $gravados++;
+            }
+
+            if (!empty($erros)) { $pdo->rollBack(); echo json_encode(array('error' => 'Falhou — rollback. Problemas: ' . implode(' | ', $erros))); exit; }
+
+            $pdo->commit();
+            audit_log('andamentos_importar_lote', 'case', $caseId, 'Importação em lote: ' . $gravados . ' andamento(s)');
+            echo json_encode(array('ok' => true, 'gravados' => $gravados, 'csrf' => generate_csrf_token()));
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(array('error' => 'Erro SQL: ' . $e->getMessage()));
+        }
+        exit;
 
     case 'buscar_casos_cliente':
         // AJAX: buscar casos do mesmo cliente para vincular
