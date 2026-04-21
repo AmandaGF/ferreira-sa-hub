@@ -367,33 +367,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-count { margin-left:auto;font-size:.78rem;color:var(--text-muted);font-weight:600; }
 .tbl-csv { padding:6px 16px;background:var(--success);color:#fff;border:none;border-radius:8px;font-size:.78rem;font-weight:700;cursor:pointer; }
 .tbl-wrap { border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--border);box-shadow:var(--shadow-sm); }
-/* table-layout:fixed força as larguras declaradas a serem respeitadas
-   (senão o browser calcula com base no conteúdo e a Nome sticky
-   fica maior que 220px, invadindo a coluna Contato) */
-.tbl-grid { width:max-content;border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
+/* Tabela — larguras fixas pra respeitar declarações de cada coluna */
+.tbl-grid { border-collapse:separate;border-spacing:0;font-size:.78rem;table-layout:fixed; }
 .tbl-grid thead { position:sticky;top:0;z-index:3; }
 .tbl-grid th { background:linear-gradient(180deg,var(--petrol-900),var(--petrol-700));color:#fff;padding:8px 10px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.3px;text-transform:uppercase;cursor:pointer;user-select:none;white-space:nowrap;border-right:1px solid rgba(255,255,255,.15);border-bottom:1px solid rgba(255,255,255,.15); }
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid td { padding:5px 8px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-/* Colunas fixas: # (1ª) e Nome (2ª) — grudam no lado esquerdo ao rolar horizontalmente */
-/* Sticky de volta — agora com DIV em vez de INPUT na Nome (div respeita
-   text-overflow:ellipsis corretamente, input mostrava o FIM do texto) */
-.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky;left:0;z-index:2;background:#fff;width:36px;min-width:36px;max-width:36px;box-sizing:border-box;overflow:hidden; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky;left:36px;z-index:2;background:#fff;width:220px;min-width:220px;max-width:220px;box-sizing:border-box;overflow:hidden; }
+/* Colunas fixas (# e Nome) — grudam ao rolar horizontalmente */
+.tbl-grid th.sticky-col-1, .tbl-grid td.sticky-col-1 { position:sticky !important;left:0;z-index:2;background:#fff;box-sizing:border-box;overflow:hidden; }
+.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky !important;left:36px;z-index:2;background:#fff;box-sizing:border-box;overflow:hidden; }
 .tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
 .tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
 .tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
-/* Divider sutil entre sticky e resto */
-.tbl-grid td.sticky-col-2::after, .tbl-grid th.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:1px;background:rgba(0,0,0,.08);pointer-events:none; }
+.tbl-grid td.sticky-col-2::after, .tbl-grid th.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:2px;background:rgba(0,0,0,.1);pointer-events:none; }
 /* Células em modo display (div) — respeitam largura com reticências */
 .cell-inline-display { display:block;width:100%;padding:3px 6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;cursor:text;border-radius:3px;line-height:1.4;min-height:20px; }
 .cell-inline-display:hover { background:rgba(215,171,144,.15);outline:1px dashed var(--rose); }
-.tbl-grid thead th.sticky-col-1, .tbl-grid thead th.sticky-col-2 { z-index:4;background:var(--petrol-900); }
-.tbl-grid tbody tr:nth-child(even) td.sticky-col-1, .tbl-grid tbody tr:nth-child(even) td.sticky-col-2 { background:#fafbfc; }
-.tbl-grid tbody tr:hover td.sticky-col-1, .tbl-grid tbody tr:hover td.sticky-col-2 { background:#f5ebe0; }
-/* Linha divisória fina no lado direito da coluna fixa (sem sombra invasiva) */
-.tbl-grid th.sticky-col-2::after, .tbl-grid td.sticky-col-2::after { content:'';position:absolute;top:0;right:0;bottom:0;width:1px;background:rgba(0,0,0,.1);pointer-events:none; }
-.tbl-grid th.sticky-col-2, .tbl-grid td.sticky-col-2 { position:sticky; }
 .tbl-grid tbody tr { transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.12); }
@@ -528,8 +517,8 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
     <span class="tbl-count"><?= count($allLeadsFlat) ?> leads<?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?></span>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
-<div class="tbl-wrap" style="max-height:75vh;overflow:auto;">
-<table class="tbl-grid" id="pipelineTableBody">
+<div class="tbl-wrap" style="max-height:75vh;overflow:auto;position:relative;">
+<table class="tbl-grid" id="pipelineTableBody" style="width:1950px;">
 <?php
 // Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
 $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
