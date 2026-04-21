@@ -1176,6 +1176,8 @@ switch ($action) {
         break;
 
     case 'add_andamento':
+        // Self-heal: garante coluna hora_andamento
+        try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN hora_andamento TIME NULL AFTER data_andamento"); } catch (Exception $e) {}
         $caseId = (int)($_POST['case_id'] ?? 0);
         $dataAnd = $_POST['data_andamento'] ?? date('Y-m-d');
         $horaAnd = trim($_POST['hora_andamento'] ?? '');
@@ -1183,13 +1185,17 @@ switch ($action) {
         $descAnd = trim($_POST['descricao'] ?? '');
         $isInterno = isset($_POST['interno']) && $_POST['interno'] === '1';
         $visivelCliente = $isInterno ? 0 : 1;
-        // Montar created_at com horário informado
-        $createdAt = $dataAnd . ' ' . ($horaAnd && preg_match('/^\d{2}:\d{2}$/', $horaAnd) ? $horaAnd . ':00' : date('H:i:s'));
+        // Hora vai pra coluna estruturada hora_andamento (campo próprio)
+        // created_at fica como timestamp real de quando foi inserido (NOW())
+        $horaSql = null;
+        if ($horaAnd && preg_match('/^\d{2}:\d{2}$/', $horaAnd)) {
+            $horaSql = $horaAnd . ':00';
+        }
         if ($caseId && $descAnd) {
             try {
                 $pdo->prepare(
-                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,?)"
-                )->execute(array($caseId, $dataAnd, $tipoAnd, $descAnd, $visivelCliente, current_user_id(), $createdAt));
+                    "INSERT INTO case_andamentos (case_id, data_andamento, hora_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,?,NOW())"
+                )->execute(array($caseId, $dataAnd, $horaSql, $tipoAnd, $descAnd, $visivelCliente, current_user_id()));
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
 
                 // Se visível ao cliente → sugere mensagem de WhatsApp na fila pra revisão
@@ -1625,7 +1631,16 @@ switch ($action) {
             if (!empty($erros)) { $pdo->rollBack(); echo json_encode(array('error' => 'Falhou — rollback. Problemas: ' . implode(' | ', $erros))); exit; }
 
             $pdo->commit();
-            audit_log('andamentos_importar_lote', 'case', $caseId, 'Importação em lote: ' . $gravados . ' andamento(s)');
+            // audit_log com resumo por tipo (ex: "decisao:3, despacho:2, publicacao_djen:2")
+            $resumoTipos = array();
+            foreach ($itens as $item) {
+                $t = $item['tipo'] ?? 'observacao';
+                if (!in_array($t, $tiposPermitidos, true)) $t = 'observacao';
+                $resumoTipos[$t] = (isset($resumoTipos[$t]) ? $resumoTipos[$t] : 0) + 1;
+            }
+            $resumoStr = array();
+            foreach ($resumoTipos as $t => $qt) $resumoStr[] = $t . ':' . $qt;
+            audit_log('andamentos_importar_lote', 'case', $caseId, $gravados . ' andamento(s) — ' . implode(', ', $resumoStr));
             echo json_encode(array('ok' => true, 'gravados' => $gravados, 'csrf' => generate_csrf_token()));
         } catch (Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();

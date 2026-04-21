@@ -1800,8 +1800,19 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
                                     ?>
                                     <a href="<?= module_url('helpdesk', 'ver.php?id=' . $chamadoId) ?>" style="font-size:.6rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;font-weight:600;">Abrir Chamado #<?= $chamadoId ?></a>
                                     <?php endif; ?>
+                                <?php elseif ($tipoOrigem === 'importacao_lote'): ?>
+                                    <span title="Importado em lote a partir dos autos em <?= !empty($and['created_at']) ? date('d/m/Y \à\s H:i', strtotime($and['created_at'])) : '' ?>" style="display:inline-flex;align-items:center;gap:3px;font-size:.62rem;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid #fde68a;">📋 Lote</span>
                                 <?php endif; ?>
-                                <span style="font-size:.7rem;color:var(--text-muted);" data-data="<?= date('Y-m-d', strtotime($and['data_andamento'])) ?>" data-and-data="<?= $and['id'] ?>"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?></span><?php if (!empty($and['created_at'])): ?> <span style="color:#94a3b8;font-size:.7rem;" data-hora="<?= date('H:i', strtotime($and['created_at'])) ?>" data-and-hora="<?= $and['id'] ?>"><?= date('H:i', strtotime($and['created_at'])) ?></span><?php endif; ?>
+                                <?php
+                                // Prioridade: hora_andamento (campo próprio) > hora extraída de created_at (legado)
+                                $horaEfetiva = '';
+                                if (!empty($and['hora_andamento'])) {
+                                    $horaEfetiva = substr($and['hora_andamento'], 0, 5); // HH:MM
+                                } elseif (!empty($and['created_at'])) {
+                                    $horaEfetiva = date('H:i', strtotime($and['created_at']));
+                                }
+                                ?>
+                                <span style="font-size:.7rem;color:var(--text-muted);" data-data="<?= date('Y-m-d', strtotime($and['data_andamento'])) ?>" data-and-data="<?= $and['id'] ?>"><?= date('d/m/Y', strtotime($and['data_andamento'])) ?></span><?php if ($horaEfetiva): ?> <span style="color:#94a3b8;font-size:.7rem;" data-hora="<?= e($horaEfetiva) ?>" data-and-hora="<?= $and['id'] ?>"><?= e($horaEfetiva) ?></span><?php endif; ?>
                                 <?php
                                 $visivel = isset($and['visivel_cliente']) ? (int)$and['visivel_cliente'] : 1;
                                 $sigilo = isset($and['segredo_justica']) ? (int)$and['segredo_justica'] : 0;
