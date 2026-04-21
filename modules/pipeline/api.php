@@ -320,12 +320,24 @@ switch ($action) {
         break;
 
     case 'delete':
+        if (!can_excluir_lead_pipeline()) _api_fail('Sem permissão — só Amanda ou Luiz Eduardo podem excluir leads.', 403);
         $leadId = (int)($_POST['lead_id'] ?? 0);
         if ($leadId) {
+            // Captura nome pra log + verificação se tem caso vinculado
+            $stmtInfo = $pdo->prepare('SELECT name, linked_case_id FROM pipeline_leads WHERE id = ?');
+            $stmtInfo->execute(array($leadId));
+            $info = $stmtInfo->fetch();
+            $nomeLead = $info ? $info['name'] : '(desconhecido)';
+
             $pdo->prepare('DELETE FROM pipeline_history WHERE lead_id = ?')->execute(array($leadId));
             $pdo->prepare('DELETE FROM pipeline_leads WHERE id = ?')->execute(array($leadId));
-            audit_log('lead_deleted', 'lead', $leadId);
-            flash_set('success', 'Lead excluído.');
+            audit_log('lead_deleted', 'lead', $leadId, 'Lead "' . $nomeLead . '" excluído por ' . current_user_name());
+            if ($_isAjax) {
+                header('Content-Type: application/json');
+                echo json_encode(array('ok' => true));
+                exit;
+            }
+            flash_set('success', 'Lead "' . $nomeLead . '" excluído.');
         }
         redirect(module_url('pipeline'));
         break;

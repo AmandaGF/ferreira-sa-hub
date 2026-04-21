@@ -540,6 +540,9 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <th><?= $_sortLink('estado', 'Estado') ?></th>
     <th><?= $_sortLink('pendencias', 'Pendências') ?></th>
     <th style="cursor:default;">Mover</th>
+    <?php if (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()): ?>
+    <th style="cursor:default;width:40px;text-align:center;" title="Excluir lead irregular (só Amanda/Luiz)">🗑️</th>
+    <?php endif; ?>
 </tr></thead>
 <tbody>
 <?php $n = $pOffset + 1; foreach ($pageLeads as $lead):
@@ -592,10 +595,16 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             </select>
         </form>
     </td>
+    <?php if (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()): ?>
+    <td onclick="event.stopPropagation();" style="text-align:center;">
+        <button type="button" onclick="excluirLeadPlanilha(<?= $lid ?>, <?= e(json_encode($lead['name'])) ?>)"
+                style="background:transparent;border:1px solid #fecaca;color:#dc2626;padding:2px 6px;border-radius:4px;font-size:.78rem;cursor:pointer;" title="Excluir este lead (ação irreversível)">🗑️</button>
+    </td>
+    <?php endif; ?>
 </tr>
 <?php endforeach; ?>
 <?php if (empty($pageLeads)): ?>
-<tr><td colspan="15" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
+<tr><td colspan="<?= (function_exists('can_excluir_lead_pipeline') && can_excluir_lead_pipeline()) ? 17 : 16 ?>" style="text-align:center;color:#999;padding:2rem;">Nenhum lead no funil.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
@@ -662,6 +671,39 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 <script>
 var _pendingForm = null;
 var _pendingDragData = null;
+
+// Excluir lead irregular (só Amanda/Luiz)
+function excluirLeadPlanilha(leadId, nome) {
+    var msg = 'Excluir DEFINITIVAMENTE o lead "' + nome + '"?\n\n'
+            + '⚠️ Esta ação não pode ser desfeita. Use só pra limpar cadastros irregulares (ex: cliente antigo que entrou como contrato recente).\n\n'
+            + 'Digite EXCLUIR no prompt pra confirmar.';
+    var input = prompt(msg);
+    if (input !== 'EXCLUIR') return;
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+    var fd = new FormData();
+    fd.append('action', 'delete');
+    fd.append('lead_id', leadId);
+    fd.append('csrf_token', csrf);
+    fetch('<?= module_url('pipeline', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){
+        return r.text().then(function(t){
+            try { return { status: r.status, body: JSON.parse(t) }; }
+            catch(e) { return { status: r.status, body: {} }; }
+        });
+    }).then(function(res){
+        if (res.body.ok) {
+            // Remove a linha da tabela sem reload
+            var btn = document.activeElement;
+            var row = btn && btn.closest ? btn.closest('tr') : null;
+            if (row) row.remove();
+            alert('✓ Lead "' + nome + '" excluído.');
+        } else {
+            alert('Falha: ' + (res.body.error || ('HTTP ' + res.status)));
+        }
+    }).catch(function(e){ alert('Erro de rede: ' + e.message); });
+}
 
 function handleStageMove(select) {
     var stage = select.value;

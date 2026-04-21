@@ -105,6 +105,19 @@ function can_delegar_whatsapp()
 }
 
 /**
+ * Excluir leads irregulares da Planilha Comercial.
+ * Só Amanda (1) e Luiz Eduardo (6) — permissão pra limpar duplicatas/erros
+ * de cadastro (ex: clientes antigos que entraram como contratos recentes).
+ */
+function can_excluir_lead_pipeline()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    $autorizados = array(1, 6); // Amanda, Luiz Eduardo
+    return in_array((int)$uid, $autorizados, true);
+}
+
+/**
  * Dashboard do sistema — whitelist rígida por user_id.
  * Só Amanda (1), Rodrigo (3) e Luiz Eduardo (6) têm acesso.
  * Demais usuários são redirecionados (sem tela de KPIs gerais).
