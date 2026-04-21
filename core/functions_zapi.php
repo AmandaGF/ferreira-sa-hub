@@ -470,6 +470,13 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
         $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo, $ehGrupo ? 1 : 0
     ));
     $newId = (int)$pdo->lastInsertId();
+
+    // Busca foto de perfil automaticamente ao criar nova conversa (exceto grupos)
+    // Falha silenciosa: se a Z-API não responder, a conversa existe e recebe foto depois
+    if (!$ehGrupo) {
+        try { zapi_sync_foto_contato($newId); } catch (Exception $e) {}
+    }
+
     return $pdo->query("SELECT * FROM zapi_conversas WHERE id = $newId")->fetch();
 }
 
