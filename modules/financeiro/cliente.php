@@ -12,6 +12,16 @@ $pdo = db();
 $clientId = (int)($_GET['id'] ?? 0);
 if (!$clientId) { flash_set('error', 'Cliente não informado.'); redirect(module_url('financeiro')); }
 
+// Filtro opcional por processo específico (quando vindo do caso_ver.php)
+$fromCaseId = (int)($_GET['from_case'] ?? 0);
+$filtroCase = null;
+if ($fromCaseId) {
+    $fc = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE id = ? AND client_id = ?");
+    $fc->execute(array($fromCaseId, $clientId));
+    $filtroCase = $fc->fetch();
+    if (!$filtroCase) { $fromCaseId = 0; } // Não pertence ao cliente → ignora
+}
+
 $stmt = $pdo->prepare("SELECT * FROM clients WHERE id = ?");
 $stmt->execute(array($clientId));
 $client = $stmt->fetch();
@@ -31,14 +41,19 @@ if (!$asaasId && $client['cpf']) {
 // Sincronizar cobranças se vinculado
 if ($asaasId) { sync_cobrancas_cliente($clientId, $asaasId); }
 
-// Cobranças do cliente
+// Cobranças do cliente (com filtro opcional por case_id)
 $cobrancas = array();
 try {
-    $cobrancas = $pdo->prepare(
-        "SELECT * FROM asaas_cobrancas WHERE client_id = ? ORDER BY vencimento DESC"
-    );
-    $cobrancas->execute(array($clientId));
-    $cobrancas = $cobrancas->fetchAll();
+    if ($fromCaseId) {
+        $sqlCob = "SELECT * FROM asaas_cobrancas WHERE client_id = ? AND case_id = ? ORDER BY vencimento DESC";
+        $stmtCob = $pdo->prepare($sqlCob);
+        $stmtCob->execute(array($clientId, $fromCaseId));
+    } else {
+        $sqlCob = "SELECT * FROM asaas_cobrancas WHERE client_id = ? ORDER BY vencimento DESC";
+        $stmtCob = $pdo->prepare($sqlCob);
+        $stmtCob->execute(array($clientId));
+    }
+    $cobrancas = $stmtCob->fetchAll();
 } catch (Exception $e) {}
 
 // Processos do cliente (pra vincular cobranças)
@@ -49,14 +64,21 @@ try {
     $processosCliente = $stmtProc->fetchAll();
 } catch (Exception $e) {}
 
-// Contratos
+// Contratos (filtra por case_id se vindo do caso_ver.php)
 $contratos = array();
 try {
-    $contratos = $pdo->prepare(
-        "SELECT cf.*, cs.title as case_title FROM contratos_financeiros cf LEFT JOIN cases cs ON cs.id = cf.case_id WHERE cf.client_id = ? ORDER BY cf.created_at DESC"
-    );
-    $contratos->execute(array($clientId));
-    $contratos = $contratos->fetchAll();
+    if ($fromCaseId) {
+        $stmtCt = $pdo->prepare(
+            "SELECT cf.*, cs.title as case_title FROM contratos_financeiros cf LEFT JOIN cases cs ON cs.id = cf.case_id WHERE cf.client_id = ? AND cf.case_id = ? ORDER BY cf.created_at DESC"
+        );
+        $stmtCt->execute(array($clientId, $fromCaseId));
+    } else {
+        $stmtCt = $pdo->prepare(
+            "SELECT cf.*, cs.title as case_title FROM contratos_financeiros cf LEFT JOIN cases cs ON cs.id = cf.case_id WHERE cf.client_id = ? ORDER BY cf.created_at DESC"
+        );
+        $stmtCt->execute(array($clientId));
+    }
+    $contratos = $stmtCt->fetchAll();
 } catch (Exception $e) {}
 
 // Resumo
@@ -88,6 +110,16 @@ echo voltar_ao_processo_html();
 
 <a href="<?= module_url('financeiro') ?>" class="btn btn-outline btn-sm" style="margin-bottom:.75rem;">← Voltar ao Financeiro</a>
 
+<?php if ($filtroCase): ?>
+<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:var(--radius-md);padding:.6rem .85rem;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;">
+    <div style="font-size:.8rem;color:#1e40af;">
+        🔗 <strong>Filtrado pelo processo:</strong> <?= e($filtroCase['title'] ?: 'Processo #' . $filtroCase['id']) ?>
+        <?php if ($filtroCase['case_number']): ?><span style="color:#64748b;font-size:.72rem;">(<?= e($filtroCase['case_number']) ?>)</span><?php endif; ?>
+    </div>
+    <a href="<?= module_url('financeiro', 'cliente.php?id=' . $clientId) ?>" style="font-size:.72rem;background:#1e40af;color:#fff;padding:4px 10px;border-radius:4px;text-decoration:none;font-weight:600;">Ver todas as cobranças do cliente →</a>
+</div>
+<?php endif; ?>
+
 <!-- Header -->
 <div class="fin-header">
     <h2><?= e($client['name']) ?></h2>
@@ -118,7 +150,10 @@ echo voltar_ao_processo_html();
 <!-- Cobranças -->
 <div style="background:var(--bg-card);border-radius:var(--radius-lg);border:1px solid var(--border);margin-bottom:1.25rem;">
     <div style="padding:1rem 1.15rem;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-        <h4 style="font-size:.88rem;font-weight:700;color:var(--petrol-900);">Cobranças (<?= count($cobrancas) ?>)</h4>
+        <h4 style="font-size:.88rem;font-weight:700;color:var(--petrol-900);">
+            Cobranças (<?= count($cobrancas) ?>)
+            <?php if ($filtroCase): ?><span style="font-size:.7rem;font-weight:500;color:#1e40af;">— só deste processo</span><?php endif; ?>
+        </h4>
         <button onclick="document.getElementById('modalNovaCob').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;">+ Nova Cobrança</button>
     </div>
 
