@@ -394,14 +394,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         <?php if (!empty($clientesVinculados)): ?>
             <?php if (count($clientesVinculados) === 1): ?>
-                <a href="<?= module_url('clientes', 'ver.php?id=' . $clientesVinculados[0]['id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente</a>
+                <a href="<?= module_url('clientes', 'ver.php?id=' . $clientesVinculados[0]['id']) ?>" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);" title="Cliente principal: <?= e($clientesVinculados[0]['name']) ?>">⭐ Ver cliente</a>
             <?php else: ?>
                 <div style="position:relative;display:inline-block;">
                     <button type="button" onclick="var m=document.getElementById('menuClientes');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-outline btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3);">👤 Ver cliente ▾</button>
-                    <div id="menuClientes" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
-                        <?php foreach ($clientesVinculados as $cv): ?>
-                        <a href="<?= module_url('clientes', 'ver.php?id=' . $cv['id']) ?>" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#f8f6f2'" onmouseout="this.style.background=''">
-                            👤 <?= e($cv['name']) ?>
+                    <div id="menuClientes" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:260px;margin-top:4px;overflow:hidden;">
+                        <?php foreach ($clientesVinculados as $idx => $cv):
+                            $isPrincipal = ($idx === 0);
+                        ?>
+                        <a href="<?= module_url('clientes', 'ver.php?id=' . $cv['id']) ?>"
+                           style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:<?= $isPrincipal ? '700' : '500' ?>;border-bottom:1px solid #f1f5f9;<?= $isPrincipal ? 'background:#ecfdf5;border-left:3px solid #059669;' : '' ?>"
+                           onmouseover="this.style.background='<?= $isPrincipal ? '#d1fae5' : '#f8f6f2' ?>'"
+                           onmouseout="this.style.background='<?= $isPrincipal ? '#ecfdf5' : '' ?>'">
+                            <?php if ($isPrincipal): ?>
+                                <div style="display:flex;align-items:center;gap:.35rem;">
+                                    <span style="font-size:1rem;">⭐</span>
+                                    <span><?= e($cv['name']) ?></span>
+                                </div>
+                                <div style="font-size:.62rem;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;margin-left:1.3rem;">Cliente principal</div>
+                            <?php else: ?>
+                                <div style="display:flex;align-items:center;gap:.35rem;">
+                                    <span>👤</span>
+                                    <span><?= e($cv['name']) ?></span>
+                                </div>
+                                <div style="font-size:.62rem;color:#64748b;margin-top:2px;margin-left:1.3rem;">Representado · rep. por <?= e(explode(' ', $clientesVinculados[0]['name'])[0]) ?></div>
+                            <?php endif; ?>
                         </a>
                         <?php endforeach; ?>
                     </div>
