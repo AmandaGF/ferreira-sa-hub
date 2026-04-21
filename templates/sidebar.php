@@ -315,8 +315,25 @@ function fsaAbrirInstalar() {
     var isiOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
     var isAndroid = /Android/i.test(ua);
 
+    // Bloco de instrução "onde achar" por plataforma — usado quando já instalado
+    var ondeAchar = '';
+    if (isAndroid) {
+        ondeAchar = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#1e40af;">'
+                  + '<strong>📍 Onde achar no Android:</strong><br>'
+                  + '1. Tela inicial — role e procure o ícone F&amp;S Hub<br>'
+                  + '2. Gaveta de apps (arraste de baixo pra cima) → role ou busque por "F&amp;S" ou "Hub"<br>'
+                  + '3. Se não aparecer em lugar nenhum, a instalação pode ter falhado — reinstale pelas instruções abaixo.'
+                  + '</div>';
+    } else if (isiOS) {
+        ondeAchar = '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:.7rem .9rem;margin-bottom:.8rem;font-size:.78rem;color:#1e40af;">'
+                  + '<strong>📍 Onde achar no iPhone/iPad:</strong><br>'
+                  + 'Tela inicial — procure o ícone F&amp;S Hub. Se não aparecer, deslize pra esquerda até a Biblioteca de Apps ou use a busca (deslize pra baixo na tela inicial). Se ainda não achar, reinstale pelas instruções abaixo.'
+                  + '</div>';
+    }
+
     if (isStandalone) {
-        body.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.8rem 1rem;color:#166534;">✅ <strong>Já está instalado!</strong> Você está usando a versão app do Hub agora.</div>';
+        body.innerHTML = '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:.8rem 1rem;color:#166534;margin-bottom:.8rem;">✅ <strong>Você está no modo app agora!</strong> Essa janela é a versão instalada do Hub.</div>'
+            + ondeAchar;
     } else if (window._fsaDeferredPrompt) {
         // Android Chrome/Edge — evento disponível, dispara nativo
         body.innerHTML = '<p style="margin:0 0 .8rem;">Clique abaixo pra instalar o Hub como aplicativo no seu dispositivo:</p>'
