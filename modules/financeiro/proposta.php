@@ -195,18 +195,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="pa-actions">
             <button type="submit" class="btn btn-primary btn-sm" style="background:#052228;">🔄 Recalcular</button>
             <button type="button" onclick="window.print()" class="btn btn-sm" style="background:#b45309;color:#fff;">🖨️ Imprimir / Salvar PDF</button>
-            <?php if ($client['phone']):
-                $msg = "Olá " . explode(' ', $client['name'])[0] . "! 📄\n\nPreparamos uma *proposta de acordo especial* para você quitar as pendências com condições muito vantajosas:\n\n"
-                     . "💰 Valor à vista: *R$ " . number_format($valorFinal, 2, ',', '.') . "*\n"
-                     . "💵 Economia: *R$ " . number_format($economia, 2, ',', '.') . "*"
-                     . ($descontoPct > 0 ? " (" . $descontoPct . "% de desconto)" : "")
-                     . "\n⏰ Válida até: *" . date('d/m/Y', strtotime($prazoProposta)) . "*\n\n"
-                     . "Vantagens do acordo:\n✅ Evita processo judicial\n✅ Evita negativação no SPC/Serasa\n✅ Resolve de forma rápida e amigável\n\n"
-                     . "Podemos conversar?\n\n_Ferreira & Sá Advocacia_";
+            <?php
+            // Texto da proposta pra copiar ou enviar via WhatsApp
+            $msg = "Olá " . explode(' ', $client['name'])[0] . "! 📄\n\nPreparamos uma *proposta de acordo especial* para você quitar as pendências com condições muito vantajosas:\n\n"
+                 . "💰 Valor à vista: *R$ " . number_format($valorFinal, 2, ',', '.') . "*\n"
+                 . "💵 Economia: *R$ " . number_format($economia, 2, ',', '.') . "*"
+                 . ($descontoPct > 0 ? " (" . $descontoPct . "% de desconto)" : "")
+                 . "\n⏰ Válida até: *" . date('d/m/Y', strtotime($prazoProposta)) . "*\n\n"
+                 . "Vantagens do acordo:\n✅ Evita processo judicial\n✅ Evita negativação no SPC/Serasa\n✅ Resolve de forma rápida e amigável\n\n"
+                 . "Podemos conversar?\n\n_Ferreira & Sá Advocacia_";
             ?>
+            <button type="button" id="btnCopiarProposta" onclick="copiarProposta(this)" class="btn btn-sm" style="background:#6b7280;color:#fff;border:none;">📋 Copiar texto</button>
+            <?php if ($client['phone']): ?>
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$clientId ?>,canal:'24',mensagem:<?= e(json_encode($msg)) ?>})" class="btn btn-success btn-sm" style="border:none;">💬 Enviar resumo por WhatsApp</button>
             <?php endif; ?>
         </div>
+        <textarea id="propostaTextoOculto" style="position:absolute;left:-9999px;width:1px;height:1px;" readonly><?= e($msg) ?></textarea>
+        <script>
+        function copiarProposta(btn) {
+            var texto = document.getElementById('propostaTextoOculto').value;
+            var original = btn.innerHTML;
+            var original_bg = btn.style.background;
+            function sucesso() {
+                btn.innerHTML = '✓ Copiado!';
+                btn.style.background = '#059669';
+                setTimeout(function(){ btn.innerHTML = original; btn.style.background = original_bg; }, 2000);
+            }
+            function falha() {
+                // Fallback: seleciona e usa execCommand
+                var ta = document.getElementById('propostaTextoOculto');
+                ta.style.position = 'fixed'; ta.style.left = '0'; ta.style.top = '0';
+                ta.focus(); ta.select();
+                try { document.execCommand('copy'); sucesso(); }
+                catch(e) { alert('Não consegui copiar — selecione manualmente o texto abaixo:\n\n' + texto.substring(0, 200) + '...'); }
+                ta.style.position = 'absolute'; ta.style.left = '-9999px';
+            }
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(texto).then(sucesso).catch(falha);
+            } else {
+                falha();
+            }
+        }
+        </script>
     </form>
 </div>
 
