@@ -567,6 +567,24 @@ $allCasesFlat = array();
 foreach ($byStatus as $statusKey => $statusCases) {
     foreach ($statusCases as $cs) { $cs['_status_key'] = $statusKey; $allCasesFlat[] = $cs; }
 }
+
+// Filtro por mês (server-side, igual Comercial). Usa created_at do caso.
+$opFilterMonth = isset($_GET['op_mes']) ? $_GET['op_mes'] : '';
+$opMesesDisponiveis = array();
+foreach ($allCasesFlat as $cs) {
+    if (!empty($cs['created_at'])) {
+        $ym = substr($cs['created_at'], 0, 7);
+        if (!in_array($ym, $opMesesDisponiveis, true)) $opMesesDisponiveis[] = $ym;
+    }
+}
+rsort($opMesesDisponiveis); // mais recente primeiro
+if ($opFilterMonth) {
+    $allCasesFlat = array_values(array_filter($allCasesFlat, function($cs) use ($opFilterMonth) {
+        return !empty($cs['created_at']) && substr($cs['created_at'], 0, 7) === $opFilterMonth;
+    }));
+}
+$opMesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'Jun','07'=>'Jul','08'=>'Ago','09'=>'Set','10'=>'Out','11'=>'Nov','12'=>'Dez');
+
 $opPage = max(1, (int)($_GET['op'] ?? 1));
 $opPerPage = 25;
 $opTotalPages = max(1, ceil(count($allCasesFlat) / $opPerPage));
@@ -578,6 +596,15 @@ foreach ($allCasesFlat as $cs) { if ($cs['case_type'] && $cs['case_type'] !== 'o
 sort($opTipos);
 ?>
 <div class="tbl-toolbar">
+    <select id="filterOpMes" onchange="filterOpByMes(this.value)" class="tbl-filter" title="Filtrar por mês de cadastro do caso">
+        <option value="">📅 Todos os meses</option>
+        <?php foreach ($opMesesDisponiveis as $ym):
+            list($yy, $mm) = explode('-', $ym);
+            $label = ($opMesesBR[$mm] ?? $mm) . '/' . $yy;
+        ?>
+            <option value="<?= e($ym) ?>" <?= $opFilterMonth === $ym ? 'selected' : '' ?>><?= e($label) ?></option>
+        <?php endforeach; ?>
+    </select>
     <select id="filterOpStatus" onchange="filterOpTable()" class="tbl-filter">
         <option value="">Todos os status</option>
         <?php foreach ($columns as $ck => $cv): ?><option value="<?= $ck ?>"><?= $cv['icon'] ?> <?= $cv['label'] ?></option><?php endforeach; ?>
@@ -590,7 +617,7 @@ sort($opTipos);
         <option value="">Todos os tipos</option>
         <?php foreach ($opTipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <span class="tbl-count"><?= count($allCasesFlat) ?> casos</span>
+    <span class="tbl-count"><?= count($allCasesFlat) ?> casos<?= $opFilterMonth ? ' em ' . e(($opMesesBR[substr($opFilterMonth,5,2)] ?? '') . '/' . substr($opFilterMonth,0,4)) : '' ?></span>
     <button onclick="exportTableCSV('opTableBody','operacional')" class="tbl-csv">Exportar CSV</button>
 </div>
 <div class="tbl-wrap" style="max-height:72vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
@@ -1650,6 +1677,15 @@ function filterOpTable() {
         if (tipo && row.dataset.type !== tipo) show = false;
         row.style.display = show ? '' : 'none';
     });
+}
+
+// Filtro de mês server-side — preserva view tabela ativa após reload
+function filterOpByMes(ym) {
+    var params = new URLSearchParams(window.location.search);
+    if (ym) params.set('op_mes', ym); else params.delete('op_mes');
+    params.delete('op'); // reset paginação
+    try { localStorage.setItem('operacional_view', 'tabela'); } catch(e) {}
+    window.location.search = params.toString();
 }
 
 // Ordenar e exportar (compartilhados)
