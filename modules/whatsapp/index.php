@@ -1350,7 +1350,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (!clientId) return;
         var opApi = '<?= module_url('operacional', 'api.php') ?>';
         var base = '<?= rtrim(url(''), '/') ?>';
-        fetch(opApi + '?action=buscar_casos_cliente&client_id=' + clientId, { credentials: 'same-origin' })
+        // Endpoint só aceita POST; buscar_casos_cliente é read-only (não precisa CSRF
+        // válido, mas manda mesmo assim pra compatibilidade)
+        var fd = new FormData();
+        fd.append('action', 'buscar_casos_cliente');
+        fd.append('client_id', clientId);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(opApi, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd
+        })
             .then(function(r){ return r.json(); })
             .then(function(d){
                 var casos = (d && d.casos) || [];
