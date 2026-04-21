@@ -228,6 +228,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button onclick="waCancelarPendente()" style="background:#fff;border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;" title="Cancelar">✕</button>
         </div>
 
+        <!-- Barra de resposta (aparece quando clica em ↩ Responder numa mensagem) -->
+        <div id="waReplyBar" style="display:none;align-items:center;gap:.5rem;padding:.45rem .75rem;background:#eff6ff;border-top:1px solid #bfdbfe;border-left:3px solid #2563eb;">
+            <span style="font-size:.85rem;">↩</span>
+            <div style="flex:1;min-width:0;">
+                <div style="font-size:.68rem;color:#1e40af;font-weight:700;">Respondendo a <span id="waReplyQuem">...</span></div>
+                <div id="waReplyPreview" style="font-size:.76rem;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+            </div>
+            <button type="button" onclick="waCancelarResposta()" title="Cancelar resposta" style="background:transparent;border:1px solid #93c5fd;color:#1e40af;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:.78rem;">✕</button>
+        </div>
+
         <!-- Input de mensagem (escondido até abrir uma conversa) -->
         <div class="wa-chat-input" id="waChatInput" style="display:none;">
             <button class="wa-btn-tpl" onclick="waToggleTemplates()" title="Respostas rápidas">📋</button>
@@ -474,19 +484,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 if (m.status === 'deletada') cls += ' deleted';
                 html += '<div class="wa-msg-row '+dir+'" data-msg-id="'+m.id+'">';
                 html += '<div class="'+cls+'" style="position:relative;">';
-                // Botões hover (apagar/editar) só pra mensagens enviadas pelo Hub e não deletadas
+                // Botões hover (apagar/editar/responder) só pra mensagens enviadas pelo Hub e não deletadas
                 if (m.direcao === 'enviada' && m.status !== 'deletada' && m.zapi_message_id) {
                     html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     if (m.tipo === 'texto') html += '<button onclick="waEditarMsg('+m.id+')" title="Editar (até 15 min)" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">✏️</button>';
                     html += '<button onclick="waDeletarMsg('+m.id+')" title="Apagar" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">🗑</button>';
                     html += '</div>';
                 }
-                // Hover de reagir também pra mensagens recebidas
+                // Hover de reagir/responder também pra mensagens recebidas
                 if (m.direcao === 'recebida' && m.status !== 'deletada' && m.zapi_message_id) {
                     html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     html += '</div>';
+                }
+
+                // Citação (quoted) — mensagem respondida aparece em bloco acima
+                if (m.reply_to_conteudo) {
+                    var qlabel = (m.reply_to_direcao === 'enviada') ? 'Você' : 'Contato';
+                    var qcolor = (m.reply_to_direcao === 'enviada') ? '#059669' : '#6366f1';
+                    var preview = String(m.reply_to_conteudo).substring(0, 120);
+                    html += '<div style="border-left:3px solid '+qcolor+';background:rgba(0,0,0,.03);padding:3px 8px;margin-bottom:4px;border-radius:4px;font-size:.75rem;">'
+                          + '<div style="font-weight:700;color:'+qcolor+';font-size:.68rem;">↩ ' + qlabel + '</div>'
+                          + '<div style="color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(preview) + '</div>'
+                          + '</div>';
                 }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
                 else if (m.direcao === 'enviada' && m.enviado_por_name && mostrarNomeAtendente) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
@@ -583,6 +606,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
 
     // ── ENVIAR MENSAGEM ou ARQUIVO PENDENTE ─────────────
+    // ── RESPONDER MENSAGEM ──
+    // Estado: { zapiMessageId, preview, direcao }
+    var _waReplyTo = null;
+    window.waResponderMsg = function(zapiMessageId, localMsgId) {
+        if (!zapiMessageId) { alert('Mensagem sem ID do WhatsApp — não pode ser respondida.'); return; }
+        // Busca o texto da mensagem no DOM pra preview
+        var row = document.querySelector('[data-msg-id="' + localMsgId + '"]');
+        var preview = '';
+        var dir = 'recebida';
+        if (row) {
+            dir = row.classList.contains('right') ? 'enviada' : 'recebida';
+            var conteudo = row.querySelector('.wa-msg > div[style*="white-space:pre-wrap"]');
+            if (conteudo) preview = conteudo.textContent.trim();
+            if (!preview) {
+                var img = row.querySelector('.wa-msg img');
+                if (img) preview = '🖼️ Imagem';
+            }
+            if (!preview) {
+                var aud = row.querySelector('.wa-msg audio');
+                if (aud) preview = '🎤 Áudio';
+            }
+            if (!preview) preview = '(mídia)';
+        }
+        _waReplyTo = { zapiMessageId: zapiMessageId, preview: preview, direcao: dir };
+        document.getElementById('waReplyBar').style.display = 'flex';
+        document.getElementById('waReplyQuem').textContent = dir === 'enviada' ? 'sua mensagem' : 'mensagem do contato';
+        document.getElementById('waReplyPreview').textContent = preview.substring(0, 140);
+        // Foca no input pra a pessoa digitar a resposta
+        var inp = document.getElementById('waInput');
+        if (inp) inp.focus();
+    };
+    window.waCancelarResposta = function() {
+        _waReplyTo = null;
+        document.getElementById('waReplyBar').style.display = 'none';
+    };
+
     window.waEnviar = function() {
         if (!convAtiva) return;
         var txt = document.getElementById('waInput').value.trim();
@@ -615,11 +674,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fd.append('conversa_id', convAtiva);
         fd.append('mensagem', txt);
         fd.append('csrf_token', csrf);
+        if (_waReplyTo && _waReplyTo.zapiMessageId) {
+            fd.append('reply_to_message_id', _waReplyTo.zapiMessageId);
+        }
 
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             btn.disabled = false; btn.textContent = '➤ Enviar';
             if (d.error) { alert('Erro: ' + d.error); return; }
             document.getElementById('waInput').value = '';
+            waCancelarResposta(); // limpa estado de resposta após enviar
             window.waAbrir(convAtiva);
             carregarLista();
         }).catch(function(e){

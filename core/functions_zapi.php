@@ -76,9 +76,11 @@ function zapi_fila_enfileirar($origem, $clientId, $telefone, $mensagem, $opts = 
 
 /**
  * Envia texto via Z-API.
+ * @param string $replyTo (opcional) — zapi_message_id da mensagem sendo respondida.
+ *                         Se preenchido, Z-API exibe o "quoted" no WhatsApp do destinatário.
  * @return array ['ok' => bool, 'data' => mixed, 'http_code' => int]
  */
-function zapi_send_text($ddd, $telefone, $mensagem) {
+function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
     $inst = zapi_get_instancia($ddd);
     if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
         return array('ok' => false, 'erro' => 'Instância não configurada para DDD ' . $ddd);
@@ -90,13 +92,16 @@ function zapi_send_text($ddd, $telefone, $mensagem) {
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
+    $body = array('phone' => $telefone_norm, 'message' => $mensagem);
+    if (!empty($replyTo)) { $body['messageId'] = $replyTo; }
+
     $ch = curl_init($url);
     curl_setopt_array($ch, array(
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_TIMEOUT        => 20,
         CURLOPT_POST           => true,
         CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_POSTFIELDS     => json_encode(array('phone' => $telefone_norm, 'message' => $mensagem)),
+        CURLOPT_POSTFIELDS     => json_encode($body),
         CURLOPT_SSL_VERIFYPEER => false,
     ));
     $resp = curl_exec($ch);

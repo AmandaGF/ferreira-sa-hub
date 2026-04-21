@@ -25,6 +25,7 @@ try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN delegada_em DATETIME DEF
 // Self-heal: colunas pra reações a mensagens (emoji reaction)
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reply_to_message_id VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
 // Self-heal: wa_display_name em users (nome curto exibido nas mensagens WhatsApp)
 try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_display_name VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
 // Self-heal: biblioteca de stickers compartilhada pela equipe
@@ -351,8 +352,10 @@ if ($action === 'abrir_conversa') {
     $conv['lock_pode_enviar'] = !empty($lock['pode']) ? 1 : 0;
     $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
 
-    // Mensagens (últimas 200)
-    $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name
+    // Mensagens (últimas 200) + preview da mensagem respondida (quoted)
+    $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name,
+                              (SELECT m2.conteudo FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_conteudo,
+                              (SELECT m2.direcao  FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_direcao
                            FROM zapi_mensagens m
                            LEFT JOIN users u ON u.id = m.enviado_por_id
                            WHERE m.conversa_id = ?
@@ -387,6 +390,7 @@ if ($action === 'abrir_conversa') {
 if ($action === 'enviar_mensagem') {
     $convId  = (int)($_POST['conversa_id'] ?? 0);
     $texto   = trim($_POST['mensagem'] ?? '');
+    $replyTo = trim($_POST['reply_to_message_id'] ?? ''); // zapi_message_id pra responder
     if (!$convId || !$texto) { echo json_encode(array('error' => 'Parâmetros inválidos')); exit; }
 
     // Trava de atendimento: se outro usuário já assumiu e conversa tem atividade
@@ -413,7 +417,7 @@ if ($action === 'enviar_mensagem') {
         $textoEnviar = rtrim($texto) . "\n\n" . $assinatura;
     }
 
-    $resp = zapi_send_text($conv['canal'], $conv['telefone'], $textoEnviar);
+    $resp = zapi_send_text($conv['canal'], $conv['telefone'], $textoEnviar, $replyTo ?: null);
     if (empty($resp['ok'])) {
         echo json_encode(array('error' => 'Falha ao enviar: ' . ($resp['erro'] ?? 'HTTP ' . ($resp['http_code'] ?? '?')) . ' — ' . json_encode($resp['data'] ?? '')));
         exit;
@@ -422,9 +426,12 @@ if ($action === 'enviar_mensagem') {
     $zapiId = '';
     if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
 
-    $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo, enviado_por_id, status)
-                   VALUES (?, ?, 'enviada', 'texto', ?, ?, 'enviada')")
-        ->execute(array($convId, $zapiId, $textoEnviar, $userId));
+    // Self-heal da coluna (idempotente)
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reply_to_message_id VARCHAR(100) DEFAULT NULL AFTER zapi_message_id"); } catch (Exception $e) {}
+
+    $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, reply_to_message_id, direcao, tipo, conteudo, enviado_por_id, status)
+                   VALUES (?, ?, ?, 'enviada', 'texto', ?, ?, 'enviada')")
+        ->execute(array($convId, $zapiId, $replyTo ?: null, $textoEnviar, $userId));
 
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                    status = IF(status = 'aguardando', 'em_atendimento', status),
