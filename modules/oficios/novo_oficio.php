@@ -77,6 +77,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === '
     exit;
 }
 
+// ═══ Endpoint AJAX: apagar evento do histórico ═══
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'del_historico') {
+    while (ob_get_level() > 0) @ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF expirado — recarregue a página', 'csrf_expired' => true)); exit; }
+        $hid = (int)($_POST['hist_id'] ?? 0);
+        if (!$hid) { echo json_encode(array('error' => 'hist_id ausente')); exit; }
+        // Só admin/gestão OU o próprio criador podem apagar
+        $st = $pdo->prepare("SELECT oficio_id, created_by FROM oficios_historico WHERE id = ?");
+        $st->execute(array($hid));
+        $h = $st->fetch();
+        if (!$h) { echo json_encode(array('error' => 'Evento não encontrado')); exit; }
+        if (!has_min_role('gestao') && (int)$h['created_by'] !== current_user_id()) {
+            echo json_encode(array('error' => 'Só quem criou o evento ou gestão pode apagar')); exit;
+        }
+        $pdo->prepare("DELETE FROM oficios_historico WHERE id = ?")->execute(array($hid));
+        if (function_exists('audit_log')) { try { audit_log('oficio_historico_del', 'oficios', (int)$h['oficio_id'], 'hist#' . $hid); } catch (Exception $e) {} }
+        echo json_encode(array('ok' => true));
+    } catch (Throwable $e) {
+        @error_log('[oficios del_historico] ' . $e->getMessage());
+        echo json_encode(array('error' => 'Erro interno: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 // Modo: criar novo OU editar existente
 $oficioId = (int)($_GET['id'] ?? 0);
 $oficioExistente = null;
@@ -324,7 +350,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:.5rem .75rem;">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
                         <span style="font-weight:700;font-size:.82rem;color:var(--petrol-900);"><?= e($_lbl) ?></span>
-                        <span style="font-size:.68rem;color:var(--text-muted);"><?= date('d/m/Y H:i', strtotime($h['created_at'])) ?><?= $h['user_name'] ? ' · ' . e(explode(' ', $h['user_name'])[0]) : '' ?></span>
+                        <div style="display:flex;align-items:center;gap:.5rem;">
+                            <span style="font-size:.68rem;color:var(--text-muted);"><?= date('d/m/Y H:i', strtotime($h['created_at'])) ?><?= $h['user_name'] ? ' · ' . e(explode(' ', $h['user_name'])[0]) : '' ?></span>
+                            <button type="button" onclick="delHistorico(<?= (int)$h['id'] ?>)" title="Apagar este evento" style="background:none;border:none;cursor:pointer;font-size:.8rem;opacity:.5;padding:0;">🗑️</button>
+                        </div>
                     </div>
                     <?php if ($h['descricao']): ?>
                         <div style="font-size:.8rem;color:#374151;margin-top:.2rem;white-space:pre-wrap;"><?= e($h['descricao']) ?></div>
@@ -540,6 +569,22 @@ function copiarTpl(id) {
         btn.style.background = '#059669';
         setTimeout(function(){ btn.textContent = orig; btn.style.background = '#052228'; }, 2000);
     } catch(e) { alert('Erro ao copiar: ' + e.message); }
+}
+
+function delHistorico(histId) {
+    if (!confirm('Apagar este evento da linha do tempo?')) return;
+    var fd = new FormData();
+    fd.append('ajax_action', 'del_historico');
+    fd.append('hist_id', histId);
+    fd.append('csrf_token', <?= json_encode(generate_csrf_token()) ?>);
+    fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j.csrf_expired) { alert('Sessão expirou. Recarregue a página.'); return; }
+            if (j.error) { alert('Erro: ' + j.error); return; }
+            if (j.ok) location.reload();
+        })
+        .catch(function(e){ alert('Erro: ' + e.message); });
 }
 
 function addHistorico() {
