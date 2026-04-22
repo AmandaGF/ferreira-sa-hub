@@ -47,9 +47,25 @@ try {
         case 'MessageReceived':
         case 'message': {
             $fromMe = !empty($payload['fromMe']);
-            $telefone  = $payload['phone'] ?? ($payload['author'] ?? '');
+
+            // Z-API pode entregar phone como @lid (ID interno Multi-Device) OU número real.
+            // senderPhoneNumber SEMPRE vem com o número real (quando disponível) —
+            // priorizar ele resolve o principal vetor de duplicação.
+            // Ref: https://www.z-api.io/blog/lid-no-whatsapp-o-que-e-por-que-aparece/
+            $phoneRaw        = $payload['phone'] ?? ($payload['author'] ?? '');
+            $senderPhoneNum  = $payload['senderPhoneNumber'] ?? '';  // número real (preferido)
+            $senderLid       = $payload['senderLid'] ?? '';           // ID @lid do remetente
+            $chatLid         = $payload['chatLid'] ?? '';             // identificador "mais estável" oficial
+            $participantPhone= $payload['participantPhone'] ?? '';   // só em grupos
+            $ehGrupoFlag     = !empty($payload['isGroup']);
+
+            // Decide o telefone "canônico" pra armazenar na conversa:
+            // - Se tem senderPhoneNumber (número real) → usa ele
+            // - Senão (ex: veio só @lid do Multi-Device) → usa phone como está
+            $telefone = ($senderPhoneNum && preg_match('/\d{8,}/', $senderPhoneNum)) ? $senderPhoneNum : $phoneRaw;
+
             $chatName  = $payload['chatName'] ?? null;
-            $ehGrupo   = zapi_eh_grupo($telefone, $payload);
+            $ehGrupo   = $ehGrupoFlag || zapi_eh_grupo($phoneRaw, $payload);
             // Se é grupo, sempre usa chatName (nome do grupo). senderName seria o membro
             // específico que escreveu — criaria confusão no CRM.
             // Se é conversa 1:1 fromMe, senderName = nosso escritório → usa chatName.
@@ -80,15 +96,48 @@ try {
                 $log("[{$numero}] fromMe NOVO — mensagem enviada pelo celular msgId={$zapiMsgId} phone={$telefone}");
             }
 
+            // Self-heal: coluna chat_lid pra armazenar identificador LID estável da Z-API.
+            // Conforme doc oficial, chatLid é o ID recomendado como primary key do contato.
+            try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN chat_lid VARCHAR(50) NULL"); } catch (Exception $e) {}
+            try { $pdo->exec("CREATE INDEX idx_chat_lid ON zapi_conversas(chat_lid)"); } catch (Exception $e) {}
+
             // Prevenção de duplicação — matching em cascata.
-            // Problema: cliente envia com phone=@lid, mas Hub envia com telefone normal.
-            // Se chatName não bate exatamente (ex: "Luiz" vs "Luiz Eduardo"), cria 2 conversas.
-            // Solução: várias estratégias de match, do exato pro fuzzy.
-            $ehLid = (strpos($telefone, '@lid') !== false);
+            // Problema antigo: usávamos `phone` como chave, mas ele pode vir como @lid
+            // (ID interno Multi-Device) OU número real. Criava duplicatas.
+            // Solução nova: priorizar chatLid/senderLid (IDs estáveis da Z-API) +
+            // senderPhoneNumber (número real) antes de cair no match por nome.
+            $ehLid = (strpos($phoneRaw, '@lid') !== false);
             $conv = null;
 
+            // Estratégia 0: Match por CHAT_LID (identificador mais estável segundo Z-API)
+            if (!$ehGrupo && !empty($chatLid)) {
+                $q0 = $pdo->prepare("SELECT * FROM zapi_conversas
+                                     WHERE canal = ? AND chat_lid = ?
+                                       AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                     LIMIT 1");
+                $q0->execute(array($numero, $chatLid));
+                $conv = $q0->fetch();
+                if ($conv) $log("[{$numero}] MATCH-CHATLID chatLid={$chatLid} → conversa #{$conv['id']}");
+            }
+
+            // Estratégia 0b: Match por TELEFONE REAL (senderPhoneNumber)
+            // Se temos o número real, procura conversa que já tenha esse número,
+            // mesmo que a conversa atual esteja com @lid.
+            if (!$conv && !$ehGrupo && $senderPhoneNum && preg_match('/\d{8,}/', $senderPhoneNum)) {
+                $telReal = preg_replace('/\D/', '', $senderPhoneNum);
+                $ult10 = strlen($telReal) >= 10 ? substr($telReal, -10) : $telReal;
+                $q0b = $pdo->prepare("SELECT * FROM zapi_conversas
+                                      WHERE canal = ?
+                                        AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                        AND RIGHT(REPLACE(REPLACE(telefone,'@lid',''),'@g.us',''), 10) = ?
+                                      ORDER BY ultima_msg_em DESC LIMIT 1");
+                $q0b->execute(array($numero, $ult10));
+                $conv = $q0b->fetch();
+                if ($conv) $log("[{$numero}] MATCH-TELREAL senderPhone={$senderPhoneNum} → conversa #{$conv['id']}");
+            }
+
             // Estratégia 1: chatName EXATO (lógica original)
-            if (!$ehGrupo && !empty($chatName)) {
+            if (!$conv && !$ehGrupo && !empty($chatName)) {
                 $q = $pdo->prepare("SELECT * FROM zapi_conversas
                                     WHERE canal = ? AND LOWER(TRIM(nome_contato)) = LOWER(TRIM(?))
                                       AND (eh_grupo = 0 OR eh_grupo IS NULL)
@@ -149,6 +198,27 @@ try {
                 $log("[{$numero}] falha ao criar conversa");
                 echo json_encode(array('status' => 'conv_error'));
                 exit;
+            }
+
+            // Upgrade: se a conversa existente tem telefone @lid mas agora recebemos
+            // o número real via senderPhoneNumber, atualiza pro número real.
+            // Também salva chat_lid/sender_lid se ainda não estavam preenchidos.
+            if (!$ehGrupo) {
+                $updates = array(); $params = array();
+                $telConvAtual = (string)($conv['telefone'] ?? '');
+                $convTemLid = strpos($telConvAtual, '@lid') !== false;
+                if ($convTemLid && $senderPhoneNum && preg_match('/\d{8,}/', $senderPhoneNum)) {
+                    $telRealNorm = zapi_normaliza_telefone($senderPhoneNum);
+                    $updates[] = 'telefone = ?'; $params[] = $telRealNorm;
+                    $log("[{$numero}] UPGRADE tel @lid → {$telRealNorm} na conversa #{$conv['id']}");
+                }
+                if ($chatLid && empty($conv['chat_lid'])) {
+                    $updates[] = 'chat_lid = ?'; $params[] = $chatLid;
+                }
+                if (!empty($updates)) {
+                    $params[] = $conv['id'];
+                    try { $pdo->prepare("UPDATE zapi_conversas SET " . implode(',', $updates) . " WHERE id = ?")->execute($params); } catch (Exception $e) {}
+                }
             }
 
             $tipo     = zapi_detecta_tipo($payload);
