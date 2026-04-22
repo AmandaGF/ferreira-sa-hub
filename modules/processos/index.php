@@ -75,12 +75,48 @@ if ($filterEspecial === 'doc_faltante') {
     $where[] = "cs.status = 'doc_faltante'";
 }
 
-// Ordenação
+// Ordenação — suporta presets do select antigo (alfa/recentes/atualizados/prazo) +
+// clique nos headers (numero/cliente/titulo/tipo/vara/status/prioridade/responsavel/ultimo/prazo)
 $orderBy = isset($_GET['ordem']) ? $_GET['ordem'] : 'alfa';
-$orderSql = 'c.name ASC, cs.title ASC';
-if ($orderBy === 'recentes') $orderSql = 'cs.created_at DESC';
-elseif ($orderBy === 'atualizados') $orderSql = 'cs.updated_at DESC';
-elseif ($orderBy === 'prazo') $orderSql = 'cs.deadline ASC, c.name ASC';
+$orderDir = (isset($_GET['dir']) && strtolower($_GET['dir']) === 'desc') ? 'DESC' : 'ASC';
+$orderMap = array(
+    'alfa'        => array('sql' => 'c.name ASC, cs.title ASC', 'default_dir' => 'ASC'),
+    'recentes'    => array('sql' => 'cs.created_at DESC', 'default_dir' => 'DESC'),
+    'atualizados' => array('sql' => 'cs.updated_at DESC', 'default_dir' => 'DESC'),
+    'numero'      => array('col' => 'cs.case_number'),
+    'cliente'     => array('col' => 'c.name'),
+    'titulo'      => array('col' => 'cs.title'),
+    'tipo'        => array('col' => 'cs.case_type'),
+    'vara'        => array('col' => 'cs.court'),
+    'status'      => array('col' => 'cs.status'),
+    'prioridade'  => array('col' => "FIELD(cs.priority,'urgente','alta','normal','baixa')"),
+    'responsavel' => array('col' => 'u.name'),
+    'ultimo'      => array('col' => '(SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id)', 'default_dir' => 'DESC'),
+    'prazo'       => array('col' => 'cs.deadline'),
+);
+if (isset($orderMap[$orderBy])) {
+    $info = $orderMap[$orderBy];
+    if (isset($info['sql'])) {
+        $orderSql = $info['sql'];
+    } else {
+        $orderSql = $info['col'] . ' ' . $orderDir . ', c.name ASC';
+    }
+} else {
+    $orderBy = 'alfa';
+    $orderSql = 'c.name ASC, cs.title ASC';
+}
+
+// Helper pra montar URL de sort no header
+function sort_link($col, $orderBy, $orderDir, $label) {
+    $qs = $_GET;
+    $qs['ordem'] = $col;
+    $isActive = ($orderBy === $col);
+    $nextDir = ($isActive && $orderDir === 'ASC') ? 'desc' : 'asc';
+    $qs['dir'] = $nextDir;
+    unset($qs['page']);
+    $indicator = $isActive ? ($orderDir === 'ASC' ? ' ▲' : ' ▼') : '';
+    return '<a href="?' . http_build_query($qs) . '" style="color:inherit;text-decoration:none;display:block;">' . htmlspecialchars($label) . '<span style="font-size:.6rem;opacity:' . ($isActive ? '1' : '.35') . ';">' . ($indicator ?: ' ⇅') . '</span></a>';
+}
 
 $whereStr = implode(' AND ', $where);
 
@@ -189,8 +225,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .proc-filter-sel { font-size:.75rem; padding:.35rem .5rem; border:1.5px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
 
 .proc-table { width:100%; border-collapse:collapse; font-size:.82rem; table-layout:fixed; }
-.proc-table th { background:var(--petrol-900); color:#fff; padding:.55rem .5rem; text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; }
-.proc-table td { padding:.55rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; word-wrap:break-word; overflow-wrap:break-word; }
+.proc-table th { background:var(--petrol-900); color:#fff; padding:.55rem .35rem; text-align:center; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; cursor:pointer; }
+.proc-table th a { color:#fff; }
+.proc-table th a:hover { color:#fbbf24; }
+.proc-table td { padding:.55rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; word-wrap:break-word; overflow-wrap:break-word; text-align:center; }
+/* Cliente (2) e Título (3) ficam alinhados à esquerda — textos longos */
+.proc-table th:nth-child(2), .proc-table th:nth-child(3),
+.proc-table td:nth-child(2), .proc-table td:nth-child(3) { text-align:left; }
 .proc-table tr:hover { background:rgba(215,171,144,.04); }
 .proc-number { font-family:monospace; font-size:.72rem; color:var(--petrol-500); font-weight:600; white-space:nowrap; }
 .case-link { color:var(--petrol-900); font-weight:700; text-decoration:none; }
@@ -368,30 +409,30 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php else: ?>
         <table class="proc-table">
             <colgroup>
-                <col style="width:12%;">  <!-- Nº Processo -->
+                <col style="width:11%;">  <!-- Nº Processo -->
                 <col style="width:11%;">  <!-- Cliente -->
-                <col style="width:17%;">  <!-- Título -->
-                <col style="width:11%;">  <!-- Tipo -->
-                <col style="width:12%;">  <!-- Vara/Tribunal -->
+                <col style="width:15%;">  <!-- Título -->
+                <col style="width:10%;">  <!-- Tipo -->
+                <col style="width:11%;">  <!-- Vara/Tribunal -->
                 <col style="width:9%;">   <!-- Status -->
                 <col style="width:8%;">   <!-- Prioridade -->
-                <col style="width:6%;">   <!-- Responsável -->
-                <col style="width:7%;">   <!-- Último Andamento -->
-                <col style="width:4%;">   <!-- Audiência -->
-                <col style="width:3%;">   <!-- Prazo -->
+                <col style="width:8%;">   <!-- Responsável -->
+                <col style="width:8%;">   <!-- Último Andamento -->
+                <col style="width:4.5%;"> <!-- Audiência -->
+                <col style="width:4.5%;"> <!-- Prazo -->
             </colgroup>
             <thead><tr>
-                <th>Nº Processo</th>
-                <th>Cliente</th>
-                <th>Título</th>
-                <th>Tipo</th>
-                <th>Vara / Tribunal</th>
-                <th>Status</th>
-                <th>Prioridade</th>
-                <th>Responsável</th>
-                <th>Último And.</th>
+                <th><?= sort_link('numero', $orderBy, $orderDir, 'Nº Processo') ?></th>
+                <th><?= sort_link('cliente', $orderBy, $orderDir, 'Cliente') ?></th>
+                <th><?= sort_link('titulo', $orderBy, $orderDir, 'Título') ?></th>
+                <th><?= sort_link('tipo', $orderBy, $orderDir, 'Tipo') ?></th>
+                <th><?= sort_link('vara', $orderBy, $orderDir, 'Vara / Tribunal') ?></th>
+                <th><?= sort_link('status', $orderBy, $orderDir, 'Status') ?></th>
+                <th><?= sort_link('prioridade', $orderBy, $orderDir, 'Prioridade') ?></th>
+                <th><?= sort_link('responsavel', $orderBy, $orderDir, 'Resp.') ?></th>
+                <th><?= sort_link('ultimo', $orderBy, $orderDir, 'Último And.') ?></th>
                 <th>Aud.</th>
-                <th>Prazo</th>
+                <th><?= sort_link('prazo', $orderBy, $orderDir, 'Prazo') ?></th>
             </tr></thead>
             <tbody>
                 <?php foreach ($processos as $p):

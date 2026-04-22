@@ -313,7 +313,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
     ?>
     <!-- Inline: os mais usados -->
     <a href="<?= $voltarUrl ?>" class="btn btn-outline btn-sm">&larr; <?= $voltarLabel ?></a>
-    <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
+    <?php if (has_min_role('gestao')): ?>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="toggle_salavip">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-primary btn-sm" style="background:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
+            <?= $case['salavip_ativo'] ? '🟢' : '⚪' ?> Central VIP
+        </button>
+    </form>
+    <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
@@ -331,6 +340,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="cv-dropdown">
         <button type="button" class="btn btn-outline btn-sm dropdown-trigger">⚙️ Ações <span style="font-size:.65rem;">▾</span></button>
         <div class="cv-dropdown-menu">
+            <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" style="color:#B87333;">📝 <div><strong>Fábrica de Petições</strong><div style="font-size:.7rem;color:#888;">gerar petição com IA</div></div></a>
+            <div class="cv-divider"></div>
             <?php if ($case['client_id']): ?>
                 <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>">➕ <div><strong>Novo Processo</strong><div style="font-size:.7rem;color:#888;">pro mesmo cliente</div></div></a>
             <?php endif; ?>
@@ -341,17 +352,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
                 <button type="submit" class="cv-item" style="color:#6366f1;">📋 <div><strong>Duplicar Pasta</strong><div style="font-size:.7rem;color:#888;">nova ação com mesmo cliente</div></div></button>
             </form>
-            <?php if (has_min_role('gestao')): ?>
-            <div class="cv-divider"></div>
-            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
-                <?= csrf_input() ?>
-                <input type="hidden" name="action" value="toggle_salavip">
-                <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                <button type="submit" class="cv-item" style="color:<?= $case['salavip_ativo'] ? '#059669' : '#6b7280' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
-                    <?= $case['salavip_ativo'] ? '🟢' : '⚪' ?> <div><strong>Central VIP</strong><div style="font-size:.7rem;color:#888;"><?= $case['salavip_ativo'] ? 'Visível — clique pra ocultar' : 'Oculto — clique pra exibir' ?></div></div>
-                </button>
-            </form>
-            <?php endif; ?>
             <?php if (has_role('admin')): ?>
             <div class="cv-divider"></div>
             <button type="button" onclick="confirmarExclusao()" class="cv-item danger">🗑️ <div><strong>Excluir Processo</strong><div style="font-size:.7rem;color:#b91c1c;">ação destrutiva</div></div></button>
