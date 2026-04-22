@@ -66,6 +66,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === '
         $pdo->prepare("UPDATE oficios_enviados SET ultima_atividade_em = NOW(), alerta_cobranca_em = NULL" . ($novoStatus ? ", status_oficio = ?" : "") . " WHERE id = ?")
             ->execute($novoStatus ? array($novoStatus, $of) : array($of));
 
+        // Também cria andamento no processo vinculado — linha do tempo do ofício aparece na pasta
+        try {
+            $stOf = $pdo->prepare("SELECT case_id, empregador FROM oficios_enviados WHERE id = ?");
+            $stOf->execute(array($of));
+            $rowOf = $stOf->fetch();
+            if ($rowOf && !empty($rowOf['case_id'])) {
+                $labelsEv = array(
+                    'email_inicial'     => 'E-mail inicial enviado',
+                    'cobranca'          => 'Cobrança enviada',
+                    'rh_respondeu'      => 'RH respondeu',
+                    'oficio_formal'     => 'Ofício formal enviado',
+                    'confirmado'        => 'RH confirmou recebimento',
+                    'pensao_implantada' => 'Pensão implantada em folha',
+                    'problema'          => 'Problema / obstáculo',
+                    'outro'             => 'Evento registrado',
+                );
+                $label = $labelsEv[$tipoEv] ?? 'Atualização do ofício';
+                $descAnd = '📬 Ofício #' . $of . ' (' . $rowOf['empregador'] . ') — ' . $label . ($descSave ? ': ' . $descSave : '');
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?, ?, 'oficio', ?, ?, 0, NOW())"
+                )->execute(array((int)$rowOf['case_id'], date('Y-m-d'), $descAnd, $userId));
+            }
+        } catch (Exception $e) {}
+
         if (function_exists('audit_log')) {
             try { audit_log('oficio_historico_add', 'oficios', $of, $tipoEv . ($desc ? ': ' . mb_substr($desc, 0, 80) : '')); } catch (Exception $e) {}
         }

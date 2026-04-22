@@ -179,6 +179,32 @@ body.dark-mode .lead-name,.dark-mode .op-card-name { color:var(--text) !importan
 body.dark-mode .kanban-body,.dark-mode .op-col-body { background:var(--bg) !important;border-color:var(--border) !important; }
 body.dark-mode .pipeline-stats .stat-card,.dark-mode .op-kpi { background:var(--bg-card) !important;border-color:var(--border) !important; }
 body.dark-mode a { color:var(--rose); }
+/* Fix leitura no dark mode: cards/blocos com inline style de fundo branco viram escuros */
+body.dark-mode [style*="background:#fff"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background:#ffffff"],
+body.dark-mode [style*="background:white"],
+body.dark-mode [style*="background-color:#fff"],
+body.dark-mode [style*="background-color:#ffffff"] { background:var(--bg-card) !important; color:var(--text) !important; }
+body.dark-mode [style*="background:#f9fafb"],
+body.dark-mode [style*="background:#f3f4f6"],
+body.dark-mode [style*="background:#f4f4f5"],
+body.dark-mode [style*="background:#fafbfc"],
+body.dark-mode [style*="background:#f5f5f5"] { background:var(--bg-secondary) !important; color:var(--text) !important; }
+body.dark-mode [style*="background:#fafafa"] { background:var(--bg-secondary) !important; color:var(--text) !important; }
+/* Textos cinza muito claros no light ficam invisíveis no dark — forçar claros */
+body.dark-mode [style*="color:#374151"],
+body.dark-mode [style*="color:#1f2937"],
+body.dark-mode [style*="color:#111827"],
+body.dark-mode [style*="color:#052228"],
+body.dark-mode [style*="color:#1e293b"],
+body.dark-mode [style*="color:#0f172a"],
+body.dark-mode [style*="color:#18181b"] { color:var(--text) !important; }
+body.dark-mode [style*="color:var(--petrol-900)"] { color:#d1d5db !important; }
+body.dark-mode [style*="color:#6b7280"],
+body.dark-mode [style*="color:#64748b"] { color:#a0aec0 !important; }
+/* Tabelas com thead/tbody sem classe tbl-grid */
+body.dark-mode thead tr[style*="background:#f9fafb"] { background:var(--bg-secondary) !important; }
 @keyframes sidebarPulse { 0%,100% { box-shadow:0 0 0 2px rgba(220,38,38,.2); } 50% { box-shadow:0 0 0 5px rgba(220,38,38,0); } }
 </style>
 
