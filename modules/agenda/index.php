@@ -134,6 +134,8 @@ body.dark-mode .ag-fi { background:var(--bg-secondary);color:var(--text);border-
 .ag-tipo-btn .te { font-size:16px;display:block;margin-bottom:2px; }
 .ag-tipo-btn:hover { border-color:var(--rose); }
 .ag-tipo-btn.sel { color:#fff;border-color:transparent; }
+.ag-participante-chip.sel { background:#B87333;color:#fff;border-color:#B87333; }
+.ag-participante-chip:hover { border-color:#B87333; }
 .ag-tipo-btn.sel[data-t="audiencia"]{background:var(--audiencia)}.ag-tipo-btn.sel[data-t="reuniao_cliente"]{background:var(--reuniao)}.ag-tipo-btn.sel[data-t="prazo"]{background:var(--prazo)}.ag-tipo-btn.sel[data-t="onboarding"]{background:var(--onboarding)}.ag-tipo-btn.sel[data-t="reuniao_interna"]{background:var(--interna)}.ag-tipo-btn.sel[data-t="mediacao_cejusc"]{background:var(--mediacao)}.ag-tipo-btn.sel[data-t="balcao_virtual"]{background:var(--balcao)}.ag-tipo-btn.sel[data-t="ligacao"]{background:var(--ligacao)}.ag-tipo-btn.sel[data-t="tarefa"]{background:var(--tarefa)}
 .ag-meet-box { background:var(--cobre-suave);border:1px solid rgba(184,115,51,.2);border-radius:10px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px; }
 body.dark-mode .ag-meet-box { background:rgba(184,115,51,.15); }
@@ -383,6 +385,20 @@ if ($voltarCaso > 0): ?>
                     <option value="<?= $u['id'] ?>" <?= (int)$u['id'] === current_user_id() ? 'selected' : '' ?>><?= e($u['name']) ?></option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <!-- Participantes da reunião — obrigatório pra tipos reuniao_cliente e reuniao_interna -->
+        <div class="ag-fg" id="agParticipantesBox" style="display:none;">
+            <label class="ag-fl">Quem vai participar da reunião? <span style="color:#dc2626;">*</span></label>
+            <div id="agParticipantesWrap" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border:1.5px solid var(--border);border-radius:8px;background:var(--bg-card);">
+                <?php foreach ($users as $u): ?>
+                    <label class="ag-participante-chip" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border:1.5px solid #e5e7eb;border-radius:14px;cursor:pointer;font-size:.78rem;user-select:none;">
+                        <input type="checkbox" class="ag-participante-cb" value="<?= $u['id'] ?>" data-nome="<?= e(explode(' ', $u['name'])[0]) ?>" style="margin:0;">
+                        <?= e($u['name']) ?>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:4px;">📌 Os nomes dos participantes aparecerão no título do evento automaticamente. Marque todos que vão estar na reunião.</div>
         </div>
 
         <div class="ag-fg">
@@ -908,6 +924,11 @@ function abrirModal(dataStr) {
     document.getElementById('agBtnExcluir').style.display = 'none';
     var atalhos = document.getElementById('agAtalhos');
     if (atalhos) { atalhos.innerHTML = ''; atalhos.style.display = 'none'; }
+    // Zera participantes no modal novo
+    document.querySelectorAll('.ag-participante-cb').forEach(function(cb){
+        cb.checked = false;
+        var l = cb.closest('.ag-participante-chip'); if (l) l.classList.remove('sel');
+    });
     toggleMeet();
 
     var agora = new Date();
@@ -959,6 +980,18 @@ function abrirModalEditar(id) {
 
             var btn = document.querySelector('.ag-tipo-btn[data-t="' + ev.tipo + '"]');
             if (btn) selTipo(ev.tipo, btn);
+
+            // Carrega participantes (JSON array OR CSV)
+            var partIds = [];
+            if (ev.participantes_ids) {
+                try {
+                    var p = typeof ev.participantes_ids === 'string' ? JSON.parse(ev.participantes_ids) : ev.participantes_ids;
+                    if (Array.isArray(p)) partIds = p;
+                } catch(e) {
+                    partIds = String(ev.participantes_ids).split(',').map(function(x){ return x.trim(); }).filter(Boolean);
+                }
+            }
+            _setParticipantesIds(partIds);
 
             document.getElementById('agBtnExcluir').style.display = 'inline-block';
 
@@ -1054,6 +1087,11 @@ function selTipo(tipo, btn) {
         if (dtFieldsDefault) dtFieldsDefault.style.display = 'flex';
         if (dtFieldsBalcao) dtFieldsBalcao.style.display = 'none';
     }
+
+    // Participantes: obrigatório só em reuniões
+    var tiposComParticipantes = ['reuniao_cliente','reuniao_interna'];
+    var boxPart = document.getElementById('agParticipantesBox');
+    if (boxPart) boxPart.style.display = tiposComParticipantes.indexOf(tipo) !== -1 ? 'block' : 'none';
 
     // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
     var sugerirOnline = ['reuniao_interna','reuniao_cliente','onboarding'];
@@ -1259,6 +1297,29 @@ function _balcaoHorarioValido(dtLocalStr) {
     return true;
 }
 
+// Chip participantes — sincroniza classe .sel ao clicar
+document.addEventListener('change', function(e) {
+    if (e.target && e.target.classList.contains('ag-participante-cb')) {
+        var label = e.target.closest('.ag-participante-chip');
+        if (label) label.classList.toggle('sel', e.target.checked);
+    }
+});
+
+function _getParticipantesIds() {
+    var ids = [];
+    document.querySelectorAll('.ag-participante-cb:checked').forEach(function(cb){ ids.push(cb.value); });
+    return ids;
+}
+function _setParticipantesIds(ids) {
+    var set = {};
+    (ids || []).forEach(function(x){ set[String(x)] = true; });
+    document.querySelectorAll('.ag-participante-cb').forEach(function(cb){
+        cb.checked = !!set[cb.value];
+        var label = cb.closest('.ag-participante-chip');
+        if (label) label.classList.toggle('sel', cb.checked);
+    });
+}
+
 // ── SALVAR ──────────────────────────────────────────────────
 function salvarEvento() {
     var titulo = document.getElementById('agTitulo').value.trim();
@@ -1269,6 +1330,19 @@ function salvarEvento() {
         document.getElementById('agDtInicio').style.borderColor = '#ef4444';
         document.getElementById('agDtInicio').focus();
         return;
+    }
+
+    // Participantes obrigatórios em reuniões
+    var tiposComParticipantes = ['reuniao_cliente','reuniao_interna'];
+    var participantes = _getParticipantesIds();
+    if (tiposComParticipantes.indexOf(tipoSelecionado) !== -1 && participantes.length === 0) {
+        var box = document.getElementById('agParticipantesWrap');
+        if (box) { box.style.borderColor = '#ef4444'; box.scrollIntoView({behavior:'smooth', block:'center'}); }
+        alert('⚠️ Para reuniões é obrigatório marcar quem vai participar da equipe.\n\nOs nomes aparecerão no título do evento automaticamente.');
+        return;
+    } else {
+        var boxOk = document.getElementById('agParticipantesWrap');
+        if (boxOk) boxOk.style.borderColor = '';
     }
 
     var fd = new FormData();
@@ -1291,6 +1365,7 @@ function salvarEvento() {
     fd.append('lembrete_whatsapp', '1');
     fd.append('lembrete_portal', '1');
     fd.append('lembrete_cliente', '1');
+    participantes.forEach(function(pid) { fd.append('participantes_ids[]', pid); });
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', API);

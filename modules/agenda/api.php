@@ -215,6 +215,9 @@ $action = $_POST['action'] ?? '';
 
 // ── CRIAR / EDITAR ──
 if ($action === 'salvar') {
+    // Self-heal: coluna participantes_ids (JSON array de user ids)
+    try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN participantes_ids TEXT NULL"); } catch (Exception $e) {}
+
     $id            = (int)($_POST['id'] ?? 0);
     $titulo        = trim($_POST['titulo'] ?? '');
     $tipo          = $_POST['tipo'] ?? 'reuniao_cliente';
@@ -234,14 +237,47 @@ if ($action === 'salvar') {
     $lembretePortal= isset($_POST['lembrete_portal']) ? 1 : 0;
     $lembreteCliente = isset($_POST['lembrete_cliente']) ? 1 : 0;
 
+    // Participantes (multi-select de usuários). Obrigatório em reuniões.
+    $participantesIn = $_POST['participantes_ids'] ?? array();
+    if (is_string($participantesIn)) $participantesIn = array_filter(explode(',', $participantesIn));
+    if (!is_array($participantesIn)) $participantesIn = array();
+    $participantesIds = array_values(array_unique(array_map('intval', $participantesIn)));
+    $participantesIds = array_filter($participantesIds, function($v){ return $v > 0; });
+    $participantesJson = !empty($participantesIds) ? json_encode(array_values($participantesIds)) : null;
+
     $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao');
     $modalidadesValidas = array('presencial','online','nao_aplicavel');
+    $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 
     if (!$titulo) { echo json_encode(array('error' => 'Título é obrigatório')); exit; }
     if (!$dataInicio) { echo json_encode(array('error' => 'Data de início é obrigatória')); exit; }
     if (!in_array($tipo, $tiposValidos)) $tipo = 'reuniao_cliente';
     if (!in_array($modalidade, $modalidadesValidas)) $modalidade = 'nao_aplicavel';
     if (!$dataFim) $dataFim = $dataInicio;
+
+    // Reunião: exige ao menos 1 participante e prefixa os nomes no título
+    if (in_array($tipo, $tiposComParticipantesObrigatorios, true)) {
+        if (empty($participantesIds)) {
+            echo json_encode(array('error' => 'Para reuniões é obrigatório marcar pelo menos um participante da equipe.'));
+            exit;
+        }
+        // Pega nomes dos participantes pra prefixar no título (só primeiro nome pra economizar espaço)
+        try {
+            $ph = implode(',', array_fill(0, count($participantesIds), '?'));
+            $stmtNm = $pdo->prepare("SELECT name FROM users WHERE id IN ($ph) ORDER BY FIELD(id," . $ph . ")");
+            $stmtNm->execute(array_merge($participantesIds, $participantesIds));
+            $nomes = array();
+            foreach ($stmtNm->fetchAll(PDO::FETCH_COLUMN) as $nm) {
+                $nomes[] = explode(' ', trim($nm))[0];
+            }
+            if (!empty($nomes)) {
+                $prefixo = '[' . implode('+', $nomes) . '] ';
+                // Remove prefixo antigo [xxx+yyy] se existir pra não duplicar em edição
+                $tituloSemPrefixo = preg_replace('/^\[[^\]]+\]\s*/u', '', $titulo);
+                $titulo = $prefixo . $tituloSemPrefixo;
+            }
+        } catch (Exception $e) {}
+    }
 
     if ($tipo === 'balcao_virtual' && !$diaTodo) {
         list($ok, $msg) = _balcao_valida_horario($dataInicio);
@@ -254,13 +290,13 @@ if ($action === 'salvar') {
             "UPDATE agenda_eventos SET titulo=?, tipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
              local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
              msg_cliente=?, lembrete_email=?, lembrete_whatsapp=?, lembrete_portal=?, lembrete_cliente=?,
-             updated_at=NOW() WHERE id=?"
+             participantes_ids=?, updated_at=NOW() WHERE id=?"
         );
         $stmt->execute(array(
             $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
             $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
             $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
-            $id
+            $participantesJson, $id
         ));
         audit_log('AGENDA_EDITADO', 'agenda', $id, $titulo);
         echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf));
@@ -275,16 +311,28 @@ if ($action === 'salvar') {
                 "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
                  local, meet_link, descricao, client_id, case_id, responsavel_id,
                  msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
-                 visivel_cliente, status, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+                 participantes_ids, visivel_cliente, status, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
             );
             $stmt->execute(array(
                 $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
                 $local ?: null, $meetLink ?: null, $descricao ?: null, $clientId, $caseId, $responsavelId,
                 $msgCliente ?: null, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
-                $visivelCliente, current_user_id()
+                $participantesJson, $visivelCliente, current_user_id()
             ));
             $newId = (int)$pdo->lastInsertId();
+
+            // Notifica os participantes (exceto criador)
+            if (!empty($participantesIds)) {
+                foreach ($participantesIds as $pid) {
+                    if ($pid === current_user_id()) continue;
+                    try {
+                        notify($pid, 'Você foi adicionado a uma reunião',
+                            $titulo . ' em ' . date('d/m/Y H:i', strtotime($dataInicio)),
+                            'info', url('modules/agenda/?evento=' . $newId), '🤝');
+                    } catch (Exception $eN) {}
+                }
+            }
         } catch (Exception $e) {
             echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
             exit;
