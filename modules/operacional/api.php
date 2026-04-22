@@ -940,7 +940,7 @@ switch ($action) {
                 $caso = $stmtCase->fetch();
             }
             $labelTipo = isset($tipoLabel[$tipoPub]) ? $tipoLabel[$tipoPub] : 'Publicacao';
-            $tituloEvento = 'Publicacao: ' . $labelTipo . ' | ' . ($caso ? $caso['title'] : 'Caso #' . $caseId);
+            $tituloEvento = 'Publicação: ' . $labelTipo . ' | ' . ($caso ? $caso['title'] : 'Caso #' . $caseId);
 
             $pdo->prepare(
                 "INSERT INTO agenda_eventos (case_id, titulo, descricao, data_inicio, data_fim, dia_todo, tipo, responsavel_id, created_by, created_at)

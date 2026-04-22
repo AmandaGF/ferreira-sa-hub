@@ -206,11 +206,15 @@ function djen_importar_publicacao($pdo, $pub, $caseId, $userId) {
               tipo, responsavel_id, created_by, created_at)
              VALUES (?,?,?,?,?,1,'prazo',?,?,NOW())"
         )->execute(array(
-            $caseId, 'Publicacao: ' . $lbl . ' | ' . $tituloCase,
+            $caseId, 'Publicação: ' . $lbl . ' | ' . $tituloCase,
             mb_substr($conteudo, 0, 300, 'UTF-8'),
             $dataDisp . ' 08:00:00', $dataDisp . ' 08:30:00',
             $responsavel, $userId ?: $responsavel
         ));
+        $agendaId = (int)$pdo->lastInsertId();
+        if ($agendaId) {
+            try { $pdo->prepare("UPDATE case_publicacoes SET agenda_id = ? WHERE id = ?")->execute(array($agendaId, $pubId)); } catch (Exception $e) {}
+        }
 
         if ($responsavel && function_exists('notify') && $userId && $responsavel !== $userId) {
             notify($responsavel, 'Novo prazo: ' . $lbl,

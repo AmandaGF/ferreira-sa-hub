@@ -360,7 +360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                           tipo, responsavel_id, created_by, created_at)
                          VALUES (?,?,?,?,?,1,'prazo',?,?,NOW())"
                     )->execute(array(
-                        $caseId, 'Publicacao: ' . $lbl . ' | ' . $tituloCase,
+                        $caseId, 'Publicação: ' . $lbl . ' | ' . $tituloCase,
                         mb_substr($conteudo, 0, 300, 'UTF-8'),
                         $dataDisp . ' 08:00:00', $dataDisp . ' 08:30:00',
                         $responsavel, $userId

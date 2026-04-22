@@ -605,7 +605,12 @@ $compromissosCaso = array();
 $compromissosRealizados = array();
 try {
     $stmtComp = $pdo->prepare(
-        "SELECT e.*, u.name as responsavel_name
+        "SELECT e.*, u.name as responsavel_name,
+                (SELECT cp.id FROM case_publicacoes cp
+                 WHERE cp.case_id = e.case_id
+                   AND cp.status_prazo = 'pendente'
+                   AND (cp.agenda_id = e.id OR cp.data_disponibilizacao = DATE(e.data_inicio))
+                 ORDER BY cp.id DESC LIMIT 1) AS pub_pendente_id
          FROM agenda_eventos e
          LEFT JOIN users u ON u.id = e.responsavel_id
          WHERE e.case_id = ? AND e.status NOT IN ('cancelado','remarcado','realizado')
@@ -722,6 +727,27 @@ if (!empty($compFuturos)): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
+            <?php if (!empty($comp['pub_pendente_id']) && (has_min_role('operacional') || has_min_role('gestao'))): ?>
+                <!-- Evento vinculado a uma intimação pendente: oferece fechar direto no card -->
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Confirmar prazo desta intimação? (você vai cumprir)');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                    <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_pendente_id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <input type="hidden" name="novo_status" value="confirmado">
+                    <input type="hidden" name="_back" value="<?= htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8') ?>">
+                    <button type="submit" title="Confirmar prazo — vou cumprir" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;">✓ Cumprir</button>
+                </form>
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Descartar esta intimação? (não precisa cumprir)');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                    <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_pendente_id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <input type="hidden" name="novo_status" value="descartado">
+                    <input type="hidden" name="_back" value="<?= htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8') ?>">
+                    <button type="submit" title="Não precisa cumprir — fechar" style="font-size:.7rem;background:#fef2f2;color:#b91c1c;padding:3px 8px;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-weight:600;">⊘ Descartar</button>
+                </form>
+            <?php endif; ?>
         </div>
     </div>
     <?php endforeach; ?>
