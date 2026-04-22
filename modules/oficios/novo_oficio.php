@@ -264,7 +264,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </form>
 
 <script>
-var userNome = <?= json_encode(current_user()['name'] ?? 'Amanda Ferreira') ?>;
+<?php
+// Detecta gênero do usuário logado pra flexionar os templates corretamente
+// Prioridade: coluna users.genero (se existir) → heurística (primeiro nome termina em 'a' = feminino)
+try { $pdo->exec("ALTER TABLE users ADD COLUMN genero CHAR(1) DEFAULT NULL COMMENT 'M=masculino, F=feminino'"); } catch (Exception $e) {}
+$_userRow = current_user();
+$_userGenero = $_userRow['genero'] ?? null;
+if (!$_userGenero) {
+    $_primeiro = strtolower(explode(' ', trim($_userRow['name'] ?? ''))[0] ?? '');
+    // Heurística simples: termina em 'a' ou sufixos comuns femininos → F; caso contrário M
+    $_userGenero = (preg_match('/a$|ce$/', $_primeiro)) ? 'F' : 'M';
+    // Exceções comuns masculinas terminadas em 'a'
+    if (in_array($_primeiro, array('luca','joshua','jeremias','elias','tobias','matias','zacarias'), true)) $_userGenero = 'M';
+}
+?>
+var userNome = <?= json_encode($_userRow['name'] ?? 'Amanda Ferreira') ?>;
+var userGenero = <?= json_encode($_userGenero) ?>; // 'F' ou 'M'
+var _T = userGenero === 'F'
+    ? { advg:'advogada', inscr:'inscrita', atu:'atuando' }
+    : { advg:'advogado', inscr:'inscrito', atu:'atuando' };
 var userOAB = <?= json_encode(current_user()['oab'] ?? 'OAB-RJ 163.260') ?>;
 var userTel = <?= json_encode(current_user()['phone'] ?? '(24) 99205-0096') ?>;
 var casoInfo = <?= json_encode(array('client_name' => $cliente['name'] ?? '', 'phone' => $cliente['phone'] ?? '', 'client_id' => $cliente['id'] ?? 0)) ?>;
@@ -287,7 +305,7 @@ function atualizarPreviews() {
     // Modelo 1 — solicitar contato RH
     var m1 = 'Assunto: ' + refPref + 'Pensão alimentícia — solicitação de contato do RH' + (emp ? ' — ' + emp : '') + '\n\n'
            + 'Prezado(a), boa tarde!\n\n'
-           + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um(a) de seus colaboradores é genitor(a) da criança.\n\n'
+           + 'Meu nome é ' + userNome + ', ' + _T.advg + ' ' + _T.inscr + ' na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um(a) de seus colaboradores é genitor(a) da criança.\n\n'
            + 'Informo que há decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a) ' + func
            + (cargo !== '[CARGO]' ? ', cargo ' + cargo : '') + (matr !== '[MATRÍCULA]' ? ', matrícula ' + matr : '') + '. '
            + 'Para formalizar a medida, necessito encaminhar o ofício diretamente ao setor de Recursos Humanos.\n\n'
@@ -298,7 +316,7 @@ function atualizarPreviews() {
     // Modelo 2 — envio com dados bancários
     var m2 = 'Assunto: ' + refPref + 'Ofício — Desconto de pensão alimentícia em folha' + (func !== '[NOME DO COLABORADOR]' ? ' — ' + func : '') + '\n\n'
            + 'Prezada(o), bom dia!\n\n'
-           + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia.\n\n'
+           + 'Meu nome é ' + userNome + ', ' + _T.advg + ' ' + _T.inscr + ' na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia.\n\n'
            + 'Envio, em anexo, a decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a):\n\n'
            + '• Nome: ' + func + '\n'
            + '• Cargo: ' + cargo + '\n'
@@ -315,7 +333,7 @@ function atualizarPreviews() {
 
     // WhatsApp — curto e respeitoso
     var wa = 'Olá! Boa tarde.\n\n'
-           + 'Sou ' + userNome + ', advogado(a) ' + userOAB + '. Estou tratando de um processo de pensão alimentícia envolvendo um(a) colaborador(a) de vocês'
+           + 'Sou ' + userNome + ', ' + _T.advg + ' ' + userOAB + '. Estou tratando de um processo de pensão alimentícia envolvendo um(a) colaborador(a) de vocês'
            + (emp ? ' da ' + emp : '') + '.\n\n'
            + 'Preciso enviar um ofício ao setor de RH para desconto em folha de pagamento. Poderia me informar o e-mail do setor responsável?\n\n'
            + 'Agradeço desde já. 🙏';
