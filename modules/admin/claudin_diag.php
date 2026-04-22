@@ -190,18 +190,18 @@ try {
     $outrosCrons[] = array('nome' => 'DataJud', 'ultima' => 'erro: ' . $e->getMessage(), 'fonte' => 'cases');
 }
 
-// 2. Z-API aniversários (birthday_greetings.enviado_em mais recente)
+// 2. Z-API aniversários (birthday_greetings.created_at mais recente)
 try {
-    $stmt = $pdo->query("SELECT MAX(enviado_em) AS ultima FROM birthday_greetings WHERE enviado_em IS NOT NULL");
+    $stmt = $pdo->query("SELECT MAX(created_at) AS ultima FROM birthday_greetings");
     $row = $stmt->fetch();
     $outrosCrons[] = array(
         'nome' => 'Z-API aniversários (cron/zapi_aniversarios.php)',
         'agendado' => 'a cada hora (via curl)',
         'ultima' => ($row && $row['ultima']) ? $row['ultima'] : null,
-        'fonte' => 'birthday_greetings.enviado_em (MAX)',
+        'fonte' => 'birthday_greetings.created_at (MAX)',
     );
 } catch (Exception $e) {
-    $outrosCrons[] = array('nome' => 'Z-API aniversários', 'ultima' => 'erro', 'fonte' => 'birthday_greetings');
+    $outrosCrons[] = array('nome' => 'Z-API aniversários', 'ultima' => 'erro: ' . $e->getMessage(), 'fonte' => 'birthday_greetings');
 }
 
 // 3. Audit log — olha entradas com acao contendo CRON, OFICIO_COBRANCA, ALERTA
