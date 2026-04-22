@@ -458,7 +458,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 html += '<div class="wa-conv '+isActive+' '+ehMinha+'" data-id="'+c.id+'" data-status="'+statusVis+'" style="'+borderStyle+'" onclick="waAbrir('+c.id+')">';
                 html += '  <div class="wa-avatar">' + avatarHtml(c, nome) + '</div>';
                 html += '  <div class="wa-conv-info">';
-                html += '    <div class="wa-conv-name">' + escapeHtml(nome);
+                html += '    <div class="wa-conv-name">';
+                if (+c.fixada) html += '<span title="Conversa fixada" style="color:#B87333;margin-right:3px;">📌</span>';
+                html += escapeHtml(nome);
                 // Pill de status: aparece se resolvido, aguardando, em_atendimento ou bot
                 var pillMap = { resolvido:'✓ Resolvido', aguardando:'⏳ Aguard.', em_atendimento:'● Em atend.', bot_ativo:'🤖 Bot' };
                 if (pillMap[statusVis]) {
@@ -540,6 +542,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Mesclar é util em ambos os canais (duplicatas Multi-Device acontecem nos 2)
         if (PODE_DELEGAR) {
             actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
+        }
+        // Fixar/desfixar conversa no topo da lista
+        if (+c.fixada) {
+            actions += '<button onclick="waPinConversa()" style="background:#B87333;color:#fff;border-color:#B87333;" title="Desfixar conversa do topo">📌 Fixada</button>';
+        } else {
+            actions += '<button onclick="waPinConversa()" title="Fixar esta conversa no topo da lista (só aparece pra você e equipe no Hub)">📌 Fixar</button>';
         }
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
@@ -1630,6 +1638,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             if (d.error) { alert('Erro: ' + d.error); return; }
             window.waAbrir(convAtiva);
+        });
+    };
+
+    // Fixar/desfixar conversa no topo da lista
+    window.waPinConversa = function() {
+        if (!convAtiva) return;
+        var fd = new FormData();
+        fd.append('action', 'pin_conversa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+            carregarLista();
         });
     };
 

@@ -112,10 +112,15 @@ if ($action === 'listar_conversas') {
 
     // ultima_mensagem e ultima_msg_em vêm de subquery (sempre reflete o estado real,
     // ignorando mensagens deletadas — evita depender do campo salvo ficar em sync)
+    // Self-heal: coluna fixada (pra fixar conversa no topo da lista)
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
+
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
                    COALESCE(co.delegada, 0) AS delegada, co.delegada_por,
+                   COALESCE(co.fixada, 0) AS fixada,
                    co.foto_perfil_url, COALESCE(co.eh_grupo, 0) AS eh_grupo,
                    cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
@@ -137,7 +142,7 @@ if ($action === 'listar_conversas') {
             LEFT JOIN users u ON u.id = co.atendente_id
             {$joinEtq}
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY COALESCE((SELECT m.created_at FROM zapi_mensagens m WHERE m.conversa_id = co.id AND m.status != 'deletada' ORDER BY m.id DESC LIMIT 1), co.created_at) DESC
+            ORDER BY COALESCE(co.fixada, 0) DESC, COALESCE((SELECT m.created_at FROM zapi_mensagens m WHERE m.conversa_id = co.id AND m.status != 'deletada' ORDER BY m.id DESC LIMIT 1), co.created_at) DESC
             LIMIT 200";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
@@ -684,6 +689,39 @@ if ($action === 'remover_etiqueta') {
     $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
         ->execute(array($convId, $etqId));
     echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── FIXAR/DESFIXAR CONVERSA (no topo da lista de conversas do canal) ──
+if ($action === 'pin_conversa') {
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
+
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    $cur = $pdo->prepare("SELECT id, canal, fixada FROM zapi_conversas WHERE id = ?");
+    $cur->execute(array($convId));
+    $c = $cur->fetch();
+    if (!$c) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $novoFixada = empty($c['fixada']) ? 1 : 0;
+
+    if ($novoFixada === 1) {
+        // Limite: até 3 fixadas por canal (igual WhatsApp)
+        $count = $pdo->prepare("SELECT COUNT(*) FROM zapi_conversas WHERE canal = ? AND fixada = 1");
+        $count->execute(array($c['canal']));
+        if ((int)$count->fetchColumn() >= 3) {
+            echo json_encode(array('error' => 'Limite de 3 conversas fixadas por canal. Desfixe alguma antes.'));
+            exit;
+        }
+    }
+
+    $pdo->prepare("UPDATE zapi_conversas SET fixada = ?, fixada_em = " . ($novoFixada ? 'NOW()' : 'NULL') . " WHERE id = ?")
+        ->execute(array($novoFixada, $convId));
+
+    audit_log($novoFixada ? 'zapi_pin_conv' : 'zapi_unpin_conv', 'zapi_conversas', $convId);
+    echo json_encode(array('ok' => true, 'fixada' => $novoFixada));
     exit;
 }
 
