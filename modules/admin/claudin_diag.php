@@ -190,54 +190,63 @@ try {
     $outrosCrons[] = array('nome' => 'DataJud', 'ultima' => 'erro: ' . $e->getMessage(), 'fonte' => 'cases');
 }
 
-// 2. Z-API aniversários (birthday_greetings.created_at mais recente)
+// 2. Z-API aniversários — coluna correta é sent_at
 try {
-    $stmt = $pdo->query("SELECT MAX(created_at) AS ultima FROM birthday_greetings");
+    $stmt = $pdo->query("SELECT MAX(sent_at) AS ultima, COUNT(*) AS total FROM birthday_greetings");
     $row = $stmt->fetch();
+    $total = $row ? (int)$row['total'] : 0;
     $outrosCrons[] = array(
         'nome' => 'Z-API aniversários (cron/zapi_aniversarios.php)',
         'agendado' => 'a cada hora (via curl)',
         'ultima' => ($row && $row['ultima']) ? $row['ultima'] : null,
-        'fonte' => 'birthday_greetings.created_at (MAX)',
+        'fonte' => 'birthday_greetings.sent_at (' . $total . ' registros)',
     );
 } catch (Exception $e) {
-    $outrosCrons[] = array('nome' => 'Z-API aniversários', 'ultima' => 'erro: ' . $e->getMessage(), 'fonte' => 'birthday_greetings');
+    $outrosCrons[] = array(
+        'nome' => 'Z-API aniversários',
+        'agendado' => 'a cada hora',
+        'ultima' => null,
+        'fonte' => 'erro: ' . substr($e->getMessage(), 0, 80),
+    );
 }
 
-// 3. Audit log — olha entradas com acao contendo CRON, OFICIO_COBRANCA, ALERTA
+// 3. Demais crons via audit_log — sempre aparecem, mesmo sem match
 $acoesCron = array(
-    'OFICIO_COBRANCA' => 'Ofícios cobrança (cron/oficios_cobranca.php)',
-    'RECONCILIAR_KANBAN' => 'Reconciliar Kanbans (cron/reconciliar_kanbans.php)',
-    'ALERTA_INATIVIDADE' => 'Alertas inatividade (cron/alertas_inatividade.php)',
-    'RESUMO_SEMANAL' => 'Resumo semanal prazos (cron/resumo_semanal_prazos.php)',
-    'AGENDA_LEMBRETE' => 'Agenda lembretes (cron/agenda_lembretes.php)',
+    'OFICIO_COBRANCA'    => array('label' => 'Ofícios cobrança (cron/oficios_cobranca.php)', 'agendado' => '09h diário'),
+    'RECONCILIAR'        => array('label' => 'Reconciliar Kanbans (cron/reconciliar_kanbans.php)', 'agendado' => '—'),
+    'ALERTA_INATIVIDADE' => array('label' => 'Alertas inatividade (cron/alertas_inatividade.php)', 'agendado' => '—'),
+    'RESUMO_SEMANAL'     => array('label' => 'Resumo semanal prazos (cron/resumo_semanal_prazos.php)', 'agendado' => 'segundas'),
+    'AGENDA_LEMBRETE'    => array('label' => 'Agenda lembretes (cron/agenda_lembretes.php)', 'agendado' => '—'),
+    'WA_AGUARDANDO'      => array('label' => 'WhatsApp aguardando (cron/wa_aguardando_alerta.php)', 'agendado' => '—'),
+    'ZAPI_HEALTH'        => array('label' => 'Z-API health check (cron/zapi_health_check.php)', 'agendado' => '—'),
 );
+
+$ultimasAcoes = array();
 try {
-    $ph = implode(',', array_fill(0, count($acoesCron), '?'));
-    $params = array();
-    foreach (array_keys($acoesCron) as $a) $params[] = '%' . $a . '%';
     $sqlParts = array();
-    foreach (array_keys($acoesCron) as $a) $sqlParts[] = 'acao LIKE ?';
+    $params = array();
+    foreach (array_keys($acoesCron) as $a) {
+        $sqlParts[] = 'acao LIKE ?';
+        $params[] = '%' . $a . '%';
+    }
     $stmt = $pdo->prepare("SELECT acao, MAX(created_at) AS ultima FROM audit_log WHERE " . implode(' OR ', $sqlParts) . " GROUP BY acao");
     $stmt->execute($params);
-    $ultimasAcoes = array();
     foreach ($stmt->fetchAll() as $r) $ultimasAcoes[$r['acao']] = $r['ultima'];
-    foreach ($acoesCron as $acaoKey => $label) {
-        $ultima = null;
-        foreach ($ultimasAcoes as $acaoDb => $u) {
-            if (strpos($acaoDb, $acaoKey) !== false) {
-                if (!$ultima || $u > $ultima) $ultima = $u;
-            }
+} catch (Exception $e) { /* audit_log pode não ter essas ações */ }
+
+foreach ($acoesCron as $acaoKey => $info) {
+    $ultima = null;
+    foreach ($ultimasAcoes as $acaoDb => $u) {
+        if (stripos($acaoDb, $acaoKey) !== false) {
+            if (!$ultima || $u > $ultima) $ultima = $u;
         }
-        $outrosCrons[] = array(
-            'nome' => $label,
-            'agendado' => '—',
-            'ultima' => $ultima,
-            'fonte' => 'audit_log.acao LIKE %' . $acaoKey . '%',
-        );
     }
-} catch (Exception $e) {
-    // audit_log pode não ter esses padrões
+    $outrosCrons[] = array(
+        'nome' => $info['label'],
+        'agendado' => $info['agendado'],
+        'ultima' => $ultima,
+        'fonte' => 'audit_log LIKE %' . $acaoKey . '%',
+    );
 }
 
 $pageTitle = 'Claudin — Diagnóstico';
