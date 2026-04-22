@@ -27,6 +27,42 @@ try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_numero VARCHAR(3
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_titular VARCHAR(150) NULL AFTER conta_numero"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_cpf VARCHAR(20) NULL AFTER conta_titular"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN tipo_oficio VARCHAR(30) NULL DEFAULT 'pensao_empregador' AFTER conta_cpf"); } catch (Exception $e) {}
+// Status e linha do tempo
+try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN status_oficio VARCHAR(40) DEFAULT 'aguardando_contato_rh' AFTER tipo_oficio COMMENT 'aguardando_contato_rh | oficio_enviado | rh_respondeu | em_cobranca | pensao_implantada | sem_resposta | problema | arquivado'"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN ultima_atividade_em DATETIME DEFAULT NULL AFTER status_oficio"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN alerta_cobranca_em DATETIME DEFAULT NULL AFTER ultima_atividade_em COMMENT 'Última vez que o push de cobrança foi disparado pra este oficio'"); } catch (Exception $e) {}
+// Tabela de histórico (linha do tempo)
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS oficios_historico (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    oficio_id INT UNSIGNED NOT NULL,
+    tipo VARCHAR(40) NOT NULL COMMENT 'email_inicial | cobranca | rh_respondeu | oficio_formal | confirmado | pensao_implantada | problema | outro',
+    descricao TEXT,
+    created_by INT UNSIGNED DEFAULT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_oficio (oficio_id, created_at),
+    CONSTRAINT fk_oficios_historico_oficio FOREIGN KEY (oficio_id) REFERENCES oficios_enviados(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
+// ═══ Endpoint AJAX: adicionar evento ao histórico do ofício ═══
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'add_historico') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF', 'csrf_expired' => true)); exit; }
+    $of = (int)($_POST['oficio_id'] ?? 0);
+    $tipoEv = trim($_POST['tipo'] ?? '');
+    $desc = trim($_POST['descricao'] ?? '');
+    $novoStatus = trim($_POST['novo_status'] ?? '');
+    $tiposValidos = array('email_inicial','cobranca','rh_respondeu','oficio_formal','confirmado','pensao_implantada','problema','outro');
+    if (!$of || !in_array($tipoEv, $tiposValidos, true)) { echo json_encode(array('error' => 'Dados inválidos')); exit; }
+    if ($desc === '') $desc = null;
+    $pdo->prepare("INSERT INTO oficios_historico (oficio_id, tipo, descricao, created_by) VALUES (?, ?, ?, ?)")
+        ->execute(array($of, $tipoEv, $desc, current_user_id()));
+    // Atualiza última atividade (zera alerta de cobrança pra recomeçar a contagem)
+    $pdo->prepare("UPDATE oficios_enviados SET ultima_atividade_em = NOW(), alerta_cobranca_em = NULL" . ($novoStatus ? ", status_oficio = ?" : "") . " WHERE id = ?")
+        ->execute($novoStatus ? array($novoStatus, $of) : array($of));
+    audit_log('oficio_historico_add', 'oficios', $of, $tipoEv . ($desc ? ': ' . mb_substr($desc, 0, 80) : ''));
+    echo json_encode(array('ok' => true));
+    exit;
+}
 
 // Modo: criar novo OU editar existente
 $oficioId = (int)($_GET['id'] ?? 0);
@@ -72,6 +108,52 @@ function _of($campo, $oficio, $caso = null, $cliente = null, $default = '') {
     return $default;
 }
 
+// Carrega histórico do ofício (se for edição)
+$historicoOficio = array();
+if ($oficioExistente) {
+    $st = $pdo->prepare(
+        "SELECT h.*, u.name AS user_name
+         FROM oficios_historico h
+         LEFT JOIN users u ON u.id = h.created_by
+         WHERE h.oficio_id = ?
+         ORDER BY h.created_at DESC, h.id DESC"
+    );
+    $st->execute(array($oficioId));
+    $historicoOficio = $st->fetchAll();
+}
+
+// Mapa de status → label e cor
+$_statusLabels = array(
+    'aguardando_contato_rh' => array('label' => '📮 Aguardando contato do RH', 'cor' => '#f59e0b'),
+    'oficio_enviado'        => array('label' => '📬 Ofício formal enviado',    'cor' => '#2563eb'),
+    'rh_respondeu'          => array('label' => '💬 RH respondeu',             'cor' => '#0ea5e9'),
+    'em_cobranca'           => array('label' => '⏰ Em cobrança',               'cor' => '#d97706'),
+    'pensao_implantada'     => array('label' => '✅ Pensão implantada',         'cor' => '#059669'),
+    'sem_resposta'          => array('label' => '❌ Sem resposta',              'cor' => '#6b7280'),
+    'problema'              => array('label' => '⚠️ Problema',                  'cor' => '#dc2626'),
+    'arquivado'             => array('label' => '📁 Arquivado',                 'cor' => '#94a3b8'),
+);
+$_tipoHistIcons = array(
+    'email_inicial'     => '📮',
+    'cobranca'          => '⏰',
+    'rh_respondeu'      => '💬',
+    'oficio_formal'     => '📬',
+    'confirmado'        => '🤝',
+    'pensao_implantada' => '✅',
+    'problema'          => '⚠️',
+    'outro'             => '📝',
+);
+$_tipoHistLabels = array(
+    'email_inicial'     => 'E-mail inicial enviado',
+    'cobranca'          => 'Cobrança enviada',
+    'rh_respondeu'      => 'RH respondeu',
+    'oficio_formal'     => 'Ofício formal enviado',
+    'confirmado'        => 'RH confirmou recebimento',
+    'pensao_implantada' => 'Pensão implantada em folha',
+    'problema'          => 'Problema / obstáculo',
+    'outro'             => 'Outro evento',
+);
+
 // SUBMIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $dados = array(
@@ -107,10 +189,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         flash_set('success', 'Ofício #' . $idEdicao . ' atualizado!');
         redirect($dados['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $dados['case_id']) : module_url('oficios'));
     } else {
-        // INSERT
+        // INSERT — já marca status inicial + ultima_atividade
+        $dados['status_oficio'] = 'aguardando_contato_rh';
+        $dados['ultima_atividade_em'] = date('Y-m-d H:i:s');
         $sql = "INSERT INTO oficios_enviados (" . implode(',', array_keys($dados)) . ") VALUES (" . implode(',', array_fill(0, count($dados), '?')) . ")";
         $pdo->prepare($sql)->execute(array_values($dados));
         $oficioId = (int)$pdo->lastInsertId();
+
+        // Primeiro evento do histórico
+        try {
+            $pdo->prepare("INSERT INTO oficios_historico (oficio_id, tipo, descricao, created_by) VALUES (?, 'email_inicial', ?, ?)")
+                ->execute(array($oficioId, 'Ofício cadastrado — e-mail inicial enviado ao empregador ' . $dados['empregador'], current_user_id()));
+        } catch (Exception $e) {}
 
         audit_log('oficio_pensao_registrado', 'oficios', $oficioId, 'Empregador: ' . $dados['empregador']);
 
@@ -159,11 +249,80 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <a href="<?= $caseId ? module_url('operacional','caso_ver.php?id='.$caseId) : module_url('oficios') ?>" class="btn btn-outline btn-sm">&larr; Voltar</a>
 
-<h2 style="margin:.75rem 0 .25rem;font-size:1.2rem;color:var(--petrol-900);">📬 <?= $oficioExistente ? 'Editar Ofício #' . $oficioId : 'Ofício ao empregador — Pensão alimentícia' ?></h2>
+<h2 style="margin:.75rem 0 .25rem;font-size:1.2rem;color:var(--petrol-900);">📬 <?= $oficioExistente ? 'Ofício #' . $oficioId : 'Ofício ao empregador — Pensão alimentícia' ?></h2>
 <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 1rem;">
     <?php if ($oficioExistente): ?>Ajuste os dados abaixo. Ao salvar, os templates refletem as mudanças e você pode copiar e reenviar se precisar.<?php else: ?>Preencha os dados do funcionário e da empresa. O sistema gera o e-mail pronto nos 2 modelos oficiais — você copia e envia pelo seu Gmail/Outlook.<?php endif; ?>
     <?php if ($caso): ?><br>Processo: <b><?= e($caso['title'] ?: 'Caso #' . $caseId) ?></b><?= $caso['case_number'] ? ' · ' . e($caso['case_number']) : '' ?><?php endif; ?>
 </p>
+
+<?php if ($oficioExistente):
+    $_st = $oficioExistente['status_oficio'] ?? 'aguardando_contato_rh';
+    $_stMeta = $_statusLabels[$_st] ?? array('label' => $_st, 'cor' => '#6b7280');
+?>
+<div style="max-width:960px;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem 1.25rem;margin-bottom:1rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.75rem;">
+        <h3 style="margin:0;font-size:.95rem;color:var(--petrol-900);">🕐 Linha do tempo</h3>
+        <div>
+            <span style="font-size:.7rem;color:var(--text-muted);">Status atual:</span>
+            <span style="background:<?= e($_stMeta['cor']) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:.72rem;font-weight:700;"><?= e($_stMeta['label']) ?></span>
+        </div>
+    </div>
+
+    <!-- Form compacto pra adicionar novo evento -->
+    <div style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:8px;padding:.7rem .85rem;margin-bottom:1rem;">
+        <div style="display:grid;grid-template-columns:200px 1fr 200px auto;gap:.5rem;align-items:end;">
+            <div>
+                <label style="font-size:.65rem;font-weight:700;color:#6b7280;text-transform:uppercase;display:block;margin-bottom:.2rem;">Tipo do evento</label>
+                <select id="histTipo" class="of-inp" style="padding:.4rem .55rem;font-size:.8rem;">
+                    <?php foreach ($_tipoHistLabels as $k => $lbl): ?>
+                        <option value="<?= e($k) ?>"><?= $_tipoHistIcons[$k] ?? '📝' ?> <?= e($lbl) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label style="font-size:.65rem;font-weight:700;color:#6b7280;text-transform:uppercase;display:block;margin-bottom:.2rem;">O que aconteceu</label>
+                <input type="text" id="histDesc" class="of-inp" placeholder="Ex: cobramos resposta por e-mail" style="padding:.4rem .55rem;font-size:.8rem;">
+            </div>
+            <div>
+                <label style="font-size:.65rem;font-weight:700;color:#6b7280;text-transform:uppercase;display:block;margin-bottom:.2rem;">Atualizar status (opcional)</label>
+                <select id="histNovoStatus" class="of-inp" style="padding:.4rem .55rem;font-size:.8rem;">
+                    <option value="">— Manter status atual —</option>
+                    <?php foreach ($_statusLabels as $k => $meta): ?>
+                        <option value="<?= e($k) ?>"><?= e($meta['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <button type="button" onclick="addHistorico()" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.78rem;padding:.5rem 1rem;">+ Adicionar</button>
+        </div>
+    </div>
+
+    <!-- Lista do histórico -->
+    <?php if (empty($historicoOficio)): ?>
+        <div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:.8rem;">Nenhum evento registrado ainda. Use o formulário acima pra começar a registrar a linha do tempo.</div>
+    <?php else: ?>
+        <div style="position:relative;padding-left:1.5rem;">
+            <div style="position:absolute;left:.5rem;top:.5rem;bottom:.5rem;width:2px;background:#e5e7eb;"></div>
+            <?php foreach ($historicoOficio as $h):
+                $_ico = $_tipoHistIcons[$h['tipo']] ?? '📝';
+                $_lbl = $_tipoHistLabels[$h['tipo']] ?? $h['tipo'];
+            ?>
+            <div style="position:relative;margin-bottom:.75rem;">
+                <div style="position:absolute;left:-1.25rem;top:.15rem;background:#fff;border:2px solid #B87333;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:.7rem;"><?= $_ico ?></div>
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:.5rem .75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
+                        <span style="font-weight:700;font-size:.82rem;color:var(--petrol-900);"><?= e($_lbl) ?></span>
+                        <span style="font-size:.68rem;color:var(--text-muted);"><?= date('d/m/Y H:i', strtotime($h['created_at'])) ?><?= $h['user_name'] ? ' · ' . e(explode(' ', $h['user_name'])[0]) : '' ?></span>
+                    </div>
+                    <?php if ($h['descricao']): ?>
+                        <div style="font-size:.8rem;color:#374151;margin-top:.2rem;white-space:pre-wrap;"><?= e($h['descricao']) ?></div>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <form method="POST" style="max-width:960px;">
     <?= csrf_input() ?>
@@ -368,6 +527,32 @@ function copiarTpl(id) {
         btn.style.background = '#059669';
         setTimeout(function(){ btn.textContent = orig; btn.style.background = '#052228'; }, 2000);
     } catch(e) { alert('Erro ao copiar: ' + e.message); }
+}
+
+function addHistorico() {
+    var oficioId = <?= (int)($oficioId ?? 0) ?>;
+    if (!oficioId) { alert('Salve o ofício primeiro antes de adicionar eventos ao histórico.'); return; }
+    var tipo = document.getElementById('histTipo').value;
+    var desc = document.getElementById('histDesc').value.trim();
+    var novoStatus = document.getElementById('histNovoStatus').value;
+    if (!tipo) { alert('Escolha o tipo do evento.'); return; }
+
+    var fd = new FormData();
+    fd.append('ajax_action', 'add_historico');
+    fd.append('oficio_id', oficioId);
+    fd.append('tipo', tipo);
+    fd.append('descricao', desc);
+    if (novoStatus) fd.append('novo_status', novoStatus);
+    fd.append('csrf_token', <?= json_encode(generate_csrf_token()) ?>);
+
+    fetch(window.location.href, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j.csrf_expired) { alert('Sessão expirou. Recarregue a página.'); return; }
+            if (j.error) { alert('Erro: ' + j.error); return; }
+            if (j.ok) location.reload();
+        })
+        .catch(function(e){ alert('Erro: ' + e.message); });
 }
 
 function enviarWa() {
