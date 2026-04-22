@@ -1325,6 +1325,7 @@ switch ($action) {
                 $pdo->prepare(
                     "INSERT INTO case_andamentos (case_id, data_andamento, hora_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?,?,?,?,?,?,?,NOW())"
                 )->execute(array($caseId, $dataAnd, $horaSql, $tipoAnd, $descAnd, $visivelCliente, current_user_id()));
+                $andamentoIdNovo = (int)$pdo->lastInsertId();
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
 
                 // Se visível ao cliente → sugere mensagem de WhatsApp na fila pra revisão
@@ -1344,6 +1345,7 @@ switch ($action) {
                                 . "_Ferreira & Sá Advocacia_";
                         zapi_fila_enfileirar('andamento_visivel', (int)$cInfo['id'], $cInfo['phone'], $msgAnd, array(
                             'case_id' => $caseId,
+                            'origem_id' => $andamentoIdNovo,
                             'nome' => $cInfo['name'],
                             'canal' => '24',
                             'criada_por' => current_user_id(),

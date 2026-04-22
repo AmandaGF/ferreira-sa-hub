@@ -1376,8 +1376,29 @@ if ($action === 'gerar_link_salavip') {
 if ($action === 'fila_marcar_enviada') {
     $fid = (int)($_POST['fila_id'] ?? 0);
     if (!$fid) { echo json_encode(array('error' => 'fila_id obrigatório')); exit; }
+    // Self-heal: garante coluna origem_id (fila antiga pode não ter)
+    try { $pdo->exec("ALTER TABLE zapi_fila_envio ADD COLUMN origem_id INT UNSIGNED NULL"); } catch (Exception $e) {}
+
+    // Lê a linha pra saber se é envio de andamento (precisa refletir no case_andamentos)
+    $stmtF = $pdo->prepare("SELECT origem, origem_id, case_id FROM zapi_fila_envio WHERE id = ?");
+    $stmtF->execute(array($fid));
+    $filaRow = $stmtF->fetch();
+
     $pdo->prepare("UPDATE zapi_fila_envio SET status='enviada', enviada_por=?, enviada_em=NOW() WHERE id=? AND status='pendente'")
         ->execute(array($userId, $fid));
+
+    // Se é um andamento visível — marca o andamento como "comunicado ao cliente"
+    // pra aparecer o ✓ na timeline do caso sem depender do botão "Enviar" direto
+    if ($filaRow && $filaRow['origem'] === 'andamento_visivel' && !empty($filaRow['origem_id']) && !empty($filaRow['case_id'])) {
+        try {
+            $pdo->prepare(
+                "UPDATE case_andamentos
+                 SET whatsapp_enviado_em = NOW(), whatsapp_enviado_por = ?
+                 WHERE id = ? AND case_id = ? AND whatsapp_enviado_em IS NULL"
+            )->execute(array($userId, (int)$filaRow['origem_id'], (int)$filaRow['case_id']));
+        } catch (Exception $e) {}
+    }
+
     echo json_encode(array('ok' => true));
     exit;
 }
