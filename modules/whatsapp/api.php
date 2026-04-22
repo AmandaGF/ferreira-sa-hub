@@ -355,6 +355,10 @@ if ($action === 'abrir_conversa') {
     $conv['lock_pode_enviar'] = !empty($lock['pode']) ? 1 : 0;
     $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
 
+    // Self-heal: garante colunas pinned/pinned_at
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned_at DATETIME NULL"); } catch (Exception $e) {}
+
     // Mensagens (últimas 200) + preview da mensagem respondida (quoted)
     $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name,
                               (SELECT m2.conteudo FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_conteudo,
@@ -366,6 +370,14 @@ if ($action === 'abrir_conversa') {
                            LIMIT 200");
     $msgs->execute(array($id));
     $mensagens = $msgs->fetchAll();
+
+    // Mensagens fixadas (pra mostrar no topo do chat)
+    $pinnedStmt = $pdo->prepare("SELECT id, direcao, tipo, conteudo, pinned_at, created_at
+                                 FROM zapi_mensagens
+                                 WHERE conversa_id = ? AND pinned = 1 AND status != 'deletada'
+                                 ORDER BY pinned_at DESC LIMIT 5");
+    $pinnedStmt->execute(array($id));
+    $fixadas = $pinnedStmt->fetchAll();
     // Display name curto por mensagem
     foreach ($mensagens as &$_m) {
         if (!empty($_m['enviado_por_name'])) {
@@ -385,7 +397,7 @@ if ($action === 'abrir_conversa') {
     $etqStmt->execute(array($id));
     $conv['etiquetas'] = $etqStmt->fetchAll();
 
-    echo json_encode(array('ok' => true, 'conversa' => $conv, 'mensagens' => $mensagens));
+    echo json_encode(array('ok' => true, 'conversa' => $conv, 'mensagens' => $mensagens, 'fixadas' => $fixadas));
     exit;
 }
 
@@ -672,6 +684,93 @@ if ($action === 'remover_etiqueta') {
     $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
         ->execute(array($convId, $etqId));
     echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── FIXAR/DESFIXAR MENSAGEM (só no Hub, não sincroniza com WhatsApp real) ──
+if ($action === 'pin_mensagem') {
+    // Self-heal: coluna pinned
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned_at DATETIME NULL"); } catch (Exception $e) {}
+
+    $msgId = (int)($_POST['mensagem_id'] ?? 0);
+    if (!$msgId) { echo json_encode(array('error' => 'mensagem_id obrigatório')); exit; }
+    $cur = $pdo->prepare("SELECT m.id, m.conversa_id, m.pinned FROM zapi_mensagens m WHERE m.id = ?");
+    $cur->execute(array($msgId));
+    $m = $cur->fetch();
+    if (!$m) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+
+    $novoPinned = empty($m['pinned']) ? 1 : 0;
+
+    if ($novoPinned === 1) {
+        // Limite: até 3 fixadas por conversa (igual WhatsApp)
+        $count = $pdo->prepare("SELECT COUNT(*) FROM zapi_mensagens WHERE conversa_id = ? AND pinned = 1");
+        $count->execute(array($m['conversa_id']));
+        if ((int)$count->fetchColumn() >= 3) {
+            echo json_encode(array('error' => 'Limite de 3 mensagens fixadas por conversa. Desfixe alguma antes.'));
+            exit;
+        }
+    }
+
+    $pdo->prepare("UPDATE zapi_mensagens SET pinned = ?, pinned_at = " . ($novoPinned ? 'NOW()' : 'NULL') . " WHERE id = ?")
+        ->execute(array($novoPinned, $msgId));
+
+    audit_log($novoPinned ? 'zapi_pin_msg' : 'zapi_unpin_msg', 'zapi_mensagens', $msgId);
+    echo json_encode(array('ok' => true, 'pinned' => $novoPinned));
+    exit;
+}
+
+// ── NOVA CONVERSA (cliente existente ou número novo) ──
+if ($action === 'nova_conversa') {
+    $canal      = ($_POST['canal'] ?? '') === '24' ? '24' : '21';
+    $telefone   = preg_replace('/[^0-9]/', '', $_POST['telefone'] ?? '');
+    $nome       = trim($_POST['nome'] ?? '');
+    $clientId   = (int)($_POST['client_id'] ?? 0) ?: null;
+    $mensagem   = trim($_POST['mensagem'] ?? '');
+
+    if (!$telefone || strlen($telefone) < 10) { echo json_encode(array('error' => 'Telefone inválido (mínimo 10 dígitos)')); exit; }
+    if (!$mensagem) { echo json_encode(array('error' => 'Digite a primeira mensagem pra iniciar a conversa')); exit; }
+
+    // Normaliza telefone — adiciona 55 se não tem DDI
+    if (strlen($telefone) === 10 || strlen($telefone) === 11) { $telefone = '55' . $telefone; }
+
+    // Se tem client_id mas não mandou nome/telefone, puxa do banco
+    if ($clientId && (!$nome || !$telefone)) {
+        $cli = $pdo->prepare("SELECT name, phone FROM clients WHERE id = ?");
+        $cli->execute(array($clientId));
+        $c = $cli->fetch();
+        if ($c) {
+            if (!$nome) $nome = $c['name'];
+            if (!$telefone || strlen($telefone) < 10) $telefone = preg_replace('/\D/', '', $c['phone']);
+        }
+    }
+
+    // Envia mensagem via Z-API — isso cria a conversa no banco via zapi_buscar_ou_criar_conversa
+    $resp = zapi_send_text($canal, $telefone, $mensagem);
+    if (empty($resp['ok'])) {
+        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        exit;
+    }
+    $zapiId = '';
+    if (is_array($resp['data'])) $zapiId = $resp['data']['id'] ?? ($resp['data']['zaapId'] ?? ($resp['data']['messageId'] ?? ''));
+
+    // Busca/cria conversa
+    $conv = zapi_buscar_ou_criar_conversa($telefone, $canal, $nome ?: null);
+    if ($conv && $clientId && !$conv['client_id']) {
+        $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")->execute(array($clientId, $conv['id']));
+    }
+    if ($conv) {
+        // Grava a mensagem enviada
+        $pdo->prepare(
+            "INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por, zapi_message_id, created_at)
+             VALUES (?, 'enviada', 'texto', ?, ?, ?, NOW())"
+        )->execute(array($conv['id'], $mensagem, current_user_id(), $zapiId));
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
+            ->execute(array(mb_substr($mensagem, 0, 500), $conv['id']));
+    }
+
+    audit_log('zapi_nova_conversa', 'zapi_conversas', $conv ? $conv['id'] : 0, 'tel=' . $telefone . ' canal=' . $canal);
+    echo json_encode(array('ok' => true, 'conversa_id' => $conv ? $conv['id'] : null, 'canal' => $canal));
     exit;
 }
 

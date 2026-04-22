@@ -208,6 +208,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <button onclick="waVerificarStatus()" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 8px;" title="Consultar status na Z-API">🔄</button>
     <?php endif; ?>
     <div style="margin-left:auto;display:flex;gap:.4rem;">
+        <button onclick="waAbrirNovaConversa()" class="btn btn-primary btn-sm" style="background:#B87333;" title="Iniciar nova conversa com cliente ou número novo">➕ Nova conversa</button>
         <a href="<?= url('modules/whatsapp/?canal=' . ($isComercial ? '24' : '21')) ?>" class="btn btn-outline btn-sm">
             Ir para <?= $isComercial ? 'DDD 24 (CX)' : 'DDD 21 (Comercial)' ?> →
         </a>
@@ -582,10 +583,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         // Body com mensagens
         var body = document.getElementById('waChatBody');
+
+        // Card de mensagens fixadas (no topo do chat, antes das mensagens normais)
+        var pinnedHtml = '';
+        if (d.fixadas && d.fixadas.length) {
+            pinnedHtml = '<div style="background:#fef3c7;border:1px solid #fbbf24;border-left:4px solid #B87333;border-radius:8px;padding:8px 12px;margin-bottom:12px;">'
+                       + '<div style="font-size:.7rem;font-weight:700;color:#92400e;margin-bottom:4px;">📌 ' + d.fixadas.length + ' mensagem(ns) fixada(s)</div>';
+            d.fixadas.forEach(function(f) {
+                var preview = (f.conteudo || '').substring(0, 140);
+                if (f.conteudo && f.conteudo.length > 140) preview += '...';
+                pinnedHtml += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px dashed #fde68a;cursor:pointer;" onclick="waScrollToMsg(' + f.id + ')">'
+                           +  '<span style="font-size:.72rem;color:#78350f;flex:1;">' + (f.direcao === 'recebida' ? '👤' : '📤') + ' ' + escapeHtml(preview) + '</span>'
+                           +  '<button onclick="event.stopPropagation();waPinMsg(' + f.id + ')" title="Desfixar" style="background:#fbbf24;border:none;color:#fff;border-radius:4px;font-size:.7rem;padding:2px 6px;cursor:pointer;">✕</button>'
+                           +  '</div>';
+            });
+            pinnedHtml += '</div>';
+        }
+
         if (!d.mensagens.length) {
-            body.innerHTML = '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
+            body.innerHTML = pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
         } else {
-            var html = '';
+            var html = pinnedHtml;
             d.mensagens.forEach(function(m){
                 var dir = m.direcao === 'recebida' ? 'left' : 'right';
                 var cls = 'wa-msg';
@@ -600,14 +618,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     if (m.tipo === 'texto') html += '<button onclick="waEditarMsg('+m.id+')" title="Editar (até 15 min)" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">✏️</button>';
+                    html += '<button onclick="waPinMsg('+m.id+')" title="'+(+m.pinned?'Desfixar':'Fixar no topo')+'" style="background:'+(+m.pinned?'#fef3c7':'rgba(255,255,255,.9)')+';border:1px solid '+(+m.pinned?'#fbbf24':'#e5e7eb')+';border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">📌</button>';
                     html += '<button onclick="waDeletarMsg('+m.id+')" title="Apagar" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">🗑</button>';
                     html += '</div>';
                 }
-                // Hover de reagir/responder também pra mensagens recebidas
+                // Hover de reagir/responder/fixar também pra mensagens recebidas
                 if (m.direcao === 'recebida' && m.status !== 'deletada' && m.zapi_message_id) {
                     html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
                     html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
+                    html += '<button onclick="waPinMsg('+m.id+')" title="'+(+m.pinned?'Desfixar':'Fixar no topo')+'" style="background:'+(+m.pinned?'#fef3c7':'rgba(255,255,255,.9)')+';border:1px solid '+(+m.pinned?'#fbbf24':'#e5e7eb')+';border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">📌</button>';
                     html += '</div>';
                 }
 
@@ -1601,6 +1621,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
 
+    // Fixar/desfixar mensagem no topo da conversa (só no Hub, não sincroniza com WhatsApp)
+    window.waPinMsg = function(msgId) {
+        var fd = new FormData();
+        fd.append('action', 'pin_mensagem');
+        fd.append('mensagem_id', msgId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            window.waAbrir(convAtiva);
+        });
+    };
+
+    // Scrolla até a mensagem clicada no card de fixadas
+    window.waScrollToMsg = function(msgId) {
+        var row = document.querySelector('.wa-msg-row[data-msg-id="' + msgId + '"]');
+        if (!row) return;
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.style.transition = 'background .3s';
+        row.style.background = '#fef3c7';
+        setTimeout(function(){ row.style.background = ''; }, 1500);
+    };
+
     // ⚠️ Z-API não suporta editar de verdade — fazemos "apagar + reenviar com texto pré-preenchido"
     window.waEditarMsg = function(msgId) {
         var row = document.querySelector('.wa-msg-row[data-msg-id="'+msgId+'"] .wa-msg');
@@ -1899,6 +1941,154 @@ require_once APP_ROOT . '/templates/layout_start.php';
             pop.classList.remove('open');
         }
     });
+
+    // Abre modal de "Nova conversa" (2 opções: cliente existente ou número novo)
+    window.waAbrirNovaConversa = function() {
+        var canal = '<?= $canal ?>';
+        var modal = document.getElementById('waNovaConvModal');
+        if (!modal) {
+            // Cria modal se não existe
+            modal = document.createElement('div');
+            modal.id = 'waNovaConvModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;justify-content:center;align-items:center;padding:20px;';
+            modal.innerHTML =
+                '<div style="background:#fff;border-radius:12px;max-width:520px;width:100%;padding:1.5rem;box-shadow:0 20px 60px rgba(0,0,0,.3);">' +
+                '  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">' +
+                '    <h3 style="margin:0;font-size:1.05rem;color:#052228;">➕ Nova conversa (DDD ' + canal + ')</h3>' +
+                '    <button onclick="waFecharNovaConv()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#64748b;">✕</button>' +
+                '  </div>' +
+                '  <div style="display:flex;gap:4px;margin-bottom:1rem;border-bottom:1px solid #e5e7eb;">' +
+                '    <button id="waNovaTabA" onclick="waNovaTab(\'a\')" style="background:none;border:none;padding:.5rem 1rem;cursor:pointer;font-size:.85rem;font-weight:600;border-bottom:2px solid #B87333;color:#B87333;">👤 Cliente da base</button>' +
+                '    <button id="waNovaTabB" onclick="waNovaTab(\'b\')" style="background:none;border:none;padding:.5rem 1rem;cursor:pointer;font-size:.85rem;font-weight:500;border-bottom:2px solid transparent;color:#64748b;">📞 Número novo</button>' +
+                '  </div>' +
+                '  <div id="waNovaConteudoA">' +
+                '    <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px;">Buscar cliente:</label>' +
+                '    <input type="text" id="waNovaClienteBusca" placeholder="Digite nome do cliente..." autocomplete="off" style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85rem;">' +
+                '    <input type="hidden" id="waNovaClienteId">' +
+                '    <div id="waNovaClienteList" style="max-height:180px;overflow-y:auto;margin-top:4px;border-radius:6px;"></div>' +
+                '    <div id="waNovaClienteSel" style="margin-top:6px;font-size:.78rem;color:#15803d;"></div>' +
+                '  </div>' +
+                '  <div id="waNovaConteudoB" style="display:none;">' +
+                '    <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px;">Nome (opcional):</label>' +
+                '    <input type="text" id="waNovaTelNome" placeholder="Ex: João Silva" style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85rem;margin-bottom:.6rem;">' +
+                '    <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px;">Número com DDD:</label>' +
+                '    <input type="text" id="waNovaTel" placeholder="Ex: 24991234567 ou 5524991234567" style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85rem;font-family:monospace;">' +
+                '    <div style="font-size:.7rem;color:#64748b;margin-top:4px;">DDI 55 adicionado automaticamente se faltar.</div>' +
+                '  </div>' +
+                '  <label style="font-size:.78rem;font-weight:600;display:block;margin:1rem 0 4px;">Primeira mensagem:</label>' +
+                '  <textarea id="waNovaMsg" rows="4" placeholder="Olá! Aqui é do Ferreira & Sá Advocacia..." style="width:100%;padding:8px 10px;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.85rem;resize:vertical;"></textarea>' +
+                '  <div id="waNovaMsgErr" style="margin-top:.5rem;font-size:.78rem;"></div>' +
+                '  <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">' +
+                '    <button onclick="waFecharNovaConv()" class="btn btn-outline btn-sm">Cancelar</button>' +
+                '    <button onclick="waEnviarNovaConv()" id="waNovaBtnEnv" class="btn btn-primary btn-sm" style="background:#B87333;">📤 Enviar</button>' +
+                '  </div>' +
+                '</div>';
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e){ if (e.target === modal) waFecharNovaConv(); });
+
+            // Autocomplete de clientes
+            var inpBusca = document.getElementById('waNovaClienteBusca');
+            var inpId = document.getElementById('waNovaClienteId');
+            var listEl = document.getElementById('waNovaClienteList');
+            var timer;
+            inpBusca.addEventListener('input', function() {
+                clearTimeout(timer);
+                var q = this.value.trim();
+                if (q.length < 2) { listEl.innerHTML = ''; return; }
+                timer = setTimeout(function() {
+                    fetch('<?= url('api/busca_global.php') ?>?q=' + encodeURIComponent(q))
+                        .then(function(r){ return r.json(); })
+                        .then(function(j) {
+                            var clientes = (j.grupos && j.grupos.clientes) || [];
+                            if (!clientes.length) { listEl.innerHTML = '<div style="padding:8px;color:#94a3b8;font-size:.78rem;">Nenhum cliente encontrado</div>'; return; }
+                            var h = '';
+                            clientes.slice(0,10).forEach(function(c) {
+                                h += '<div onclick="waNovaSelCli(' + (c.id || 0) + ',\'' + escapeHtml(c.titulo).replace(/\'/g,"\\\\'") + '\')" style="padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.8rem;" onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'\'">' + escapeHtml(c.titulo) + (c.subtitulo ? '<span style="color:#64748b;font-size:.72rem;"> · ' + escapeHtml(c.subtitulo) + '</span>' : '') + '</div>';
+                            });
+                            listEl.innerHTML = h;
+                        });
+                }, 250);
+            });
+        }
+        modal.style.display = 'flex';
+        // Reset
+        document.getElementById('waNovaClienteBusca').value = '';
+        document.getElementById('waNovaClienteId').value = '';
+        document.getElementById('waNovaClienteList').innerHTML = '';
+        document.getElementById('waNovaClienteSel').textContent = '';
+        document.getElementById('waNovaTel').value = '';
+        document.getElementById('waNovaTelNome').value = '';
+        document.getElementById('waNovaMsg').value = '';
+        document.getElementById('waNovaMsgErr').innerHTML = '';
+        waNovaTab('a');
+    };
+
+    window.waFecharNovaConv = function() {
+        var m = document.getElementById('waNovaConvModal');
+        if (m) m.style.display = 'none';
+    };
+
+    window.waNovaTab = function(t) {
+        document.getElementById('waNovaConteudoA').style.display = t === 'a' ? 'block' : 'none';
+        document.getElementById('waNovaConteudoB').style.display = t === 'b' ? 'block' : 'none';
+        var a = document.getElementById('waNovaTabA');
+        var b = document.getElementById('waNovaTabB');
+        a.style.color = t === 'a' ? '#B87333' : '#64748b';
+        a.style.borderBottomColor = t === 'a' ? '#B87333' : 'transparent';
+        b.style.color = t === 'b' ? '#B87333' : '#64748b';
+        b.style.borderBottomColor = t === 'b' ? '#B87333' : 'transparent';
+    };
+
+    window.waNovaSelCli = function(id, nome) {
+        document.getElementById('waNovaClienteId').value = id;
+        document.getElementById('waNovaClienteBusca').value = nome;
+        document.getElementById('waNovaClienteList').innerHTML = '';
+        document.getElementById('waNovaClienteSel').innerHTML = '✅ Selecionado: <strong>' + escapeHtml(nome) + '</strong>';
+    };
+
+    window.waEnviarNovaConv = function() {
+        var tabA = document.getElementById('waNovaConteudoA').style.display !== 'none';
+        var msg = document.getElementById('waNovaMsg').value.trim();
+        var err = document.getElementById('waNovaMsgErr');
+        if (!msg) { err.innerHTML = '<span style="color:#b91c1c">❌ Digite a primeira mensagem</span>'; return; }
+
+        var fd = new FormData();
+        fd.append('action', 'nova_conversa');
+        fd.append('csrf_token', csrf);
+        fd.append('canal', '<?= $canal ?>');
+        fd.append('mensagem', msg);
+
+        if (tabA) {
+            var cid = document.getElementById('waNovaClienteId').value;
+            if (!cid) { err.innerHTML = '<span style="color:#b91c1c">❌ Selecione um cliente</span>'; return; }
+            fd.append('client_id', cid);
+        } else {
+            var tel = document.getElementById('waNovaTel').value.trim();
+            if (!tel || tel.replace(/\D/g,'').length < 10) { err.innerHTML = '<span style="color:#b91c1c">❌ Informe um número válido (com DDD)</span>'; return; }
+            fd.append('telefone', tel);
+            fd.append('nome', document.getElementById('waNovaTelNome').value.trim());
+        }
+
+        document.getElementById('waNovaBtnEnv').disabled = true;
+        err.innerHTML = '<span style="color:#64748b">⏳ Enviando...</span>';
+
+        fetch(apiUrl, { method:'POST', body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d) {
+                document.getElementById('waNovaBtnEnv').disabled = false;
+                if (d.error) { err.innerHTML = '<span style="color:#b91c1c">❌ ' + d.error + '</span>'; return; }
+                err.innerHTML = '<span style="color:#15803d">✅ Conversa criada!</span>';
+                setTimeout(function() {
+                    waFecharNovaConv();
+                    carregarLista();
+                    if (d.conversa_id) window.waAbrir(d.conversa_id);
+                }, 800);
+            })
+            .catch(function(e) {
+                document.getElementById('waNovaBtnEnv').disabled = false;
+                err.innerHTML = '<span style="color:#b91c1c">❌ Erro de rede: ' + e.message + '</span>';
+            });
+    };
 
     // Atualiza fotos de perfil em batch (25 por vez via backend).
     // Roda até não achar mais conversas sem foto (ou atingir 8 batches = 200).
