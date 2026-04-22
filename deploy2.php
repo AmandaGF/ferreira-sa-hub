@@ -98,6 +98,22 @@ file_put_contents($dir . '/core/config.php', $cfg);
 file_put_contents($dir . '/deploy2.php', $dep);
 echo "   OK\n\n";
 
+echo "4b. Bump automatico do Service Worker (fshub-<timestamp>)...\n";
+$swFile = $dir . '/sw.js';
+if (file_exists($swFile)) {
+    $sw = file_get_contents($swFile);
+    $novoCache = 'fshub-' . date('YmdHi'); // ex: fshub-202604212230
+    $novoSw = preg_replace("/var\s+CACHE_NAME\s*=\s*'[^']*';/", "var CACHE_NAME = '$novoCache';", $sw, 1, $repl);
+    if ($repl > 0) {
+        file_put_contents($swFile, $novoSw);
+        echo "   SW cache -> $novoCache\n\n";
+    } else {
+        echo "   AVISO: regex de CACHE_NAME nao bateu, SW nao alterado\n\n";
+    }
+} else {
+    echo "   sw.js nao encontrado\n\n";
+}
+
 echo "5. Permissoes...\n";
 fixP($dir);
 echo "   OK\n\n";

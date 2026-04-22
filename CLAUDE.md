@@ -20,7 +20,7 @@ Histórico de mudanças em [CHANGELOG.md](CHANGELOG.md) — convenção de commi
    ```
    curl -s "https://ferreiraesa.com.br/conecta/deploy2.php?key=fsa-hub-deploy-2026"
    ```
-3. O script baixa o ZIP do GitHub, extrai, preserva `core/config.php` e `deploy2.php`
+3. O script baixa o ZIP do GitHub, extrai, preserva `core/config.php` e `deploy2.php`, e **bumpa automaticamente o `CACHE_NAME` do `sw.js`** (formato `fshub-YYYYMMDDHHmm`) — você NÃO precisa mais editar manualmente no commit
 4. Para mudanças de schema, crie um `migrar_*.php` na raiz e chame via URL:
    ```
    curl -s "https://ferreiraesa.com.br/conecta/migrar_X.php?key=fsa-hub-deploy-2026"
