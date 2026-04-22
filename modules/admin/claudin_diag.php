@@ -155,6 +155,16 @@ if (file_exists(LOG_PATH)) {
     $logTail = implode("\n", array_slice($linhas, -30));
 }
 
+// Log do teste do cron (se foi agendado)
+$testeCronLog = APP_ROOT . '/cron/logs/teste_cron.log';
+$testeCronExiste = file_exists($testeCronLog);
+$testeCronConteudo = '';
+$testeCronModificado = '';
+if ($testeCronExiste) {
+    $testeCronConteudo = trim(@file_get_contents($testeCronLog));
+    $testeCronModificado = date('d/m/Y H:i:s', filemtime($testeCronLog));
+}
+
 $pageTitle = 'Claudin — Diagnóstico';
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -268,6 +278,44 @@ pre.diag-log { background:#0f172a; color:#cbd5e1; padding:10px; border-radius:8p
         <pre class="diag-log"><?= htmlspecialchars($logTail, ENT_QUOTES, 'UTF-8') ?></pre>
     </div>
     <?php endif; ?>
+
+    <!-- Bloco de teste do CRON -->
+    <div class="diag-card" style="border-color:#6366f1;">
+        <h3>⏰ Teste do CRON da hospedagem</h3>
+        <p style="font-size:.8rem;">Script mínimo que só escreve uma linha num log quando é executado. Se o arquivo abaixo for atualizado depois do horário agendado, o cron da TurboCloud funciona.</p>
+
+        <div class="diag-row">
+            <span class="key">Arquivo de log do teste</span>
+            <span class="val"><?= htmlspecialchars($testeCronLog, ENT_QUOTES, 'UTF-8') ?></span>
+        </div>
+        <div class="diag-row">
+            <span class="key">Foi executado alguma vez?</span>
+            <span class="val <?= $testeCronExiste ? 'diag-ok' : 'diag-warn' ?>">
+                <?= $testeCronExiste ? '✅ sim — modificado em ' . htmlspecialchars($testeCronModificado, ENT_QUOTES, 'UTF-8') : '⚠️ ainda não' ?>
+            </span>
+        </div>
+
+        <?php if ($testeCronConteudo): ?>
+            <p style="font-size:.72rem;color:#64748b;margin-top:.5rem;margin-bottom:.3rem;">Conteúdo (cada linha = uma execução):</p>
+            <pre class="diag-log"><?= htmlspecialchars($testeCronConteudo, ENT_QUOTES, 'UTF-8') ?></pre>
+        <?php endif; ?>
+
+        <details style="font-size:.78rem;margin-top:.6rem;">
+            <summary style="cursor:pointer;font-weight:600;color:#4338ca;">Como agendar esse teste no cPanel</summary>
+            <div style="background:#f8fafc;padding:.7rem;border-radius:6px;margin-top:.4rem;line-height:1.6;">
+                Configure um cron job novo (temporário) com:<br>
+                <br>
+                <strong>Minute:</strong> (minuto atual + 2)<br>
+                <strong>Hour:</strong> (hora atual)<br>
+                <strong>Day / Month / Weekday:</strong> <code>*</code> <code>*</code> <code>*</code><br>
+                <br>
+                <strong>Command:</strong><br>
+                <code style="user-select:all;background:#e5e7eb;padding:3px 6px;border-radius:4px;display:inline-block;margin-top:3px;">/usr/bin/php /home7/ferre3151357/public_html/conecta/cron/teste_cron.php &gt;&gt; /home7/ferre3151357/public_html/conecta/cron/logs/teste_cron_stdout.log 2&gt;&amp;1</code><br>
+                <br>
+                Espera 3 minutos e dá F5 nesta página. Se a seção "Foi executado alguma vez?" virar ✅, o cron funciona. Depois você apaga esse cron de teste.
+            </div>
+        </details>
+    </div>
 
     <!-- 9. RODAR INLINE -->
     <div class="diag-card" style="border-color:#B87333;">
