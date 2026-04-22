@@ -20,6 +20,7 @@ try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN rh_contato VARCHAR(50)
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN funcionario_nome VARCHAR(150) NULL AFTER rh_contato"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN funcionario_cargo VARCHAR(100) NULL AFTER funcionario_nome"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN funcionario_matricula VARCHAR(30) NULL AFTER funcionario_cargo"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN funcionario_genero CHAR(1) DEFAULT 'M' AFTER funcionario_matricula COMMENT 'M=masculino, F=feminino'"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_banco VARCHAR(100) NULL AFTER funcionario_matricula"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_agencia VARCHAR(20) NULL AFTER conta_banco"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_numero VARCHAR(30) NULL AFTER conta_agencia"); } catch (Exception $e) {}
@@ -84,6 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         'funcionario_nome' => clean_str($_POST['funcionario_nome'] ?? '', 150),
         'funcionario_cargo' => clean_str($_POST['funcionario_cargo'] ?? '', 100),
         'funcionario_matricula' => clean_str($_POST['funcionario_matricula'] ?? '', 30),
+        'funcionario_genero' => in_array(($_POST['funcionario_genero'] ?? 'M'), array('M','F'), true) ? $_POST['funcionario_genero'] : 'M',
         'conta_banco' => clean_str($_POST['conta_banco'] ?? '', 100),
         'conta_agencia' => clean_str($_POST['conta_agencia'] ?? '', 20),
         'conta_numero' => clean_str($_POST['conta_numero'] ?? '', 30),
@@ -185,6 +187,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h4>👤 Funcionário (alimentante)</h4>
         <div class="of-grid">
             <div><span class="of-lab">Nome</span><input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" value="<?= e($oficioExistente['funcionario_nome'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Sexo / Gênero</span><select name="funcionario_genero" id="funcionario_genero" class="of-inp" onchange="atualizarPreviews()">
+                <?php $_fg = $oficioExistente['funcionario_genero'] ?? 'M'; ?>
+                <option value="M" <?= $_fg === 'M' ? 'selected' : '' ?>>Masculino (pai/genitor/colaborador)</option>
+                <option value="F" <?= $_fg === 'F' ? 'selected' : '' ?>>Feminino (mãe/genitora/colaboradora)</option>
+            </select></div>
             <div><span class="of-lab">Cargo</span><input type="text" name="funcionario_cargo" id="funcionario_cargo" class="of-inp" value="<?= e($oficioExistente['funcionario_cargo'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">Matrícula</span><input type="text" name="funcionario_matricula" id="funcionario_matricula" class="of-inp" value="<?= e($oficioExistente['funcionario_matricula'] ?? '') ?>" oninput="atualizarPreviews()"></div>
         </div>
@@ -299,14 +306,19 @@ function atualizarPreviews() {
     var tit    = (document.getElementById('conta_titular').value || '[TITULAR]').trim();
     var cpf    = (document.getElementById('conta_cpf').value || '[CPF]').trim();
     var numProc = ((document.getElementById('numero_processo') || {}).value || '').trim();
+    var funcG = (document.getElementById('funcionario_genero') || {}).value || 'M';
+    // Flexões do funcionário (alimentante): F=feminino, M=masculino
+    var _F = funcG === 'F'
+        ? { um:'uma',  genitor:'genitora',  colab:'colaboradora', do:'da', oa:'a' }
+        : { um:'um',   genitor:'genitor',   colab:'colaborador',  do:'do', oa:'o' };
     // Prefixo obrigatório do assunto: sempre começa com Ref: + nº do processo
     var refPref = 'Ref: processo nº ' + (numProc || '[Nº DO PROCESSO]') + ' — ';
 
     // Modelo 1 — solicitar contato RH
     var m1 = 'Assunto: ' + refPref + 'Pensão alimentícia — solicitação de contato do RH' + (emp ? ' — ' + emp : '') + '\n\n'
-           + 'Prezado(a), boa tarde!\n\n'
-           + 'Meu nome é ' + userNome + ', ' + _T.advg + ' ' + _T.inscr + ' na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um(a) de seus colaboradores é genitor(a) da criança.\n\n'
-           + 'Informo que há decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a) ' + func
+           + 'Prezados, boa tarde!\n\n'
+           + 'Meu nome é ' + userNome + ', ' + _T.advg + ' ' + _T.inscr + ' na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que ' + _F.um + ' de seus ' + _F.colab + 'es é ' + _F.genitor + ' da criança.\n\n'
+           + 'Informo que há decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento ' + _F.do + ' ' + _F.colab + ' ' + func
            + (cargo !== '[CARGO]' ? ', cargo ' + cargo : '') + (matr !== '[MATRÍCULA]' ? ', matrícula ' + matr : '') + '. '
            + 'Para formalizar a medida, necessito encaminhar o ofício diretamente ao setor de Recursos Humanos.\n\n'
            + 'Assim, solicito, gentilmente, que me informe o endereço de e-mail ou contato do setor responsável, a fim de enviar o referido ofício e cumprir a determinação judicial.\n\n'
@@ -315,9 +327,9 @@ function atualizarPreviews() {
 
     // Modelo 2 — envio com dados bancários
     var m2 = 'Assunto: ' + refPref + 'Ofício — Desconto de pensão alimentícia em folha' + (func !== '[NOME DO COLABORADOR]' ? ' — ' + func : '') + '\n\n'
-           + 'Prezada(o), bom dia!\n\n'
+           + 'Prezados, bom dia!\n\n'
            + 'Meu nome é ' + userNome + ', ' + _T.advg + ' ' + _T.inscr + ' na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia.\n\n'
-           + 'Envio, em anexo, a decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a):\n\n'
+           + 'Envio, em anexo, a decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento ' + _F.do + ' ' + _F.colab + ':\n\n'
            + '• Nome: ' + func + '\n'
            + '• Cargo: ' + cargo + '\n'
            + '• Matrícula: ' + matr + '\n\n'
@@ -333,7 +345,7 @@ function atualizarPreviews() {
 
     // WhatsApp — curto e respeitoso
     var wa = 'Olá! Boa tarde.\n\n'
-           + 'Sou ' + userNome + ', ' + _T.advg + ' ' + userOAB + '. Estou tratando de um processo de pensão alimentícia envolvendo um(a) colaborador(a) de vocês'
+           + 'Sou ' + userNome + ', ' + _T.advg + ' ' + userOAB + '. Estou tratando de um processo de pensão alimentícia envolvendo ' + _F.um + ' ' + _F.colab + ' de vocês'
            + (emp ? ' da ' + emp : '') + '.\n\n'
            + 'Preciso enviar um ofício ao setor de RH para desconto em folha de pagamento. Poderia me informar o e-mail do setor responsável?\n\n'
            + 'Agradeço desde já. 🙏';
