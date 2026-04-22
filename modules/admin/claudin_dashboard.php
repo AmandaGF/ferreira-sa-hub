@@ -241,8 +241,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
             <a href="<?= htmlspecialchars(module_url('admin', 'djen_importar.php'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-outline btn-sm">📬 Ver pendências</a>
-            <button onclick="clAtualizar()" class="btn btn-outline btn-sm">🔄 Atualizar</button>
-            <button onclick="clAbrirModalRodar()" class="btn btn-primary btn-sm" style="background:#B87333;">▶️ Rodar agora (manual)</button>
+            <a href="<?= htmlspecialchars(module_url('admin', 'claudin_backfill.php'), ENT_QUOTES, 'UTF-8') ?>" class="btn btn-outline btn-sm" style="border-color:#6366f1;color:#4338ca;" title="Puxar período retroativo (vários dias de uma vez)">🔄 Backfill retroativo</a>
+            <button onclick="clAtualizar()" class="btn btn-outline btn-sm">Atualizar</button>
+            <button onclick="clAbrirModalRodar()" class="btn btn-primary btn-sm" style="background:#B87333;">▶️ Rodar 1 dia</button>
             <span id="clStatusExec" class="cl-running" style="display:none;"><span class="cl-spinner"></span>Execução em andamento...</span>
         </div>
     </div>
