@@ -583,31 +583,34 @@ function template_prevjud($d) {
 }
 
 // ═══════════════════════════════════════════════════════
-// CIÊNCIA
+// CIÊNCIA (versão simplificada — modelo curto e direto)
 // ═══════════════════════════════════════════════════════
 function template_ciencia($d) {
     $esc = escritorioData();
-    $html = '<div class="doc-title">PETIÇÃO DE CIÊNCIA</div>';
+    $html = '';
 
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
-    $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'r. decisão/despacho de id. _______________';
+    // "objeto_ciencia" representa o que se dá ciência (ex: "ao acrescido", "à r. decisão", "à juntada")
+    $objetoCiencia = isset($d['objeto_ciencia']) && $d['objeto_ciencia'] ? $d['objeto_ciencia'] : 'ao acrescido';
 
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, manifestar</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' nos autos do processo em epígrafe, vem, respeitosamente, por intermédio de seus advogados que esta subscrevem, exarar</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CIÊNCIA</div>';
 
-    $html .= '<p>acerca da <strong>' . f($objetoCiencia) . '</strong>, proferida nos autos em epígrafe, declarando estar ciente de seu inteiro teor.</p>';
-
-    $reserva = isset($d['reserva_manifestacao']) && $d['reserva_manifestacao'] === 'sim';
-    if ($reserva) {
-        $html .= '<p>Desde já, <strong>reserva-se o direito de manifestação posterior</strong> no prazo legal, caso entenda necessário, ficando consignado que a presente ciência não importa em concordância tácita com o conteúdo da referida decisão.</p>';
+    // Formata "quanto" + objeto (ex: "quanto ao acrescido")
+    $objetoFmt = trim($objetoCiencia);
+    if (!preg_match('/^(ao|à|aos|às|quanto)/ui', $objetoFmt)) {
+        // Se o usuário não começou com preposição, assume "quanto ao"
+        $objetoFmt = 'quanto ao ' . $objetoFmt;
+    } elseif (!preg_match('/^quanto/ui', $objetoFmt)) {
+        $objetoFmt = 'quanto ' . $objetoFmt;
     }
+    $html .= '<p style="text-align:center;">' . f($objetoFmt) . '.</p>';
 
-    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
-    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+    $html .= '<div class="local-data" style="margin-top:2rem;">' . f($d['cidade_data']) . '</div>';
 
     $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
     $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';

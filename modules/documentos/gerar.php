@@ -709,15 +709,9 @@ if (!$showEditor) {
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
             </div>
             <div style="margin-bottom:.75rem;">
-                <label>Objeto da ciência (decisão, despacho, intimação...)</label>
-                <input name="objeto_ciencia" value="<?= e($objetoCiencia) ?>" placeholder="Ex: r. decisão de id. 123456 que deferiu a tutela de urgência">
-            </div>
-            <div style="margin-bottom:.75rem;">
-                <label>Reservar direito de manifestação posterior?</label>
-                <select name="reserva_manifestacao">
-                    <option value="sim" <?= $reservaManifestacao === 'sim' ? 'selected' : '' ?>>Sim</option>
-                    <option value="nao" <?= $reservaManifestacao === 'nao' ? 'selected' : '' ?>>Não</option>
-                </select>
+                <label>Do que se dá ciência? <span style="font-size:.7rem;color:#6b7280;">(padrão: "ao acrescido")</span></label>
+                <input name="objeto_ciencia" value="<?= e($objetoCiencia) ?>" placeholder="Ex: ao acrescido · à r. decisão · à juntada dos documentos">
+                <div style="font-size:.7rem;color:#6b7280;margin-top:3px;">💡 Se deixar em branco, usa "ao acrescido". Não precisa começar com "quanto" — o sistema adiciona automaticamente.</div>
             </div>
         </div>
         <?php endif; ?>
