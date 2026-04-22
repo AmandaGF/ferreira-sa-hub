@@ -37,7 +37,14 @@ if ($isColaborador) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = current_user_id();
 }
-if ($filterStatus) { $where[] = "cs.status = ?"; $params[] = $filterStatus; }
+// Por default, só mostra processos em andamento (esconde arquivados/cancelados/concluídos).
+// `?ver_arquivados=1` mostra todos. Se filtro status explícito foi escolhido, respeita.
+$verArquivados = (($_GET['ver_arquivados'] ?? '') === '1');
+if ($filterStatus) {
+    $where[] = "cs.status = ?"; $params[] = $filterStatus;
+} elseif (!$verArquivados) {
+    $where[] = "cs.status NOT IN ('arquivado','cancelado','concluido')";
+}
 if ($filterType) { $where[] = "cs.case_type = ?"; $params[] = $filterType; }
 if ($filterUser && !$isColaborador) { $where[] = "cs.responsible_user_id = ?"; $params[] = (int)$filterUser; }
 if ($search) {
@@ -181,11 +188,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .proc-filters { display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; }
 .proc-filter-sel { font-size:.75rem; padding:.35rem .5rem; border:1.5px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
 
-.proc-table { width:100%; border-collapse:collapse; font-size:.82rem; }
-.proc-table th { background:var(--petrol-900); color:#fff; padding:.55rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; letter-spacing:.5px; }
-.proc-table td { padding:.55rem .75rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+.proc-table { width:100%; border-collapse:collapse; font-size:.82rem; table-layout:fixed; }
+.proc-table th { background:var(--petrol-900); color:#fff; padding:.55rem .5rem; text-align:left; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; }
+.proc-table td { padding:.55rem .5rem; border-bottom:1px solid var(--border); vertical-align:middle; word-wrap:break-word; overflow-wrap:break-word; }
 .proc-table tr:hover { background:rgba(215,171,144,.04); }
-.proc-number { font-family:monospace; font-size:.78rem; color:var(--petrol-500); font-weight:600; }
+.proc-number { font-family:monospace; font-size:.72rem; color:var(--petrol-500); font-weight:600; white-space:nowrap; }
 .case-link { color:var(--petrol-900); font-weight:700; text-decoration:none; }
 .case-link:hover { color:var(--rose); }
 .client-link { color:var(--petrol-500); font-weight:600; text-decoration:none; }
@@ -333,6 +340,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </form>
     <div style="display:flex;gap:.5rem;">
+        <?php
+        // Toggle arquivados: preserva todos os outros filtros na URL
+        $qsSemArq = $_GET; unset($qsSemArq['ver_arquivados']);
+        $qsComArq = $qsSemArq; $qsComArq['ver_arquivados'] = '1';
+        ?>
+        <?php if ($verArquivados): ?>
+            <a href="?<?= http_build_query($qsSemArq) ?>" class="btn btn-outline btn-sm" style="border-color:#94a3b8;color:#475569;" title="Voltar a mostrar só em andamento">👁️ Só ativos</a>
+        <?php else: ?>
+            <a href="?<?= http_build_query($qsComArq) ?>" class="btn btn-outline btn-sm" style="border-color:#94a3b8;color:#475569;" title="Incluir processos arquivados/cancelados/concluídos na lista">📦 Ver arquivados</a>
+        <?php endif; ?>
         <?php if (has_min_role('gestao')): ?>
             <a href="<?= module_url('crm', 'importar_processos.php') ?>" class="btn btn-outline btn-sm">Importar CSV</a>
         <?php endif; ?>
@@ -350,6 +367,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     <?php else: ?>
         <table class="proc-table">
+            <colgroup>
+                <col style="width:12%;">  <!-- Nº Processo -->
+                <col style="width:11%;">  <!-- Cliente -->
+                <col style="width:17%;">  <!-- Título -->
+                <col style="width:11%;">  <!-- Tipo -->
+                <col style="width:12%;">  <!-- Vara/Tribunal -->
+                <col style="width:9%;">   <!-- Status -->
+                <col style="width:8%;">   <!-- Prioridade -->
+                <col style="width:6%;">   <!-- Responsável -->
+                <col style="width:7%;">   <!-- Último Andamento -->
+                <col style="width:4%;">   <!-- Audiência -->
+                <col style="width:3%;">   <!-- Prazo -->
+            </colgroup>
             <thead><tr>
                 <th>Nº Processo</th>
                 <th>Cliente</th>
@@ -359,8 +389,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <th>Status</th>
                 <th>Prioridade</th>
                 <th>Responsável</th>
-                <th>Último Andamento</th>
-                <th>Audiência</th>
+                <th>Último And.</th>
+                <th>Aud.</th>
                 <th>Prazo</th>
             </tr></thead>
             <tbody>
