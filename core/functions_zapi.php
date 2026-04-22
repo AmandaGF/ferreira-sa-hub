@@ -415,9 +415,10 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
 
     // 2) Se NÃO é grupo, tenta achar conversa existente do mesmo contato que
     //    tenha sido gravada com outro formato (telefone real vs @lid do Multi-Device).
-    //    Match pelos últimos 10 dígitos é forte: número brasileiro completo
-    //    (DDD+9+8) cabe aí, e IDs @lid que colidissem por acaso nesses 10 dígitos
-    //    seriam uma coincidência altamente improvável.
+    //    Match pelos últimos 10 dígitos é forte APENAS pra telefones reais entre si
+    //    — pra casos @lid vs número real, os dígitos NÃO batem (o @lid é ID interno
+    //    do Multi-Device, não derivado do telefone). Por isso, se esse match falhar
+    //    e o nome_contato foi passado, cai na estratégia 3 (match por nome).
     if (!$ehGrupo) {
         $digitsOnly = preg_replace('/\D/', '', str_replace(array('@lid','@g.us'), '', $telefone_norm));
         if (strlen($digitsOnly) >= 10) {
@@ -428,6 +429,39 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
                                  ORDER BY ultima_msg_em DESC LIMIT 1");
             $q2->execute(array($inst['id'], $ult10));
             $conv = $q2->fetch();
+            if ($conv) return $conv;
+        }
+    }
+
+    // 3) Match por NOME_CONTATO — resolve o caso @lid vs número real do
+    //    mesmo contato, onde os dígitos do telefone não coincidem mas o nome sim.
+    //    FIX principal do bug de duplicação: antes essa função criava conversa
+    //    nova quando @lid chegava, mesmo existindo outra com mesmo nome.
+    if (!$ehGrupo && $nome_contato && mb_strlen(trim($nome_contato)) >= 3) {
+        // 3a) Match EXATO (case-insensitive, trimmed)
+        $q3 = $pdo->prepare("SELECT * FROM zapi_conversas
+                             WHERE instancia_id = ?
+                               AND LOWER(TRIM(nome_contato)) = LOWER(TRIM(?))
+                               AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                             ORDER BY ultima_msg_em DESC LIMIT 1");
+        $q3->execute(array($inst['id'], $nome_contato));
+        $conv = $q3->fetch();
+        if ($conv) return $conv;
+
+        // 3b) Match por PRIMEIRO NOME — cobre "Luiz" vs "Luiz Eduardo"
+        $primeiroNome = trim(explode(' ', trim($nome_contato))[0]);
+        if (mb_strlen($primeiroNome) >= 3) {
+            $q4 = $pdo->prepare("SELECT * FROM zapi_conversas
+                                 WHERE instancia_id = ?
+                                   AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                   AND (
+                                       LOWER(nome_contato) LIKE LOWER(?)
+                                       OR LOWER(?) LIKE CONCAT(LOWER(SUBSTRING_INDEX(nome_contato,' ',1)), '%')
+                                   )
+                                   AND ultima_msg_em >= DATE_SUB(NOW(), INTERVAL 90 DAY)
+                                 ORDER BY ultima_msg_em DESC LIMIT 1");
+            $q4->execute(array($inst['id'], $primeiroNome . '%', $nome_contato));
+            $conv = $q4->fetch();
             if ($conv) return $conv;
         }
     }
