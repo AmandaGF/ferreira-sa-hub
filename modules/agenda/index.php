@@ -814,6 +814,13 @@ function renderLista() {
                 if (obsInterna) html += '<b>📋 Obs. internas:</b> ' + esc(obsInterna);
                 return html + '</div>';
             })() +
+            // Alerta: Balcão Virtual pendente com andamentos novos no processo após a criação do evento
+            (_isBalcao && !_done && !_nc && !_remc && (ev.andamentos_novos|0) > 0 && ev.case_id ?
+                '<div style="margin-top:.4rem;padding:.5rem .7rem;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">' +
+                    '<span style="font-size:.78rem;color:#7c2d12;font-weight:700;">⚠️ Processo teve ' + (ev.andamentos_novos|0) + ' novo(s) andamento(s) após o agendamento — o balcão ainda é necessário?</span>' +
+                    '<a href="<?= module_url("operacional", "caso_ver.php?id=") ?>' + ev.case_id + '#andamentos" style="font-size:.72rem;padding:3px 10px;background:#b45309;color:#fff;border-radius:4px;text-decoration:none;font-weight:700;">Ver andamentos →</a>' +
+                '</div>'
+            : '') +
             '<div class="ag-lc-acoes">' + acoesHtml + '</div></div></div>';
     }).join('');
 }

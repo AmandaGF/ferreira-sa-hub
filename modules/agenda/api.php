@@ -33,7 +33,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         $sql = "SELECT e.*, c.name as client_name, c.phone as client_phone,
                        cs.title as case_title, cs.case_number,
-                       u.name as responsavel_name
+                       u.name as responsavel_name,
+                       (SELECT COUNT(*) FROM case_andamentos ca
+                        WHERE ca.case_id = e.case_id
+                          AND ca.created_at > e.created_at
+                          AND ca.tipo NOT IN ('oficio','chamado')) AS andamentos_novos
                 FROM agenda_eventos e
                 LEFT JOIN clients c ON c.id = e.client_id
                 LEFT JOIN cases cs ON cs.id = e.case_id
