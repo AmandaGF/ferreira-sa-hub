@@ -155,6 +155,10 @@ $menuItems = array(
 .sidebar.collapsed .sidebar-footer { padding:.5rem;flex-direction:column;gap:.3rem; }
 .sidebar.collapsed .btn-logout { font-size:.7rem; }
 .sidebar.collapsed + .app-layout { margin-left:60px !important; }
+/* Fix principal: quando sidebar colapsa, main-content precisa reduzir margin-left.
+   Antes: ficava com margin-left:260px fixo, deixando gap entre sidebar (60px) e conteúdo. */
+body.sidebar-collapsed .main-content { margin-left:60px !important; transition: margin-left .15s; }
+.main-content { transition: margin-left .15s; }
 .sidebar.collapsed .sidebar-controls { flex-direction:column;padding:.3rem; }
 .sidebar.collapsed .sidebar-controls button { padding:4px;font-size:.85rem; }
 /* Controles do sidebar */
@@ -492,6 +496,8 @@ body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
 function toggleSidebarCollapse() {
     var sb = document.getElementById('sidebar');
     sb.classList.toggle('collapsed');
+    // Sincroniza classe no body — usado pro CSS do .main-content ajustar margin
+    document.body.classList.toggle('sidebar-collapsed', sb.classList.contains('collapsed'));
     var btn = document.getElementById('btnCollapse');
     if (sb.classList.contains('collapsed')) {
         btn.innerHTML = '▶';
@@ -664,6 +670,7 @@ function _sidebarRestorePrefs() {
         if (localStorage.getItem('sidebar_collapsed') === '1') {
             var sb = document.getElementById('sidebar');
             if (sb) sb.classList.add('collapsed');
+            document.body.classList.add('sidebar-collapsed');
             var bc = document.getElementById('btnCollapse');
             if (bc) { bc.innerHTML = '▶'; bc.title = 'Expandir menu'; }
         }
