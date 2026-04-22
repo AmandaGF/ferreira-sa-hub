@@ -88,13 +88,15 @@ require_once APP_ROOT . '/templates/sidebar.php';
                     function bgRender(grupos) {
                         var base = '<?= rtrim(url(''), '/') ?>';
                         var labels = {
-                            clientes:  'Clientes',
-                            processos: 'Processos',
-                            leads:     'Leads',
-                            tarefas:   'Minhas tarefas',
-                            wiki:      'Wiki'
+                            clientes:   'Clientes',
+                            processos:  'Processos',
+                            leads:      'Leads',
+                            tarefas:    'Tarefas',
+                            chamados:   'Chamados',
+                            andamentos: 'Andamentos',
+                            wiki:       'Wiki'
                         };
-                        var ordem = ['clientes','processos','leads','tarefas','wiki'];
+                        var ordem = ['clientes','processos','leads','tarefas','chamados','andamentos','wiki'];
                         var html = '';
                         var total = 0;
                         ordem.forEach(function(k){

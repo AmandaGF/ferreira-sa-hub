@@ -49,17 +49,21 @@ try {
     }
 } catch (Exception $e) {}
 
-// ── PROCESSOS ──
+// ── PROCESSOS ── (busca também por nome do cliente e partes)
 try {
     $stmt = $pdo->prepare(
-        "SELECT c.id, c.title AS titulo, c.case_number AS subtitulo, cl.name AS cliente_nome
+        "SELECT DISTINCT c.id, c.title AS titulo, c.case_number AS subtitulo, cl.name AS cliente_nome, c.updated_at
          FROM cases c
          LEFT JOIN clients cl ON cl.id = c.client_id
-         WHERE c.title LIKE ? OR c.case_number LIKE ?
+         LEFT JOIN case_partes cp ON cp.case_id = c.id
+         WHERE c.title LIKE ?
+            OR c.case_number LIKE ?
+            OR cl.name LIKE ?
+            OR cp.nome LIKE ?
          ORDER BY (c.title LIKE ?) DESC, c.updated_at DESC
-         LIMIT 5"
+         LIMIT 8"
     );
-    $stmt->execute(array($like, $like, $q . '%'));
+    $stmt->execute(array($like, $like, $like, $like, $q . '%'));
     $rows = $stmt->fetchAll();
     if ($rows) {
         $grupos['processos'] = array();
@@ -102,30 +106,108 @@ try {
     }
 } catch (Exception $e) {}
 
-// ── MINHAS TAREFAS ──
+// ── TAREFAS ── (ampliada: busca em título, descrição, cliente vinculado e caso; todas as tarefas do sistema)
 try {
     $stmt = $pdo->prepare(
-        "SELECT t.id, t.title AS titulo, t.due_date, t.status, c.title AS case_title
+        "SELECT DISTINCT t.id, t.title AS titulo, t.descricao, t.due_date, t.status, t.assigned_to, t.case_id,
+                c.title AS case_title, cl.name AS cliente_nome, u.name AS responsavel_nome
          FROM case_tasks t
          LEFT JOIN cases c ON c.id = t.case_id
-         WHERE t.title LIKE ? AND t.assigned_to = ? AND t.status != 'concluido'
-         ORDER BY (t.title LIKE ?) DESC, t.due_date ASC
-         LIMIT 3"
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         LEFT JOIN users u ON u.id = t.assigned_to
+         WHERE t.title LIKE ?
+            OR t.descricao LIKE ?
+            OR cl.name LIKE ?
+            OR c.title LIKE ?
+         ORDER BY (t.assigned_to = ?) DESC, (t.status != 'concluido') DESC, (t.title LIKE ?) DESC, t.due_date ASC
+         LIMIT 8"
     );
-    $stmt->execute(array($like, $userId, $q . '%'));
+    $stmt->execute(array($like, $like, $like, $like, $userId, $q . '%'));
     $rows = $stmt->fetchAll();
     if ($rows) {
         $grupos['tarefas'] = array();
         foreach ($rows as $r) {
             $sub = '';
-            if ($r['due_date']) $sub = 'Prazo: ' . date('d/m', strtotime($r['due_date']));
+            if ($r['status'] === 'concluido' || $r['status'] === 'feito') $sub = '✓ Concluída';
+            elseif ($r['due_date']) $sub = 'Prazo: ' . date('d/m', strtotime($r['due_date']));
             if ($r['case_title']) $sub = ($sub ? $sub . ' • ' : '') . $r['case_title'];
+            elseif ($r['cliente_nome']) $sub = ($sub ? $sub . ' • ' : '') . $r['cliente_nome'];
+            if ($r['responsavel_nome'] && (int)$r['assigned_to'] !== $userId) {
+                $sub = ($sub ? $sub . ' • ' : '') . 'de ' . explode(' ', $r['responsavel_nome'])[0];
+            }
+            $url = 'modules/tarefas/';
+            if ($r['case_id']) $url = 'modules/operacional/caso_ver.php?id=' . (int)$r['case_id'] . '#tarefa-' . (int)$r['id'];
             $grupos['tarefas'][] = array(
                 'id'        => (int)$r['id'],
                 'titulo'    => $r['titulo'],
                 'subtitulo' => $sub,
-                'url'       => 'modules/tarefas/',
+                'url'       => $url,
                 'icon'      => '📋',
+            );
+        }
+    }
+} catch (Exception $e) {}
+
+// ── CHAMADOS (helpdesk) ──
+try {
+    $stmt = $pdo->prepare(
+        "SELECT h.id, h.titulo, h.status, h.prioridade, h.created_at,
+                cl.name AS cliente_nome, cs.title AS case_title
+         FROM helpdesk_tickets h
+         LEFT JOIN clients cl ON cl.id = h.client_id
+         LEFT JOIN cases cs ON cs.id = h.caso_id
+         WHERE h.titulo LIKE ?
+            OR h.descricao LIKE ?
+            OR cl.name LIKE ?
+            OR cs.title LIKE ?
+         ORDER BY h.created_at DESC
+         LIMIT 5"
+    );
+    $stmt->execute(array($like, $like, $like, $like));
+    $rows = $stmt->fetchAll();
+    if ($rows) {
+        $grupos['chamados'] = array();
+        foreach ($rows as $r) {
+            $sub = $r['status'] ? ucfirst($r['status']) : '';
+            if ($r['cliente_nome']) $sub = ($sub ? $sub . ' • ' : '') . $r['cliente_nome'];
+            elseif ($r['case_title']) $sub = ($sub ? $sub . ' • ' : '') . $r['case_title'];
+            $grupos['chamados'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => $r['titulo'] ?: 'Chamado #' . $r['id'],
+                'subtitulo' => $sub,
+                'url'       => 'modules/helpdesk/ver.php?id=' . (int)$r['id'],
+                'icon'      => '🎫',
+            );
+        }
+    }
+} catch (Exception $e) {}
+
+// ── ANDAMENTOS (descrição) — acha texto solto em qualquer andamento ──
+try {
+    $stmt = $pdo->prepare(
+        "SELECT a.id, a.case_id, a.descricao, a.data_andamento, a.tipo,
+                c.title AS case_title, cl.name AS cliente_nome
+         FROM case_andamentos a
+         LEFT JOIN cases c ON c.id = a.case_id
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         WHERE a.descricao LIKE ?
+         ORDER BY a.data_andamento DESC, a.id DESC
+         LIMIT 5"
+    );
+    $stmt->execute(array($like));
+    $rows = $stmt->fetchAll();
+    if ($rows) {
+        $grupos['andamentos'] = array();
+        foreach ($rows as $r) {
+            $preview = mb_substr(preg_replace('/\s+/', ' ', (string)$r['descricao']), 0, 80, 'UTF-8');
+            $sub = $r['case_title'] ?: ($r['cliente_nome'] ?: '');
+            if ($r['data_andamento']) $sub = date('d/m/Y', strtotime($r['data_andamento'])) . ($sub ? ' • ' . $sub : '');
+            $grupos['andamentos'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => $preview,
+                'subtitulo' => $sub,
+                'url'       => 'modules/operacional/caso_ver.php?id=' . (int)$r['case_id'] . '#andamento-' . (int)$r['id'],
+                'icon'      => '📝',
             );
         }
     }
