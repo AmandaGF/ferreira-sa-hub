@@ -20,12 +20,13 @@
  *   (todo dia às 2:30 da madrugada)
  */
 
-header('Content-Type: text/plain; charset=utf-8');
-
-if (php_sapi_name() !== 'cli') {
-    if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
-        http_response_code(403);
-        exit('Chave inválida.');
+if (!defined('WA_BACKUP_FROM_TRIGGER')) {
+    header('Content-Type: text/plain; charset=utf-8');
+    if (php_sapi_name() !== 'cli') {
+        if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
+            http_response_code(403);
+            exit('Chave inválida.');
+        }
     }
 }
 
