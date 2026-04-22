@@ -1900,8 +1900,100 @@ foreach ($tarefasReais as $_t) {
                     <span>&#128274; Interno</span>
                 </label>
             </div>
-            <textarea name="descricao" class="form-input" rows="2" placeholder="Descreva o andamento..." required style="width:100%;font-size:.85rem;"></textarea>
+            <div style="position:relative;">
+                <textarea name="descricao" id="andDescricaoNova" class="form-input" rows="2" placeholder="Descreva o andamento... (digite / pra usar modelos rápidos)" required style="width:100%;font-size:.85rem;"></textarea>
+                <!-- Dropdown de modelos rápidos (ativado com / no início) -->
+                <div id="andSlashDrop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #052228;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;max-height:300px;overflow-y:auto;margin-top:2px;"></div>
+            </div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:3px;">💡 Dica: digite <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">/</code> no início do campo pra ver modelos rápidos de andamento.</div>
         </form>
+        <script>
+        (function(){
+            var MODELOS_ANDAMENTO = [
+                {atalho:'ciencia', tipo:'intimacao', titulo:'Ciência', texto:'Ciência quanto ao acrescido.'},
+                {atalho:'juntada', tipo:'peticao_juntada', titulo:'Juntada de documentos', texto:'Protocolada petição juntando os documentos requeridos nos autos.'},
+                {atalho:'apelacao', tipo:'recurso', titulo:'Recurso de Apelação', texto:'Interposto recurso de apelação em face da r. sentença. Aguardando processamento.'},
+                {atalho:'contrarrazoes', tipo:'peticao_juntada', titulo:'Contrarrazões apresentadas', texto:'Apresentadas as contrarrazões ao recurso de apelação interposto pela parte contrária.'},
+                {atalho:'encerrado', tipo:'observacao', titulo:'Processo Encerrado', texto:'Processo encerrado. Agradecemos a confiança depositada em nosso escritório e permanecemos à disposição para qualquer nova demanda que possa surgir.'},
+                {atalho:'sentenca-favoravel', tipo:'decisao', titulo:'Sentença Favorável', texto:'Proferida sentença favorável ao nosso cliente. Aguardando trânsito em julgado para tomada das providências cabíveis.'},
+                {atalho:'audiencia-designada', tipo:'audiencia', titulo:'Audiência designada', texto:'Designada audiência para o dia ___/___/____, às ___:___h. Cliente foi comunicado(a).'},
+                {atalho:'acordo-homologado', tipo:'decisao', titulo:'Acordo Homologado', texto:'Acordo entre as partes homologado judicialmente. Aguardando cumprimento.'},
+                {atalho:'impugnacao', tipo:'peticao_juntada', titulo:'Impugnação apresentada', texto:'Apresentada impugnação à contestação / documentos juntados pela parte contrária.'},
+                {atalho:'audiencia-realizada', tipo:'audiencia', titulo:'Audiência realizada', texto:'Audiência realizada nesta data. Registrado em ata o que foi deliberado.'},
+                {atalho:'tutela-deferida', tipo:'decisao', titulo:'Tutela deferida', texto:'Tutela de urgência deferida. Cliente comunicado(a) das medidas determinadas.'},
+                {atalho:'cumprimento', tipo:'peticao_juntada', titulo:'Cumprimento de sentença', texto:'Iniciado o cumprimento de sentença. Requerida a intimação do executado para pagamento.'},
+                {atalho:'citacao', tipo:'citacao', titulo:'Citação realizada', texto:'Parte ré regularmente citada, aguardando prazo de resposta.'},
+                {atalho:'transito', tipo:'observacao', titulo:'Trânsito em julgado', texto:'Decorrido o prazo sem interposição de recurso, a sentença transitou em julgado.'},
+            ];
+            var textarea = document.getElementById('andDescricaoNova');
+            var dropdown = document.getElementById('andSlashDrop');
+            if (!textarea || !dropdown) return;
+
+            var idxSel = 0;
+            var filtrados = [];
+
+            function render(list) {
+                if (!list.length) { dropdown.innerHTML = '<div style="padding:10px;color:#94a3b8;font-size:.78rem;">Nenhum modelo encontrado</div>'; return; }
+                var h = '<div style="padding:6px 10px;font-size:.65rem;font-weight:700;color:#B87333;text-transform:uppercase;letter-spacing:.5px;background:#fff;border-bottom:1px solid #f1f5f9;">📝 Modelos rápidos</div>';
+                list.forEach(function(m, i) {
+                    var isSel = i === idxSel;
+                    h += '<div class="and-slash-item" data-idx="' + i + '" style="padding:8px 12px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f1f5f9;' + (isSel?'background:#fef3c7':'') + '">'
+                       +   '<div style="font-weight:600;color:#052228;">' + escAND(m.titulo) + '</div>'
+                       +   '<div style="font-size:.7rem;color:#64748b;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escAND(m.texto.substring(0,90)) + (m.texto.length>90?'...':'') + '</div>'
+                       + '</div>';
+                });
+                dropdown.innerHTML = h;
+                // Click handlers
+                dropdown.querySelectorAll('.and-slash-item').forEach(function(el) {
+                    el.addEventListener('mousedown', function(ev){ ev.preventDefault(); aplicar(parseInt(el.dataset.idx)); });
+                    el.addEventListener('mouseover', function() { idxSel = parseInt(el.dataset.idx); render(filtrados); });
+                });
+            }
+            function escAND(s) { return (s||'').replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+            function aplicar(i) {
+                var m = filtrados[i]; if (!m) return;
+                textarea.value = m.texto;
+                dropdown.style.display = 'none';
+                // Seta o tipo correspondente no select
+                var tipoSel = document.querySelector('form[action*="api"] select[name="tipo"]');
+                if (tipoSel && m.tipo) {
+                    var opt = tipoSel.querySelector('option[value="' + m.tipo + '"]');
+                    if (opt) tipoSel.value = m.tipo;
+                }
+                textarea.focus();
+            }
+            function filtrar(termo) {
+                var t = (termo || '').toLowerCase().trim();
+                if (!t) return MODELOS_ANDAMENTO;
+                return MODELOS_ANDAMENTO.filter(function(m) {
+                    return m.atalho.indexOf(t) !== -1 || m.titulo.toLowerCase().indexOf(t) !== -1 || m.texto.toLowerCase().indexOf(t) !== -1;
+                });
+            }
+            textarea.addEventListener('input', function() {
+                var v = this.value;
+                if (v.length && v.charAt(0) === '/') {
+                    var termo = v.substring(1);
+                    filtrados = filtrar(termo);
+                    idxSel = 0;
+                    render(filtrados);
+                    dropdown.style.display = 'block';
+                } else {
+                    dropdown.style.display = 'none';
+                }
+            });
+            textarea.addEventListener('keydown', function(e) {
+                if (dropdown.style.display === 'none') return;
+                if (e.key === 'ArrowDown') { e.preventDefault(); idxSel = Math.min(idxSel+1, filtrados.length-1); render(filtrados); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); idxSel = Math.max(idxSel-1, 0); render(filtrados); }
+                else if (e.key === 'Enter' && filtrados.length) { e.preventDefault(); aplicar(idxSel); }
+                else if (e.key === 'Escape') { dropdown.style.display = 'none'; }
+            });
+            textarea.addEventListener('blur', function() {
+                // Timeout pra permitir clique no dropdown registrar antes de fechar
+                setTimeout(function(){ dropdown.style.display = 'none'; }, 200);
+            });
+        })();
+        </script>
 
         <?php
         // Buscar publicacoes do caso
