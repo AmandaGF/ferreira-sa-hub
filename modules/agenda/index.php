@@ -787,13 +787,22 @@ function renderLista() {
         var _badge = _done ? 'Realizado' : _nc ? 'N\u00e3o compareceu' : _remc ? 'Remarcado' : label;
         var _icon = _done ? '\u2705 ' : _nc ? '\u26A0\uFE0F ' : _remc ? '\uD83D\uDD04 ' : (isTask ? '\u2705 ' : '');
 
+        // Se é Balcão Virtual, transformar o badge em link direto pro Balcão do tribunal detectado
+        var _badgeHtml;
+        if (_isBalcao && !_done && !_nc && !_remc) {
+            var _url = _detectarBalcaoUrl(ev.titulo || '', ev.case_number || '');
+            _badgeHtml = '<a href="' + _url + '" target="_blank" title="Abrir Balcão Virtual do tribunal em nova aba" class="ag-lc-badge" style="background:' + _dotCor + ';color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:3px;">🔗 ' + _badge + '</a>';
+        } else {
+            _badgeHtml = '<div class="ag-lc-badge" style="background:' + _dotCor + '">' + _badge + '</div>';
+        }
+
         return '<div class="ag-lista-item">' +
             '<div class="ag-lista-hora"' + ((_done||_nc||_remc) ? ' style="opacity:.5;"' : '') + '>' + hr + '</div>' +
             '<div class="ag-lista-linha"><div class="ag-lista-dot" style="background:' + _dotCor + '"></div>' +
             (i < evsFilt.length-1 ? '<div class="ag-lista-fio"></div>' : '') + '</div>' +
             '<div class="ag-lista-card" style="border-left-color:' + _dotCor + ';' + _cardSt + '">' +
             '<div class="ag-lc-topo"><div class="ag-lc-titulo" style="' + _titSt + '">' + _icon + esc(ev.titulo) + '</div>' +
-            '<div class="ag-lc-badge" style="background:' + _dotCor + '">' + _badge + '</div></div>' +
+            _badgeHtml + '</div>' +
             '<div class="ag-lc-info">' +
             (ev.dia_todo != 1 ? '<span>\uD83D\uDD50 ' + hr + (durStr ? ' \u00b7 ' + durStr : '') + '</span>' : '') +
             (ev.meet_link ? '<span>\uD83C\uDFA5 Google Meet</span>' : '') +
@@ -1830,6 +1839,46 @@ function getDataSelecionada() {
 function fmtDate(d) { return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function fmtDatetime(d) { return fmtDate(d)+'T'+pad(d.getHours())+':'+pad(d.getMinutes()); }
 function esc(s) { if (!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Detecta URL do Balcão Virtual do tribunal com base no título e/ou número do processo CNJ
+// Número CNJ padrão: NNNNNNN-DD.AAAA.J.TR.OOOO — TR é código de 2 dígitos (.19=RJ, .26=SP etc)
+function _detectarBalcaoUrl(titulo, caseNumber) {
+    var mapa = {
+        // Código CNJ → URL do Balcão Virtual
+        '8.19': 'https://www.tjrj.jus.br/web/guest/balcao-virtual',      // TJRJ
+        '8.26': 'https://www.tjsp.jus.br/BalcaoVirtual',                 // TJSP
+        '8.13': 'https://www.tjmg.jus.br/portal-tjmg/servicos/balcao-virtual/', // TJMG
+        '8.08': 'https://www.tjes.jus.br/balcao-virtual',                // TJES
+        '8.07': 'https://www.tjdft.jus.br/servicos/balcao-virtual',      // TJDFT
+        '8.05': 'https://www.tjba.jus.br/portal/balcao-virtual/',        // TJBA
+        '8.06': 'https://www.tjce.jus.br/balcao-virtual/',               // TJCE
+        '8.21': 'https://www.tjrs.jus.br/novo/balcao-virtual/',          // TJRS
+        '8.16': 'https://www.tjpr.jus.br/balcao-virtual',                // TJPR
+        '8.24': 'https://www.tjsc.jus.br/balcao-virtual',                // TJSC
+    };
+    // Mapa por sigla (detectada no título)
+    var mapaSigla = {
+        'TJRJ': mapa['8.19'], 'TJSP': mapa['8.26'], 'TJMG': mapa['8.13'],
+        'TJES': mapa['8.08'], 'TJDFT': mapa['8.07'], 'TJBA': mapa['8.05'],
+        'TJCE': mapa['8.06'], 'TJRS': mapa['8.21'], 'TJPR': mapa['8.16'],
+        'TJSC': mapa['8.24'],
+    };
+    // 1. Tenta extrair código do CNJ (ex: 1007120-60.2018.8.26.0127 → 8.26)
+    if (caseNumber) {
+        var m = caseNumber.match(/\.(\d{1})\.(\d{2})\./);
+        if (m) {
+            var cod = m[1] + '.' + m[2];
+            if (mapa[cod]) return mapa[cod];
+        }
+    }
+    // 2. Tenta achar sigla TJXX no título
+    var t = (titulo || '').toUpperCase();
+    for (var s in mapaSigla) {
+        if (t.indexOf(s) !== -1) return mapaSigla[s];
+    }
+    // 3. Fallback: Balcão Virtual TJRJ (tribunal principal do escritório)
+    return mapa['8.19'];
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
