@@ -430,6 +430,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- ═══════════════════ RELATÓRIOS ESPECIAIS ═══════════════════ -->
+<div class="card" style="margin-top:1.5rem;">
+    <div class="card-header"><h3>📊 Relatórios especiais</h3></div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.75rem;">
+            <a href="<?= module_url('relatorios', 'despesas_mensais.php') ?>" class="export-btn" style="padding:.9rem 1rem;font-size:.85rem;font-weight:700;background:linear-gradient(135deg,#fef3c7,#fed7aa);color:#7c2d12;border:1px solid #fb923c;border-radius:10px;text-decoration:none;">
+                💰 Despesas Mensais — Cálculo de Pensão
+                <div style="font-size:.68rem;font-weight:400;color:#92400e;margin-top:.2rem;">Visualização consolidada das respostas dos clientes (KPIs + gráfico + detalhamento por categoria)</div>
+            </a>
+            <a href="<?= module_url('relatorios', 'produtividade.php') ?>" class="export-btn" style="padding:.9rem 1rem;font-size:.85rem;font-weight:700;background:linear-gradient(135deg,#dbeafe,#bfdbfe);color:#1e3a8a;border:1px solid #3b82f6;border-radius:10px;text-decoration:none;">
+                🏆 Produtividade por Usuário
+                <div style="font-size:.68rem;font-weight:400;color:#1e40af;margin-top:.2rem;">Ranking mensal com contratos, prazos, pontos, tarefas</div>
+            </a>
+        </div>
+    </div>
+</div>
+
 <!-- ═══════════════════ CENTRAL DE EXPORTAÇÕES ═══════════════════ -->
 <div class="card" style="margin-top:1.5rem;">
     <div class="card-header"><h3>📥 Central de Exportações (CSV)</h3></div>
