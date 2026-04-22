@@ -10,7 +10,8 @@ if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error'
 $pdo = db();
 $userId = current_user_id();
 
-// Self-heal: colunas pro resumo e orientação gerados por IA
+// Self-heal: colunas pra resumo e orientação (preenchidas quando o texto colado já vier com
+// linhas "Resumo:" e "Orientação:" — típico de texto formatado pelo Claude Cowork).
 try { $pdo->exec("ALTER TABLE case_publicacoes ADD COLUMN resumo_ia TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE case_publicacoes ADD COLUMN orientacao_ia TEXT NULL"); } catch (Exception $e) {}
 
@@ -19,80 +20,6 @@ $usuarios = array();
 try {
     $usuarios = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 } catch (Exception $e) {}
-
-/**
- * Chama Claude Haiku pra gerar resumo curto + orientação de prazo/ação da publicação.
- * Retorna array('resumo'=>'', 'orientacao'=>'') — ou vazio em caso de falha.
- */
-function gerar_resumo_publicacao_ia($conteudo, $tipo, $dataDisp) {
-    $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
-    if (!$apiKey) return array('resumo' => '', 'orientacao' => '');
-
-    $tipoLbl = array(
-        'intimacao' => 'Intimação', 'citacao' => 'Citação', 'despacho' => 'Despacho',
-        'decisao' => 'Decisão', 'sentenca' => 'Sentença', 'acordao' => 'Acórdão',
-        'edital' => 'Edital', 'outro' => 'Publicação',
-    );
-    $lbl = isset($tipoLbl[$tipo]) ? $tipoLbl[$tipo] : 'Publicação';
-    $dataFmt = date('d/m/Y', strtotime($dataDisp));
-
-    $conteudo = mb_substr(trim($conteudo), 0, 4000, 'UTF-8');
-
-    $systemPrompt = "Você é um paralegal experiente de um escritório de advocacia. Sua tarefa é analisar publicações do DJen e produzir dois outputs curtíssimos:\n\n"
-        . "1. RESUMO (máx 25 palavras): o que a publicação está comunicando, sem juridiquês.\n"
-        . "2. ORIENTAÇÃO (máx 35 palavras): o que o advogado deve fazer e em quanto tempo. Seja específico sobre prazo e data fatal quando der. Exemplos:\n"
-        . "   - \"Apelar em 15 dias úteis a partir de 23/04/2026.\"\n"
-        . "   - \"Apresentar contestação em 15 dias úteis. Resposta até 13/05/2026.\"\n"
-        . "   - \"Cumprir intimação anexando documento X no prazo de 5 dias úteis.\"\n"
-        . "   - \"Aguardar novo despacho. Sem prazo imediato.\"\n\n"
-        . "Responda EXCLUSIVAMENTE em JSON válido, sem markdown ou texto adicional, no formato:\n"
-        . '{"resumo":"...","orientacao":"..."}';
-
-    $userMsg = "Tipo: {$lbl}\nData de disponibilização: {$dataFmt}\n\nConteúdo:\n{$conteudo}";
-
-    $body = array(
-        'model' => 'claude-haiku-4-5',
-        'max_tokens' => 400,
-        'system' => $systemPrompt,
-        'messages' => array(array('role' => 'user', 'content' => $userMsg)),
-    );
-
-    $ch = curl_init('https://api.anthropic.com/v1/messages');
-    curl_setopt_array($ch, array(
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 25,
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => array(
-            'Content-Type: application/json',
-            'x-api-key: ' . $apiKey,
-            'anthropic-version: 2023-06-01',
-        ),
-        CURLOPT_POSTFIELDS => json_encode($body),
-        CURLOPT_SSL_VERIFYPEER => false,
-    ));
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($code < 200 || $code >= 300) {
-        @file_put_contents(APP_ROOT . '/files/djen_ia.log', '[' . date('Y-m-d H:i:s') . "] HTTP {$code}: " . substr($resp, 0, 300) . "\n", FILE_APPEND);
-        return array('resumo' => '', 'orientacao' => '');
-    }
-
-    $data = json_decode($resp, true);
-    $texto = isset($data['content'][0]['text']) ? trim($data['content'][0]['text']) : '';
-    if (!$texto) return array('resumo' => '', 'orientacao' => '');
-
-    // Extrai JSON (IA às vezes envolve em markdown)
-    if (preg_match('/\{.*\}/s', $texto, $m)) $texto = $m[0];
-    $json = json_decode($texto, true);
-    if (!is_array($json)) return array('resumo' => '', 'orientacao' => '');
-
-    return array(
-        'resumo' => isset($json['resumo']) ? trim($json['resumo']) : '',
-        'orientacao' => isset($json['orientacao']) ? trim($json['orientacao']) : '',
-    );
-}
 
 // ── Parser do texto bruto do DJen ──
 function parsear_djen($texto) {
@@ -164,6 +91,16 @@ function parsear_djen($texto) {
         }
         // Conteudo completo
         $pub['conteudo'] = $bloco;
+
+        // Resumo e Orientação (opcionais — se vierem já escritos no texto colado)
+        $pub['resumo'] = '';
+        $pub['orientacao'] = '';
+        if (preg_match('/(?:^|\n)\s*Resumo\s*[:\-]\s*(.+?)(?=\n\s*(?:Orienta[cç][aã]o|Conte[uú]do|Poder Judici)|\n\n|$)/uis', $bloco, $mR)) {
+            $pub['resumo'] = trim(preg_replace('/\s+/u', ' ', $mR[1]));
+        }
+        if (preg_match('/(?:^|\n)\s*Orienta[cç][aã]o\s*[:\-]\s*(.+?)(?=\n\s*(?:Conte[uú]do|Poder Judici|Resumo)|\n\n|$)/uis', $bloco, $mO)) {
+            $pub['orientacao'] = trim(preg_replace('/\s+/u', ' ', $mO[1]));
+        }
 
         // Comarca extraida do orgao
         if (preg_match('/Comarca\s+de\s+([^,\n]+)/ui', $pub['orgao'], $m)) {
@@ -240,10 +177,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $pub['prazo_dias'] = prazo_sugerido_djen($pub['tipo_comunicacao']);
             $pub['data_fim']   = calcular_data_fim_djen($pub['data_disp'], $pub['prazo_dias'], $pdo);
 
-            // Resumo + orientação via Claude Haiku (antes da dedup — se existe, vai refletir)
-            $ia = gerar_resumo_publicacao_ia($pub['conteudo'], $pub['tipo_comunicacao'], $pub['data_disp']);
-            $pub['resumo_ia'] = $ia['resumo'];
-            $pub['orientacao_ia'] = $ia['orientacao'];
+            // Resumo + orientação: usa o que foi extraído do texto colado (opcional).
+            // Se o texto vier sem essas linhas, os campos ficam vazios — sistema não gera nada.
+            $pub['resumo_ia'] = isset($pub['resumo']) ? $pub['resumo'] : '';
+            $pub['orientacao_ia'] = isset($pub['orientacao']) ? $pub['orientacao'] : '';
 
             // Verificar duplicata
             $pub['ja_importada'] = false;
@@ -525,16 +462,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <!-- Etapa 1: Colar texto -->
     <div class="djen-card">
-        <h3 style="margin:0 0 .8rem;font-size:.95rem;">1. Cole o texto copiado do DJen</h3>
+        <h3 style="margin:0 0 .8rem;font-size:.95rem;">1. Cole o texto das publicações</h3>
+        <details style="margin-bottom:.6rem;font-size:.75rem;">
+            <summary style="cursor:pointer;color:#6366f1;font-weight:600;">📋 Como o sistema separa as publicações? (clique pra ver)</summary>
+            <div style="margin-top:.5rem;padding:.6rem .8rem;background:#f8fafc;border-left:3px solid #6366f1;border-radius:4px;font-size:.72rem;line-height:1.6;">
+                Cada publicação precisa começar com a linha <code>Processo NNNNNNN-NN.AAAA.J.TR.NNNN</code> (CNJ completo). O sistema separa automaticamente quando detecta esse padrão.<br>
+                <br>
+                <strong>Campos reconhecidos:</strong><br>
+                • <code>Orgão:</code> vara/tribunal<br>
+                • <code>Data de disponibilização:</code> DD/MM/AAAA<br>
+                • <code>Tipo de comunicação:</code> Intimação / Citação / Edital...<br>
+                • <code>Parte(s)</code> e <code>Advogado(s)</code> em blocos<br>
+                • <code>Resumo:</code> (opcional) — resumo curto da publicação<br>
+                • <code>Orientação:</code> (opcional) — o que fazer e em quanto tempo<br>
+                <br>
+                Se o texto colado já vier com <strong>Resumo:</strong> e <strong>Orientação:</strong> escritos, o sistema extrai e exibe junto. Senão, fica em branco — sem geração automática.
+            </div>
+        </details>
         <form method="POST">
             <input type="hidden" name="action" value="parsear">
             <textarea name="texto_djen" id="textoDjen" class="form-input"
                 rows="10" style="width:100%;font-size:.78rem;font-family:monospace;resize:vertical;"
-                placeholder="Cole aqui o texto completo copiado do portal comunica.pje.jus.br..."></textarea>
+                placeholder="Cole aqui o texto completo das publicações..."></textarea>
             <div style="display:flex;gap:.6rem;align-items:center;margin-top:.6rem;flex-wrap:wrap;">
                 <button type="submit" class="btn btn-primary btn-sm">Identificar Publicações</button>
                 <button type="button" onclick="document.getElementById('textoDjen').value=''" class="btn btn-outline btn-sm">Limpar</button>
-                <span style="font-size:.72rem;color:var(--text-muted);">O sistema vai identificar cada processo e vincular às pastas automaticamente</span>
+                <span style="font-size:.72rem;color:var(--text-muted);">O sistema separa e vincula às pastas automaticamente</span>
             </div>
         </form>
     </div>
@@ -622,7 +575,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if (!empty($pub['resumo_ia']) || !empty($pub['orientacao_ia'])): ?>
                         <div class="ia-box">
                             <?php if (!empty($pub['resumo_ia'])): ?>
-                                <div><span class="ia-label">🤖 Resumo:</span> <?= e($pub['resumo_ia']) ?></div>
+                                <div><span class="ia-label">📝 Resumo:</span> <?= e($pub['resumo_ia']) ?></div>
                             <?php endif; ?>
                             <?php if (!empty($pub['orientacao_ia'])): ?>
                                 <div class="ia-orientacao"><span class="ia-label">⚖️ Orientação:</span> <?= e($pub['orientacao_ia']) ?></div>
