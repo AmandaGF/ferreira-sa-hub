@@ -86,6 +86,33 @@ function djen_parsear_texto($texto) {
     return $publicacoes;
 }
 
+/**
+ * Limpa conteúdo de publicação pra exibição em tela.
+ * A API DJEN devolve HTML completo (html/head/meta/style/body/section/b/...) —
+ * precisamos extrair só o texto legível, decodificar entidades (&oacute; → ó)
+ * e normalizar espaços em branco.
+ */
+function djen_conteudo_limpo($html, $maxLen = null) {
+    if ($html === null || $html === '') return '';
+    // Remove <head>, <style> e <script> (com conteúdo)
+    $txt = preg_replace('#<(head|style|script)[^>]*>.*?</\1>#si', ' ', $html);
+    // Substitui tags de bloco e <br> por quebra
+    $txt = preg_replace('#</(p|div|section|tr|li|h[1-6])>|<br\s*/?>#i', "\n", $txt);
+    // Tira todas as outras tags
+    $txt = strip_tags($txt);
+    // Decodifica entidades (&oacute; &ordm; &amp; etc)
+    $txt = html_entity_decode($txt, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    // Normaliza whitespace: \r\n → \n, colapsa linhas em branco extras, tira espaços em linha
+    $txt = str_replace("\r\n", "\n", $txt);
+    $txt = preg_replace("/[ \t]+/", ' ', $txt);
+    $txt = preg_replace("/\n{3,}/", "\n\n", $txt);
+    $txt = trim($txt);
+    if ($maxLen !== null && mb_strlen($txt) > $maxLen) {
+        $txt = mb_substr($txt, 0, $maxLen) . '…';
+    }
+    return $txt;
+}
+
 function djen_prazo_sugerido($tipo) {
     $prazos = array('intimacao'=>15,'citacao'=>15,'decisao'=>15,'sentenca'=>15,'despacho'=>5,'acordao'=>15,'edital'=>20,'outro'=>0);
     return isset($prazos[$tipo]) ? $prazos[$tipo] : 0;

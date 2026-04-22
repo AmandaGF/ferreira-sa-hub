@@ -7,6 +7,7 @@
  * Permite cumprir/descartar prazo e vincular/criar pasta pra órfãs.
  */
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_djen.php';
 require_login();
 if (!has_min_role('operacional')) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
@@ -303,7 +304,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <div class="ci-resumo" style="color:#B87333;font-weight:600;">⚖️ <?= e($it['orientacao']) ?></div>
                         <?php endif; ?>
                         <?php if (empty($it['resumo'])): ?>
-                            <div class="ci-preview"><?= e(mb_substr($it['conteudo_preview'] ?? '', 0, 180, 'UTF-8')) ?>...</div>
+                            <div class="ci-preview"><?= e(djen_conteudo_limpo($it['conteudo_full'] ?? '', 180)) ?></div>
                         <?php endif; ?>
                         <?php if ($it['orgao']): ?>
                             <div style="font-size:.66rem;color:#64748b;margin-top:3px;">🏛️ <?= e($it['orgao']) ?></div>

@@ -635,7 +635,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <?php endif; ?>
 
-            <div class="conteudo-txt" id="cpend<?= $pi['id'] ?>"><?= e(mb_substr($pi['conteudo'], 0, 250, 'UTF-8')) ?></div>
+            <div class="conteudo-txt" id="cpend<?= $pi['id'] ?>"><?= e(djen_conteudo_limpo($pi['conteudo'], 250)) ?></div>
             <button type="button" class="btn-expandir" onclick="var el=document.getElementById('cpend<?= $pi['id'] ?>');el.classList.toggle('expandido');el.style.maxHeight=el.classList.contains('expandido')?'none':'80px';">Ver completo</button>
 
             <?php if (!empty($partesArr)): ?>
@@ -791,7 +791,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                         <?php endif; ?>
 
-                        <div class="conteudo-txt" id="cont<?= $idx ?>"><?= e(mb_substr($pub['conteudo'], 0, 300, 'UTF-8')) ?></div>
+                        <div class="conteudo-txt" id="cont<?= $idx ?>"><?= e(djen_conteudo_limpo($pub['conteudo'], 300)) ?></div>
                         <button type="button" class="btn-expandir" onclick="expDjen(<?= $idx ?>)">Ver completo</button>
 
                         <input type="hidden" name="itens[<?= $idx ?>][numero_processo]" value="<?= e($pub['numero_processo']) ?>">

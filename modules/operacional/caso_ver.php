@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_djen.php';
 require_login();
 
 $pdo = db();
@@ -2070,7 +2071,7 @@ foreach ($tarefasReais as $_t) {
                             <?php endif; ?>
                         </div>
                     </div>
-                    <p style="font-size:.83rem;margin:0;white-space:pre-wrap;line-height:1.5;color:#374151;"><?= e($pub['conteudo']) ?></p>
+                    <p style="font-size:.83rem;margin:0;white-space:pre-wrap;line-height:1.5;color:#374151;"><?= e(djen_conteudo_limpo($pub['conteudo'])) ?></p>
                     <?php if ($pub['fonte'] !== 'manual'): ?>
                     <div style="margin-top:4px;font-size:.65rem;color:#94a3b8;">Fonte: <?= e(strtoupper($pub['fonte'])) ?></div>
                     <?php endif; ?>
