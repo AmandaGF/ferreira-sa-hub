@@ -93,48 +93,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'ler_log
 }
 
 // ============================================================
-// AJAX — disparar execução manual (shell_exec em background)
+// AJAX — disparar execução manual (inline, sem shell_exec)
 // ============================================================
+// Como shell_exec/exec/proc_open estão desabilitados na hospedagem,
+// executamos o monitor INLINE: retornamos JSON imediato ao browser,
+// fechamos a conexão HTTP com fastcgi_finish_request() e seguimos
+// rodando o monitor no mesmo processo PHP em background.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rodar_agora') {
-    header('Content-Type: application/json; charset=utf-8');
-    if (!validate_csrf()) { echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido', 'csrf' => generate_csrf_token())); exit; }
-
+    if (!validate_csrf()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido', 'csrf' => generate_csrf_token()));
+        exit;
+    }
     $dataManual = $_POST['data_manual'] ?? date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataManual)) {
+        header('Content-Type: application/json; charset=utf-8');
         echo json_encode(array('ok' => false, 'erro' => 'Data inválida', 'csrf' => generate_csrf_token()));
         exit;
     }
 
-    $script = APP_ROOT . '/cron/djen_monitor.php';
-    if (!file_exists($script)) {
-        echo json_encode(array('ok' => false, 'erro' => 'Script não encontrado', 'csrf' => generate_csrf_token()));
-        exit;
-    }
-
-    // Descobre binário PHP disponível
-    $phpBin = '/usr/bin/php';
-    if (!file_exists($phpBin)) {
-        // Fallback: procura em caminhos comuns
-        foreach (array('/usr/local/bin/php', '/opt/alt/php74/usr/bin/php', '/usr/bin/php74') as $p) {
-            if (file_exists($p)) { $phpBin = $p; break; }
-        }
-    }
-
-    $cmd = escapeshellcmd($phpBin) . ' '
-         . escapeshellarg($script)
-         . ' --horario=manual'
-         . ' --data=' . escapeshellarg($dataManual)
-         . ' --token=' . escapeshellarg(CLAUDIN_MANUAL_TOKEN)
-         . ' > /dev/null 2>&1 &';
-
-    @shell_exec($cmd);
-
-    echo json_encode(array(
+    // Resposta imediata ao browser
+    $newCsrf = generate_csrf_token();
+    $respJson = json_encode(array(
         'ok'   => true,
-        'msg'  => 'Execução disparada em background. Aguarde ~30s e atualize.',
-        'cmd_debug' => substr($cmd, 0, 200),
-        'csrf' => generate_csrf_token(),
+        'msg'  => 'Execução disparada em background. Aguarde ~60-180s (vai buscar nas 3 OABs + pedir resumo IA de cada pub).',
+        'csrf' => $newCsrf,
     ));
+
+    // Fecha a conexão HTTP sem esperar o resto do script
+    ignore_user_abort(true);
+    @set_time_limit(0);
+    @ini_set('max_execution_time', '0');
+
+    header('Content-Type: application/json; charset=utf-8');
+    header('Connection: close');
+    header('Content-Length: ' . strlen($respJson));
+    echo $respJson;
+
+    if (function_exists('fastcgi_finish_request')) {
+        fastcgi_finish_request();
+    } else {
+        @ob_end_flush();
+        @flush();
+    }
+
+    // Agora roda o monitor em "background" (o browser já recebeu a resposta)
+    define('CLAUDIN_NO_AUTORUN', true);
+    try {
+        require_once APP_ROOT . '/cron/djen_monitor.php';
+        claudin_executar('manual', $dataManual);
+    } catch (Throwable $e) {
+        // Loga mas não tem ninguém pra ver — a run falhou fica registrada em claudin_runs via exception
+        @file_put_contents(
+            APP_ROOT . '/cron/logs/claudin.log',
+            '[' . date('Y-m-d H:i:s') . '] EXCEPTION inline: ' . $e->getMessage() . "\n",
+            FILE_APPEND
+        );
+    }
     exit;
 }
 

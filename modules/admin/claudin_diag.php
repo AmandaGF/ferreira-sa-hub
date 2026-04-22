@@ -21,15 +21,16 @@ $pdo = db();
 $csrfToken = generate_csrf_token();
 
 // ============================================================
-// AJAX: rodar djen_monitor em foreground e retornar saída
+// AJAX: rodar djen_monitor INLINE (sem shell_exec) e devolver
+// o pedaço novo do log como "saída"
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rodar_fg') {
     header('Content-Type: application/json; charset=utf-8');
     if (!validate_csrf()) { echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido', 'csrf' => generate_csrf_token())); exit; }
 
-    // Aumenta limites — script pode demorar se tiver várias pubs
     @set_time_limit(300);
     @ini_set('max_execution_time', '300');
+    ignore_user_abort(true);
 
     $dataManual = $_POST['data_manual'] ?? date('Y-m-d');
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataManual)) {
@@ -37,24 +38,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'rodar
         exit;
     }
 
-    $phpBin = $_POST['php_bin'] ?? '/usr/bin/php';
-    $script = APP_ROOT . '/cron/djen_monitor.php';
+    // Marca offset do arquivo de log ANTES de executar
+    $offsetAntes = file_exists(LOG_PATH) ? filesize(LOG_PATH) : 0;
 
-    $cmd = escapeshellcmd($phpBin) . ' '
-         . escapeshellarg($script)
-         . ' --horario=manual'
-         . ' --data=' . escapeshellarg($dataManual)
-         . ' --token=' . escapeshellarg(CLAUDIN_MANUAL_TOKEN)
-         . ' 2>&1'; // CAPTURA stderr também
-
+    // Roda o monitor INLINE (sem shell_exec)
+    define('CLAUDIN_NO_AUTORUN', true);
     $tIni = microtime(true);
-    $output = @shell_exec($cmd);
+    $erroExec = null;
+    try {
+        require_once APP_ROOT . '/cron/djen_monitor.php';
+        claudin_executar('manual', $dataManual);
+    } catch (Throwable $e) {
+        $erroExec = $e->getMessage() . "\n" . $e->getTraceAsString();
+    }
     $tempo = round(microtime(true) - $tIni, 2);
+
+    // Lê o pedaço do log que foi adicionado durante a execução
+    $output = '';
+    if (file_exists(LOG_PATH)) {
+        $fh = @fopen(LOG_PATH, 'r');
+        if ($fh) {
+            fseek($fh, $offsetAntes);
+            $output = stream_get_contents($fh);
+            fclose($fh);
+        }
+    }
+
+    if ($erroExec) $output .= "\n=== EXCEPTION NÃO TRATADA ===\n" . $erroExec;
 
     echo json_encode(array(
         'ok'     => true,
-        'cmd'    => $cmd,
-        'output' => $output === null ? '(shell_exec retornou NULL — função pode estar desabilitada ou comando falhou silenciosamente)' : $output,
+        'modo'   => 'inline (sem shell_exec — rodou no próprio processo PHP)',
+        'output' => $output ?: '(sem saída — verifique se claudin.log foi criado)',
         'tempo'  => $tempo,
         'csrf'   => generate_csrf_token(),
     ));
@@ -254,24 +269,15 @@ pre.diag-log { background:#0f172a; color:#cbd5e1; padding:10px; border-radius:8p
     </div>
     <?php endif; ?>
 
-    <!-- 9. RODAR FOREGROUND -->
+    <!-- 9. RODAR INLINE -->
     <div class="diag-card" style="border-color:#B87333;">
-        <h3>9. 🧪 Rodar djen_monitor em foreground (captura saída)</h3>
-        <p style="font-size:.8rem;">Este botão executa o script SEM descartar a saída. Se algo quebra, você vê o erro aqui na tela em vez de só sumir.</p>
+        <h3>9. 🧪 Rodar djen_monitor INLINE (sem shell_exec)</h3>
+        <p style="font-size:.8rem;">Como a hospedagem TurboCloud desabilita <code>shell_exec</code>, o monitor roda no próprio processo PHP desta requisição. Vai demorar 1-3 minutos (consulta DJEN 3× + chama Claude em cada publicação). A tela espera a conclusão e mostra o log capturado.</p>
 
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.6rem;">
-            <label style="font-size:.78rem;font-weight:600;">PHP binário:</label>
-            <select id="fgPhp" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;">
-                <?php foreach ($phpFound as $p): ?>
-                    <option value="<?= htmlspecialchars($p['path'], ENT_QUOTES, 'UTF-8') ?>" <?= $p['path']==='/usr/bin/php' ? 'selected' : '' ?>><?= htmlspecialchars($p['path'], ENT_QUOTES, 'UTF-8') ?></option>
-                <?php endforeach; ?>
-                <?php if (empty($phpFound)): ?>
-                    <option value="/usr/bin/php">/usr/bin/php (fallback)</option>
-                <?php endif; ?>
-            </select>
             <label style="font-size:.78rem;font-weight:600;">Data:</label>
             <input type="date" id="fgData" value="<?= date('Y-m-d') ?>" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;">
-            <button id="fgBtn" onclick="rodarFg()" class="btn btn-primary btn-sm" style="background:#B87333;">Rodar agora (foreground)</button>
+            <button id="fgBtn" onclick="rodarFg()" class="btn btn-primary btn-sm" style="background:#B87333;">Rodar agora (inline)</button>
         </div>
 
         <div id="fgStatus" style="font-size:.78rem;margin-bottom:.5rem;"></div>
@@ -283,7 +289,6 @@ pre.diag-log { background:#0f172a; color:#cbd5e1; padding:10px; border-radius:8p
 var DIAG_CSRF = <?= json_encode($csrfToken) ?>;
 
 function rodarFg() {
-    var phpBin = document.getElementById('fgPhp').value;
     var data = document.getElementById('fgData').value;
     if (!data) { alert('Escolha data'); return; }
 
@@ -293,33 +298,32 @@ function rodarFg() {
 
     btn.disabled = true;
     btn.textContent = 'Rodando...';
-    status.innerHTML = '⏳ Executando em foreground. Pode demorar até 3 minutos (estou esperando a saída completa)...';
+    status.innerHTML = '⏳ Executando INLINE. Pode demorar 1-3 minutos. Não feche a aba.';
     output.style.display = 'none';
 
     var fd = new FormData();
     fd.append('action', 'rodar_fg');
     fd.append('csrf_token', DIAG_CSRF);
     fd.append('data_manual', data);
-    fd.append('php_bin', phpBin);
 
     fetch(window.location.pathname, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(j) {
             btn.disabled = false;
-            btn.textContent = 'Rodar agora (foreground)';
+            btn.textContent = 'Rodar agora (inline)';
             if (j.csrf) DIAG_CSRF = j.csrf;
             if (!j.ok) {
                 status.innerHTML = '<span style="color:#b91c1c">❌ Erro: ' + (j.erro || '') + '</span>';
                 return;
             }
-            status.innerHTML = '<span style="color:#15803d">✅ Retornou em ' + j.tempo + 's</span><br>'
-                             + '<span style="font-family:monospace;font-size:.7rem;color:#64748b;">Comando: ' + j.cmd + '</span>';
+            status.innerHTML = '<span style="color:#15803d">✅ Retornou em ' + j.tempo + 's</span> '
+                             + '<span style="font-size:.7rem;color:#64748b;">(' + (j.modo || '') + ')</span>';
             output.style.display = 'block';
             output.textContent = j.output || '(saída vazia)';
         })
         .catch(function(e) {
             btn.disabled = false;
-            btn.textContent = 'Rodar agora (foreground)';
+            btn.textContent = 'Rodar agora (inline)';
             status.innerHTML = '<span style="color:#b91c1c">❌ Erro de rede: ' + e.message + '</span>';
         });
 }
