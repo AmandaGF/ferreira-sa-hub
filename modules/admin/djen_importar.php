@@ -4,6 +4,7 @@
  * Cole o texto copiado do portal DJen — o sistema identifica e vincula automaticamente
  */
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_djen.php';
 require_login();
 if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(url('modules/dashboard/')); }
 
@@ -386,7 +387,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         redirect(module_url('admin', 'djen_importar.php'));
         exit;
     }
+
+    // Etapa 3: processar uma publicação PENDENTE da skill automatizada
+    // (Amanda escolheu pasta existente OU criar nova pasta)
+    if ($_POST['action'] === 'processar_pendente') {
+        if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_url('admin', 'djen_importar.php')); exit; }
+        $pendingId = (int)($_POST['pending_id'] ?? 0);
+        $caseIdEscolhido = (int)($_POST['case_id_escolhido'] ?? 0);
+        $acao = $_POST['acao_pendente'] ?? '';
+
+        if (!$pendingId) { flash_set('error', 'Pendente inválida.'); redirect(module_url('admin', 'djen_importar.php')); exit; }
+        $stmtP = $pdo->prepare("SELECT * FROM djen_pending WHERE id = ? AND status = 'pendente'");
+        $stmtP->execute(array($pendingId));
+        $pendente = $stmtP->fetch();
+        if (!$pendente) { flash_set('error', 'Pendente não encontrada ou já processada.'); redirect(module_url('admin', 'djen_importar.php')); exit; }
+
+        if ($acao === 'descartar') {
+            $pdo->prepare("UPDATE djen_pending SET status='descartado' WHERE id = ?")->execute(array($pendingId));
+            flash_set('success', 'Publicação descartada.');
+            redirect(module_url('admin', 'djen_importar.php'));
+            exit;
+        }
+
+        // Cria pasta nova se pediu
+        if ($acao === 'criar' && !$caseIdEscolhido) {
+            $clientIdNovo = (int)($_POST['client_id_novo'] ?? 0);
+            $tituloNovo = trim($_POST['title_novo'] ?? ('Processo ' . $pendente['numero_processo']));
+            if (!$clientIdNovo || !$tituloNovo) { flash_set('error', 'Escolha cliente e título.'); redirect(module_url('admin', 'djen_importar.php')); exit; }
+            try {
+                $pdo->prepare(
+                    "INSERT INTO cases (client_id, title, case_number, court, comarca, status,
+                     responsible_user_id, sistema_tribunal, created_at, updated_at)
+                     VALUES (?,?,?,?,?,'em_andamento',?,'TJRJ',NOW(),NOW())"
+                )->execute(array(
+                    $clientIdNovo, $tituloNovo, $pendente['numero_processo'],
+                    $pendente['orgao'], $pendente['comarca'], $userId
+                ));
+                $caseIdEscolhido = (int)$pdo->lastInsertId();
+                if (function_exists('audit_log')) audit_log('CASE_CRIADO_DJEN', 'case', $caseIdEscolhido, 'via pendente skill: ' . $pendente['numero_processo']);
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao criar pasta: ' . $e->getMessage());
+                redirect(module_url('admin', 'djen_importar.php'));
+                exit;
+            }
+        }
+
+        if (!$caseIdEscolhido) { flash_set('error', 'Pasta não informada.'); redirect(module_url('admin', 'djen_importar.php')); exit; }
+
+        // Monta array no formato de $pub
+        $pubArr = array(
+            'numero_processo'  => $pendente['numero_processo'],
+            'data_disp'        => $pendente['data_disp'] ?: date('Y-m-d'),
+            'tipo_comunicacao' => $pendente['tipo_comunicacao'] ?: 'intimacao',
+            'orgao'            => $pendente['orgao'] ?: '',
+            'comarca'          => $pendente['comarca'] ?: '',
+            'conteudo'         => $pendente['conteudo'] ?: '',
+            'resumo'           => $pendente['resumo'] ?: '',
+            'orientacao'       => $pendente['orientacao'] ?: '',
+        );
+        $result = djen_importar_publicacao($pdo, $pubArr, $caseIdEscolhido, $userId);
+        if (is_array($result) && isset($result['pub_id'])) {
+            $pdo->prepare("UPDATE djen_pending SET status='importado', case_id=? WHERE id = ?")->execute(array($caseIdEscolhido, $pendingId));
+            flash_set('success', 'Publicação importada.');
+        } elseif (is_array($result) && !empty($result['duplicated'])) {
+            $pdo->prepare("UPDATE djen_pending SET status='importado', case_id=? WHERE id = ?")->execute(array($caseIdEscolhido, $pendingId));
+            flash_set('success', 'Publicação já existia na pasta — marcada como processada.');
+        } else {
+            flash_set('error', 'Falha ao importar.');
+        }
+        redirect(module_url('admin', 'djen_importar.php'));
+        exit;
+    }
 }
+
+// Carrega pendentes (enviadas pela skill via endpoint, aguardando Amanda)
+$pendentes = array();
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS djen_pending (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        numero_processo VARCHAR(40) NOT NULL,
+        data_disp DATE NULL,
+        tipo_comunicacao VARCHAR(30) NULL,
+        orgao VARCHAR(200) NULL,
+        comarca VARCHAR(100) NULL,
+        partes TEXT NULL,
+        advogados TEXT NULL,
+        conteudo TEXT NOT NULL,
+        resumo TEXT NULL,
+        orientacao TEXT NULL,
+        segredo TINYINT(1) DEFAULT 0,
+        status ENUM('pendente','importado','descartado') DEFAULT 'pendente',
+        case_id INT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_numero (numero_processo),
+        INDEX idx_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $pendentes = $pdo->query("SELECT * FROM djen_pending WHERE status = 'pendente' ORDER BY created_at DESC LIMIT 50")->fetchAll();
+} catch (Exception $e) {}
 
 // Buscar clientes para select
 $clientes = array();
@@ -491,6 +589,116 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </form>
     </div>
+
+    <?php if (!empty($pendentes)): ?>
+    <div class="djen-card" style="border:2px solid #6366f1;background:#eef2ff;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.8rem;flex-wrap:wrap;gap:.6rem;">
+            <h3 style="margin:0;font-size:.95rem;color:#4338ca;">🤖 Publicações pendentes da skill automatizada (<?= count($pendentes) ?>)</h3>
+            <span style="font-size:.7rem;color:#4338ca;">Publicações sem pasta — escolha uma existente ou crie nova</span>
+        </div>
+
+        <?php foreach ($pendentes as $pi):
+            $partesArr = !empty($pi['partes']) ? json_decode($pi['partes'], true) : array();
+            if (!is_array($partesArr)) $partesArr = array();
+            $clienteSugNome = null;
+            foreach ($clientes as $cl) {
+                foreach ($partesArr as $pn) {
+                    if (mb_stripos($pn, $cl['name']) !== false || mb_stripos($cl['name'], $pn) !== false) {
+                        $clienteSugNome = $cl['name']; break 2;
+                    }
+                }
+            }
+            $tituloSug = 'Processo ' . $pi['numero_processo'];
+            if (count($partesArr) >= 2) {
+                $p1 = preg_replace('/\s+/', ' ', trim($partesArr[0]));
+                $p2 = preg_replace('/\s+/', ' ', trim($partesArr[1]));
+                if ($p1 && $p2 && strlen($p1) < 80 && strlen($p2) < 80) $tituloSug = $p1 . ' x ' . $p2;
+            } elseif (count($partesArr) === 1) {
+                $tituloSug = trim($partesArr[0]) . ' — ' . $pi['numero_processo'];
+            }
+        ?>
+        <div class="pub-row" style="border-left:4px solid #6366f1;background:#fff;">
+            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
+                <span class="numero"><?= e($pi['numero_processo']) ?></span>
+                <span class="case-badge" style="background:#eef2ff;color:#6366f1;border:1px solid #c7d2fe;">Recebida <?= e(date('d/m H:i', strtotime($pi['created_at']))) ?></span>
+                <span style="font-size:.68rem;color:var(--text-muted);">
+                    <?= e(ucfirst($pi['tipo_comunicacao'])) ?> &middot; <?= $pi['data_disp'] ? date('d/m/Y', strtotime($pi['data_disp'])) : '—' ?>
+                </span>
+                <?php if ($pi['segredo']): ?><span class="case-badge seg">Segredo</span><?php endif; ?>
+            </div>
+            <?php if ($pi['orgao']): ?><div class="orgao-txt"><?= e($pi['orgao']) ?></div><?php endif; ?>
+
+            <?php if (!empty($pi['resumo']) || !empty($pi['orientacao'])): ?>
+            <div class="ia-box">
+                <?php if (!empty($pi['resumo'])): ?><div><span class="ia-label">📝 Resumo:</span> <?= e($pi['resumo']) ?></div><?php endif; ?>
+                <?php if (!empty($pi['orientacao'])): ?><div class="ia-orientacao"><span class="ia-label">⚖️ Orientação:</span> <?= e($pi['orientacao']) ?></div><?php endif; ?>
+            </div>
+            <?php endif; ?>
+
+            <div class="conteudo-txt" id="cpend<?= $pi['id'] ?>"><?= e(mb_substr($pi['conteudo'], 0, 250, 'UTF-8')) ?></div>
+            <button type="button" class="btn-expandir" onclick="var el=document.getElementById('cpend<?= $pi['id'] ?>');el.classList.toggle('expandido');el.style.maxHeight=el.classList.contains('expandido')?'none':'80px';">Ver completo</button>
+
+            <?php if (!empty($partesArr)): ?>
+                <div style="font-size:.68rem;color:var(--text-muted);margin-top:.4rem;">📋 Partes: <strong><?= e(implode(' · ', array_slice($partesArr, 0, 4))) ?></strong></div>
+            <?php endif; ?>
+
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem;align-items:center;">
+                <!-- Form A: vincular a pasta existente via autocomplete -->
+                <form method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="processar_pendente">
+                    <input type="hidden" name="pending_id" value="<?= (int)$pi['id'] ?>">
+                    <input type="hidden" name="acao_pendente" value="vincular">
+                    <label style="font-size:.7rem;color:#4338ca;font-weight:600;">Vincular a pasta existente:</label>
+                    <input type="number" name="case_id_escolhido" placeholder="ID da pasta" style="width:110px;font-size:.78rem;padding:3px 8px;border:1px solid #c7d2fe;border-radius:6px;" required>
+                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;padding:4px 10px;">Importar</button>
+                </form>
+
+                <!-- Form B: criar pasta nova -->
+                <button type="button" class="btn btn-outline btn-sm" style="font-size:.72rem;border-color:#d97706;color:#d97706;" onclick="var b=document.getElementById('crPend<?= $pi['id'] ?>');b.style.display=b.style.display==='none'?'block':'none';">+ Criar pasta nova</button>
+
+                <!-- Descartar -->
+                <form method="POST" style="display:inline;" onsubmit="return confirm('Descartar esta publicação? Não pode desfazer.');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="processar_pendente">
+                    <input type="hidden" name="pending_id" value="<?= (int)$pi['id'] ?>">
+                    <input type="hidden" name="acao_pendente" value="descartar">
+                    <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;border-color:#94a3b8;color:#64748b;">Descartar</button>
+                </form>
+            </div>
+
+            <!-- Form B expandido: criar pasta nova -->
+            <form method="POST" id="crPend<?= $pi['id'] ?>" class="criar-pasta-form" style="display:none;margin-top:.5rem;">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="processar_pendente">
+                <input type="hidden" name="pending_id" value="<?= (int)$pi['id'] ?>">
+                <input type="hidden" name="acao_pendente" value="criar">
+                <div style="font-size:.75rem;font-weight:700;color:#d97706;margin-bottom:.5rem;">Nova pasta</div>
+                <?php if ($clienteSugNome): ?>
+                    <div style="font-size:.7rem;color:#059669;margin-bottom:.4rem;">✅ Cliente identificado: <strong><?= e($clienteSugNome) ?></strong></div>
+                <?php else: ?>
+                    <div style="font-size:.7rem;color:#d97706;margin-bottom:.4rem;">⚠️ Nenhum cliente bateu com as partes — selecione manualmente</div>
+                <?php endif; ?>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">
+                    <input type="text" name="title_novo" style="width:280px;font-size:.78rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" value="<?= e($tituloSug) ?>" placeholder="Título" required>
+                    <select name="client_id_novo" style="width:220px;font-size:.78rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" required>
+                        <option value="">— Cliente —</option>
+                        <?php foreach ($clientes as $cl):
+                            $presel = false;
+                            foreach ($partesArr as $pn) {
+                                if (mb_stripos($pn, $cl['name']) !== false || mb_stripos($cl['name'], $pn) !== false) { $presel = true; break; }
+                            }
+                        ?>
+                        <option value="<?= $cl['id'] ?>" <?= $presel ? 'selected' : '' ?>><?= e($cl['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;">Criar e importar</button>
+                </div>
+            </form>
+        </div>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
 
     <?php if ($resultado !== null): ?>
     <?php
