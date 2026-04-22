@@ -291,7 +291,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h2 style="margin:.75rem 0 .25rem;font-size:1.2rem;color:var(--petrol-900);">📬 <?= $oficioExistente ? 'Ofício #' . $oficioId : 'Ofício ao empregador — Pensão alimentícia' ?></h2>
 <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 1rem;">
     <?php if ($oficioExistente): ?>Ajuste os dados abaixo. Ao salvar, os templates refletem as mudanças e você pode copiar e reenviar se precisar.<?php else: ?>Preencha os dados do funcionário e da empresa. O sistema gera o e-mail pronto nos 2 modelos oficiais — você copia e envia pelo seu Gmail/Outlook.<?php endif; ?>
-    <?php if ($caso): ?><br>Processo: <b><?= e($caso['title'] ?: 'Caso #' . $caseId) ?></b><?= $caso['case_number'] ? ' · ' . e($caso['case_number']) : '' ?><?php endif; ?>
+    <?php if ($caso): ?><br>Processo: <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$caseId) ?>" style="color:#B87333;text-decoration:none;font-weight:700;" title="Voltar à pasta do processo"><?= e($caso['title'] ?: 'Caso #' . $caseId) ?></a><?= $caso['case_number'] ? ' · <span style="color:var(--text-muted);">' . e($caso['case_number']) . '</span>' : '' ?><?php endif; ?>
 </p>
 
 <?php if ($oficioExistente):
