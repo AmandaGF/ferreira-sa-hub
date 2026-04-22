@@ -171,7 +171,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <div class="of-sec">
-        <h4>👤 Funcionário (alimentante / pai)</h4>
+        <h4>👤 Funcionário (alimentante)</h4>
         <div class="of-grid">
             <div><span class="of-lab">Nome</span><input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" value="<?= e($oficioExistente['funcionario_nome'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">Cargo</span><input type="text" name="funcionario_cargo" id="funcionario_cargo" class="of-inp" value="<?= e($oficioExistente['funcionario_cargo'] ?? '') ?>" oninput="atualizarPreviews()"></div>
@@ -180,7 +180,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <div class="of-sec">
-        <h4>🏦 Dados para depósito (representante legal / mãe)</h4>
+        <h4>🏦 Dados para depósito (representante legal)</h4>
         <div class="of-grid">
             <div><span class="of-lab">Titular da conta</span><input type="text" name="conta_titular" id="conta_titular" class="of-inp" value="<?= e($oficioExistente['conta_titular'] ?? $cliente['name'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">CPF titular</span><input type="text" name="conta_cpf" id="conta_cpf" class="of-inp" value="<?= e($oficioExistente['conta_cpf'] ?? $cliente['cpf'] ?? '') ?>" oninput="atualizarPreviews()"></div>
@@ -273,7 +273,7 @@ function atualizarPreviews() {
     // Modelo 1 — solicitar contato RH
     var m1 = 'Assunto: Pensão alimentícia — solicitação de contato do RH ' + (emp ? '— ' + emp : '') + '\n\n'
            + 'Prezado(a), boa tarde!\n\n'
-           + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um de seus colaboradores é pai da criança.\n\n'
+           + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um(a) de seus colaboradores é genitor(a) da criança.\n\n'
            + 'Informo que há decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a) ' + func
            + (cargo !== '[CARGO]' ? ', cargo ' + cargo : '') + (matr !== '[MATRÍCULA]' ? ', matrícula ' + matr : '') + '. '
            + 'Para formalizar a medida, necessito encaminhar o ofício diretamente ao setor de Recursos Humanos.\n\n'
