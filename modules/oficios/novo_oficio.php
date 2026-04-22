@@ -32,35 +32,48 @@ try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN status_oficio VARCHAR(
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN ultima_atividade_em DATETIME DEFAULT NULL AFTER status_oficio"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN alerta_cobranca_em DATETIME DEFAULT NULL AFTER ultima_atividade_em COMMENT 'Última vez que o push de cobrança foi disparado pra este oficio'"); } catch (Exception $e) {}
 // Tabela de histórico (linha do tempo)
+// Tabela simples — sem FK pra evitar falhas silenciosas em ambientes com charset/engine divergente
 try { $pdo->exec("CREATE TABLE IF NOT EXISTS oficios_historico (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     oficio_id INT UNSIGNED NOT NULL,
-    tipo VARCHAR(40) NOT NULL COMMENT 'email_inicial | cobranca | rh_respondeu | oficio_formal | confirmado | pensao_implantada | problema | outro',
+    tipo VARCHAR(40) NOT NULL,
     descricao TEXT,
     created_by INT UNSIGNED DEFAULT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_oficio (oficio_id, created_at),
-    CONSTRAINT fk_oficios_historico_oficio FOREIGN KEY (oficio_id) REFERENCES oficios_enviados(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+    INDEX idx_oficio (oficio_id, created_at)
+)"); } catch (Exception $e) { @error_log('[oficios] CREATE TABLE: ' . $e->getMessage()); }
 
 // ═══ Endpoint AJAX: adicionar evento ao histórico do ofício ═══
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'add_historico') {
+    // Blindagem total: qualquer warning/notice PHP não pode vazar pra resposta
+    while (ob_get_level() > 0) @ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
-    if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF', 'csrf_expired' => true)); exit; }
-    $of = (int)($_POST['oficio_id'] ?? 0);
-    $tipoEv = trim($_POST['tipo'] ?? '');
-    $desc = trim($_POST['descricao'] ?? '');
-    $novoStatus = trim($_POST['novo_status'] ?? '');
-    $tiposValidos = array('email_inicial','cobranca','rh_respondeu','oficio_formal','confirmado','pensao_implantada','problema','outro');
-    if (!$of || !in_array($tipoEv, $tiposValidos, true)) { echo json_encode(array('error' => 'Dados inválidos')); exit; }
-    if ($desc === '') $desc = null;
-    $pdo->prepare("INSERT INTO oficios_historico (oficio_id, tipo, descricao, created_by) VALUES (?, ?, ?, ?)")
-        ->execute(array($of, $tipoEv, $desc, current_user_id()));
-    // Atualiza última atividade (zera alerta de cobrança pra recomeçar a contagem)
-    $pdo->prepare("UPDATE oficios_enviados SET ultima_atividade_em = NOW(), alerta_cobranca_em = NULL" . ($novoStatus ? ", status_oficio = ?" : "") . " WHERE id = ?")
-        ->execute($novoStatus ? array($novoStatus, $of) : array($of));
-    audit_log('oficio_historico_add', 'oficios', $of, $tipoEv . ($desc ? ': ' . mb_substr($desc, 0, 80) : ''));
-    echo json_encode(array('ok' => true));
+    try {
+        if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF expirado — recarregue a página', 'csrf_expired' => true)); exit; }
+        $of = (int)($_POST['oficio_id'] ?? 0);
+        $tipoEv = trim($_POST['tipo'] ?? '');
+        $desc = trim($_POST['descricao'] ?? '');
+        $novoStatus = trim($_POST['novo_status'] ?? '');
+        $tiposValidos = array('email_inicial','cobranca','rh_respondeu','oficio_formal','confirmado','pensao_implantada','problema','outro');
+        if (!$of) { echo json_encode(array('error' => 'oficio_id ausente')); exit; }
+        if (!in_array($tipoEv, $tiposValidos, true)) { echo json_encode(array('error' => 'Tipo inválido: ' . $tipoEv)); exit; }
+        $descSave = ($desc === '') ? null : $desc;
+        $userId = function_exists('current_user_id') ? current_user_id() : null;
+
+        $pdo->prepare("INSERT INTO oficios_historico (oficio_id, tipo, descricao, created_by) VALUES (?, ?, ?, ?)")
+            ->execute(array($of, $tipoEv, $descSave, $userId));
+
+        $pdo->prepare("UPDATE oficios_enviados SET ultima_atividade_em = NOW(), alerta_cobranca_em = NULL" . ($novoStatus ? ", status_oficio = ?" : "") . " WHERE id = ?")
+            ->execute($novoStatus ? array($novoStatus, $of) : array($of));
+
+        if (function_exists('audit_log')) {
+            try { audit_log('oficio_historico_add', 'oficios', $of, $tipoEv . ($desc ? ': ' . mb_substr($desc, 0, 80) : '')); } catch (Exception $e) {}
+        }
+        echo json_encode(array('ok' => true));
+    } catch (Throwable $e) {
+        @error_log('[oficios add_historico] ' . $e->getMessage());
+        echo json_encode(array('error' => 'Erro interno: ' . $e->getMessage()));
+    }
     exit;
 }
 
