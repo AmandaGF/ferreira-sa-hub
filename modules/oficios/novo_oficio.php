@@ -112,11 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 
         audit_log('oficio_pensao_registrado', 'oficios', $oficioId, 'Empregador: ' . $dados['empregador']);
 
-        // Andamento automático no processo
+        // Andamento automático no processo — somente infos NÃO sensíveis
+        // (sem e-mail/telefone do RH, sem CPF do titular, sem dados bancários)
         if ($dados['case_id']) {
             try {
-                $desc = 'Ofício para desconto em folha enviado ao empregador ' . $dados['empregador']
-                      . ($dados['rh_email'] ? ' (e-mail RH: ' . $dados['rh_email'] . ')' : '');
+                $linhas = array();
+                $linhas[] = '📬 Ofício #' . $oficioId . ' enviado ao empregador — desconto de pensão em folha';
+                $linhas[] = '• Empresa: ' . $dados['empregador'] . ($dados['empresa_cnpj'] ? ' (CNPJ ' . $dados['empresa_cnpj'] . ')' : '');
+                if (!empty($dados['funcionario_nome'])) {
+                    $linhas[] = '• Funcionário: ' . $dados['funcionario_nome']
+                        . ($dados['funcionario_cargo'] ? ' — ' . $dados['funcionario_cargo'] : '')
+                        . ($dados['funcionario_matricula'] ? ' (matrícula ' . $dados['funcionario_matricula'] . ')' : '');
+                }
+                $linhas[] = '• Forma de envio: ' . strtoupper($dados['plataforma'] ?: 'email');
+                $linhas[] = '• Data do envio: ' . date('d/m/Y', strtotime($dados['data_envio']));
+                if (!empty($dados['observacoes'])) $linhas[] = '• Obs: ' . $dados['observacoes'];
+                $desc = implode("\n", $linhas);
                 $pdo->prepare(
                     "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?, ?, 'oficio', ?, ?, 0, NOW())"
                 )->execute(array($dados['case_id'], $dados['data_envio'], $desc, current_user_id()));

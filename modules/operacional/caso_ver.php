@@ -54,6 +54,20 @@ try {
     $andamentos = $stmtAnd->fetchAll();
 } catch (Exception $e) { /* tabela pode não existir ainda */ }
 
+// Ofícios enviados deste caso (com dados completos do novo_oficio.php)
+$oficiosEnviados = array();
+try {
+    $stmtOf = $pdo->prepare(
+        "SELECT id, empregador, empresa_cnpj, rh_email, rh_contato, funcionario_nome,
+                data_envio, plataforma, cod_rastreio, retorno_ar, observacoes, created_at
+         FROM oficios_enviados
+         WHERE case_id = ?
+         ORDER BY data_envio DESC, id DESC"
+    );
+    $stmtOf->execute(array($caseId));
+    $oficiosEnviados = $stmtOf->fetchAll();
+} catch (Exception $e) { /* tabela pode não ter case_id ainda */ }
+
 // Documentos pendentes deste caso
 $docsPendentes = array();
 $docsRecebidos = array();
@@ -1293,6 +1307,61 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         </div>
     </div>
 </div>
+
+<!-- Ofícios Enviados -->
+<?php if (!empty($oficiosEnviados) || true): // sempre aparece pra permitir criar direto ?>
+<div class="card mb-2">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3>📬 Ofícios enviados (<?= count($oficiosEnviados) ?>)</h3>
+        <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#7c3aed;">+ Novo ofício</a>
+    </div>
+    <div class="card-body">
+        <?php if (empty($oficiosEnviados)): ?>
+            <div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:.82rem;">Nenhum ofício enviado pra este processo ainda.</div>
+        <?php else: ?>
+            <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
+                <thead>
+                    <tr style="background:#f9fafb;border-bottom:1px solid var(--border);">
+                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Empregador</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Funcionário</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Envio</th>
+                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Forma</th>
+                        <th style="padding:6px 8px;text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">AR</th>
+                        <th style="padding:6px 8px;text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ($oficiosEnviados as $of):
+                    $diasDesde = $of['data_envio'] ? (int)((strtotime('today') - strtotime($of['data_envio'])) / 86400) : 0;
+                    $semAR = !$of['retorno_ar'] && $diasDesde > 15;
+                ?>
+                <tr style="border-bottom:1px solid #f0f0f0;<?= $semAR ? 'background:#fef2f2;' : '' ?>">
+                    <td style="padding:6px 8px;font-weight:700;"><?= e($of['empregador'] ?: '—') ?><?php if ($of['empresa_cnpj']): ?><br><span style="font-size:.68rem;color:var(--text-muted);font-family:monospace;"><?= e($of['empresa_cnpj']) ?></span><?php endif; ?></td>
+                    <td style="padding:6px 8px;"><?= e($of['funcionario_nome'] ?: '—') ?></td>
+                    <td style="padding:6px 8px;"><?= $of['data_envio'] ? date('d/m/Y', strtotime($of['data_envio'])) : '—' ?></td>
+                    <td style="padding:6px 8px;text-transform:uppercase;font-size:.7rem;"><?= e(strtoupper($of['plataforma'] ?: '—')) ?></td>
+                    <td style="padding:6px 8px;text-align:center;">
+                        <?php if ($of['retorno_ar']): ?>
+                            <span style="background:#059669;color:#fff;padding:2px 6px;border-radius:4px;font-size:.66rem;font-weight:700;">✓ <?= e($of['retorno_ar']) ?></span>
+                        <?php elseif ($semAR): ?>
+                            <span style="background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px;font-size:.66rem;font-weight:700;" title="Sem AR há mais de 15 dias">⚠️ +<?= $diasDesde ?>d</span>
+                        <?php else: ?>
+                            <span style="color:var(--text-muted);font-size:.7rem;">Aguardando</span>
+                        <?php endif; ?>
+                    </td>
+                    <td style="padding:6px 8px;text-align:center;white-space:nowrap;">
+                        <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$of['id']) ?>" class="btn btn-primary btn-sm" style="font-size:.66rem;padding:2px 7px;background:#3730a3;">✏️ Abrir</a>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Prazos Processuais -->
 <?php
