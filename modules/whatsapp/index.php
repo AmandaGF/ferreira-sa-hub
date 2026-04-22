@@ -164,6 +164,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-msg.bot  { background:#ede9fe;border-color:#c4b5fd; }
 .wa-msg.deleted { opacity:.5;font-style:italic; }
 .wa-msg:hover .wa-msg-actions { display:flex !important; }
+.wa-msg-actions button { background:#fff !important; border:1px solid #d1d5db !important; border-radius:6px !important; width:28px !important; height:28px !important; font-size:.95rem !important; cursor:pointer; padding:0 !important; box-shadow:0 2px 6px rgba(0,0,0,.12); transition:transform .12s; }
+.wa-msg-actions button:hover { transform:scale(1.12); background:#f9fafb !important; }
 .wa-msg-tag { font-size:.62rem;font-weight:700;margin-bottom:2px; }
 .wa-msg-time { font-size:.62rem;color:#9ca3af;text-align:right;margin-top:3px; }
 .wa-chat-input { padding:.5rem .6rem;border-top:1px solid var(--border);background:#fff;display:flex;gap:.4rem;align-items:flex-end; }
@@ -637,7 +639,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     } else if (m.tipo === 'video') {
                         html += '<video src="'+escapeHtml(m.arquivo_url)+'" controls style="max-width:260px;border-radius:8px;margin-bottom:4px;"></video>';
                     } else if (m.tipo === 'audio') {
-                        html += '<audio src="'+escapeHtml(m.arquivo_url)+'" controls style="width:220px;margin-bottom:4px;display:block;"></audio>';
+                        html += '<audio src="'+escapeHtml(m.arquivo_url)+'" controls style="width:240px;margin-bottom:4px;margin-top:28px;display:block;"></audio>';
                         if (m.transcricao) {
                             html += '<div class="wa-transcricao" style="font-size:.76rem;color:#374151;background:#f3f4f6;border-left:3px solid #6366f1;padding:4px 8px;border-radius:4px;margin-top:2px;max-width:260px;"><span style="color:#6366f1;font-weight:700;">📝 Transcrição:</span> '+escapeHtml(m.transcricao)+'</div>';
                         } else {
