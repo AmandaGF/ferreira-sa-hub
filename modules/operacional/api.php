@@ -967,22 +967,30 @@ switch ($action) {
         $pubId  = (int)($_POST['pub_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($pubId && $caseId) {
-            $pdo->prepare(
-                "UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ? AND case_id = ?"
-            )->execute(array($pubId, $caseId));
-
-            // Atualizar tarefa vinculada para subtipo confirmado
-            $pub = $pdo->prepare("SELECT task_id, data_prazo_fim, tipo_publicacao FROM case_publicacoes WHERE id = ?");
-            $pub->execute(array($pubId));
-            $pubRow = $pub->fetch();
-            if ($pubRow && $pubRow['task_id']) {
+            try {
                 $pdo->prepare(
-                    "UPDATE case_tasks SET subtipo = 'prazo_confirmado', updated_at = NOW() WHERE id = ?"
-                )->execute(array($pubRow['task_id']));
-            }
+                    "UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ? AND case_id = ?"
+                )->execute(array($pubId, $caseId));
 
-            audit_log('PRAZO_PUBLICACAO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
-            flash_set('success', 'Prazo confirmado.');
+                // Atualizar tarefa vinculada para subtipo confirmado.
+                // Remove updated_at do UPDATE porque case_tasks no schema original não tem essa coluna.
+                $pub = $pdo->prepare("SELECT task_id FROM case_publicacoes WHERE id = ?");
+                $pub->execute(array($pubId));
+                $pubRow = $pub->fetch();
+                if ($pubRow && $pubRow['task_id']) {
+                    $pdo->prepare(
+                        "UPDATE case_tasks SET subtipo = 'prazo_confirmado' WHERE id = ?"
+                    )->execute(array($pubRow['task_id']));
+                }
+
+                audit_log('PRAZO_PUBLICACAO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
+                flash_set('success', 'Prazo confirmado.');
+            } catch (Exception $e) {
+                @file_put_contents(APP_ROOT . '/files/erro_confirmar_prazo.log',
+                    '[' . date('Y-m-d H:i:s') . '] pubId=' . $pubId . ' caseId=' . $caseId . ' erro=' . $e->getMessage() . "\n",
+                    FILE_APPEND);
+                flash_set('error', 'Erro ao confirmar prazo: ' . $e->getMessage());
+            }
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
