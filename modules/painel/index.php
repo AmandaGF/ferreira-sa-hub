@@ -73,7 +73,7 @@ $agendaHoje = array();
 // Eventos da agenda
 try {
     $sql = "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.data_fim, e.local, e.meet_link, e.status,
-                   c.name as client_name, cs.title as case_title, cs.case_number, u.name as resp_name
+                   e.case_id, c.name as client_name, cs.title as case_title, cs.case_number, u.name as resp_name
             FROM agenda_eventos e
             LEFT JOIN clients c ON c.id = e.client_id
             LEFT JOIN cases cs ON cs.id = e.case_id
@@ -99,6 +99,7 @@ try {
             'processo' => $ev['case_number'] ?: '',
             'concluido' => ($ev['status'] === 'realizado'),
             'id' => 'ev_' . $ev['id'],
+            'case_id' => (int)($ev['case_id'] ?? 0),
         );
     }
 } catch (Exception $e) {}
@@ -106,7 +107,7 @@ try {
 // Prazos fatais
 try {
     $stmtP = $pdo->prepare(
-        "SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.concluido, cs.title as case_title
+        "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.concluido, cs.title as case_title
          FROM prazos_processuais p LEFT JOIN cases cs ON cs.id = p.case_id
          WHERE p.prazo_fatal = ? AND p.concluido = 0 ORDER BY p.prazo_fatal"
     );
@@ -123,13 +124,14 @@ try {
             'processo' => $p['numero_processo'] ?: '',
             'concluido' => false,
             'id' => 'pz_' . $p['id'],
+            'case_id' => (int)($p['case_id'] ?? 0),
         );
     }
 } catch (Exception $e) {}
 
 // Tarefas com prazo hoje
 try {
-    $sqlT = "SELECT ct.id, ct.title, ct.status, ct.due_date, cs.title as case_title, cs.case_number
+    $sqlT = "SELECT ct.id, ct.case_id, ct.title, ct.status, ct.due_date, cs.title as case_title, cs.case_number
              FROM case_tasks ct LEFT JOIN cases cs ON cs.id = ct.case_id
              WHERE ct.due_date = ? AND ct.status != 'concluido'";
     if (!$isGestao) $sqlT .= " AND ct.assigned_to = $viewUserId";
@@ -147,6 +149,7 @@ try {
             'processo' => $t['case_number'] ?: '',
             'concluido' => false,
             'id' => 'tk_' . $t['id'],
+            'case_id' => (int)($t['case_id'] ?? 0),
         );
     }
 } catch (Exception $e) {}
@@ -275,18 +278,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         <?php else: ?>
             <div class="pd-timeline">
-                <?php foreach ($agendaHoje as $ev): ?>
+                <?php foreach ($agendaHoje as $ev):
+                    $_cid = (int)($ev['case_id'] ?? 0);
+                    $_href = $_cid > 0 ? url('modules/operacional/caso_ver.php?id=' . $_cid) : null;
+                ?>
+                <?php if ($_href): ?>
+                <a href="<?= e($_href) ?>" class="pd-ev pd-ev-clickable <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;text-decoration:none;color:inherit;display:block;" title="Abrir processo #<?= $_cid ?>">
+                <?php else: ?>
                 <div class="pd-ev <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;">
-                    <style>.pd-ev::before{background:var(--dot-color,#888);}</style>
+                <?php endif; ?>
+                    <style>.pd-ev::before{background:var(--dot-color,#888);} .pd-ev-clickable{transition:background .15s;} .pd-ev-clickable:hover{background:rgba(215,171,144,.12);}</style>
                     <div class="pd-ev-hora"><?= $ev['badge'] ?> <?= $ev['hora'] ?> <?php if ($ev['processo']): ?><span style="font-family:monospace;font-size:.6rem;opacity:.7;"><?= e($ev['processo']) ?></span><?php endif; ?></div>
                     <div class="pd-ev-titulo">
                         <?= e($ev['titulo']) ?>
                         <?php if ($ev['link']): ?>
-                            <a href="<?= e($ev['link']) ?>" target="_blank" style="font-size:.65rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;margin-left:4px;">Abrir</a>
+                            <a href="<?= e($ev['link']) ?>" target="_blank" onclick="event.stopPropagation();" style="font-size:.65rem;background:#052228;color:#fff;padding:1px 6px;border-radius:3px;text-decoration:none;margin-left:4px;">Abrir Meet</a>
                         <?php endif; ?>
                     </div>
                     <?php if ($ev['detalhe']): ?><div class="pd-ev-detalhe"><?= e($ev['detalhe']) ?></div><?php endif; ?>
+                <?php if ($_href): ?>
+                </a>
+                <?php else: ?>
                 </div>
+                <?php endif; ?>
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
