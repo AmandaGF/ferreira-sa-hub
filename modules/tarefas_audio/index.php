@@ -19,6 +19,15 @@ $casos = $pdo->query(
      ORDER BY cs.updated_at DESC LIMIT 150"
 )->fetchAll();
 
+// Se veio ?case_id=X da pasta do processo, pré-seleciona e mostra contexto
+$preCaseId = (int)($_GET['case_id'] ?? 0);
+$preCase = null;
+if ($preCaseId > 0) {
+    $st = $pdo->prepare("SELECT cs.id, cs.title, cs.case_number, cl.name AS client_name FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?");
+    $st->execute(array($preCaseId));
+    $preCase = $st->fetch();
+}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -45,9 +54,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
 @media (max-width:600px) { .taud-grid2 { grid-template-columns:1fr; } }
 </style>
 
+<?php if ($preCase): ?>
+<div style="max-width:720px;margin:0 auto .75rem;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:.6rem .85rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;">
+    <div style="font-size:.82rem;color:#166534;">
+        📂 <b>Processo vinculado:</b> <?= e($preCase['title']) ?><?= $preCase['client_name'] ? ' · ' . e($preCase['client_name']) : '' ?>
+    </div>
+    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$preCase['id']) ?>" style="font-size:.72rem;color:#166534;text-decoration:none;">← Voltar ao processo</a>
+</div>
+<?php endif; ?>
+
 <div class="taud-card" id="stepRec">
     <h2 style="margin:0 0 .5rem;font-size:1.2rem;color:var(--petrol-900);">🎙️ Nova tarefa por áudio</h2>
-    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 1rem;">Grave um áudio ditando a tarefa — mencione cliente, prazo e responsável. A IA extrai os dados, você revisa e salva.</p>
+    <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 1rem;">Grave um áudio ditando a tarefa<?= $preCase ? ' pra este processo' : ' — mencione cliente, prazo e responsável' ?>. A IA extrai os dados, você revisa e salva.</p>
 
     <div class="taud-rec">
         <div class="taud-timer" id="timer">00:00</div>
@@ -113,6 +131,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 (function(){
     var CSRF = <?= json_encode(generate_csrf_token()) ?>;
     var API = <?= json_encode(module_url('tarefas_audio', 'api.php')) ?>;
+    var PRE_CASE_ID = <?= (int)$preCaseId ?>; // Se > 0, veio da pasta do processo — trava o select
     var mediaRecorder = null, audioChunks = [], startTs = 0, timerInt = null;
     var btnRec = document.getElementById('btnRec');
     var elStatus = document.getElementById('status');
@@ -200,17 +219,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (j.responsavel_sugerido) {
             document.getElementById('pvResponsavel').value = j.responsavel_sugerido.id;
         }
-        // Caso: se tem UM caso sugerido, pré-seleciona; se tem vários, mostra lista
+        // Caso: prioridade máxima pra ?case_id= da URL (quando veio da pasta do processo)
+        var selCase = document.getElementById('pvCaseId');
         var sugDiv = document.getElementById('casosSugeridos');
-        if (j.casos_sugeridos && j.casos_sugeridos.length === 1) {
-            document.getElementById('pvCaseId').value = j.casos_sugeridos[0].id;
+        if (PRE_CASE_ID > 0) {
+            selCase.value = PRE_CASE_ID;
+            selCase.disabled = true; // trava edição — veio de contexto específico
+            selCase.style.background = '#ecfdf5';
+            sugDiv.style.display = 'block';
+            sugDiv.innerHTML = '<span style="color:#166534;">🔒 Processo travado neste contexto (veio da pasta). Tarefa será criada aqui.</span>';
+        } else if (j.casos_sugeridos && j.casos_sugeridos.length === 1) {
+            selCase.value = j.casos_sugeridos[0].id;
             sugDiv.style.display = 'block';
             sugDiv.innerHTML = '<span style="color:#059669;">✓ Processo sugerido pelo cliente mencionado: <b>' + escapeHtml(j.casos_sugeridos[0].title) + '</b></span>';
         } else if (j.casos_sugeridos && j.casos_sugeridos.length > 1) {
             sugDiv.style.display = 'block';
             sugDiv.innerHTML = '💡 Achei ' + j.casos_sugeridos.length + ' processos deste cliente — escolha acima:<br>' +
                 j.casos_sugeridos.map(function(c){ return '• #' + c.id + ' ' + escapeHtml(c.title); }).join('<br>');
-            document.getElementById('pvCaseId').value = j.casos_sugeridos[0].id;
+            selCase.value = j.casos_sugeridos[0].id;
         }
 
         document.getElementById('stepRec').style.display = 'none';
@@ -226,7 +252,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     document.getElementById('btnSalvar').addEventListener('click', function(){
         var titulo = document.getElementById('pvTitulo').value.trim();
-        var caseId = document.getElementById('pvCaseId').value;
+        // Usa PRE_CASE_ID se veio da pasta (select pode estar disabled e .value vazio em alguns browsers)
+        var caseId = PRE_CASE_ID > 0 ? PRE_CASE_ID : document.getElementById('pvCaseId').value;
         if (!titulo) { alert('Informe o título'); return; }
         if (!caseId) { alert('Selecione o processo vinculado'); return; }
         this.disabled = true; this.textContent = 'Salvando...';

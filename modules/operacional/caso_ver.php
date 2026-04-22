@@ -653,6 +653,7 @@ if (!empty($compFuturos)): ?>
 <!-- Atalhos rápidos -->
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
+    <a href="<?= module_url('tarefas_audio') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#B87333;" title="Gravar áudio ditando a tarefa — IA transcreve e cria automaticamente">🎙️ Tarefa por áudio</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;">Balcão Virtual</a>
