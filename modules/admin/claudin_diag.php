@@ -165,6 +165,81 @@ if ($testeCronExiste) {
     $testeCronModificado = date('d/m/Y H:i:s', filemtime($testeCronLog));
 }
 
+// ============================================================
+// Diagnóstico dos OUTROS crons da conta
+// Verifica quando cada um rodou pela última vez, inferido por:
+//  - DataJud: MAX(datajud_ultima_sync) em cases
+//  - Z-API aniversários: audit_log ou última birthday_greeting
+//  - Ofícios cobrança: audit_log WHERE acao LIKE '%OFICIO_COBRANCA%'
+//  - Alertas/reconciliar/resumo: audit_log
+// Se TODOS tiverem data muito antiga → cron da conta não dispara
+// ============================================================
+$outrosCrons = array();
+
+// 1. DataJud
+try {
+    $stmt = $pdo->query("SELECT MAX(datajud_ultima_sync) AS ultima FROM cases WHERE datajud_ultima_sync IS NOT NULL");
+    $row = $stmt->fetch();
+    $outrosCrons[] = array(
+        'nome' => 'DataJud (api/datajud_cron.php)',
+        'agendado' => '00h e 07h diário',
+        'ultima' => ($row && $row['ultima']) ? $row['ultima'] : null,
+        'fonte' => 'cases.datajud_ultima_sync (MAX)',
+    );
+} catch (Exception $e) {
+    $outrosCrons[] = array('nome' => 'DataJud', 'ultima' => 'erro: ' . $e->getMessage(), 'fonte' => 'cases');
+}
+
+// 2. Z-API aniversários (birthday_greetings.enviado_em mais recente)
+try {
+    $stmt = $pdo->query("SELECT MAX(enviado_em) AS ultima FROM birthday_greetings WHERE enviado_em IS NOT NULL");
+    $row = $stmt->fetch();
+    $outrosCrons[] = array(
+        'nome' => 'Z-API aniversários (cron/zapi_aniversarios.php)',
+        'agendado' => 'a cada hora (via curl)',
+        'ultima' => ($row && $row['ultima']) ? $row['ultima'] : null,
+        'fonte' => 'birthday_greetings.enviado_em (MAX)',
+    );
+} catch (Exception $e) {
+    $outrosCrons[] = array('nome' => 'Z-API aniversários', 'ultima' => 'erro', 'fonte' => 'birthday_greetings');
+}
+
+// 3. Audit log — olha entradas com acao contendo CRON, OFICIO_COBRANCA, ALERTA
+$acoesCron = array(
+    'OFICIO_COBRANCA' => 'Ofícios cobrança (cron/oficios_cobranca.php)',
+    'RECONCILIAR_KANBAN' => 'Reconciliar Kanbans (cron/reconciliar_kanbans.php)',
+    'ALERTA_INATIVIDADE' => 'Alertas inatividade (cron/alertas_inatividade.php)',
+    'RESUMO_SEMANAL' => 'Resumo semanal prazos (cron/resumo_semanal_prazos.php)',
+    'AGENDA_LEMBRETE' => 'Agenda lembretes (cron/agenda_lembretes.php)',
+);
+try {
+    $ph = implode(',', array_fill(0, count($acoesCron), '?'));
+    $params = array();
+    foreach (array_keys($acoesCron) as $a) $params[] = '%' . $a . '%';
+    $sqlParts = array();
+    foreach (array_keys($acoesCron) as $a) $sqlParts[] = 'acao LIKE ?';
+    $stmt = $pdo->prepare("SELECT acao, MAX(created_at) AS ultima FROM audit_log WHERE " . implode(' OR ', $sqlParts) . " GROUP BY acao");
+    $stmt->execute($params);
+    $ultimasAcoes = array();
+    foreach ($stmt->fetchAll() as $r) $ultimasAcoes[$r['acao']] = $r['ultima'];
+    foreach ($acoesCron as $acaoKey => $label) {
+        $ultima = null;
+        foreach ($ultimasAcoes as $acaoDb => $u) {
+            if (strpos($acaoDb, $acaoKey) !== false) {
+                if (!$ultima || $u > $ultima) $ultima = $u;
+            }
+        }
+        $outrosCrons[] = array(
+            'nome' => $label,
+            'agendado' => '—',
+            'ultima' => $ultima,
+            'fonte' => 'audit_log.acao LIKE %' . $acaoKey . '%',
+        );
+    }
+} catch (Exception $e) {
+    // audit_log pode não ter esses padrões
+}
+
 $pageTitle = 'Claudin — Diagnóstico';
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -278,6 +353,57 @@ pre.diag-log { background:#0f172a; color:#cbd5e1; padding:10px; border-radius:8p
         <pre class="diag-log"><?= htmlspecialchars($logTail, ENT_QUOTES, 'UTF-8') ?></pre>
     </div>
     <?php endif; ?>
+
+    <!-- Outros crons da conta — diagnóstico TurboCloud -->
+    <div class="diag-card" style="border-color:#6366f1;">
+        <h3>🕐 Os OUTROS crons da conta estão rodando?</h3>
+        <p style="font-size:.8rem;">Se NENHUM dos crons abaixo rodou nas últimas 24-48h, o problema não é do Claudin — é da TurboCloud não estar disparando crons na sua conta. Aí o caminho é ticket de suporte.</p>
+
+        <table style="width:100%;border-collapse:collapse;font-size:.78rem;margin-top:.5rem;">
+            <thead>
+                <tr style="background:#f1f5f9;">
+                    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">Cron</th>
+                    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">Agendado</th>
+                    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">Última execução inferida</th>
+                    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #e5e7eb;">Fonte</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($outrosCrons as $c):
+                    $ultima = $c['ultima'];
+                    $classe = 'diag-warn';
+                    $textoUltima = '—';
+                    if ($ultima && !preg_match('/^erro/', (string)$ultima)) {
+                        $ts = strtotime($ultima);
+                        $horas = (time() - $ts) / 3600;
+                        if ($horas <= 48) $classe = 'diag-ok';
+                        elseif ($horas <= 168) $classe = 'diag-warn';
+                        else $classe = 'diag-bad';
+                        $textoUltima = date('d/m/Y H:i', $ts);
+                        if ($horas < 1) $textoUltima .= ' (há ' . round($horas*60) . ' min)';
+                        elseif ($horas < 48) $textoUltima .= ' (há ' . round($horas, 1) . ' h)';
+                        else $textoUltima .= ' (há ' . round($horas/24) . ' d)';
+                    } elseif ($ultima) {
+                        $textoUltima = $ultima;
+                    }
+                ?>
+                <tr>
+                    <td style="padding:6px 8px;border-bottom:1px dashed #e5e7eb;font-weight:600;"><?= htmlspecialchars($c['nome'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td style="padding:6px 8px;border-bottom:1px dashed #e5e7eb;color:#64748b;"><?= htmlspecialchars($c['agendado'], ENT_QUOTES, 'UTF-8') ?></td>
+                    <td style="padding:6px 8px;border-bottom:1px dashed #e5e7eb;" class="<?= $classe ?>"><?= htmlspecialchars($textoUltima, ENT_QUOTES, 'UTF-8') ?></td>
+                    <td style="padding:6px 8px;border-bottom:1px dashed #e5e7eb;color:#94a3b8;font-size:.72rem;"><?= htmlspecialchars($c['fonte'], ENT_QUOTES, 'UTF-8') ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <div style="margin-top:.7rem;font-size:.72rem;color:#64748b;">
+            <strong>Legenda:</strong>
+            <span class="diag-ok">verde</span> = rodou nas últimas 48h (cron funciona) ·
+            <span class="diag-warn">amarelo</span> = rodou entre 48h e 7 dias (suspeito) ·
+            <span class="diag-bad">vermelho</span> = &gt; 7 dias sem rodar (provavelmente parado)
+        </div>
+    </div>
 
     <!-- Bloco de teste do CRON -->
     <div class="diag-card" style="border-color:#6366f1;">
