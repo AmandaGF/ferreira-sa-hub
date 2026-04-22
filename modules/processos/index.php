@@ -235,7 +235,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .proc-table th:nth-child(2), .proc-table th:nth-child(3),
 .proc-table td:nth-child(2), .proc-table td:nth-child(3) { text-align:left; }
 .proc-table tr:hover { background:rgba(215,171,144,.04); }
-.proc-number { font-family:monospace; font-size:.72rem; color:var(--petrol-500); font-weight:600; white-space:nowrap; }
+.proc-number { font-family:monospace; font-size:.68rem; color:var(--petrol-500); font-weight:600; white-space:normal; word-break:break-all; line-height:1.35; display:inline-block; max-width:100%; }
 .case-link { color:var(--petrol-900); font-weight:700; text-decoration:none; }
 .case-link:hover { color:var(--rose); }
 .client-link { color:var(--petrol-500); font-weight:600; text-decoration:none; }
@@ -450,14 +450,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php else: ?>
         <table class="proc-table">
             <colgroup>
-                <col style="width:11%;">  <!-- Nº Processo -->
+                <col style="width:13%;">  <!-- Nº Processo (mais largo pra CNJ não vazar) -->
                 <col style="width:11%;">  <!-- Cliente -->
-                <col style="width:15%;">  <!-- Título -->
+                <col style="width:14%;">  <!-- Título -->
                 <col style="width:10%;">  <!-- Tipo -->
                 <col style="width:11%;">  <!-- Vara/Tribunal -->
                 <col style="width:9%;">   <!-- Status -->
                 <col style="width:8%;">   <!-- Prioridade -->
-                <col style="width:8%;">   <!-- Responsável -->
+                <col style="width:7%;">   <!-- Responsável -->
                 <col style="width:8%;">   <!-- Último Andamento -->
                 <col style="width:4.5%;"> <!-- Audiência -->
                 <col style="width:4.5%;"> <!-- Prazo -->
