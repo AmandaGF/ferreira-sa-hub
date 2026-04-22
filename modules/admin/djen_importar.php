@@ -330,11 +330,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $respCase = $casoRow ? (int)$casoRow['responsible_user_id'] : $responsavel;
 
                     $tipoLbl = array(
-                        'intimacao'=>'INTIMACAO','citacao'=>'CITACAO','despacho'=>'DESPACHO',
-                        'decisao'=>'DECISAO','sentenca'=>'SENTENCA','acordao'=>'ACORDAO',
-                        'edital'=>'EDITAL','outro'=>'PUBLICACAO'
+                        'intimacao'=>'INTIMAÇÃO','citacao'=>'CITAÇÃO','despacho'=>'DESPACHO',
+                        'decisao'=>'DECISÃO','sentenca'=>'SENTENÇA','acordao'=>'ACÓRDÃO',
+                        'edital'=>'EDITAL','outro'=>'PUBLICAÇÃO'
                     );
-                    $lbl = isset($tipoLbl[$tipoPub]) ? $tipoLbl[$tipoPub] : 'PUBLICACAO';
+                    $lbl = isset($tipoLbl[$tipoPub]) ? $tipoLbl[$tipoPub] : 'PUBLICAÇÃO';
 
                     $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
 

@@ -158,14 +158,16 @@ $processos = $stmt->fetchAll();
 $ultimasIntimacoes = array();
 $ultimosDistribuidos = array();
 try {
+    // Só intimações pendentes (não confirmadas/descartadas) — feed de "o que precisa de atenção"
     $stmtInt = $pdo->query(
         "SELECT cp.id AS pub_id, cp.case_id, cp.data_disponibilizacao, cp.tipo_publicacao, cp.resumo_ia,
-                cs.title, cs.case_number, c.name AS client_name
+                cp.status_prazo, cs.title, cs.case_number, c.name AS client_name
          FROM case_publicacoes cp
          INNER JOIN cases cs ON cs.id = cp.case_id
          LEFT JOIN clients c ON c.id = cs.client_id
+         WHERE cp.status_prazo = 'pendente'
          ORDER BY cp.data_disponibilizacao DESC, cp.id DESC
-         LIMIT 3"
+         LIMIT 5"
     );
     $ultimasIntimacoes = $stmtInt->fetchAll();
 
@@ -248,11 +250,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;">
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
-            <strong style="font-size:.78rem;color:var(--petrol-900);">📢 Últimas intimações</strong>
-            <span style="font-size:.65rem;color:#64748b;">3 mais recentes</span>
+            <strong style="font-size:.78rem;color:var(--petrol-900);">📢 Intimações pendentes</strong>
+            <span style="font-size:.65rem;color:#64748b;"><?= count($ultimasIntimacoes) ?> a revisar</span>
         </div>
         <?php if (empty($ultimasIntimacoes)): ?>
-            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhuma intimação ainda.</div>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">✅ Nenhuma intimação pendente.</div>
         <?php else: ?>
             <?php
             $tipoIntLbl = array(
@@ -261,6 +263,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 'sentenca' => 'Sentença', 'acordao' => 'Acórdão',
                 'edital' => 'Edital', 'outro' => 'Publicação',
             );
+            $_csrfIntim = generate_csrf_token();
+            $_backUrl = module_url('processos');
             foreach ($ultimasIntimacoes as $ui):
                 $dataDisp = $ui['data_disponibilizacao'];
                 $agoInt = time() - strtotime($dataDisp);
@@ -271,9 +275,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $tipoLbl = isset($tipoIntLbl[$ui['tipo_publicacao']]) ? $tipoIntLbl[$ui['tipo_publicacao']] : ucfirst($ui['tipo_publicacao']);
                 $resumo = $ui['resumo_ia'] ?: '';
             ?>
-                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$ui['case_id']) ?>"
-                   style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
-                    <div style="flex:1;min-width:0;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;padding:6px 0;border-bottom:1px solid #f1f5f9;font-size:.75rem;">
+                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$ui['case_id']) ?>" style="flex:1;min-width:0;text-decoration:none;color:inherit;">
                         <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
                             <span style="background:#eef2ff;color:#4338ca;font-size:.6rem;font-weight:700;padding:1px 6px;border-radius:8px;margin-right:4px;"><?= e($tipoLbl) ?></span>
                             <?= e($ui['title'] ?: 'Processo #' . $ui['case_id']) ?>
@@ -285,9 +288,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <?= e($ui['client_name'] ?: '—') ?>
                             </div>
                         <?php endif; ?>
+                    </a>
+                    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;">
+                        <span style="font-size:.62rem;color:#6366f1;font-weight:600;white-space:nowrap;"><?= $agoIntLbl ?></span>
+                        <div style="display:flex;gap:3px;">
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Confirmar prazo desta intimação? (você vai cumprir)');">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                                <input type="hidden" name="pub_id" value="<?= (int)$ui['pub_id'] ?>">
+                                <input type="hidden" name="case_id" value="<?= (int)$ui['case_id'] ?>">
+                                <input type="hidden" name="novo_status" value="confirmado">
+                                <input type="hidden" name="_back" value="<?= htmlspecialchars($_backUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="submit" title="Confirmar prazo — vou cumprir" style="background:#dcfce7;border:1px solid #86efac;color:#15803d;font-size:.65rem;padding:2px 6px;border-radius:5px;cursor:pointer;font-weight:700;">✓</button>
+                            </form>
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Descartar esta intimação? (marca como: não precisa cumprir)');">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                                <input type="hidden" name="pub_id" value="<?= (int)$ui['pub_id'] ?>">
+                                <input type="hidden" name="case_id" value="<?= (int)$ui['case_id'] ?>">
+                                <input type="hidden" name="novo_status" value="descartado">
+                                <input type="hidden" name="_back" value="<?= htmlspecialchars($_backUrl, ENT_QUOTES, 'UTF-8') ?>">
+                                <button type="submit" title="Não precisa cumprir — fechar" style="background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;font-size:.65rem;padding:2px 6px;border-radius:5px;cursor:pointer;font-weight:700;">⊘</button>
+                            </form>
+                        </div>
                     </div>
-                    <span style="font-size:.65rem;color:#6366f1;font-weight:600;white-space:nowrap;"><?= $agoIntLbl ?></span>
-                </a>
+                </div>
             <?php endforeach; ?>
         <?php endif; ?>
     </div>

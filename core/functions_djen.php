@@ -182,8 +182,8 @@ function djen_importar_publicacao($pdo, $pub, $caseId, $userId) {
 
     $taskId = null;
     if ($dataFim) {
-        $tipoLbl = array('intimacao'=>'INTIMACAO','citacao'=>'CITACAO','despacho'=>'DESPACHO','decisao'=>'DECISAO','sentenca'=>'SENTENCA','acordao'=>'ACORDAO','edital'=>'EDITAL','outro'=>'PUBLICACAO');
-        $lbl = isset($tipoLbl[$tipoPub]) ? $tipoLbl[$tipoPub] : 'PUBLICACAO';
+        $tipoLbl = array('intimacao'=>'INTIMAÇÃO','citacao'=>'CITAÇÃO','despacho'=>'DESPACHO','decisao'=>'DECISÃO','sentenca'=>'SENTENÇA','acordao'=>'ACÓRDÃO','edital'=>'EDITAL','outro'=>'PUBLICAÇÃO');
+        $lbl = isset($tipoLbl[$tipoPub]) ? $tipoLbl[$tipoPub] : 'PUBLICAÇÃO';
         $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
 
         $pdo->prepare(

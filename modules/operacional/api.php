@@ -893,18 +893,18 @@ switch ($action) {
                 $tituloCase  = $caso ? $caso['title'] : 'Caso #' . $caseId;
 
                 $tipoLabel = array(
-                    'intimacao' => 'Intimacao', 'citacao' => 'Citacao',
-                    'despacho' => 'Despacho', 'decisao' => 'Decisao',
-                    'sentenca' => 'Sentenca', 'acordao' => 'Acordao',
-                    'edital' => 'Edital', 'outro' => 'Publicacao',
+                    'intimacao' => 'Intimação', 'citacao' => 'Citação',
+                    'despacho' => 'Despacho', 'decisao' => 'Decisão',
+                    'sentenca' => 'Sentença', 'acordao' => 'Acórdão',
+                    'edital' => 'Edital', 'outro' => 'Publicação',
                 );
-                $labelTipo = isset($tipoLabel[$tipoPub]) ? $tipoLabel[$tipoPub] : 'Publicacao';
+                $labelTipo = isset($tipoLabel[$tipoPub]) ? $tipoLabel[$tipoPub] : 'Publicação';
 
                 $tituloTask = 'PRAZO — ' . mb_strtoupper($labelTipo, 'UTF-8') . ' | ' . $tituloCase;
-                $descTask   = 'Prazo de ' . $prazoDias . ' dia(s) util(eis) a partir da publicacao em '
+                $descTask   = 'Prazo de ' . $prazoDias . ' dia(s) útil(eis) a partir da publicação em '
                             . date('d/m/Y', strtotime($dataDisp))
                             . '. Vencimento: ' . date('d/m/Y', strtotime($dataFim))
-                            . "\n\nPublicacao: " . mb_substr($conteudo, 0, 300, 'UTF-8');
+                            . "\n\nPublicação: " . mb_substr($conteudo, 0, 300, 'UTF-8');
 
                 // Alerta 3 dias antes
                 $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
@@ -966,31 +966,48 @@ switch ($action) {
         if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
         $pubId  = (int)($_POST['pub_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        // novo_status aceita: confirmado (padrão) ou descartado ("não precisa cumprir")
+        $novoStatus = ($_POST['novo_status'] ?? 'confirmado');
+        if (!in_array($novoStatus, array('confirmado','descartado'), true)) $novoStatus = 'confirmado';
+
+        // Onde redirecionar depois: query param _back ou HTTP_REFERER (fallback: pasta do caso)
+        $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+
         if ($pubId && $caseId) {
             try {
                 $pdo->prepare(
-                    "UPDATE case_publicacoes SET status_prazo = 'confirmado', updated_at = NOW() WHERE id = ? AND case_id = ?"
-                )->execute(array($pubId, $caseId));
+                    "UPDATE case_publicacoes SET status_prazo = ?, updated_at = NOW() WHERE id = ? AND case_id = ?"
+                )->execute(array($novoStatus, $pubId, $caseId));
 
-                // Atualizar tarefa vinculada para subtipo confirmado.
-                // Remove updated_at do UPDATE porque case_tasks no schema original não tem essa coluna.
+                // Atualizar tarefa vinculada
                 $pub = $pdo->prepare("SELECT task_id FROM case_publicacoes WHERE id = ?");
                 $pub->execute(array($pubId));
                 $pubRow = $pub->fetch();
                 if ($pubRow && $pubRow['task_id']) {
-                    $pdo->prepare(
-                        "UPDATE case_tasks SET subtipo = 'prazo_confirmado' WHERE id = ?"
-                    )->execute(array($pubRow['task_id']));
+                    if ($novoStatus === 'descartado') {
+                        // Se descartou, marca tarefa como feita (não precisa cumprir)
+                        $pdo->prepare("UPDATE case_tasks SET status = 'feito', subtipo = 'prazo_descartado' WHERE id = ?")
+                            ->execute(array($pubRow['task_id']));
+                    } else {
+                        $pdo->prepare("UPDATE case_tasks SET subtipo = 'prazo_confirmado' WHERE id = ?")
+                            ->execute(array($pubRow['task_id']));
+                    }
                 }
 
-                audit_log('PRAZO_PUBLICACAO_CONFIRMADO', 'case', $caseId, 'pub_id=' . $pubId);
-                flash_set('success', 'Prazo confirmado.');
+                $acaoLog = ($novoStatus === 'descartado') ? 'PRAZO_PUBLICACAO_DESCARTADO' : 'PRAZO_PUBLICACAO_CONFIRMADO';
+                audit_log($acaoLog, 'case', $caseId, 'pub_id=' . $pubId);
+                flash_set('success', ($novoStatus === 'descartado') ? 'Intimação marcada como "não precisa cumprir".' : 'Prazo confirmado.');
             } catch (Exception $e) {
                 @file_put_contents(APP_ROOT . '/files/erro_confirmar_prazo.log',
                     '[' . date('Y-m-d H:i:s') . '] pubId=' . $pubId . ' caseId=' . $caseId . ' erro=' . $e->getMessage() . "\n",
                     FILE_APPEND);
-                flash_set('error', 'Erro ao confirmar prazo: ' . $e->getMessage());
+                flash_set('error', 'Erro ao fechar prazo: ' . $e->getMessage());
             }
+        }
+        // Redireciona de volta: se _back foi passado e é do próprio domínio, usa; senão pasta do caso
+        if ($back && strpos($back, 'ferreiraesa.com.br') !== false) {
+            header('Location: ' . $back);
+            exit;
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
