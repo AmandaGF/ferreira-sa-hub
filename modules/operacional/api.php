@@ -150,6 +150,8 @@ switch ($action) {
                 $procRegional = clean_str($_POST['proc_regional'] ?? '', 100);
                 $procSistema = clean_str($_POST['proc_sistema'] ?? '', 30);
                 $procSegredo = (int)($_POST['proc_segredo'] ?? 0);
+                $procParteContraria = clean_str($_POST['proc_parte_contraria'] ?? '', 200);
+                $procValorCausa = clean_str($_POST['proc_valor_causa'] ?? '', 30);
 
                 // Verificar duplicata por número do processo
                 $dupAviso = '';
@@ -172,6 +174,32 @@ switch ($action) {
                     $procData, $procCategory, $procComarca ?: null, $procComarcaUf ?: null,
                     $procRegional ?: null, $procSistema ?: null, $procSegredo, $caseId
                 ));
+
+                // Parte contrária: cria entrada em case_partes como 'reu' (se não existir ainda)
+                if ($procParteContraria) {
+                    try {
+                        $stmtPChk = $pdo->prepare("SELECT COUNT(*) FROM case_partes WHERE case_id = ? AND papel = 'reu' AND LOWER(TRIM(nome)) = LOWER(TRIM(?))");
+                        $stmtPChk->execute(array($caseId, $procParteContraria));
+                        if ((int)$stmtPChk->fetchColumn() === 0) {
+                            $pdo->prepare("INSERT INTO case_partes (case_id, papel, nome, tipo_pessoa, created_at) VALUES (?,?,?,?,NOW())")
+                                ->execute(array($caseId, 'reu', $procParteContraria, 'fisica'));
+                        }
+                    } catch (Exception $ePC) {}
+                }
+
+                // Valor da causa: adiciona em notes do caso se houver (sem criar nova coluna)
+                if ($procValorCausa) {
+                    try {
+                        $stmtN = $pdo->prepare("SELECT notes FROM cases WHERE id = ?");
+                        $stmtN->execute(array($caseId));
+                        $notesAtuais = (string)$stmtN->fetchColumn();
+                        $linhaValor = '💰 Valor da causa: R$ ' . $procValorCausa;
+                        if (strpos($notesAtuais, 'Valor da causa') === false) {
+                            $novoNotes = trim($notesAtuais . "\n" . $linhaValor);
+                            $pdo->prepare("UPDATE cases SET notes = ? WHERE id = ?")->execute(array($novoNotes, $caseId));
+                        }
+                    } catch (Exception $eVC) {}
+                }
 
                 // Gerar checklist de tarefas (se ainda não existir)
                 $stmtCk = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE case_id = ?");

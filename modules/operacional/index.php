@@ -879,10 +879,19 @@ sort($opTipos);
                     </select>
                 </div>
             </div>
+            <div>
+                <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Parte(s) contrária(s)</label>
+                <input type="text" id="procParteContraria" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Nome da parte contrária (réu ou autor)">
+            </div>
+            <div>
+                <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Valor da causa (R$)</label>
+                <input type="text" id="procValorCausa" style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;" placeholder="Ex: 10.000,00 (opcional)">
+            </div>
             <div style="display:flex;align-items:center;gap:.5rem;">
                 <input type="checkbox" id="procSegredo" value="1">
                 <label for="procSegredo" style="font-size:.82rem;color:#6b7280;cursor:pointer;">Segredo de justiça</label>
             </div>
+            <div id="procDicaSugestao" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:.5rem .75rem;font-size:.72rem;color:#1e40af;"></div>
         </div>
 
         <!-- Campos Extrajudiciais -->
@@ -1002,6 +1011,9 @@ function saveCaseCell(el) {
 var _distConfirmData = {};
 
 function abrirDistribuicaoInteligente(card) {
+    // Amanda pediu: SEMPRE abrir o modal completo com todos os campos
+    // (antes tinha atalho de "confirmar" ou "selecionar de lista" que pulava
+    // quase todos os campos. Agora abre tudo, só pré-preenche o que já sabemos).
     if (!card) { abrirModalDistOriginal(null); return; }
 
     var caseNumber = card.dataset.caseNumber || '';
@@ -1010,23 +1022,13 @@ function abrirDistribuicaoInteligente(card) {
     var clientId = card.dataset.clientId || '0';
     var caseId = card.dataset.caseId || '0';
 
-    // Se já tem número cadastrado → modal de confirmação
-    if (caseNumber && caseNumber.length > 5) {
-        _distConfirmData = { caseNumber: caseNumber, court: court, caseType: caseType, caseId: caseId, modo: 'confirmar' };
-        var body = '<div style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:1rem;margin-bottom:.75rem;">'
-            + '<div style="font-size:.8rem;font-weight:700;color:#059669;margin-bottom:.4rem;">Processo já cadastrado</div>'
-            + '<div style="font-size:1rem;font-weight:800;color:#052228;font-family:monospace;">' + esc(caseNumber) + '</div>'
-            + (court ? '<div style="font-size:.82rem;color:var(--text-muted);margin-top:.2rem;">' + esc(court) + '</div>' : '')
-            + '</div>'
-            + '<p style="font-size:.82rem;color:#374151;">Deseja confirmar a distribuição deste processo?</p>'
-            + '<a href="#" onclick="mostrarCorrigir();return false;" style="font-size:.72rem;color:#3b82f6;">Corrigir número</a>';
-        document.getElementById('distConfirmBody').innerHTML = body;
-        document.getElementById('distConfirmCorrigir').style.display = 'none';
-        document.getElementById('distConfirmModal').style.display = 'flex';
-        return;
-    }
+    // Abre o modal completo imediatamente (pré-preenche com o que já tem no card)
+    abrirModalDistOriginal(card);
+    if (caseNumber) document.getElementById('procNumero').value = caseNumber;
+    if (court) document.getElementById('procVara').value = court;
 
-    // Se não tem número → buscar outros processos do mesmo cliente
+    // Se cliente tem outros processos cadastrados, busca o mais recente pra
+    // pré-preencher Comarca/UF/Sistema/Regional como SUGESTÃO (usuário pode editar).
     if (clientId && clientId !== '0') {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
@@ -1036,50 +1038,40 @@ function abrirDistribuicaoInteligente(card) {
             try {
                 var r = JSON.parse(xhr.responseText);
                 if (r.csrf) _opCsrf = r.csrf;
-                var casos = r.casos || [];
-                // Filtrar só os que têm número
-                var comNumero = [];
-                for (var i = 0; i < casos.length; i++) {
-                    if (casos[i].case_number && casos[i].case_number.length > 5) comNumero.push(casos[i]);
-                }
+                var casos = (r.casos || []).filter(function(c){ return c.case_number && c.case_number.length > 5; });
+                if (casos.length === 0) return;
 
-                if (comNumero.length > 0) {
-                    // Mostrar lista para selecionar
-                    _distConfirmData = { caseId: caseId, modo: 'selecionar', casos: comNumero };
-                    var body = '<div style="font-size:.82rem;color:#374151;margin-bottom:.6rem;">Selecione o processo distribuído:</div>';
-                    for (var j = 0; j < comNumero.length; j++) {
-                        var c = comNumero[j];
-                        body += '<label style="display:flex;align-items:flex-start;gap:.5rem;padding:.6rem .8rem;border:1px solid var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;transition:.15s;" onmouseover="this.style.borderColor=\'#059669\'" onmouseout="this.style.borderColor=\'\'">'
-                            + '<input type="radio" name="distSelNum" value="' + esc(c.case_number) + '" data-court="' + esc(c.court || '') + '" data-comarca="' + esc(c.comarca || '') + '" data-uf="' + esc(c.comarca_uf || '') + '" data-sistema="' + esc(c.sistema_tribunal || '') + '" data-regional="' + esc(c.regional || '') + '" style="margin-top:3px;">'
-                            + '<div><div style="font-size:.82rem;font-weight:700;color:#052228;">' + esc(c.title || '') + '</div>'
-                            + '<div style="font-size:.85rem;font-weight:600;font-family:monospace;color:#374151;">' + esc(c.case_number) + '</div>'
-                            + '<div style="font-size:.72rem;color:var(--text-muted);">' + esc(c.case_type || '') + (c.court ? ' — ' + esc(c.court) : '') + (c.comarca ? ' — ' + esc(c.comarca) : '') + '</div></div></label>';
-                    }
-                    body += '<label style="display:flex;align-items:center;gap:.5rem;padding:.6rem .8rem;border:1px dashed var(--border);border-radius:8px;margin-bottom:.4rem;cursor:pointer;">'
-                        + '<input type="radio" name="distSelNum" value="_novo" style="margin-top:1px;">'
-                        + '<span style="font-size:.78rem;color:var(--text-muted);">Nenhum dos acima — digitar novo número</span></label>';
-                    document.getElementById('distConfirmBody').innerHTML = body;
-                    document.getElementById('distConfirmCorrigir').style.display = 'none';
-                    document.getElementById('distConfirmModal').style.display = 'flex';
+                // Usa o MAIS RECENTE como sugestão — dados semelhantes costumam repetir
+                var ref = casos[0];
+                var campos = [
+                    ['procComarca', ref.comarca],
+                    ['procComarcaUf', ref.comarca_uf],
+                    ['procSistema', ref.sistema_tribunal],
+                    ['procRegional', ref.regional],
+                ];
+                // Só preenche se o campo estiver vazio (não atropela o que user já digitou)
+                campos.forEach(function(p) {
+                    var el = document.getElementById(p[0]);
+                    if (el && !el.value && p[1]) el.value = p[1];
+                });
+                // Vara só pré-preenche se vazia (senão mantém o que veio do próprio case)
+                var varaEl = document.getElementById('procVara');
+                if (varaEl && !varaEl.value && ref.court) varaEl.value = ref.court;
 
-                    // Listener para mostrar campo se "novo"
-                    var radios = document.querySelectorAll('input[name="distSelNum"]');
-                    for (var k = 0; k < radios.length; k++) {
-                        radios[k].addEventListener('change', function() {
-                            document.getElementById('distConfirmCorrigir').style.display = this.value === '_novo' ? 'block' : 'none';
-                        });
-                    }
-                } else {
-                    // Nenhum processo com número → modal original
-                    abrirModalDistOriginal(card);
+                // Mostra dica com link pra copiar CNJ se quiser reutilizar
+                var dica = document.getElementById('procDicaSugestao');
+                if (dica) {
+                    var linkCnjs = casos.slice(0, 3).map(function(c) {
+                        return '<a href="#" onclick="document.getElementById(\'procNumero\').value=\'' + esc(c.case_number) + '\';return false;" style="color:#1e40af;text-decoration:underline;font-family:monospace;">' + esc(c.case_number) + '</a>';
+                    }).join(' · ');
+                    dica.innerHTML = '💡 Dados de Comarca/Sistema pré-preenchidos do processo mais recente deste cliente. '
+                                   + 'Edite o que for diferente.<br>'
+                                   + '<strong>CNJs existentes:</strong> ' + linkCnjs;
+                    dica.style.display = 'block';
                 }
-            } catch(e) {
-                abrirModalDistOriginal(card);
-            }
+            } catch(e) {}
         };
         xhr.send('action=buscar_casos_cliente&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=' + _opCsrf);
-    } else {
-        abrirModalDistOriginal(card);
     }
 }
 
@@ -1544,6 +1536,8 @@ function confirmProcesso() {
                 'proc_regional': document.getElementById('procRegional').value,
                 'proc_sistema': document.getElementById('procSistema').value,
                 'proc_segredo': document.getElementById('procSegredo').checked ? '1' : '0',
+                'proc_parte_contraria': (document.getElementById('procParteContraria')||{}).value || '',
+                'proc_valor_causa': (document.getElementById('procValorCausa')||{}).value || '',
                 'proc_category': 'judicial'
             };
             for (var k in fields) {
