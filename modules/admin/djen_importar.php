@@ -10,11 +10,89 @@ if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error'
 $pdo = db();
 $userId = current_user_id();
 
+// Self-heal: colunas pro resumo e orientação gerados por IA
+try { $pdo->exec("ALTER TABLE case_publicacoes ADD COLUMN resumo_ia TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE case_publicacoes ADD COLUMN orientacao_ia TEXT NULL"); } catch (Exception $e) {}
+
 // Buscar usuarios ativos
 $usuarios = array();
 try {
     $usuarios = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 } catch (Exception $e) {}
+
+/**
+ * Chama Claude Haiku pra gerar resumo curto + orientação de prazo/ação da publicação.
+ * Retorna array('resumo'=>'', 'orientacao'=>'') — ou vazio em caso de falha.
+ */
+function gerar_resumo_publicacao_ia($conteudo, $tipo, $dataDisp) {
+    $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
+    if (!$apiKey) return array('resumo' => '', 'orientacao' => '');
+
+    $tipoLbl = array(
+        'intimacao' => 'Intimação', 'citacao' => 'Citação', 'despacho' => 'Despacho',
+        'decisao' => 'Decisão', 'sentenca' => 'Sentença', 'acordao' => 'Acórdão',
+        'edital' => 'Edital', 'outro' => 'Publicação',
+    );
+    $lbl = isset($tipoLbl[$tipo]) ? $tipoLbl[$tipo] : 'Publicação';
+    $dataFmt = date('d/m/Y', strtotime($dataDisp));
+
+    $conteudo = mb_substr(trim($conteudo), 0, 4000, 'UTF-8');
+
+    $systemPrompt = "Você é um paralegal experiente de um escritório de advocacia. Sua tarefa é analisar publicações do DJen e produzir dois outputs curtíssimos:\n\n"
+        . "1. RESUMO (máx 25 palavras): o que a publicação está comunicando, sem juridiquês.\n"
+        . "2. ORIENTAÇÃO (máx 35 palavras): o que o advogado deve fazer e em quanto tempo. Seja específico sobre prazo e data fatal quando der. Exemplos:\n"
+        . "   - \"Apelar em 15 dias úteis a partir de 23/04/2026.\"\n"
+        . "   - \"Apresentar contestação em 15 dias úteis. Resposta até 13/05/2026.\"\n"
+        . "   - \"Cumprir intimação anexando documento X no prazo de 5 dias úteis.\"\n"
+        . "   - \"Aguardar novo despacho. Sem prazo imediato.\"\n\n"
+        . "Responda EXCLUSIVAMENTE em JSON válido, sem markdown ou texto adicional, no formato:\n"
+        . '{"resumo":"...","orientacao":"..."}';
+
+    $userMsg = "Tipo: {$lbl}\nData de disponibilização: {$dataFmt}\n\nConteúdo:\n{$conteudo}";
+
+    $body = array(
+        'model' => 'claude-haiku-4-5',
+        'max_tokens' => 400,
+        'system' => $systemPrompt,
+        'messages' => array(array('role' => 'user', 'content' => $userMsg)),
+    );
+
+    $ch = curl_init('https://api.anthropic.com/v1/messages');
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 25,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/json',
+            'x-api-key: ' . $apiKey,
+            'anthropic-version: 2023-06-01',
+        ),
+        CURLOPT_POSTFIELDS => json_encode($body),
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($code < 200 || $code >= 300) {
+        @file_put_contents(APP_ROOT . '/files/djen_ia.log', '[' . date('Y-m-d H:i:s') . "] HTTP {$code}: " . substr($resp, 0, 300) . "\n", FILE_APPEND);
+        return array('resumo' => '', 'orientacao' => '');
+    }
+
+    $data = json_decode($resp, true);
+    $texto = isset($data['content'][0]['text']) ? trim($data['content'][0]['text']) : '';
+    if (!$texto) return array('resumo' => '', 'orientacao' => '');
+
+    // Extrai JSON (IA às vezes envolve em markdown)
+    if (preg_match('/\{.*\}/s', $texto, $m)) $texto = $m[0];
+    $json = json_decode($texto, true);
+    if (!is_array($json)) return array('resumo' => '', 'orientacao' => '');
+
+    return array(
+        'resumo' => isset($json['resumo']) ? trim($json['resumo']) : '',
+        'orientacao' => isset($json['orientacao']) ? trim($json['orientacao']) : '',
+    );
+}
 
 // ── Parser do texto bruto do DJen ──
 function parsear_djen($texto) {
@@ -140,24 +218,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $parsed = array();
         foreach ($publicacoes as $pub) {
             $numLimpo = preg_replace('/\D/', '', $pub['numero_processo']);
+            // Matcha TAMBÉM em arquivados/cancelados — pode ter publicação nova em processo encerrado.
+            // Se houver vários com mesmo número, prioriza os ativos.
             $stmtCase = $pdo->prepare(
-                "SELECT cs.id, cs.title, cs.comarca, cs.case_type, cs.responsible_user_id,
+                "SELECT cs.id, cs.title, cs.comarca, cs.case_type, cs.responsible_user_id, cs.status,
                         c.name as client_name, c.id as client_id
                  FROM cases cs
                  LEFT JOIN clients c ON c.id = cs.client_id
                  WHERE REPLACE(REPLACE(REPLACE(cs.case_number,'-',''),'.',''),'/','') = ?
-                 AND cs.status NOT IN ('arquivado','cancelado')
+                 ORDER BY FIELD(cs.status,'arquivado','cancelado','concluido') ASC, cs.id DESC
                  LIMIT 1"
             );
             $stmtCase->execute(array($numLimpo));
             $caso = $stmtCase->fetch();
             $pub['case_id']      = $caso ? (int)$caso['id'] : null;
             $pub['case_title']   = $caso ? $caso['title'] : null;
+            $pub['case_status']  = $caso ? $caso['status'] : null;
             $pub['client_name']  = $caso ? $caso['client_name'] : null;
             $pub['client_id']    = $caso ? (int)$caso['client_id'] : null;
             $pub['responsavel']  = $caso ? (int)$caso['responsible_user_id'] : $userId;
             $pub['prazo_dias'] = prazo_sugerido_djen($pub['tipo_comunicacao']);
             $pub['data_fim']   = calcular_data_fim_djen($pub['data_disp'], $pub['prazo_dias'], $pdo);
+
+            // Resumo + orientação via Claude Haiku (antes da dedup — se existe, vai refletir)
+            $ia = gerar_resumo_publicacao_ia($pub['conteudo'], $pub['tipo_comunicacao'], $pub['data_disp']);
+            $pub['resumo_ia'] = $ia['resumo'];
+            $pub['orientacao_ia'] = $ia['orientacao'];
 
             // Verificar duplicata
             $pub['ja_importada'] = false;
@@ -208,6 +294,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $dataFim    = !empty($item['data_fim']) ? $item['data_fim'] : null;
             $responsavel = (int)($item['responsavel'] ?? $userId);
             $numero     = trim($item['numero_processo'] ?? '');
+            $resumoIa   = trim($item['resumo_ia'] ?? '');
+            $orientacaoIa = trim($item['orientacao_ia'] ?? '');
 
             if (!$conteudo || !$numero) continue;
 
@@ -262,13 +350,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     "INSERT INTO case_publicacoes
                      (case_id, data_disponibilizacao, conteudo, caderno, tribunal,
                       tipo_publicacao, fonte, prazo_dias, data_prazo_fim,
-                      status_prazo, visivel_cliente, criado_por, created_at)
-                     VALUES (?,?,?,'DJEN',?,?,'manual',?,?,'pendente',0,?,NOW())"
+                      status_prazo, visivel_cliente, resumo_ia, orientacao_ia, criado_por, created_at)
+                     VALUES (?,?,?,'DJEN',?,?,'manual',?,?,'pendente',0,?,?,?,NOW())"
                 )->execute(array(
                     $caseId, $dataDisp, $conteudo, $orgao, $tipoPub,
-                    $prazoDias ?: null, $dataFim, $userId
+                    $prazoDias ?: null, $dataFim,
+                    $resumoIa ?: null, $orientacaoIa ?: null, $userId
                 ));
                 $pubId = (int)$pdo->lastInsertId();
+
+                // Cria andamento TRANCADO (visivel_cliente=0) na linha do tempo do processo.
+                // Amanda destrava manualmente depois de revisar.
+                try {
+                    $tipoAndLbl = array(
+                        'intimacao'=>'Intimação','citacao'=>'Citação','despacho'=>'Despacho',
+                        'decisao'=>'Decisão','sentenca'=>'Sentença','acordao'=>'Acórdão',
+                        'edital'=>'Edital','outro'=>'Publicação'
+                    );
+                    $lblAnd = isset($tipoAndLbl[$tipoPub]) ? $tipoAndLbl[$tipoPub] : 'Publicação';
+                    $descAnd = '📢 ' . $lblAnd . ' — DJen (' . date('d/m/Y', strtotime($dataDisp)) . ')';
+                    if ($resumoIa) $descAnd .= "\n\n📝 Resumo: " . $resumoIa;
+                    if ($orientacaoIa) $descAnd .= "\n⚖️ Orientação: " . $orientacaoIa;
+                    if ($dataFim) $descAnd .= "\n⏰ Prazo fatal: " . date('d/m/Y', strtotime($dataFim));
+                    $descAnd .= "\n\n— Conteúdo completo —\n" . mb_substr($conteudo, 0, 2000, 'UTF-8');
+
+                    $pdo->prepare(
+                        "INSERT INTO case_andamentos
+                         (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                         VALUES (?,?,'publicacao',?,0,?,NOW())"
+                    )->execute(array($caseId, $dataDisp, $descAnd, $userId));
+                } catch (Exception $eAnd) {
+                    @file_put_contents(APP_ROOT . '/files/djen_ia.log', '[' . date('Y-m-d H:i:s') . "] ERRO ANDAMENTO pub={$pubId}: " . $eAnd->getMessage() . "\n", FILE_APPEND);
+                }
 
                 // Criar tarefa se tem prazo
                 if ($dataFim) {
@@ -353,6 +466,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pub-row.encontrado { border-left:4px solid #059669; }
 .pub-row.nao-encontrado { border-left:4px solid #d97706; }
 .pub-row.segredo { border-left:4px solid #6b7280; }
+.pub-row.arquivado { border-left:4px solid #f59e0b; background:#fffbeb; }
+.ia-box { background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px; padding:.55rem .75rem; margin-top:.5rem; font-size:.75rem; line-height:1.5; }
+.ia-box .ia-label { font-size:.65rem; text-transform:uppercase; font-weight:700; color:#6366f1; letter-spacing:.4px; }
+.ia-box .ia-orientacao { margin-top:.35rem; padding-top:.35rem; border-top:1px dashed #c7d2fe; color:#4338ca; font-weight:600; }
 .pub-row .numero { font-size:.85rem; font-weight:800; color:var(--petrol-900); font-family:monospace; }
 .pub-row .orgao-txt { font-size:.75rem; color:var(--text-muted); margin-top:2px; }
 .pub-row .case-badge { font-size:.7rem; font-weight:700; padding:2px 8px; border-radius:4px; }
@@ -460,8 +577,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php foreach ($resultado as $idx => $pub):
                 $encontrado = !empty($pub['case_id']);
                 $jaImportada = !empty($pub['ja_importada']);
-                $rowClass = $pub['segredo'] ? 'segredo' : ($encontrado ? 'encontrado' : 'nao-encontrado');
+                $caseArquivado = $encontrado && isset($pub['case_status']) && in_array($pub['case_status'], array('arquivado','cancelado','concluido'));
+                $rowClass = $caseArquivado ? 'arquivado' : ($pub['segredo'] ? 'segredo' : ($encontrado ? 'encontrado' : 'nao-encontrado'));
                 if ($jaImportada) $rowClass .= ' ja-importada';
+                $statusCaseLbl = array(
+                    'arquivado' => 'ARQUIVADO', 'cancelado' => 'CANCELADO', 'concluido' => 'CONCLUÍDO',
+                    'em_andamento' => '', 'em_elaboracao' => '', 'aguardando_docs' => '',
+                    'suspenso' => 'SUSPENSO', 'distribuido' => '', 'aguardando_prazo' => '',
+                );
+                $lblStatusCase = (isset($pub['case_status']) && isset($statusCaseLbl[$pub['case_status']])) ? $statusCaseLbl[$pub['case_status']] : '';
             ?>
             <div class="pub-row <?= $rowClass ?>" id="pubRow<?= $idx ?>">
                 <div style="display:flex;align-items:flex-start;gap:.7rem;">
@@ -481,8 +605,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endif; ?>
                             <?php if ($encontrado): ?>
                                 <span class="case-badge ok"><?= e($pub['case_title']) ?> — <?= e($pub['client_name']) ?></span>
+                                <?php if ($lblStatusCase): ?>
+                                    <span class="case-badge" style="background:#fef3c7;color:#d97706;border:1px solid #fde68a;"><?= e($lblStatusCase) ?></span>
+                                <?php endif; ?>
                             <?php elseif ($pub['segredo']): ?>
-                                <span class="case-badge seg">Segredo de Justiça</span>
+                                <span class="case-badge seg">Segredo de Justiça — crie a pasta abaixo</span>
                             <?php else: ?>
                                 <span class="case-badge warn">Pasta não encontrada</span>
                             <?php endif; ?>
@@ -491,6 +618,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </span>
                         </div>
                         <div class="orgao-txt"><?= e($pub['orgao']) ?></div>
+
+                        <?php if (!empty($pub['resumo_ia']) || !empty($pub['orientacao_ia'])): ?>
+                        <div class="ia-box">
+                            <?php if (!empty($pub['resumo_ia'])): ?>
+                                <div><span class="ia-label">🤖 Resumo:</span> <?= e($pub['resumo_ia']) ?></div>
+                            <?php endif; ?>
+                            <?php if (!empty($pub['orientacao_ia'])): ?>
+                                <div class="ia-orientacao"><span class="ia-label">⚖️ Orientação:</span> <?= e($pub['orientacao_ia']) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <?php endif; ?>
+
                         <div class="conteudo-txt" id="cont<?= $idx ?>"><?= e(mb_substr($pub['conteudo'], 0, 300, 'UTF-8')) ?></div>
                         <button type="button" class="btn-expandir" onclick="expDjen(<?= $idx ?>)">Ver completo</button>
 
@@ -502,6 +641,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <input type="hidden" name="itens[<?= $idx ?>][orgao]" value="<?= e($pub['orgao']) ?>">
                         <input type="hidden" name="itens[<?= $idx ?>][comarca]" value="<?= e($pub['comarca'] ?? '') ?>">
                         <input type="hidden" name="itens[<?= $idx ?>][conteudo]" value="<?= e($pub['conteudo']) ?>">
+                        <input type="hidden" name="itens[<?= $idx ?>][resumo_ia]" value="<?= e($pub['resumo_ia'] ?? '') ?>">
+                        <input type="hidden" name="itens[<?= $idx ?>][orientacao_ia]" value="<?= e($pub['orientacao_ia'] ?? '') ?>">
                         <input type="hidden" name="itens[<?= $idx ?>][data_fim]" id="dataFim<?= $idx ?>" value="<?= e($pub['data_fim'] ?? '') ?>">
 
                         <div style="display:flex;align-items:center;gap:.5rem;margin-top:.5rem;flex-wrap:wrap;">
@@ -520,19 +661,45 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </select>
                         </div>
 
-                        <?php if (!$encontrado && !$pub['segredo']): ?>
+                        <?php if (!$encontrado): // libera pra segredo também — só precisa de cliente+título
+                            // Título sugerido: "Parte1 x Parte2" (2 primeiras) senão só CNJ
+                            $tituloSug = 'Processo ' . $pub['numero_processo'];
+                            if (!empty($pub['partes']) && count($pub['partes']) >= 2) {
+                                $p1 = preg_replace('/\s+/', ' ', trim($pub['partes'][0]));
+                                $p2 = preg_replace('/\s+/', ' ', trim($pub['partes'][1]));
+                                if ($p1 && $p2 && strlen($p1) < 80 && strlen($p2) < 80) {
+                                    $tituloSug = $p1 . ' x ' . $p2;
+                                }
+                            } elseif (!empty($pub['partes'])) {
+                                $tituloSug = trim($pub['partes'][0]) . ' — ' . $pub['numero_processo'];
+                            }
+                            // Cliente sugerido (match com partes)
+                            $clienteSugNome = null;
+                            foreach ($clientes as $cl) {
+                                foreach ($pub['partes'] as $pn) {
+                                    if (mb_stripos($pn, $cl['name']) !== false || mb_stripos($cl['name'], $pn) !== false) {
+                                        $clienteSugNome = $cl['name']; break 2;
+                                    }
+                                }
+                            }
+                        ?>
                         <div style="margin-top:.6rem;">
-                            <button type="button" class="btn btn-sm btn-outline" style="font-size:.7rem;border-color:#d97706;color:#d97706;" onclick="togCriar(<?= $idx ?>)">+ Criar pasta</button>
+                            <button type="button" class="btn btn-sm btn-outline" style="font-size:.7rem;border-color:#d97706;color:#d97706;" onclick="togCriar(<?= $idx ?>)">+ Criar pasta deste processo</button>
                             <div id="criarPasta<?= $idx ?>" class="criar-pasta-form" style="display:none;">
-                                <div style="font-size:.75rem;font-weight:700;color:#d97706;margin-bottom:.5rem;">Nova pasta</div>
+                                <div style="font-size:.75rem;font-weight:700;color:#d97706;margin-bottom:.5rem;">Nova pasta <span style="font-weight:400;color:var(--text-muted);">— dados já preenchidos a partir da publicação</span></div>
+                                <?php if ($clienteSugNome): ?>
+                                <div style="font-size:.72rem;color:#059669;margin-bottom:.5rem;">✅ Cliente identificado automaticamente: <strong><?= e($clienteSugNome) ?></strong> — confirme ou altere abaixo</div>
+                                <?php else: ?>
+                                <div style="font-size:.72rem;color:#d97706;margin-bottom:.5rem;">⚠️ Nenhum cliente foi identificado nas partes — selecione manualmente</div>
+                                <?php endif; ?>
                                 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
                                     <div style="display:flex;flex-direction:column;gap:2px;">
-                                        <label style="font-size:.65rem;color:var(--text-muted);">Titulo *</label>
-                                        <input type="text" name="itens[<?= $idx ?>][title_novo]" class="form-input" style="width:250px;font-size:.78rem;" value="Processo <?= e($pub['numero_processo']) ?>">
+                                        <label style="font-size:.65rem;color:var(--text-muted);">Título *</label>
+                                        <input type="text" name="itens[<?= $idx ?>][title_novo]" class="form-input" style="width:300px;font-size:.78rem;" value="<?= e($tituloSug) ?>">
                                     </div>
                                     <div style="display:flex;flex-direction:column;gap:2px;">
                                         <label style="font-size:.65rem;color:var(--text-muted);">Cliente *</label>
-                                        <select name="itens[<?= $idx ?>][client_id_novo]" class="form-select" style="width:220px;font-size:.78rem;">
+                                        <select name="itens[<?= $idx ?>][client_id_novo]" class="form-select" style="width:240px;font-size:.78rem;">
                                             <option value="">— Selecione —</option>
                                             <?php foreach ($clientes as $cl):
                                                 $presel = false;
@@ -546,7 +713,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                     </div>
                                 </div>
                                 <?php if (!empty($pub['partes'])): ?>
-                                <div style="font-size:.68rem;color:var(--text-muted);">Partes: <?= e(implode(', ', array_slice($pub['partes'], 0, 3))) ?></div>
+                                <div style="font-size:.68rem;color:var(--text-muted);">📋 Partes identificadas: <strong><?= e(implode(' · ', array_slice($pub['partes'], 0, 4))) ?></strong></div>
+                                <?php endif; ?>
+                                <?php if (!empty($pub['comarca']) || !empty($pub['orgao'])): ?>
+                                <div style="font-size:.68rem;color:var(--text-muted);margin-top:.2rem;">🏛️ Vara/Comarca preenchidas: <?= e(($pub['orgao'] ?: '') . ($pub['comarca'] ? ' — ' . $pub['comarca'] : '')) ?></div>
                                 <?php endif; ?>
                                 <input type="hidden" name="itens[<?= $idx ?>][criar_pasta]" value="1">
                             </div>
