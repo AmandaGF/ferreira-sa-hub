@@ -802,6 +802,7 @@ function renderLista() {
             (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + (ev.case_number ? ' — ' + esc(ev.case_number) : '') + '</span>' : '') +
             prioHtml + statusHtml +
             '</div>' +
+            (ev.descricao ? '<div class="ag-lc-descricao" style="margin-top:.4rem;padding:.4rem .6rem;background:rgba(215,171,144,.1);border-left:3px solid #B87333;border-radius:4px;font-size:.78rem;color:#3f2e1c;line-height:1.4;white-space:pre-wrap;"><b>📝 Motivo:</b> ' + esc(ev.descricao) + '</div>' : '') +
             '<div class="ag-lc-acoes">' + acoesHtml + '</div></div></div>';
     }).join('');
 }
