@@ -80,29 +80,56 @@ try {
                 $log("[{$numero}] fromMe NOVO — mensagem enviada pelo celular msgId={$zapiMsgId} phone={$telefone}");
             }
 
-            // Se o phone é um @lid (ID interno do Multi-Device, não o número real),
-            // tentar achar a conversa existente pelo chatName pra não duplicar.
+            // Prevenção de duplicação — matching em cascata.
+            // Problema: cliente envia com phone=@lid, mas Hub envia com telefone normal.
+            // Se chatName não bate exatamente (ex: "Luiz" vs "Luiz Eduardo"), cria 2 conversas.
+            // Solução: várias estratégias de match, do exato pro fuzzy.
             $ehLid = (strpos($telefone, '@lid') !== false);
             $conv = null;
-            if ($ehLid && $chatName) {
-                $q = $pdo->prepare("SELECT * FROM zapi_conversas WHERE canal = ? AND nome_contato = ?
+
+            // Estratégia 1: chatName EXATO (lógica original)
+            if (!$ehGrupo && !empty($chatName)) {
+                $q = $pdo->prepare("SELECT * FROM zapi_conversas
+                                    WHERE canal = ? AND LOWER(TRIM(nome_contato)) = LOWER(TRIM(?))
+                                      AND (eh_grupo = 0 OR eh_grupo IS NULL)
                                     ORDER BY ultima_msg_em DESC LIMIT 1");
                 $q->execute(array($numero, $chatName));
                 $conv = $q->fetch();
-                if ($conv) $log("[{$numero}] LID {$telefone} → usando conversa existente #{$conv['id']} ({$chatName})");
+                if ($conv) $log("[{$numero}] MATCH-EXATO nome='{$chatName}' → conversa #{$conv['id']} (tel={$conv['telefone']})");
             }
-            // Match reverso pra fechar brecha do @lid puro: se chega msg com
-            // telefone normal e já existe conversa @lid do mesmo canal com nome
-            // igual ao chatName atual, usa aquela (evita criar outra).
-            if (!$conv && !$ehLid && !$ehGrupo && !empty($chatName)) {
-                $qRev = $pdo->prepare("SELECT * FROM zapi_conversas
-                                        WHERE canal = ? AND nome_contato = ?
-                                          AND telefone LIKE '%@lid%'
+
+            // Estratégia 2: nome PARCIAL — primeiro nome bate (ex: msg com "Luiz" encontra "Luiz Eduardo")
+            if (!$conv && !$ehGrupo && !empty($chatName)) {
+                $primeiroNome = trim(explode(' ', trim($chatName))[0]);
+                if ($primeiroNome && mb_strlen($primeiroNome) >= 3) {
+                    // Match onde o nome existente COMECA com o primeiroNome ou vice-versa
+                    $q = $pdo->prepare("SELECT * FROM zapi_conversas
+                                        WHERE canal = ?
+                                          AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                          AND (LOWER(nome_contato) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT(LOWER(SUBSTRING_INDEX(nome_contato,' ',1)), '%'))
+                                          AND ultima_msg_em >= DATE_SUB(NOW(), INTERVAL 90 DAY)
                                         ORDER BY ultima_msg_em DESC LIMIT 1");
-                $qRev->execute(array($numero, $chatName));
-                $conv = $qRev->fetch();
-                if ($conv) $log("[{$numero}] tel-real {$telefone} → absorveu conversa @lid existente #{$conv['id']} ({$chatName})");
+                    $q->execute(array($numero, $primeiroNome . '%', $chatName));
+                    $conv = $q->fetch();
+                    if ($conv) $log("[{$numero}] MATCH-PARCIAL '{$chatName}' vs '{$conv['nome_contato']}' → conversa #{$conv['id']} (tel={$conv['telefone']})");
+                }
             }
+
+            // Estratégia 3: telefone "puro" igual (casos muito raros onde Z-API troca formato)
+            if (!$conv && !$ehLid && !$ehGrupo) {
+                $telPuro = preg_replace('/\D/', '', $telefone);
+                if ($telPuro && strlen($telPuro) >= 10) {
+                    $q = $pdo->prepare("SELECT * FROM zapi_conversas
+                                        WHERE canal = ?
+                                          AND REPLACE(telefone,'@lid','') LIKE ?
+                                          AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                        ORDER BY ultima_msg_em DESC LIMIT 1");
+                    $q->execute(array($numero, '%' . substr($telPuro, -10) . '%'));
+                    $conv = $q->fetch();
+                    if ($conv) $log("[{$numero}] MATCH-TEL tel-final='{$telPuro}' → conversa #{$conv['id']}");
+                }
+            }
+
             if (!$conv) {
                 $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, $ehGrupo);
             } elseif ($ehGrupo && !empty($chatName)) {

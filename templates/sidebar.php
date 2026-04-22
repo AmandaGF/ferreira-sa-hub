@@ -135,6 +135,7 @@ $menuItems = array(
     array('label' => 'Claudin — Backfill', 'icon' => '🔄', 'href' => url('modules/admin/claudin_backfill.php'), 'id' => 'claudin_backfill', 'roles' => array('admin')),
     array('label' => 'Claudin — Diag', 'icon' => '🔍', 'href' => url('modules/admin/claudin_diag.php'), 'id' => 'claudin_diag', 'roles' => array('admin')),
     array('label' => 'Importar Endereços', 'icon' => '📍', 'href' => url('modules/admin/importar_enderecos.php'), 'id' => 'importar_enderecos', 'roles' => array('admin')),
+    array('label' => 'WhatsApp dedup',  'icon' => '🔀', 'href' => url('modules/admin/whatsapp_dedup.php'), 'id' => 'whatsapp_dedup', 'roles' => array('admin')),
     array('label' => 'Health Check',    'icon' => '🩺', 'href' => url('modules/admin/health.php'),  'id' => 'admin',           'roles' => array('admin')),
 );
 ?>
