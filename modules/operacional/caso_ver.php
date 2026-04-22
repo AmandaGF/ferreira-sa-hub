@@ -56,17 +56,58 @@ try {
 
 // Ofícios enviados deste caso (com dados completos do novo_oficio.php)
 $oficiosEnviados = array();
+$oficiosHistorico = array(); // { oficio_id: [eventos...] }
 try {
     $stmtOf = $pdo->prepare(
         "SELECT id, empregador, empresa_cnpj, rh_email, rh_contato, funcionario_nome,
-                data_envio, plataforma, cod_rastreio, retorno_ar, observacoes, created_at
+                data_envio, plataforma, cod_rastreio, retorno_ar, observacoes, created_at,
+                status_oficio, ultima_atividade_em
          FROM oficios_enviados
          WHERE case_id = ?
          ORDER BY data_envio DESC, id DESC"
     );
     $stmtOf->execute(array($caseId));
     $oficiosEnviados = $stmtOf->fetchAll();
+    // Carrega histórico dos ofícios desta pasta (se houver)
+    if (!empty($oficiosEnviados)) {
+        $ids = array_map(function($o){ return (int)$o['id']; }, $oficiosEnviados);
+        $inIds = implode(',', $ids);
+        try {
+            $stmtH = $pdo->query(
+                "SELECT h.oficio_id, h.tipo, h.descricao, h.created_at, u.name AS user_name
+                 FROM oficios_historico h
+                 LEFT JOIN users u ON u.id = h.created_by
+                 WHERE h.oficio_id IN ($inIds)
+                 ORDER BY h.created_at DESC, h.id DESC"
+            );
+            foreach ($stmtH->fetchAll() as $h) {
+                $oficiosHistorico[(int)$h['oficio_id']][] = $h;
+            }
+        } catch (Exception $e) { /* tabela pode não existir ainda */ }
+    }
 } catch (Exception $e) { /* tabela pode não ter case_id ainda */ }
+
+// Mapas pra timeline inline
+$_ofStatusMeta = array(
+    'aguardando_contato_rh' => array('📮 Aguardando contato do RH', '#f59e0b'),
+    'oficio_enviado'        => array('📬 Ofício formal enviado',    '#2563eb'),
+    'rh_respondeu'          => array('💬 RH respondeu',             '#0ea5e9'),
+    'em_cobranca'           => array('⏰ Em cobrança',               '#d97706'),
+    'pensao_implantada'     => array('✅ Pensão implantada',         '#059669'),
+    'sem_resposta'          => array('❌ Sem resposta',              '#6b7280'),
+    'problema'              => array('⚠️ Problema',                  '#dc2626'),
+    'arquivado'             => array('📁 Arquivado',                 '#94a3b8'),
+);
+$_ofTipoMeta = array(
+    'email_inicial'     => array('📮', 'E-mail inicial enviado'),
+    'cobranca'          => array('⏰', 'Cobrança enviada'),
+    'rh_respondeu'      => array('💬', 'RH respondeu'),
+    'oficio_formal'     => array('📬', 'Ofício formal enviado'),
+    'confirmado'        => array('🤝', 'RH confirmou recebimento'),
+    'pensao_implantada' => array('✅', 'Pensão implantada em folha'),
+    'problema'          => array('⚠️', 'Problema / obstáculo'),
+    'outro'             => array('📝', 'Outro evento'),
+);
 
 // Documentos pendentes deste caso
 $docsPendentes = array();
@@ -1319,45 +1360,61 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         <?php if (empty($oficiosEnviados)): ?>
             <div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:.82rem;">Nenhum ofício enviado pra este processo ainda.</div>
         <?php else: ?>
-            <div style="overflow-x:auto;">
-            <table style="width:100%;border-collapse:collapse;font-size:.8rem;">
-                <thead>
-                    <tr style="background:#f9fafb;border-bottom:1px solid var(--border);">
-                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Empregador</th>
-                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Funcionário</th>
-                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Envio</th>
-                        <th style="padding:6px 8px;text-align:left;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Forma</th>
-                        <th style="padding:6px 8px;text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">AR</th>
-                        <th style="padding:6px 8px;text-align:center;font-size:.68rem;text-transform:uppercase;color:var(--text-muted);">Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                <?php foreach ($oficiosEnviados as $of):
-                    $diasDesde = $of['data_envio'] ? (int)((strtotime('today') - strtotime($of['data_envio'])) / 86400) : 0;
-                    $semAR = !$of['retorno_ar'] && $diasDesde > 15;
-                ?>
-                <tr style="border-bottom:1px solid #f0f0f0;<?= $semAR ? 'background:#fef2f2;' : '' ?>">
-                    <td style="padding:6px 8px;font-weight:700;"><?= e($of['empregador'] ?: '—') ?><?php if ($of['empresa_cnpj']): ?><br><span style="font-size:.68rem;color:var(--text-muted);font-family:monospace;"><?= e($of['empresa_cnpj']) ?></span><?php endif; ?></td>
-                    <td style="padding:6px 8px;"><?= e($of['funcionario_nome'] ?: '—') ?></td>
-                    <td style="padding:6px 8px;"><?= $of['data_envio'] ? date('d/m/Y', strtotime($of['data_envio'])) : '—' ?></td>
-                    <td style="padding:6px 8px;text-transform:uppercase;font-size:.7rem;"><?= e(strtoupper($of['plataforma'] ?: '—')) ?></td>
-                    <td style="padding:6px 8px;text-align:center;">
-                        <?php if ($of['retorno_ar']): ?>
-                            <span style="background:#059669;color:#fff;padding:2px 6px;border-radius:4px;font-size:.66rem;font-weight:700;">✓ <?= e($of['retorno_ar']) ?></span>
-                        <?php elseif ($semAR): ?>
-                            <span style="background:#dc2626;color:#fff;padding:2px 6px;border-radius:4px;font-size:.66rem;font-weight:700;" title="Sem AR há mais de 15 dias">⚠️ +<?= $diasDesde ?>d</span>
-                        <?php else: ?>
-                            <span style="color:var(--text-muted);font-size:.7rem;">Aguardando</span>
-                        <?php endif; ?>
-                    </td>
-                    <td style="padding:6px 8px;text-align:center;white-space:nowrap;">
-                        <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$of['id']) ?>" class="btn btn-primary btn-sm" style="font-size:.66rem;padding:2px 7px;background:#3730a3;">✏️ Abrir</a>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-                </tbody>
-            </table>
+            <?php foreach ($oficiosEnviados as $of):
+                $diasDesde = $of['data_envio'] ? (int)((strtotime('today') - strtotime($of['data_envio'])) / 86400) : 0;
+                $semAR = !$of['retorno_ar'] && $diasDesde > 15;
+                $_st = $of['status_oficio'] ?? 'aguardando_contato_rh';
+                $_stM = $_ofStatusMeta[$_st] ?? array($_st, '#6b7280');
+                $_hist = $oficiosHistorico[(int)$of['id']] ?? array();
+            ?>
+            <div style="border:1px solid var(--border);border-radius:8px;margin-bottom:.6rem;<?= $semAR ? 'background:#fef2f2;' : 'background:#fff;' ?>">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;padding:.55rem .85rem;flex-wrap:wrap;">
+                    <div style="flex:1;min-width:240px;">
+                        <div style="font-weight:700;color:var(--petrol-900);font-size:.88rem;"><?= e($of['empregador'] ?: '—') ?></div>
+                        <div style="font-size:.7rem;color:var(--text-muted);margin-top:.15rem;">
+                            <?= $of['funcionario_nome'] ? e($of['funcionario_nome']) . ' · ' : '' ?>
+                            <?= $of['data_envio'] ? '📅 ' . date('d/m/Y', strtotime($of['data_envio'])) : '' ?>
+                            <?= $of['plataforma'] ? ' · ' . e(strtoupper($of['plataforma'])) : '' ?>
+                        </div>
+                    </div>
+                    <span style="background:<?= e($_stM[1]) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:.68rem;font-weight:700;white-space:nowrap;"><?= e($_stM[0]) ?></span>
+                    <?php if ($of['retorno_ar']): ?>
+                        <span style="background:#059669;color:#fff;padding:3px 8px;border-radius:4px;font-size:.66rem;font-weight:700;">✓ AR <?= e($of['retorno_ar']) ?></span>
+                    <?php elseif ($semAR): ?>
+                        <span style="background:#dc2626;color:#fff;padding:3px 8px;border-radius:4px;font-size:.66rem;font-weight:700;">⚠️ Sem AR +<?= $diasDesde ?>d</span>
+                    <?php endif; ?>
+                    <button type="button" onclick="var b=document.getElementById('ofHist<?= (int)$of['id'] ?>');b.style.display=b.style.display==='none'?'block':'none';this.textContent=b.style.display==='none'?'▼ Linha do tempo ('+<?= count($_hist) ?>+')':'▲ Ocultar';" class="btn btn-outline btn-sm" style="font-size:.66rem;padding:2px 8px;">▼ Linha do tempo (<?= count($_hist) ?>)</button>
+                    <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$of['id']) ?>" class="btn btn-primary btn-sm" style="font-size:.66rem;padding:2px 8px;background:#3730a3;">✏️ Abrir</a>
+                </div>
+
+                <!-- Timeline expansível -->
+                <div id="ofHist<?= (int)$of['id'] ?>" style="display:none;border-top:1px solid #f0f0f0;padding:.75rem 1rem;background:#fafbfc;">
+                    <?php if (empty($_hist)): ?>
+                        <div style="font-size:.78rem;color:var(--text-muted);text-align:center;padding:.4rem;">Nenhum evento registrado ainda. <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$of['id']) ?>" style="color:#B87333;">Abrir ofício pra adicionar eventos →</a></div>
+                    <?php else: ?>
+                        <div style="position:relative;padding-left:1.4rem;">
+                            <div style="position:absolute;left:.45rem;top:.3rem;bottom:.3rem;width:2px;background:#e5e7eb;"></div>
+                            <?php foreach ($_hist as $h):
+                                $_tm = $_ofTipoMeta[$h['tipo']] ?? array('📝', $h['tipo']);
+                            ?>
+                            <div style="position:relative;margin-bottom:.55rem;">
+                                <div style="position:absolute;left:-1.15rem;top:0;background:#fff;border:2px solid #B87333;border-radius:50%;width:14px;height:14px;display:flex;align-items:center;justify-content:center;font-size:.62rem;"><?= $_tm[0] ?></div>
+                                <div style="padding:.1rem 0;">
+                                    <div style="font-size:.78rem;"><b><?= e($_tm[1]) ?></b> <span style="color:var(--text-muted);font-size:.68rem;"> · <?= date('d/m/Y H:i', strtotime($h['created_at'])) ?><?= $h['user_name'] ? ' · ' . e(explode(' ', $h['user_name'])[0]) : '' ?></span></div>
+                                    <?php if ($h['descricao']): ?>
+                                        <div style="font-size:.76rem;color:#374151;margin-top:.1rem;white-space:pre-wrap;"><?= e($h['descricao']) ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div style="text-align:right;margin-top:.35rem;">
+                            <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$of['id']) ?>" style="font-size:.7rem;color:#B87333;">+ Adicionar evento →</a>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
+            <?php endforeach; ?>
         <?php endif; ?>
     </div>
 </div>
