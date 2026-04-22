@@ -131,6 +131,7 @@ $menuItems = array(
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin','gestao')),
     array('label' => 'Importar DJen',   'icon' => '📢', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Claudin (Monitor DJEN)', 'icon' => '🤖', 'href' => url('modules/admin/claudin_dashboard.php'), 'id' => 'claudin_dashboard', 'roles' => array('admin','gestao')),
     array('label' => 'Importar Endereços', 'icon' => '📍', 'href' => url('modules/admin/importar_enderecos.php'), 'id' => 'importar_enderecos', 'roles' => array('admin','gestao')),
     array('label' => 'Health Check',    'icon' => '🩺', 'href' => url('modules/admin/health.php'),  'id' => 'admin',           'roles' => array('admin')),
 );

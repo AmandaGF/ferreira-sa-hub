@@ -1,0 +1,52 @@
+# ============================================================
+# /conecta/cron/.htaccess
+# ============================================================
+#
+# PROPÓSITO:
+#   Bloqueia acesso HTTP direto à pasta /cron/ e TODOS os
+#   arquivos dentro dela (incluindo subpastas como /logs/).
+#
+# O QUE BLOQUEIA:
+#   - Requisições ao navegador para /conecta/cron/qualquer.php
+#   - Tentativas de ler /conecta/cron/logs/claudin.log
+#   - Qualquer tentativa de listar o conteúdo da pasta
+#
+# O QUE NÃO AFETA:
+#   - Execução via cron do cPanel (roda como CLI, passa direto)
+#   - Execução via shell_exec do dashboard (também CLI)
+#   - Uso interno dos scripts por include/require de outros
+#     módulos do Hub (filesystem, não HTTP)
+#
+# COMPATIBILIDADE:
+#   Funciona tanto em Apache 2.2 quanto em Apache 2.4+ e
+#   LiteSpeed (usado pela TurboCloud), porque cobre as duas
+#   sintaxes com um bloco IfModule.
+# ============================================================
+
+# --- Apache 2.4+ / LiteSpeed moderno -------------------------
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+
+# --- Apache 2.2 / sintaxe legada (fallback) ------------------
+<IfModule !mod_authz_core.c>
+    Order deny,allow
+    Deny from all
+</IfModule>
+
+# --- Desabilita listagem de diretório (defesa extra) ---------
+Options -Indexes
+
+# --- Impede execução de PHP via HTTP nesta pasta -------------
+# Mesmo se as regras acima falharem por algum motivo estranho,
+# isso garante que nenhum .php desta pasta seja interpretado
+# quando acessado pelo navegador.
+<FilesMatch "\.(php|phtml|log|ini|conf)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
+</FilesMatch>
