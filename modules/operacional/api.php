@@ -187,6 +187,21 @@ switch ($action) {
                 audit_log($procCategory === 'extrajudicial' ? 'extrajudicial' : 'processo_distribuido', 'case', $caseId, ($procCategory === 'extrajudicial' ? 'Extrajudicial: ' : 'Processo: ') . ($procNumero ?: $procVara));
                 notify_gestao('Processo distribuído!', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . $procNumero . ' (' . $procVara . ')', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '🏛️');
 
+                // Web Push — processo distribuído: notifica gestão + responsável do caso
+                if (function_exists('push_notify_role')) {
+                    try {
+                        $tituloPush = '🏛️ Processo ' . ($procCategory === 'extrajudicial' ? 'extrajudicial registrado' : 'distribuído');
+                        $corpoPush = ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . ($procNumero ?: $procVara);
+                        $urlPush = '/conecta/modules/operacional/caso_ver.php?id=' . $caseId;
+                        push_notify_role(array('admin','gestao'), $tituloPush, $corpoPush, $urlPush, false);
+                        // Responsável do caso também (se não for admin/gestao já notificado)
+                        $respIdPush = $currentCase ? (int)($currentCase['responsible_user_id'] ?? 0) : 0;
+                        if ($respIdPush > 0 && $respIdPush !== current_user_id() && function_exists('push_notify')) {
+                            push_notify($respIdPush, $tituloPush, $corpoPush, $urlPush, false);
+                        }
+                    } catch (Exception $e) {}
+                }
+
                 // BLOCO 4: Notificar cliente — Processo distribuído (só se tiver nº)
                 if ($procNumero && $currentCase) {
                     notificar_cliente('processo_distribuido', (int)$currentCase['client_id'], array(

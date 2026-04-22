@@ -71,6 +71,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
              VALUES (?, 'cliente', ?, NULL, ?, NOW())"
         )->execute(array($ticketId, $clienteId, $descricao));
 
+        // Push pra equipe (admin+gestao+cx) — cliente acabou de abrir chamado via Central VIP
+        // Salavip não auto-inclui functions_push, carrega aqui se existir
+        $_pushPath = __DIR__ . '/../../core/functions_push.php';
+        if (file_exists($_pushPath)) { try { require_once $_pushPath; } catch (Exception $e) {} }
+        if (function_exists('push_notify_role')) {
+            try {
+                // Nome do cliente pra mensagem
+                $stNome = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+                $stNome->execute(array($clienteId));
+                $nomeCli = (string)$stNome->fetchColumn();
+                $tituloPush = ($prioridade === 'urgente' ? '🔥 ' : '🔔 ') . 'Novo chamado Central VIP #' . $ticketId;
+                $corpoPush = ($nomeCli ? $nomeCli . ' · ' : '') . $assunto;
+                $urlPush = '/conecta/modules/helpdesk/ver.php?id=' . $ticketId;
+                push_notify_role(array('admin','gestao','cx'), $tituloPush, $corpoPush, $urlPush, $prioridade === 'urgente');
+            } catch (Exception $e) {}
+        }
+
         sv_flash('success', 'Chamado #' . $ticketId . ' aberto com sucesso! Nossa equipe responderá em breve.');
     } catch (Exception $e) {
         sv_flash('error', 'Erro ao abrir chamado: ' . $e->getMessage());

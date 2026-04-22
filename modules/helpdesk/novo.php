@@ -99,6 +99,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) { /* tabela pode não existir */ }
         }
 
+        // Push pros responsáveis atribuídos (se o módulo push estiver disponível)
+        if (!empty($assignees) && function_exists('push_notify')) {
+            $tituloPush = ($priority === 'urgente' ? '🔥 ' : '📋 ') . 'Novo chamado #' . $ticketId;
+            $corpoPush = $title . ($clientName ? ' · ' . $clientName : '');
+            $urlPush = '/conecta/modules/helpdesk/ver.php?id=' . $ticketId;
+            foreach ($assignees as $uid) {
+                $uid = (int)$uid;
+                if ($uid > 0 && $uid !== current_user_id()) {
+                    try { push_notify($uid, $tituloPush, $corpoPush, $urlPush, $priority === 'urgente'); } catch (Exception $e) {}
+                }
+            }
+        }
+
         audit_log('ticket_created', 'ticket', $ticketId);
         flash_set('success', 'Chamado #' . $ticketId . ' criado!');
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
