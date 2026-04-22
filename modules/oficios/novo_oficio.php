@@ -407,7 +407,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h4>🏢 Empresa (empregadora)</h4>
         <div class="of-grid">
             <div><span class="of-lab">Razão social / nome fantasia *</span><input type="text" name="empregador" id="empregador" class="of-inp" required placeholder="Ex: Empresa X Ltda" value="<?= e($oficioExistente['empregador'] ?? '') ?>" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">CNPJ</span><input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" value="<?= e($oficioExistente['empresa_cnpj'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div>
+                <span class="of-lab">CNPJ <span id="cnpj_status" style="font-size:.7rem;margin-left:8px;"></span></span>
+                <div style="display:flex;gap:6px;">
+                    <input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" value="<?= e($oficioExistente['empresa_cnpj'] ?? '') ?>" oninput="atualizarPreviews()" onblur="buscarCnpjOficio()" style="flex:1;">
+                    <button type="button" onclick="buscarCnpjOficio()" style="background:#052228;color:#fff;border:none;border-radius:6px;padding:0 12px;cursor:pointer;font-size:.8rem;font-weight:600;" title="Buscar dados da empresa na Receita Federal">🔍 Buscar</button>
+                </div>
+            </div>
             <div><span class="of-lab">E-mail do RH</span><input type="email" name="rh_email" id="rh_email" class="of-inp" placeholder="rh@empresa.com.br" value="<?= e($oficioExistente['rh_email'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">WhatsApp/telefone do RH</span><input type="text" name="rh_contato" id="rh_contato" class="of-inp" placeholder="(24) 99999-0000" value="<?= e($oficioExistente['rh_contato'] ?? '') ?>" oninput="atualizarPreviews()"></div>
         </div>
@@ -585,6 +591,42 @@ function atualizarPreviews() {
     document.getElementById('tplWa').value = wa;
 }
 atualizarPreviews();
+
+// Busca dados da empresa pelo CNPJ via ReceitaWS (endpoint partes_api)
+var PARTES_API_URL = '<?= url("modules/shared/partes_api.php") ?>';
+function buscarCnpjOficio() {
+    var inp = document.getElementById('empresa_cnpj');
+    var cnpj = (inp.value || '').replace(/\D/g, '');
+    var st = document.getElementById('cnpj_status');
+    if (cnpj.length < 14) { return; }
+    st.textContent = '⏳ Buscando na Receita...'; st.style.color = '#d97706';
+    var x = new XMLHttpRequest();
+    x.open('GET', PARTES_API_URL + '?action=buscar_cnpj&q=' + cnpj);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.found) {
+                var d = r.data;
+                // Só preenche se o campo tá vazio (não sobrescreve o que Amanda digitou)
+                var empEl = document.getElementById('empregador');
+                if (!empEl.value.trim() && d.razao_social) empEl.value = d.razao_social;
+                var emailEl = document.getElementById('rh_email');
+                if (!emailEl.value.trim() && d.email) emailEl.value = d.email;
+                var telEl = document.getElementById('rh_contato');
+                if (!telEl.value.trim() && d.telefone) telEl.value = d.telefone;
+                atualizarPreviews();
+                st.textContent = '✓ Dados encontrados!'; st.style.color = '#059669';
+            } else {
+                st.textContent = 'CNPJ não encontrado na Receita.'; st.style.color = '#94a3b8';
+            }
+        } catch (e) {
+            st.textContent = 'Erro ao consultar.'; st.style.color = '#b91c1c';
+        }
+        setTimeout(function() { st.textContent = ''; }, 4500);
+    };
+    x.onerror = function() { st.textContent = 'Erro de conexão.'; st.style.color = '#b91c1c'; };
+    x.send();
+}
 
 function copiarTpl(id) {
     var el = document.getElementById(id);
