@@ -802,7 +802,18 @@ function renderLista() {
             (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + (ev.case_number ? ' — ' + esc(ev.case_number) : '') + '</span>' : '') +
             prioHtml + statusHtml +
             '</div>' +
-            (ev.descricao ? '<div class="ag-lc-descricao" style="margin-top:.4rem;padding:.4rem .6rem;background:rgba(215,171,144,.1);border-left:3px solid #B87333;border-radius:4px;font-size:.78rem;color:#3f2e1c;line-height:1.4;white-space:pre-wrap;"><b>📝 Motivo:</b> ' + esc(ev.descricao) + '</div>' : '') +
+            (function(){
+                // Balcão Virtual salva o motivo em msg_cliente (label do form = "Motivo do Balcão Virtual")
+                // Outros tipos usam descricao como observação interna
+                var motivo = _isBalcao ? (ev.msg_cliente || '').trim() : (ev.descricao || '').trim();
+                var obsInterna = _isBalcao ? (ev.descricao || '').trim() : '';
+                if (!motivo && !obsInterna) return '';
+                var html = '<div class="ag-lc-descricao" style="margin-top:.4rem;padding:.4rem .6rem;background:rgba(215,171,144,.1);border-left:3px solid #B87333;border-radius:4px;font-size:.78rem;color:#3f2e1c;line-height:1.4;white-space:pre-wrap;">';
+                if (motivo) html += '<b>📝 Motivo:</b> ' + esc(motivo);
+                if (motivo && obsInterna) html += '<br>';
+                if (obsInterna) html += '<b>📋 Obs. internas:</b> ' + esc(obsInterna);
+                return html + '</div>';
+            })() +
             '<div class="ag-lc-acoes">' + acoesHtml + '</div></div></div>';
     }).join('');
 }
