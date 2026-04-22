@@ -221,13 +221,27 @@ img { max-width: 100%; display: block; }
 .sidebar-footer .btn-logout:hover { color: var(--danger); }
 
 /* ─── Main Content ────────────────────────────────────── */
+/* flex:1 + margin-left fixo causava overflow horizontal em qualquer tela
+   (flex:1 calcula 100% do container e SOMA o margin, passando do viewport).
+   Fix: usar width:calc + max-width pra garantir que nunca ultrapassa o viewport,
+   e min-width:0 pra permitir que filhos com overflow interno (tabelas, listas)
+   não forcem o main-content a esticar. */
 .main-content {
-    flex: 1;
+    flex: 1 1 0;
     margin-left: var(--sidebar-w);
+    max-width: calc(100% - var(--sidebar-w));
+    min-width: 0;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
 }
+/* Com sidebar colapsada (60px), main-content expande pra ocupar o resto */
+body.sidebar-collapsed .main-content {
+    max-width: calc(100% - 60px) !important;
+}
+/* Previne scroll horizontal no body — elementos que precisam scroll (tabelas
+   largas, kanban) têm overflow-x próprio dentro deles. */
+body { overflow-x: hidden; }
 
 .topbar {
     height: var(--topbar-h);
