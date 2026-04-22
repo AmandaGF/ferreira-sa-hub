@@ -318,10 +318,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
     <?php endif; ?>
-    <?php if ($case['client_id'] && can_access('cobranca_honorarios')): ?>
-        <button onclick="document.getElementById('modalInadimplencia').style.display='flex'" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">⚠️ Inadimplência</button>
-    <?php endif; ?>
-
     <!-- Dropdown: Imprimir -->
     <div class="cv-dropdown">
         <button type="button" class="btn btn-outline btn-sm dropdown-trigger">🖨️ Imprimir <span style="font-size:.65rem;">▾</span></button>
