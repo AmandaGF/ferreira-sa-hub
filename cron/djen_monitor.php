@@ -92,16 +92,73 @@ function claudin_log($msg) {
 }
 
 // ============================================================
-// Helpers — e-mail, HTTP
+// Helpers — e-mail via Brevo (API autenticada, SPF/DKIM ok)
 // ============================================================
+// Lê credenciais da tabela configuracoes (brevo_api_key,
+// brevo_sender_email, brevo_sender_name). mail() nativo não
+// entregava porque o domínio não tinha SPF permitindo a
+// TurboCloud enviar — Brevo resolve isso.
 function claudin_enviar_email($assunto, $corpo) {
-    $headers = 'From: ' . EMAIL_REMETENTE . "\r\n" .
-               'Reply-To: ' . EMAIL_REMETENTE . "\r\n" .
-               'Content-Type: text/plain; charset=UTF-8' . "\r\n" .
-               'X-Mailer: Claudin-DJEN-Monitor';
+    try {
+        $pdo = db();
+    } catch (Exception $e) {
+        return;
+    }
+
+    $brevoCfg = array('key' => '', 'email' => '', 'name' => 'Claudin DJEN');
+    try {
+        $rows = $pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'brevo_%'")->fetchAll();
+        foreach ($rows as $r) {
+            if ($r['chave'] === 'brevo_api_key')      $brevoCfg['key']   = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_email') $brevoCfg['email'] = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_name')  $brevoCfg['name']  = $r['valor'];
+        }
+    } catch (Exception $e) {
+        claudin_log('Email: erro ao ler config Brevo — ' . $e->getMessage());
+        return;
+    }
+
+    if (!$brevoCfg['key'] || !$brevoCfg['email']) {
+        claudin_log('Email: Brevo não configurado (brevo_api_key ou brevo_sender_email vazio).');
+        return;
+    }
+
+    // Formata corpo como HTML simples (quebras de linha viram <br>, emails viram links)
+    $htmlBody = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;line-height:1.55;padding:10px;">'
+              . nl2br(htmlspecialchars($corpo, ENT_QUOTES, 'UTF-8'))
+              . '</div>';
+
     foreach (EMAIL_ALERTAS as $para) {
-        $ok = @mail($para, $assunto, $corpo, $headers);
-        claudin_log('Email para ' . $para . ': ' . ($ok ? 'OK' : 'FALHA'));
+        $data = array(
+            'sender'      => array('name' => $brevoCfg['name'], 'email' => $brevoCfg['email']),
+            'to'          => array(array('email' => $para)),
+            'subject'     => $assunto,
+            'htmlContent' => $htmlBody,
+            'textContent' => $corpo,
+        );
+
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt_array($ch, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => array(
+                'api-key: ' . $brevoCfg['key'],
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ),
+            CURLOPT_POSTFIELDS     => json_encode($data),
+            CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code >= 200 && $code < 300) {
+            claudin_log('Email Brevo para ' . $para . ': OK (HTTP ' . $code . ')');
+        } else {
+            claudin_log('Email Brevo para ' . $para . ': FALHA HTTP ' . $code . ' — ' . substr((string)$resp, 0, 200));
+        }
     }
 }
 
