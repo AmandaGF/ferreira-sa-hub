@@ -47,6 +47,8 @@ function zapi_instancia_configurada($ddd) {
  */
 function zapi_fila_enfileirar($origem, $clientId, $telefone, $mensagem, $opts = array()) {
     $pdo = db();
+    // Self-heal: coluna origem_id pra ligar a fila ao objeto de origem (andamento, cobrança, etc)
+    try { $pdo->exec("ALTER TABLE zapi_fila_envio ADD COLUMN origem_id INT UNSIGNED NULL"); } catch (Exception $e) {}
     try {
         // Evita duplicar: se já existe pendente pro mesmo client + origem + mensagem recente, ignora
         $stmtDup = $pdo->prepare("SELECT id FROM zapi_fila_envio
@@ -55,10 +57,11 @@ function zapi_fila_enfileirar($origem, $clientId, $telefone, $mensagem, $opts = 
         $stmtDup->execute(array($origem, $clientId, $mensagem));
         if ($stmtDup->fetchColumn()) return null; // já tem sugestão igual recente
 
-        $sql = "INSERT INTO zapi_fila_envio (origem, client_id, case_id, lead_id, telefone, nome_contato, canal_sugerido, mensagem, criada_por)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO zapi_fila_envio (origem, origem_id, client_id, case_id, lead_id, telefone, nome_contato, canal_sugerido, mensagem, criada_por)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         $pdo->prepare($sql)->execute(array(
             $origem,
+            isset($opts['origem_id']) ? (int)$opts['origem_id'] : null,
             $clientId ?: null,
             $opts['case_id'] ?? null,
             $opts['lead_id'] ?? null,

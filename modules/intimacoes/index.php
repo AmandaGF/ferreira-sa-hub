@@ -180,7 +180,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ci-table td { padding:.55rem .6rem; border-bottom:1px solid var(--border); vertical-align:top; }
 .ci-table tr.orfa { background:#eef2ff; }
 .ci-table tr.pendente { background:#fffbeb; }
-.ci-table tr.descartado { opacity:.6; }
+.ci-table tr.descartado { opacity:.55; background:#f9fafb; }
+.ci-table tr.descartado .ci-cli-nome,
+.ci-table tr.descartado .ci-case-title,
+.ci-table tr.descartado .ci-resumo,
+.ci-table tr.descartado .ci-preview { text-decoration:line-through; color:#94a3b8 !important; }
+.ci-table tr.cumprida { background:#f0fdf4; }
+.ci-table tr.cumprida td { color:#64748b; }
+.ci-table tr.cumprida .ci-cli-nome,
+.ci-table tr.cumprida .ci-case-title,
+.ci-table tr.cumprida .ci-resumo,
+.ci-table tr.cumprida .ci-preview { text-decoration:line-through; color:#94a3b8 !important; }
+.ci-table tr.cumprida .ci-prazo-fatal { text-decoration:line-through; color:#94a3b8 !important; }
+.ci-selo-ok { display:inline-flex; align-items:center; gap:4px; background:#059669; color:#fff; font-size:.62rem; font-weight:800; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.5px; }
+.ci-selo-ko { display:inline-flex; align-items:center; gap:4px; background:#6b7280; color:#fff; font-size:.62rem; font-weight:700; padding:2px 8px; border-radius:10px; text-transform:uppercase; letter-spacing:.5px; }
 .ci-badge { display:inline-block; padding:1px 7px; border-radius:10px; font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
 .ci-badge.intimacao,.ci-badge.citacao,.ci-badge.sentenca,.ci-badge.decisao { background:#eef2ff; color:#4338ca; }
 .ci-badge.despacho,.ci-badge.acordao,.ci-badge.edital,.ci-badge.outro { background:#f1f5f9; color:#475569; }
@@ -279,7 +292,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr><td colspan="7" style="text-align:center;padding:2rem;color:#94a3b8;">Nenhuma intimação encontrada com esses filtros.</td></tr>
                 <?php else: foreach ($items as $it):
                     $orfa = $it['origem'] === 'pend';
-                    $trCls = $orfa ? 'orfa' : ($it['status_prazo'] === 'pendente' ? 'pendente' : ($it['status_prazo'] === 'descartado' ? 'descartado' : ''));
+                    $cumprida = (!$orfa && $it['status_prazo'] === 'confirmado');
+                    $descartada = (!$orfa && $it['status_prazo'] === 'descartado');
+                    $trCls = $orfa ? 'orfa' : ($cumprida ? 'cumprida' : ($descartada ? 'descartado' : ($it['status_prazo'] === 'pendente' ? 'pendente' : '')));
                     $tipoLbl = isset($tipoLbls[$it['tipo']]) ? $tipoLbls[$it['tipo']] : ucfirst((string)$it['tipo']);
                 ?>
                 <tr class="<?= $trCls ?>">
@@ -288,14 +303,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td style="font-family:ui-monospace,monospace;font-size:.7rem;"><?= e($it['cnj']) ?></td>
                     <td>
                         <?php if ($it['cliente_nome']): ?>
-                            <div style="font-weight:700;color:var(--petrol-900);"><?= e($it['cliente_nome']) ?></div>
+                            <div class="ci-cli-nome" style="font-weight:700;color:var(--petrol-900);"><?= e($it['cliente_nome']) ?></div>
                         <?php elseif ($it['case_title']): ?>
-                            <div style="font-weight:700;color:var(--petrol-900);"><?= e($it['case_title']) ?></div>
+                            <div class="ci-cli-nome" style="font-weight:700;color:var(--petrol-900);"><?= e($it['case_title']) ?></div>
                         <?php else: ?>
                             <div style="font-weight:600;color:#4338ca;">⚠️ Sem vinculação</div>
                         <?php endif; ?>
                         <?php if ($it['case_title'] && $it['cliente_nome']): ?>
-                            <div style="font-size:.68rem;color:var(--text-muted);"><?= e($it['case_title']) ?></div>
+                            <div class="ci-case-title" style="font-size:.68rem;color:var(--text-muted);"><?= e($it['case_title']) ?></div>
                         <?php endif; ?>
                         <?php if (!empty($it['resumo'])): ?>
                             <div class="ci-resumo">📝 <?= e($it['resumo']) ?></div>
@@ -313,11 +328,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td>
                         <?php if ($orfa): ?>
                             <span class="ci-badge orfa">Sem pasta</span>
+                        <?php elseif ($cumprida): ?>
+                            <span class="ci-selo-ok" title="Prazo cumprido na pasta do processo">✓ Prazo cumprido</span>
+                        <?php elseif ($descartada): ?>
+                            <span class="ci-selo-ko" title="Intimação descartada (não precisava fazer nada)">⊘ Descartada</span>
                         <?php else: ?>
                             <span class="ci-badge <?= e($it['status_prazo']) ?>"><?= e(ucfirst($it['status_prazo'])) ?></span>
                         <?php endif; ?>
                     </td>
-                    <td style="font-size:.72rem;">
+                    <td style="font-size:.72rem;" class="ci-prazo-fatal">
                         <?= $it['data_prazo_fim'] ? '<strong style="color:#b91c1c;">' . date('d/m/Y', strtotime($it['data_prazo_fim'])) . '</strong>' : '—' ?>
                     </td>
                     <td>
