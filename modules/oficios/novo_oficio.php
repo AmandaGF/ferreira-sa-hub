@@ -198,7 +198,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div><span class="of-lab">Banco</span><input type="text" name="conta_banco" id="conta_banco" class="of-inp" placeholder="Ex: Itaú (341)" value="<?= e($oficioExistente['conta_banco'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">Agência</span><input type="text" name="conta_agencia" id="conta_agencia" class="of-inp" value="<?= e($oficioExistente['conta_agencia'] ?? '') ?>" oninput="atualizarPreviews()"></div>
             <div><span class="of-lab">Conta</span><input type="text" name="conta_numero" id="conta_numero" class="of-inp" placeholder="00000-0" value="<?= e($oficioExistente['conta_numero'] ?? '') ?>" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Número do processo</span><input type="text" name="numero_processo" class="of-inp" value="<?= e($oficioExistente['numero_processo'] ?? $caso['case_number'] ?? '') ?>"></div>
+            <div><span class="of-lab">Número do processo</span><input type="text" name="numero_processo" id="numero_processo" class="of-inp" value="<?= e($oficioExistente['numero_processo'] ?? $caso['case_number'] ?? '') ?>" oninput="atualizarPreviews()"></div>
         </div>
     </div>
 
@@ -280,9 +280,12 @@ function atualizarPreviews() {
     var cc     = (document.getElementById('conta_numero').value || '[CONTA]').trim();
     var tit    = (document.getElementById('conta_titular').value || '[TITULAR]').trim();
     var cpf    = (document.getElementById('conta_cpf').value || '[CPF]').trim();
+    var numProc = ((document.getElementById('numero_processo') || {}).value || '').trim();
+    // Prefixo obrigatório do assunto: sempre começa com Ref: + nº do processo
+    var refPref = 'Ref: processo nº ' + (numProc || '[Nº DO PROCESSO]') + ' — ';
 
     // Modelo 1 — solicitar contato RH
-    var m1 = 'Assunto: Pensão alimentícia — solicitação de contato do RH ' + (emp ? '— ' + emp : '') + '\n\n'
+    var m1 = 'Assunto: ' + refPref + 'Pensão alimentícia — solicitação de contato do RH' + (emp ? ' — ' + emp : '') + '\n\n'
            + 'Prezado(a), boa tarde!\n\n'
            + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia em que um(a) de seus colaboradores é genitor(a) da criança.\n\n'
            + 'Informo que há decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a) ' + func
@@ -293,7 +296,7 @@ function atualizarPreviews() {
            + 'Atenciosamente,\n' + userNome + '\n' + userOAB + '\n' + userTel;
 
     // Modelo 2 — envio com dados bancários
-    var m2 = 'Assunto: Ofício — Desconto de pensão alimentícia em folha' + (func !== '[NOME DO COLABORADOR]' ? ' — ' + func : '') + '\n\n'
+    var m2 = 'Assunto: ' + refPref + 'Ofício — Desconto de pensão alimentícia em folha' + (func !== '[NOME DO COLABORADOR]' ? ' — ' + func : '') + '\n\n'
            + 'Prezada(o), bom dia!\n\n'
            + 'Meu nome é ' + userNome + ', advogado(a) inscrito(a) na ' + userOAB + ', e estou atuando em processo de fixação de pensão alimentícia.\n\n'
            + 'Envio, em anexo, a decisão judicial determinando o desconto da pensão alimentícia diretamente na folha de pagamento do(a) colaborador(a):\n\n'
