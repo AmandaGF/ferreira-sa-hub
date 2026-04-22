@@ -295,7 +295,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">+ Novo Processo</a>
     <?php endif; ?>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#dc2626;">🎫 Abrir Chamado</a>
-    <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
+    <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId) ?>" target="_blank" class="btn btn-outline btn-sm" title="Versão interna completa — com tarefas, pasta Drive, andamentos restritos e observações">🖨️ PDF Completo</a>
+    <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId . '&modo=cliente') ?>" target="_blank" class="btn btn-outline btn-sm" style="border-color:#B87333;color:#7c2d12;" title="Versão para envio ao cliente — só andamentos públicos e dados do cliente">📤 PDF Cliente</a>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
     <?php endif; ?>

@@ -8,6 +8,8 @@ require_login();
 
 $pdo = db();
 $caseId = (int)($_GET['id'] ?? 0);
+// Modo: 'interno' (completo, default) ou 'cliente' (simplificado — só o que o cliente pode ver)
+$modoCliente = (($_GET['modo'] ?? '') === 'cliente');
 
 $stmt = $pdo->prepare(
     'SELECT cs.*, c.name as client_name, c.phone as client_phone, c.cpf as client_cpf,
@@ -62,10 +64,14 @@ try {
     $tarefas = $stmtT->fetchAll();
 } catch (Exception $e) {}
 
-// Andamentos (últimos 20)
+// Andamentos — no modo cliente, só os marcados como visivel_cliente=1 e excluindo tipos internos
 $andamentos = array();
 try {
-    $stmtA = $pdo->prepare("SELECT a.*, u.name as user_name FROM case_andamentos a LEFT JOIN users u ON u.id = a.created_by WHERE a.case_id = ? ORDER BY a.data_andamento DESC, a.created_at DESC LIMIT 20");
+    if ($modoCliente) {
+        $stmtA = $pdo->prepare("SELECT a.*, u.name as user_name FROM case_andamentos a LEFT JOIN users u ON u.id = a.created_by WHERE a.case_id = ? AND a.visivel_cliente = 1 AND a.tipo NOT IN ('oficio','chamado') ORDER BY a.data_andamento DESC, a.created_at DESC LIMIT 30");
+    } else {
+        $stmtA = $pdo->prepare("SELECT a.*, u.name as user_name FROM case_andamentos a LEFT JOIN users u ON u.id = a.created_by WHERE a.case_id = ? ORDER BY a.data_andamento DESC, a.created_at DESC LIMIT 20");
+    }
     $stmtA->execute(array($caseId));
     $andamentos = $stmtA->fetchAll();
 } catch (Exception $e) {}
@@ -190,20 +196,25 @@ try {
 <div class="no-print">
     <button onclick="window.print()">🖨️ Imprimir / Salvar PDF</button>
     <button class="outline" onclick="window.close()">Fechar</button>
+    <?php if ($modoCliente): ?>
+    <div style="margin-top:8px;font-size:11px;color:#7c2d12;background:#fef3c7;border:1px solid #fbbf24;padding:6px 10px;border-radius:6px;display:inline-block;">
+        📤 <strong>Versão Cliente</strong> — sem andamentos restritos, tarefas internas, pasta Drive e dados confidenciais.
+    </div>
+    <?php endif; ?>
 </div>
 
 <div class="header">
     <div class="header-left">
         <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" style="width:48px;height:48px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">
         <div>
-            <h1>FICHA DO PROCESSO</h1>
+            <h1>FICHA DO PROCESSO<?= $modoCliente ? ' — CÓPIA CLIENTE' : '' ?></h1>
             <p>Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ</p>
         </div>
     </div>
     <div class="header-right">
         <div class="logo-text">Portal Ferreira & Sá HUB — <?= $anoAtual ?></div>
         <div>Gerado em <?= $hoje ?></div>
-        <div>Por: <?= e($userName) ?></div>
+        <?php if (!$modoCliente): ?><div>Por: <?= e($userName) ?></div><?php endif; ?>
     </div>
 </div>
 
@@ -218,19 +229,19 @@ try {
     <div class="section-title">Dados do Processo</div>
     <div class="grid">
         <div class="field"><label>Status</label><span style="font-weight:700;"><?= isset($statusLabels[$case['status']]) ? $statusLabels[$case['status']] : $case['status'] ?></span></div>
-        <div class="field"><label>Prioridade</label><span><?= isset($prioridadeLabels[$case['priority']]) ? $prioridadeLabels[$case['priority']] : $case['priority'] ?></span></div>
-        <div class="field"><label>Responsável</label><span><?= e($case['responsible_name'] ?: '—') ?></span></div>
+        <?php if (!$modoCliente): ?><div class="field"><label>Prioridade</label><span><?= isset($prioridadeLabels[$case['priority']]) ? $prioridadeLabels[$case['priority']] : $case['priority'] ?></span></div><?php endif; ?>
+        <div class="field"><label>Advogado responsável</label><span><?= e($case['responsible_name'] ?: '—') ?></span></div>
         <div class="field"><label>Tipo de Ação</label><span><?= e($case['case_type'] ?: '—') ?></span></div>
         <div class="field"><label>Vara / Juízo</label><span><?= e($case['court'] ?: '—') ?></span></div>
         <div class="field"><label>Comarca</label><span><?= e((isset($case['comarca']) ? $case['comarca'] : '') ?: '—') ?><?= isset($case['comarca_uf']) && $case['comarca_uf'] ? '/' . e($case['comarca_uf']) : '' ?></span></div>
-        <div class="field"><label>Sistema Tribunal</label><span><?= e((isset($case['sistema_tribunal']) ? $case['sistema_tribunal'] : '') ?: '—') ?></span></div>
+        <?php if (!$modoCliente): ?><div class="field"><label>Sistema Tribunal</label><span><?= e((isset($case['sistema_tribunal']) ? $case['sistema_tribunal'] : '') ?: '—') ?></span></div><?php endif; ?>
         <div class="field"><label>Distribuição</label><span><?= (isset($case['distribution_date']) && $case['distribution_date']) ? date('d/m/Y', strtotime($case['distribution_date'])) : '—' ?></span></div>
-        <div class="field"><label>Prazo</label><span><?= $case['deadline'] ? date('d/m/Y', strtotime($case['deadline'])) : '—' ?></span></div>
+        <?php if (!$modoCliente): ?><div class="field"><label>Prazo</label><span><?= $case['deadline'] ? date('d/m/Y', strtotime($case['deadline'])) : '—' ?></span></div><?php endif; ?>
         <div class="field"><label>Segredo de Justiça</label><span><?= (isset($case['segredo_justica']) && $case['segredo_justica']) ? 'Sim' : 'Não' ?></span></div>
         <div class="field"><label>Cadastrado em</label><span><?= date('d/m/Y', strtotime($case['created_at'])) ?></span></div>
-        <div class="field"><label>Pasta Drive</label><span><?= $case['drive_folder_url'] ? 'Vinculada' : '—' ?></span></div>
+        <?php if (!$modoCliente): ?><div class="field"><label>Pasta Drive</label><span><?= $case['drive_folder_url'] ? 'Vinculada' : '—' ?></span></div><?php endif; ?>
     </div>
-    <?php if (!empty($case['is_parceria'])): ?>
+    <?php if (!$modoCliente && !empty($case['is_parceria'])): ?>
     <div style="margin-top:8px;padding:8px 10px;background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:6px;">
         <div style="font-size:11px;font-weight:700;color:#059669;margin-bottom:4px;">🤝 Parceria</div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:10px;">
@@ -281,8 +292,8 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Documentos Pendentes -->
-<?php if (!empty($docsPendentes) || !empty($docsRecebidos)): ?>
+<!-- Documentos Pendentes — só no modo interno -->
+<?php if (!$modoCliente && (!empty($docsPendentes) || !empty($docsRecebidos))): ?>
 <div class="section">
     <div class="section-title red">Documentos (<?= count($docsPendentes) ?> pendente(s), <?= count($docsRecebidos) ?> recebido(s))</div>
     <table>
@@ -299,8 +310,8 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Tarefas -->
-<?php if (!empty($tarefas)): ?>
+<!-- Tarefas — só no modo interno -->
+<?php if (!$modoCliente && !empty($tarefas)): ?>
 <div class="section">
     <div class="section-title green">Tarefas (<?= count($tarefas) ?>)</div>
     <?php foreach ($tarefas as $t):
@@ -315,8 +326,8 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Prazos ativos -->
-<?php if (!empty($prazos)): ?>
+<!-- Prazos ativos — só no modo interno -->
+<?php if (!$modoCliente && !empty($prazos)): ?>
 <div class="section">
     <div class="section-title red">Prazos Processuais Ativos</div>
     <table>
@@ -376,8 +387,8 @@ try {
 </div>
 <?php endif; ?>
 
-<!-- Observações -->
-<?php if ($case['notes']): ?>
+<!-- Observações — só no modo interno (notes contêm anotações sensíveis do escritório) -->
+<?php if (!$modoCliente && $case['notes']): ?>
 <div class="section">
     <div class="section-title">Observações</div>
     <div style="padding:4px 8px;font-size:10px;white-space:pre-wrap;"><?= e($case['notes']) ?></div>
@@ -386,7 +397,7 @@ try {
 
 <div class="footer">
     <div>Ferreira & Sá Advocacia — OAB/RJ 65.532 · OAB/RJ 249.105</div>
-    <div>Portal Ferreira & Sá HUB — <?= $anoAtual ?> · Impresso por <?= e($userName) ?> em <?= $hoje ?></div>
+    <div>Portal Ferreira & Sá HUB — <?= $anoAtual ?><?= $modoCliente ? ' · Gerado em ' . $hoje : ' · Impresso por ' . e($userName) . ' em ' . $hoje ?></div>
 </div>
 
 <script>
