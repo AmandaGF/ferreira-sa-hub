@@ -1548,7 +1548,14 @@ $checkDone = count(array_filter($checklistDocs, function($t){ return $t['status'
 ?>
 
 <!-- Tarefas Operacionais -->
-<?php $temTarefasPendentes = !empty($tarefasReais); ?>
+<?php
+// Só destaca se tiver pelo menos UMA tarefa pendente (não concluída)
+$temTarefasPendentes = false;
+foreach ($tarefasReais as $_t) {
+    $_s = $_t['status'] ?? '';
+    if ($_s !== 'concluido' && $_s !== 'feito') { $temTarefasPendentes = true; break; }
+}
+?>
 <div class="card mb-2" style="<?= $temTarefasPendentes ? 'border:2px solid #d97706;box-shadow:0 0 12px rgba(217,119,6,.15);' : '' ?>">
     <div class="card-header" style="<?= $temTarefasPendentes ? 'background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(217,119,6,.02));' : '' ?>">
         <h3><?= $temTarefasPendentes ? '⚡ ' : '' ?>Tarefas (<?= count($tarefasReais) ?>)</h3>
