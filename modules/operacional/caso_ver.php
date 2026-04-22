@@ -279,6 +279,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
 }
 .filtro-andamentos button.ativo { background:#052228; color:#fff; border-color:#052228; }
 .filtro-andamentos button.ativo-pub { background:#dc2626; color:#fff; border-color:#dc2626; }
+
+/* Dropdowns da toolbar do processo */
+.cv-dropdown { position:relative; display:inline-block; }
+.cv-dropdown .dropdown-trigger { display:inline-flex; align-items:center; gap:4px; }
+.cv-dropdown-menu {
+    display:none; position:absolute; top:calc(100% + 4px); left:0;
+    background:var(--bg-card, #fff); border:1px solid var(--border, #e0e0e0);
+    border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.14);
+    min-width:220px; z-index:1000; padding:5px;
+}
+.cv-dropdown.open > .cv-dropdown-menu { display:block; }
+.cv-dropdown-menu a, .cv-dropdown-menu .cv-item {
+    display:flex; align-items:center; gap:8px; width:100%;
+    padding:8px 12px; background:transparent; border:none;
+    text-align:left; cursor:pointer; color:var(--text, #222);
+    font-size:.82rem; border-radius:6px; text-decoration:none;
+    font-family:inherit; line-height:1.3;
+}
+.cv-dropdown-menu a:hover, .cv-dropdown-menu .cv-item:hover { background:var(--bg-secondary, #f0f4f7); }
+.cv-dropdown-menu .cv-item.danger { color:#dc2626; }
+.cv-dropdown-menu .cv-item.danger:hover { background:#fef2f2; }
+.cv-dropdown-menu form { margin:0; display:block; }
+.cv-dropdown-menu .cv-divider { height:1px; background:var(--border, #e0e0e0); margin:4px 2px; }
 </style>
 
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
@@ -288,41 +311,73 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $voltarUrl = $fromProcessos ? module_url('processos') : module_url('operacional');
     $voltarLabel = $fromProcessos ? 'Processos' : 'Operacional';
     ?>
+    <!-- Inline: os mais usados -->
     <a href="<?= $voltarUrl ?>" class="btn btn-outline btn-sm">&larr; <?= $voltarLabel ?></a>
     <a href="<?= module_url('peticoes', 'index.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📝 Fábrica de Petições</a>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
-    <?php if ($case['client_id']): ?>
-        <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>" class="btn btn-outline btn-sm">+ Novo Processo</a>
-    <?php endif; ?>
-    <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="background:#dc2626;">🎫 Abrir Chamado</a>
-    <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId) ?>" target="_blank" class="btn btn-outline btn-sm" title="Versão interna completa — com tarefas, pasta Drive, andamentos restritos e observações">🖨️ PDF Completo</a>
-    <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId . '&modo=cliente') ?>" target="_blank" class="btn btn-outline btn-sm" style="border-color:#B87333;color:#7c2d12;" title="Versão para envio ao cliente — só andamentos públicos e dados do cliente">📤 PDF Cliente</a>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
-        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">Financeiro</a>
+        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
     <?php endif; ?>
     <?php if ($case['client_id'] && can_access('cobranca_honorarios')): ?>
         <button onclick="document.getElementById('modalInadimplencia').style.display='flex'" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">⚠️ Inadimplência</button>
     <?php endif; ?>
-    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="margin-left:auto;" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
-        <?= csrf_input() ?>
-        <input type="hidden" name="action" value="duplicate_case">
-        <input type="hidden" name="case_id" value="<?= $caseId ?>">
-        <button type="submit" class="btn btn-outline btn-sm" style="border-color:#6366f1;color:#6366f1;">📋 Duplicar Pasta</button>
-    </form>
-    <?php if (has_role('admin')): ?>
-    <button type="button" onclick="confirmarExclusao()" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">🗑️ Excluir Processo</button>
-    <?php endif; ?>
-    <?php if (has_min_role('gestao')): ?>
-    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
-        <?= csrf_input() ?>
-        <input type="hidden" name="action" value="toggle_salavip">
-        <input type="hidden" name="case_id" value="<?= $caseId ?>">
-        <button type="submit" class="btn btn-outline btn-sm" style="border-color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;color:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
-            <?= $case['salavip_ativo'] ? '🟢 Central VIP' : '⚪ Central VIP' ?>
-        </button>
-    </form>
-    <?php endif; ?>
+
+    <!-- Dropdown: Imprimir -->
+    <div class="cv-dropdown">
+        <button type="button" class="btn btn-outline btn-sm dropdown-trigger">🖨️ Imprimir <span style="font-size:.65rem;">▾</span></button>
+        <div class="cv-dropdown-menu">
+            <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId) ?>" target="_blank" title="Versão interna completa — tarefas, pasta Drive, andamentos restritos, observações">🖨️ <div><strong>PDF Completo</strong><div style="font-size:.7rem;color:#888;">Versão interna (tudo)</div></div></a>
+            <a href="<?= module_url('operacional', 'ficha_processo_pdf.php?id=' . $caseId . '&modo=cliente') ?>" target="_blank" style="color:#7c2d12;" title="Versão para envio ao cliente — só andamentos públicos e dados do cliente">📤 <div><strong>PDF Cliente</strong><div style="font-size:.7rem;color:#888;">Versão pra enviar ao cliente</div></div></a>
+        </div>
+    </div>
+
+    <!-- Dropdown: Ações -->
+    <div class="cv-dropdown">
+        <button type="button" class="btn btn-outline btn-sm dropdown-trigger">⚙️ Ações <span style="font-size:.65rem;">▾</span></button>
+        <div class="cv-dropdown-menu">
+            <?php if ($case['client_id']): ?>
+                <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>">➕ <div><strong>Novo Processo</strong><div style="font-size:.7rem;color:#888;">pro mesmo cliente</div></div></a>
+            <?php endif; ?>
+            <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" style="color:#dc2626;">🎫 <div><strong>Abrir Chamado</strong><div style="font-size:.7rem;color:#888;">helpdesk interno</div></div></a>
+            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="duplicate_case">
+                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                <button type="submit" class="cv-item" style="color:#6366f1;">📋 <div><strong>Duplicar Pasta</strong><div style="font-size:.7rem;color:#888;">nova ação com mesmo cliente</div></div></button>
+            </form>
+            <?php if (has_min_role('gestao')): ?>
+            <div class="cv-divider"></div>
+            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>">
+                <?= csrf_input() ?>
+                <input type="hidden" name="action" value="toggle_salavip">
+                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                <button type="submit" class="cv-item" style="color:<?= $case['salavip_ativo'] ? '#059669' : '#6b7280' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
+                    <?= $case['salavip_ativo'] ? '🟢' : '⚪' ?> <div><strong>Central VIP</strong><div style="font-size:.7rem;color:#888;"><?= $case['salavip_ativo'] ? 'Visível — clique pra ocultar' : 'Oculto — clique pra exibir' ?></div></div>
+                </button>
+            </form>
+            <?php endif; ?>
+            <?php if (has_role('admin')): ?>
+            <div class="cv-divider"></div>
+            <button type="button" onclick="confirmarExclusao()" class="cv-item danger">🗑️ <div><strong>Excluir Processo</strong><div style="font-size:.7rem;color:#b91c1c;">ação destrutiva</div></div></button>
+            <?php endif; ?>
+        </div>
+    </div>
 </div>
+
+<script>
+(function(){
+    document.addEventListener('click', function(e){
+        var trigger = e.target.closest('.dropdown-trigger');
+        document.querySelectorAll('.cv-dropdown').forEach(function(d){
+            if (trigger && d.contains(trigger)) {
+                d.classList.toggle('open');
+            } else {
+                d.classList.remove('open');
+            }
+        });
+    });
+})();
+</script>
 
 <!-- Header do caso -->
 <?php $corStatus = isset($statusCores[$case['status']]) ? $statusCores[$case['status']] : '#052228'; ?>
