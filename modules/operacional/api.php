@@ -1001,11 +1001,28 @@ switch ($action) {
         // Onde redirecionar depois: query param _back ou HTTP_REFERER (fallback: pasta do caso)
         $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
 
+        // Nova data pro prazo (opcional) — Amanda ajusta quando o cálculo automático saiu errado
+        $novaData = trim($_POST['nova_data_prazo'] ?? '');
+        if ($novaData && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData)) $novaData = '';
+
         if ($pubId && $caseId) {
             try {
-                $pdo->prepare(
-                    "UPDATE case_publicacoes SET status_prazo = ?, updated_at = NOW() WHERE id = ? AND case_id = ?"
-                )->execute(array($novoStatus, $pubId, $caseId));
+                if ($novaData) {
+                    $pdo->prepare(
+                        "UPDATE case_publicacoes SET status_prazo = ?, data_prazo_fim = ?, updated_at = NOW() WHERE id = ? AND case_id = ?"
+                    )->execute(array($novoStatus, $novaData, $pubId, $caseId));
+                    // Atualiza também o evento da agenda vinculado, se houver
+                    try {
+                        $pdo->prepare(
+                            "UPDATE agenda_eventos SET data_inicio = ?, data_fim = ?, updated_at = NOW()
+                             WHERE id = (SELECT agenda_id FROM case_publicacoes WHERE id = ?) AND case_id = ?"
+                        )->execute(array($novaData . ' 17:00:00', $novaData . ' 18:00:00', $pubId, $caseId));
+                    } catch (Exception $eAg2) {}
+                } else {
+                    $pdo->prepare(
+                        "UPDATE case_publicacoes SET status_prazo = ?, updated_at = NOW() WHERE id = ? AND case_id = ?"
+                    )->execute(array($novoStatus, $pubId, $caseId));
+                }
 
                 // Atualizar tarefa vinculada
                 $pub = $pdo->prepare("SELECT task_id FROM case_publicacoes WHERE id = ?");

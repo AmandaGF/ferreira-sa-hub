@@ -2058,15 +2058,19 @@ foreach ($tarefasReais as $_t) {
                                 <?php if ($pub['caderno']): ?> &middot; <?= e($pub['caderno']) ?><?php endif; ?>
                             </span>
                         </div>
-                        <div style="display:flex;align-items:center;gap:6px;">
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                             <span style="font-size:.68rem;color:var(--text-muted);"><?= e($pub['criado_por_nome'] ?? '') ?></span>
                             <?php if ($pub['status_prazo'] === 'pendente' && (has_min_role('operacional') || has_min_role('gestao'))): ?>
-                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;" id="formPub<?= $pub['id'] ?>">
                                 <?= csrf_input() ?>
                                 <input type="hidden" name="action" value="confirmar_prazo_publicacao">
                                 <input type="hidden" name="pub_id" value="<?= $pub['id'] ?>">
                                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                                <button type="submit" style="font-size:.65rem;background:#059669;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;">Confirmar prazo</button>
+                                <input type="hidden" name="novo_status" value="confirmado" id="status<?= $pub['id'] ?>">
+                                <input type="date" name="nova_data_prazo" id="data<?= $pub['id'] ?>" value="<?= e($pub['data_prazo_fim'] ?? '') ?>" style="display:none;font-size:.7rem;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;">
+                                <button type="button" onclick="var i=document.getElementById('data<?= $pub['id'] ?>');var b=this;if(i.style.display==='none'){i.style.display='';b.textContent='Cancelar ajuste';}else{i.style.display='none';i.value='<?= e($pub['data_prazo_fim'] ?? '') ?>';b.textContent='✏️ Ajustar data';}" style="font-size:.65rem;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Editar data do prazo se o cálculo automático estiver errado">✏️ Ajustar data</button>
+                                <button type="submit" onclick="document.getElementById('status<?= $pub['id'] ?>').value='confirmado';" style="font-size:.65rem;background:#059669;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;">✓ Confirmar prazo</button>
+                                <button type="submit" onclick="if(!confirm('Descartar intimação? Marca como \'não precisa fazer nada\'.'))return false;document.getElementById('status<?= $pub['id'] ?>').value='descartado';" style="font-size:.65rem;background:#fff;color:#b45309;border:1px solid #fbbf24;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Não precisa fazer nada nessa intimação">⊘ Descartar</button>
                             </form>
                             <?php endif; ?>
                         </div>
