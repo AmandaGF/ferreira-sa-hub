@@ -41,27 +41,31 @@ $tipoLbls = array(
 // Campos unificados: id, origem, data_disp, tipo, cnj, orgao, resumo, orientacao,
 //                    conteudo_preview, case_id, client_id, cliente_nome, case_title,
 //                    status_prazo, criado_em, advogados_raw
+// NOTA: COLLATE utf8mb4_unicode_ci forçado em todas as colunas de texto
+// pra evitar 'Illegal mix of collations' no UNION (case_publicacoes e
+// djen_pending foram criadas com collations diferentes — unicode_ci vs general_ci)
+$COL = "COLLATE utf8mb4_unicode_ci";
 $sqlCP = "
   SELECT
     cp.id AS id,
-    'pub' AS origem,
+    CAST('pub' AS CHAR) $COL AS origem,
     cp.data_disponibilizacao AS data_disp,
-    cp.tipo_publicacao AS tipo,
-    cs.case_number AS cnj,
-    cp.tribunal AS orgao,
-    cp.resumo_ia AS resumo,
-    cp.orientacao_ia AS orientacao,
-    LEFT(cp.conteudo, 300) AS conteudo_preview,
-    cp.conteudo AS conteudo_full,
+    cp.tipo_publicacao $COL AS tipo,
+    cs.case_number $COL AS cnj,
+    cp.tribunal $COL AS orgao,
+    cp.resumo_ia $COL AS resumo,
+    cp.orientacao_ia $COL AS orientacao,
+    LEFT(cp.conteudo, 300) $COL AS conteudo_preview,
+    cp.conteudo $COL AS conteudo_full,
     cp.case_id AS case_id,
     cs.client_id AS client_id,
-    cl.name AS cliente_nome,
-    cs.title AS case_title,
-    cp.status_prazo AS status_prazo,
+    cl.name $COL AS cliente_nome,
+    cs.title $COL AS case_title,
+    cp.status_prazo $COL AS status_prazo,
     cp.data_prazo_fim AS data_prazo_fim,
     cp.created_at AS criado_em,
-    '' AS advogados_raw,
-    '' AS partes_raw
+    CAST('' AS CHAR) $COL AS advogados_raw,
+    CAST('' AS CHAR) $COL AS partes_raw
   FROM case_publicacoes cp
   LEFT JOIN cases cs ON cs.id = cp.case_id
   LEFT JOIN clients cl ON cl.id = cs.client_id
@@ -69,24 +73,24 @@ $sqlCP = "
 $sqlDP = "
   SELECT
     dp.id AS id,
-    'pend' AS origem,
+    CAST('pend' AS CHAR) $COL AS origem,
     dp.data_disp AS data_disp,
-    dp.tipo_comunicacao AS tipo,
-    dp.numero_processo AS cnj,
-    dp.orgao AS orgao,
-    dp.resumo AS resumo,
-    dp.orientacao AS orientacao,
-    LEFT(dp.conteudo, 300) AS conteudo_preview,
-    dp.conteudo AS conteudo_full,
+    dp.tipo_comunicacao $COL AS tipo,
+    dp.numero_processo $COL AS cnj,
+    dp.orgao $COL AS orgao,
+    dp.resumo $COL AS resumo,
+    dp.orientacao $COL AS orientacao,
+    LEFT(dp.conteudo, 300) $COL AS conteudo_preview,
+    dp.conteudo $COL AS conteudo_full,
     dp.case_id AS case_id,
-    NULL AS client_id,
-    NULL AS cliente_nome,
-    NULL AS case_title,
-    'orfa' AS status_prazo,
-    NULL AS data_prazo_fim,
+    CAST(NULL AS UNSIGNED) AS client_id,
+    CAST(NULL AS CHAR) $COL AS cliente_nome,
+    CAST(NULL AS CHAR) $COL AS case_title,
+    CAST('orfa' AS CHAR) $COL AS status_prazo,
+    CAST(NULL AS DATE) AS data_prazo_fim,
     dp.created_at AS criado_em,
-    dp.advogados AS advogados_raw,
-    dp.partes AS partes_raw
+    dp.advogados $COL AS advogados_raw,
+    dp.partes $COL AS partes_raw
   FROM djen_pending dp
   WHERE dp.status = 'pendente'
 ";
