@@ -858,41 +858,75 @@ function zapi_sync_foto_contato($convId) {
             ->execute(array($link, $conv['id']));
     } catch (Exception $e) {}
 
+    // Self-heal: coluna pra salvar foto local de conversas (não só clientes)
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
+
     $clientUpdated = false;
-    if ($link && $conv['client_id']) {
+    $convFotoSalva = false;
+
+    // Baixa a imagem UMA vez — usada tanto pra client_id quanto pra conversa avulsa
+    $imgData = null; $ext = 'jpg';
+    if ($link) {
+        $imgCh = curl_init($link);
+        curl_setopt_array($imgCh, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 20,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ));
+        $imgData = curl_exec($imgCh);
+        $imgCode = curl_getinfo($imgCh, CURLINFO_HTTP_CODE);
+        $imgCT   = curl_getinfo($imgCh, CURLINFO_CONTENT_TYPE);
+        curl_close($imgCh);
+        if (!$imgData || $imgCode < 200 || $imgCode >= 300 || strlen($imgData) < 100) {
+            $imgData = null;
+        } else {
+            if (stripos($imgCT, 'png') !== false) $ext = 'png';
+            elseif (stripos($imgCT, 'webp') !== false) $ext = 'webp';
+        }
+    }
+
+    // 1. Se vinculado a cliente e cliente não tem foto, salva em salavip/uploads + clients.foto_path
+    if ($imgData && $conv['client_id']) {
         $cl = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?");
         $cl->execute(array($conv['client_id']));
         $existingFoto = $cl->fetchColumn();
         if (empty($existingFoto)) {
-            // Baixa a imagem e salva localmente
-            $imgCh = curl_init($link);
-            curl_setopt_array($imgCh, array(
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_TIMEOUT        => 20,
-                CURLOPT_SSL_VERIFYPEER => false,
-            ));
-            $imgData = curl_exec($imgCh);
-            $imgCode = curl_getinfo($imgCh, CURLINFO_HTTP_CODE);
-            $imgCT   = curl_getinfo($imgCh, CURLINFO_CONTENT_TYPE);
-            curl_close($imgCh);
-            if ($imgData && $imgCode >= 200 && $imgCode < 300 && strlen($imgData) > 100) {
-                $ext = 'jpg';
-                if (stripos($imgCT, 'png') !== false) $ext = 'png';
-                elseif (stripos($imgCT, 'webp') !== false) $ext = 'webp';
-                $filename = 'foto_wa_' . (int)$conv['client_id'] . '_' . time() . '.' . $ext;
-                $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/';
-                if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
-                $destPath = $uploadDir . $filename;
-                if (@file_put_contents($destPath, $imgData)) {
-                    $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = ? AND (foto_path IS NULL OR foto_path = '')")
-                        ->execute(array($filename, $conv['client_id']));
-                    $clientUpdated = true;
-                }
+            $filename = 'foto_wa_' . (int)$conv['client_id'] . '_' . time() . '.' . $ext;
+            $uploadDir = dirname(APP_ROOT) . '/salavip/uploads/';
+            if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+            $destPath = $uploadDir . $filename;
+            if (@file_put_contents($destPath, $imgData)) {
+                $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = ? AND (foto_path IS NULL OR foto_path = '')")
+                    ->execute(array($filename, $conv['client_id']));
+                $clientUpdated = true;
             }
         }
     }
 
-    return array('ok' => true, 'foto_url' => $link, 'client_updated' => $clientUpdated);
+    // 2. Salva cópia local da foto da conversa SEMPRE (independente de ser cliente).
+    //    Evita foto sumir quando link Z-API expira (48h).
+    if ($imgData) {
+        $filename2 = 'conv_' . (int)$conv['id'] . '_' . time() . '.' . $ext;
+        $uploadDir2 = APP_ROOT . '/files/wa_fotos/';
+        if (!is_dir($uploadDir2)) @mkdir($uploadDir2, 0755, true);
+        $destPath2 = $uploadDir2 . $filename2;
+        if (@file_put_contents($destPath2, $imgData)) {
+            // Apaga foto anterior da conversa (se houver) pra não acumular lixo
+            try {
+                $stmtAnt = $pdo->prepare("SELECT foto_perfil_local FROM zapi_conversas WHERE id = ?");
+                $stmtAnt->execute(array($conv['id']));
+                $antigo = $stmtAnt->fetchColumn();
+                if ($antigo && $antigo !== $filename2) {
+                    @unlink($uploadDir2 . $antigo);
+                }
+            } catch (Exception $e) {}
+            $pdo->prepare("UPDATE zapi_conversas SET foto_perfil_local = ? WHERE id = ?")
+                ->execute(array($filename2, $conv['id']));
+            $convFotoSalva = true;
+        }
+    }
+
+    return array('ok' => true, 'foto_url' => $link, 'client_updated' => $clientUpdated, 'conv_foto_salva' => $convFotoSalva);
 }
 
 /**

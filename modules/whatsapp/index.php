@@ -396,8 +396,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     function avatarHtml(c, nome) {
         if (c && +c.eh_grupo) return '👥';
         var src = '';
+        // Prioridade: 1) foto do cliente cadastrado > 2) foto local da conversa
+        // (permanente) > 3) URL temporária Z-API (expira em 48h, pode dar 404)
         if (c && c.client_foto_path) {
             src = '<?= url('/') ?>salavip/uploads/' + encodeURIComponent(c.client_foto_path);
+        } else if (c && c.foto_perfil_local) {
+            src = '<?= url('files/wa_fotos/') ?>' + encodeURIComponent(c.foto_perfil_local);
         } else if (c && c.foto_perfil_url) {
             src = c.foto_perfil_url;
         }

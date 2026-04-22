@@ -115,13 +115,15 @@ if ($action === 'listar_conversas') {
     // Self-heal: coluna fixada (pra fixar conversa no topo da lista)
     try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN chat_lid VARCHAR(50) NULL"); } catch (Exception $e) {}
 
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,
                    co.client_id, co.lead_id, co.atendente_id,
                    COALESCE(co.delegada, 0) AS delegada, co.delegada_por,
                    COALESCE(co.fixada, 0) AS fixada,
-                   co.foto_perfil_url, COALESCE(co.eh_grupo, 0) AS eh_grupo,
+                   co.foto_perfil_url, co.foto_perfil_local, COALESCE(co.eh_grupo, 0) AS eh_grupo,
                    cl.foto_path AS client_foto_path,
                    cl.name AS client_name,
                    u.wa_display_name AS atendente_display_name,
