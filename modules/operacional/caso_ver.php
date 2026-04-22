@@ -604,13 +604,19 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
 $compromissosCaso = array();
 $compromissosRealizados = array();
 try {
+    // Traz pub vinculada ao evento (qualquer status) via agenda_id ou por data_disp batendo
     $stmtComp = $pdo->prepare(
         "SELECT e.*, u.name as responsavel_name,
                 (SELECT cp.id FROM case_publicacoes cp
                  WHERE cp.case_id = e.case_id
-                   AND cp.status_prazo = 'pendente'
                    AND (cp.agenda_id = e.id OR cp.data_disponibilizacao = DATE(e.data_inicio))
-                 ORDER BY cp.id DESC LIMIT 1) AS pub_pendente_id
+                 ORDER BY FIELD(cp.status_prazo,'pendente','confirmado','descartado'), cp.id DESC
+                 LIMIT 1) AS pub_vinc_id,
+                (SELECT cp.status_prazo FROM case_publicacoes cp
+                 WHERE cp.case_id = e.case_id
+                   AND (cp.agenda_id = e.id OR cp.data_disponibilizacao = DATE(e.data_inicio))
+                 ORDER BY FIELD(cp.status_prazo,'pendente','confirmado','descartado'), cp.id DESC
+                 LIMIT 1) AS pub_vinc_status
          FROM agenda_eventos e
          LEFT JOIN users u ON u.id = e.responsavel_id
          WHERE e.case_id = ? AND e.status NOT IN ('cancelado','remarcado','realizado')
@@ -727,26 +733,47 @@ if (!empty($compFuturos)): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
-            <?php if (!empty($comp['pub_pendente_id']) && (has_min_role('operacional') || has_min_role('gestao'))): ?>
-                <!-- Evento vinculado a uma intimação pendente: oferece fechar direto no card -->
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Confirmar prazo desta intimação? (você vai cumprir)');">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="confirmar_prazo_publicacao">
-                    <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_pendente_id'] ?>">
-                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                    <input type="hidden" name="novo_status" value="confirmado">
-                    <input type="hidden" name="_back" value="<?= htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="submit" title="Confirmar prazo — vou cumprir" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;">✓ Cumprir</button>
-                </form>
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Descartar esta intimação? (não precisa cumprir)');">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="confirmar_prazo_publicacao">
-                    <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_pendente_id'] ?>">
-                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                    <input type="hidden" name="novo_status" value="descartado">
-                    <input type="hidden" name="_back" value="<?= htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="submit" title="Não precisa cumprir — fechar" style="font-size:.7rem;background:#fef2f2;color:#b91c1c;padding:3px 8px;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-weight:600;">⊘ Descartar</button>
-                </form>
+            <?php
+            // Botões cumprir/descartar — aparecem se há publicação vinculada
+            // (funciona pra eventos criados pelo Claudin ou qualquer evento na mesma data de uma publicação)
+            $temPubVinc = !empty($comp['pub_vinc_id']);
+            $statusPubVinc = $comp['pub_vinc_status'] ?? '';
+            if ($temPubVinc && (has_min_role('operacional') || has_min_role('gestao'))):
+                $_backPasta = htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8');
+            ?>
+                <?php if ($statusPubVinc === 'pendente'): ?>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Dar baixa neste prazo? (você vai cumprir)');">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                        <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_vinc_id'] ?>">
+                        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                        <input type="hidden" name="novo_status" value="confirmado">
+                        <input type="hidden" name="_back" value="<?= $_backPasta ?>">
+                        <button type="submit" title="Dar baixa — vou cumprir" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;">✓ Dar baixa</button>
+                    </form>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Marcar como: não precisa fazer nada?');">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="confirmar_prazo_publicacao">
+                        <input type="hidden" name="pub_id" value="<?= (int)$comp['pub_vinc_id'] ?>">
+                        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                        <input type="hidden" name="novo_status" value="descartado">
+                        <input type="hidden" name="_back" value="<?= $_backPasta ?>">
+                        <button type="submit" title="Não precisa fazer nada — fechar" style="font-size:.7rem;background:#fef2f2;color:#b91c1c;padding:3px 8px;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-weight:600;">⊘ Não precisa fazer</button>
+                    </form>
+                <?php else: ?>
+                    <!-- Pub já resolvida mas evento ainda na lista (legado) — oferece sumir -->
+                    <span style="font-size:.68rem;color:#64748b;padding:3px 8px;background:#f1f5f9;border-radius:5px;font-weight:600;">
+                        <?= $statusPubVinc === 'confirmado' ? '✓ Cumprido' : '⊘ Descartado' ?>
+                    </span>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Remover este compromisso da lista? (marca como realizado)');">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="evento_realizado">
+                        <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
+                        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                        <input type="hidden" name="_back" value="<?= $_backPasta ?>">
+                        <button type="submit" title="Remover da lista" style="font-size:.7rem;background:#fff;color:#64748b;padding:3px 8px;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;">Remover</button>
+                    </form>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </div>

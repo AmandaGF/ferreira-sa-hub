@@ -994,9 +994,29 @@ switch ($action) {
                     }
                 }
 
+                // Marca o evento da agenda vinculado como 'realizado' (some da lista de compromissos do processo)
+                try {
+                    $pdo->prepare(
+                        "UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW()
+                         WHERE (id = (SELECT agenda_id FROM case_publicacoes WHERE id = ?) OR id IN (
+                             SELECT COALESCE(agenda_id,0) FROM case_publicacoes WHERE id = ?
+                         ))
+                         AND case_id = ?"
+                    )->execute(array($pubId, $pubId, $caseId));
+
+                    // Fallback: se não tiver agenda_id setado, tenta achar por data
+                    $pdo->prepare(
+                        "UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW()
+                         WHERE case_id = ?
+                           AND tipo = 'prazo'
+                           AND status NOT IN ('realizado','cancelado','remarcado')
+                           AND DATE(data_inicio) = (SELECT data_disponibilizacao FROM case_publicacoes WHERE id = ?)"
+                    )->execute(array($caseId, $pubId));
+                } catch (Exception $eAg) {}
+
                 $acaoLog = ($novoStatus === 'descartado') ? 'PRAZO_PUBLICACAO_DESCARTADO' : 'PRAZO_PUBLICACAO_CONFIRMADO';
                 audit_log($acaoLog, 'case', $caseId, 'pub_id=' . $pubId);
-                flash_set('success', ($novoStatus === 'descartado') ? 'Intimação marcada como "não precisa cumprir".' : 'Prazo confirmado.');
+                flash_set('success', ($novoStatus === 'descartado') ? 'Intimação marcada como "não precisa fazer nada".' : 'Prazo cumprido.');
             } catch (Exception $e) {
                 @file_put_contents(APP_ROOT . '/files/erro_confirmar_prazo.log',
                     '[' . date('Y-m-d H:i:s') . '] pubId=' . $pubId . ' caseId=' . $caseId . ' erro=' . $e->getMessage() . "\n",
@@ -1005,6 +1025,30 @@ switch ($action) {
             }
         }
         // Redireciona de volta: se _back foi passado e é do próprio domínio, usa; senão pasta do caso
+        if ($back && strpos($back, 'ferreiraesa.com.br') !== false) {
+            header('Location: ' . $back);
+            exit;
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
+    case 'evento_realizado':
+        // Marca um evento da agenda como realizado (remove da lista de compromissos do processo).
+        // Usado quando a publicação vinculada já foi resolvida mas o evento legado ficou na lista.
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+        $eventoId = (int)($_POST['evento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+        if ($eventoId && $caseId) {
+            try {
+                $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW() WHERE id = ? AND case_id = ?")
+                    ->execute(array($eventoId, $caseId));
+                audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId);
+                flash_set('success', 'Compromisso marcado como realizado.');
+            } catch (Exception $e) {
+                flash_set('error', 'Erro: ' . $e->getMessage());
+            }
+        }
         if ($back && strpos($back, 'ferreiraesa.com.br') !== false) {
             header('Location: ' . $back);
             exit;
