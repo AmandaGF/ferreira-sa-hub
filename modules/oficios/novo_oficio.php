@@ -27,8 +27,19 @@ try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_titular VARCHAR(
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN conta_cpf VARCHAR(20) NULL AFTER conta_titular"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE oficios_enviados ADD COLUMN tipo_oficio VARCHAR(30) NULL DEFAULT 'pensao_empregador' AFTER conta_cpf"); } catch (Exception $e) {}
 
-// Dados do caso (se vier via ?case_id=X)
-$caseId = (int)($_GET['case_id'] ?? 0);
+// Modo: criar novo OU editar existente
+$oficioId = (int)($_GET['id'] ?? 0);
+$oficioExistente = null;
+if ($oficioId > 0) {
+    $st = $pdo->prepare("SELECT * FROM oficios_enviados WHERE id = ?");
+    $st->execute(array($oficioId));
+    $oficioExistente = $st->fetch();
+    if (!$oficioExistente) { flash_set('error', 'Ofício não encontrado.'); redirect(module_url('oficios')); }
+    $pageTitle = 'Editar Ofício #' . $oficioId;
+}
+
+// Dados do caso (se vier via ?case_id=X ou se for edição de ofício com case_id)
+$caseId = (int)($_GET['case_id'] ?? ($oficioExistente['case_id'] ?? 0));
 $caso = null; $cliente = null;
 if ($caseId > 0) {
     $st = $pdo->prepare(
@@ -46,6 +57,18 @@ if ($caseId > 0) {
             'id' => $caso['client_id'],
         );
     }
+}
+// Se edição sem case mas com client_id no ofício: busca cliente
+if (!$cliente && !empty($oficioExistente['client_id'])) {
+    $st = $pdo->prepare("SELECT id, name, cpf, phone FROM clients WHERE id = ?");
+    $st->execute(array($oficioExistente['client_id']));
+    $cliente = $st->fetch();
+}
+
+// Helper pra pegar valor inicial dos campos (preferindo o ofício existente)
+function _of($campo, $oficio, $caso = null, $cliente = null, $default = '') {
+    if ($oficio && isset($oficio[$campo]) && $oficio[$campo] !== null && $oficio[$campo] !== '') return $oficio[$campo];
+    return $default;
 }
 
 // SUBMIT
@@ -71,24 +94,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         'plataforma' => clean_str($_POST['plataforma'] ?? 'email', 50),
         'observacoes' => clean_str($_POST['observacoes'] ?? '', 500),
     );
-    $sql = "INSERT INTO oficios_enviados (" . implode(',', array_keys($dados)) . ") VALUES (" . implode(',', array_fill(0, count($dados), '?')) . ")";
-    $pdo->prepare($sql)->execute(array_values($dados));
-    $oficioId = (int)$pdo->lastInsertId();
+    $idEdicao = (int)($_POST['oficio_id'] ?? 0);
+    if ($idEdicao > 0) {
+        // UPDATE
+        $sets = array(); $vals = array();
+        foreach ($dados as $k => $v) { $sets[] = "$k = ?"; $vals[] = $v; }
+        $vals[] = $idEdicao;
+        $pdo->prepare("UPDATE oficios_enviados SET " . implode(',', $sets) . " WHERE id = ?")->execute($vals);
+        audit_log('oficio_editado', 'oficios', $idEdicao, 'Empregador: ' . $dados['empregador']);
+        flash_set('success', 'Ofício #' . $idEdicao . ' atualizado!');
+        redirect($dados['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $dados['case_id']) : module_url('oficios'));
+    } else {
+        // INSERT
+        $sql = "INSERT INTO oficios_enviados (" . implode(',', array_keys($dados)) . ") VALUES (" . implode(',', array_fill(0, count($dados), '?')) . ")";
+        $pdo->prepare($sql)->execute(array_values($dados));
+        $oficioId = (int)$pdo->lastInsertId();
 
-    audit_log('oficio_pensao_registrado', 'oficios', $oficioId, 'Empregador: ' . $dados['empregador']);
+        audit_log('oficio_pensao_registrado', 'oficios', $oficioId, 'Empregador: ' . $dados['empregador']);
 
-    // Andamento automático no processo
-    if ($dados['case_id']) {
-        try {
-            $desc = 'Ofício para desconto em folha enviado ao empregador ' . $dados['empregador']
-                  . ($dados['rh_email'] ? ' (e-mail RH: ' . $dados['rh_email'] . ')' : '');
-            $pdo->prepare(
-                "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?, ?, 'oficio', ?, ?, 0, NOW())"
-            )->execute(array($dados['case_id'], $dados['data_envio'], $desc, current_user_id()));
-        } catch (Exception $e) {}
+        // Andamento automático no processo
+        if ($dados['case_id']) {
+            try {
+                $desc = 'Ofício para desconto em folha enviado ao empregador ' . $dados['empregador']
+                      . ($dados['rh_email'] ? ' (e-mail RH: ' . $dados['rh_email'] . ')' : '');
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?, ?, 'oficio', ?, ?, 0, NOW())"
+                )->execute(array($dados['case_id'], $dados['data_envio'], $desc, current_user_id()));
+            } catch (Exception $e) {}
+        }
+        flash_set('success', 'Ofício #' . $oficioId . ' registrado!');
+        redirect($dados['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $dados['case_id']) : module_url('oficios'));
     }
-    flash_set('success', 'Ofício #' . $oficioId . ' registrado!');
-    redirect($dados['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $dados['case_id']) : module_url('oficios'));
 }
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -110,45 +146,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <a href="<?= $caseId ? module_url('operacional','caso_ver.php?id='.$caseId) : module_url('oficios') ?>" class="btn btn-outline btn-sm">&larr; Voltar</a>
 
-<h2 style="margin:.75rem 0 .25rem;font-size:1.2rem;color:var(--petrol-900);">📬 Ofício ao empregador — Pensão alimentícia</h2>
+<h2 style="margin:.75rem 0 .25rem;font-size:1.2rem;color:var(--petrol-900);">📬 <?= $oficioExistente ? 'Editar Ofício #' . $oficioId : 'Ofício ao empregador — Pensão alimentícia' ?></h2>
 <p style="font-size:.85rem;color:var(--text-muted);margin:0 0 1rem;">
-    Preencha os dados do funcionário e da empresa. O sistema gera o e-mail pronto nos 2 modelos oficiais — você copia e envia pelo seu Gmail/Outlook.
+    <?php if ($oficioExistente): ?>Ajuste os dados abaixo. Ao salvar, os templates refletem as mudanças e você pode copiar e reenviar se precisar.<?php else: ?>Preencha os dados do funcionário e da empresa. O sistema gera o e-mail pronto nos 2 modelos oficiais — você copia e envia pelo seu Gmail/Outlook.<?php endif; ?>
     <?php if ($caso): ?><br>Processo: <b><?= e($caso['title'] ?: 'Caso #' . $caseId) ?></b><?= $caso['case_number'] ? ' · ' . e($caso['case_number']) : '' ?><?php endif; ?>
 </p>
 
 <form method="POST" style="max-width:960px;">
     <?= csrf_input() ?>
-    <input type="hidden" name="client_id" value="<?= (int)($cliente['id'] ?? 0) ?>">
+    <?php if ($oficioExistente): ?>
+        <input type="hidden" name="oficio_id" value="<?= (int)$oficioId ?>">
+    <?php endif; ?>
+    <input type="hidden" name="client_id" value="<?= (int)($cliente['id'] ?? $oficioExistente['client_id'] ?? 0) ?>">
     <input type="hidden" name="case_id" value="<?= (int)$caseId ?>">
 
     <div class="of-sec">
         <h4>🏢 Empresa (empregadora)</h4>
         <div class="of-grid">
-            <div><span class="of-lab">Razão social / nome fantasia *</span><input type="text" name="empregador" id="empregador" class="of-inp" required placeholder="Ex: Empresa X Ltda" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">CNPJ</span><input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">E-mail do RH</span><input type="email" name="rh_email" id="rh_email" class="of-inp" placeholder="rh@empresa.com.br" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">WhatsApp/telefone do RH</span><input type="text" name="rh_contato" id="rh_contato" class="of-inp" placeholder="(24) 99999-0000" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Razão social / nome fantasia *</span><input type="text" name="empregador" id="empregador" class="of-inp" required placeholder="Ex: Empresa X Ltda" value="<?= e($oficioExistente['empregador'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">CNPJ</span><input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" value="<?= e($oficioExistente['empresa_cnpj'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">E-mail do RH</span><input type="email" name="rh_email" id="rh_email" class="of-inp" placeholder="rh@empresa.com.br" value="<?= e($oficioExistente['rh_email'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">WhatsApp/telefone do RH</span><input type="text" name="rh_contato" id="rh_contato" class="of-inp" placeholder="(24) 99999-0000" value="<?= e($oficioExistente['rh_contato'] ?? '') ?>" oninput="atualizarPreviews()"></div>
         </div>
     </div>
 
     <div class="of-sec">
         <h4>👤 Funcionário (alimentante / pai)</h4>
         <div class="of-grid">
-            <div><span class="of-lab">Nome</span><input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Cargo</span><input type="text" name="funcionario_cargo" id="funcionario_cargo" class="of-inp" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Matrícula</span><input type="text" name="funcionario_matricula" id="funcionario_matricula" class="of-inp" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Nome</span><input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" value="<?= e($oficioExistente['funcionario_nome'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Cargo</span><input type="text" name="funcionario_cargo" id="funcionario_cargo" class="of-inp" value="<?= e($oficioExistente['funcionario_cargo'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Matrícula</span><input type="text" name="funcionario_matricula" id="funcionario_matricula" class="of-inp" value="<?= e($oficioExistente['funcionario_matricula'] ?? '') ?>" oninput="atualizarPreviews()"></div>
         </div>
     </div>
 
     <div class="of-sec">
         <h4>🏦 Dados para depósito (representante legal / mãe)</h4>
         <div class="of-grid">
-            <div><span class="of-lab">Titular da conta</span><input type="text" name="conta_titular" id="conta_titular" class="of-inp" value="<?= e($cliente['name'] ?? '') ?>" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">CPF titular</span><input type="text" name="conta_cpf" id="conta_cpf" class="of-inp" value="<?= e($cliente['cpf'] ?? '') ?>" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Banco</span><input type="text" name="conta_banco" id="conta_banco" class="of-inp" placeholder="Ex: Itaú (341)" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Agência</span><input type="text" name="conta_agencia" id="conta_agencia" class="of-inp" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Conta</span><input type="text" name="conta_numero" id="conta_numero" class="of-inp" placeholder="00000-0" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">Número do processo</span><input type="text" name="numero_processo" class="of-inp" value="<?= e($caso['case_number'] ?? '') ?>"></div>
+            <div><span class="of-lab">Titular da conta</span><input type="text" name="conta_titular" id="conta_titular" class="of-inp" value="<?= e($oficioExistente['conta_titular'] ?? $cliente['name'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">CPF titular</span><input type="text" name="conta_cpf" id="conta_cpf" class="of-inp" value="<?= e($oficioExistente['conta_cpf'] ?? $cliente['cpf'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Banco</span><input type="text" name="conta_banco" id="conta_banco" class="of-inp" placeholder="Ex: Itaú (341)" value="<?= e($oficioExistente['conta_banco'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Agência</span><input type="text" name="conta_agencia" id="conta_agencia" class="of-inp" value="<?= e($oficioExistente['conta_agencia'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Conta</span><input type="text" name="conta_numero" id="conta_numero" class="of-inp" placeholder="00000-0" value="<?= e($oficioExistente['conta_numero'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Número do processo</span><input type="text" name="numero_processo" class="of-inp" value="<?= e($oficioExistente['numero_processo'] ?? $caso['case_number'] ?? '') ?>"></div>
         </div>
     </div>
 
@@ -195,20 +234,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="of-sec">
         <h4>📝 Registro interno</h4>
         <div class="of-grid">
-            <div><span class="of-lab">Data do envio</span><input type="date" name="data_envio" class="of-inp" value="<?= date('Y-m-d') ?>"></div>
+            <div><span class="of-lab">Data do envio</span><input type="date" name="data_envio" class="of-inp" value="<?= e($oficioExistente['data_envio'] ?? date('Y-m-d')) ?>"></div>
             <div><span class="of-lab">Plataforma</span><select name="plataforma" class="of-inp">
-                <option value="email">E-mail</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="correio">Correios</option>
-                <option value="outro">Outro</option>
+                <?php $_pl = $oficioExistente['plataforma'] ?? 'email'; ?>
+                <option value="email" <?= $_pl === 'email' ? 'selected' : '' ?>>E-mail</option>
+                <option value="whatsapp" <?= $_pl === 'whatsapp' ? 'selected' : '' ?>>WhatsApp</option>
+                <option value="correio" <?= $_pl === 'correio' ? 'selected' : '' ?>>Correios</option>
+                <option value="outro" <?= $_pl === 'outro' ? 'selected' : '' ?>>Outro</option>
             </select></div>
         </div>
-        <div style="margin-top:.5rem;"><span class="of-lab">Observações</span><textarea name="observacoes" class="of-inp" rows="2"></textarea></div>
+        <div style="margin-top:.5rem;"><span class="of-lab">Observações</span><textarea name="observacoes" class="of-inp" rows="2"><?= e($oficioExistente['observacoes'] ?? '') ?></textarea></div>
     </div>
 
     <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);">
         <a href="<?= $caseId ? module_url('operacional','caso_ver.php?id='.$caseId) : module_url('oficios') ?>" class="btn btn-outline btn-sm">Cancelar</a>
-        <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">✓ Registrar envio do ofício</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;"><?= $oficioExistente ? '💾 Salvar alterações' : '✓ Registrar envio do ofício' ?></button>
     </div>
 </form>
 

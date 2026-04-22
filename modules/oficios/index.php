@@ -59,7 +59,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
     <h3 style="font-size:.95rem;font-weight:700;color:var(--petrol-900);">Ofícios de Pensão Alimentícia</h3>
-    <button class="btn btn-primary btn-sm" data-modal="modalOficio">+ Novo Ofício</button>
+    <a href="<?= module_url('oficios', 'novo_oficio.php') ?>" class="btn btn-primary btn-sm">+ Novo Ofício</a>
 </div>
 
 <div class="card">
@@ -90,21 +90,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endif; ?>
                         </td>
                         <td>
-                            <?php if (!$o['retorno_ar']): ?>
-                            <form method="POST" style="display:inline-flex;gap:.2rem;">
-                                <?= csrf_input() ?>
-                                <input type="hidden" name="action" value="registrar_ar">
-                                <input type="hidden" name="id" value="<?= $o['id'] ?>">
-                                <input type="text" name="retorno_ar" class="form-input" style="width:80px;font-size:.7rem;padding:.2rem .4rem;" placeholder="AR...">
-                                <button type="submit" class="btn btn-success btn-sm" style="font-size:.65rem;padding:.2rem .35rem;">✓</button>
-                            </form>
-                            <?php endif; ?>
-                            <form method="POST" style="display:inline;">
-                                <?= csrf_input() ?>
-                                <input type="hidden" name="action" value="delete">
-                                <input type="hidden" name="id" value="<?= $o['id'] ?>">
-                                <button type="submit" class="btn btn-outline btn-sm" style="font-size:.6rem;padding:.15rem .3rem;opacity:.4;" data-confirm="Excluir?">🗑️</button>
-                            </form>
+                            <div style="display:flex;gap:.2rem;align-items:center;flex-wrap:wrap;">
+                                <a href="<?= module_url('oficios', 'novo_oficio.php?id=' . (int)$o['id']) ?>" class="btn btn-primary btn-sm" style="font-size:.65rem;padding:.2rem .45rem;background:#3730a3;" title="Abrir / editar o ofício com todos os dados e templates">✏️ Abrir</a>
+                                <?php if (!$o['retorno_ar']): ?>
+                                <form method="POST" style="display:inline-flex;gap:.2rem;">
+                                    <?= csrf_input() ?>
+                                    <input type="hidden" name="action" value="registrar_ar">
+                                    <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                    <input type="text" name="retorno_ar" class="form-input" style="width:70px;font-size:.7rem;padding:.2rem .4rem;" placeholder="AR...">
+                                    <button type="submit" class="btn btn-success btn-sm" style="font-size:.65rem;padding:.2rem .35rem;" title="Registrar número do AR recebido">✓</button>
+                                </form>
+                                <?php endif; ?>
+                                <form method="POST" style="display:inline;">
+                                    <?= csrf_input() ?>
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="id" value="<?= $o['id'] ?>">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="font-size:.6rem;padding:.15rem .3rem;opacity:.4;" data-confirm="Excluir ofício #<?= (int)$o['id'] ?>?" title="Excluir">🗑️</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
