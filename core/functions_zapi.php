@@ -800,6 +800,13 @@ function zapi_fetch_profile_picture($ddd, $telefone) {
     if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
     $cfg = zapi_get_config();
     $phone = zapi_normaliza_telefone($telefone);
+    // Z-API /profile-picture NÃO funciona com @lid puro (retorna erro ou foto de
+    // outro contato aleatório). Se o telefone é um @lid sem número real
+    // identificável, pula pra evitar foto embaralhada na conversa.
+    // Ref: https://developer.z-api.io/en/contacts/get-profile-picture (só aceita phone numero)
+    if (strpos((string)$phone, '@lid') !== false) {
+        return null;
+    }
     $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token']
          . '/profile-picture?phone=' . urlencode($phone);
 

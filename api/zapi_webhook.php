@@ -252,9 +252,12 @@ try {
                 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN minha_reacao VARCHAR(20) DEFAULT NULL"); } catch (Exception $e) {}
                 if ($alvoId) {
                     $coluna = $fromMe ? 'minha_reacao' : 'reacao_cliente';
-                    $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET {$coluna} = ? WHERE zapi_message_id = ? AND conversa_id = ?");
-                    $stmtR->execute(array($emoji !== '' ? $emoji : null, $alvoId, $conv['id']));
-                    $log("[{$numero}] reacao " . ($fromMe ? 'fromMe' : 'contato') . " '{$emoji}' → msg_zapi_id={$alvoId} conv={$conv['id']} rows=" . $stmtR->rowCount());
+                    // Match por zapi_message_id apenas (é único global). Antes filtrávamos
+                    // por conversa_id também, mas se a mensagem original está numa conversa
+                    // duplicada/mesclada, o UPDATE falhava e a reação sumia.
+                    $stmtR = $pdo->prepare("UPDATE zapi_mensagens SET {$coluna} = ? WHERE zapi_message_id = ?");
+                    $stmtR->execute(array($emoji !== '' ? $emoji : null, $alvoId));
+                    $log("[{$numero}] reacao " . ($fromMe ? 'fromMe' : 'contato') . " '{$emoji}' → msg_zapi_id={$alvoId} rows=" . $stmtR->rowCount());
                     echo json_encode(array('status' => 'reaction_applied', 'emoji' => $emoji, 'fromMe' => $fromMe));
                 } else {
                     // Não achou alvo — log detalhado pra análise do payload, mas NÃO grava
