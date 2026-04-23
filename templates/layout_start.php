@@ -94,9 +94,10 @@ require_once APP_ROOT . '/templates/sidebar.php';
                             tarefas:    'Tarefas',
                             chamados:   'Chamados',
                             andamentos: 'Andamentos',
+                            intimacoes: 'Intimações / Publicações',
                             wiki:       'Wiki'
                         };
-                        var ordem = ['clientes','processos','leads','tarefas','chamados','andamentos','wiki'];
+                        var ordem = ['clientes','processos','leads','intimacoes','tarefas','chamados','andamentos','wiki'];
                         var html = '';
                         var total = 0;
                         ordem.forEach(function(k){

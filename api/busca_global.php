@@ -58,12 +58,16 @@ try {
          LEFT JOIN case_partes cp ON cp.case_id = c.id
          WHERE c.title LIKE ?
             OR c.case_number LIKE ?
+            OR REPLACE(REPLACE(REPLACE(c.case_number,'-',''),'.',''),'/','') LIKE ?
             OR cl.name LIKE ?
             OR cp.nome LIKE ?
          ORDER BY (c.title LIKE ?) DESC, c.updated_at DESC
          LIMIT 8"
     );
-    $stmt->execute(array($like, $like, $like, $like, $q . '%'));
+    // CNJ digitado com ou sem formatação — normaliza só dígitos pro match
+    $qNumProc = preg_replace('/\D/', '', $q);
+    $likeNumProc = $qNumProc ? '%' . $qNumProc . '%' : '%zzzzz%';
+    $stmt->execute(array($like, $like, $likeNumProc, $like, $like, $q . '%'));
     $rows = $stmt->fetchAll();
     if ($rows) {
         $grupos['processos'] = array();
@@ -208,6 +212,95 @@ try {
                 'subtitulo' => $sub,
                 'url'       => 'modules/operacional/caso_ver.php?id=' . (int)$r['case_id'] . '#andamento-' . (int)$r['id'],
                 'icon'      => '📝',
+            );
+        }
+    }
+} catch (Exception $e) {}
+
+// ── INTIMAÇÕES / PUBLICAÇÕES (case_publicacoes + djen_pending) ──
+// Busca CNJ, órgão, resumo/orientação da IA e conteúdo da publicação.
+// Pra CNJ aceita com ou sem formatação (normaliza só dígitos).
+try {
+    $qNum = preg_replace('/\D/', '', $q);
+    $likeNum = $qNum ? '%' . $qNum . '%' : null;
+
+    // 1) Publicações já vinculadas a caso
+    $sqlCp = "SELECT cp.id, cp.tipo_publicacao, cp.status_prazo, cp.data_disponibilizacao,
+                     cp.case_id, cs.title AS case_title, cs.case_number,
+                     cl.name AS cliente_nome,
+                     LEFT(cp.conteudo, 100) AS preview,
+                     cp.resumo_ia, cp.orientacao_ia
+              FROM case_publicacoes cp
+              LEFT JOIN cases cs ON cs.id = cp.case_id
+              LEFT JOIN clients cl ON cl.id = cs.client_id
+              WHERE cp.conteudo LIKE ?
+                 OR cp.resumo_ia LIKE ?
+                 OR cp.orientacao_ia LIKE ?
+                 OR cs.case_number LIKE ?
+                 OR cs.title LIKE ?
+                 OR cl.name LIKE ?";
+    $paramsCp = array($like, $like, $like, $like, $like, $like);
+    if ($likeNum) {
+        $sqlCp .= " OR REPLACE(REPLACE(REPLACE(cs.case_number,'-',''),'.',''),'/','') LIKE ?";
+        $paramsCp[] = $likeNum;
+    }
+    $sqlCp .= " ORDER BY cp.data_disponibilizacao DESC LIMIT 5";
+    $stmt = $pdo->prepare($sqlCp);
+    $stmt->execute($paramsCp);
+    $rows = $stmt->fetchAll();
+
+    // 2) Publicações pendentes (órfãs, ainda sem pasta)
+    $sqlDp = "SELECT id, numero_processo, tipo_comunicacao, data_disp, orgao,
+                     LEFT(conteudo, 100) AS preview, resumo, orientacao, status
+              FROM djen_pending
+              WHERE status = 'pendente'
+                AND (conteudo LIKE ? OR resumo LIKE ? OR orientacao LIKE ?
+                     OR numero_processo LIKE ? OR partes LIKE ? OR orgao LIKE ?";
+    $paramsDp = array($like, $like, $like, $like, $like, $like);
+    if ($likeNum) {
+        $sqlDp .= " OR REPLACE(REPLACE(REPLACE(numero_processo,'-',''),'.',''),'/','') LIKE ?";
+        $paramsDp[] = $likeNum;
+    }
+    $sqlDp .= ") ORDER BY data_disp DESC LIMIT 5";
+    $stmtDp = $pdo->prepare($sqlDp);
+    $stmtDp->execute($paramsDp);
+    $rowsDp = $stmtDp->fetchAll();
+
+    if ($rows || $rowsDp) {
+        $grupos['intimacoes'] = array();
+        foreach ($rows as $r) {
+            $tipo  = ucfirst((string)$r['tipo_publicacao']);
+            $tit   = $r['resumo_ia'] ?: mb_substr(preg_replace('/\s+/', ' ', (string)$r['preview']), 0, 80, 'UTF-8');
+            $parts = array();
+            if ($r['case_number'])   $parts[] = $r['case_number'];
+            if ($r['cliente_nome'])  $parts[] = $r['cliente_nome'];
+            elseif ($r['case_title']) $parts[] = $r['case_title'];
+            if ($r['data_disponibilizacao']) $parts[] = date('d/m/Y', strtotime($r['data_disponibilizacao']));
+            if ($r['status_prazo']) {
+                $parts[] = $r['status_prazo'] === 'confirmado' ? '✓ cumprida'
+                    : ($r['status_prazo'] === 'descartado' ? '⊘ descartada' : '⏳ pendente');
+            }
+            $grupos['intimacoes'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => ($tipo ? "[{$tipo}] " : '') . $tit,
+                'subtitulo' => implode(' • ', $parts),
+                'url'       => $r['case_id'] ? 'modules/operacional/caso_ver.php?id=' . (int)$r['case_id'] : 'modules/intimacoes/',
+                'icon'      => '📢',
+            );
+        }
+        foreach ($rowsDp as $r) {
+            $tipo = ucfirst((string)$r['tipo_comunicacao']);
+            $tit  = $r['resumo'] ?: mb_substr(preg_replace('/\s+/', ' ', (string)$r['preview']), 0, 80, 'UTF-8');
+            $parts = array('⚠️ sem pasta');
+            if ($r['numero_processo']) $parts[] = $r['numero_processo'];
+            if ($r['orgao'])           $parts[] = $r['orgao'];
+            if ($r['data_disp'])       $parts[] = date('d/m/Y', strtotime($r['data_disp']));
+            $grupos['intimacoes'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => ($tipo ? "[{$tipo}] " : '') . $tit,
+                'subtitulo' => implode(' • ', $parts),
+                'url'       => 'modules/intimacoes/',
+                'icon'      => '📢',
             );
         }
     }
