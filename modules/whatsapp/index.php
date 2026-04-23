@@ -786,6 +786,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waEnviar = function() {
         if (!convAtiva) return;
+        // Se está GRAVANDO agora, para e envia direto (flag setada, envio acontece no onstop)
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            recEnviarAoParar = true;
+            recCancelada = false;
+            mediaRecorder.stop();
+            return;
+        }
         // Se tem áudio gravado aguardando envio, envia ele (prioridade sobre texto/arquivo)
         if (audioPronto) {
             var a = audioPronto;
@@ -1139,6 +1146,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var recTimerInt = null;
     var recInicio = 0;
     var recCancelada = false;
+    var recEnviarAoParar = false; // true quando Amanda clica ➤ Enviar durante a gravação
     var audioPronto = null; // {blob, mime, duracaoMs, previewUrl} — áudio gravado, aguardando envio
 
     function paraTimer() {
@@ -1274,6 +1282,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 mediaRecorder.onstop = function(){
                     paraTimer();
                     fecharStream();
+                    var devoEnviar = recEnviarAoParar;
+                    recEnviarAoParar = false;
                     if (recCancelada || recChunks.length === 0) {
                         mostrarBarraGravacao(false);
                         mediaRecorder = null;
@@ -1287,6 +1297,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     if (duracao < 500) {
                         mostrarBarraGravacao(false);
                         alert('Áudio curto demais.');
+                        return;
+                    }
+                    // Se Amanda clicou ➤ Enviar durante a gravação, envia direto (não guarda pra revisão)
+                    if (devoEnviar) {
+                        mostrarBarraGravacao(false);
+                        enviarAudioBlob(blob, usedMime);
                         return;
                     }
                     // ⏹ apenas PARA — áudio fica aguardando Amanda clicar ➤ Enviar
