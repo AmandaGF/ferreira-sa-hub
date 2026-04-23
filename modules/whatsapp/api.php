@@ -372,15 +372,19 @@ if ($action === 'abrir_conversa') {
     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned_at DATETIME NULL"); } catch (Exception $e) {}
 
-    // Mensagens (últimas 200) + preview da mensagem respondida (quoted)
-    $msgs = $pdo->prepare("SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name,
-                              (SELECT m2.conteudo FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_conteudo,
-                              (SELECT m2.direcao  FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_direcao
-                           FROM zapi_mensagens m
-                           LEFT JOIN users u ON u.id = m.enviado_por_id
-                           WHERE m.conversa_id = ?
-                           ORDER BY m.id ASC
-                           LIMIT 200");
+    // Mensagens: últimas 500 MAIS RECENTES (pegar só 200 ASC estava escondendo
+    // as recentes em conversas mescladas/longas — bug relatado pela Amanda).
+    // Pega desc com LIMIT e reordena ASC em PHP pra exibir cronologia correta.
+    $msgs = $pdo->prepare("SELECT * FROM (
+                                SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name,
+                                    (SELECT m2.conteudo FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_conteudo,
+                                    (SELECT m2.direcao  FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_direcao
+                                FROM zapi_mensagens m
+                                LEFT JOIN users u ON u.id = m.enviado_por_id
+                                WHERE m.conversa_id = ?
+                                ORDER BY m.id DESC
+                                LIMIT 500
+                           ) sub ORDER BY id ASC");
     $msgs->execute(array($id));
     $mensagens = $msgs->fetchAll();
 
