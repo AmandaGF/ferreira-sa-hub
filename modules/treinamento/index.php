@@ -226,7 +226,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endforeach; endif; ?>
         <?php if (has_min_role('gestao')): ?>
             <hr style="border:none; border-top:1px solid #e5e7eb; margin:1rem 0;">
-            <a href="<?= module_url('treinamento', 'admin.php') ?>" style="display:block; padding:8px 12px; background:#052228; color:#fff; border-radius:8px; text-align:center; font-size:.78rem; font-weight:700; text-decoration:none;">📊 Progresso da Equipe</a>
+            <a href="<?= module_url('treinamento', 'equipe.php') ?>" style="display:block; padding:8px 12px; background:#052228; color:#fff; border-radius:8px; text-align:center; font-size:.78rem; font-weight:700; text-decoration:none;">📊 Progresso da Equipe</a>
         <?php endif; ?>
     </aside>
 </div>
