@@ -82,7 +82,11 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/fix_tpl_aniversario.php?key=fsa-hub-deploy-2026&dry=0\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_zapi_rapido.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_luiz.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_luiz2.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_luiz2.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_fromme.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_conv97.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/reconciliar_wa_tel.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_duplicatas.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
