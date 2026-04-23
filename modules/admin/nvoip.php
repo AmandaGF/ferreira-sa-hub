@@ -192,10 +192,17 @@ function csrf() { return (window._FSA_CSRF || window.FSA_CSRF || ''); }
 
 function nvoipSaldo() {
     var out = document.getElementById('saldoOut');
-    out.textContent = 'consultando...';
+    out.textContent = '⏳ consultando...';
+    out.style.color = '#6b7280';
     fetch(NVOIP_API + '?action=saldo', { credentials:'same-origin' }).then(function(r){ return r.json(); }).then(function(d){
-        if (d && d.error) out.textContent = '❌ ' + d.error;
-        else out.textContent = 'Saldo: ' + JSON.stringify(d);
+        if (d && d.error) { out.textContent = '❌ ' + d.error; out.style.color = '#b91c1c'; return; }
+        var valor = (d && typeof d.balance !== 'undefined') ? d.balance : null;
+        if (valor === null || isNaN(parseFloat(valor))) { out.textContent = '—'; return; }
+        out.textContent = '💰 R$ ' + parseFloat(valor).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        out.style.color = parseFloat(valor) < 10 ? '#b91c1c' : '#15803d';
+        out.style.fontWeight = '700';
+    }).catch(function(){
+        out.textContent = '❌ erro de rede'; out.style.color = '#b91c1c';
     });
 }
 
