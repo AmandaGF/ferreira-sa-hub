@@ -62,17 +62,13 @@ try {
 
 // 3) Configuracoes (chaves vazias — admin preenche no painel)
 $cfgs = array(
-    array('nvoip_napikey',       '', 'Chave de API Nvoip (napikey)'),
-    array('nvoip_numbersip',     '', 'Número SIP principal da conta Nvoip'),
-    array('nvoip_user_token',    '', 'User token para gerar OAuth'),
-    array('nvoip_access_token',  '', 'Token OAuth atual (gerado automaticamente)'),
-    array('nvoip_refresh_token', '', 'Refresh token OAuth (gerado automaticamente)'),
-    array('nvoip_token_expiry',  '', 'Expiração do token OAuth (ISO datetime)'),
+    'nvoip_napikey', 'nvoip_numbersip', 'nvoip_user_token',
+    'nvoip_access_token', 'nvoip_refresh_token', 'nvoip_token_expiry',
 );
 try {
-    $ins = $pdo->prepare("INSERT IGNORE INTO configuracoes (chave, valor, descricao) VALUES (?, ?, ?)");
-    foreach ($cfgs as $c) $ins->execute($c);
-    echo "[OK] 6 chaves nvoip_* em configuracoes (se ainda não existiam)\n";
+    $ins = $pdo->prepare("INSERT IGNORE INTO configuracoes (chave, valor) VALUES (?, '')");
+    foreach ($cfgs as $c) $ins->execute(array($c));
+    echo "[OK] " . count($cfgs) . " chaves nvoip_* em configuracoes (INSERT IGNORE)\n";
 } catch (Exception $e) {
     echo "[ERRO] configuracoes: " . $e->getMessage() . "\n";
 }
