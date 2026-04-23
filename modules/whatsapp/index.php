@@ -25,6 +25,9 @@ $configurado = $inst && $inst['instancia_id'] !== '' && $inst['token'] !== '';
 $accentColor = $isComercial ? '#b08d6e' : '#0f3460';
 $accentLight = $isComercial ? '#fdf5ed' : '#eef2f8';
 
+// Etiqueta "🔓 AT DESBLOQUEADO" — atalho de filtro (só faz sentido no canal 21)
+$etqAtDesbloqueadoId = $isComercial ? (int)_zapi_etiqueta_at_desbloqueado_id() : 0;
+
 $csrfToken = generate_csrf_token();
 $podeDelegar = can_delegar_whatsapp(); // só Amanda (1) e Luiz Eduardo (6)
 
@@ -266,6 +269,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
                 <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
+                <?php if ($etqAtDesbloqueadoId): ?>
+                <button class="wa-filter" id="waBtnAtDesbloqueado" onclick="waFiltrarAtDesbloqueado()" style="background:#fef2f2;border-color:#dc2626;color:#991b1b;font-weight:700;" title="Leads com atendente ausente há mais de 30 min — precisam de resposta">🔓 AT Desbloq.</button>
+                <?php endif; ?>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
                 <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;font-weight:700;" title="Filtrar por atendente — nome vem na cor configurada">
                     <option value="" style="color:#6b7280;font-weight:400;">👥 Atendente</option>
@@ -361,6 +367,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var filtroAtual = <?= json_encode(in_array($_GET['status'] ?? '', array('aguardando','em_atendimento','bot','nao_lidas','resolvido'), true) ? $_GET['status'] : 'todos') ?>;
     var buscaAtual  = '';
     var etiquetaFiltro = 0;
+    var ETQ_AT_DESBLOQUEADO_ID = <?= (int)$etqAtDesbloqueadoId ?>;
     var atendenteFiltro = ''; // '' = todos, -1 = minhas, 0 = sem atendente, N = user id N
     var convAtiva   = null;
     var pollTimer   = null;
@@ -1945,8 +1952,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
     function renderEtqFilters() {
         if (!etiquetasCache) return;
-        // Renderiza só o CHIP da etiqueta ativa (se houver)
         var chip = document.getElementById('waEtqChipAtivo');
+        var btnEtq = document.getElementById('waBtnFiltroEtq');
+        var btnAtDes = document.getElementById('waBtnAtDesbloqueado');
+
+        // Reset visual dos dois botões antes de redesenhar o estado
+        if (btnEtq) { btnEtq.style.background = ''; btnEtq.style.color = ''; btnEtq.style.borderColor = ''; }
+        if (btnAtDes) { btnAtDes.style.background = '#fef2f2'; btnAtDes.style.color = '#991b1b'; btnAtDes.style.borderColor = '#dc2626'; }
+
         if (etiquetaFiltro) {
             var ativa = etiquetasCache.find(function(e){ return +e.id === +etiquetaFiltro; });
             if (ativa) {
@@ -1955,15 +1968,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     escapeHtml(ativa.nome) +
                     '<span onclick="waFiltrarPorEtiqueta(0)" style="cursor:pointer;opacity:.85;">✕</span></span>';
                 chip.style.display = 'flex';
+
+                // Se a ativa é a AT DESBLOQUEADO, destaca o botão atalho
+                if (ETQ_AT_DESBLOQUEADO_ID && +ativa.id === +ETQ_AT_DESBLOQUEADO_ID) {
+                    if (btnAtDes) { btnAtDes.style.background = '#dc2626'; btnAtDes.style.color = '#fff'; btnAtDes.style.borderColor = '#dc2626'; }
+                } else if (btnEtq) {
+                    btnEtq.style.background = ativa.cor;
+                    btnEtq.style.color = '#fff';
+                    btnEtq.style.borderColor = ativa.cor;
+                }
             }
-            // Deixa o botão Etiqueta com fundo colorido
-            var btn = document.getElementById('waBtnFiltroEtq');
-            if (btn) { btn.style.background = ativa.cor; btn.style.color = '#fff'; btn.style.borderColor = ativa.cor; }
         } else {
             chip.innerHTML = '';
             chip.style.display = 'none';
-            var btn = document.getElementById('waBtnFiltroEtq');
-            if (btn) { btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = ''; }
         }
     }
 
@@ -1995,6 +2012,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
         document.getElementById('waEtqPopoverFiltro').style.display = 'none';
         renderEtqFilters();
         carregarLista();
+    };
+
+    // Atalho: clica no botão "🔓 AT Desbloq." pra filtrar direto essa etiqueta
+    window.waFiltrarAtDesbloqueado = function() {
+        if (!ETQ_AT_DESBLOQUEADO_ID) return;
+        // Toggle: se já tá filtrando por ela, desliga
+        if (+etiquetaFiltro === +ETQ_AT_DESBLOQUEADO_ID) {
+            waFiltrarPorEtiqueta(0);
+        } else {
+            waFiltrarPorEtiqueta(ETQ_AT_DESBLOQUEADO_ID);
+        }
     };
 
     // Fecha popover ao clicar fora
