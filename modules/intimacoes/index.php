@@ -24,7 +24,11 @@ $fDataIni   = trim($_GET['data_ini'] ?? '');
 $fDataFim   = trim($_GET['data_fim'] ?? '');
 $fOab       = trim($_GET['oab'] ?? '');
 $fTipo      = trim($_GET['tipo'] ?? '');
-$fStatus    = trim($_GET['status'] ?? 'todos'); // pendente|confirmado|descartado|orfa|todos
+// Abas principais: 'a_tratar' (default) ou 'resolvidas'
+// Chips dentro de cada aba: pendente|orfa|confirmado|descartado|todos
+$fAba       = trim($_GET['aba'] ?? 'a_tratar');
+if (!in_array($fAba, array('a_tratar','resolvidas','todos'), true)) $fAba = 'a_tratar';
+$fStatus    = trim($_GET['status'] ?? '');
 $fBusca     = trim($_GET['q'] ?? '');
 $pageNum    = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 25;
@@ -110,6 +114,15 @@ if ($fDataFim && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fDataFim)) {
 if ($fTipo && isset($tipoLbls[$fTipo])) {
     $where[] = 'x.tipo = ?'; $params[] = $fTipo;
 }
+// Aplica aba principal ANTES dos chips (aba limita o universo, chip refina)
+if ($fAba === 'a_tratar') {
+    // Pendentes (status=pendente) + Sem pasta (origem=pend)
+    $where[] = "(x.origem = 'pend' OR (x.origem = 'pub' AND x.status_prazo = 'pendente'))";
+} elseif ($fAba === 'resolvidas') {
+    // Cumpridas + Descartadas (só da origem 'pub')
+    $where[] = "x.origem = 'pub' AND x.status_prazo IN ('confirmado','descartado')";
+}
+
 if ($fStatus && $fStatus !== 'todos') {
     if ($fStatus === 'orfa')       $where[] = "x.origem = 'pend'";
     else                            $where[] = "x.origem = 'pub' AND x.status_prazo = ?";
@@ -210,13 +223,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ci-btn-ig { background:#fef2f2; color:#b91c1c; border-color:#fca5a5; }
 .ci-btn-ver { background:#052228; color:#fff; }
 .ci-btn-vincular { background:#B87333; color:#fff; }
+
+/* Abas principais: A Tratar × Resolvidas */
+.ci-abas { display:flex; gap:2px; margin-bottom:1rem; border-bottom:2px solid var(--border); }
+.ci-aba { padding:10px 20px; background:transparent; border:none; border-bottom:3px solid transparent; font-size:.9rem; font-weight:700; color:#64748b; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:6px; }
+.ci-aba:hover { color:#052228; background:#f8fafc; }
+.ci-aba.ativa.tratar { color:#b45309; border-bottom-color:#f59e0b; background:#fffbeb; }
+.ci-aba.ativa.resolvidas { color:#15803d; border-bottom-color:#059669; background:#f0fdf4; }
+.ci-aba.ativa.todos { color:#052228; border-bottom-color:#052228; background:#f8fafc; }
+.ci-aba-qt { background:rgba(0,0,0,.08); color:inherit; padding:2px 9px; border-radius:10px; font-size:.72rem; font-weight:700; }
+.ci-aba.ativa .ci-aba-qt { background:rgba(0,0,0,.15); }
 </style>
 
 <div class="ci-wrap">
     <div class="ci-head">
         <div>
             <h2>📢 Central de Intimações</h2>
-            <p style="font-size:.78rem;color:var(--text-muted);margin:.2rem 0 0;">Todas as publicações do DJEN — importadas e aguardando vinculação. Total: <strong><?= $total ?></strong></p>
+            <p style="font-size:.78rem;color:var(--text-muted);margin:.2rem 0 0;">
+                <?php if ($fAba === 'a_tratar'): ?>
+                    Intimações <strong>pendentes de tratamento</strong> — prazos e sem vinculação.
+                <?php elseif ($fAba === 'resolvidas'): ?>
+                    Intimações <strong>já resolvidas</strong> — cumpridas e descartadas.
+                <?php else: ?>
+                    Todas as publicações do DJEN — importadas e aguardando vinculação.
+                <?php endif; ?>
+                Mostrando: <strong><?= $total ?></strong>
+            </p>
         </div>
         <div style="display:flex;gap:.4rem;">
             <a href="<?= module_url('admin','claudin_dashboard.php') ?>" class="btn btn-outline btn-sm">🤖 Claudin</a>
@@ -224,21 +256,61 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
 
-    <!-- Chips de status -->
-    <div class="ci-chips">
-        <?php
+    <!-- Abas principais: A Tratar | Resolvidas | Todas -->
+    <?php
+    $qtTratar = $contadores['pendente'] + $contadores['orfa'];
+    $qtResolv = $contadores['confirmado'] + $contadores['descartado'];
+    $qtTotal  = $qtTratar + $qtResolv;
+    $abas = array(
+        'a_tratar'  => array('label'=>'⏳ A Tratar',      'qt'=>$qtTratar, 'cls'=>'tratar'),
+        'resolvidas'=> array('label'=>'✓ Já Resolvidas', 'qt'=>$qtResolv, 'cls'=>'resolvidas'),
+        'todos'     => array('label'=>'Todas',            'qt'=>$qtTotal,  'cls'=>'todos'),
+    );
+    ?>
+    <div class="ci-abas">
+        <?php foreach ($abas as $k=>$a):
+            $qs = $_GET; $qs['aba'] = $k; unset($qs['status']); unset($qs['page']);
+            $ativa = $fAba === $k ? 'ativa ' . $a['cls'] : '';
+        ?>
+            <a href="?<?= http_build_query($qs) ?>" class="ci-aba <?= $ativa ?>">
+                <?= e($a['label']) ?> <span class="ci-aba-qt"><?= (int)$a['qt'] ?></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
+
+    <!-- Chips de refino dentro da aba -->
+    <?php
+    // Define quais chips aparecem por aba (sub-filtros)
+    if ($fAba === 'a_tratar') {
         $statusChips = array(
-            'todos' => array('label'=>'Todos','qt'=>$contadores['pendente']+$contadores['confirmado']+$contadores['descartado']+$contadores['orfa']),
+            '' => array('label'=>'Todos desta aba','qt'=>$qtTratar),
+            'pendente' => array('label'=>'⏳ Pendentes','qt'=>$contadores['pendente']),
+            'orfa' => array('label'=>'🔗 Sem pasta','qt'=>$contadores['orfa']),
+        );
+    } elseif ($fAba === 'resolvidas') {
+        $statusChips = array(
+            '' => array('label'=>'Todos desta aba','qt'=>$qtResolv),
+            'confirmado' => array('label'=>'✓ Cumpridas','qt'=>$contadores['confirmado']),
+            'descartado' => array('label'=>'⊘ Descartadas','qt'=>$contadores['descartado']),
+        );
+    } else {
+        $statusChips = array(
+            '' => array('label'=>'Todos','qt'=>$qtTotal),
             'pendente' => array('label'=>'⏳ Pendentes','qt'=>$contadores['pendente']),
             'orfa' => array('label'=>'🔗 Sem pasta','qt'=>$contadores['orfa']),
             'confirmado' => array('label'=>'✓ Cumpridas','qt'=>$contadores['confirmado']),
             'descartado' => array('label'=>'⊘ Descartadas','qt'=>$contadores['descartado']),
         );
-        foreach ($statusChips as $k=>$c):
-            $qs = $_GET; $qs['status'] = $k; unset($qs['page']);
-            $ativo = $fStatus === $k ? 'ativo' : '';
+    }
+    ?>
+    <div class="ci-chips">
+        <?php foreach ($statusChips as $k=>$c):
+            $qs = $_GET; unset($qs['page']);
+            if ($k === '') unset($qs['status']); else $qs['status'] = $k;
+            $ativo = (($k === '' && !$fStatus) || $fStatus === $k) ? 'ativo' : '';
+            $chipCls = $k ?: 'all';
         ?>
-            <a href="?<?= http_build_query($qs) ?>" class="ci-chip <?= $k ?> <?= $ativo ?>">
+            <a href="?<?= http_build_query($qs) ?>" class="ci-chip <?= $chipCls ?> <?= $ativo ?>">
                 <?= e($c['label']) ?> <span style="opacity:.75;">(<?= (int)$c['qt'] ?>)</span>
             </a>
         <?php endforeach; ?>
@@ -247,6 +319,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- Filtros -->
     <div class="ci-filtros">
         <form method="GET">
+            <input type="hidden" name="aba" value="<?= e($fAba) ?>">
             <input type="hidden" name="status" value="<?= e($fStatus) ?>">
             <label>De
                 <input type="date" name="data_ini" value="<?= e($fDataIni) ?>">
