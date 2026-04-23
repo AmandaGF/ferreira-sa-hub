@@ -113,15 +113,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-list { flex:1;overflow-y:auto; }
 .wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:transform .18s, background .15s, box-shadow .18s; position:relative; border-left:4px solid transparent; }
 .wa-conv:hover { background:<?= $accentLight ?>; }
-.wa-conv.active {
-    background:#fff;
-    border-left:5px solid <?= $accentColor ?>;
-    border-radius:12px;
-    box-shadow: -4px 6px 18px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08);
+.wa-conv.active,
+.wa-conv.active[data-status] {
+    background:#fff !important;
+    border-left:5px solid <?= $accentColor ?> !important;
+    border-radius:12px !important;
+    box-shadow: -4px 6px 18px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08) !important;
     transform: translateX(-8px);
     margin:4px 0;
     z-index:2;
+    opacity:1 !important;
 }
+.wa-conv.active[data-status] .wa-conv-name { text-decoration:none !important; font-style:normal !important; }
+.wa-conv.active[data-status] .wa-conv-preview { font-style:normal !important; }
 .wa-conv.active .wa-conv-name { color:<?= $accentColor ?>; font-weight:800; }
 .wa-conv.active::before {
     content:'▶';
