@@ -727,25 +727,61 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var input = document.getElementById('waChatInput');
         input.style.display = 'flex';
 
-        // Trava: se outro atendente assumiu e há atividade nas últimos 30 minutos, desabilita envio.
-        // Remove banner antigo se existir.
+        // Trava: se outro atendente assumiu e a trava ainda está ativa.
+        // Regra: libera em 30min se cliente é última msg, ou 36h se equipe é última.
+        // Remove banner antigo e cronômetro se existirem.
         var oldLock = document.getElementById('waLockBanner');
         if (oldLock) oldLock.remove();
+        if (window._waLockTimer) { clearInterval(window._waLockTimer); window._waLockTimer = null; }
+
         var travada = (+c.lock_pode_enviar === 0);
         if (travada) {
+            var motivo = c.lock_motivo || 'atendente_ativo';
+            var segAte = parseInt(c.lock_segundos_ate || 0, 10);
+            var liberaEm = Date.now() + (segAte * 1000);
+
             var banner = document.createElement('div');
             banner.id = 'waLockBanner';
-            banner.style.cssText = 'padding:.6rem .8rem;background:#fef3c7;border-top:1px solid #fcd34d;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.8rem;display:flex;align-items:center;gap:.5rem;';
-            banner.innerHTML = '🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong> — apenas Amanda ou Luiz Eduardo podem delegar esta conversa para outra pessoa. Após 30 minutos sem interação, destrava automaticamente.';
+            banner.style.cssText = 'padding:.6rem .8rem;background:#fef3c7;border-top:1px solid #fcd34d;border-bottom:1px solid #fcd34d;color:#78350f;font-size:.8rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;';
+
+            var motivoTxt = motivo === 'cliente_esperando'
+                ? 'cliente está esperando resposta'
+                : 'atendente ainda no controle';
+            banner.innerHTML =
+                '<span>🔒 <strong>Em atendimento por ' + escapeHtml(c.lock_atendente_name || 'outro atendente') + '</strong></span>' +
+                '<span style="opacity:.85;">— ' + motivoTxt + '</span>' +
+                '<span id="waLockTimer" style="margin-left:auto;background:rgba(217,119,6,.15);padding:2px 10px;border-radius:10px;font-weight:700;font-variant-numeric:tabular-nums;"></span>';
             input.parentNode.insertBefore(banner, input);
-            // Desabilita controles de envio
+
+            function fmtDur(s) {
+                if (s <= 0) return 'liberando...';
+                if (s < 3600) {
+                    var m = Math.floor(s / 60), ss = s % 60;
+                    return m + 'min ' + ('0'+ss).slice(-2) + 's';
+                }
+                var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+                return h + 'h ' + ('0'+m).slice(-2) + 'min';
+            }
+            function atualizarLockTimer() {
+                var restante = Math.max(0, Math.round((liberaEm - Date.now()) / 1000));
+                var el = document.getElementById('waLockTimer');
+                if (!el) { clearInterval(window._waLockTimer); return; }
+                el.textContent = '⏱ Libera em ' + fmtDur(restante);
+                if (restante <= 0) {
+                    clearInterval(window._waLockTimer);
+                    window._waLockTimer = null;
+                    // Recarrega a conversa pra refletir o novo estado (sem trava)
+                    if (convAtiva) window.waAbrir(convAtiva);
+                }
+            }
+            atualizarLockTimer();
+            window._waLockTimer = setInterval(atualizarLockTimer, 10000);
+
             ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
                 var el = document.getElementById(id); if (el) el.disabled = true;
             });
-            // Desabilita botões de anexo/sticker/template
             input.querySelectorAll('.wa-btn-tpl').forEach(function(b){ b.disabled = true; b.style.opacity = .4; });
         } else {
-            // Reabilita (caso tenha vindo de conversa travada)
             ['waInput','waBtnSend','waBtnMic'].forEach(function(id){
                 var el = document.getElementById(id); if (el) el.disabled = false;
             });

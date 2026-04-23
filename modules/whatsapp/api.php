@@ -361,9 +361,12 @@ if ($action === 'abrir_conversa') {
     $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = 0 WHERE id = ?")->execute(array($id));
 
     // Estado da trava de atendimento pro usuário atual (bloqueio de envio)
-    $lock = zapi_pode_enviar_conversa($id, $userId, 30);
-    $conv['lock_pode_enviar'] = !empty($lock['pode']) ? 1 : 0;
-    $conv['lock_atendente_name'] = $lock['atendente_name'] ?? null;
+    $lock = zapi_pode_enviar_conversa($id, $userId);
+    $conv['lock_pode_enviar']     = !empty($lock['pode']) ? 1 : 0;
+    $conv['lock_atendente_name']  = $lock['atendente_name'] ?? null;
+    $conv['lock_motivo']          = $lock['motivo'] ?? null;               // 'cliente_esperando' | 'atendente_ativo'
+    $conv['lock_segundos_ate']    = $lock['segundos_ate_liberar'] ?? null; // pro cronômetro
+    $conv['lock_idade_ultima']    = $lock['idade_ultima_segundos'] ?? null;
 
     // Self-heal: garante colunas pinned/pinned_at
     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
