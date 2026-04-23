@@ -101,7 +101,10 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_luiz24.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/corrigir_luiz24.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s --max-time 120 \"https://ferreiraesa.com.br/conecta/varredura_convs_erradas.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s --max-time 180 \"https://ferreiraesa.com.br/conecta/varredura_convs_erradas.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s --max-time 180 \"https://ferreiraesa.com.br/conecta/varredura_convs_erradas.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s --max-time 180 \"https://ferreiraesa.com.br/conecta/achar_numeros_lid.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s --max-time 300 \"https://ferreiraesa.com.br/conecta/achar_numeros_lid.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/aplicar_4_numeros.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
