@@ -489,6 +489,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             }
         }
         ?>
+        <?php
+        // Botão de ligar via Nvoip (só se configurada)
+        try { $__nvoipOn = (string)(db()->query("SELECT valor FROM configuracoes WHERE chave = 'nvoip_napikey'")->fetchColumn() ?? ''); } catch (Exception $e) { $__nvoipOn = ''; }
+        $clientesComTel = array_filter($clientesVinculados, function($cv){ return !empty($cv['phone']); });
+        if ($__nvoipOn !== '' && count($clientesComTel) === 1):
+            $cv1 = reset($clientesComTel);
+            $ph1 = preg_replace('/\D/', '', $cv1['phone']);
+        ?>
+            <button type="button" onclick="if(window.nvoipIniciar){window.nvoipIniciar('<?= $ph1 ?>',<?= (int)$cv1['id'] ?>,0,<?= (int)$caseId ?>,<?= e(json_encode($cv1['name'])) ?>);}else{alert('Recarregue a pagina (Ctrl+Shift+R) pra carregar o modulo de ligacoes.');}" class="btn btn-sm" style="background:#059669;color:#fff;border:none;">📞 Ligar</button>
+        <?php elseif ($__nvoipOn !== '' && count($clientesComTel) > 1): ?>
+            <div style="position:relative;display:inline-block;">
+                <button type="button" onclick="var m=document.getElementById('menuLigar');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-sm" style="background:#059669;color:#fff;border:none;">📞 Ligar ▾</button>
+                <div id="menuLigar" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
+                    <?php foreach ($clientesComTel as $cvl): $phl = preg_replace('/\D/', '', $cvl['phone']); ?>
+                        <a href="javascript:void(0)" onclick="document.getElementById('menuLigar').style.display='none';if(window.nvoipIniciar)window.nvoipIniciar('<?= $phl ?>',<?= (int)$cvl['id'] ?>,0,<?= (int)$caseId ?>,<?= e(json_encode($cvl['name'])) ?>);" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">📞 <?= e($cvl['name']) ?></a>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
         <?php if (count($clientesComWa) === 1): ?>
             <a href="<?= $clientesComWa[0]['wa'] ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
         <?php elseif (count($clientesComWa) > 1): ?>

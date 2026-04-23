@@ -142,6 +142,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="cli-profile-actions">
         <?php if ($client['phone']): ?>
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm">💬 WhatsApp</button>
+            <?php
+            // Botão de ligar — só aparece se Nvoip configurada (nvoip_napikey preenchida)
+            try { $__nvoipOn = (string)(db()->query("SELECT valor FROM configuracoes WHERE chave = 'nvoip_napikey'")->fetchColumn() ?? ''); } catch (Exception $e) { $__nvoipOn = ''; }
+            if ($__nvoipOn !== ''): ?>
+            <button type="button" onclick="if(window.nvoipIniciar){window.nvoipIniciar('<?= preg_replace('/\D/', '', $client['phone']) ?>',<?= (int)$client['id'] ?>,0,0,<?= e(json_encode($client['name'])) ?>);}else{alert('Recarregue a página (Ctrl+Shift+R) pra carregar o módulo de ligações.');}" class="btn btn-sm" style="background:#059669;color:#fff;border:none;">📞 Ligar</button>
+            <?php endif; ?>
         <?php endif; ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
