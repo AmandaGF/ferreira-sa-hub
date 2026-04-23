@@ -3,45 +3,37 @@
 # ============================================================
 #
 # PROPÓSITO:
-#   Bloqueia acesso HTTP direto à pasta /cron/ e TODOS os
-#   arquivos dentro dela (incluindo subpastas como /logs/).
+#   Bloquear acesso HTTP direto à pasta /cron/, EXCETO quando a
+#   query string contém a chave de admin (?key=fsa-hub-deploy-2026).
 #
-# O QUE BLOQUEIA:
-#   - Requisições ao navegador para /conecta/cron/qualquer.php
-#   - Tentativas de ler /conecta/cron/logs/claudin.log
-#   - Qualquer tentativa de listar o conteúdo da pasta
+# POR QUE A CHAVE?
+#   Os cron jobs do cPanel chamam as URLs via curl (HTTP), não CLI.
+#   Os próprios scripts já validam a chave — essa camada só
+#   garante que nenhum cron sem validação interna seja acessível
+#   por acidente via navegador.
 #
 # O QUE NÃO AFETA:
-#   - Execução via cron do cPanel (roda como CLI, passa direto)
-#   - Execução via shell_exec do dashboard (também CLI)
-#   - Uso interno dos scripts por include/require de outros
-#     módulos do Hub (filesystem, não HTTP)
+#   - Execução via CLI (cron cPanel rodando php direto)
+#   - Uso via include/require de módulos (filesystem, não HTTP)
 #
-# COMPATIBILIDADE:
-#   Funciona tanto em Apache 2.2 quanto em Apache 2.4+ e
-#   LiteSpeed (usado pela TurboCloud), porque cobre as duas
-#   sintaxes com um bloco IfModule.
+# HISTÓRICO:
+#   22/Abril/2026 — .htaccess original bloqueava HTTP TOTAL. Isso
+#   quebrou o cron de aniversários (e outros) que o cPanel chama
+#   via curl. Reescrito em 23/Abril pra permitir acesso HTTP com
+#   a chave correta.
 # ============================================================
 
-# --- Apache 2.4+ / LiteSpeed moderno -------------------------
-<IfModule mod_authz_core.c>
-    Require all denied
-</IfModule>
+# --- Bloqueia acesso HTTP sem a chave correta -----------------
+RewriteEngine On
+RewriteCond %{QUERY_STRING} !(^|&)key=fsa-hub-deploy-2026($|&)
+RewriteRule ^ - [F,L]
 
-# --- Apache 2.2 / sintaxe legada (fallback) ------------------
-<IfModule !mod_authz_core.c>
-    Order deny,allow
-    Deny from all
-</IfModule>
-
-# --- Desabilita listagem de diretório (defesa extra) ---------
+# --- Desabilita listagem de diretório -------------------------
 Options -Indexes
 
-# --- Impede execução de PHP via HTTP nesta pasta -------------
-# Mesmo se as regras acima falharem por algum motivo estranho,
-# isso garante que nenhum .php desta pasta seja interpretado
-# quando acessado pelo navegador.
-<FilesMatch "\.(php|phtml|log|ini|conf)$">
+# --- Logs e configs bloqueados INDEPENDENTE da chave ----------
+# (não devem ser servidos via web em hipótese alguma)
+<FilesMatch "\.(log|ini|conf)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
