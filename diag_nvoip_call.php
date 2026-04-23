@@ -21,7 +21,8 @@ $ch = curl_init('https://api.nvoip.com.br/v2/calls/');
 curl_setopt_array($ch, array(
     CURLOPT_POST           => true,
     CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_TIMEOUT        => 15,
+    CURLOPT_TIMEOUT        => 40,
+    CURLOPT_CONNECTTIMEOUT => 10,
     CURLOPT_POSTFIELDS     => json_encode(array('caller' => $caller, 'called' => $called)),
     CURLOPT_HTTPHEADER     => array(
         'Content-Type: application/json',

@@ -134,12 +134,15 @@ function nvoip_realizar_chamada($telefoneDestino, $userId) {
     $ramal = nvoip_get_ramal_usuario($userId);
     $tel   = preg_replace('/\D/', '', $telefoneDestino);
     if (strlen($tel) < 10) return array('state' => 'failed', 'error' => 'Telefone inválido');
+    // Se veio com DDI 55 na frente (13 dígitos), remove — Nvoip espera DDD+numero
+    if (strlen($tel) === 13 && substr($tel, 0, 2) === '55') $tel = substr($tel, 2);
 
     $ch = curl_init(NVOIP_BASE_URL . '/calls/');
     curl_setopt_array($ch, array(
         CURLOPT_POST           => true,
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_TIMEOUT        => 40, // Nvoip pode demorar pra iniciar a chamada antes de responder
+        CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_POSTFIELDS     => json_encode(array('caller' => $ramal, 'called' => $tel)),
         CURLOPT_HTTPHEADER     => array(
             'Content-Type: application/json',
@@ -149,9 +152,21 @@ function nvoip_realizar_chamada($telefoneDestino, $userId) {
     ));
     $raw  = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
     curl_close($ch);
+
+    // Log pra debug em /files/ (bloqueado por web)
+    @file_put_contents(APP_ROOT . '/files/nvoip_debug.log',
+        '[' . date('Y-m-d H:i:s') . '] call caller=' . $ramal . ' called=' . $tel
+        . ' http=' . $code . ' err=' . $err
+        . ' resp=' . substr((string)$raw, 0, 400) . "\n", FILE_APPEND);
+
     $resp = json_decode($raw, true);
-    if (!is_array($resp)) $resp = array('state' => 'failed', 'error' => 'Resposta inválida', 'http' => $code);
+    if (!is_array($resp)) {
+        return array('state' => 'failed',
+            'error' => $err ?: ('Resposta inválida (HTTP ' . $code . ')'),
+            'http' => $code, 'raw' => substr((string)$raw, 0, 200));
+    }
     return $resp;
 }
 
