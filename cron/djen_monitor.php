@@ -258,20 +258,41 @@ function claudin_chamar_claude($item, $dataFatalSugerida) {
     $dataFatalFmt = $dataFatalSugerida ? date('d/m/Y', strtotime($dataFatalSugerida)) : null;
 
     $teor = mb_substr(trim($teor), 0, 4000, 'UTF-8');
+    $classe = isset($item['classe']) ? $item['classe'] : '';
 
-    $systemPrompt = "Você é um paralegal experiente de um escritório de advocacia brasileiro (Ferreira & Sá Advocacia). Sua tarefa é analisar publicações do DJEN e produzir dois outputs curtíssimos:\n\n"
+    $systemPrompt = "Você é um paralegal experiente de um escritório de advocacia brasileiro (Ferreira & Sá Advocacia). Sua tarefa é analisar publicações do DJEN e produzir dois outputs curtíssimos.\n\n"
+        . "ANTES DE TUDO, identifique o RITO/PROCEDIMENTO pelo órgão e pela classe processual. A escolha correta do prazo depende disso:\n\n"
+        . "--- TABELA DE PRAZOS POR RITO ---\n"
+        . "▸ JUIZADO ESPECIAL CÍVEL (Lei 9.099/95) — órgão contém 'Juizado Especial'/'JEC'/'Vara do Juizado':\n"
+        . "    • Recurso Inominado: 10 dias úteis (NÃO é apelação!)\n"
+        . "    • Embargos de declaração: 5 dias úteis\n"
+        . "    • Recurso especial/extraordinário: 15 dias úteis\n"
+        . "▸ JUIZADO ESPECIAL DA FAZENDA (Lei 12.153/2009) — 'Juizado Especial da Fazenda Pública':\n"
+        . "    • Recurso Inominado: 10 dias úteis\n"
+        . "▸ JUIZADO ESPECIAL FEDERAL (Lei 10.259/2001): igual ao JEC (Recurso Inominado 10 dias).\n"
+        . "▸ JECRIM (Lei 9.099/95 — Juizado Especial Criminal): Apelação 10 dias.\n"
+        . "▸ JUSTIÇA COMUM CÍVEL (CPC): Apelação 15 dias úteis, Embargos Decl 5 dias úteis, Agravo Instrumento 15 dias úteis, Contestação 15 dias úteis.\n"
+        . "▸ JUSTIÇA DO TRABALHO (CLT): Recurso Ordinário 8 dias úteis, Agravo Petição 8 dias, Embargos Decl 5 dias úteis.\n"
+        . "▸ JUSTIÇA PENAL COMUM (CPP, dias CORRIDOS): Apelação 5 dias, Embargos Decl 2 dias, RESE 5 dias.\n"
+        . "▸ FAMÍLIA (CPC, dias úteis): Apelação 15 dias.\n\n"
+        . "REGRAS GERAIS:\n"
+        . "- CPC art. 219: prazos civis em dias úteis (exceto se lei dispuser diferente, ex: CPP).\n"
+        . "- CPC art. 224 §3º: termo inicial é o primeiro dia útil seguinte à disponibilização.\n"
+        . "- NUNCA diga 'apelação' quando for JEC — é Recurso Inominado.\n"
+        . "- Sempre nomear o recurso correto para o rito identificado.\n\n"
+        . "OUTPUTS:\n"
         . "1. RESUMO (até 25 palavras): o que a publicação comunica, em português claro, sem juridiquês.\n"
-        . "2. ORIENTAÇÃO (até 35 palavras): o que o advogado deve fazer e em quanto tempo.\n"
-        . "   - Regra CPC art. 219: prazos em dias úteis.\n"
-        . "   - Regra CPC art. 224 §3º: termo inicial é o primeiro dia útil seguinte à disponibilização.\n"
-        . "   - Quando houver prazo, inclua a data fatal no formato DD/MM/AAAA.\n"
+        . "2. ORIENTAÇÃO (até 45 palavras): o que o advogado deve fazer e em quanto tempo. Mencione o rito identificado quando houver prazo (ex: 'JEC — interpor Recurso Inominado em 10 dias úteis até DD/MM/AAAA').\n"
+        . "   - Inclua data fatal no formato DD/MM/AAAA quando houver prazo.\n"
         . "   - Para atos ordinatórios SEM prazo do advogado: \"Aguardar próximo despacho. Sem prazo imediato.\"\n"
         . "   - Para listas de distribuição: \"Ciência da distribuição. Sem prazo imediato.\"\n\n"
         . "Responda EXCLUSIVAMENTE em JSON válido, sem markdown, no formato:\n"
         . '{"resumo":"...","orientacao":"..."}';
 
-    $userMsg = "Tipo: {$tipo}\nÓrgão: {$orgao}\nData de disponibilização: {$dataDispFmt}\n";
-    if ($dataFatalFmt) $userMsg .= "Data fatal aproximada (15 dias úteis): {$dataFatalFmt} — use-a se aplicável.\n";
+    $userMsg = "Tipo: {$tipo}\nÓrgão: {$orgao}\n";
+    if ($classe) $userMsg .= "Classe processual: {$classe}\n";
+    $userMsg .= "Data de disponibilização: {$dataDispFmt}\n";
+    if ($dataFatalFmt) $userMsg .= "Data fatal de referência (assumindo 15 dias úteis padrão): {$dataFatalFmt} — AJUSTE se o rito for diferente (ex: JEC/Inominado = 10 dias).\n";
     $userMsg .= "\nTeor integral:\n{$teor}";
 
     $body = json_encode(array(
