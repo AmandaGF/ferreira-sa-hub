@@ -964,12 +964,17 @@ function zapi_pode_enviar_conversa($convId, $userId, $minutos = 30) {
     // Admin (Amanda/Luiz) sempre pode
     if (function_exists('can_delegar_whatsapp') && can_delegar_whatsapp()) return array('pode' => true);
 
-    // Atividade recente (qualquer mensagem) mantém a trava
+    // Trava só se mantém enquanto o ATENDENTE RESPONSÁVEL estiver ativo —
+    // mensagens do cliente NÃO renovam a trava (senão cliente cobrando mantém
+    // a conversa presa num atendente ausente).
     $q = $pdo->prepare("SELECT COUNT(*) FROM zapi_mensagens
-                        WHERE conversa_id = ? AND created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)");
-    $q->execute(array($convId));
+                        WHERE conversa_id = ?
+                          AND direcao = 'enviada'
+                          AND enviado_por_id = ?
+                          AND created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)");
+    $q->execute(array($convId, $atendente));
     if ((int)$q->fetchColumn() === 0) {
-        // Sem atividade há mais de X minutos → destrava
+        // Atendente responsável sem resposta há mais de X minutos → destrava
         return array('pode' => true);
     }
 
@@ -996,6 +1001,9 @@ function zapi_expirar_delegacoes_estale($minutos = 30) {
     $pdo = db();
     $minutos = (int)$minutos;
     try {
+        // A delegação só expira quando o ATENDENTE RESPONSÁVEL não responde há
+        // X minutos. Mensagens do cliente não mantêm a delegação (senão cliente
+        // cobrando deixaria o caso preso com quem abandonou).
         $sql = "UPDATE zapi_conversas co
                 SET co.delegada = 0, co.delegada_por = NULL, co.delegada_em = NULL
                 WHERE co.delegada = 1
@@ -1003,6 +1011,8 @@ function zapi_expirar_delegacoes_estale($minutos = 30) {
                   AND NOT EXISTS (
                       SELECT 1 FROM zapi_mensagens m
                       WHERE m.conversa_id = co.id
+                        AND m.direcao = 'enviada'
+                        AND m.enviado_por_id = co.atendente_id
                         AND m.created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)
                   )";
         $stmt = $pdo->prepare($sql);
