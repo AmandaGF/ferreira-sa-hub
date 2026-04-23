@@ -118,7 +118,8 @@
       "Bash(curl -sI \"https://ferreiraesa.com.br/conecta/assets/js/nvoip.js\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/assets/js/nvoip.js\")",
       "Bash(curl -s --max-time 30 \"https://ferreiraesa.com.br/conecta/diag_nvoip_call.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s --max-time 60 \"https://ferreiraesa.com.br/conecta/diag_nvoip_call.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s --max-time 60 \"https://ferreiraesa.com.br/conecta/diag_nvoip_call.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/configurar_webphone_cred.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
