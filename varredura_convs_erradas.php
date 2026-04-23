@@ -94,5 +94,41 @@ foreach ($suspeitas as $s) {
 }
 
 if (empty($suspeitas)) {
-    echo "✅ Nenhuma conversa com descasamento detectado.\n";
+    echo "✅ Nenhuma conversa com descasamento detectado pelo log.\n";
+}
+
+// ─── 2) Conversas com telefone @lid puro (sem DDI 55) — candidatas a nome errado
+echo "\n--- 2) Conversas com telefone @lid puro (sem 55 BR) — possíveis nomes errados ---\n";
+$r = $pdo->query("SELECT id, canal, telefone, chat_lid, nome_contato, atendente_id, status,
+    (SELECT COUNT(*) FROM zapi_mensagens WHERE conversa_id = zapi_conversas.id) AS msgs,
+    (SELECT MAX(created_at) FROM zapi_mensagens WHERE conversa_id = zapi_conversas.id) AS ult
+    FROM zapi_conversas
+    WHERE (eh_grupo = 0 OR eh_grupo IS NULL)
+      AND (telefone LIKE '%@lid' OR (telefone NOT LIKE '55%' AND LENGTH(telefone) >= 10 AND telefone REGEXP '^[0-9]+$'))
+    ORDER BY msgs DESC
+    LIMIT 50")->fetchAll();
+echo "Encontradas: " . count($r) . "\n";
+foreach ($r as $c) {
+    // Busca número real via log
+    $m = $pdo->query("SELECT zapi_message_id FROM zapi_mensagens WHERE conversa_id = {$c['id']} AND direcao = 'enviada' AND zapi_message_id != '' ORDER BY id DESC LIMIT 5")->fetchAll();
+    $numReal = null;
+    foreach ($m as $mm) {
+        $candidato = buscar_numero_real($mm['zapi_message_id'], $logLines);
+        if ($candidato) { $numReal = $candidato; break; }
+    }
+    echo sprintf("  #%d canal=%s tel=%s chat_lid=%s nome='%s' msgs=%d [%s] ult=%s\n",
+        $c['id'], $c['canal'], $c['telefone'], $c['chat_lid'] ?: '-', $c['nome_contato'] ?: '?', $c['msgs'], $c['status'], $c['ult'] ?: '-');
+    if ($numReal) {
+        echo "      ↪ número real via log: {$numReal}\n";
+        // Procura conv oficial com esse número
+        $outra = $pdo->prepare("SELECT id, nome_contato, status FROM zapi_conversas
+            WHERE canal = ? AND (eh_grupo=0 OR eh_grupo IS NULL) AND id != ?
+              AND RIGHT(REPLACE(REPLACE(telefone,'@lid',''),'@g.us',''), 10) = ?
+            LIMIT 1");
+        $outra->execute(array($c['canal'], $c['id'], substr($numReal, -10)));
+        $oficial = $outra->fetch();
+        if ($oficial) {
+            echo "      ↪ ⚠️  existe conv oficial #{$oficial['id']} '{$oficial['nome_contato']}' [{$oficial['status']}] — sugerido mesclar #{$c['id']} → #{$oficial['id']}\n";
+        }
+    }
 }
