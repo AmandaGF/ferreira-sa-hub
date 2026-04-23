@@ -3,6 +3,11 @@
  * Painel Admin — Progresso de Treinamento da equipe.
  * Visível apenas para Admin e Gestão.
  */
+// Força o browser/PWA a SEMPRE pegar versão fresca (sem cache)
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!has_min_role('gestao')) { flash_set('error','Acesso restrito.'); redirect(module_url('treinamento')); }
