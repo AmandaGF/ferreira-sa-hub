@@ -72,7 +72,12 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/api/wa_backup_trigger.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_log.php?key=fsa-hub-deploy-2026&arquivo=wa_backup.log\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_log_wa_backup.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_wa_backup.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_wa_backup.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/modules/admin/claudin_backfill.php?action=ler_progresso\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_backfill.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_log_zapi.php?key=fsa-hub-deploy-2026&n=80\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/reconciliar_wa_lid.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_conv_lid.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
