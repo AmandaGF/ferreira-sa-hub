@@ -105,6 +105,7 @@ if(D.cobranca_honorarios)bg+='<span class="cb" style="background:#dc2626">💰 I
 hd+='<div style="margin-top:.4rem">'+bg+'</div>';
 var bt='';
 if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">WhatsApp</a> ';
+if(c.phone&&window.NvoipWidget)bt+='<button onclick="window.nvoipIniciar(\''+c.phone.replace(/\D/g,'')+'\','+(D.client_id||0)+',0,'+(D.case_id||0)+',\''+(c.name||'').replace(/\x27/g,"\\x27")+'\')" style="background:#059669;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer" title="Ligar via Nvoip">📞 Ligar</button> ';
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';
 bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
 if(s)bt+='<button onclick="window._cdArchive()" style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Arquivar</button> ';

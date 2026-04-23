@@ -1,0 +1,67 @@
+/* Widget de chamada Nvoip — canto inferior direito, sobreposto */
+#nvoipWidget {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 9998;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #052228 0%, #0d3640 100%);
+    color: #fff;
+    padding: 14px 18px;
+    border-radius: 14px;
+    box-shadow: 0 12px 36px rgba(0,0,0,.35);
+    min-width: 280px;
+    max-width: 360px;
+    font-family: inherit;
+}
+#nvoipWidget[hidden] { display: none !important; }
+#nvoipWidget .nv-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255,255,255,.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem; flex-shrink: 0;
+}
+#nvoipWidget .nv-info { flex: 1; min-width: 0; }
+#nvoipWidget .nv-nome { font-weight: 700; font-size: .92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#nvoipWidget .nv-tel  { font-size: .72rem; opacity: .75; margin-top: 1px; }
+#nvoipWidget .nv-status { font-size: .75rem; margin-top: 4px; color: #f0b37a; font-weight: 600; }
+#nvoipWidget .nv-timer { font-size: .72rem; opacity: .7; font-variant-numeric: tabular-nums; margin-top: 2px; }
+#nvoipWidget .nv-desligar {
+    background: #dc2626; color: #fff; border: none;
+    width: 44px; height: 44px; border-radius: 50%;
+    cursor: pointer; font-size: 1.2rem;
+    transition: transform .15s, background .15s;
+    flex-shrink: 0;
+}
+#nvoipWidget .nv-desligar:hover { background: #b91c1c; transform: scale(1.05); }
+
+/* Botão de ligar — estilo padrão pra reusar onde o telefone aparece */
+.btn-nvoip-ligar {
+    background: #059669; color: #fff; border: none;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: .72rem; font-weight: 700; cursor: pointer;
+    margin-left: 6px; display: inline-flex; align-items: center; gap: 4px;
+}
+.btn-nvoip-ligar:hover { background: #047857; }
+.btn-nvoip-ligar:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Lista de histórico de ligações (usada no drawer) */
+.nvoip-hist-item {
+    border-left: 3px solid #059669;
+    background: #f8fafc;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    font-size: .78rem;
+}
+.nvoip-hist-item.nao-atendeu { border-left-color: #dc2626; }
+.nvoip-hist-item.descartada { border-left-color: #6b7280; opacity: .7; }
+.nvoip-hist-meta { color: #6b7280; font-size: .7rem; margin-top: 2px; }
+.nvoip-hist-resumo {
+    background: #fef3c7; border-left: 2px solid #f59e0b;
+    padding: 6px 10px; margin-top: 6px; border-radius: 4px;
+    font-size: .75rem; color: #78350f; white-space: pre-wrap;
+}
+.nvoip-hist-audio { margin-top: 6px; width: 100%; }

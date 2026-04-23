@@ -17,6 +17,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="<?= url('assets/img/logo-sidebar.png') ?>">
     <title><?= e($pageTitle ?? 'Painel') ?> — F&amp;S Hub</title>
     <link rel="stylesheet" href="<?= url('assets/css/conecta.css') ?>">
+    <link rel="stylesheet" href="<?= url('assets/css/nvoip.css') ?>?v=<?= date('YmdHi') ?>">
     <?php if (!empty($extraCss)): ?>
         <style><?= $extraCss ?></style>
     <?php endif; ?>

@@ -13,6 +13,14 @@
 <script src="<?= url('assets/js/busca_cpf.js') ?>"></script>
 <script src="<?= url('assets/js/gamificacao-efeitos.js') ?>"></script>
 <script src="<?= url('assets/js/wa_sender.js') ?>?v=<?= date('YmdHi') ?>"></script>
+<?php
+// Carrega nvoip.js só se a integração estiver configurada (economiza 1 request)
+try {
+    $__nvoipOn = (string)(db()->query("SELECT valor FROM configuracoes WHERE chave = 'nvoip_napikey'")->fetchColumn() ?? '');
+} catch (Exception $e) { $__nvoipOn = ''; }
+if ($__nvoipOn !== ''): ?>
+<script src="<?= url('assets/js/nvoip.js') ?>?v=<?= date('YmdHi') ?>"></script>
+<?php endif; ?>
 <!-- PWA: service worker + install prompt + update banner -->
 <script>
 (function() {
