@@ -1446,19 +1446,10 @@ if ($action === 'transcrever_audio') {
     exit;
 }
 
-// ── SINCRONIZAR HISTÓRICO DE UMA CONVERSA ────────────────
-if ($action === 'sincronizar_conversa') {
-    $convId = (int)($_POST['conversa_id'] ?? $_GET['conversa_id'] ?? 0);
-    $limit  = (int)($_POST['limite'] ?? $_GET['limite'] ?? 50);
-    if ($limit > 200) $limit = 200;
-    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
-
-    $res = zapi_sincronizar_historico_conversa($convId, $limit);
-    if (isset($res['erro'])) { echo json_encode(array('error' => $res['erro'])); exit; }
-    audit_log('zapi_sync_conv', 'zapi_conversas', $convId, "Importadas: {$res['importadas']}/{$res['total_recebido']}");
-    echo json_encode(array('ok' => true, 'importadas' => $res['importadas'], 'total' => $res['total_recebido']));
-    exit;
-}
+// NOTA: action 'sincronizar_conversa' foi REMOVIDA — Z-API não permite baixar
+// histórico em Multi-Device (doc oficial:
+// https://developer.z-api.io/en/chats/get-message-chats). Mensagens novas são
+// capturadas via webhook; passadas só com export manual do WhatsApp.
 
 // ── IMPORTAR TODOS OS CHATS DA INSTÂNCIA (admin/gestão) ──
 if ($action === 'importar_todos') {
@@ -1498,20 +1489,6 @@ if ($action === 'importar_todos') {
         'pulados' => $pulados,
         'paginas' => $pages,
     ));
-    exit;
-}
-
-// ── DEBUG: resposta crua do Z-API chat-messages (gestão+) ────────
-if ($action === 'debug_zapi_fetch' && has_min_role('gestao')) {
-    $convId = (int)($_GET['conversa_id'] ?? 0);
-    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
-    $stmt = $pdo->prepare("SELECT co.*, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
-    $stmt->execute(array($convId));
-    $c = $stmt->fetch();
-    if (!$c) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
-    $debug = null;
-    $raw = zapi_fetch_chat_messages($c['ddd'], $c['telefone'], 5, $debug);
-    echo json_encode(array('ok' => true, 'ddd' => $c['ddd'], 'telefone' => $c['telefone'], 'debug' => $debug, 'raw' => $raw), JSON_PRETTY_PRINT);
     exit;
 }
 

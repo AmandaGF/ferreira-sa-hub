@@ -734,38 +734,11 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
     return (int)db()->lastInsertId();
 }
 
-/**
- * Busca histórico de mensagens de um telefone na Z-API.
- * @return array|null lista de mensagens (raw) ou null em erro
- */
-function zapi_fetch_chat_messages($ddd, $telefone, $limit = 50, &$debugInfo = null) {
-    $inst = zapi_get_instancia($ddd);
-    if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
-    $cfg = zapi_get_config();
-    $phone = zapi_normaliza_telefone($telefone);
-    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/chat-messages/' . $phone . '?size=' . (int)$limit;
-
-    $headers = array();
-    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
-
-    $ch = curl_init($url);
-    curl_setopt_array($ch, array(
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_HTTPHEADER     => $headers,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ));
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-
-    $debugInfo = array('url' => $url, 'http_code' => $code, 'curl_err' => $err, 'body_preview' => substr($resp, 0, 500));
-
-    if ($code < 200 || $code >= 300) return null;
-    $data = json_decode($resp, true);
-    return is_array($data) ? $data : null;
-}
+// NOTA: a função zapi_fetch_chat_messages foi REMOVIDA em 2026-04-23.
+// Z-API confirmou oficialmente que o endpoint /chat-messages não funciona em
+// Multi-Device (única versão disponível hoje). Mensagens antigas só ficam no
+// WhatsApp do celular ou Web — não é possível reimportar via API.
+// Doc: https://developer.z-api.io/en/chats/get-message-chats
 
 /**
  * Lista todos os chats da instância (telefones com mensagens).
@@ -1236,84 +1209,9 @@ function zapi_expirar_delegacoes_estale($minutos = null) {
     }
 }
 
-/**
- * Importa mensagens do histórico Z-API para uma conversa existente.
- * Retorna contagem de mensagens importadas (não duplica pelo zapi_message_id).
- */
-function zapi_sincronizar_historico_conversa($convId, $limit = 50) {
-    $pdo = db();
-    $stmt = $pdo->prepare("SELECT co.*, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
-    $stmt->execute(array($convId));
-    $conv = $stmt->fetch();
-    if (!$conv) return array('erro' => 'Conversa não encontrada', 'importadas' => 0);
-
-    $raw = zapi_fetch_chat_messages($conv['ddd'], $conv['telefone'], $limit);
-    if ($raw === null) return array('erro' => 'Falha ao consultar Z-API', 'importadas' => 0);
-
-    // A resposta pode ser array direto OU {messages: [...]} OU {data: [...]}
-    $msgs = $raw;
-    if (isset($raw['messages']) && is_array($raw['messages'])) $msgs = $raw['messages'];
-    elseif (isset($raw['data']) && is_array($raw['data'])) $msgs = $raw['data'];
-    elseif (!isset($raw[0]) && is_array($raw)) {
-        // Objeto único — envolver em array
-        $msgs = array($raw);
-    }
-
-    $importadas = 0;
-    $detalhes   = array();
-    foreach ($msgs as $m) {
-        if (!is_array($m)) continue;
-        // Z-API usa diferentes nomes: messageId, id, _id, zaapId, keyId
-        $zapiId = $m['messageId'] ?? ($m['id'] ?? ($m['_id'] ?? ($m['zaapId'] ?? ($m['keyId'] ?? ''))));
-        if (!$zapiId) {
-            // Fallback: usar hash estável do payload pra evitar perda total
-            $zapiId = 'h_' . substr(md5(json_encode($m)), 0, 20);
-        }
-
-        // Evitar duplicata
-        $chk = $pdo->prepare("SELECT id FROM zapi_mensagens WHERE zapi_message_id = ? LIMIT 1");
-        $chk->execute(array($zapiId));
-        if ($chk->fetchColumn()) continue;
-
-        $fromMe  = !empty($m['fromMe']) || !empty($m['isFromMe']);
-        $direcao = $fromMe ? 'enviada' : 'recebida';
-        $tipo    = zapi_detecta_tipo($m);
-        $cont    = zapi_extrai_conteudo($m, $tipo);
-        $arq     = zapi_extrai_arquivo($m, $tipo);
-
-        // Fallback: se não achou texto, tentar outras chaves comuns
-        if (!$cont) {
-            $cont = $m['body'] ?? ($m['message'] ?? ($m['text'] ?? ($m['conversation'] ?? '')));
-            if (is_array($cont)) $cont = $cont['message'] ?? ($cont['body'] ?? '');
-        }
-
-        // Timestamp (segundos ou ms)
-        $ts = $m['momment'] ?? ($m['timestamp'] ?? ($m['messageTimestamp'] ?? ($m['t'] ?? null)));
-        if ($ts) {
-            $tsInt = (int)$ts;
-            if ($tsInt > 10000000000) $tsInt = (int)($tsInt / 1000); // ms → s
-            $dateStr = date('Y-m-d H:i:s', $tsInt);
-        } else {
-            $dateStr = date('Y-m-d H:i:s');
-        }
-
-        $pdo->prepare(
-            "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
-                arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'historico', ?)"
-        )->execute(array(
-            $convId, $zapiId, $direcao, $tipo, $cont,
-            $arq['url'] ?? null, $arq['nome'] ?? null, $arq['mime'] ?? null, $arq['tamanho'] ?? null,
-            $dateStr
-        ));
-        $importadas++;
-    }
-    return array(
-        'importadas'      => $importadas,
-        'total_recebido'  => count($msgs),
-        'primeiro_sample' => isset($msgs[0]) ? $msgs[0] : null,  // pra debug quando importadas=0
-    );
-}
+// zapi_sincronizar_historico_conversa REMOVIDA em 2026-04-23 —
+// dependia de /chat-messages que Z-API não suporta em Multi-Device.
+// Ver nota em zapi_fetch_chat_messages (também removida).
 
 /**
  * Consulta status da instância na Z-API e atualiza o DB local.

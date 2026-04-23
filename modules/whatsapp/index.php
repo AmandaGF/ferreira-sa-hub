@@ -2316,10 +2316,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
         proxima();
     };
 
-    window.waSincronizar = function() {
-        alert('⚠️ Limitação da Z-API\n\nA Z-API não permite baixar o histórico do WhatsApp na versão Multi Device (que é a única disponível hoje).\n\nTodas as mensagens NOVAS (após a configuração do webhook) são capturadas em tempo real — essas ficam salvas aqui para sempre.\n\nMensagens anteriores só ficam no WhatsApp Web ou no celular.');
-    };
-
     // Toggle rápido "Mostrar nomes dos atendentes" — aplica a todos os usuários
     window.waToggleNomes = function(btn) {
         if (!confirm('Alternar a exibição do nome do atendente acima de cada mensagem no chat INTERNO do Hub?\n\nEssa preferência vale pra equipe inteira.')) return;
