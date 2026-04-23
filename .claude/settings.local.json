@@ -77,7 +77,9 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_backfill.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_log_zapi.php?key=fsa-hub-deploy-2026&n=80\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/reconciliar_wa_lid.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_conv_lid.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_conv_lid.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/fix_tpl_aniversario.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/fix_tpl_aniversario.php?key=fsa-hub-deploy-2026&dry=0\")"
     ],
     "additionalDirectories": [
       "\\tmp",
