@@ -199,6 +199,22 @@ switch ($action) {
         exit;
 
     // ─────────────────────────────────────────────────────────────
+    case 'salvar_webphone_cred':
+        if (!has_min_role('admin')) { echo json_encode(array('error' => 'Só admin')); exit; }
+        $email = trim($_POST['email'] ?? '');
+        $senha = trim($_POST['senha'] ?? '');
+        $wurl  = trim($_POST['url']   ?? '');
+        if ($email !== '') nvoip_cfg_set('nvoip_webphone_email', $email);
+        if ($senha !== '') {
+            try { nvoip_cfg_set('nvoip_webphone_senha', encrypt_value($senha)); }
+            catch (Exception $e) { echo json_encode(array('error' => 'Falha ao encriptar senha')); exit; }
+        }
+        if ($wurl  !== '') nvoip_cfg_set('nvoip_webphone_url', $wurl);
+        if (function_exists('audit_log')) audit_log('nvoip_cred_webphone', 'configuracoes', 0, 'email=' . $email);
+        echo json_encode(array('ok' => true));
+        exit;
+
+    // ─────────────────────────────────────────────────────────────
     case 'testar_conexao':
         if (!has_min_role('admin')) { echo json_encode(array('error' => 'Só admin')); exit; }
         // Zera token atual e tenta gerar novo — valida credenciais

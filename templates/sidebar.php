@@ -73,6 +73,7 @@ $menuItems = array(
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $equipe),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $equipe),
+    array('label' => 'Ligações',        'icon' => '📞', 'href' => url('modules/ligacoes/'),        'id' => 'ligacoes',        'roles' => $equipe),
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $equipe),
