@@ -56,7 +56,7 @@ $menuItems = array(
     array('section' => 'Principal'),
     array('label' => 'Painel do Dia',   'icon' => '🌅', 'href' => url('modules/painel/'),          'id' => 'painel',          'roles' => $all),
     array('label' => 'Dashboard',       'icon' => '📊', 'href' => url('modules/dashboard/'),       'id' => 'dashboard',       'roles' => $all),
-    array('label' => 'Portal de Links', 'icon' => '🔗', 'href' => url('modules/portal/'),          'id' => 'portal',          'roles' => $all),
+    array('label' => 'Portal de Informações Rápidas', 'icon' => '⚡', 'href' => url('modules/portal/'), 'id' => 'portal', 'roles' => $all),
 
     array('section' => '💬 WhatsApp'),
     array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'),   'id' => 'whatsapp_21',     'roles' => $all, 'badge' => $_waNaoLidas21),

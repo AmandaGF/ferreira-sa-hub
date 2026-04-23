@@ -6,7 +6,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'PORTAL DE LINKS';
+$pageTitle = 'PORTAL DE INFORMAÇÕES RÁPIDAS';
 $pdo = db();
 $isAdmin = has_role('admin');
 
@@ -345,9 +345,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div class="link-actions">
                             <?php if ($link['url']): ?>
                                 <a href="<?= e($link['url']) ?>" target="_blank" class="btn btn-primary btn-sm">Abrir ↗</a>
-                                <button class="btn btn-outline btn-sm" onclick="copyText('<?= e(addslashes($link['url'])) ?>')">Copiar link</button>
+                                <button class="btn btn-outline btn-sm" onclick="copyText('<?= e(addslashes($link['url'])) ?>')">🔗 Copiar link</button>
                             <?php endif; ?>
-                            <button class="btn btn-outline btn-sm" onclick="copyWhatsApp(<?= $link['id'] ?>)">WhatsApp</button>
+                            <button class="btn btn-outline btn-sm" onclick="copyTudo(<?= $link['id'] ?>)" title="Copia todo o conteúdo do card (título, link, login, senha, dica) pra colar onde quiser">📋 Copiar tudo</button>
                         </div>
                     </div>
                 </div>
@@ -520,17 +520,20 @@ function togglePass(id) {
     }
 }
 
-// Copiar formato WhatsApp
-function copyWhatsApp(id) {
+// Copiar tudo — formato amigável pra colar em qualquer lugar (WhatsApp, e-mail, etc)
+function copyTudo(id) {
     var link = linksData.find(function(l) { return l.id === id; });
     if (!link) return;
     var text = '*' + link.title + '*\n';
-    if (link.url) text += link.url + '\n';
+    if (link.category) text += 'Categoria: ' + link.category + '\n';
+    if (link.url)      text += link.url + '\n';
     if (link.username) text += 'Login: ' + link.username + '\n';
     if (link.password) text += 'Senha: ' + link.password + '\n';
-    if (link.hint) text += link.hint + '\n';
+    if (link.hint)     text += '\n' + link.hint + '\n';
     copyText(text.trim());
 }
+// Alias antigo pra compatibilidade com chamadas antigas
+window.copyWhatsApp = copyTudo;
 
 // Modal: Novo link
 function openNewLink() {
