@@ -278,8 +278,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     border:1px solid var(--border); background:#fff; cursor:pointer;
     transition:.15s; color:var(--text-muted); font-family:inherit;
 }
-.filtro-andamentos button.ativo { background:#052228; color:#fff; border-color:#052228; }
-.filtro-andamentos button.ativo-pub { background:#dc2626; color:#fff; border-color:#dc2626; }
+.filtro-andamentos button.tem-pub { border-color:#dc2626; color:#dc2626; }
+.filtro-andamentos button.ativo { background:#052228; color:#fff !important; border-color:#052228; }
+.filtro-andamentos button.ativo-pub { background:#dc2626; color:#fff !important; border-color:#dc2626; }
 
 /* Dropdowns da toolbar do processo */
 .cv-dropdown { position:relative; display:inline-block; }
@@ -2015,7 +2016,7 @@ foreach ($tarefasReais as $_t) {
         <div class="filtro-andamentos" id="filtroAndamentos">
             <button class="ativo" onclick="filtrarTimeline('todos', this)">Todos (<?= count($andamentos) + count($publicacoes) ?>)</button>
             <button onclick="filtrarTimeline('andamentos', this)">Andamentos (<?= count($andamentos) ?>)</button>
-            <button onclick="filtrarTimeline('publicacoes', this)" style="<?= count($publicacoes) > 0 ? 'border-color:#dc2626;color:#dc2626;' : '' ?>">
+            <button class="<?= count($publicacoes) > 0 ? 'tem-pub' : '' ?>" onclick="filtrarTimeline('publicacoes', this)">
                 Publicações (<?= count($publicacoes) ?>)
             </button>
         </div>
@@ -2034,7 +2035,7 @@ foreach ($tarefasReais as $_t) {
                     else $classeVence = 'ok';
                 }
             ?>
-            <div class="andamento-item pub-item" data-tipo="publicacao" style="position:relative;margin-bottom:16px;padding-left:20px;">
+            <div class="andamento-item pub-item" data-tipo="publicacao" data-sort-date="<?= e(date('Y-m-d', strtotime($pub['data_disponibilizacao']))) ?> 23:59:59" style="position:relative;margin-bottom:16px;padding-left:20px;">
                 <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:#dc2626;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;color:#fff;">P</div>
                 <div style="background:#fff8f8;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;border-left:3px solid #dc2626;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
@@ -2073,6 +2074,15 @@ foreach ($tarefasReais as $_t) {
                                 <button type="submit" onclick="if(!confirm('Descartar intimação? Marca como \'não precisa fazer nada\'.'))return false;document.getElementById('status<?= $pub['id'] ?>').value='descartado';" style="font-size:.65rem;background:#fff;color:#b45309;border:1px solid #fbbf24;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Não precisa fazer nada nessa intimação">⊘ Descartar</button>
                             </form>
                             <?php endif; ?>
+                            <?php if (has_min_role('gestao')): ?>
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;margin-left:4px;">
+                                <?= csrf_input() ?>
+                                <input type="hidden" name="action" value="delete_publicacao">
+                                <input type="hidden" name="pub_id" value="<?= $pub['id'] ?>">
+                                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                                <button type="submit" onclick="return confirm('Excluir esta intimação? Esta ação não pode ser desfeita.');" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:.75rem;padding:2px 4px;" title="Excluir intimação (só gestão)">✕</button>
+                            </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                     <p style="font-size:.83rem;margin:0;white-space:pre-wrap;line-height:1.5;color:#374151;"><?= e(djen_conteudo_limpo($pub['conteudo'])) ?></p>
@@ -2088,7 +2098,7 @@ foreach ($tarefasReais as $_t) {
         <?php if (empty($andamentos) && empty($publicacoes)): ?>
             <p class="text-muted text-sm" style="text-align:center;padding:1rem;">Nenhum andamento registrado.</p>
         <?php else: ?>
-            <div style="position:relative;padding-left:24px;">
+            <div id="timelineContainer" style="position:relative;padding-left:24px;">
                 <!-- Linha vertical da timeline -->
                 <div style="position:absolute;left:8px;top:0;bottom:0;width:2px;background:var(--border);"></div>
 
@@ -2125,7 +2135,11 @@ foreach ($tarefasReais as $_t) {
                     $cor = isset($tipoCores[$and['tipo']]) ? $tipoCores[$and['tipo']] : '#888';
                     $lbl = isset($tipoLabels[$and['tipo']]) ? $tipoLabels[$and['tipo']] : $and['tipo'];
                 ?>
-                <div class="andamento-item" style="position:relative;margin-bottom:16px;padding-left:20px;">
+                <?php
+                $horaOrdAnd = !empty($and['hora_andamento']) ? substr($and['hora_andamento'], 0, 8) : '12:00:00';
+                $sortDateAnd = date('Y-m-d', strtotime($and['data_andamento'])) . ' ' . $horaOrdAnd;
+                ?>
+                <div class="andamento-item" data-tipo="andamento" data-sort-date="<?= e($sortDateAnd) ?>" style="position:relative;margin-bottom:16px;padding-left:20px;">
                     <!-- Bolinha da timeline -->
                     <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:<?= $cor ?>;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;"><?= $icon ?></div>
 
@@ -2408,6 +2422,27 @@ function filtrarTimeline(filtro, btn) {
     andItems.forEach(function(el) { el.style.display = (filtro === 'publicacoes') ? 'none' : ''; });
     pubItems.forEach(function(el) { el.style.display = (filtro === 'andamentos') ? 'none' : ''; });
 }
+
+// Merge + ordena cronologicamente: move as publicacoes do #blocoPublicacoes
+// pro #timelineContainer e reordena TUDO pelo data-sort-date (desc: mais recente em cima).
+// Amanda pediu: pub e andamentos podem se misturar, desde que respeite a ordem cronologica.
+(function ordenarTimeline() {
+    var container = document.getElementById('timelineContainer');
+    var blocoPub = document.getElementById('blocoPublicacoes');
+    if (!container) return;
+    if (blocoPub) {
+        var pubItems = blocoPub.querySelectorAll('.pub-item');
+        pubItems.forEach(function(el) { container.appendChild(el); });
+        blocoPub.style.display = 'none';
+    }
+    var items = Array.from(container.querySelectorAll('.andamento-item'));
+    items.sort(function(a, b) {
+        var da = a.getAttribute('data-sort-date') || '';
+        var db = b.getAttribute('data-sort-date') || '';
+        return db.localeCompare(da); // desc
+    });
+    items.forEach(function(el) { container.appendChild(el); });
+})();
 
 // Inicializar sugestao de prazo
 var tipoPubEl = document.getElementById('tipoPubSelect');

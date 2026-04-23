@@ -1383,6 +1383,40 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'delete_publicacao':
+        // Só gestão/admin pode excluir intimação — ação destrutiva
+        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); redirect(module_url('operacional')); exit; }
+        $pubId  = (int)($_POST['pub_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($pubId && $caseId) {
+            try {
+                // Busca a task_id vinculada pra excluir em cascata
+                $chk = $pdo->prepare("SELECT task_id, agenda_id FROM case_publicacoes WHERE id = ? AND case_id = ?");
+                $chk->execute(array($pubId, $caseId));
+                $pubRow = $chk->fetch();
+                if ($pubRow) {
+                    // Remove tarefa vinculada (se houver)
+                    if (!empty($pubRow['task_id'])) {
+                        try { $pdo->prepare("DELETE FROM case_tasks WHERE id = ?")->execute(array($pubRow['task_id'])); } catch (Exception $e) {}
+                    }
+                    // Remove evento da agenda vinculado (se houver)
+                    if (!empty($pubRow['agenda_id'])) {
+                        try { $pdo->prepare("DELETE FROM agenda_eventos WHERE id = ?")->execute(array($pubRow['agenda_id'])); } catch (Exception $e) {}
+                    }
+                    $pdo->prepare("DELETE FROM case_publicacoes WHERE id = ? AND case_id = ?")
+                        ->execute(array($pubId, $caseId));
+                    audit_log('PUBLICACAO_EXCLUIDA', 'case', $caseId, 'pub_id=' . $pubId);
+                    flash_set('success', 'Intimação excluída.');
+                } else {
+                    flash_set('error', 'Intimação não encontrada.');
+                }
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao excluir: ' . $e->getMessage());
+            }
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'log_whatsapp_andamento':
         $andId = (int)($_POST['andamento_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
