@@ -114,7 +114,11 @@
       "WebFetch(domain:nvoip.docs.apiary.io)",
       "Bash(curl -s -L \"https://raw.githubusercontent.com/Nvoip/nvoip-integrationAPI/master/index.js\" --max-time 30 -o /tmp/nvoip_index.js -w \"HTTP %{http_code} size=%{size_download}\\\\n\")",
       "Bash(curl -s -L \"https://raw.githubusercontent.com/Nvoip/nvoip-integrationAPI/main/index.js\" --max-time 30 -o /tmp/nvoip_index_main.js -w \"HTTP %{http_code} size=%{size_download}\\\\n\")",
-      "Bash(curl -s -L \"https://api.github.com/repos/Nvoip/nvoip-integrationAPI/contents/\" --max-time 30 -w \"HTTP %{http_code}\\\\n\")"
+      "Bash(curl -s -L \"https://api.github.com/repos/Nvoip/nvoip-integrationAPI/contents/\" --max-time 30 -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(curl -sI \"https://ferreiraesa.com.br/conecta/assets/js/nvoip.js\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/assets/js/nvoip.js\")",
+      "Bash(curl -s --max-time 30 \"https://ferreiraesa.com.br/conecta/diag_nvoip_call.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s --max-time 60 \"https://ferreiraesa.com.br/conecta/diag_nvoip_call.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
