@@ -32,7 +32,7 @@ $csrfToken = generate_csrf_token();
 $progressoPath = APP_ROOT . '/cron/logs/backfill_progress.json';
 
 // ============================================================
-// AJAX — ler progresso atual
+// AJAX — ler progresso atual (com auto-destravamento)
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'ler_progresso') {
     header('Content-Type: application/json; charset=utf-8');
@@ -40,9 +40,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'ler_pro
         echo json_encode(array('ok' => true, 'existe' => false));
         exit;
     }
-    $txt = @file_get_contents($progressoPath);
-    $data = json_decode($txt, true);
-    echo json_encode(array('ok' => true, 'existe' => true, 'dados' => $data));
+    $data = json_decode(@file_get_contents($progressoPath), true);
+    $travado = false;
+    // Auto-destrava: se tá rodando e o arquivo não é atualizado há mais de 5 min,
+    // o processo de background morreu (timeout LiteSpeed, OOM, API DJEN não respondeu).
+    // Marca o dia 'processando' como 'timeout' e encerra.
+    if (is_array($data) && empty($data['ended_at'])) {
+        $idle = time() - filemtime($progressoPath);
+        if ($idle > 300) {
+            foreach ($data['dias'] as $i => $dia) {
+                if (($dia['status'] ?? '') === 'processando') {
+                    $data['dias'][$i]['status'] = 'timeout';
+                    $data['dias'][$i]['motivo'] = 'Processo de fundo travou (idle ' . floor($idle/60) . 'min)';
+                    $data['dias'][$i]['finalizado_em'] = date('H:i:s');
+                }
+            }
+            $data['ended_at'] = date('Y-m-d H:i:s');
+            $data['destravado_auto'] = true;
+            @file_put_contents($progressoPath, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            $travado = true;
+        }
+    }
+    echo json_encode(array('ok' => true, 'existe' => true, 'dados' => $data, 'travado' => $travado));
+    exit;
+}
+
+// ============================================================
+// AJAX — destravar manualmente (botão emergência)
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'destravar') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf()) { echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido', 'csrf' => generate_csrf_token())); exit; }
+    if (!file_exists($progressoPath)) {
+        echo json_encode(array('ok' => false, 'erro' => 'Sem backfill em andamento', 'csrf' => generate_csrf_token()));
+        exit;
+    }
+    $data = json_decode(@file_get_contents($progressoPath), true);
+    if (is_array($data)) {
+        foreach (($data['dias'] ?? []) as $i => $dia) {
+            if (($dia['status'] ?? '') === 'processando' || ($dia['status'] ?? '') === 'aguardando') {
+                $data['dias'][$i]['status'] = 'timeout';
+                $data['dias'][$i]['motivo'] = 'Cancelado manualmente';
+                if (empty($data['dias'][$i]['finalizado_em'])) $data['dias'][$i]['finalizado_em'] = date('H:i:s');
+            }
+        }
+        $data['ended_at'] = date('Y-m-d H:i:s');
+        @file_put_contents($progressoPath, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    }
+    echo json_encode(array('ok' => true, 'csrf' => generate_csrf_token()));
     exit;
 }
 
@@ -175,6 +220,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'inici
                 $progresso['pulados']++;
             } else {
                 $tIni = microtime(true);
+                // Heartbeat: toca o arquivo logo antes da chamada longa, evita falso-positivo
+                // do auto-destravamento se o dia demorar > 5 min (raro, mas possível)
+                @touch($progressoPath);
                 $resultado = claudin_executar('manual', $dia['data']);
                 $tempo = round(microtime(true) - $tIni, 1);
 
@@ -242,6 +290,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .bf-status.falha { background:#fee2e2; color:#b91c1c; }
 .bf-status.pulado { background:#f1f5f9; color:#64748b; }
 .bf-status.erro { background:#fee2e2; color:#b91c1c; }
+.bf-status.timeout { background:#fed7aa; color:#9a3412; }
 
 .bf-progress { height:22px; background:#e2e8f0; border-radius:11px; overflow:hidden; margin-bottom:.8rem; position:relative; }
 .bf-progress-bar { height:100%; background:linear-gradient(90deg, #B87333, #052228); transition:width .3s; }
@@ -265,6 +314,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="date" id="bfFim" value="<?= date('Y-m-d') ?>" max="<?= date('Y-m-d') ?>" required>
             </div>
             <button type="submit" id="bfBtnRodar" class="btn btn-primary btn-sm" style="background:#B87333;">Iniciar backfill</button>
+            <button type="button" id="bfBtnDestravar" class="btn btn-sm" onclick="bfDestravar()" style="display:none;background:#dc2626;color:#fff;border:none;">🚨 Destravar (cancelar)</button>
             <button type="button" id="bfBtnLimpar" class="btn btn-outline btn-sm" onclick="bfLimpar()" style="display:none;">Limpar e rodar novo</button>
         </form>
         <div id="bfMsg" style="margin-top:.6rem;font-size:.78rem;"></div>
@@ -393,11 +443,18 @@ function bfRenderProgresso(d) {
 
     var resumo = '';
     if (d.ended_at) {
-        resumo = '✅ Finalizado em ' + d.ended_at + '. Pulados: ' + (d.pulados || 0) + '.';
+        if (d.destravado_auto) {
+            resumo = '⚠️ Backfill destravado automaticamente (processo de fundo travou). Fim ' + d.ended_at + '. Processados: ' + d.processados + '. Clique em "Limpar e rodar novo" pra continuar dos dias restantes.';
+        } else {
+            resumo = '✅ Finalizado em ' + d.ended_at + '. Pulados: ' + (d.pulados || 0) + '.';
+        }
     } else {
         resumo = '⏳ Rodando... iniciado em ' + d.started_at + ' — pulados: ' + (d.pulados || 0) + ' de ' + d.processados + ' processados';
     }
     document.getElementById('bfResumo').textContent = resumo;
+    // Mostra botão destravar só quando está rodando
+    var btnDestr = document.getElementById('bfBtnDestravar');
+    if (btnDestr) btnDestr.style.display = d.ended_at ? 'none' : 'inline-block';
 
     var tb = document.getElementById('bfTbody');
     var html = '';
@@ -422,6 +479,20 @@ function bfRenderProgresso(d) {
              + '</tr>';
     });
     tb.innerHTML = html;
+}
+
+function bfDestravar() {
+    if (!confirm('Destravar o backfill? Marca o dia que está "processando" como timeout e cancela os pendentes. Depois você pode rodar novo backfill dos dias restantes.')) return;
+    var fd = new FormData();
+    fd.append('action', 'destravar');
+    fd.append('csrf_token', BF_CSRF);
+    fetch(window.location.pathname, { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(j) {
+            if (j.csrf) BF_CSRF = j.csrf;
+            if (j.ok) { bfLerProgresso(); }
+            else alert('Erro: ' + (j.erro || '(sem detalhes)'));
+        });
 }
 
 function bfLimpar() {
