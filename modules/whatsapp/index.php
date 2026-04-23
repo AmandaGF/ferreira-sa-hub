@@ -786,6 +786,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waEnviar = function() {
         if (!convAtiva) return;
+        // Se tem áudio gravado aguardando envio, envia ele (prioridade sobre texto/arquivo)
+        if (audioPronto) {
+            var a = audioPronto;
+            // Limpa a referencia ANTES do envio pra UI nao bloquear proxima gravacao
+            audioPronto = null;
+            mostrarBarraGravacao(false);
+            enviarAudioBlob(a.blob, a.mime);
+            if (a.previewUrl) { try { URL.revokeObjectURL(a.previewUrl); } catch(e){} }
+            return;
+        }
         var txt = document.getElementById('waInput').value.trim();
         // Safety net: se ainda tiver {{nome}} no texto, substitui antes de enviar
         if (txt && /\{\{[a-z_]+\}\}/i.test(txt)) {
@@ -1129,6 +1139,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var recTimerInt = null;
     var recInicio = 0;
     var recCancelada = false;
+    var audioPronto = null; // {blob, mime, duracaoMs, previewUrl} — áudio gravado, aguardando envio
 
     function paraTimer() {
         if (recTimerInt) { clearInterval(recTimerInt); recTimerInt = null; }
@@ -1140,15 +1151,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     }
     function mostrarBarraGravacao(mostrar) {
-        document.getElementById('waRecBar').style.display = mostrar ? 'flex' : 'none';
+        var bar = document.getElementById('waRecBar');
         document.getElementById('waInput').style.display = mostrar ? 'none' : '';
         var btn = document.getElementById('waBtnMic');
         if (mostrar) {
+            // Restaura HTML original da barra (caso tenha virado "áudio pronto" antes)
+            bar.innerHTML = '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;animation:waPulse 1s infinite;"></span>' +
+                '<span style="font-size:.85rem;color:#991b1b;font-weight:600;">Gravando...</span>' +
+                '<span id="waRecTimer" style="font-size:.85rem;color:#991b1b;font-variant-numeric:tabular-nums;">00:00</span>' +
+                '<button onclick="waCancelarGravacao()" style="margin-left:auto;background:#fff;border:1px solid #fca5a5;color:#991b1b;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.8rem;" title="Cancelar">✕ Cancelar</button>';
+            bar.style.display = 'flex';
             btn.textContent = '⏹';
-            btn.title = 'Parar e enviar';
+            btn.title = 'Parar gravação (o áudio fica pronto; clique ➤ Enviar pra enviar)';
             btn.style.background = '#ef4444';
             btn.style.color = '#fff';
         } else {
+            bar.style.display = 'none';
             btn.textContent = '🎤';
             btn.title = 'Gravar áudio';
             btn.style.background = '';
@@ -1156,13 +1174,59 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     }
 
+    // Mostra a barra no modo "áudio gravado, aguardando envio"
+    function mostrarBarraAudioPronto() {
+        if (!audioPronto) return;
+        var bar = document.getElementById('waRecBar');
+        var durS = Math.max(1, Math.round(audioPronto.duracaoMs / 1000));
+        var mm = Math.floor(durS / 60), ss = durS % 60;
+        var durText = ('0'+mm).slice(-2) + ':' + ('0'+ss).slice(-2);
+        // Revoga URL anterior se tiver
+        if (audioPronto.previewUrl) { try { URL.revokeObjectURL(audioPronto.previewUrl); } catch(e){} }
+        audioPronto.previewUrl = URL.createObjectURL(audioPronto.blob);
+        bar.style.borderColor = '#059669';
+        bar.style.background = '#f0fdf4';
+        bar.innerHTML = '<span style="font-size:1rem;">✓</span>' +
+            '<span style="font-size:.8rem;color:#065f46;font-weight:600;">Áudio pronto — ' + durText + '</span>' +
+            '<audio controls src="' + audioPronto.previewUrl + '" style="height:32px;flex:1;min-width:0;max-width:260px;"></audio>' +
+            '<button onclick="waRegravarAudio()" style="background:#fff;border:1px solid #cbd5e1;color:#475569;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.78rem;" title="Gravar de novo">🎤 Regravar</button>' +
+            '<button onclick="waCancelarGravacao()" style="background:#fff;border:1px solid #fca5a5;color:#991b1b;border-radius:6px;padding:3px 10px;cursor:pointer;font-size:.78rem;" title="Descartar">✕ Descartar</button>';
+        bar.style.display = 'flex';
+        document.getElementById('waInput').style.display = 'none';
+        // Botão mic volta ao neutro (não está mais gravando)
+        var btn = document.getElementById('waBtnMic');
+        btn.textContent = '🎤';
+        btn.title = 'Já há um áudio gravado — clique ➤ Enviar ou ✕ Descartar';
+        btn.style.background = '';
+        btn.style.color = '';
+    }
+
+    window.waRegravarAudio = function() {
+        limparAudioPronto();
+        window.waGravarAudio();
+    };
+
+    function limparAudioPronto() {
+        if (audioPronto && audioPronto.previewUrl) {
+            try { URL.revokeObjectURL(audioPronto.previewUrl); } catch(e){}
+        }
+        audioPronto = null;
+    }
+
     window.waGravarAudio = function() {
         if (!convAtiva) { alert('Selecione uma conversa primeiro.'); return; }
 
-        // Se já estiver gravando, clicar de novo = parar e enviar
+        // Se já estiver gravando, clicar de novo = PARAR (mas NÃO envia).
+        // O blob gravado fica aguardando em audioPronto até Amanda clicar ➤ Enviar.
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             recCancelada = false;
             mediaRecorder.stop();
+            return;
+        }
+
+        // Se já tem áudio pronto aguardando envio, não começa outro sem descartar
+        if (audioPronto) {
+            alert('Já existe um áudio gravado. Clique em ➤ Enviar ou ✕ Descartar antes de gravar outro.');
             return;
         }
 
@@ -1210,14 +1274,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 mediaRecorder.onstop = function(){
                     paraTimer();
                     fecharStream();
-                    mostrarBarraGravacao(false);
-                    if (recCancelada || recChunks.length === 0) { mediaRecorder = null; return; }
+                    if (recCancelada || recChunks.length === 0) {
+                        mostrarBarraGravacao(false);
+                        mediaRecorder = null;
+                        return;
+                    }
 
                     var usedMime = mediaRecorder.mimeType || 'audio/webm';
                     var blob = new Blob(recChunks, { type: usedMime });
+                    var duracao = Date.now() - recInicio;
                     mediaRecorder = null;
-                    if ((Date.now() - recInicio) < 500) { alert('Áudio curto demais.'); return; }
-                    enviarAudioBlob(blob, usedMime);
+                    if (duracao < 500) {
+                        mostrarBarraGravacao(false);
+                        alert('Áudio curto demais.');
+                        return;
+                    }
+                    // ⏹ apenas PARA — áudio fica aguardando Amanda clicar ➤ Enviar
+                    audioPronto = { blob: blob, mime: usedMime, duracaoMs: duracao, previewUrl: null };
+                    mostrarBarraAudioPronto();
                 };
 
                 mediaRecorder.start();
@@ -1258,9 +1332,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (mediaRecorder && mediaRecorder.state === 'recording') {
             recCancelada = true;
             mediaRecorder.stop();
+            // Limpa áudio pronto se houver (não deveria, mas garante)
+            limparAudioPronto();
         } else {
             paraTimer();
             fecharStream();
+            limparAudioPronto();
             mostrarBarraGravacao(false);
         }
     };
