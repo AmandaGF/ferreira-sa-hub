@@ -86,7 +86,15 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_fromme.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_conv97.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/reconciliar_wa_tel.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_duplicatas.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_duplicatas.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s --max-time 300 \"https://ferreiraesa.com.br/conecta/sync_fotos_wa.php?key=fsa-hub-deploy-2026&canal=21\")",
+      "Bash(curl -s --max-time 300 \"https://ferreiraesa.com.br/conecta/sync_fotos_wa.php?key=fsa-hub-deploy-2026&canal=24\")",
+      "Bash(curl -s --max-time 540 \"https://ferreiraesa.com.br/conecta/sync_fotos_wa.php?key=fsa-hub-deploy-2026&canal=24&force=1\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/find_conv.php?key=fsa-hub-deploy-2026&num=5512997688947\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/find_conv.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/find_conv.php?key=fsa-hub-deploy-2026&num=a\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_msgs_conv.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/mesclar_55_em_2.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
