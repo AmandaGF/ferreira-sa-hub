@@ -228,6 +228,33 @@ try {
                 exit;
             }
 
+            // Captura foto de perfil do payload (vem pronta no webhook — não precisa
+            // chamar /profile-picture). `photo` = foto do chat (em 1:1 = avatar do
+            // contato; em grupo = ícone do grupo). `senderPhoto` = de quem escreveu.
+            // Ref: https://developer.z-api.io/en/webhooks/on-message-received
+            //
+            // Regra: prefere 'photo' pro avatar do chat (uniforme 1:1 e grupo).
+            // Salva local SEMPRE (link WhatsApp expira em 48h) via helper dedicado.
+            $fotoPayload = '';
+            if (!empty($payload['photo']) && is_string($payload['photo'])) {
+                $fotoPayload = $payload['photo'];
+            } elseif (!empty($payload['senderPhoto']) && is_string($payload['senderPhoto']) && !$fromMe) {
+                // senderPhoto só se não for fromMe (senão pega o avatar do escritório)
+                $fotoPayload = $payload['senderPhoto'];
+            }
+            if ($fotoPayload && strpos($fotoPayload, 'http') === 0) {
+                try {
+                    // Atualiza se: não tem foto salva OU a URL mudou (contato trocou de foto)
+                    $st = $pdo->prepare("SELECT foto_perfil_url FROM zapi_conversas WHERE id = ?");
+                    $st->execute(array($conv['id']));
+                    $fotoAtual = (string)$st->fetchColumn();
+                    if ($fotoAtual !== $fotoPayload) {
+                        // Baixa e salva local — URL expira em 48h
+                        zapi_salvar_foto_webhook($conv['id'], $fotoPayload);
+                    }
+                } catch (Exception $eFoto) {}
+            }
+
             // Upgrade: se a conversa existente tem telefone @lid mas agora recebemos
             // o número real via senderPhoneNumber, atualiza pro número real.
             // Também salva chat_lid/sender_lid se ainda não estavam preenchidos.

@@ -802,14 +802,14 @@ function zapi_fetch_profile_picture($ddd, $telefone) {
     $inst = zapi_get_instancia($ddd);
     if (!$inst || !$inst['instancia_id'] || !$inst['token']) return null;
     $cfg = zapi_get_config();
-    $phone = zapi_normaliza_telefone($telefone);
-    // Z-API /profile-picture NÃO funciona com @lid puro (retorna erro ou foto de
-    // outro contato aleatório). Se o telefone é um @lid sem número real
-    // identificável, pula pra evitar foto embaralhada na conversa.
-    // Ref: https://developer.z-api.io/en/contacts/get-profile-picture (só aceita phone numero)
-    if (strpos((string)$phone, '@lid') !== false) {
-        return null;
-    }
+    // Z-API aceita tanto número real quanto @lid no profile-picture.
+    // Ref: https://developer.z-api.io/en/tips/lid — "@lid is already supported
+    // by Z-API in most endpoints" e recomendam usar @lid como identificador estável.
+    // Se for número, normaliza (remove caracteres). Se for @lid, envia como veio.
+    $phone = (strpos((string)$telefone, '@lid') !== false)
+        ? trim($telefone)
+        : zapi_normaliza_telefone($telefone);
+    if (!$phone) return null;
     $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token']
          . '/profile-picture?phone=' . urlencode($phone);
 
@@ -843,6 +843,83 @@ function zapi_fetch_profile_picture($ddd, $telefone) {
  *   Quando o cliente atualizar a foto pela Central VIP (foto_path já existe),
  *   esta função NÃO sobrescreve.
  */
+/**
+ * Salva foto de perfil vinda do WEBHOOK (campo `photo` ou `senderPhoto`) —
+ * chamada inline quando webhook processa mensagem. Sem custo extra de API.
+ *
+ * - Atualiza `zapi_conversas.foto_perfil_url`
+ * - Baixa e salva cópia local em /files/wa_fotos/ (link WhatsApp expira em 48h)
+ * - Se conversa vinculada a cliente sem foto, salva também em salavip/uploads/
+ */
+function zapi_salvar_foto_webhook($convId, $fotoUrl) {
+    $pdo = db();
+    if (!$fotoUrl || strpos($fotoUrl, 'http') !== 0) return false;
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_atualizada DATETIME NULL"); } catch (Exception $e) {}
+
+    $st = $pdo->prepare("SELECT id, client_id, eh_grupo FROM zapi_conversas WHERE id = ?");
+    $st->execute(array($convId));
+    $conv = $st->fetch();
+    if (!$conv) return false;
+
+    // Atualiza URL no banco
+    try {
+        $pdo->prepare("UPDATE zapi_conversas SET foto_perfil_url = ?, foto_perfil_atualizada = NOW() WHERE id = ?")
+            ->execute(array($fotoUrl, $convId));
+    } catch (Exception $e) {}
+
+    // Baixa imagem
+    $ch = curl_init($fotoUrl);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 15,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $imgData = curl_exec($ch);
+    $imgCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $imgCT   = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+    curl_close($ch);
+    if (!$imgData || $imgCode < 200 || $imgCode >= 300 || strlen($imgData) < 100) return false;
+    $ext = 'jpg';
+    if (stripos($imgCT, 'png') !== false) $ext = 'png';
+    elseif (stripos($imgCT, 'webp') !== false) $ext = 'webp';
+
+    // Salva cópia local da conversa (sempre)
+    $dir = APP_ROOT . '/files/wa_fotos/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $fn = 'conv_' . (int)$conv['id'] . '_' . time() . '.' . $ext;
+    if (@file_put_contents($dir . $fn, $imgData)) {
+        // Apaga arquivo antigo pra não acumular
+        try {
+            $stAnt = $pdo->prepare("SELECT foto_perfil_local FROM zapi_conversas WHERE id = ?");
+            $stAnt->execute(array($convId));
+            $antigo = $stAnt->fetchColumn();
+            if ($antigo && $antigo !== $fn) @unlink($dir . $antigo);
+        } catch (Exception $e) {}
+        $pdo->prepare("UPDATE zapi_conversas SET foto_perfil_local = ? WHERE id = ?")
+            ->execute(array($fn, $convId));
+    }
+
+    // Se for cliente e ainda não tem foto no cadastro, salva lá também
+    if (!empty($conv['client_id']) && empty($conv['eh_grupo'])) {
+        try {
+            $cl = $pdo->prepare("SELECT foto_path FROM clients WHERE id = ?");
+            $cl->execute(array($conv['client_id']));
+            $existing = $cl->fetchColumn();
+            if (empty($existing)) {
+                $vipDir = dirname(APP_ROOT) . '/salavip/uploads/';
+                if (!is_dir($vipDir)) @mkdir($vipDir, 0755, true);
+                $vipFn = 'foto_wa_' . (int)$conv['client_id'] . '_' . time() . '.' . $ext;
+                if (@file_put_contents($vipDir . $vipFn, $imgData)) {
+                    $pdo->prepare("UPDATE clients SET foto_path = ? WHERE id = ? AND (foto_path IS NULL OR foto_path = '')")
+                        ->execute(array($vipFn, $conv['client_id']));
+                }
+            }
+        } catch (Exception $e) {}
+    }
+    return true;
+}
+
 function zapi_sync_foto_contato($convId) {
     $pdo = db();
     $stmt = $pdo->prepare("SELECT co.id, co.telefone, co.client_id, co.eh_grupo, i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id WHERE co.id = ?");
