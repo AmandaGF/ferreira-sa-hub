@@ -46,10 +46,12 @@ $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY na
 // Andamentos do caso
 $andamentos = array();
 try {
+    // Ordem cronológica real: data + hora_andamento (quando preenchida) + created_at como desempate
     $stmtAnd = $pdo->prepare(
         "SELECT a.*, u.name as user_name FROM case_andamentos a
          LEFT JOIN users u ON u.id = a.created_by
-         WHERE a.case_id = ? ORDER BY a.data_andamento DESC, a.created_at DESC"
+         WHERE a.case_id = ?
+         ORDER BY a.data_andamento DESC, COALESCE(a.hora_andamento, TIME(a.created_at)) DESC, a.created_at DESC"
     );
     $stmtAnd->execute(array($caseId));
     $andamentos = $stmtAnd->fetchAll();
@@ -2035,7 +2037,7 @@ foreach ($tarefasReais as $_t) {
                     else $classeVence = 'ok';
                 }
             ?>
-            <div class="andamento-item pub-item" data-tipo="publicacao" data-sort-date="<?= e(date('Y-m-d', strtotime($pub['data_disponibilizacao']))) ?> 23:59:59" style="position:relative;margin-bottom:16px;padding-left:20px;">
+            <div class="andamento-item pub-item" data-tipo="publicacao" data-sort-date="<?= e(date('Y-m-d', strtotime($pub['data_disponibilizacao']))) ?> 08:00:00" style="position:relative;margin-bottom:16px;padding-left:20px;">
                 <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:#dc2626;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;color:#fff;">P</div>
                 <div style="background:#fff8f8;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;border-left:3px solid #dc2626;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
@@ -2136,7 +2138,15 @@ foreach ($tarefasReais as $_t) {
                     $lbl = isset($tipoLabels[$and['tipo']]) ? $tipoLabels[$and['tipo']] : $and['tipo'];
                 ?>
                 <?php
-                $horaOrdAnd = !empty($and['hora_andamento']) ? substr($and['hora_andamento'], 0, 8) : '12:00:00';
+                // data-sort-date segue a mesma logica da hora exibida:
+                //  hora_andamento se preenchida > hora do created_at > fallback '12:00:00'
+                if (!empty($and['hora_andamento'])) {
+                    $horaOrdAnd = substr($and['hora_andamento'], 0, 8);
+                } elseif (!empty($and['created_at'])) {
+                    $horaOrdAnd = date('H:i:s', strtotime($and['created_at']));
+                } else {
+                    $horaOrdAnd = '12:00:00';
+                }
                 $sortDateAnd = date('Y-m-d', strtotime($and['data_andamento'])) . ' ' . $horaOrdAnd;
                 ?>
                 <div class="andamento-item" data-tipo="andamento" data-sort-date="<?= e($sortDateAnd) ?>" style="position:relative;margin-bottom:16px;padding-left:20px;">
