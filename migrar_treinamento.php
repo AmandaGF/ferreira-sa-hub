@@ -87,6 +87,7 @@ $modulos = array(
     array('ranking','Ranking e Gamificação','Como funciona o sistema de pontos, níveis e premiações','🏆','["todos"]',21,30),
     array('links-tribunais','Portal de Links e Tribunais','Acessando todos os tribunais e portais jurídicos em um clique','🔗','["todos"]',22,30),
     array('aniversarios','Aniversários e Relacionamento','Como o sistema parabeniza clientes automaticamente','🎂','["cx","admin","gestao"]',23,30),
+    array('ligacoes-nvoip','Ligações VoIP (Nvoip)','Ligue com 1 clique — gravação, transcrição e resumo IA automáticos','📞','["comercial","cx","admin","gestao"]',24,70),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_modulos (slug, titulo, descricao, icone, perfis_alvo, ordem, pontos) VALUES (?,?,?,?,?,?,?)
@@ -191,6 +192,11 @@ $quizzes = array(
 
     // DOCUMENTOS
     array('documentos','Quando preencho os dados pra gerar uma procuração, onde eles ficam salvos?','Nenhum lugar — é gerado e esquecido','Na tabela document_history com params_json (backup crítico)','Só no arquivo .docx','Na agenda','b','document_history.params_json é backup crítico — útil pra recuperar valores que se perderam.',1),
+
+    // LIGAÇÕES NVOIP
+    array('ligacoes-nvoip','Pra fazer uma ligação pelo Hub, o que PRECISA estar aberto antes?','Nada — só clicar em Ligar','O painel da Nvoip com o WebPhone ativo em outra aba','O WhatsApp do celular','Chrome em modo anônimo','b','A Nvoip liga pro seu ramal primeiro — se o WebPhone não está registrado, a chamada falha com RECOVERY_ON_TIMER_EXPIRE.',1),
+    array('ligacoes-nvoip','Após desligar uma ligação, o que é feito automaticamente?','Nada — você que registra manualmente','Gravação é baixada, transcrita via Groq Whisper e resumida em 3 linhas por Claude Haiku','Só a duração é salva','Aparece um formulário pra você preencher','b','A pós-processamento é 100% automático — gravação + transcrição + resumo IA ficam vinculados ao cliente/processo.',2),
+    array('ligacoes-nvoip','A Z-API (WhatsApp) também permite fazer ligações pelo Hub?','Sim, integração única','Não — a API do WhatsApp não suporta chamadas, só mensagens. Ligações usam Nvoip (separada)','Sim, mas só de vídeo','Sim, mas só pra clientes premium','b','Limitação do próprio Meta/WhatsApp Business API. Por isso usamos Nvoip como linha telefônica independente.',3),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_quiz (modulo_slug, pergunta, opcao_a, opcao_b, opcao_c, opcao_d, resposta_correta, explicacao, ordem) VALUES (?,?,?,?,?,?,?,?,?)");
