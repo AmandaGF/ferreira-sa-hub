@@ -111,9 +111,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-filter.active { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
 .wa-search { width:100%;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:.78rem; }
 .wa-list { flex:1;overflow-y:auto; }
-.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:background .15s; }
+.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:background .15s, border-left-width .15s; border-left:4px solid transparent; }
 .wa-conv:hover { background:<?= $accentLight ?>; }
-.wa-conv.active { background:<?= $accentLight ?>;border-left:3px solid <?= $accentColor ?>; }
+.wa-conv.active {
+    background:linear-gradient(90deg, <?= $accentLight ?> 0%, #fff 70%);
+    border-left:4px solid <?= $accentColor ?>;
+    box-shadow:inset 0 0 0 2px rgba(0,0,0,.03);
+}
+.wa-conv.active .wa-conv-name { color:<?= $accentColor ?>; font-weight:800; }
+.wa-conv.active::before {
+    content:'▶';
+    position:absolute;
+    right:.5rem;
+    color:<?= $accentColor ?>;
+    font-size:.7rem;
+    opacity:.6;
+}
+.wa-conv { position:relative; }
 /* Estado visual por status */
 .wa-conv[data-status="resolvido"] { background:#f1f5f9;opacity:.72; }
 .wa-conv[data-status="resolvido"] .wa-conv-name { color:#64748b;text-decoration:line-through;text-decoration-color:rgba(100,116,139,.5); }
