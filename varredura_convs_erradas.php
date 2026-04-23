@@ -22,9 +22,15 @@ function buscar_numero_real($msgId, &$logLines) {
     foreach ($logLines as $l) {
         if (strpos($l, $msgId) === false) continue;
         if (strpos($l, 'MessageStatusCallback') === false && strpos($l, 'DeliveryCallback') === false) continue;
-        // Extrai phone
-        if (preg_match('/"phone":"(\d{10,15})"/', $l, $m)) {
-            return $m[1]; // número real puro (sem @lid)
+        // Extrai TODOS os "phone":"..." e filtra: número BR normal 12-13 dígitos
+        // começando com 55 (DDI Brasil). Evita pegar @lid disfarçado (15+ digits).
+        if (preg_match_all('/"phone":"(\d{10,15})"/', $l, $ms)) {
+            foreach ($ms[1] as $candidato) {
+                $len = strlen($candidato);
+                // Número BR: começa com 55 e tem 12 ou 13 dígitos (55 + DDD + 8ou9 dígitos)
+                // OU número internacional genérico 10-13 digitos
+                if ($len >= 10 && $len <= 13) return $candidato;
+            }
         }
     }
     return null;
