@@ -111,23 +111,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-filter.active { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
 .wa-search { width:100%;padding:5px 10px;border:1px solid var(--border);border-radius:8px;font-size:.78rem; }
 .wa-list { flex:1;overflow-y:auto; }
-.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:background .15s, border-left-width .15s; border-left:4px solid transparent; }
+.wa-conv { padding:.6rem .8rem;border-bottom:1px solid var(--border);cursor:pointer;display:flex;gap:.5rem;align-items:flex-start;transition:transform .18s, background .15s, box-shadow .18s; position:relative; border-left:4px solid transparent; }
 .wa-conv:hover { background:<?= $accentLight ?>; }
 .wa-conv.active {
-    background:linear-gradient(90deg, <?= $accentLight ?> 0%, #fff 70%);
-    border-left:4px solid <?= $accentColor ?>;
-    box-shadow:inset 0 0 0 2px rgba(0,0,0,.03);
+    background:#fff;
+    border-left:5px solid <?= $accentColor ?>;
+    border-radius:12px;
+    box-shadow: -4px 6px 18px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.08);
+    transform: translateX(-8px);
+    margin:4px 0;
+    z-index:2;
 }
 .wa-conv.active .wa-conv-name { color:<?= $accentColor ?>; font-weight:800; }
 .wa-conv.active::before {
     content:'▶';
     position:absolute;
-    right:.5rem;
+    right:.6rem;
+    top:50%;
+    transform:translateY(-50%);
     color:<?= $accentColor ?>;
-    font-size:.7rem;
-    opacity:.6;
+    font-size:.72rem;
+    opacity:.7;
 }
-.wa-conv { position:relative; }
 /* Estado visual por status */
 .wa-conv[data-status="resolvido"] { background:#f1f5f9;opacity:.72; }
 .wa-conv[data-status="resolvido"] .wa-conv-name { color:#64748b;text-decoration:line-through;text-decoration-color:rgba(100,116,139,.5); }
