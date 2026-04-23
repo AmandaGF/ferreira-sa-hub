@@ -48,7 +48,7 @@ $sql = "SELECT l.id, l.call_id, l.telefone_destino, l.duracao_segundos, l.status
                l.iniciada_em, l.gravacao_local, l.resumo_ia, l.transcricao,
                l.client_id, l.case_id, l.lead_id,
                u.name AS atendente_nome, u.wa_color AS atendente_cor,
-               c.name AS cliente_nome, c.phone AS cliente_phone,
+               c.name AS cliente_nome, c.phone AS cliente_phone, c.foto_path AS cliente_foto,
                cs.title AS case_title, cs.case_number AS case_number
         FROM ligacoes_historico l
         LEFT JOIN users u ON u.id = l.atendente_id
@@ -112,6 +112,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 .lig-link { color:var(--petrol-900); text-decoration:none; font-weight:600; }
 .lig-link:hover { text-decoration:underline; color:#B87333; }
+.lig-avatar { width:28px; height:28px; border-radius:50%; object-fit:cover; border:2px solid #e5e7eb; flex-shrink:0; display:block; }
+.lig-avatar-ph { width:28px; height:28px; border-radius:50%; background:#eef2ff; color:#4338ca; display:inline-flex; align-items:center; justify-content:center; font-size:.82rem; flex-shrink:0; border:2px solid #e5e7eb; }
 </style>
 
 <div class="lig-wrap">
@@ -269,8 +271,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </td>
                 <td>
                     <?php if ($l['client_id']): ?>
-                        <a href="<?= module_url('clientes', 'ver.php?id=' . (int)$l['client_id']) ?>" class="lig-link">
-                            👤 <?= e($l['cliente_nome'] ?? 'Cliente #' . $l['client_id']) ?>
+                        <a href="<?= module_url('clientes', 'ver.php?id=' . (int)$l['client_id']) ?>" class="lig-link" style="display:inline-flex;align-items:center;gap:8px;">
+                            <?php if (!empty($l['cliente_foto'])): ?>
+                                <img src="<?= url('../salavip/uploads/' . $l['cliente_foto']) ?>" alt="" class="lig-avatar" onerror="this.outerHTML='<span class=&quot;lig-avatar-ph&quot;>👤</span>';">
+                            <?php else: ?>
+                                <span class="lig-avatar-ph">👤</span>
+                            <?php endif; ?>
+                            <span><?= e($l['cliente_nome'] ?? 'Cliente #' . $l['client_id']) ?></span>
                         </a>
                     <?php else: ?>
                         <span style="color:var(--text-muted);font-size:.75rem;">Sem vínculo</span>
