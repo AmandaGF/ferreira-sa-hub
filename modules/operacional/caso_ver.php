@@ -1691,29 +1691,132 @@ foreach ($tarefasReais as $_t) {
         <?php if (empty($tarefasReais)): ?>
             <p class="text-muted text-sm">Nenhuma tarefa operacional.</p>
         <?php else: ?>
-            <ul class="task-list">
-                <?php foreach ($tarefasReais as $task): ?>
-                <li class="task-item">
+            <ul class="task-list" id="taskListReal">
+                <?php foreach ($tarefasReais as $task):
+                    $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito');
+                ?>
+                <li class="task-item" id="taskReal<?= $task['id'] ?>" data-task-id="<?= $task['id'] ?>"
+                    data-title="<?= e($task['title']) ?>"
+                    data-tipo="<?= e($task['tipo'] ?? '') ?>"
+                    data-assigned="<?= (int)($task['assigned_to'] ?? 0) ?>"
+                    data-due="<?= e($task['due_date'] ?? '') ?>">
                     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="toggle_task">
                         <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
                         <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                        <?php $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito'); ?>
                         <button type="submit" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>">
                             <?= $isDone ? '✓' : '' ?>
                         </button>
                     </form>
-                    <span class="task-text <?= $isDone ? 'done' : '' ?>"><?= e($task['title']) ?></span>
+                    <span class="task-text <?= $isDone ? 'done' : '' ?>" data-field="title"><?= e($task['title']) ?></span>
                     <span class="task-meta">
-                        <?php if ($task['tipo']): ?><span style="font-size:.65rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:600;"><?= e($task['tipo']) ?></span><?php endif; ?>
-                        <?php if ($task['assigned_name']): ?><?= e(explode(' ', $task['assigned_name'])[0]) ?><?php endif; ?>
-                        <?php if ($task['due_date']): ?> · <?= data_br($task['due_date']) ?><?php endif; ?>
+                        <?php if ($task['tipo']): ?><span data-field="tipo" style="font-size:.65rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:600;"><?= e($task['tipo']) ?></span><?php endif; ?>
+                        <?php if ($task['assigned_name']): ?><span data-field="assigned"><?= e(explode(' ', $task['assigned_name'])[0]) ?></span><?php endif; ?>
+                        <?php if ($task['due_date']): ?> · <span data-field="due"><?= data_br($task['due_date']) ?></span><?php endif; ?>
+                    </span>
+                    <span class="task-actions" style="margin-left:auto;display:inline-flex;gap:4px;">
+                        <button type="button" onclick="editarTarefaReal(<?= $task['id'] ?>)" title="Editar tarefa"
+                                style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:2px 4px;opacity:.6;"
+                                onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">✏️</button>
+                        <button type="button" onclick="excluirTarefaReal(<?= $task['id'] ?>)" title="Excluir tarefa"
+                                style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:2px 4px;opacity:.6;"
+                                onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">🗑</button>
                     </span>
                 </li>
                 <?php endforeach; ?>
             </ul>
         <?php endif; ?>
+
+        <!-- Template do form de edição inline (clonado via JS) -->
+        <template id="tplEditarTarefa">
+            <form class="task-edit-form" style="display:flex;gap:.4rem;flex-wrap:wrap;padding:.5rem .6rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:8px;align-items:center;">
+                <input type="text" data-f="title" class="form-input" required style="flex:1;min-width:180px;font-size:.85rem;">
+                <select data-f="tipo" class="form-select" style="width:150px;font-size:.8rem;">
+                    <option value="outros">Outros</option>
+                    <option value="peticionar">Peticionar</option>
+                    <option value="juntar_documento">Juntar Documento</option>
+                    <option value="prazo">Prazo Processual</option>
+                    <option value="oficio">Ofício</option>
+                    <option value="acordo">Acordo/Conciliação</option>
+                </select>
+                <select data-f="assigned" class="form-select" style="width:130px;font-size:.8rem;">
+                    <option value="">Quem?</option>
+                    <?php foreach ($users as $u): ?>
+                        <option value="<?= $u['id'] ?>"><?= e($u['name']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="date" data-f="due" class="form-input" style="width:140px;font-size:.8rem;">
+                <button type="button" class="btn btn-primary btn-sm" data-act="salvar">Salvar</button>
+                <button type="button" class="btn btn-outline btn-sm" data-act="cancelar">Cancelar</button>
+            </form>
+        </template>
+
+        <script>
+        (function(){
+            var API_URL = '<?= module_url('operacional', 'api.php') ?>';
+            var CSRF = '<?= generate_csrf_token() ?>';
+            var CASE_ID = <?= (int)$caseId ?>;
+
+            window.editarTarefaReal = function(taskId) {
+                var li = document.getElementById('taskReal' + taskId);
+                if (!li || li.querySelector('.task-edit-form')) return;
+                var tpl = document.getElementById('tplEditarTarefa').content.cloneNode(true);
+                var form = tpl.querySelector('.task-edit-form');
+                form.querySelector('[data-f=title]').value = li.dataset.title || '';
+                form.querySelector('[data-f=tipo]').value = li.dataset.tipo || 'outros';
+                form.querySelector('[data-f=assigned]').value = li.dataset.assigned || '';
+                form.querySelector('[data-f=due]').value = li.dataset.due || '';
+                form.querySelector('[data-act=salvar]').onclick = function(){ salvarEdicaoTarefa(taskId, form); };
+                form.querySelector('[data-act=cancelar]').onclick = function(){ location.reload(); };
+                // Esconde o conteúdo original e insere o form
+                Array.prototype.forEach.call(li.children, function(c){ c.style.display = 'none'; });
+                li.appendChild(form);
+                form.querySelector('[data-f=title]').focus();
+            };
+
+            function salvarEdicaoTarefa(taskId, form) {
+                var btn = form.querySelector('[data-act=salvar]');
+                btn.disabled = true; btn.textContent = 'Salvando...';
+                var fd = new FormData();
+                fd.append('action', 'update_task');
+                fd.append('task_id', taskId);
+                fd.append('case_id', CASE_ID);
+                fd.append('csrf_token', CSRF);
+                fd.append('ajax', '1');
+                fd.append('title', form.querySelector('[data-f=title]').value);
+                fd.append('tipo', form.querySelector('[data-f=tipo]').value);
+                fd.append('assigned_to', form.querySelector('[data-f=assigned]').value);
+                fd.append('due_date', form.querySelector('[data-f=due]').value);
+                fetch(API_URL, { method:'POST', body:fd })
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        if (d.ok) location.reload();
+                        else { alert('Erro ao salvar'); btn.disabled=false; btn.textContent='Salvar'; }
+                    })
+                    .catch(function(){ alert('Erro de rede'); btn.disabled=false; btn.textContent='Salvar'; });
+            }
+
+            window.excluirTarefaReal = function(taskId) {
+                if (!confirm('Excluir esta tarefa? Não dá pra desfazer.')) return;
+                var fd = new FormData();
+                fd.append('action', 'delete_task');
+                fd.append('task_id', taskId);
+                fd.append('case_id', CASE_ID);
+                fd.append('csrf_token', CSRF);
+                fd.append('ajax', '1');
+                fetch(API_URL, { method:'POST', body:fd })
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        if (d.ok) {
+                            var li = document.getElementById('taskReal' + taskId);
+                            if (li) li.remove();
+                        } else alert('Erro ao excluir');
+                    })
+                    .catch(function(){ alert('Erro de rede'); });
+            };
+        })();
+        </script>
 
         <!-- Adicionar tarefa -->
         <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:flex;gap:.5rem;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);flex-wrap:wrap;">

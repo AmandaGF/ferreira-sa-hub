@@ -731,9 +731,41 @@ switch ($action) {
     case 'delete_task':
         $taskId = (int)($_POST['task_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        $isAjax = isset($_POST['ajax']);
         if ($taskId) {
             $pdo->prepare('DELETE FROM case_tasks WHERE id = ?')->execute(array($taskId));
-            flash_set('success', 'Tarefa removida.');
+            if (!$isAjax) flash_set('success', 'Tarefa removida.');
+        }
+        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
+    case 'update_task':
+        $taskId = (int)($_POST['task_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $isAjax = isset($_POST['ajax']);
+        $title = clean_str($_POST['title'] ?? '', 200);
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
+        $dueDate = $_POST['due_date'] ?? null;
+        if ($dueDate === '') $dueDate = null;
+        $tiposValidos = array('peticionar','juntar_documento','prazo','oficio','acordo','outros');
+        $tipo = $_POST['tipo'] ?? '';
+        if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outros';
+        if ($taskId && $title) {
+            $pdo->prepare('UPDATE case_tasks SET title=?, tipo=?, assigned_to=?, due_date=? WHERE id=?')
+                ->execute(array($title, $tipo, $assignedTo, $dueDate, $taskId));
+            if (!$isAjax) flash_set('success', 'Tarefa atualizada.');
+        }
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            // devolve o registro atualizado (junto com nome do responsável)
+            $st = $pdo->prepare(
+                'SELECT ct.id, ct.title, ct.tipo, ct.assigned_to, ct.due_date, ct.status, u.name AS assigned_name
+                 FROM case_tasks ct LEFT JOIN users u ON u.id = ct.assigned_to WHERE ct.id = ?'
+            );
+            $st->execute(array($taskId));
+            echo json_encode(array('ok' => true, 'task' => $st->fetch()));
+            exit;
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
