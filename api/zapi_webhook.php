@@ -136,6 +136,34 @@ try {
                 if ($conv) $log("[{$numero}] MATCH-TELREAL senderPhone={$senderPhoneNum} → conversa #{$conv['id']}");
             }
 
+            // Estratégia 0c: Match por @LID PURO (phone igual a LID)
+            // Quando o payload não traz chatLid nem chatName (ex: isEdit=true em
+            // mensagens editadas), mas o phone é @lid, procura conversa existente
+            // que tenha esse mesmo @lid em chat_lid OU em telefone.
+            if (!$conv && !$ehGrupo && $ehLid) {
+                $q0c = $pdo->prepare("SELECT * FROM zapi_conversas
+                                      WHERE canal = ?
+                                        AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                        AND (chat_lid = ? OR telefone = ?)
+                                      ORDER BY ultima_msg_em DESC LIMIT 1");
+                $q0c->execute(array($numero, $phoneRaw, $phoneRaw));
+                $conv = $q0c->fetch();
+                if ($conv) $log("[{$numero}] MATCH-LID phone={$phoneRaw} → conversa #{$conv['id']}");
+            }
+
+            // Estratégia 0d: isEdit — acha conversa via editMessageId (mensagem
+            // original). Payloads de edição não trazem chatLid/chatName, e o phone
+            // pode ser @lid. A mensagem original já está no banco com conversa_id.
+            if (!$conv && !empty($payload['isEdit']) && !empty($payload['editMessageId'])) {
+                $q0d = $pdo->prepare("SELECT c.* FROM zapi_conversas c
+                                      JOIN zapi_mensagens m ON m.conversa_id = c.id
+                                      WHERE m.zapi_message_id = ? AND c.canal = ?
+                                      ORDER BY m.id DESC LIMIT 1");
+                $q0d->execute(array($payload['editMessageId'], $numero));
+                $conv = $q0d->fetch();
+                if ($conv) $log("[{$numero}] MATCH-EDIT editMessageId={$payload['editMessageId']} → conversa #{$conv['id']}");
+            }
+
             // Estratégia 1: chatName EXATO (lógica original)
             if (!$conv && !$ehGrupo && !empty($chatName)) {
                 $q = $pdo->prepare("SELECT * FROM zapi_conversas
@@ -214,6 +242,12 @@ try {
                 }
                 if ($chatLid && empty($conv['chat_lid'])) {
                     $updates[] = 'chat_lid = ?'; $params[] = $chatLid;
+                }
+                // Se a conversa tem telefone @lid mas sem chat_lid preenchido, seta
+                // o próprio telefone como chat_lid — assim futuros webhooks isEdit
+                // (que não trazem chatLid) conseguem matchar via estratégia 0c.
+                if (empty($conv['chat_lid']) && $convTemLid && empty($chatLid)) {
+                    $updates[] = 'chat_lid = ?'; $params[] = $telConvAtual;
                 }
                 if (!empty($updates)) {
                     $params[] = $conv['id'];
