@@ -521,6 +521,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Header com ações
         var head = document.getElementById('waChatHeadContainer');
         var actions = '<div class="wa-chat-actions">';
+        // Botão LIGAR — só se Nvoip configurado E tem telefone "real" (não @lid puro)
+        if (window.NvoipWidget && c.telefone) {
+            var telLimpo = String(c.telefone).replace(/\D/g, '').replace(/^55/, '');
+            var ehLid = String(c.telefone).indexOf('@lid') !== -1;
+            // Aceita: 10-11 dígitos (DDD + celular/fixo BR) E sem @lid
+            if (!ehLid && telLimpo.length >= 10 && telLimpo.length <= 11) {
+                var nomeEsc = nome.replace(/\x27/g, '\\x27');
+                actions += '<button onclick="window.nvoipIniciar(\''+telLimpo+'\','+(+c.client_id||0)+','+(+c.lead_id||0)+',0,\''+nomeEsc+'\')" style="background:#059669;color:#fff;border-color:#059669;" title="Ligar via Nvoip">📞 Ligar</button>';
+            }
+        }
         actions += '<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>';
         if (c.canal === '21') {
             if (+c.bot_ativo) actions += '<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>';
