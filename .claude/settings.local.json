@@ -96,7 +96,8 @@
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/ver_msgs_conv.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/mesclar_55_em_2.php?key=fsa-hub-deploy-2026\")",
       "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_perda_msgs.php?key=fsa-hub-deploy-2026\")",
-      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_convs_sumidas.php?key=fsa-hub-deploy-2026\")"
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/diag_convs_sumidas.php?key=fsa-hub-deploy-2026\")",
+      "Bash(curl -s \"https://ferreiraesa.com.br/conecta/desfazer_sharlon.php?key=fsa-hub-deploy-2026\")"
     ],
     "additionalDirectories": [
       "\\tmp",
