@@ -122,7 +122,7 @@ $quizzes = array(
     // WHATSAPP CRM
     array('whatsapp-crm','O bot de IA funciona em qual número de WhatsApp?','DDD 24 (CX/Operacional)','Nos dois números','DDD 21 (Comercial)','Em nenhum — é só manual','c','O bot Claude Haiku responde automaticamente no DDD 21 (Comercial) até transferir para humano.',1),
     array('whatsapp-crm','Quando o cliente envia uma palavra como "urgente" ou "violência" para o bot, o que acontece?','O bot responde normalmente','O bot ignora a mensagem','O bot transfere IMEDIATAMENTE para atendimento humano','O bot pede para repetir','c','Palavras de urgência disparam transferência imediata para humano — regra de segurança do bot.',2),
-    array('whatsapp-crm','Após alguém assumir uma conversa no DDD 21, por quanto tempo fica travada pra outros usuários?','Indefinidamente','1 hora','30 minutos sem interação nova','24 horas','c','Trava expira automaticamente após 30 min sem atividade. DDD 24 não trava.',3),
+    array('whatsapp-crm','Após alguém assumir uma conversa no DDD 21, quando a trava libera pra outros?','Indefinidamente','1 hora','8h úteis (seg-sex 9-18h) sem resposta ao cliente, OU 36h desde a última msg da equipe','24 horas corridas','c','Cliente esperando libera em 8h úteis; equipe sem retorno (follow-up) libera em 36h. DDD 24 não trava.',3),
 
     // PROCURAÇÃO
     array('procuracao-regras','Em uma ação de Pensão Alimentícia, a procuração fica no nome de quem?','Do pai ou mãe que nos contratou','Da criança, representada pelo genitor responsável','De ambos os genitores','Do advogado responsável','b','Em alimentos quem pede é a criança — ela outorga poderes ao escritório, representada pelo responsável.',1),

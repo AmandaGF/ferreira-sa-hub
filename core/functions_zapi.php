@@ -1025,52 +1025,71 @@ function zapi_atualizar_at_desbloqueado($minutos = null) {
     $pdo = db();
     $etqId = _zapi_etiqueta_at_desbloqueado_id();
     if (!$etqId) return array('tagged' => 0, 'untagged' => 0);
-    $espMin = ZAPI_TRAVA_CLIENTE_ESPERANDO_MIN;
+
+    $horasCliente = ZAPI_TRAVA_CLIENTE_ESPERANDO_HORAS_UTEIS;
     $fupHrs = ZAPI_TRAVA_FOLLOWUP_HORAS;
+    $limSegUteis = $horasCliente * 3600;
+    $limSegReal  = $fupHrs * 3600;
+    $agora = time();
 
     $tagged = 0;
     $untagged = 0;
 
     try {
-        // APLICA etiqueta: canal 21, em_atendimento, com atendente, onde a
-        // trava TERIA liberado (última msg cliente >30min OU equipe >36h).
-        $sqlApply = "INSERT IGNORE INTO zapi_conversa_etiquetas (conversa_id, etiqueta_id, aplicada_por)
-            SELECT co.id, {$etqId}, NULL
-            FROM zapi_conversas co
-            WHERE co.canal = '21'
-              AND co.atendente_id IS NOT NULL
-              AND co.status = 'em_atendimento'
-              AND EXISTS (
-                  SELECT 1 FROM zapi_mensagens m
-                  WHERE m.id = (SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id)
-                    AND (
-                      (m.direcao = 'recebida' AND m.created_at < DATE_SUB(NOW(), INTERVAL {$espMin} MINUTE))
-                      OR
-                      (m.direcao = 'enviada'  AND m.created_at < DATE_SUB(NOW(), INTERVAL {$fupHrs} HOUR))
-                    )
-              )";
-        $r1 = $pdo->query($sqlApply);
-        if ($r1) $tagged = $r1->rowCount();
+        // 1) Lista todas as conversas canal 21 em atendimento com atendente
+        //    e traz a direção/created_at da última msg.
+        $rows = $pdo->query(
+            "SELECT co.id,
+                    (SELECT direcao FROM zapi_mensagens WHERE id = (SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id)) AS direcao,
+                    (SELECT created_at FROM zapi_mensagens WHERE id = (SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id)) AS created_at
+             FROM zapi_conversas co
+             WHERE co.canal = '21' AND co.atendente_id IS NOT NULL AND co.status = 'em_atendimento'"
+        )->fetchAll();
 
-        // REMOVE quando critério não aplica mais (status mudou OU trava voltou)
+        $deveTagar = array();
+        foreach ($rows as $r) {
+            if (empty($r['created_at'])) continue;
+            $tsUlt = strtotime($r['created_at']);
+            $liberou = false;
+            if ($r['direcao'] === 'recebida') {
+                $liberou = zapi_segundos_uteis_entre($tsUlt, $agora) >= $limSegUteis;
+            } else {
+                $liberou = ($agora - $tsUlt) >= $limSegReal;
+            }
+            if ($liberou) $deveTagar[] = (int)$r['id'];
+        }
+
+        // 2) APLICA etiqueta onde a trava liberou
+        if ($deveTagar) {
+            $ph = implode(',', array_fill(0, count($deveTagar), '?'));
+            $params = array_merge(array($etqId), $deveTagar);
+            $sql = "INSERT IGNORE INTO zapi_conversa_etiquetas (conversa_id, etiqueta_id, aplicada_por)
+                    SELECT id, ?, NULL FROM zapi_conversas WHERE id IN ($ph)";
+            $st = $pdo->prepare($sql);
+            $st->execute($params);
+            $tagged = $st->rowCount();
+        }
+
+        // 3) REMOVE etiqueta das conversas que NÃO estão em $deveTagar
+        //    ou mudaram de status / perderam atendente
+        $params = array($etqId);
+        $extra = '';
+        if ($deveTagar) {
+            $phKeep = implode(',', array_fill(0, count($deveTagar), '?'));
+            $extra = " AND ce.conversa_id NOT IN ($phKeep)";
+            $params = array_merge($params, $deveTagar);
+        }
         $sqlRemove = "DELETE ce FROM zapi_conversa_etiquetas ce
-            JOIN zapi_conversas co ON co.id = ce.conversa_id
-            WHERE ce.etiqueta_id = {$etqId}
-              AND (
-                  co.status IN ('resolvido', 'arquivado')
-                  OR co.atendente_id IS NULL
-                  OR NOT EXISTS (
-                      SELECT 1 FROM zapi_mensagens m
-                      WHERE m.id = (SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id)
+                      JOIN zapi_conversas co ON co.id = ce.conversa_id
+                      WHERE ce.etiqueta_id = ?
                         AND (
-                          (m.direcao = 'recebida' AND m.created_at < DATE_SUB(NOW(), INTERVAL {$espMin} MINUTE))
-                          OR
-                          (m.direcao = 'enviada'  AND m.created_at < DATE_SUB(NOW(), INTERVAL {$fupHrs} HOUR))
-                        )
-                  )
-              )";
-        $r2 = $pdo->query($sqlRemove);
-        if ($r2) $untagged = $r2->rowCount();
+                            co.status IN ('resolvido', 'arquivado')
+                            OR co.atendente_id IS NULL
+                            {$extra}
+                        )";
+        $st2 = $pdo->prepare($sqlRemove);
+        $st2->execute($params);
+        $untagged = $st2->rowCount();
     } catch (Exception $e) {
         // ignore
     }
@@ -1080,17 +1099,105 @@ function zapi_atualizar_at_desbloqueado($minutos = null) {
 
 /**
  * Tempo que cliente pode ficar esperando resposta antes da trava liberar.
- * Ex: 30min significa que se o cliente mandou mensagem e ninguém respondeu
- * em 30min, qualquer atendente pode entrar pra atender.
+ * Contado em HORAS ÚTEIS (seg-sex, 9h-18h).
+ * Ex: 8h úteis significa que se o cliente mandou msg sexta 15h, a trava
+ * libera só na segunda 14h (3h sexta + 5h segunda).
  */
-define('ZAPI_TRAVA_CLIENTE_ESPERANDO_MIN', 30);
+define('ZAPI_TRAVA_CLIENTE_ESPERANDO_HORAS_UTEIS', 8);
 
 /**
  * Tempo que uma conversa fica "presa" ao atendente após ele mandar a última
  * msg. Depois disso, libera pra follow-up de qualquer atendente.
  * Ex: 36h depois da última msg da equipe (com cliente sem responder), libera.
+ * Obs: esse é em HORAS CORRIDAS (não úteis) — follow-up opera em tempo real.
  */
 define('ZAPI_TRAVA_FOLLOWUP_HORAS', 36);
+
+/**
+ * Horário comercial usado nos cálculos de "horas úteis".
+ */
+define('ZAPI_HORARIO_COMERCIAL_INI', 9);   // 9h
+define('ZAPI_HORARIO_COMERCIAL_FIM', 18);  // 18h
+
+/**
+ * Calcula quantas "horas úteis" passaram entre dois timestamps.
+ * Hora útil = seg-sex, entre 9h e 18h.
+ *
+ * @param int $tsA início (timestamp unix)
+ * @param int $tsB fim (timestamp unix)
+ * @return int segundos úteis entre os dois timestamps
+ */
+function zapi_segundos_uteis_entre($tsA, $tsB) {
+    if ($tsB <= $tsA) return 0;
+    $HINI = ZAPI_HORARIO_COMERCIAL_INI;
+    $HFIM = ZAPI_HORARIO_COMERCIAL_FIM;
+
+    $total = 0;
+    // Itera dia a dia entre tsA e tsB
+    $diaCursor = strtotime(date('Y-m-d', $tsA));
+    $diaLimite = strtotime(date('Y-m-d', $tsB));
+
+    while ($diaCursor <= $diaLimite) {
+        $dow = (int)date('N', $diaCursor); // 1=seg, 7=dom
+        if ($dow < 6) { // seg-sex
+            $iniDia = strtotime(date('Y-m-d', $diaCursor) . ' ' . sprintf('%02d:00:00', $HINI));
+            $fimDia = strtotime(date('Y-m-d', $diaCursor) . ' ' . sprintf('%02d:00:00', $HFIM));
+            $a = max($iniDia, $tsA);
+            $b = min($fimDia, $tsB);
+            if ($b > $a) $total += ($b - $a);
+        }
+        $diaCursor = strtotime('+1 day', $diaCursor);
+    }
+    return $total;
+}
+
+/**
+ * Adiciona N horas úteis a um timestamp e devolve o timestamp real resultante.
+ * Usada pra calcular QUANDO (em tempo real) a trava vai liberar.
+ *
+ * @param int $tsInicio timestamp unix de partida
+ * @param float $horas quantas horas úteis adicionar
+ * @return int timestamp unix quando as horas úteis completam
+ */
+function zapi_adicionar_horas_uteis($tsInicio, $horas) {
+    $HINI = ZAPI_HORARIO_COMERCIAL_INI;
+    $HFIM = ZAPI_HORARIO_COMERCIAL_FIM;
+    $segFaltam = (int)round($horas * 3600);
+    $cursor = (int)$tsInicio;
+    $safety = 0; // loop guard
+
+    while ($segFaltam > 0 && $safety++ < 100) {
+        $dow = (int)date('N', $cursor);
+        $iniDia = strtotime(date('Y-m-d', $cursor) . ' ' . sprintf('%02d:00:00', $HINI));
+        $fimDia = strtotime(date('Y-m-d', $cursor) . ' ' . sprintf('%02d:00:00', $HFIM));
+
+        // Fim de semana: pula pra próxima segunda 9h
+        if ($dow >= 6) {
+            $cursor = strtotime('next monday ' . sprintf('%02d:00:00', $HINI), $cursor);
+            continue;
+        }
+        // Antes do expediente: pula pra 9h
+        if ($cursor < $iniDia) {
+            $cursor = $iniDia;
+            continue;
+        }
+        // Depois do expediente: pula pra 9h do próximo dia útil
+        if ($cursor >= $fimDia) {
+            $cursor = strtotime('+1 day', $iniDia);
+            continue;
+        }
+        // Dentro do expediente — consome até fim do dia ou até fechar conta
+        $disponiveis = $fimDia - $cursor;
+        if ($segFaltam <= $disponiveis) {
+            $cursor += $segFaltam;
+            $segFaltam = 0;
+        } else {
+            $segFaltam -= $disponiveis;
+            $cursor = $fimDia;
+        }
+    }
+    return $cursor;
+}
 
 /**
  * Verifica se um usuário pode enviar mensagem numa conversa.
@@ -1098,8 +1205,8 @@ define('ZAPI_TRAVA_FOLLOWUP_HORAS', 36);
  * REGRA (canal 21 Comercial apenas):
  *   Se a conversa tem atendente_id e não é o usuário atual nem admin,
  *   a trava LIBERA em 2 situações:
- *     a) Última msg foi do CLIENTE há mais de 30min → atendente sumiu, libera
- *     b) Última msg foi da EQUIPE há mais de 36h → follow-up, libera
+ *     a) Última msg foi do CLIENTE há mais de 8h ÚTEIS (seg-sex 9-18h) → atendente sumiu, libera
+ *     b) Última msg foi da EQUIPE há mais de 36h (corridas) → follow-up, libera
  *   Caso contrário: bloqueado.
  *
  * Canal 24: sempre livre (colaborativo).
@@ -1137,18 +1244,24 @@ function zapi_pode_enviar_conversa($convId, $userId, $minutos = null) {
     $ult = $u->fetch();
     if (!$ult) return array('pode' => true); // conversa vazia, libera
 
-    $idade = time() - strtotime($ult['created_at']);
+    $tsUlt = strtotime($ult['created_at']);
+    $idade = time() - $tsUlt;
 
     if ($ult['direcao'] === 'recebida') {
-        // Cliente mandou a última — libera após 30min sem resposta
-        $limite = ZAPI_TRAVA_CLIENTE_ESPERANDO_MIN * 60;
-        if ($idade >= $limite) return array('pode' => true);
+        // Cliente mandou a última — libera após 8h ÚTEIS (seg-sex 9-18h)
+        $horas = ZAPI_TRAVA_CLIENTE_ESPERANDO_HORAS_UTEIS;
+        $segUteis = zapi_segundos_uteis_entre($tsUlt, time());
+        $limiteSegUteis = $horas * 3600;
+        if ($segUteis >= $limiteSegUteis) return array('pode' => true);
+        // Quando (em tempo real) vai liberar?
+        $tsLibera = zapi_adicionar_horas_uteis($tsUlt, $horas);
+        $segAteLiberar = max(0, $tsLibera - time());
         return array(
             'pode' => false,
             'atendente_id' => $atendente,
             'atendente_name' => $row['name'] ?: 'outro atendente',
             'motivo' => 'cliente_esperando',
-            'segundos_ate_liberar' => $limite - $idade,
+            'segundos_ate_liberar' => $segAteLiberar,
             'idade_ultima_segundos' => $idade,
         );
     }
@@ -1180,30 +1293,49 @@ function zapi_pode_enviar_conversa($convId, $userId, $minutos = null) {
  */
 function zapi_expirar_delegacoes_estale($minutos = null) {
     $pdo = db();
-    $espMin = ZAPI_TRAVA_CLIENTE_ESPERANDO_MIN;   // 30min se cliente é última
-    $fupHrs = ZAPI_TRAVA_FOLLOWUP_HORAS;          // 36h se equipe é última
+    $fupHrs = ZAPI_TRAVA_FOLLOWUP_HORAS;   // 36h se equipe é última
     try {
-        // Delegação expira quando a TRAVA da conversa libera — mesma regra do
-        // zapi_pode_enviar_conversa: última msg do cliente + 30min OU última msg
-        // da equipe + 36h.
-        $sql = "UPDATE zapi_conversas co
-                SET co.delegada = 0, co.delegada_por = NULL, co.delegada_em = NULL
+        // Pré-filtra candidatos via SQL (último msg antigo o suficiente pra
+        // talvez ter liberado) e confirma em PHP usando a regra de horas úteis.
+        $sql = "SELECT co.id, m2.direcao, m2.created_at
+                FROM zapi_conversas co
+                LEFT JOIN zapi_mensagens m2 ON m2.id = (
+                    SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id
+                )
                 WHERE co.delegada = 1
                   AND (
-                      NOT EXISTS (SELECT 1 FROM zapi_mensagens m WHERE m.conversa_id = co.id)
-                      OR EXISTS (
-                          SELECT 1 FROM zapi_mensagens m2
-                          WHERE m2.id = (SELECT MAX(id) FROM zapi_mensagens WHERE conversa_id = co.id)
-                            AND (
-                              (m2.direcao = 'recebida' AND m2.created_at < DATE_SUB(NOW(), INTERVAL {$espMin} MINUTE))
-                              OR
-                              (m2.direcao = 'enviada'  AND m2.created_at < DATE_SUB(NOW(), INTERVAL {$fupHrs} HOUR))
-                            )
-                      )
+                      m2.id IS NULL
+                      OR m2.created_at < DATE_SUB(NOW(), INTERVAL 30 MINUTE)
                   )";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute();
-        return $stmt->rowCount();
+        $candidatos = $pdo->query($sql)->fetchAll();
+        if (!$candidatos) return 0;
+
+        $horasCliente = ZAPI_TRAVA_CLIENTE_ESPERANDO_HORAS_UTEIS;
+        $limSegUteis = $horasCliente * 3600;
+        $limSegReal  = $fupHrs * 3600;
+        $agora = time();
+        $idsLiberar = array();
+        foreach ($candidatos as $c) {
+            if (empty($c['created_at'])) { $idsLiberar[] = (int)$c['id']; continue; }
+            $tsUlt = strtotime($c['created_at']);
+            if ($c['direcao'] === 'recebida') {
+                // Cliente esperando: regra de horas úteis
+                $segUteis = zapi_segundos_uteis_entre($tsUlt, $agora);
+                if ($segUteis >= $limSegUteis) $idsLiberar[] = (int)$c['id'];
+            } else {
+                // Equipe mandou última: 36h corridas
+                if (($agora - $tsUlt) >= $limSegReal) $idsLiberar[] = (int)$c['id'];
+            }
+        }
+        if (!$idsLiberar) return 0;
+
+        $ph = implode(',', array_fill(0, count($idsLiberar), '?'));
+        $upd = $pdo->prepare(
+            "UPDATE zapi_conversas SET delegada = 0, delegada_por = NULL, delegada_em = NULL
+             WHERE id IN ($ph)"
+        );
+        $upd->execute($idsLiberar);
+        return $upd->rowCount();
     } catch (Exception $e) {
         return 0;
     }

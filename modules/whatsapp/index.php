@@ -293,7 +293,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
                 <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
                 <?php if ($etqAtDesbloqueadoId): ?>
-                <button class="wa-filter" id="waBtnAtDesbloqueado" onclick="waFiltrarAtDesbloqueado()" style="background:#fef2f2;border-color:#dc2626;color:#991b1b;font-weight:700;" title="Leads com atendente ausente há mais de 30 min — precisam de resposta">🔓 AT Desbloq.</button>
+                <button class="wa-filter" id="waBtnAtDesbloqueado" onclick="waFiltrarAtDesbloqueado()" style="background:#fef2f2;border-color:#dc2626;color:#991b1b;font-weight:700;" title="Leads com atendente ausente há mais de 8h úteis — precisam de resposta">🔓 AT Desbloq.</button>
                 <?php endif; ?>
                 <button class="wa-filter" id="waBtnFiltroEtq" onclick="waToggleFiltroEtqPopover(event)" style="position:relative;">🏷 Etiqueta</button>
                 <select id="waFiltroAtendente" onchange="waSetFiltroAtendente(this.value)" class="wa-filter" style="padding:4px 8px;cursor:pointer;font-weight:700;" title="Filtrar por atendente — nome vem na cor configurada">
@@ -565,7 +565,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         // Assumir só aparece quando a conversa está LIVRE pra mim:
         // - sem atendente (lock_pode_enviar=1 e atendente_id vazio)
-        // - ou passou 30 minutos sem atividade (lock já destravou)
+        // - ou trava já liberou (8h úteis sem resposta ao cliente, ou 36h após equipe)
         // - ou sou admin (PODE_DELEGAR bypassa)
         // Se outro atendente já assumiu e há atividade recente, o botão some —
         // só Amanda/Luiz podem realocar via "Delegar".
@@ -576,8 +576,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // No canal 24 (colaborativo), delegar também bloqueia os outros atendentes até destravar.
         if (PODE_DELEGAR) {
             var tipTxt = c.canal === '24'
-                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar (ou 30min sem atividade).'
-                : 'Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 30 minutos sem interação, destrava automaticamente.';
+                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar (ou 8h úteis sem resposta do cliente).'
+                : 'Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 8h úteis (seg-sex 9-18h) sem resposta ao cliente, destrava automaticamente.';
             actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="' + tipTxt + '">🎯 Delegar</button>';
             if (estaDelegada) {
                 actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
@@ -761,7 +761,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         input.style.display = 'flex';
 
         // Trava: se outro atendente assumiu e a trava ainda está ativa.
-        // Regra: libera em 30min se cliente é última msg, ou 36h se equipe é última.
+        // Regra: libera após 8h úteis (seg-sex 9-18h) se cliente é última msg, ou 36h se equipe é última.
         // Remove banner antigo e cronômetro se existirem.
         var oldLock = document.getElementById('waLockBanner');
         if (oldLock) oldLock.remove();
@@ -1551,7 +1551,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         overlay.onclick = function(e){ if (e.target === overlay) overlay.remove(); };
         overlay.innerHTML = '<div style="background:#fff;border-radius:14px;padding:1.5rem;width:400px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3);">'
             + '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">🎯 Delegar conversa</h3>'
-            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação — OU até a conversa ficar 30 minutos sem interação (então destrava sozinha).</p>'
+            + '<p style="margin:0 0 1rem;font-size:.78rem;color:#6b7280;">O atendente escolhido fica responsável. Ninguém mais poderá assumir até você remover a delegação — OU até a conversa ficar 8h úteis (seg-sex 9-18h) sem resposta ao cliente (então destrava sozinha).</p>'
             + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Delegar para:</label>'
             + '<select id="waDelegarAlvo" style="width:100%;padding:.5rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;">'
             + '<option value="">Selecione...</option>' + optsHtml + '</select>'

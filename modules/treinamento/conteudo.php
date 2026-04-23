@@ -78,7 +78,7 @@ return array(
         'Filtros: Todos · Aguardando · Em atend. · Não lidas · Resolv. · 🔓 AT Desbloq. · 🏷 Etiqueta · 👥 Atendente.',
         '**DDD 21 tem bot IA** (Claude Haiku) que responde até transferir pra humano.',
         '**Assumir** trava a conversa pra você (só DDD 21). DDD 24 é colaborativo.',
-        '**Trava libera em 2 situações:** (a) cliente é última msg há >30min; (b) equipe é última msg há >36h (follow-up).',
+        '**Trava libera em 2 situações:** (a) cliente é última msg há >**8h úteis** (seg-sex, 9h-18h); (b) equipe é última msg há >36h corridas (follow-up).',
         'Cronômetro no topo mostra **quanto falta pra liberar** — atualiza ao vivo.',
         '**Etiqueta 🔓 AT DESBLOQUEADO** aplicada AUTOMATICAMENTE quando a trava libera — botão atalho filtra.',
         'Envia: texto, imagem, documento, áudio (com preview antes de enviar), figurinha, reação.',
