@@ -68,6 +68,9 @@ if (in_array($action, $mutantes, true)) {
 if ($action === 'listar_conversas') {
     // Expira delegações sem interação há mais de 30 minutos (lazy cleanup)
     zapi_expirar_delegacoes_estale(30);
+    // Atualiza etiqueta "🔓 AT DESBLOQUEADO" — marca/desmarca conversas onde
+    // o atendente responsável sumiu (sem envio há 30 min) e cliente está esperando.
+    zapi_atualizar_at_desbloqueado(30);
 
     $canal   = $_GET['canal']   ?? '21';
     $status  = $_GET['status']  ?? '';

@@ -933,6 +933,102 @@ function zapi_sync_foto_contato($convId) {
 }
 
 /**
+ * Garante que exista a etiqueta "🔓 AT DESBLOQUEADO" no banco.
+ * Criada automaticamente na primeira chamada.
+ */
+function _zapi_etiqueta_at_desbloqueado_id() {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $pdo = db();
+    try {
+        $s = $pdo->prepare("SELECT id FROM zapi_etiquetas WHERE nome = ? LIMIT 1");
+        $s->execute(array('🔓 AT DESBLOQUEADO'));
+        $id = $s->fetchColumn();
+        if (!$id) {
+            $maxOrd = (int)$pdo->query("SELECT COALESCE(MAX(ordem),0) FROM zapi_etiquetas")->fetchColumn();
+            $pdo->prepare("INSERT INTO zapi_etiquetas (nome, cor, ordem, ativo) VALUES (?, ?, ?, 1)")
+                ->execute(array('🔓 AT DESBLOQUEADO', '#dc2626', $maxOrd + 1));
+            $id = (int)$pdo->lastInsertId();
+        }
+        $cached = (int)$id;
+        return $cached;
+    } catch (Exception $e) {
+        return 0;
+    }
+}
+
+/**
+ * Aplica/remove a etiqueta "🔓 AT DESBLOQUEADO" em conversas do canal 21
+ * onde o atendente responsável sumiu (sem envio há X min).
+ *
+ * - APLICA em conversas em_atendimento com atendente_id, sem envio do atendente
+ *   há X min, e com mensagem do cliente como última interação (ou seja, cliente
+ *   está esperando resposta).
+ * - REMOVE quando a conversa volta (novo envio do atendente), muda pra
+ *   resolvido/arquivado, ou perde o atendente_id.
+ *
+ * Chamado lazily no listar_conversas — roda rápido via UPDATE/DELETE em lote.
+ *
+ * @return array contagem de mudanças
+ */
+function zapi_atualizar_at_desbloqueado($minutos = 30) {
+    $pdo = db();
+    $etqId = _zapi_etiqueta_at_desbloqueado_id();
+    if (!$etqId) return array('tagged' => 0, 'untagged' => 0);
+    $minutos = (int)$minutos;
+
+    $tagged = 0;
+    $untagged = 0;
+
+    try {
+        // APLICA a etiqueta
+        $sqlApply = "INSERT IGNORE INTO zapi_conversa_etiquetas (conversa_id, etiqueta_id, aplicada_por)
+            SELECT co.id, {$etqId}, NULL
+            FROM zapi_conversas co
+            WHERE co.canal = '21'
+              AND co.atendente_id IS NOT NULL
+              AND co.status = 'em_atendimento'
+              AND NOT EXISTS (
+                  SELECT 1 FROM zapi_mensagens m
+                  WHERE m.conversa_id = co.id
+                    AND m.direcao = 'enviada'
+                    AND m.enviado_por_id = co.atendente_id
+                    AND m.created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)
+              )
+              AND EXISTS (
+                  SELECT 1 FROM zapi_mensagens mc
+                  WHERE mc.conversa_id = co.id
+                    AND mc.direcao = 'recebida'
+                    AND mc.created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)
+              )";
+        $r1 = $pdo->query($sqlApply);
+        if ($r1) $tagged = $r1->rowCount();
+
+        // REMOVE a etiqueta quando o critério não se aplica mais
+        $sqlRemove = "DELETE ce FROM zapi_conversa_etiquetas ce
+            JOIN zapi_conversas co ON co.id = ce.conversa_id
+            WHERE ce.etiqueta_id = {$etqId}
+              AND (
+                  co.status IN ('resolvido', 'arquivado')
+                  OR co.atendente_id IS NULL
+                  OR EXISTS (
+                      SELECT 1 FROM zapi_mensagens m
+                      WHERE m.conversa_id = co.id
+                        AND m.direcao = 'enviada'
+                        AND m.enviado_por_id = co.atendente_id
+                        AND m.created_at > DATE_SUB(NOW(), INTERVAL {$minutos} MINUTE)
+                  )
+              )";
+        $r2 = $pdo->query($sqlRemove);
+        if ($r2) $untagged = $r2->rowCount();
+    } catch (Exception $e) {
+        // ignore
+    }
+
+    return array('tagged' => $tagged, 'untagged' => $untagged);
+}
+
+/**
  * Verifica se um usuário pode enviar mensagem numa conversa.
  * Regra: se a conversa tem atendente_id definido (assumida ou delegada), só o
  * atendente pode enviar — A MENOS que a conversa esteja parada há mais de
