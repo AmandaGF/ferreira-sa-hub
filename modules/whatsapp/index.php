@@ -210,7 +210,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </span>
         <button onclick="waVerificarStatus()" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 8px;" title="Consultar status na Z-API">🔄</button>
     <?php endif; ?>
-    <div style="margin-left:auto;display:flex;gap:.4rem;">
+    <div style="margin-left:auto;display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;">
         <button onclick="waAbrirNovaConversa()" class="btn btn-primary btn-sm" style="background:#B87333;" title="Iniciar nova conversa com cliente ou número novo">➕ Nova conversa</button>
         <a href="<?= url('modules/whatsapp/?canal=' . ($isComercial ? '24' : '21')) ?>" class="btn btn-outline btn-sm">
             Ir para <?= $isComercial ? 'DDD 24 (CX)' : 'DDD 21 (Comercial)' ?> →
