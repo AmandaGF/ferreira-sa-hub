@@ -29,6 +29,60 @@ var AU = base + '/modules/shared/card_api.php';
 var XU = base + '/modules/shared/card_actions.php';
 var OU = base + '/modules/operacional/api.php';
 
+// Labels PT-BR dos campos de formulário público (espelha modules/formularios/ver.php).
+// Fallback: k.replace(/_/g,' ') se a chave não tiver label definido aqui.
+var FL = {
+    // Convivência — Identificação
+    'client_name':'Nome do cliente','client_phone':'Telefone / WhatsApp','client_email':'E-mail',
+    'relationship_role':'Relação com a criança','children':'Filhos',
+    // Convivência — Visitas
+    'pickup_frequency':'Frequência de convivência','pickup_frequency_other':'Outra forma de convivência',
+    'weekend_model':'Modelo de fim de semana','weekend_sunday_time':'Horário do domingo',
+    'wk_sat_pick_time':'Busca no sábado','wk_sun_drop_time':'Entrega no domingo','wk_sat_pick_time_2':'Busca no sábado (modelo 2)',
+    'overnight':'Pernoita?','overnight_quick_reason':'Motivo (rápido) de não pernoitar','overnight_reason':'Motivo (detalhado) de não pernoitar',
+    // Convivência — Início/Retorno
+    'convivio_inicio':'Início da convivência','convivio_retorno':'Retorno da convivência',
+    'exchange_place':'Local de troca (busca/entrega)',
+    // Convivência — Datas especiais
+    'bday_child':'Aniversário da criança','bday_child_other':'Aniversário da criança (detalhe)',
+    'bday_mom':'Dia das Mães','bday_mom_other':'Dia das Mães (detalhe)',
+    'bday_dad':'Dia dos Pais','bday_dad_other':'Dia dos Pais (detalhe)',
+    'holidays':'Feriados','holidays_other':'Feriados (detalhe)',
+    // Convivência — Férias
+    'vac_mid':'Férias de meio de ano','vac_mid_other':'Férias meio de ano (detalhe)',
+    'vac_end':'Férias de fim de ano','vac_end_other':'Férias fim de ano (detalhe)',
+    // Convivência — Natal/Ano Novo
+    'xmas':'Natal','xmas_other':'Natal (detalhe)','newyear':'Ano Novo','newyear_other':'Ano Novo (detalhe)',
+    'open_notes':'Observações adicionais',
+    // Gastos Pensão
+    'nome_responsavel':'Nome do responsável','cpf_responsavel':'CPF do responsável','whatsapp':'WhatsApp',
+    'nome_filho_referente':'Nome do filho (referência)','tea_status':'Criança com TEA?',
+    'faz_tratamento_especifico':'Faz tratamento específico?','detalhe_tratamento':'Detalhe do tratamento',
+    'qtd_filhos':'Quantidade de filhos','gastos_iguais_todos':'Gastos iguais para todos os filhos?',
+    'fonte_renda':'Fonte de renda','obs_renda':'Observações de renda',
+    'renda_mensal_cents':'Renda mensal','quem_paga':'Quem paga','renda_obrigado_cents':'Renda do obrigado',
+    'moradores':'Moradores da residência',
+    'total_moradia_rateada_cents':'Total Moradia (rateado)','total_alimentacao_cents':'Total Alimentação',
+    'total_saude_cents':'Total Saúde','total_educacao_cents':'Total Educação',
+    'total_transporte_cents':'Total Transporte','total_vestuario_cents':'Total Vestuário',
+    'total_lazer_cents':'Total Lazer','total_tecnologia_cents':'Total Tecnologia',
+    'total_cuidados_cents':'Total Cuidados','total_outros_cents':'Total Outros','total_geral_cents':'TOTAL GERAL',
+    // Cadastro Cliente
+    'nome':'Nome completo','cpf':'CPF','nascimento':'Data de nascimento','profissao':'Profissão',
+    'estado_civil':'Estado civil','rg':'RG','celular':'Celular (WhatsApp)','email':'E-mail',
+    'cep':'CEP','endereco':'Endereço completo','pix':'Chave PIX','conta_bancaria':'Conta para depósito',
+    'imposto_renda':'Declara IR?','clt':'Carteira assinada?','filhos':'Possui filhos?',
+    'nome_filhos':'Nome(s) dos filhos','tipo_atendimento':'Preferência de atendimento',
+    'autoriza_contato':'Autoriza contato?','fam_saude':'Tratamento de saúde?',
+    'fam_escola':'Escola pública ou particular?','fam_pensao_atual':'Paga pensão? Qual valor?',
+    'fam_trabalho_genitor':'Outro genitor trabalha?','fam_contato_genitor':'WhatsApp do outro genitor',
+    'fam_endereco_genitor':'Endereço do outro genitor',
+    // Leads Calculadora
+    'porcentagem':'Porcentagem calculada','situacao':'Situação','ano_referencia':'Ano de referência',
+    'idade_filhos':'Idade dos filhos','atendido':'Já foi atendido?','data_envio':'Data de envio'
+};
+function FLBL(k){ return FL[k] || k.replace(/_/g,' '); }
+
 var D=null,T='geral';
 
 function E(s){if(!s&&s!==0)return'\u2014';var d=document.createElement('div');d.textContent=s;return d.innerHTML}
@@ -129,7 +183,7 @@ if(T==='geral'){
 var ci=D.client_id;
 h+='<div class="cs"><h5>Dados do Cliente</h5>'+RE('Nome',c.name,'client',ci,'name')+RE('CPF',c.cpf,'client',ci,'cpf')+RE('Telefone',c.phone,'client',ci,'phone')+RE('E-mail',c.email,'client',ci,'email')+RE('Endereco',c.address_street,'client',ci,'address_street')+RE('Cidade',c.address_city,'client',ci,'address_city')+RE('UF',c.address_state,'client',ci,'address_state')+RE('CEP',c.address_zip,'client',ci,'address_zip')+'</div>';
 if(l||s){h+='<div class="cs"><h5>Status</h5>';if(l)h+=R('Pipeline',sl[l.stage]||l.stage);if(s)h+=R('Operacional',stl[s.status]||s.status)+R('Tipo',s.case_type);h+='</div>'}
-if(D.form_data){h+='<div class="cs"><h5>Formulario</h5>';var sk='nome,name,client_name,client_phone,client_email,email,celular,phone,cpf,form_type,protocol_original,protocol,protocolo,id,created_at,updated_at,ip,ip_address,user_agent,data_envio,payload_json,totais'.split(',');for(var k in D.form_data){if(sk.indexOf(k)>=0)continue;var fv=D.form_data[k];if(fv===null||fv===''||typeof fv==='object')continue;h+=R(k.replace(/_/g,' '),fv)}h+='</div>'}
+if(D.form_data){h+='<div class="cs"><h5>Formulário</h5>';var sk='nome,name,client_name,client_phone,client_email,email,celular,phone,cpf,form_type,protocol_original,protocol,protocolo,id,created_at,updated_at,ip,ip_address,user_agent,data_envio,payload_json,totais'.split(',');for(var k in D.form_data){if(sk.indexOf(k)>=0)continue;var fv=D.form_data[k];if(fv===null||fv===''||typeof fv==='object')continue;h+=R(FLBL(k),fv)}h+='</div>'}
 h+='<div class="cs"><h5>Comentarios</h5><textarea id="cdCm" style="width:100%;font-size:.8rem;padding:6px;border:1.5px solid #e5e7eb;border-radius:6px;min-height:45px;resize:vertical" placeholder="Escrever..."></textarea><button onclick="window._cdCom()" style="background:#B87333;color:#fff;border:none;padding:3px 12px;border-radius:5px;font-size:.7rem;font-weight:600;cursor:pointer;margin-top:3px">Comentar</button>';
 (D.comments||[]).forEach(function(cm){h+='<div style="padding:5px 0;border-top:1px solid #f3f4f6;margin-top:3px"><strong style="font-size:.73rem">'+E(cm.user_name)+'</strong> <span style="font-size:.6rem;color:#94a3b8">'+FD(cm.created_at)+'</span><div style="font-size:.78rem;margin-top:1px">'+E(cm.message)+'</div></div>'});h+='</div>'
 }else if(T==='comercial'&&l){
