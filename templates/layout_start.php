@@ -326,22 +326,6 @@ require_once APP_ROOT . '/templates/sidebar.php';
         <div class="page-content">
             <?= flash_html() ?>
 <?php
-// ── AVISO DE BUGS CONHECIDOS — visível a toda equipe até remoção manual ──
-// Adicionado 24/Abr/2026 após incidente da conv 686 (msgs do cron caindo em conv
-// errada por causa de @lid mal mapeado). Manter visível enquanto o fix completo
-// da integração Z-API não estiver no ar.
-?>
-<div id="bannerAvisoBugs" style="background:linear-gradient(135deg,#b45309,#d97706);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;font-size:.82rem;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;">
-    <span style="font-size:1.3rem;flex-shrink:0;">🔧</span>
-    <div style="flex:1;min-width:240px;">
-        <strong>Aviso da equipe TI</strong> — estamos cientes de alguns <u>bugs no WhatsApp/Hub</u> (conversas aparecendo com nome/foto errados, mensagens caindo em conversas cruzadas).
-        <div style="font-size:.75rem;opacity:.95;margin-top:3px;">
-            Já estamos trabalhando na correção. <strong>Enquanto isso:</strong> antes de enviar mensagem importante, confira o número do destinatário no cabeçalho da conversa e, se possível, confirme com o cliente pelo telefone habitual.
-        </div>
-    </div>
-    <button onclick="document.getElementById('bannerAvisoBugs').style.display='none'" style="background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:.35rem .7rem;font-size:.72rem;cursor:pointer;font-weight:600;white-space:nowrap;" title="Ocultar aviso nesta sessão">OK, ciente</button>
-</div>
-<?php
 // Banner de prazos urgentes (próximos 3 dias) — visível em todas as páginas
 try {
     $__userId = current_user_id();
