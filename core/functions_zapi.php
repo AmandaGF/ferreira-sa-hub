@@ -100,12 +100,16 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
         return array('ok' => false, 'erro' => 'Envio bloqueado: telefone e um @lid (identificador interno WhatsApp), nao um numero real. Atualize o contato com o numero E.164 correto antes de enviar.');
     }
     $_digits = preg_replace('/\D/', '', (string)$telefone);
-    // Aceita 10-14 dígitos (cobre BR com/sem DDI 55 + internacionais comuns).
-    // 15+ dígitos é tipicamente @lid bruto convertido pra string numérica — bloqueia.
-    // 9 ou menos dígitos não é telefone — bloqueia.
-    if (strlen($_digits) < 10 || strlen($_digits) > 14) {
-        @error_log('[zapi_send_text] BLOQUEADO: telefone fora do formato — ddd=' . $ddd . ' tel=' . $telefone . ' digits=' . strlen($_digits));
-        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone "' . $telefone . '" tem ' . strlen($_digits) . ' digitos (esperado 10-14). Pode ser @lid mal mapeado — peca ao cliente mandar nova mensagem pra atualizar o contato.');
+    // Aceita 10+ dígitos. Antes limitava a 13/14, mas conversas legítimas usam
+    // @lid numérico (15+ dígitos) como endereço funcional quando a Z-API já tem
+    // histórico dele. A proteção real contra msg indo pra contato errado é a
+    // "defesa fromMe" no webhook (api/zapi_webhook.php) — se o payload de
+    // confirmação não bate com a conv achada, o Hub cria conv nova em vez de
+    // gravar em conv cruzada. Esse fluxo vale aqui também (no pior caso o
+    // envio vai pra contato certo e o histórico é registrado corretamente).
+    if (strlen($_digits) < 10) {
+        @error_log('[zapi_send_text] BLOQUEADO: telefone curto demais — ddd=' . $ddd . ' tel=' . $telefone . ' digits=' . strlen($_digits));
+        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone "' . $telefone . '" tem menos de 10 digitos, nao e um numero valido.');
     }
 
     $cfg = zapi_get_config();
