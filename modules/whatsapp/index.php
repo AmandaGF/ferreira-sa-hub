@@ -448,11 +448,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     function formatHora(iso) {
         if(!iso) return '';
         var d = new Date(iso.replace(' ', 'T'));
+        var hh = ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2);
         var hoje = new Date();
-        if (d.toDateString() === hoje.toDateString()) return d.toTimeString().substr(0,5);
+        if (d.toDateString() === hoje.toDateString()) return hh;
         var ontem = new Date(); ontem.setDate(ontem.getDate() - 1);
-        if (d.toDateString() === ontem.toDateString()) return 'ontem';
-        return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2);
+        if (d.toDateString() === ontem.toDateString()) return 'ontem ' + hh;
+        return ('0'+d.getDate()).slice(-2) + '/' + ('0'+(d.getMonth()+1)).slice(-2) + ' ' + hh;
     }
 
     // ── LISTA DE CONVERSAS ──────────────────────────────

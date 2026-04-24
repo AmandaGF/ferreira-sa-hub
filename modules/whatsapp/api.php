@@ -813,7 +813,7 @@ if ($action === 'nova_conversa') {
     if ($conv) {
         // Grava a mensagem enviada
         $pdo->prepare(
-            "INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por, zapi_message_id, created_at)
+            "INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_id, zapi_message_id, created_at)
              VALUES (?, 'enviada', 'texto', ?, ?, ?, NOW())"
         )->execute(array($conv['id'], $mensagem, current_user_id(), $zapiId));
         $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
