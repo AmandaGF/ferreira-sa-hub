@@ -164,33 +164,13 @@ try {
                 if ($conv) $log("[{$numero}] MATCH-EDIT editMessageId={$payload['editMessageId']} → conversa #{$conv['id']}");
             }
 
-            // Estratégia 1: chatName EXATO (lógica original)
-            if (!$conv && !$ehGrupo && !empty($chatName)) {
-                $q = $pdo->prepare("SELECT * FROM zapi_conversas
-                                    WHERE canal = ? AND LOWER(TRIM(nome_contato)) = LOWER(TRIM(?))
-                                      AND (eh_grupo = 0 OR eh_grupo IS NULL)
-                                    ORDER BY ultima_msg_em DESC LIMIT 1");
-                $q->execute(array($numero, $chatName));
-                $conv = $q->fetch();
-                if ($conv) $log("[{$numero}] MATCH-EXATO nome='{$chatName}' → conversa #{$conv['id']} (tel={$conv['telefone']})");
-            }
-
-            // Estratégia 2: nome PARCIAL — primeiro nome bate (ex: msg com "Luiz" encontra "Luiz Eduardo")
-            if (!$conv && !$ehGrupo && !empty($chatName)) {
-                $primeiroNome = trim(explode(' ', trim($chatName))[0]);
-                if ($primeiroNome && mb_strlen($primeiroNome) >= 3) {
-                    // Match onde o nome existente COMECA com o primeiroNome ou vice-versa
-                    $q = $pdo->prepare("SELECT * FROM zapi_conversas
-                                        WHERE canal = ?
-                                          AND (eh_grupo = 0 OR eh_grupo IS NULL)
-                                          AND (LOWER(nome_contato) LIKE LOWER(?) OR LOWER(?) LIKE CONCAT(LOWER(SUBSTRING_INDEX(nome_contato,' ',1)), '%'))
-                                          AND ultima_msg_em >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-                                        ORDER BY ultima_msg_em DESC LIMIT 1");
-                    $q->execute(array($numero, $primeiroNome . '%', $chatName));
-                    $conv = $q->fetch();
-                    if ($conv) $log("[{$numero}] MATCH-PARCIAL '{$chatName}' vs '{$conv['nome_contato']}' → conversa #{$conv['id']} (tel={$conv['telefone']})");
-                }
-            }
+            // Estratégias 1 e 2 (MATCH por NOME EXATO e PARCIAL) REMOVIDAS em 24/Abr/2026.
+            // Contexto: match por nome causava cruzamento catastrófico entre clientes
+            // diferentes (ex.: msg de JOSE caía na conversa da Alícia porque algum
+            // campo de nome batia). Identificadores canônicos são chatLid e
+            // senderPhoneNumber — nome é label visual, NÃO chave de matching.
+            //
+            // Cai pra Estratégia 3 (telefone puro) se as anteriores (0, 0b, 0c, 0d) falharem.
 
             // Estratégia 3: telefone "puro" igual (casos muito raros onde Z-API troca formato)
             if (!$conv && !$ehLid && !$ehGrupo) {
@@ -270,12 +250,12 @@ try {
                 if ($chatLid && empty($conv['chat_lid'])) {
                     $updates[] = 'chat_lid = ?'; $params[] = $chatLid;
                 }
-                // Se a conversa tem telefone @lid mas sem chat_lid preenchido, seta
-                // o próprio telefone como chat_lid — assim futuros webhooks isEdit
-                // (que não trazem chatLid) conseguem matchar via estratégia 0c.
-                if (empty($conv['chat_lid']) && $convTemLid && empty($chatLid)) {
-                    $updates[] = 'chat_lid = ?'; $params[] = $telConvAtual;
-                }
+                // FIX 24/Abr/2026: NÃO mais copiar o telefone (@lid bruto) pro
+                // chat_lid quando este está vazio. Isso auto-infectava o campo
+                // canônico e cruzava conversas de pessoas diferentes. Se chat_lid
+                // real não chegou, deixa NULL e aguarda próximo webhook com LID
+                // legítimo. Estratégia 0c (match por telefone @lid) continua
+                // funcionando via coluna `telefone`.
                 if (!empty($updates)) {
                     $params[] = $conv['id'];
                     try { $pdo->prepare("UPDATE zapi_conversas SET " . implode(',', $updates) . " WHERE id = ?")->execute($params); } catch (Exception $e) {}

@@ -453,38 +453,12 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
         }
     }
 
-    // 3) Match por NOME_CONTATO — resolve o caso @lid vs número real do
-    //    mesmo contato, onde os dígitos do telefone não coincidem mas o nome sim.
-    //    FIX principal do bug de duplicação: antes essa função criava conversa
-    //    nova quando @lid chegava, mesmo existindo outra com mesmo nome.
-    if (!$ehGrupo && $nome_contato && mb_strlen(trim($nome_contato)) >= 3) {
-        // 3a) Match EXATO (case-insensitive, trimmed)
-        $q3 = $pdo->prepare("SELECT * FROM zapi_conversas
-                             WHERE instancia_id = ?
-                               AND LOWER(TRIM(nome_contato)) = LOWER(TRIM(?))
-                               AND (eh_grupo = 0 OR eh_grupo IS NULL)
-                             ORDER BY ultima_msg_em DESC LIMIT 1");
-        $q3->execute(array($inst['id'], $nome_contato));
-        $conv = $q3->fetch();
-        if ($conv) return $conv;
-
-        // 3b) Match por PRIMEIRO NOME — cobre "Luiz" vs "Luiz Eduardo"
-        $primeiroNome = trim(explode(' ', trim($nome_contato))[0]);
-        if (mb_strlen($primeiroNome) >= 3) {
-            $q4 = $pdo->prepare("SELECT * FROM zapi_conversas
-                                 WHERE instancia_id = ?
-                                   AND (eh_grupo = 0 OR eh_grupo IS NULL)
-                                   AND (
-                                       LOWER(nome_contato) LIKE LOWER(?)
-                                       OR LOWER(?) LIKE CONCAT(LOWER(SUBSTRING_INDEX(nome_contato,' ',1)), '%')
-                                   )
-                                   AND ultima_msg_em >= DATE_SUB(NOW(), INTERVAL 90 DAY)
-                                 ORDER BY ultima_msg_em DESC LIMIT 1");
-            $q4->execute(array($inst['id'], $primeiroNome . '%', $nome_contato));
-            $conv = $q4->fetch();
-            if ($conv) return $conv;
-        }
-    }
+    // Estratégia 3 (match por NOME_CONTATO) REMOVIDA em 24/Abr/2026.
+    // Motivo: match por nome causava cruzamento entre clientes diferentes
+    // (msgs de pessoa A caíam na conversa de pessoa B se o primeiro nome
+    // coincidisse). Identificadores canônicos são telefone real e chatLid —
+    // nome é label visual, NÃO chave. Se não achou por telefone (estratégia 1
+    // ou 2), criar nova conversa é mais seguro que arriscar um match errado.
 
     // Criar nova
     // Só vincula cliente/lead se NÃO for grupo (grupos têm ID com 18+ dígitos e
