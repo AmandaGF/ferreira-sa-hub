@@ -29,6 +29,17 @@ function initSidebar() {
             overlay.classList.remove('open');
         });
     }
+
+    // Mobile: ao clicar em qualquer link interno da sidebar, fecha automaticamente
+    // pra não cobrir o conteúdo. Sem isso, usuário abre menu → clica link → pagina
+    // carrega com sidebar ainda aberta visualmente, bloqueando conteúdo.
+    sidebar.addEventListener('click', (e) => {
+        if (window.innerWidth > 768) return;
+        const link = e.target.closest('a[href]');
+        if (!link) return;
+        sidebar.classList.remove('open');
+        if (overlay) overlay.classList.remove('open');
+    });
 }
 
 /* ─── Auto-dismiss alerts ────────────────────────────── */

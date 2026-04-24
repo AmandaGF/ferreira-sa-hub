@@ -221,6 +221,66 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-etq-filter { padding:3px 8px;border-radius:10px;font-size:.68rem;background:#fff;border:1px solid var(--border);cursor:pointer;color:var(--text-muted);white-space:nowrap; }
 .wa-etq-filter.active { color:#fff !important;border-color:transparent !important; }
 @media (max-width:900px){ .wa-wrap{grid-template-columns:1fr;height:auto;} }
+
+/* ─── Mobile portrait: lista + chat como "2 páginas" ────────
+   Em telas estreitas (smartphone portrait), a lista de conversas ocupa
+   a tela inteira. Quando o usuário clica numa conv, uma classe
+   `.wa-show-chat` é adicionada no wrapper e a lista some, dando lugar
+   ao chat em tela cheia. Botão ← no header do chat volta pra lista. */
+@media (max-width:768px) {
+    .wa-wrap {
+        grid-template-columns:1fr !important;
+        height:calc(100vh - 100px);
+    }
+    /* Esconde chat (segunda coluna) até usuário clicar numa conv */
+    .wa-wrap > .wa-pane:nth-child(2) {
+        display:none;
+    }
+    /* Com .wa-show-chat: esconde lista, mostra chat em tela cheia */
+    .wa-wrap.wa-show-chat > .wa-pane:nth-child(1) {
+        display:none;
+    }
+    .wa-wrap.wa-show-chat > .wa-pane:nth-child(2) {
+        display:flex !important;
+        flex-direction:column;
+        width:100%;
+        height:100%;
+    }
+    /* Botão voltar pra lista — só aparece em mobile */
+    .wa-btn-voltar-lista {
+        display:inline-flex !important;
+        align-items:center;
+        gap:4px;
+        background:none;
+        border:none;
+        cursor:pointer;
+        font-size:1.1rem;
+        color:var(--petrol-900);
+        padding:4px 6px;
+        margin-right:4px;
+    }
+    /* Filtros em linha horizontal scrollável (em vez de wrap) */
+    .wa-filters {
+        flex-wrap:nowrap;
+        overflow-x:auto;
+        -webkit-overflow-scrolling:touch;
+        padding-bottom:2px;
+    }
+    .wa-filters::-webkit-scrollbar { display:none; }
+    .wa-filter { flex-shrink:0; }
+    /* Header do chat em mobile com padding menor e wrap das actions */
+    .wa-chat-head {
+        padding:.5rem .7rem;
+        gap:.4rem;
+    }
+    .wa-chat-actions {
+        max-width:100% !important;
+        margin-left:0 !important;
+    }
+    /* Mensagem ocupa mais largura na tela pequena */
+    .wa-msg { max-width:85%; }
+}
+.wa-btn-voltar-lista { display:none; }  /* default: escondido (só aparece em mobile via media query) */
 </style>
 
 <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;">
@@ -320,6 +380,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- ── Coluna direita: Chat ────────────────────────── -->
     <div class="wa-pane" style="position:relative;">
         <div class="wa-chat-head" id="waChatHeadContainer">
+            <button type="button" class="wa-btn-voltar-lista" onclick="waVoltarLista()" title="Voltar para lista de conversas">←</button>
             <strong id="waChatTitle">Selecione uma conversa</strong>
             <span class="wa-head-sub" id="waChatSub"></span>
         </div>
@@ -531,10 +592,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var el = document.querySelector('.wa-conv[data-id="'+id+'"]');
         if (el) el.classList.add('active');
 
+        // Mobile: alterna pra "página do chat" (esconde lista)
+        var wrap = document.getElementById('waWrap');
+        if (wrap) wrap.classList.add('wa-show-chat');
+
         fetch(apiUrl + '?action=abrir_conversa&id=' + id).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
             renderConversa(d);
         });
+    };
+
+    // Volta pra lista de conversas (mobile). Em desktop é no-op — lista sempre visível.
+    window.waVoltarLista = function() {
+        var wrap = document.getElementById('waWrap');
+        if (wrap) wrap.classList.remove('wa-show-chat');
     };
 
     function renderConversa(d) {
