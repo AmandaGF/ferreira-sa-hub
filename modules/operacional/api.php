@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional'))
 $action = $_POST['action'] ?? '';
 
 // Ações de leitura AJAX: não consomem CSRF (evita invalidar token para o próximo submit)
-$readOnlyActions = array('buscar_casos_cliente', 'inline_edit_case', 'log_whatsapp_andamento', 'toggle_visibilidade', 'edit_andamento', 'andamentos_importar_analisar');
+$readOnlyActions = array('buscar_casos_cliente', 'buscar_case_dados', 'inline_edit_case', 'log_whatsapp_andamento', 'toggle_visibilidade', 'edit_andamento', 'andamentos_importar_analisar');
 $skipCsrf = $isAjax && in_array($action, $readOnlyActions);
 
 if (!$skipCsrf && !validate_csrf()) {
@@ -1863,6 +1863,22 @@ switch ($action) {
             if ($pdo->inTransaction()) $pdo->rollBack();
             echo json_encode(array('error' => 'Erro SQL: ' . $e->getMessage()));
         }
+        exit;
+
+    case 'buscar_case_dados':
+        // AJAX: retorna os campos do case atual usados no modal de distribuição.
+        // Evita que abrir o modal com dados em branco sobrescreva valores já salvos.
+        $caseId = (int)($_GET['case_id'] ?? $_POST['case_id'] ?? 0);
+        header('Content-Type: application/json');
+        if (!$caseId) { echo json_encode(array('ok' => false)); exit; }
+        $stmt = $pdo->prepare(
+            "SELECT id, case_number, court, case_type, distribution_date, category,
+                    comarca, comarca_uf, regional, sistema_tribunal, segredo_justica
+             FROM cases WHERE id = ? LIMIT 1"
+        );
+        $stmt->execute(array($caseId));
+        $row = $stmt->fetch();
+        echo json_encode(array('ok' => (bool)$row, 'case' => $row ?: null, 'csrf' => generate_csrf_token()));
         exit;
 
     case 'buscar_casos_cliente':

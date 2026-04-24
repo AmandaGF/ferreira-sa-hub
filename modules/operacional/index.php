@@ -1027,8 +1027,50 @@ function abrirDistribuicaoInteligente(card) {
     if (caseNumber) document.getElementById('procNumero').value = caseNumber;
     if (court) document.getElementById('procVara').value = court;
 
+    // Carrega TODOS os dados atuais do case pra popular o modal — evita que
+    // Amanda confirme o modal em branco e sobrescreva campos já preenchidos.
+    if (caseId && caseId !== '0') {
+        var xhrCase = new XMLHttpRequest();
+        xhrCase.open('POST', '<?= module_url("operacional", "api.php") ?>');
+        xhrCase.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        xhrCase.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhrCase.onload = function() {
+            try {
+                var r = JSON.parse(xhrCase.responseText);
+                if (r.csrf) _opCsrf = r.csrf;
+                if (!r.ok || !r.case) return;
+                var c = r.case;
+                // Pré-popula cada campo com o valor atual do case (se houver)
+                var map = [
+                    ['procNumero',    c.case_number],
+                    ['procVara',      c.court],
+                    ['procTipo',      c.case_type],
+                    ['procData',      c.distribution_date],
+                    ['procComarca',   c.comarca],
+                    ['procComarcaUf', c.comarca_uf],
+                    ['procRegional',  c.regional],
+                    ['procSistema',   c.sistema_tribunal],
+                    ['procCategory',  c.category]
+                ];
+                map.forEach(function(p) {
+                    var el = document.getElementById(p[0]);
+                    if (el && p[1]) el.value = p[1];
+                });
+                // Checkbox de segredo de justiça
+                var segEl = document.getElementById('procSegredo');
+                if (segEl) segEl.checked = (parseInt(c.segredo_justica, 10) === 1);
+                // Se veio com extrajudicial, ajusta os campos visíveis
+                if (c.category === 'extrajudicial' && typeof toggleProcType === 'function') {
+                    toggleProcType('extrajudicial');
+                }
+            } catch(e) {}
+        };
+        xhrCase.send('action=buscar_case_dados&case_id=' + caseId + '&<?= CSRF_TOKEN_NAME ?>=' + _opCsrf);
+    }
+
     // Se cliente tem outros processos cadastrados, busca o mais recente pra
-    // pré-preencher Comarca/UF/Sistema/Regional como SUGESTÃO (usuário pode editar).
+    // pré-preencher Comarca/UF/Sistema/Regional como SUGESTÃO (só onde ainda
+    // estiver vazio após a pré-carga do case atual — não atropela valor existente).
     if (clientId && clientId !== '0') {
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
