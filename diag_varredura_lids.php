@@ -18,20 +18,25 @@ echo "Restantes (não checados):           " . ($total - $checados) . "\n";
 echo "\n=== VARREDURA: conversas ativas com @lid DIVERGENTE do cadastro do cliente ===\n";
 echo "(casos iguais ao da Alícia/Eduarda — conv vinculada a cliente cujo @lid real é outro)\n\n";
 
-$q = $pdo->query(
-    "SELECT co.id AS conv_id, co.canal, co.telefone AS conv_tel, co.chat_lid AS conv_lid,
-            co.status AS conv_status,
-            c.id AS cli_id, c.name AS cli_name, c.phone AS cli_phone, c.whatsapp_lid AS cli_lid
-     FROM zapi_conversas co
-     JOIN clients c ON c.id = co.client_id
-     WHERE co.client_id IS NOT NULL
-       AND co.chat_lid IS NOT NULL AND co.chat_lid != ''
-       AND c.whatsapp_lid IS NOT NULL AND c.whatsapp_lid != ''
-       AND co.chat_lid != c.whatsapp_lid
-       AND co.status != 'arquivado'
-     ORDER BY co.updated_at DESC"
-);
-$divergentes = $q->fetchAll();
+try {
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $q = $pdo->query(
+        "SELECT co.id AS conv_id, co.canal, co.telefone AS conv_tel, co.chat_lid AS conv_lid,
+                co.status AS conv_status,
+                c.id AS cli_id, c.name AS cli_name, c.phone AS cli_phone, c.whatsapp_lid AS cli_lid
+         FROM zapi_conversas co
+         JOIN clients c ON c.id = co.client_id
+         WHERE co.chat_lid IS NOT NULL AND co.chat_lid != ''
+           AND c.whatsapp_lid IS NOT NULL AND c.whatsapp_lid != ''
+           AND co.chat_lid != c.whatsapp_lid
+           AND co.status != 'arquivado'
+         ORDER BY co.id DESC"
+    );
+    $divergentes = $q->fetchAll();
+} catch (PDOException $e) {
+    echo "[ERRO SQL] " . $e->getMessage() . "\n";
+    exit;
+}
 echo "Total de conversas com divergência: " . count($divergentes) . "\n\n";
 
 if ($divergentes) {
