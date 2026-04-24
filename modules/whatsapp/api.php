@@ -7,6 +7,37 @@ require_login();
 require_once APP_ROOT . '/core/functions_zapi.php';
 
 header('Content-Type: application/json; charset=utf-8');
+
+// ── Error handler global (24/Abr/2026) ──
+// Garante que QUALQUER erro fatal ou exception devolve JSON, nunca HTML.
+// Antes, alguns erros PHP escapavam como página <!DOCTYPE html>... quebrando
+// o JSON.parse no frontend (erro "Unexpected token '<'").
+set_exception_handler(function($e) {
+    if (!headers_sent()) {
+        http_response_code(500);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    @error_log('[whatsapp/api.php EXCEPTION] ' . $e->getMessage() . ' em ' . $e->getFile() . ':' . $e->getLine());
+    echo json_encode(array(
+        'error' => 'Erro interno: ' . $e->getMessage(),
+        'where' => basename($e->getFile()) . ':' . $e->getLine(),
+    ));
+    exit;
+});
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], array(E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_PARSE, E_USER_ERROR))) {
+        if (!headers_sent()) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        @error_log('[whatsapp/api.php FATAL] ' . $err['message'] . ' em ' . $err['file'] . ':' . $err['line']);
+        echo json_encode(array(
+            'error' => 'Erro fatal: ' . $err['message'],
+            'where' => basename($err['file']) . ':' . $err['line'],
+        ));
+    }
+});
 $pdo = db();
 $userId = current_user_id();
 $action = $_REQUEST['action'] ?? '';
