@@ -189,7 +189,13 @@ echo voltar_ao_processo_html();
                             <br><span class="text-sm text-muted"><?= e($dh['tipo_acao']) ?></span>
                         <?php endif; ?>
                     </td>
-                    <td class="text-sm"><?= e($dh['client_name'] ?: '—') ?></td>
+                    <td class="text-sm">
+                        <?php if ($dh['client_id'] && $dh['client_name']): ?>
+                            <a href="<?= module_url('clientes', 'ver.php?id=' . (int)$dh['client_id']) ?>" style="color:var(--petrol-900);text-decoration:none;border-bottom:1px dashed var(--petrol-900);" title="Ver perfil do cliente"><?= e($dh['client_name']) ?></a>
+                        <?php else: ?>
+                            <?= e($dh['client_name'] ?: '—') ?>
+                        <?php endif; ?>
+                    </td>
                     <td class="text-sm"><?= e($dh['user_name'] ? explode(' ', $dh['user_name'])[0] : '—') ?></td>
                     <td class="text-sm text-muted"><?= data_hora_br($dh['created_at']) ?></td>
                     <td>
