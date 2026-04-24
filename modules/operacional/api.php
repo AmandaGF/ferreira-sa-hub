@@ -139,17 +139,23 @@ switch ($action) {
 
             // ── PROCESSO DISTRIBUÍDO / EXTRAJUDICIAL: salvar dados do modal ──
             if ($status === 'distribuido') {
+                // Para CADA campo: se o POST NÃO trouxe a chave, preserva o valor atual (passa NULL/'').
+                // Assim, mudar status via dropdown simples (sem modal) não apaga os dados já gravados.
                 $procNumero = clean_str($_POST['proc_numero'] ?? '', 30);
                 $procVara = clean_str($_POST['proc_vara'] ?? '', 150);
                 $procTipo = clean_str($_POST['proc_tipo'] ?? '', 60);
                 $procData = $_POST['proc_data'] ?? null;
                 if ($procData === '') $procData = null;
-                $procCategory = ($_POST['proc_category'] ?? 'judicial') === 'extrajudicial' ? 'extrajudicial' : 'judicial';
+                // category: se não veio no POST, mantém o atual; se veio, normaliza
+                $procCategory = isset($_POST['proc_category'])
+                    ? ($_POST['proc_category'] === 'extrajudicial' ? 'extrajudicial' : 'judicial')
+                    : null;
                 $procComarca = clean_str($_POST['proc_comarca'] ?? '', 100);
                 $procComarcaUf = clean_str($_POST['proc_comarca_uf'] ?? '', 2);
                 $procRegional = clean_str($_POST['proc_regional'] ?? '', 100);
                 $procSistema = clean_str($_POST['proc_sistema'] ?? '', 30);
-                $procSegredo = (int)($_POST['proc_segredo'] ?? 0);
+                // segredo: se não veio no POST, mantém atual; se veio, força 0/1
+                $procSegredo = isset($_POST['proc_segredo']) ? (int)$_POST['proc_segredo'] : null;
                 $procParteContraria = clean_str($_POST['proc_parte_contraria'] ?? '', 200);
                 $procValorCausa = clean_str($_POST['proc_valor_causa'] ?? '', 30);
 
@@ -164,15 +170,29 @@ switch ($action) {
                     }
                 }
 
+                // IMPORTANTE: usar COALESCE(NULLIF(?, ''), campo) em cada campo preservável
+                // pra NUNCA apagar dados já gravados caso o modal venha com campos em branco
+                // (ex.: Amanda preencheu tudo na edição da pasta e abre o modal, que pré-preenche
+                // só número/vara — os outros campos vazios no form NÃO devem sobrescrever o que já tá lá).
                 $pdo->prepare(
-                    'UPDATE cases SET status=?, case_number=?, court=?, case_type=COALESCE(NULLIF(?,\'\'),case_type),
-                     distribution_date=?, category=?, comarca=?, comarca_uf=?, regional=?,
-                     sistema_tribunal=?, segredo_justica=?, opened_at=COALESCE(opened_at, CURDATE()),
-                     updated_at=NOW() WHERE id=?'
+                    "UPDATE cases SET status=?,
+                         case_number       = COALESCE(NULLIF(?, ''), case_number),
+                         court             = COALESCE(NULLIF(?, ''), court),
+                         case_type         = COALESCE(NULLIF(?, ''), case_type),
+                         distribution_date = COALESCE(?, distribution_date),
+                         category          = COALESCE(?, category),
+                         comarca           = COALESCE(NULLIF(?, ''), comarca),
+                         comarca_uf        = COALESCE(NULLIF(?, ''), comarca_uf),
+                         regional          = COALESCE(NULLIF(?, ''), regional),
+                         sistema_tribunal  = COALESCE(NULLIF(?, ''), sistema_tribunal),
+                         segredo_justica   = COALESCE(?, segredo_justica),
+                         opened_at         = COALESCE(opened_at, CURDATE()),
+                         updated_at        = NOW()
+                     WHERE id = ?"
                 )->execute(array(
-                    $status, $procNumero ?: null, $procVara ?: null, $procTipo,
-                    $procData, $procCategory, $procComarca ?: null, $procComarcaUf ?: null,
-                    $procRegional ?: null, $procSistema ?: null, $procSegredo, $caseId
+                    $status, $procNumero, $procVara, $procTipo,
+                    $procData, $procCategory, $procComarca, $procComarcaUf,
+                    $procRegional, $procSistema, $procSegredo, $caseId
                 ));
 
                 // Parte contrária: cria entrada em case_partes como 'reu' (se não existir ainda)
