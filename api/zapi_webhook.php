@@ -208,6 +208,34 @@ try {
                 exit;
             }
 
+            // ── DEFESA fromMe (24/Abr/2026) ──
+            // Se é fromMe (mensagem enviada pelo escritório) e o telefone do payload
+            // NÃO bate com o telefone da conversa achada, CRIA conversa nova em vez
+            // de gravar msg em conversa errada. Evita o cruzamento entre clientes
+            // diferentes (ex: msgs do cron de aniversário caindo todas na mesma conv).
+            // Match aceitável: últimos 10 dígitos iguais, OU ambos têm mesmo @lid.
+            if ($fromMe && !$ehGrupo && $conv) {
+                $telPayload = preg_replace('/\D/', '', str_replace(array('@lid','@g.us'), '', (string)$telefone));
+                $telConv    = preg_replace('/\D/', '', str_replace(array('@lid','@g.us'), '', (string)$conv['telefone']));
+                $match10 = (strlen($telPayload) >= 10 && strlen($telConv) >= 10 && substr($telPayload, -10) === substr($telConv, -10));
+                $matchLid = ($chatLid && $conv['chat_lid'] === $chatLid);
+                if (!$match10 && !$matchLid) {
+                    $log("[{$numero}] fromMe DIVERGENTE — payload tel={$telefone} conv#{$conv['id']} tel={$conv['telefone']}. Criando conv nova.");
+                    $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, false);
+                    if (!$conv) {
+                        echo json_encode(array('status' => 'conv_error_fromme'));
+                        exit;
+                    }
+                    // Se mesmo assim voltou uma conv que não bate, aborta (safe)
+                    $telConv2 = preg_replace('/\D/', '', str_replace(array('@lid','@g.us'), '', (string)$conv['telefone']));
+                    if (strlen($telPayload) >= 10 && strlen($telConv2) >= 10 && substr($telPayload, -10) !== substr($telConv2, -10) && !($chatLid && $conv['chat_lid'] === $chatLid)) {
+                        $log("[{$numero}] fromMe ainda DIVERGENTE após buscar/criar. Abortando pra não gravar em conv errada.");
+                        echo json_encode(array('status' => 'fromMe_mismatch_abort'));
+                        exit;
+                    }
+                }
+            }
+
             // Captura foto de perfil do payload (vem pronta no webhook — não precisa
             // chamar /profile-picture). `photo` = foto do chat (em 1:1 = avatar do
             // contato; em grupo = ícone do grupo). `senderPhoto` = de quem escreveu.
