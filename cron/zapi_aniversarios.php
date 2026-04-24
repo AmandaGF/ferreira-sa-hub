@@ -72,7 +72,7 @@ if (!$forcar && $horaAtual !== $horaCfg) {
 $year = (int)date('Y');
 try {
     $rows = $pdo->prepare(
-        "SELECT c.id, c.name, c.phone
+        "SELECT c.id, c.name, c.phone, c.whatsapp_lid, c.whatsapp_lid_checado_em
          FROM clients c
          LEFT JOIN birthday_greetings bg ON bg.client_id = c.id AND bg.year = ?
          WHERE c.birth_date IS NOT NULL
@@ -91,9 +91,30 @@ echo "Aniversariantes hoje (ainda não parabenizados em {$year}): " . count($cli
 if (empty($clientes)) { echo "Nada a enviar.\n"; exit; }
 
 // 3) Enviar para cada um
-$ok = 0; $falhas = 0;
+$ok = 0; $falhas = 0; $pulados = 0;
 foreach ($clientes as $c) {
     $nome = explode(' ', trim($c['name']))[0];
+
+    // PROTEÇÃO @LID (24/Abr/2026) ──
+    // Valida que o phone do cadastro realmente corresponde a um @lid existente
+    // no WhatsApp. Se o número for inválido/sem WhatsApp, PULA pra não enviar
+    // mensagem pra contato errado. Se nunca foi checado, consulta agora.
+    $lid = $c['whatsapp_lid'];
+    if (empty($c['whatsapp_lid_checado_em'])) {
+        // Nunca foi checado — consulta Z-API agora (idempotente)
+        $atual = zapi_atualizar_lid_cliente((int)$c['id']);
+        if (!empty($atual['ok'])) {
+            $lid = $atual['lid'];
+        } else {
+            echo "  [PULA] {$c['name']} ({$c['phone']}) — WhatsApp não validado: {$atual['motivo']}\n";
+            $pulados++; continue;
+        }
+    }
+    if (empty($lid)) {
+        echo "  [PULA] {$c['name']} ({$c['phone']}) — sem @lid registrado (número pode não ter WhatsApp)\n";
+        $pulados++; continue;
+    }
+
     // Se variar estiver ligado, sorteia um template da categoria por aniversariante
     if ($cfg['variar'] === '1' && !empty($variacoes)) {
         $tplNome = $variacoes[array_rand($variacoes)];
@@ -107,7 +128,7 @@ foreach ($clientes as $c) {
     if (!empty($r['ok'])) {
         $pdo->prepare("INSERT IGNORE INTO birthday_greetings (client_id, year, sent_by) VALUES (?, ?, NULL)")
             ->execute(array($c['id'], $year));
-        echo "  [OK] {$c['name']} ({$c['phone']}) — tpl: {$tplNome}\n";
+        echo "  [OK] {$c['name']} ({$c['phone']}) → @lid: {$lid} — tpl: {$tplNome}\n";
         $ok++;
     } else {
         echo "  [FALHA] {$c['name']} ({$c['phone']}) — HTTP " . ($r['http_code'] ?? '?') . " " . json_encode($r['data'] ?? '') . "\n";
@@ -117,7 +138,7 @@ foreach ($clientes as $c) {
     usleep(500000); // 0.5s
 }
 
-echo "\n=== CONCLUIDO === Enviados: {$ok} | Falhas: {$falhas}\n";
+echo "\n=== CONCLUIDO === Enviados: {$ok} | Falhas: {$falhas} | Pulados (sem @lid): {$pulados}\n";
 
 // Audit (se existir função)
 if (function_exists('audit_log')) {
