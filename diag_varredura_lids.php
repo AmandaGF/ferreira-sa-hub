@@ -28,7 +28,7 @@ try {
          JOIN clients c ON c.id = co.client_id
          WHERE co.chat_lid IS NOT NULL AND co.chat_lid != ''
            AND c.whatsapp_lid IS NOT NULL AND c.whatsapp_lid != ''
-           AND co.chat_lid COLLATE utf8mb4_general_ci != c.whatsapp_lid COLLATE utf8mb4_general_ci
+           AND BINARY co.chat_lid <> BINARY c.whatsapp_lid
            AND co.status != 'arquivado'
          ORDER BY co.id DESC"
     );
