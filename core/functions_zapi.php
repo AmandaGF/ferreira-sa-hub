@@ -100,9 +100,12 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
         return array('ok' => false, 'erro' => 'Envio bloqueado: telefone e um @lid (identificador interno WhatsApp), nao um numero real. Atualize o contato com o numero E.164 correto antes de enviar.');
     }
     $_digits = preg_replace('/\D/', '', (string)$telefone);
-    if (strlen($_digits) < 10 || strlen($_digits) > 13) {
-        @error_log('[zapi_send_text] BLOQUEADO: telefone fora do formato — ddd=' . $ddd . ' tel=' . $telefone);
-        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone "' . $telefone . '" nao tem formato valido (precisa 10-13 digitos, BR com DDI 55).');
+    // Aceita 10-14 dígitos (cobre BR com/sem DDI 55 + internacionais comuns).
+    // 15+ dígitos é tipicamente @lid bruto convertido pra string numérica — bloqueia.
+    // 9 ou menos dígitos não é telefone — bloqueia.
+    if (strlen($_digits) < 10 || strlen($_digits) > 14) {
+        @error_log('[zapi_send_text] BLOQUEADO: telefone fora do formato — ddd=' . $ddd . ' tel=' . $telefone . ' digits=' . strlen($_digits));
+        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone "' . $telefone . '" tem ' . strlen($_digits) . ' digitos (esperado 10-14). Pode ser @lid mal mapeado — peca ao cliente mandar nova mensagem pra atualizar o contato.');
     }
 
     $cfg = zapi_get_config();
