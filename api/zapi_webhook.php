@@ -288,6 +288,25 @@ try {
                     $params[] = $conv['id'];
                     try { $pdo->prepare("UPDATE zapi_conversas SET " . implode(',', $updates) . " WHERE id = ?")->execute($params); } catch (Exception $e) {}
                 }
+
+                // VINCULAÇÃO DE CLIENTE POR @lid (24/Abr/2026) ──
+                // Se a conversa ainda não tem client_id mas temos chat_lid,
+                // procura cliente cujo whatsapp_lid bate e vincula automaticamente.
+                // clients.whatsapp_lid é populado via backfill_client_lids.php
+                // consultando /phone-exists — @lid é identificador único e fixo.
+                $lidPraMatch = $chatLid ?: ((!empty($conv['chat_lid'])) ? $conv['chat_lid'] : '');
+                if (empty($conv['client_id']) && $lidPraMatch) {
+                    try {
+                        $clst = $pdo->prepare("SELECT id FROM clients WHERE whatsapp_lid = ? LIMIT 1");
+                        $clst->execute(array($lidPraMatch));
+                        $cidMatch = $clst->fetchColumn();
+                        if ($cidMatch) {
+                            $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")->execute(array($cidMatch, $conv['id']));
+                            $conv['client_id'] = $cidMatch;
+                            $log("[{$numero}] VINCULO-LID conv#{$conv['id']} → client#{$cidMatch} via whatsapp_lid={$lidPraMatch}");
+                        }
+                    } catch (Exception $e) {}
+                }
             }
 
             $tipo     = zapi_detecta_tipo($payload);
