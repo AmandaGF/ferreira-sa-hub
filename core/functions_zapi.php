@@ -88,6 +88,23 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
     if (!$inst || !$inst['instancia_id'] || !$inst['token']) {
         return array('ok' => false, 'erro' => 'Instância não configurada para DDD ' . $ddd);
     }
+
+    // ── DEFESA MÍNIMA contra bug do @lid (24/Abr/2026) ──
+    // NUNCA enviar pra @lid bruto — Z-API entrega pro DONO ATUAL do LID, que pode
+    // ter mudado. Também valida que o resultado numérico tem comprimento plausível
+    // (10-13 dígitos). Contexto: conv 686 (Alícia) tinha telefone=99037785145538@lid
+    // e mensagens dessa conv (parabéns JOSE, "Vamos liberar") iam parar em WhatsApps
+    // aleatórios. Fix completo (match por chat_lid, etc) fica pra depois.
+    if (stripos((string)$telefone, '@lid') !== false || stripos((string)$telefone, '@s.whatsapp.net') !== false) {
+        @error_log('[zapi_send_text] BLOQUEADO: envio pra @lid — ddd=' . $ddd . ' tel=' . $telefone);
+        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone e um @lid (identificador interno WhatsApp), nao um numero real. Atualize o contato com o numero E.164 correto antes de enviar.');
+    }
+    $_digits = preg_replace('/\D/', '', (string)$telefone);
+    if (strlen($_digits) < 10 || strlen($_digits) > 13) {
+        @error_log('[zapi_send_text] BLOQUEADO: telefone fora do formato — ddd=' . $ddd . ' tel=' . $telefone);
+        return array('ok' => false, 'erro' => 'Envio bloqueado: telefone "' . $telefone . '" nao tem formato valido (precisa 10-13 digitos, BR com DDI 55).');
+    }
+
     $cfg = zapi_get_config();
     $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-text';
     $telefone_norm = zapi_normaliza_telefone($telefone);
