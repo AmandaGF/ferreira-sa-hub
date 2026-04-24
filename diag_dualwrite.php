@@ -3,7 +3,7 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 header('Content-Type: text/plain; charset=utf-8');
 
 // Simula exatamente o POST que submit.php faz pro Hub
-$conectaUrl = 'https://www.ferreiraesa.com.br/conecta/publico/api_form.php';
+$conectaUrl = 'https://ferreiraesa.com.br/conecta/publico/api_form.php';
 $payload = json_encode(array(
     'form_type'         => 'convivencia',
     'client_name'       => 'Sayonara TESTE DUAL-WRITE',
