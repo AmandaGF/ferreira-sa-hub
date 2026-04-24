@@ -1,0 +1,31 @@
+# Força Content-Type correto pra arquivos de áudio do WhatsApp.
+# Antes, o servidor entregava .webm como 'video/webm' — a Z-API tratava
+# como vídeo e o WhatsApp entregava mal (cliente via "áudio não disponível").
+# Agora serve como audio/* explicitamente.
+
+<IfModule mod_mime.c>
+    # Remove associações erradas herdadas do MIME default
+    RemoveType .webm .ogg .oga .opus .m4a .mp4 .mp3 .wav
+
+    # Associações corretas pra áudio
+    AddType audio/webm .webm
+    AddType audio/ogg  .ogg .oga
+    AddType audio/opus .opus
+    AddType audio/mp4  .m4a .mp4
+    AddType audio/mpeg .mp3
+    AddType audio/wav  .wav
+</IfModule>
+
+# Permite acesso público aos áudios (a Z-API precisa baixar via HTTPS)
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
+# Cache permissivo — WhatsApp/Z-API podem baixar mais de uma vez
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=86400"
+</IfModule>
