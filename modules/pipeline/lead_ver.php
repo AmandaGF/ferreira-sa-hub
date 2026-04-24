@@ -129,7 +129,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank" class="btn btn-outline btn-sm" style="color:#0ea5e9;border-color:#0ea5e9;">📂 Drive</a>
                 <?php endif; ?>
                 <?php if ($lead['phone']): ?>
-                    <a href="https://wa.me/55<?= preg_replace('/\D/', '', $lead['phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+                    <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $lead['phone']) ?>',nome:<?= e(json_encode($lead['name'])) ?>,clientId:<?= (int)($lead['client_id'] ?? 0) ?>,leadId:<?= (int)$lead['id'] ?>,canal:'21'})" class="btn btn-success btn-sm">💬 WhatsApp</button>
                 <?php endif; ?>
             </div>
         </div>

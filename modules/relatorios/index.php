@@ -409,7 +409,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 <td style="font-weight:700;"><?= str_pad($a['dia'], 2, '0', STR_PAD_LEFT) ?></td>
                                 <td><?= e($a['name']) ?></td>
                                 <td style="text-align:center;"><?= $a['idade'] ?></td>
-                                <td><?= $a['phone'] ? '<a href="https://wa.me/55' . preg_replace('/\D/', '', $a['phone']) . '" target="_blank" style="color:var(--success);">' . e($a['phone']) . '</a>' : '—' ?></td>
+                                <td><?php if ($a['phone']): ?><a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $a['phone']) ?>',nome:<?= e(json_encode($a['name'])) ?>,clientId:<?= (int)$a['id'] ?>})" style="color:var(--success);"><?= e($a['phone']) ?></a><?php else: ?>—<?php endif; ?></td>
                                 <td class="text-muted"><?= e($a['email'] ?: '—') ?></td>
                             </tr>
                         <?php endforeach; ?>

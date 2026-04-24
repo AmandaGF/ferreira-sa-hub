@@ -1075,7 +1075,7 @@ if (!$showEditor) {
         <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.doc)</button>
         <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
         <?php if ($phone): ?>
-            <a href="https://wa.me/55<?= preg_replace('/\D/', '', $phone) ?>" target="_blank" class="btn-zap">💬 WhatsApp</a>
+            <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $phone) ?>',nome:<?= e(json_encode($client['name'] ?? '')) ?>,clientId:<?= (int)$clientId ?>})" class="btn-zap">💬 WhatsApp</button>
         <?php endif; ?>
     </div>
 </div>

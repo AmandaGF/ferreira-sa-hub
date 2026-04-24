@@ -496,7 +496,7 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
                 <?php if ($bdayPhone): ?>
-                <a href="https://wa.me/55<?= $bdayPhone ?>?text=<?= urlencode($bdayMsg) ?>" target="_blank" onclick="marcarAniversario(<?= $b['id'] ?>,this)" title="Enviar parabéns via WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:.65rem;font-weight:700;text-decoration:none;cursor:pointer;<?= $bdaySent ? 'opacity:.5;' : '' ?>"><?= $bdaySent ? 'Enviado' : 'Parabens' ?></a>
+                <button type="button" onclick="waSenderOpen({telefone:'<?= $bdayPhone ?>',nome:<?= e(json_encode($b['name'])) ?>,clientId:<?= (int)$b['id'] ?>,mensagem:<?= e(json_encode($bdayMsg)) ?>});marcarAniversario(<?= $b['id'] ?>,this);" title="Enviar parabéns via WhatsApp" style="background:#25D366;color:#fff;border:none;border-radius:6px;padding:3px 8px;font-size:.65rem;font-weight:700;cursor:pointer;<?= $bdaySent ? 'opacity:.5;' : '' ?>"><?= $bdaySent ? 'Enviado' : 'Parabens' ?></button>
                 <?php endif; ?>
                 <span class="bday-tag today">HOJE</span>
             </div>

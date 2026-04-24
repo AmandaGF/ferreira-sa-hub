@@ -117,10 +117,8 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                         <?php if ($n['canal'] === 'whatsapp' && $n['destinatario']): ?>
                             <?php
                             $phone = preg_replace('/\D/', '', $n['destinatario']);
-                            if (strlen($phone) <= 11) $phone = '55' . $phone;
-                            $waUrl = 'https://wa.me/' . $phone . '?text=' . rawurlencode($n['mensagem']);
                             ?>
-                            <a href="<?= e($waUrl) ?>" target="_blank" class="btn btn-sm" style="background: #25D366; color: #fff;" title="Enviar via WhatsApp">WhatsApp</a>
+                            <button type="button" onclick="waSenderOpen({telefone:'<?= e($phone) ?>',nome:<?= e(json_encode($n['client_name'] ?: '')) ?>,clientId:<?= (int)($n['client_id'] ?? 0) ?>,mensagem:<?= e(json_encode($n['mensagem'])) ?>})" class="btn btn-sm" style="background: #25D366; color: #fff;cursor:pointer;" title="Enviar via WhatsApp">WhatsApp</button>
                         <?php endif; ?>
 
                         <?php if ($n['status'] === 'pendente'): ?>

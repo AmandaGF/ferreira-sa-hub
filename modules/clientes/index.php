@@ -195,7 +195,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td>
                         <div class="cli-contact">
                             <?php if ($c['phone']): ?>
-                                <a href="https://wa.me/55<?= preg_replace('/\D/', '', $c['phone']) ?>" target="_blank" style="color:var(--success);">📱 <?= e($c['phone']) ?></a>
+                                <a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $c['phone']) ?>',nome:<?= e(json_encode($c['name'])) ?>,clientId:<?= (int)$c['id'] ?>})" style="color:var(--success);">📱 <?= e($c['phone']) ?></a>
                             <?php endif; ?>
                             <?php if ($c['email']): ?>
                                 <div>✉️ <?= e($c['email']) ?></div>

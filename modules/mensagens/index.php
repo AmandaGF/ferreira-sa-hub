@@ -274,9 +274,7 @@ function sendWhatsApp(id) {
     var phone = prompt('Informe o número do WhatsApp (com DDD):\nEx: 24999001234');
     if (!phone) return;
     phone = phone.replace(/\D/g, '');
-    if (phone.length <= 11) phone = '55' + phone;
-    var text = encodeURIComponent(msg.body);
-    window.open('https://wa.me/' + phone + '?text=' + text, '_blank');
+    waSenderOpen({telefone: phone, mensagem: msg.body});
 }
 
 function viewMsg(id) {

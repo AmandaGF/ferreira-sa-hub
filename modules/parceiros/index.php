@@ -118,7 +118,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <td class="text-sm"><?= e($p['oab'] ?: '—') ?></td>
                         <td class="text-sm"><?= e($p['area'] ?: '—') ?></td>
                         <td class="text-sm">
-                            <?php if ($p['telefone']): ?><a href="https://wa.me/55<?= preg_replace('/\D/', '', $p['telefone']) ?>" target="_blank" style="color:var(--success);"><?= e($p['telefone']) ?></a><?php endif; ?>
+                            <?php if ($p['telefone']): ?><a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $p['telefone']) ?>',nome:<?= e(json_encode($p['nome'])) ?>})" style="color:var(--success);"><?= e($p['telefone']) ?></a><?php endif; ?>
                             <?php if ($p['email']): ?><br><span class="text-muted"><?= e($p['email']) ?></span><?php endif; ?>
                         </td>
                         <td class="text-sm"><?= $p['pct_honorarios'] ? $p['pct_honorarios'] . '%' : '—' ?></td>

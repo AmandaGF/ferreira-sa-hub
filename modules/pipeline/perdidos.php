@@ -46,7 +46,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php foreach ($leads as $l): ?>
                     <tr>
                         <td class="font-bold"><?= e($l['name']) ?></td>
-                        <td class="text-sm"><?= $l['phone'] ? '<a href="https://wa.me/55' . preg_replace('/\D/', '', $l['phone']) . '" target="_blank" style="color:var(--success);">' . e($l['phone']) . '</a>' : '—' ?></td>
+                        <td class="text-sm"><?php if ($l['phone']): ?><a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $l['phone']) ?>',nome:<?= e(json_encode($l['name'])) ?>,clientId:<?= (int)($l['client_id'] ?? 0) ?>,leadId:<?= (int)$l['id'] ?>,canal:'21'})" style="color:var(--success);"><?= e($l['phone']) ?></a><?php else: ?>—<?php endif; ?></td>
                         <td class="text-sm"><?= e($l['case_type'] ?: '—') ?></td>
                         <td class="text-sm text-muted"><?= e($l['lost_reason'] ?: '—') ?></td>
                         <td class="text-sm"><?= $l['days'] ?>d</td>

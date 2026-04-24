@@ -181,7 +181,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <td><?= e($s['client_name'] ?: '—') ?></td>
                         <td class="text-sm">
                             <?php if ($s['client_phone']): ?>
-                                <a href="https://wa.me/55<?= preg_replace('/\D/', '', $s['client_phone']) ?>" target="_blank" style="color:var(--success);">📱 <?= e($s['client_phone']) ?></a>
+                                <a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $s['client_phone']) ?>',nome:<?= e(json_encode($s['client_name'] ?: '')) ?>,clientId:<?= (int)($s['linked_client_id'] ?? 0) ?>})" style="color:var(--success);">📱 <?= e($s['client_phone']) ?></a>
                             <?php else: ?>—<?php endif; ?>
                         </td>
                         <td><span class="badge badge-<?= $statusBadge[$s['status']] ?? 'gestao' ?>"><?= $statusLabels[$s['status']] ?? $s['status'] ?></span></td>

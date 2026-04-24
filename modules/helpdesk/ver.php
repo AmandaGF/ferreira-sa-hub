@@ -232,7 +232,9 @@ echo voltar_ao_processo_html();
                     $email = $linkedClient ? ($linkedClient['email'] ?: '') : '';
                     ?>
                     <?php if ($phone): ?>
-                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $phone) ?>" target="_blank" style="color:#25D366;font-weight:600;">
+                        <?php $_hdClientId = (int)($linkedClient['id'] ?? $ticket['client_id'] ?? 0); ?>
+                        <?php $_hdNome = $linkedClient ? $linkedClient['name'] : ($ticket['client_name'] ?: ''); ?>
+                        <a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $phone) ?>',nome:<?= e(json_encode($_hdNome)) ?>,clientId:<?= $_hdClientId ?>})" style="color:#25D366;font-weight:600;">
                             📱 <?= e($phone) ?>
                         </a>
                     <?php endif; ?>

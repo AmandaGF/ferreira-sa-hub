@@ -263,7 +263,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                     <?php if (!$isSent): ?>
                         <?php if ($a['phone']): ?>
-                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $a['phone']) ?>?text=<?= urlencode($msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário, ' . explode(' ', $a['name'])[0] . '!') ?>" target="_blank" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;" title="Enviar parabéns via WhatsApp">WhatsApp</a>
+                        <?php $_anivMsg = $msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário, ' . explode(' ', $a['name'])[0] . '!'; ?>
+                        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $a['phone']) ?>',nome:<?= e(json_encode($a['name'])) ?>,clientId:<?= (int)$a['id'] ?>,mensagem:<?= e(json_encode($_anivMsg)) ?>})" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;cursor:pointer;" title="Enviar parabéns via WhatsApp">WhatsApp</button>
                         <?php endif; ?>
                         <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&marcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;" title="Marcar como enviado">✓</a>
                     <?php else: ?>
@@ -302,7 +303,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php endif; ?>
 
                     <?php if (!$isSent && $a['phone']): ?>
-                        <a href="https://wa.me/55<?= preg_replace('/\D/', '', $a['phone']) ?>?text=<?= urlencode($msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário atrasado, ' . explode(' ', $a['name'])[0] . '!') ?>" target="_blank" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;">WhatsApp</a>
+                        <?php $_anivMsgAtr = $msgMes ? str_replace('{nome}', explode(' ', $a['name'])[0], $msgMes['body']) : 'Feliz aniversário atrasado, ' . explode(' ', $a['name'])[0] . '!'; ?>
+                        <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $a['phone']) ?>',nome:<?= e(json_encode($a['name'])) ?>,clientId:<?= (int)$a['id'] ?>,mensagem:<?= e(json_encode($_anivMsgAtr)) ?>})" class="btn btn-sm" style="font-size:.72rem;padding:.25rem .5rem;background:#25D366;color:#fff;border:none;border-radius:6px;cursor:pointer;">WhatsApp</button>
                         <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&marcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;">✓</a>
                     <?php elseif ($isSent): ?>
                         <a href="?mes=<?= $filtroMes ?>&vista=<?= $filtroVista ?>&desmarcar=1&cid=<?= $a['id'] ?>" class="btn btn-outline btn-sm" style="font-size:.6rem;padding:.15rem .35rem;opacity:.5;" title="Desmarcar">↩</a>
@@ -526,7 +528,7 @@ function showDayPopup(day, el) {
         html += '<span class="meta">' + (p.idade ? p.idade + ' anos' : '') + '</span>';
         if (p.phone) {
             var fone = p.phone.replace(/\D/g, '');
-            html += '<a href="https://wa.me/55' + fone + '" target="_blank" style="color:#25D366;font-size:.7rem;font-weight:600;">WhatsApp</a>';
+            html += '<a href="javascript:void(0)" onclick="waSenderOpen({telefone:\'' + fone + '\',nome:' + JSON.stringify(p.name||'').replace(/"/g, '&quot;') + ',clientId:' + (p.id||0) + '})" style="color:#25D366;font-size:.7rem;font-weight:600;">WhatsApp</a>';
         }
         html += '</div>';
     }

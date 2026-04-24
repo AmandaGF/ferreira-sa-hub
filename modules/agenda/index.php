@@ -769,9 +769,17 @@ function renderLista() {
                 var msg1 = 'Ol\u00e1, ' + primeiroNome + '! Passando para te lembrar que sua ' + tipoMinusc + ' \u00e9 dia ' + dataFmt + ' \u00e0s ' + horaFmt + '. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var msg2 = 'Oi, ' + primeiroNome + '! Tudo bem?! Te lembrando que sua ' + tipoMinusc + ' \u00e9 amanh\u00e3, \u00e0s ' + horaFmt + 'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
 
+                var _clIdLem = ev.client_id || 0;
+                var _phoneDigLem = phone.replace(/^55/, '');
+                // Stash payloads em window pra n\u00e3o precisar escapar JSON dentro de onclick
+                window.__agLembrete = window.__agLembrete || {};
+                var _keyLem1 = 'l' + ev.id + '_1';
+                var _keyLem2 = 'l' + ev.id + '_2';
+                window.__agLembrete[_keyLem1] = {telefone:_phoneDigLem,nome:(ev.client_name||''),clientId:_clIdLem,mensagem:msg1};
+                window.__agLembrete[_keyLem2] = {telefone:_phoneDigLem,nome:(ev.client_name||''),clientId:_clIdLem,mensagem:msg2};
                 lembreteHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;padding-top:6px;border-top:1px solid var(--border);">'
-                    + '<a class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;text-decoration:none;font-size:.7rem;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent(msg1) + '" target="_blank">Lembrar data</a>'
-                    + '<a class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;text-decoration:none;font-size:.7rem;" href="https://wa.me/' + phone + '?text=' + encodeURIComponent(msg2) + '" target="_blank">Lembrar amanh\u00e3</a>'
+                    + '<button type="button" class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;font-size:.7rem;cursor:pointer;" onclick="waSenderOpen(window.__agLembrete[\'' + _keyLem1 + '\'])">Lembrar data</button>'
+                    + '<button type="button" class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;font-size:.7rem;cursor:pointer;" onclick="waSenderOpen(window.__agLembrete[\'' + _keyLem2 + '\'])">Lembrar amanh\u00e3</button>'
                     + '</div>';
             }
 
@@ -1024,8 +1032,14 @@ function abrirModalEditar(id) {
                 var tL = (LABELS[ev.tipo]||'compromisso').toLowerCase();
                 var m1 = 'Ol\u00e1, '+pNome+'! Passando para te lembrar que sua '+tL+' \u00e9 dia '+dF+' \u00e0s '+hF+'. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var m2 = 'Oi, '+pNome+'! Tudo bem?! Te lembrando que sua '+tL+' \u00e9 amanh\u00e3, \u00e0s '+hF+'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
-                atHtml += '<a href="https://wa.me/'+ph+'?text='+encodeURIComponent(m1)+'" target="_blank" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Lembrar data</a>';
-                atHtml += '<a href="https://wa.me/'+ph+'?text='+encodeURIComponent(m2)+'" target="_blank" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Lembrar amanh\u00e3</a>';
+                var _phDig = ph.replace(/^55/, '');
+                window.__agLembrete = window.__agLembrete || {};
+                var _k1 = 'c' + ev.id + '_1';
+                var _k2 = 'c' + ev.id + '_2';
+                window.__agLembrete[_k1] = {telefone:_phDig,nome:cName,clientId:ev.client_id||0,mensagem:m1};
+                window.__agLembrete[_k2] = {telefone:_phDig,nome:cName,clientId:ev.client_id||0,mensagem:m2};
+                atHtml += '<button type="button" onclick="waSenderOpen(window.__agLembrete[\'' + _k1 + '\'])" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">Lembrar data</button>';
+                atHtml += '<button type="button" onclick="waSenderOpen(window.__agLembrete[\'' + _k2 + '\'])" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">Lembrar amanh\u00e3</button>';
             }
             atalhos.innerHTML = atHtml;
             atalhos.style.display = atHtml ? 'flex' : 'none';
@@ -1834,8 +1848,6 @@ function enviarMsgCliente(id) {
     var ev = eventos.filter(function(e) { return e.id == id; })[0];
     if (!ev || !ev.client_phone) { alert('Cliente sem telefone cadastrado.'); return; }
     var phone = ev.client_phone.replace(/\D/g, '');
-    if (phone.length < 11) phone = '55' + phone;
-    else if (phone.length === 11) phone = '55' + phone;
     var msg = ev.msg_cliente || '';
     if (msg) {
         var dt = new Date(ev.data_inicio.replace(' ','T'));
@@ -1845,7 +1857,7 @@ function enviarMsgCliente(id) {
                  .replace(/\[hora\]/g, dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}))
                  .replace(/\[link_meet\]/g, ev.meet_link || '');
     }
-    window.open('https://wa.me/' + phone + '?text=' + encodeURIComponent(msg), '_blank');
+    waSenderOpen({telefone: phone, nome: ev.client_name || '', clientId: ev.client_id || 0, mensagem: msg});
 }
 
 // ── AUTOCOMPLETE ────────────────────────────────────────────

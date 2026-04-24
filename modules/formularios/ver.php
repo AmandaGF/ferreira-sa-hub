@@ -332,7 +332,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <a href="<?= module_url('formularios', 'relatorio_gastos.php?id=' . $form['id']) ?>" class="btn btn-primary btn-sm" style="background:#B87333;">📊 Relatório Visual</a>
             <?php endif; ?>
             <?php if ($form['client_phone']): ?>
-                <a href="https://wa.me/55<?= preg_replace('/\D/', '', $form['client_phone']) ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+                <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $form['client_phone']) ?>',nome:<?= e(json_encode($form['linked_client_name'] ?: ($form['client_name'] ?? ''))) ?>,clientId:<?= (int)($form['linked_client_id'] ?? 0) ?>})" class="btn btn-success btn-sm">💬 WhatsApp</button>
             <?php endif; ?>
         </div>
     </div>
