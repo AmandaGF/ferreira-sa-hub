@@ -742,15 +742,24 @@ tbody tr:last-child td { border-bottom: none; }
 /* ─── Responsivo ──────────────────────────────────────── */
 @media (max-width: 768px) {
     .sidebar {
-        transform: translateX(-100%);
+        transform: translateX(-100%) !important;
     }
 
     .sidebar.open {
-        transform: translateX(0);
+        transform: translateX(0) !important;
     }
 
+    /* FIX 24/Abr/2026: em mobile o main-content deve ocupar 100% da tela.
+       Antes: max-width:calc(100% - 260px) fazia o conteúdo "vazar" 260px
+       pro invisível mesmo com sidebar escondida. Resultado: lista de
+       conversas e outros conteúdos ficavam comprimidos à esquerda. */
     .main-content {
-        margin-left: 0;
+        margin-left: 0 !important;
+        max-width: 100% !important;
+        width: 100%;
+    }
+    body.sidebar-collapsed .main-content {
+        max-width: 100% !important;
     }
 
     .btn-sidebar-toggle {
