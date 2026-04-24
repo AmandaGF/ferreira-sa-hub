@@ -954,7 +954,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             // Limpa a referencia ANTES do envio pra UI nao bloquear proxima gravacao
             audioPronto = null;
             mostrarBarraGravacao(false);
-            enviarAudioBlob(a.blob, a.mime);
+            enviarAudioBlob(a.blob, a.mime, a.duracaoMs);
             if (a.previewUrl) { try { URL.revokeObjectURL(a.previewUrl); } catch(e){} }
             return;
         }
@@ -1457,7 +1457,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     // Se Amanda clicou ➤ Enviar durante a gravação, envia direto (não guarda pra revisão)
                     if (devoEnviar) {
                         mostrarBarraGravacao(false);
-                        enviarAudioBlob(blob, usedMime);
+                        enviarAudioBlob(blob, usedMime, duracao);
                         return;
                     }
                     // ⏹ apenas PARA — áudio fica aguardando Amanda clicar ➤ Enviar
@@ -1513,30 +1513,41 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
     };
 
-    function enviarAudioBlob(blob, mime) {
+    function enviarAudioBlob(blob, mime, duracaoMs) {
         if (!convAtiva) return;
-        var ext = 'webm';
-        if (mime.indexOf('ogg') >= 0) ext = 'ogg';
-        else if (mime.indexOf('mp4') >= 0) ext = 'm4a';
+        // Bug conhecido do MediaRecorder/Chrome: WebM vai sem duração no header,
+        // aí WhatsApp mostra 00:00 pro destinatário — ele acha que áudio tá mudo
+        // e não toca. Fix injeta a duração real no EBML antes do upload.
+        var precisaFix = (mime.indexOf('webm') >= 0 && typeof window.fixWebmDuration === 'function' && typeof duracaoMs === 'number' && duracaoMs > 0);
+        var prosseguir = function(finalBlob) {
+            var ext = 'webm';
+            if (mime.indexOf('ogg') >= 0) ext = 'ogg';
+            else if (mime.indexOf('mp4') >= 0) ext = 'm4a';
 
-        var fd = new FormData();
-        fd.append('action', 'enviar_audio');
-        fd.append('conversa_id', convAtiva);
-        fd.append('audio', blob, 'voice_' + Date.now() + '.' + ext);
-        fd.append('csrf_token', csrf);
+            var fd = new FormData();
+            fd.append('action', 'enviar_audio');
+            fd.append('conversa_id', convAtiva);
+            fd.append('audio', finalBlob, 'voice_' + Date.now() + '.' + ext);
+            fd.append('csrf_token', csrf);
 
-        var btn = document.getElementById('waBtnSend');
-        btn.disabled = true; btn.textContent = 'Enviando áudio...';
+            var btn = document.getElementById('waBtnSend');
+            btn.disabled = true; btn.textContent = 'Enviando áudio...';
 
-        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
-            btn.disabled = false; btn.textContent = '➤ Enviar';
-            if (d.error) { alert('Erro: ' + d.error); return; }
-            window.waAbrir(convAtiva);
-            carregarLista();
-        }).catch(function(err){
-            btn.disabled = false; btn.textContent = '➤ Enviar';
-            alert('Falha ao enviar áudio: ' + err);
-        });
+            fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
+                btn.disabled = false; btn.textContent = '➤ Enviar';
+                if (d.error) { alert('Erro: ' + d.error); return; }
+                window.waAbrir(convAtiva);
+                carregarLista();
+            }).catch(function(err){
+                btn.disabled = false; btn.textContent = '➤ Enviar';
+                alert('Falha ao enviar áudio: ' + err);
+            });
+        };
+        if (precisaFix) {
+            window.fixWebmDuration(blob, duracaoMs, prosseguir);
+        } else {
+            prosseguir(blob);
+        }
     }
 
     // ── COLAR IMAGEM DIRETO (Ctrl+V em qualquer lugar do chat) ──
