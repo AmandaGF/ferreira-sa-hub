@@ -42,6 +42,97 @@ function zapi_instancia_configurada($ddd) {
 }
 
 /**
+ * Consulta Z-API /phone-exists pra descobrir se um número tem WhatsApp e qual o @lid.
+ *
+ * Paola (suporte Z-API, 24/Abr/2026) confirmou: @lid é ÚNICO e FIXO por número.
+ * Se o número muda, gera @lid novo. Por isso tratamos o @lid como chave canônica
+ * de identificação de contato WhatsApp.
+ *
+ * @param string $ddd DDD da instância ('21' ou '24')
+ * @param string $phone Telefone em qualquer formato (normaliza internamente)
+ * @return array ['exists'=>bool, 'phone'=>string, 'lid'=>string|null, 'http_code'=>int, 'erro'=>string|null]
+ */
+function zapi_phone_exists($ddd, $phone) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst) return array('exists' => false, 'erro' => 'Instância DDD ' . $ddd . ' não configurada');
+    $cfg = zapi_get_config();
+
+    $num = preg_replace('/\D/', '', (string)$phone);
+    if (strlen($num) === 10 || strlen($num) === 11) $num = '55' . $num;
+    if (strlen($num) < 10) return array('exists' => false, 'erro' => 'Telefone inválido: ' . $phone);
+
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/phone-exists/' . urlencode($num);
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 10,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) return array('exists' => false, 'erro' => $err, 'http_code' => $code);
+
+    $data = json_decode($resp, true);
+    // Z-API pode devolver objeto direto OU array com 1 elemento — normalizamos
+    if (is_array($data) && isset($data[0])) $data = $data[0];
+    return array(
+        'exists'    => !empty($data['exists']),
+        'phone'     => $data['phone'] ?? $num,
+        'lid'       => $data['lid'] ?? null,
+        'http_code' => $code,
+        'erro'      => null,
+    );
+}
+
+/**
+ * Consulta o @lid de um cliente via Z-API e salva em clients.whatsapp_lid.
+ * Idempotente — se já tem @lid salvo, retorna sem chamar API (só atualiza se force=true).
+ *
+ * @param int $clientId
+ * @param bool $force Se true, consulta de novo mesmo que já tenha @lid salvo
+ * @return array ['ok'=>bool, 'lid'=>string|null, 'motivo'=>string|null]
+ */
+function zapi_atualizar_lid_cliente($clientId, $force = false) {
+    $pdo = db();
+
+    // Self-heal: coluna whatsapp_lid (idempotente)
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN whatsapp_lid VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN whatsapp_lid_checado_em DATETIME DEFAULT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("CREATE INDEX idx_clients_whatsapp_lid ON clients(whatsapp_lid)"); } catch (Exception $e) {}
+
+    $st = $pdo->prepare("SELECT id, phone, whatsapp_lid FROM clients WHERE id = ?");
+    $st->execute(array($clientId));
+    $c = $st->fetch();
+    if (!$c) return array('ok' => false, 'motivo' => 'client não encontrado');
+    if (!$c['phone']) return array('ok' => false, 'motivo' => 'sem telefone cadastrado');
+    if (!$force && !empty($c['whatsapp_lid'])) {
+        return array('ok' => true, 'lid' => $c['whatsapp_lid'], 'motivo' => 'ja_existia');
+    }
+
+    // Qual DDD usar? Default 24; se houver instância 21 configurada, mesmo @lid pra ambas
+    // (endpoint /phone-exists é por instância mas @lid do WhatsApp é global).
+    $ddd = zapi_instancia_configurada('24') ? '24' : '21';
+    $res = zapi_phone_exists($ddd, $c['phone']);
+
+    if (!empty($res['erro']) || empty($res['exists'])) {
+        // Marca checado pra não ficar tentando pra sempre
+        $pdo->prepare("UPDATE clients SET whatsapp_lid_checado_em = NOW() WHERE id = ?")->execute(array($clientId));
+        return array('ok' => false, 'motivo' => $res['erro'] ?: 'número não existe no WhatsApp');
+    }
+
+    $pdo->prepare("UPDATE clients SET whatsapp_lid = ?, whatsapp_lid_checado_em = NOW() WHERE id = ?")
+        ->execute(array($res['lid'], $clientId));
+    return array('ok' => true, 'lid' => $res['lid'], 'motivo' => 'atualizado');
+}
+
+/**
  * Adiciona sugestão de mensagem à fila (caixa de envios pendentes).
  * Uso: zapi_fila_enfileirar('andamento', $clientId, $telefone, 'Olá...', array('case_id' => 123));
  */
