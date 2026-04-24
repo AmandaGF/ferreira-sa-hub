@@ -466,6 +466,13 @@ if (_urlDia && /^\d{4}-\d{2}-\d{2}$/.test(_urlDia)) {
 
 recarregarEventos();
 
+// Auto-abrir modal de EDIÇÃO se veio com ?editar=ID (link vindo da pasta do processo)
+var _urlEditar = new URLSearchParams(window.location.search).get('editar');
+if (_urlEditar && /^\d+$/.test(_urlEditar)) {
+    // Aguarda eventos carregarem antes de abrir o modal
+    setTimeout(function() { abrirModalEditar(parseInt(_urlEditar, 10)); }, 800);
+}
+
 // Auto-abrir modal se veio com ?novo=1
 <?php if ($preNovo):
     $preTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';

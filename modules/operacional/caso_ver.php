@@ -755,6 +755,7 @@ if (!empty($compFuturos)): ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
+            <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&editar=<?= (int)$comp['id'] ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:#fff;background:#052228;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;" title="Alterar data, hora, local, responsável, etc.">✏️ Editar</a>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
             <?php
             // Botões cumprir/descartar — aparecem se há publicação vinculada
