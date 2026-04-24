@@ -749,10 +749,7 @@ tbody tr:last-child td { border-bottom: none; }
         transform: translateX(0) !important;
     }
 
-    /* FIX 24/Abr/2026: em mobile o main-content deve ocupar 100% da tela.
-       Antes: max-width:calc(100% - 260px) fazia o conteúdo "vazar" 260px
-       pro invisível mesmo com sidebar escondida. Resultado: lista de
-       conversas e outros conteúdos ficavam comprimidos à esquerda. */
+    /* FIX 24/Abr/2026: em mobile o main-content deve ocupar 100% da tela. */
     .main-content {
         margin-left: 0 !important;
         max-width: 100% !important;
@@ -761,6 +758,14 @@ tbody tr:last-child td { border-bottom: none; }
     body.sidebar-collapsed .main-content {
         max-width: 100% !important;
     }
+
+    /* Título duplicado: topbar-title é o mesmo nome que o H1 da página interna.
+       Em mobile faz eco visual desnecessário. Esconde e deixa só o H1. */
+    .topbar-title { display:none !important; }
+
+    /* Barra de favoritos (chips coloridos no topo) consome muito espaço
+       em mobile — esconde totalmente. Desktop mantém. */
+    .fav-bar { display:none !important; }
 
     .btn-sidebar-toggle {
         display: block;

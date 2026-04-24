@@ -380,7 +380,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- ── Coluna direita: Chat ────────────────────────── -->
     <div class="wa-pane" style="position:relative;">
         <div class="wa-chat-head" id="waChatHeadContainer">
-            <button type="button" class="wa-btn-voltar-lista" onclick="waVoltarLista()" title="Voltar para lista de conversas">←</button>
+            <button type="button" class="wa-btn-voltar-lista" onclick="waVoltarLista()" title="Voltar para lista de conversas"
+                style="display:none;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;font-size:1.3rem;color:#052228;padding:4px 10px;margin-right:6px;border-radius:8px;line-height:1;">←</button>
             <strong id="waChatTitle">Selecione uma conversa</strong>
             <span class="wa-head-sub" id="waChatSub"></span>
         </div>
@@ -592,9 +593,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var el = document.querySelector('.wa-conv[data-id="'+id+'"]');
         if (el) el.classList.add('active');
 
-        // Mobile: alterna pra "página do chat" (esconde lista)
+        // Mobile: alterna pra "página do chat" (esconde lista) e mostra botão voltar
         var wrap = document.getElementById('waWrap');
         if (wrap) wrap.classList.add('wa-show-chat');
+        if (window.innerWidth <= 768) {
+            var btnVoltar = document.querySelector('.wa-btn-voltar-lista');
+            if (btnVoltar) btnVoltar.style.display = 'inline-flex';
+        }
 
         fetch(apiUrl + '?action=abrir_conversa&id=' + id).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
@@ -606,6 +611,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waVoltarLista = function() {
         var wrap = document.getElementById('waWrap');
         if (wrap) wrap.classList.remove('wa-show-chat');
+        var btnVoltar = document.querySelector('.wa-btn-voltar-lista');
+        if (btnVoltar) btnVoltar.style.display = 'none';
     };
 
     function renderConversa(d) {
