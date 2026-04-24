@@ -13,6 +13,7 @@ require_once __DIR__ . '/../../core/database.php';
 require_once __DIR__ . '/../../core/functions.php';
 require_once __DIR__ . '/../../core/auth.php';
 require_once __DIR__ . '/system_prompt.php';
+require_once __DIR__ . '/renderer.php';
 
 // Descartar qualquer output dos requires
 ob_end_clean();
@@ -472,17 +473,24 @@ FIXO;
         exit;
     }
 
-    $htmlPeticao = $data['content'][0]['text'];
+    $textoMarcado = $data['content'][0]['text'];
 
-    // Limpar output: remover code blocks markdown e tags HTML externas
-    $htmlPeticao = preg_replace('/^```html?\s*/i', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/\s*```\s*$/', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/<!(DOCTYPE|doctype)[^>]*>/', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/<\/?html[^>]*>/', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/<head>.*?<\/head>/s', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/<\/?body[^>]*>/', '', $htmlPeticao);
-    $htmlPeticao = preg_replace('/<style[^>]*>.*?<\/style>/s', '', $htmlPeticao);
-    $htmlPeticao = trim($htmlPeticao);
+    // Limpa eventuais envelopes markdown/html que a IA às vezes devolve
+    $textoMarcado = preg_replace('/^```[a-z]*\s*/i', '', $textoMarcado);
+    $textoMarcado = preg_replace('/\s*```\s*$/', '', $textoMarcado);
+    // Se por algum motivo a IA ainda devolveu HTML envelope (transição do prompt antigo),
+    // remove — o texto interno com marcadores ainda passa pelo renderer.
+    $textoMarcado = preg_replace('/<!(DOCTYPE|doctype)[^>]*>/', '', $textoMarcado);
+    $textoMarcado = preg_replace('/<\/?html[^>]*>/', '', $textoMarcado);
+    $textoMarcado = preg_replace('/<head>.*?<\/head>/s', '', $textoMarcado);
+    $textoMarcado = preg_replace('/<\/?body[^>]*>/', '', $textoMarcado);
+    $textoMarcado = preg_replace('/<style[^>]*>.*?<\/style>/s', '', $textoMarcado);
+    $textoMarcado = trim($textoMarcado);
+
+    // Converte marcadores Visual Law em HTML inline via renderer centralizado.
+    // Benefício: formatação consistente em tela/impressão/Word/PDF — não depende
+    // da IA emitir HTML perfeito.
+    $htmlPeticao = peticao_render($textoMarcado);
 
     $tokensIn = isset($data['usage']['input_tokens']) ? (int)$data['usage']['input_tokens'] : 0;
     $tokensOut = isset($data['usage']['output_tokens']) ? (int)$data['usage']['output_tokens'] : 0;
