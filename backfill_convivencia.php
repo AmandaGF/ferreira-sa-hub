@@ -38,6 +38,17 @@ foreach (array('host'=>'DB_HOST','name'=>'DB_NAME','user'=>'DB_USER','pass'=>'DB
 }
 echo "  parsed: host={$dbVars['host']} db={$dbVars['name']} user={$dbVars['user']} pass=" . ($dbVars['pass'] ? '***' : 'null') . "\n";
 @ob_flush(); flush();
+
+// Se não conseguiu, dump dos trechos do config pra debug
+if (!$dbVars['host']) {
+    echo "DEBUG — primeiras 80 linhas do config:\n";
+    foreach (array_slice(explode("\n", $confSrc), 0, 80) as $i => $ln) {
+        if (stripos($ln, 'DB_') !== false || stripos($ln, 'host') !== false || stripos($ln, 'pdo') !== false || stripos($ln, 'mysql') !== false) {
+            echo sprintf("L%02d: %s\n", $i+1, $ln);
+        }
+    }
+    exit;
+}
 $pdoOld = new PDO(
     "mysql:host={$dbVars['host']};dbname={$dbVars['name']};charset=utf8mb4",
     $dbVars['user'], $dbVars['pass'],
