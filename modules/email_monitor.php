@@ -74,8 +74,8 @@ $pdo->exec(
 // ────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'descartar_pendente') {
     header('Content-Type: application/json; charset=utf-8');
-    $csrfPost = isset($_POST['csrf']) ? $_POST['csrf'] : '';
-    if (!validate_csrf($csrfPost)) {
+    // validate_csrf() lê de $_POST['csrf_token'] (CSRF_TOKEN_NAME do config.php)
+    if (!validate_csrf()) {
         echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido. Recarregue a página.'));
         exit;
     }
@@ -780,9 +780,9 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
         if (!confirm('Marcar este processo como descartado? Ele some da lista (pode ser revisto com "mostrar descartados").')) return;
 
         var fd = new FormData();
-        fd.append('action', 'descartar_pendente');
-        fd.append('csrf',   EM_CSRF);
-        fd.append('id',     id);
+        fd.append('action',     'descartar_pendente');
+        fd.append('csrf_token', EM_CSRF);
+        fd.append('id',         id);
 
         var xhr = new XMLHttpRequest();
         xhr.open('POST', EM_PAGE, true);
