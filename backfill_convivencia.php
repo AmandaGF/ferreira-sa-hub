@@ -10,21 +10,22 @@
  * Também remove o registro #525 (teste do diagnóstico).
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('x'); }
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+@header('Content-Type: text/plain; charset=utf-8');
 
-// IMPORTANTE: o config.php do convivencia_form pode usar session_start()
-// ou outras funcs que requerem headers ainda não enviados. Carrega ele PRIMEIRO,
-// antes de qualquer header() / output, depois liga buffer pro relatório.
-require_once dirname(__DIR__) . '/convivencia_form/config.php';
-$pdoOldEarly = pdo();
+try {
+    require_once dirname(__DIR__) . '/convivencia_form/config.php';
+    $pdoOldEarly = pdo();
+    echo "[OK] conectou no banco antigo\n";
+} catch (Throwable $e) {
+    echo "[ERRO conectando no banco antigo] " . $e->getMessage() . "\n";
+    exit;
+}
 
 require_once __DIR__ . '/core/database.php';
 $pdoHub = db();
-
-@header('Content-Type: text/plain; charset=utf-8');
-ob_start();
-register_shutdown_function(function() {
-    if (ob_get_level() > 0) ob_end_flush();
-});
+echo "[OK] conectou no banco do Hub\n\n";
 
 // 1. Limpa registro de teste
 echo "=== Limpando #525 (teste do diagnóstico) ===\n";
