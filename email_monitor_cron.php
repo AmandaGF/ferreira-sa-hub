@@ -256,15 +256,18 @@ foreach ($emails as $uid) {
             continue;
         }
 
-        // Busca case
+        // Busca case — fetchAll + closeCursor garante que o cursor não
+        // fique aberto pra próxima query (evita SQLSTATE HY000 / error 2014)
         $stmtBuscaCase->execute(array($parsed['cnj']));
-        $case = $stmtBuscaCase->fetch();
-        if (!$case) {
+        $caseRows = $stmtBuscaCase->fetchAll();
+        $stmtBuscaCase->closeCursor();
+        if (empty($caseRows)) {
             $emailsIgnorados++;
             $detalhes[] = "Processo {$parsed['cnj']} não cadastrado em cases (UID {$uidStr})";
             @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
             continue;
         }
+        $case = $caseRows[0];
 
         $caseId  = (int)$case['id'];
         $segredo = (int)$case['segredo_justica'];
@@ -277,8 +280,12 @@ foreach ($emails as $uid) {
         foreach ($parsed['movimentos'] as $mov) {
             $hash = md5($caseId . '|' . $mov['data'] . '|' . $mov['hora'] . '|' . $mov['descricao']);
 
+            // Checa duplicata via fetchAll + closeCursor pra liberar o cursor
+            // antes do INSERT subsequente. SELECT por chave única retorna 0 ou 1 linha.
             $stmtChkHash->execute(array($hash));
-            if ($stmtChkHash->fetchColumn()) {
+            $hashRows = $stmtChkHash->fetchAll();
+            $stmtChkHash->closeCursor();
+            if (!empty($hashRows)) {
                 $duplicatasIgnor++;
                 continue;
             }
@@ -292,8 +299,11 @@ foreach ($emails as $uid) {
                     $segredo,
                     $hash,
                 ));
+                $stmtInsAndam->closeCursor();
                 $andamentosInsert++;
             } catch (Exception $e) {
+                // closeCursor por garantia mesmo em caso de erro
+                @$stmtInsAndam->closeCursor();
                 $erros++;
                 $detalhes[] = "Erro INSERT case#{$caseId} ({$parsed['cnj']}): " . $e->getMessage();
             }
@@ -456,4 +466,5 @@ function email_monitor_log_save($pdo, $lidos, $insert, $ignor, $dup, $erros, $de
          VALUES (NOW(), ?, ?, ?, ?, ?, ?, ?)"
     );
     $stmt->execute(array($lidos, $insert, $ignor, $dup, $erros, $detText, $modo));
+    $stmt->closeCursor();
 }
