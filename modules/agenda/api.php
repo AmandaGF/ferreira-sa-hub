@@ -8,11 +8,19 @@ require_login();
 $pdo = db();
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-// Balcão Virtual TJRJ: agendamento permitido só entre 11:00 e 17:00.
-// Retorna [ok, msg] — ok=false se horário fora da janela.
+// Balcão Virtual TJRJ: agendamento permitido só de segunda a sexta entre 11:00 e 17:00.
+// Retorna [ok, msg] — ok=false se for fim de semana ou horário fora da janela.
 function _balcao_valida_horario($datetime_str) {
     $ts = strtotime((string)$datetime_str);
     if ($ts === false) return array(true, '');
+
+    // Dia da semana: 1=segunda, 7=domingo (ISO-8601 via date('N'))
+    $diaSemana = (int)date('N', $ts);
+    if ($diaSemana >= 6) {
+        $nomeDia = $diaSemana === 6 ? 'sábado' : 'domingo';
+        return array(false, 'Balcão Virtual: agendamento permitido apenas de segunda a sexta-feira (recebido ' . $nomeDia . ', ' . date('d/m/Y', $ts) . ').');
+    }
+
     $mins = ((int)date('H', $ts)) * 60 + (int)date('i', $ts);
     if ($mins < 11 * 60 || $mins > 17 * 60) {
         return array(false, 'Balcão Virtual: horário permitido entre 11:00 e 17:00 (recebido ' . date('H:i', $ts) . ').');
