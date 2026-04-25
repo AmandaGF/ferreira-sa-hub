@@ -2698,7 +2698,7 @@ function renderPartes() {
         el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:.8rem;font-size:.85rem;">Nenhuma parte cadastrada. Clique em "+ Adicionar Parte".</div>';
         return;
     }
-    var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:100px;">Ações</th></tr></thead><tbody>';
+    var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:140px;">Ações</th></tr></thead><tbody>';
     partesData.forEach(function(p) {
         var nome = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '—') : (p.nome || '—');
         var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
@@ -2713,11 +2713,35 @@ function renderPartes() {
             + '<td style="font-weight:600;">' + esc(nome) + repInfo + clienteBadge + '</td>'
             + '<td style="font-family:monospace;font-size:.78rem;">' + esc(doc) + '</td>'
             + '<td>' + tipo + '</td>'
-            + '<td><button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;">Editar</button></td>'
+            + '<td style="white-space:nowrap;">'
+            +   '<button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;" title="Editar parte">Editar</button> '
+            +   '<button onclick="excluirParteDireto(' + p.id + ', ' + JSON.stringify(nome) + ')" class="btn btn-sm" style="font-size:.68rem;padding:2px 6px;color:#dc2626;border:1px solid #dc2626;background:#fff;cursor:pointer;border-radius:4px;" title="Excluir parte">×</button>'
+            + '</td>'
             + '</tr>';
     });
     html += '</tbody></table>';
     el.innerHTML = html;
+}
+
+// Excluir parte direto da lista (sem precisar abrir o modal de Editar)
+function excluirParteDireto(id, nome) {
+    if (!confirm('Remover a parte "' + nome + '" deste processo?')) return;
+    var fd = new FormData();
+    fd.append('action', 'excluir');
+    fd.append('csrf_token', PARTES_CSRF);
+    fd.append('id', id);
+    var x = new XMLHttpRequest();
+    x.open('POST', PARTES_API);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            if (r.csrf) PARTES_CSRF = r.csrf;
+            if (r.error) { alert('Erro: ' + r.error); return; }
+        } catch (e) {}
+        carregarPartes();
+    };
+    x.onerror = function() { alert('Erro de rede ao excluir.'); };
+    x.send(fd);
 }
 
 function esc(s) { if(!s) return ''; var d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
