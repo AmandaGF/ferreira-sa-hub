@@ -188,22 +188,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {}
     }
 
-    // ═══ Import automático de andamentos pendentes do email PJe ═══
+    // ═══ Import automático de andamentos + partes pendentes do email PJe ═══
     // Se este case_number tinha registros em email_monitor_pendentes (status='pendente'),
     // significa que andamentos do PJe chegaram por email mas o caso ainda não existia.
-    // Agora que o caso existe, varremos a caixa do Gmail (FROM do PJe + BODY contendo o
-    // CNJ) e importamos todos os movimentos pra case_andamentos com tipo_origem='email_pje'.
-    // Dedup por hash MD5 evita inserts duplicados se o email já tiver sido processado.
+    // Agora que o caso existe:
+    //   1. Varremos a caixa do Gmail (FROM do PJe + BODY contendo o CNJ) e
+    //      importamos todos os movimentos pra case_andamentos (dedup por MD5).
+    //   2. Adicionamos polo_ativo / polo_passivo (saved no pendente) como case_partes,
+    //      ignorando siglas (A.G.F.) e linkando à `clients` se o nome bater.
     $importadosPje = 0;
+    $partesAuto    = 0;
     if ($case_number !== '') {
         try {
-            $stmtPendChk = $pdo->prepare("SELECT id FROM email_monitor_pendentes WHERE case_number = ? AND status = 'pendente' LIMIT 1");
+            $stmtPendChk = $pdo->prepare("SELECT id, polo_ativo, polo_passivo FROM email_monitor_pendentes WHERE case_number = ? AND status = 'pendente' LIMIT 1");
             $stmtPendChk->execute(array($case_number));
             $pendRows = $stmtPendChk->fetchAll();
             $stmtPendChk->closeCursor();
 
             if (!empty($pendRows)) {
+                $pendDados = $pendRows[0];
                 require_once __DIR__ . '/../../includes/email_monitor_functions.php';
+
+                // ─── 1. Import dos movimentos via IMAP ───────────────────
                 $mboxImp = email_monitor_conectar_imap();
                 if ($mboxImp) {
                     $userId = (int)current_user_id();
@@ -228,8 +234,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     @imap_close($mboxImp);
                 }
 
-                // Marca pendência como 'cadastrado' independente do sucesso do IMAP —
-                // o caso EXISTE agora, então a pendência foi resolvida.
+                // ─── 2. Auto-cadastro de partes a partir dos polos ───────
+                // Polos vêm da própria tabela email_monitor_pendentes (saved pelo cron).
+                // Ignora siglas e evita duplicar partes já cadastradas pelo formulário.
+                $polosAuto = array(
+                    array('nome' => trim((string)$pendDados['polo_ativo']),   'papel' => 'autor'),
+                    array('nome' => trim((string)$pendDados['polo_passivo']), 'papel' => 'reu'),
+                );
+                foreach ($polosAuto as $polo) {
+                    $nomeP = $polo['nome'];
+                    if ($nomeP === '') continue;
+                    if (email_monitor_eh_so_iniciais($nomeP)) continue;
+
+                    // Skip se já existe parte com esse nome no caso (cliente principal
+                    // ou parte adicionada manualmente no formulário).
+                    try {
+                        $stmtChkP = $pdo->prepare(
+                            "SELECT id FROM case_partes
+                             WHERE case_id = ? AND (
+                                LOWER(TRIM(COALESCE(nome,''))) = LOWER(TRIM(?))
+                                OR LOWER(TRIM(COALESCE(razao_social,''))) = LOWER(TRIM(?))
+                             ) LIMIT 1"
+                        );
+                        $stmtChkP->execute(array($newId, $nomeP, $nomeP));
+                        $rowsP = $stmtChkP->fetchAll();
+                        $stmtChkP->closeCursor();
+                        if (!empty($rowsP)) continue;
+                    } catch (Throwable $e) { continue; }
+
+                    // Procura cliente existente pelo nome (case-insensitive, exato).
+                    $clientPId  = null;
+                    $clientPCpf = null;
+                    try {
+                        $stmtCli = $pdo->prepare("SELECT id, cpf, phone, email FROM clients WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1");
+                        $stmtCli->execute(array($nomeP));
+                        $rowsCli = $stmtCli->fetchAll();
+                        $stmtCli->closeCursor();
+                        if (!empty($rowsCli)) {
+                            $clientPId  = (int)$rowsCli[0]['id'];
+                            $clientPCpf = $rowsCli[0]['cpf'] ?: null;
+                        }
+                    } catch (Throwable $e) { /* ignora — segue sem link */ }
+
+                    // INSERT — escolhe coluna conforme tipo_pessoa
+                    try {
+                        if (email_monitor_eh_pessoa_juridica($nomeP)) {
+                            $pdo->prepare(
+                                "INSERT INTO case_partes (case_id, papel, tipo_pessoa, razao_social, cnpj, client_id)
+                                 VALUES (?, ?, 'juridica', ?, ?, ?)"
+                            )->execute(array($newId, $polo['papel'], $nomeP, null, $clientPId));
+                        } else {
+                            $pdo->prepare(
+                                "INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, client_id)
+                                 VALUES (?, ?, 'fisica', ?, ?, ?)"
+                            )->execute(array($newId, $polo['papel'], $nomeP, $clientPCpf, $clientPId));
+                        }
+                        $partesAuto++;
+                    } catch (Throwable $e) { /* ignora — falha em 1 parte não derruba */ }
+                }
+
+                // ─── 3. Marca pendência como 'cadastrado' ────────────────
+                // Independente do sucesso do IMAP — o caso EXISTE agora.
                 $stmtUpdPend = $pdo->prepare("UPDATE email_monitor_pendentes SET status = 'cadastrado' WHERE case_number = ?");
                 $stmtUpdPend->execute(array($case_number));
                 $stmtUpdPend->closeCursor();
@@ -242,7 +307,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $msgSucesso = 'Processo cadastrado com sucesso!';
     if ($importadosPje > 0) {
-        $msgSucesso .= ' ' . $importadosPje . ' andamento(s) do email PJe importado(s) automaticamente.';
+        $msgSucesso .= ' ' . $importadosPje . ' andamento(s) importado(s) do email PJe.';
+    }
+    if ($partesAuto > 0) {
+        $msgSucesso .= ' ' . $partesAuto . ' parte(s) cadastrada(s) automaticamente.';
     }
     flash_set('success', $msgSucesso);
     redirect(module_url('operacional', 'caso_ver.php?id=' . $newId));

@@ -109,6 +109,66 @@ function email_monitor_inserir_andamento($pdo, $caseId, $movimento, $segredo, $c
     }
 }
 
+/**
+ * Detecta se um polo é apenas sigla/iniciais (ex: "A.G.F.", "L. S. N. C.",
+ * "M. D. S. C. E OUTROS"). Quando o PJe protege a identidade da parte por
+ * algum motivo (segredo de justiça, menor, etc), o nome aparece só em
+ * iniciais — não dá pra cadastrar como parte real, então pulamos.
+ *
+ * Heurística:
+ *   - Remove sufixos tipo " E OUTROS" / " E OUTRO"
+ *   - Se ≥30% dos chars (sem espaços) são pontos → é sigla
+ *   - Se nenhum token tem ≥3 letras (sem pontos) → é sigla
+ *
+ * @return bool true se for só iniciais (deve ser ignorado), false se é nome real
+ */
+function email_monitor_eh_so_iniciais($nome) {
+    $nome = trim((string)$nome);
+    if ($nome === '') return true;
+
+    // Remove sufixos comuns que não fazem parte do nome
+    $base = preg_replace('/\s+E\s+OUTROS?\s*$/iu', '', $nome);
+    $base = trim($base);
+    if ($base === '') return true;
+
+    // Conta pontos vs caracteres totais (sem espaços)
+    $semEspaco = preg_replace('/\s+/u', '', $base);
+    $totalChars = mb_strlen($semEspaco);
+    if ($totalChars === 0) return true;
+    $pontos = substr_count($semEspaco, '.');
+    if ($totalChars > 0 && ($pontos / $totalChars) >= 0.30) return true;
+
+    // Se nenhum token (palavra) tem ≥3 letras (descontando pontos), é sigla
+    $tokens = preg_split('/\s+/u', $base);
+    foreach ($tokens as $tok) {
+        $semPonto = str_replace('.', '', $tok);
+        if (mb_strlen($semPonto) >= 3) return false;
+    }
+    return true;
+}
+
+/**
+ * Detecta se um nome é pessoa jurídica (LTDA, S/A, COOPERATIVA, INSS, etc).
+ * Usado pra decidir se INSERT em case_partes vai pra coluna razao_social
+ * (jurídica) ou nome (física).
+ */
+function email_monitor_eh_pessoa_juridica($nome) {
+    $upper = ' ' . mb_strtoupper((string)$nome) . ' ';
+    $patterns = array(
+        ' LTDA', ' S/A', ' S.A.', ' S.A ', ' SA ', ' EIRELI', ' ME ', ' EPP ',
+        'COOPERATIVA', 'INSTITUTO', 'SOCIEDADE', 'FUNDAÇÃO', 'FUNDACAO',
+        'ASSOCIAÇÃO', 'ASSOCIACAO', 'SINDICATO', 'CLUBE ', 'COMPANHIA',
+        'EMPRESA ', 'BANCO ', 'CAIXA ', 'GOVERNO', 'MUNICÍPIO', 'MUNICIPIO',
+        'ESTADO DE ', 'UNIÃO ', 'UNIAO ', 'INSS', 'FAZENDA NACIONAL',
+        'FAZENDA PÚBLICA', 'FAZENDA PUBLICA', 'PREFEITURA', 'CONSELHO',
+        'AUTARQUIA', 'CONDOMÍNIO', 'CONDOMINIO',
+    );
+    foreach ($patterns as $p) {
+        if (mb_strpos($upper, $p) !== false) return true;
+    }
+    return false;
+}
+
 // ════════════════════════════════════════════════════════════
 // Helpers internos de parsing (também usados pelo cron diretamente)
 // ════════════════════════════════════════════════════════════
