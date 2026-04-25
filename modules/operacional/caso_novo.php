@@ -362,6 +362,7 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
 $preCaseNumber = trim($_GET['case_number'] ?? '');
 $preTitle      = trim($_GET['title'] ?? '');
 $preOrgao      = trim($_GET['orgao'] ?? '');
+$preFrom       = trim($_GET['from'] ?? ''); // 'email_monitor' quando vem da aba Pendentes
 
 // Parse do órgão (texto completo do PJe) → vara + comarca + UF.
 // Exemplos:
@@ -392,6 +393,62 @@ if ($preOrgao !== '') {
     // Email Monitor só processa emails do TJRJ (IMAP_FROM_FILTER=tjrj.pjeadm-LD@tjrj.jus.br)
     // — então sempre que vier órgão por aqui, a UF é RJ.
     $preUfOrgao = 'RJ';
+}
+
+// Pré-carregamento de partes a partir do email_monitor_pendentes — usado pra
+// já mostrar polo_ativo / polo_passivo na seção "Partes do Processo" do formulário,
+// antes de Amanda salvar. Ignora siglas (A.G.F.) e linka client_id se o nome
+// bater com um cliente já cadastrado em `clients`.
+$partesPreFillEmail = array();
+if ($preCaseNumber !== '') {
+    require_once __DIR__ . '/../../includes/email_monitor_functions.php';
+    try {
+        $stmtPendData = $pdo->prepare("SELECT polo_ativo, polo_passivo FROM email_monitor_pendentes WHERE case_number = ? AND status = 'pendente' LIMIT 1");
+        $stmtPendData->execute(array($preCaseNumber));
+        $rowsPendData = $stmtPendData->fetchAll();
+        $stmtPendData->closeCursor();
+        if (!empty($rowsPendData)) {
+            $polosFromPend = array(
+                array('nome' => trim((string)$rowsPendData[0]['polo_ativo']),   'papel' => 'autor'),
+                array('nome' => trim((string)$rowsPendData[0]['polo_passivo']), 'papel' => 'reu'),
+            );
+            foreach ($polosFromPend as $polo) {
+                $nomeP = $polo['nome'];
+                if ($nomeP === '') continue;
+                if (email_monitor_eh_so_iniciais($nomeP)) continue;
+
+                $tipoP = email_monitor_eh_pessoa_juridica($nomeP) ? 'juridica' : 'fisica';
+
+                // Procura cliente existente pelo nome (exato, case-insensitive)
+                $clientPId = null;
+                $cpfOrCnpj = '';
+                try {
+                    $stmtCliP = $pdo->prepare("SELECT id, cpf FROM clients WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1");
+                    $stmtCliP->execute(array($nomeP));
+                    $rowsCliP = $stmtCliP->fetchAll();
+                    $stmtCliP->closeCursor();
+                    if (!empty($rowsCliP)) {
+                        $clientPId = (int)$rowsCliP[0]['id'];
+                        $cpfOrCnpj = (string)($rowsCliP[0]['cpf'] ?: '');
+                    }
+                } catch (Throwable $e) { /* ignora */ }
+
+                // Estrutura compatível com o que o foreach de partesPreFill consome
+                // (mesmas chaves usadas pra princPartes na linha ~545).
+                $partesPreFillEmail[] = array(
+                    'papel'        => $polo['papel'],
+                    'tipo_pessoa'  => $tipoP,
+                    'nome'         => $tipoP === 'fisica'   ? $nomeP : null,
+                    'razao_social' => $tipoP === 'juridica' ? $nomeP : null,
+                    'cpf'          => $tipoP === 'fisica'   ? $cpfOrCnpj : null,
+                    'cnpj'         => $tipoP === 'juridica' ? $cpfOrCnpj : null,
+                    'client_id'    => $clientPId,
+                );
+            }
+        }
+    } catch (Throwable $e) {
+        // Silencioso — falha aqui não deve derrubar o formulário
+    }
 }
 
 // Status para cadastro MANUAL de processo (não entra no Kanban Operacional)
@@ -444,7 +501,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <div class="form-novo-caso">
-    <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="margin-bottom:1rem;">&#8592; Voltar</a>
+    <?php
+    // Botão Voltar — destino depende de onde a navegação veio.
+    // ?from=email_monitor → volta pra aba Pendentes do Email Monitor
+    // (a tab fica ativa porque o JS lê localStorage 'em_active_tab')
+    if ($preFrom === 'email_monitor') {
+        $voltarHref  = url('modules/email_monitor.php');
+        $voltarLabel = '&#8592; Voltar pra Pendentes';
+    } else {
+        $voltarHref  = module_url('operacional');
+        $voltarLabel = '&#8592; Voltar';
+    }
+    ?>
+    <a href="<?= e($voltarHref) ?>" class="btn btn-outline btn-sm" style="margin-bottom:1rem;"><?= $voltarLabel ?></a>
 
     <div class="card">
         <div class="card-header" style="background:linear-gradient(135deg, var(--petrol-900), var(--petrol-500)); color:#fff; border-radius:var(--radius-lg) var(--radius-lg) 0 0;">
@@ -538,6 +607,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             foreach ($princPartes as $pp) {
                                 if ($pp['client_id'] && $preClient && (int)$pp['client_id'] === (int)$preClient['id']) continue;
                                 $partesPreFill[] = $pp;
+                            }
+                        }
+                        // Polos extraídos do email_monitor_pendentes (vindo da aba Pendentes do Email Monitor)
+                        // — pula se já tem parte com o mesmo nome (ex: princPartes já cobriu).
+                        if (!empty($partesPreFillEmail)) {
+                            $nomesJa = array();
+                            foreach ($partesPreFill as $pX) {
+                                $key = mb_strtolower(trim((string)($pX['nome'] !== null ? $pX['nome'] : '') . ($pX['razao_social'] !== null ? $pX['razao_social'] : '')));
+                                if ($key !== '') $nomesJa[$key] = true;
+                            }
+                            foreach ($partesPreFillEmail as $pE) {
+                                $key = mb_strtolower(trim((string)($pE['nome'] !== null ? $pE['nome'] : '') . ($pE['razao_social'] !== null ? $pE['razao_social'] : '')));
+                                if ($key === '' || isset($nomesJa[$key])) continue;
+                                $partesPreFill[] = $pE;
+                                $nomesJa[$key] = true;
                             }
                         }
                         if (!empty($partesPreFill)):

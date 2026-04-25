@@ -487,10 +487,12 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                 // URL do form de novo caso. NÃO passa title (Amanda preenche manualmente
                                 // pra evitar criar pasta com nome incompatível com a convenção do escritório).
                                 // Passa case_number + orgao (caso_novo.php parseia o órgão pra preencher
-                                // vara + comarca automaticamente).
+                                // vara + comarca + UF automaticamente) + from=email_monitor (faz o botão
+                                // Voltar do caso_novo apontar pra esta página de novo).
                                 $urlCadastrar = url('modules/operacional/caso_novo.php')
                                               . '?case_number=' . rawurlencode($p['case_number'])
-                                              . '&orgao='       . rawurlencode((string)($p['orgao'] !== null ? $p['orgao'] : ''));
+                                              . '&orgao='       . rawurlencode((string)($p['orgao'] !== null ? $p['orgao'] : ''))
+                                              . '&from=email_monitor';
 
                                 // Polos compactos pra primeira coluna
                                 $poloA = ($p['polo_ativo']   !== null && $p['polo_ativo']   !== '') ? $p['polo_ativo']   : '—';
@@ -534,10 +536,8 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                         <?php if (!$isDesc): ?>
                                             <a class="em-btn-cad"
                                                href="<?= e($urlCadastrar) ?>"
-                                               target="_blank"
-                                               rel="noopener"
-                                               onclick="emCadastrarPendente(this, <?= e(json_encode($p['case_number'])) ?>, <?= e(json_encode($tituloSug)) ?>);"
-                                               title="Abre o cadastro de caso novo em nova aba. CNJ e título são copiados pra área de transferência (Ctrl+V cola nos campos).">
+                                               onclick="emAntesCadastrar();"
+                                               title="Abre o cadastro de caso novo (CNJ, vara, comarca, UF e partes vêm pré-preenchidos do email).">
                                                 ✚ Cadastrar
                                             </a>
                                             <button type="button" class="em-btn-desc" onclick="emDescartarPendente(<?= (int)$p['id'] ?>)" title="Marca como descartado (não vai mais aparecer)">
@@ -718,28 +718,12 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
         if (btn) btn.textContent = hidden ? 'ocultar descartados' : 'mostrar descartados';
     };
 
-    // ──── Cadastrar pendente: copia CNJ + título pro clipboard como fallback ────
-    // (caso_novo.php hoje não pré-preenche via querystring; copiar pro clipboard
-    //  permite Ctrl+V manual nos 2 campos)
-    window.emCadastrarPendente = function(linkEl, cnj, titulo) {
-        try {
-            var texto = 'CNJ: ' + cnj + '\nTítulo: ' + titulo;
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(texto);
-            } else {
-                // Fallback: textarea + execCommand
-                var ta = document.createElement('textarea');
-                ta.value = texto;
-                ta.setAttribute('readonly', '');
-                ta.style.position = 'absolute';
-                ta.style.left = '-9999px';
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            }
-        } catch (e) { /* clipboard pode falhar em alguns browsers — segue mesmo assim */ }
-        // Não previne o default — link abre normalmente em nova aba
+    // ──── Antes de navegar pro caso_novo, garante que a aba Pendentes fique
+    //      ativa quando o usuário clicar em "Voltar pra Pendentes" no caso_novo ────
+    // (caso_novo abre na MESMA aba, então quando voltar, esta página vai recarregar
+    //  e o JS do emTabSwitch lê localStorage pra restaurar a aba ativa)
+    window.emAntesCadastrar = function() {
+        try { localStorage.setItem('em_active_tab', 'pendentes'); } catch (e) {}
         return true;
     };
 
