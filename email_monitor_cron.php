@@ -7,8 +7,9 @@
  * as constantes definidas em core/config.php.
  *
  * Modos de execução:
- *   - CLI:  php email_monitor_cron.php
- *   - HTTP: GET /conecta/email_monitor_cron.php?key=fsa-hub-deploy-2026
+ *   - CLI:  php email_monitor_cron.php          (batch padrão 100, limite 180s)
+ *   - HTTP: GET ?key=fsa-hub-deploy-2026         (batch padrão 20,  limite 25s)
+ *   - Override em qualquer modo: ?limite=N (1..500)
  *
  * Cron sugerido (3x ao dia, via cPanel da TurboCloud):
  *   0 8,13,19 * * * curl -s "https://ferreiraesa.com.br/conecta/email_monitor_cron.php?key=fsa-hub-deploy-2026" > /dev/null
@@ -16,18 +17,14 @@
  * Proteção:
  *   - Lock file em sys_get_temp_dir()/email_monitor.lock evita execução simultânea.
  *   - Auth HTTP exige ?key=... ou header X-Api-Key. CLI passa direto.
+ *   - Shutdown handler garante gravação do log + liberação do lock mesmo em
+ *     caso de timeout / fatal error / desconexão do cliente.
  *
  * Idempotência:
  *   - hash MD5 de (case_id + data + hora + descricao) gravado em
  *     case_andamentos.datajud_movimento_id. Antes de inserir, SELECT WHERE
  *     hash; se existir, pula. Reprocessar o mesmo email (ex: marcar como
  *     UNSEEN à mão) NÃO duplica andamentos.
- *
- * Observações:
- *   - Apenas arquivos novos foram criados nesta entrega; nenhum arquivo
- *     existente do sistema foi modificado.
- *   - Senha de app do Gmail está hardcoded aqui por enquanto. Pode ser
- *     migrada pra tabela `configuracoes` em entrega futura.
  */
 
 // ────────────────────────────────────────────────────────────
@@ -60,23 +57,68 @@ if (!$isCli) {
 }
 
 // ────────────────────────────────────────────────────────────
-// Lock — evita execuções simultâneas
+// Time limit dinâmico — HTTP usa 25s pra evitar timeout do servidor;
+// CLI roda com 180s pra dar margem em batches grandes.
 // ────────────────────────────────────────────────────────────
-$lockHandle = @fopen(LOCK_FILE, 'c');
-if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
-    echo "[lock] Outra execução em andamento, abortando.\n";
-    exit;
-}
-// Garante liberação do lock mesmo em caso de fatal error/timeout
-register_shutdown_function(function() use ($lockHandle) {
+@set_time_limit($isCli ? 180 : 25);
+@ignore_user_abort(true);   // continua executando mesmo se cliente fecha conexão
+
+// ────────────────────────────────────────────────────────────
+// Variáveis-resumo inicializadas ANTES do shutdown handler
+// (precisam estar acessíveis por referência caso o script morra antes do log final)
+// ────────────────────────────────────────────────────────────
+$emailsLidos      = 0;
+$andamentosInsert = 0;
+$emailsIgnorados  = 0;
+$duplicatasIgnor  = 0;
+$erros            = 0;
+$detalhes         = array();
+$logSalvo         = false;
+$pdo              = null;
+$lockHandle       = null;
+
+// ────────────────────────────────────────────────────────────
+// Shutdown handler — única função responsável por:
+//   1. Gravar o log se ainda não foi gravado (timeout / erro / abort)
+//   2. Liberar o lock + remover lockfile
+// ────────────────────────────────────────────────────────────
+register_shutdown_function(function() use (&$pdo, &$lockHandle, &$logSalvo, &$emailsLidos, &$andamentosInsert, &$emailsIgnorados, &$duplicatasIgnor, &$erros, &$detalhes, $isCli) {
+    // 1) Log de fallback se não foi gravado pelo fluxo normal
+    if (!$logSalvo && $pdo instanceof PDO) {
+        try {
+            $detalhes[] = '[shutdown] Log gravado pelo handler — script encerrou antes do final (timeout, erro fatal ou abort).';
+            email_monitor_log_save(
+                $pdo,
+                (int)$emailsLidos,
+                (int)$andamentosInsert,
+                (int)$emailsIgnorados,
+                (int)$duplicatasIgnor,
+                (int)$erros,
+                $detalhes,
+                $isCli ? 'cron' : 'manual'
+            );
+        } catch (Throwable $e) {
+            // shutdown handler não pode propagar exceção — engole silenciosamente
+        }
+    }
+
+    // 2) Libera o lock
     if (is_resource($lockHandle)) {
         @flock($lockHandle, LOCK_UN);
         @fclose($lockHandle);
     }
     @unlink(LOCK_FILE);
 });
-// Tempo suficiente pra processar o batch (100 emails × ~1s)
-@set_time_limit(180);
+
+// ────────────────────────────────────────────────────────────
+// Lock — evita execuções simultâneas
+// ────────────────────────────────────────────────────────────
+$lockHandle = @fopen(LOCK_FILE, 'c');
+if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    echo "[lock] Outra execução em andamento, abortando.\n";
+    $logSalvo = true; // Não chama log save em concorrência (a outra execução já vai gravar o dela)
+    exit;
+}
 
 // ────────────────────────────────────────────────────────────
 // Conexão DB direta (sem middleware) — reutiliza credenciais do core/config.php
@@ -94,7 +136,7 @@ try {
     );
 } catch (Exception $e) {
     echo "[db] Falha ao conectar: " . $e->getMessage() . "\n";
-    flock($lockHandle, LOCK_UN); fclose($lockHandle); @unlink(LOCK_FILE);
+    // shutdown handler cuida do lock; logSalvo continua false → mas sem PDO não dá pra gravar log mesmo
     exit;
 }
 
@@ -122,7 +164,9 @@ $pdo->exec(
 // ────────────────────────────────────────────────────────────
 if (!function_exists('imap_open')) {
     echo "[imap] Extensão IMAP do PHP não disponível. Instale php-imap no servidor.\n";
-    flock($lockHandle, LOCK_UN); fclose($lockHandle); @unlink(LOCK_FILE);
+    $detalhes[] = 'Extensão IMAP do PHP não disponível';
+    $erros++;
+    // shutdown handler vai gravar o log
     exit;
 }
 
@@ -133,20 +177,12 @@ if (!function_exists('imap_open')) {
 $mailbox = '{' . IMAP_HOST . ':' . IMAP_PORT . '/imap/ssl/novalidate-cert}INBOX';
 $mbox = @imap_open($mailbox, IMAP_USER_FETCH, IMAP_APP_PASS, 0, 1);
 
-$emailsLidos        = 0;
-$andamentosInsert   = 0;
-$emailsIgnorados    = 0;
-$duplicatasIgnor    = 0;
-$erros              = 0;
-$detalhes           = array();
-
 if (!$mbox) {
     $msg = 'Falha conexão IMAP: ' . imap_last_error();
     $detalhes[] = $msg;
     $erros++;
     echo "[imap] $msg\n";
-    email_monitor_log_save($pdo, $emailsLidos, $andamentosInsert, $emailsIgnorados, $duplicatasIgnor, $erros, $detalhes, $isCli ? 'cron' : 'manual');
-    flock($lockHandle, LOCK_UN); fclose($lockHandle); @unlink(LOCK_FILE);
+    // shutdown handler vai gravar
     exit;
 }
 
@@ -155,8 +191,9 @@ $emails = imap_search($mbox, 'UNSEEN FROM "' . IMAP_FROM_FILTER . '"', SE_UID);
 if (!is_array($emails)) $emails = array();
 
 // Limite por execução (evita estourar timeout + permite várias rodadas).
-// CLI ou HTTP podem passar ?limite=N pra ajustar. Default 100.
-$limitePorExec = isset($_GET['limite']) ? max(1, min(500, (int)$_GET['limite'])) : 100;
+// Default DINÂMICO: 100 em CLI, 20 em HTTP. Override via ?limite=N (1..500).
+$defaultLimite   = $isCli ? 100 : 20;
+$limitePorExec   = isset($_GET['limite']) ? max(1, min(500, (int)$_GET['limite'])) : $defaultLimite;
 $totalEncontrado = count($emails);
 if ($totalEncontrado > $limitePorExec) {
     echo "[imap] {$totalEncontrado} email(s) não lidos correspondentes — processando os primeiros {$limitePorExec} desta execução.\n";
@@ -179,100 +216,107 @@ foreach ($emails as $uid) {
     $emailsLidos++;
     $uidStr = (string)$uid;
 
-    // Header pra confirmar remetente (defesa extra contra spoofing)
-    $msgno = imap_msgno($mbox, $uid);
-    $headers = $msgno ? imap_headerinfo($mbox, $msgno) : null;
-    $fromAddr = '';
-    if ($headers && isset($headers->from[0])) {
-        $fromAddr = strtolower($headers->from[0]->mailbox . '@' . $headers->from[0]->host);
-    }
+    try {
+        // Header pra confirmar remetente (defesa extra contra spoofing)
+        $msgno = imap_msgno($mbox, $uid);
+        $headers = $msgno ? imap_headerinfo($mbox, $msgno) : null;
+        $fromAddr = '';
+        if ($headers && isset($headers->from[0])) {
+            $fromAddr = strtolower($headers->from[0]->mailbox . '@' . $headers->from[0]->host);
+        }
 
-    // Filtro: ignora qualquer coisa de brevosend.com
-    if ($fromAddr && stripos($fromAddr, IMAP_BLOCK_DOMAIN) !== false) {
-        $emailsIgnorados++;
-        $detalhes[] = "Ignorado (domínio bloqueado): UID {$uidStr} from {$fromAddr}";
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
-        continue;
-    }
-
-    // Pega corpo do email (texto plano)
-    $body = email_monitor_extract_body($mbox, $uid);
-    if (!$body) {
-        $emailsIgnorados++;
-        $detalhes[] = "Corpo vazio (UID {$uidStr})";
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
-        continue;
-    }
-
-    // Parser
-    $parsed = email_monitor_parse($body);
-    if (!$parsed['cnj']) {
-        $emailsIgnorados++;
-        $detalhes[] = "CNJ não encontrado no email UID {$uidStr}";
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
-        continue;
-    }
-
-    // Busca case
-    $stmtBuscaCase->execute(array($parsed['cnj']));
-    $case = $stmtBuscaCase->fetch();
-    if (!$case) {
-        $emailsIgnorados++;
-        $detalhes[] = "Processo {$parsed['cnj']} não cadastrado em cases (UID {$uidStr})";
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
-        continue;
-    }
-
-    $caseId      = (int)$case['id'];
-    $segredo     = (int)$case['segredo_justica'];
-
-    // Insere cada movimento
-    if (empty($parsed['movimentos'])) {
-        $detalhes[] = "Email do caso {$parsed['cnj']} sem movimentos parseáveis (UID {$uidStr})";
-    }
-
-    foreach ($parsed['movimentos'] as $mov) {
-        $hash = md5($caseId . '|' . $mov['data'] . '|' . $mov['hora'] . '|' . $mov['descricao']);
-
-        $stmtChkHash->execute(array($hash));
-        if ($stmtChkHash->fetchColumn()) {
-            $duplicatasIgnor++;
+        // Filtro: ignora qualquer coisa de brevosend.com
+        if ($fromAddr && stripos($fromAddr, IMAP_BLOCK_DOMAIN) !== false) {
+            $emailsIgnorados++;
+            $detalhes[] = "Ignorado (domínio bloqueado): UID {$uidStr} from {$fromAddr}";
+            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
             continue;
         }
 
-        try {
-            $stmtInsAndam->execute(array(
-                $caseId,
-                $mov['data'],
-                $mov['hora'],
-                $mov['descricao'],
-                $segredo,
-                $hash,
-            ));
-            $andamentosInsert++;
-        } catch (Exception $e) {
-            $erros++;
-            $detalhes[] = "Erro INSERT case#{$caseId} ({$parsed['cnj']}): " . $e->getMessage();
+        // Pega corpo do email (texto plano)
+        $body = email_monitor_extract_body($mbox, $uid);
+        if (!$body) {
+            $emailsIgnorados++;
+            $detalhes[] = "Corpo vazio (UID {$uidStr})";
+            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            continue;
         }
-    }
 
-    // Marca como lido (sucesso ou não — pra não reprocessar infinitamente)
-    @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+        // Parser
+        $parsed = email_monitor_parse($body);
+        if (!$parsed['cnj']) {
+            $emailsIgnorados++;
+            $detalhes[] = "CNJ não encontrado no email UID {$uidStr}";
+            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            continue;
+        }
+
+        // Busca case
+        $stmtBuscaCase->execute(array($parsed['cnj']));
+        $case = $stmtBuscaCase->fetch();
+        if (!$case) {
+            $emailsIgnorados++;
+            $detalhes[] = "Processo {$parsed['cnj']} não cadastrado em cases (UID {$uidStr})";
+            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            continue;
+        }
+
+        $caseId  = (int)$case['id'];
+        $segredo = (int)$case['segredo_justica'];
+
+        if (empty($parsed['movimentos'])) {
+            $detalhes[] = "Email do caso {$parsed['cnj']} sem movimentos parseáveis (UID {$uidStr})";
+        }
+
+        // Insere cada movimento
+        foreach ($parsed['movimentos'] as $mov) {
+            $hash = md5($caseId . '|' . $mov['data'] . '|' . $mov['hora'] . '|' . $mov['descricao']);
+
+            $stmtChkHash->execute(array($hash));
+            if ($stmtChkHash->fetchColumn()) {
+                $duplicatasIgnor++;
+                continue;
+            }
+
+            try {
+                $stmtInsAndam->execute(array(
+                    $caseId,
+                    $mov['data'],
+                    $mov['hora'],
+                    $mov['descricao'],
+                    $segredo,
+                    $hash,
+                ));
+                $andamentosInsert++;
+            } catch (Exception $e) {
+                $erros++;
+                $detalhes[] = "Erro INSERT case#{$caseId} ({$parsed['cnj']}): " . $e->getMessage();
+            }
+        }
+
+        // Marca como lido (sucesso ou não — pra não reprocessar infinitamente)
+        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+
+    } catch (Throwable $e) {
+        // Falha por email não derruba o batch inteiro — captura, registra e segue
+        $erros++;
+        $detalhes[] = "Falha inesperada UID {$uidStr}: " . $e->getMessage();
+        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+        continue;
+    }
 }
 
 @imap_close($mbox);
 
 // ────────────────────────────────────────────────────────────
-// Log final + resumo
+// Log final + resumo (caminho feliz — shutdown só limparia o lock)
 // ────────────────────────────────────────────────────────────
 email_monitor_log_save($pdo, $emailsLidos, $andamentosInsert, $emailsIgnorados, $duplicatasIgnor, $erros, $detalhes, $isCli ? 'cron' : 'manual');
+$logSalvo = true;
 
 echo "[done] lidos={$emailsLidos} inseridos={$andamentosInsert} ignorados={$emailsIgnorados} dup={$duplicatasIgnor} erros={$erros}\n";
 
-// Libera lock
-flock($lockHandle, LOCK_UN);
-fclose($lockHandle);
-@unlink(LOCK_FILE);
+// Lock liberado pelo shutdown handler — não duplica aqui
 
 // ────────────────────────────────────────────────────────────
 // Funções auxiliares
