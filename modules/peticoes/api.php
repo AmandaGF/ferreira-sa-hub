@@ -400,26 +400,34 @@ FIXO;
     $response = '';
     $httpCode = 0;
     $error = '';
+    $errno = 0;
     $data = null;
+
+    // Garante que o PHP tem tempo de esperar o cURL — petições longas do Sonnet
+    // podem levar 3-4 min. CURLOPT_TIMEOUT abaixo é 280s (margem antes do
+    // max_execution_time padrão da TurboCloud, 300s).
+    @set_time_limit(300);
 
     for ($tentativa = 0; $tentativa < $maxTentativas; $tentativa++) {
         $ch = curl_init('https://api.anthropic.com/v1/messages');
         curl_setopt_array($ch, array(
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => $payload,
-            CURLOPT_HTTPHEADER => array(
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => array(
                 'Content-Type: application/json',
                 'x-api-key: ' . $apiKey,
                 'anthropic-version: 2023-06-01',
             ),
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 200,
+            CURLOPT_TIMEOUT        => 280,
+            CURLOPT_CONNECTTIMEOUT => 30,
             CURLOPT_SSL_VERIFYPEER => false,
         ));
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
+        $error    = curl_error($ch);
+        $errno    = curl_errno($ch);
         curl_close($ch);
 
         if ($httpCode !== 529 && $httpCode !== 429) break;
@@ -430,7 +438,27 @@ FIXO;
     }
 
     if ($error) {
-        echo json_encode(array('error' => 'Erro de conexão com a API. Verifique sua internet e tente novamente.'));
+        // Log detalhado pra diagnóstico — fica em uploads/peticao_curl_errors.log
+        $logDirErr = __DIR__ . '/../../uploads';
+        if (!is_dir($logDirErr)) @mkdir($logDirErr, 0755, true);
+        @file_put_contents(
+            $logDirErr . '/peticao_curl_errors.log',
+            '[' . date('Y-m-d H:i:s') . "] errno={$errno} http={$httpCode} tentativas=" . ($tentativa + 1) . " error=" . $error . "\n",
+            FILE_APPEND
+        );
+
+        // Mensagem amigável + dica de retentar pra erros conhecidos de timeout
+        $msg = 'Erro de conexão com a API.';
+        if ($errno === 28) {
+            $msg = 'A API demorou demais pra responder (timeout 280s). Tente novamente — petições longas às vezes precisam de uma 2ª tentativa.';
+        } elseif ($errno === 6) {
+            $msg = 'Não foi possível resolver o endereço da API (DNS). Tente novamente em alguns segundos.';
+        } elseif ($errno === 7) {
+            $msg = 'Não foi possível conectar à API. Tente novamente.';
+        } else {
+            $msg .= ' (cURL errno ' . $errno . '). Tente novamente em alguns segundos.';
+        }
+        echo json_encode(array('error' => $msg));
         exit;
     }
 
