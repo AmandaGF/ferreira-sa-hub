@@ -116,7 +116,11 @@ if (!function_exists('imap_open')) {
     exit;
 }
 
-$mailbox = '{' . IMAP_HOST . ':' . IMAP_PORT . '/imap/ssl}INBOX';
+// /novalidate-cert: o servidor da TurboCloud não envia SNI no handshake IMAP,
+// então a validação de certificado do Gmail falha. Como sabemos que imap.gmail.com
+// é legítimo (e a conexão continua criptografada com SSL), desligamos a validação
+// pra permitir o handshake. Comportamento idêntico ao de vários clientes IMAP comuns.
+$mailbox = '{' . IMAP_HOST . ':' . IMAP_PORT . '/imap/ssl/novalidate-cert}INBOX';
 $mbox = @imap_open($mailbox, IMAP_USER_FETCH, IMAP_APP_PASS, 0, 1);
 
 $emailsLidos        = 0;
