@@ -67,6 +67,16 @@ if (!$lockHandle || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
     echo "[lock] Outra execução em andamento, abortando.\n";
     exit;
 }
+// Garante liberação do lock mesmo em caso de fatal error/timeout
+register_shutdown_function(function() use ($lockHandle) {
+    if (is_resource($lockHandle)) {
+        @flock($lockHandle, LOCK_UN);
+        @fclose($lockHandle);
+    }
+    @unlink(LOCK_FILE);
+});
+// Tempo suficiente pra processar o batch (100 emails × ~1s)
+@set_time_limit(180);
 
 // ────────────────────────────────────────────────────────────
 // Conexão DB direta (sem middleware) — reutiliza credenciais do core/config.php
@@ -144,7 +154,16 @@ if (!$mbox) {
 $emails = imap_search($mbox, 'UNSEEN FROM "' . IMAP_FROM_FILTER . '"', SE_UID);
 if (!is_array($emails)) $emails = array();
 
-echo "[imap] " . count($emails) . " email(s) não lidos correspondentes a busca.\n";
+// Limite por execução (evita estourar timeout + permite várias rodadas).
+// CLI ou HTTP podem passar ?limite=N pra ajustar. Default 100.
+$limitePorExec = isset($_GET['limite']) ? max(1, min(500, (int)$_GET['limite'])) : 100;
+$totalEncontrado = count($emails);
+if ($totalEncontrado > $limitePorExec) {
+    echo "[imap] {$totalEncontrado} email(s) não lidos correspondentes — processando os primeiros {$limitePorExec} desta execução.\n";
+    $emails = array_slice($emails, 0, $limitePorExec);
+} else {
+    echo "[imap] {$totalEncontrado} email(s) não lidos correspondentes a busca.\n";
+}
 
 // Prepares reutilizáveis
 $stmtBuscaCase   = $pdo->prepare("SELECT id, segredo_justica FROM cases WHERE case_number = ? LIMIT 1");
