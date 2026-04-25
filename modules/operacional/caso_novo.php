@@ -8,15 +8,29 @@ require_login();
 
 $pdo = db();
 
-// ─── AJAX: busca de clientes ────────────────────────────────────────
+// ─── AJAX: busca de clientes (por nome OU CPF) ──────────────────────
 if (isset($_GET['ajax_busca_cliente'])) {
     header('Content-Type: application/json; charset=utf-8');
     $q = trim(isset($_GET['q']) ? $_GET['q'] : '');
     if (strlen($q) < 2) { echo '[]'; exit; }
-    $stmt = $pdo->prepare(
-        "SELECT id, name, cpf, phone FROM clients WHERE name LIKE ? ORDER BY name LIMIT 15"
-    );
-    $stmt->execute(array('%' . $q . '%'));
+
+    // Se a query tem 3+ dígitos, faz match também no CPF (normalizando os
+    // dois lados com REPLACE pra ignorar pontos/traços de qualquer formato).
+    $qDigits = preg_replace('/\D/', '', $q);
+    if (strlen($qDigits) >= 3) {
+        $stmt = $pdo->prepare(
+            "SELECT id, name, cpf, phone FROM clients
+             WHERE name LIKE ?
+                OR REPLACE(REPLACE(REPLACE(COALESCE(cpf,''), '.', ''), '-', ''), '/', '') LIKE ?
+             ORDER BY name LIMIT 15"
+        );
+        $stmt->execute(array('%' . $q . '%', '%' . $qDigits . '%'));
+    } else {
+        $stmt = $pdo->prepare(
+            "SELECT id, name, cpf, phone FROM clients WHERE name LIKE ? ORDER BY name LIMIT 15"
+        );
+        $stmt->execute(array('%' . $q . '%'));
+    }
     echo json_encode($stmt->fetchAll());
     exit;
 }
