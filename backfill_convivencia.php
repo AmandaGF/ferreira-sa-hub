@@ -10,19 +10,29 @@
  * Também remove o registro #525 (teste do diagnóstico).
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('x'); }
-header('Content-Type: text/plain; charset=utf-8');
+
+// IMPORTANTE: o config.php do convivencia_form pode usar session_start()
+// ou outras funcs que requerem headers ainda não enviados. Carrega ele PRIMEIRO,
+// antes de qualquer header() / output, depois liga buffer pro relatório.
+require_once dirname(__DIR__) . '/convivencia_form/config.php';
+$pdoOldEarly = pdo();
 
 require_once __DIR__ . '/core/database.php';
 $pdoHub = db();
+
+@header('Content-Type: text/plain; charset=utf-8');
+ob_start();
+register_shutdown_function(function() {
+    if (ob_get_level() > 0) ob_end_flush();
+});
 
 // 1. Limpa registro de teste
 echo "=== Limpando #525 (teste do diagnóstico) ===\n";
 $del = $pdoHub->exec("DELETE FROM form_submissions WHERE id = 525 AND payload_json LIKE '%Sayonara TESTE DUAL-WRITE%'");
 echo "Removidas: {$del} linha(s)\n\n";
 
-// 2. Conecta no banco antigo
-require_once dirname(__DIR__) . '/convivencia_form/config.php';
-$pdoOld = pdo();
+// 2. Conecta no banco antigo (já feito no topo)
+$pdoOld = $pdoOldEarly;
 
 // Busca todas depois de 01/04 (exclusivo — dia 01 já estava no Hub)
 $q = $pdoOld->query("SELECT * FROM intake_visitas WHERE created_at > '2026-04-01 23:59:59' ORDER BY id ASC");
