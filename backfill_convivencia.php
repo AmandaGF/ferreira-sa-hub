@@ -23,12 +23,21 @@ $pdoHub = new PDO(
 );
 echo "[1] Hub conectado: {$hubName}\n";
 
-// === PASSO 1: ler banco antigo (ele vai sobrescrever DB_* mas a gente já guardou) ===
-$rows = array();
-require_once dirname(__DIR__) . '/convivencia_form/config.php';
-$pdoOld = pdo();
+// === PASSO 1: ler banco antigo via PDO direto (parseando credenciais) ===
+$confSrc = file_get_contents(dirname(__DIR__) . '/convivencia_form/config.php');
+$dbVars = array('host'=>null,'name'=>null,'user'=>null,'pass'=>null);
+foreach (array('host'=>'DB_HOST','name'=>'DB_NAME','user'=>'DB_USER','pass'=>'DB_PASS') as $k=>$const) {
+    if (preg_match("/define\(\s*['\"]" . $const . "['\"]\s*,\s*['\"]([^'\"]+)['\"]/", $confSrc, $m)) {
+        $dbVars[$k] = $m[1];
+    }
+}
+$pdoOld = new PDO(
+    "mysql:host={$dbVars['host']};dbname={$dbVars['name']};charset=utf8mb4",
+    $dbVars['user'], $dbVars['pass'],
+    array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC)
+);
 $rows = $pdoOld->query("SELECT * FROM intake_visitas WHERE created_at > '2026-04-01 23:59:59' ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
-echo "[2] Banco antigo lido: " . count($rows) . " linhas após 01/04\n\n";
+echo "[2] Banco antigo ({$dbVars['name']}) lido: " . count($rows) . " linhas após 01/04\n\n";
 $pdoOld = null;
 
 // === PASSO 2: cleanup ===
