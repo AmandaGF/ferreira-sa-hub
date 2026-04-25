@@ -629,8 +629,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 $ppDoc = $pp['tipo_pessoa'] === 'juridica' ? ($pp['cnpj'] ?: '') : ($pp['cpf'] ?: '');
                                 $ppNome = $pp['tipo_pessoa'] === 'juridica' ? ($pp['razao_social'] ?: $pp['nome']) : $pp['nome'];
                         ?>
-                        <?php $_tipoPP = $pp['tipo_pessoa']==='juridica' ? 'juridica' : 'fisica'; ?>
-                        <div class="parte-row" style="display:grid;grid-template-columns:140px 1fr 1fr 28px;gap:.5rem;align-items:end;padding:.5rem .6rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:.5rem;">
+                        <?php
+                        $_tipoPP    = $pp['tipo_pessoa'] === 'juridica' ? 'juridica' : 'fisica';
+                        $_clientId  = isset($pp['client_id']) && $pp['client_id'] ? (int)$pp['client_id'] : 0;
+                        $_jaCliente = ($_clientId > 0);
+                        ?>
+                        <div class="parte-row" style="display:grid;grid-template-columns:140px 1fr 1fr auto 28px;gap:.5rem;align-items:end;padding:.5rem .6rem;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;margin-bottom:.5rem;">
                             <div>
                                 <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Papel</label>
                                 <select name="partes_papel[]" class="form-select" style="font-size:.82rem;">
@@ -657,7 +661,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </div>
                             <div>
                                 <label style="font-size:.68rem;color:var(--text-muted);font-weight:600;">Nome / Razão Social</label>
-                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" value="<?= e($ppNome) ?>">
+                                <input type="text" name="partes_nome[]" class="form-input" style="font-size:.82rem;" value="<?= e($ppNome) ?>" autocomplete="off">
+                            </div>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <input type="hidden" name="partes_client_id[]" value="<?= (int)$_clientId ?>" class="parte-client-id">
+                                <label style="font-size:.62rem;color:<?= $_jaCliente ? '#059669' : '#B87333' ?>;cursor:pointer;display:flex;align-items:center;gap:2px;white-space:nowrap;" title="Marcar como nosso cliente">
+                                    <input type="checkbox" class="parte-eh-cliente" style="width:14px;height:14px;" <?= $_jaCliente ? 'checked' : '' ?> onchange="toggleParteCliente(this)">
+                                    <span class="parte-cliente-label"><?= $_jaCliente ? '✓ Cliente' : 'Cliente' ?></span>
+                                </label>
                             </div>
                             <button type="button" onclick="this.closest('.parte-row').remove()" style="background:none;border:none;color:#dc2626;cursor:pointer;font-size:1rem;padding:4px;" title="Remover">&#10005;</button>
                         </div>
@@ -1199,6 +1210,156 @@ function addParteRow() {
         if (!el.matches || !el.matches('input[data-busca-doc]')) return;
         buscarDocParte(el);
     }, true);
+})();
+
+// Autocomplete por NOME nos inputs de Nome / Razão Social das partes —
+// reusa o endpoint ?ajax_busca_cliente=1 que já alimenta o seletor do cliente
+// principal. Quando o usuário escolhe um resultado, marca a parte como cliente
+// (checkbox + hidden client_id + CPF se vazio).
+(function() {
+    var container = document.getElementById('partesRows');
+    if (!container) return;
+
+    // Dropdown único reusável (posicionado dinamicamente)
+    var dd = document.createElement('div');
+    dd.style.cssText = 'position:absolute;background:#fff;border:1px solid #e5e7eb;border-radius:6px;max-height:240px;overflow-y:auto;z-index:1000;box-shadow:0 4px 16px rgba(0,0,0,.15);font-size:.82rem;display:none;';
+    document.body.appendChild(dd);
+
+    var activeInput = null;
+    var debounceTimer = null;
+
+    function fechar() {
+        dd.style.display = 'none';
+        activeInput = null;
+    }
+
+    function posicionar(input) {
+        var rect = input.getBoundingClientRect();
+        dd.style.left  = (rect.left + window.scrollX) + 'px';
+        dd.style.top   = (rect.bottom + window.scrollY + 2) + 'px';
+        dd.style.width = rect.width + 'px';
+    }
+
+    function selecionarParteCliente(row, id, name, cpf) {
+        var inputNome = row.querySelector('input[name="partes_nome[]"]');
+        var hiddenId  = row.querySelector('.parte-client-id');
+        var chk       = row.querySelector('.parte-eh-cliente');
+        var lbl       = row.querySelector('.parte-cliente-label');
+        var docInput  = row.querySelector('input[name="partes_doc[]"]');
+
+        if (inputNome) inputNome.value = name;
+        if (hiddenId)  hiddenId.value  = id;
+        if (chk)       chk.checked     = true;
+        if (lbl) {
+            lbl.textContent = '✓ ' + name.split(' ').slice(0, 2).join(' ');
+            lbl.style.color = '#059669';
+            // Também colore o label pai (que usamos como wrapper)
+            var lblWrap = lbl.parentElement;
+            if (lblWrap) lblWrap.style.color = '#059669';
+        }
+        if (docInput && cpf && !docInput.value.trim()) {
+            docInput.value = cpf;
+            // Dispara input pra rodar a máscara + detectar PF/PJ
+            docInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    }
+
+    function fazerBusca(input, q) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '<?= module_url("operacional", "caso_novo.php") ?>?ajax_busca_cliente=1&q=' + encodeURIComponent(q));
+        xhr.onload = function() {
+            // Se o input mudou enquanto buscávamos, descarta
+            if (input !== activeInput) return;
+            try {
+                var clientes = JSON.parse(xhr.responseText);
+                if (!clientes.length) {
+                    dd.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;">Nenhum cliente encontrado com esse nome</div>';
+                    dd.style.display = 'block';
+                    posicionar(input);
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < clientes.length; i++) {
+                    var cl = clientes[i];
+                    var nameEsc = (cl.name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    html += '<div data-id="' + cl.id + '" data-name="' + nameEsc + '" data-cpf="' + (cl.cpf || '') + '" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #eee;">';
+                    html += '<strong>' + (cl.name || '') + '</strong>';
+                    if (cl.cpf)   html += ' <span style="color:#94a3b8;">— ' + cl.cpf + '</span>';
+                    if (cl.phone) html += ' <span style="color:#94a3b8;">— ' + cl.phone + '</span>';
+                    html += '</div>';
+                }
+                dd.innerHTML = html;
+                dd.style.display = 'block';
+                posicionar(input);
+
+                // Hover destaque
+                dd.querySelectorAll('div[data-id]').forEach(function(it) {
+                    it.addEventListener('mouseover', function() { this.style.background = 'rgba(215,171,144,.18)'; });
+                    it.addEventListener('mouseout',  function() { this.style.background = ''; });
+                });
+
+                // Click → seleciona
+                dd.querySelectorAll('div[data-id]').forEach(function(it) {
+                    it.addEventListener('mousedown', function(ev) {
+                        ev.preventDefault(); // evita perder foco antes do click
+                        var inp = activeInput;
+                        if (!inp) { fechar(); return; }
+                        var row = inp.closest('.parte-row');
+                        if (!row) { fechar(); return; }
+                        selecionarParteCliente(
+                            row,
+                            this.getAttribute('data-id'),
+                            this.getAttribute('data-name'),
+                            this.getAttribute('data-cpf')
+                        );
+                        fechar();
+                    });
+                });
+            } catch (e) { fechar(); }
+        };
+        xhr.onerror = function() { fechar(); };
+        xhr.send();
+    }
+
+    // Input → debounce → busca
+    container.addEventListener('input', function(ev) {
+        var el = ev.target;
+        if (!el.matches || !el.matches('input[name="partes_nome[]"]')) return;
+        activeInput = el;
+        var q = el.value.trim();
+        clearTimeout(debounceTimer);
+        if (q.length < 2) { fechar(); return; }
+        debounceTimer = setTimeout(function() { fazerBusca(el, q); }, 300);
+    });
+
+    // Focus em input com texto já existente → busca imediata
+    container.addEventListener('focus', function(ev) {
+        var el = ev.target;
+        if (!el.matches || !el.matches('input[name="partes_nome[]"]')) return;
+        activeInput = el;
+        var q = el.value.trim();
+        if (q.length >= 2) fazerBusca(el, q);
+    }, true);
+
+    // Fecha ao clicar fora
+    document.addEventListener('click', function(ev) {
+        if (dd.contains(ev.target)) return;
+        if (activeInput && activeInput.contains(ev.target)) return;
+        fechar();
+    });
+
+    // Fecha em ESC
+    document.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Escape' && dd.style.display !== 'none') fechar();
+    });
+
+    // Reposiciona em scroll/resize
+    window.addEventListener('scroll', function() {
+        if (activeInput && dd.style.display !== 'none') posicionar(activeInput);
+    }, true);
+    window.addEventListener('resize', function() {
+        if (activeInput && dd.style.display !== 'none') posicionar(activeInput);
+    });
 })();
 
 // Toggle marcar parte como cliente — busca na base e vincula
