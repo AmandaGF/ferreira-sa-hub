@@ -25,8 +25,15 @@ $pdoHub = db();
 echo "[2] Conectado no banco Hub.\n\n";
 
 // === PASSO 3: cleanup do teste ===
-$del = $pdoHub->exec("DELETE FROM form_submissions WHERE id = 525 AND payload_json LIKE '%TESTE DUAL-WRITE%'");
-echo "[3] Cleanup #525: removidos {$del}\n\n";
+echo "[3] iniciando cleanup...\n"; @ob_flush(); flush();
+try {
+    $stmtDel = $pdoHub->prepare("DELETE FROM form_submissions WHERE id = ?");
+    $stmtDel->execute(array(525));
+    echo "[3] Cleanup #525: removidos " . $stmtDel->rowCount() . "\n\n";
+} catch (Exception $e) {
+    echo "[3 ERRO cleanup] " . $e->getMessage() . "\n\n";
+}
+@ob_flush(); flush();
 
 // === PASSO 4: insert das que faltam ===
 $migrados = 0; $ja = 0; $erros = 0;
