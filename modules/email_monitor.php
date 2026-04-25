@@ -230,10 +230,95 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .em-and-link:hover { text-decoration: underline; }
 .em-and-cnj  { font-family: ui-monospace, monospace; font-size: .76rem; color: var(--text-muted); }
 
+/* Botão Recuperar histórico (aba Pendentes) */
+.em-btn-recover { background: #0369a1; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: .74rem; font-weight: 600; cursor: pointer; }
+.em-btn-recover:hover { background: #0c4a6e; }
+.em-btn-recover:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Caixas de info coloridas (cron sugerido, como funciona) — convertidas pra classes
+   pra terem override consistente no modo noturno */
+.em-info-box      { margin-top: 1rem; padding: .8rem 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-size: .78rem; color: var(--text-muted); }
+.em-info-box-warn { margin-top: 1rem; padding: .8rem 1rem; background: #fef9e7; border-radius: 8px; border: 1px solid #fde68a; font-size: .78rem; color: #92400e; }
+.em-info-box pre  { margin: .4rem 0 0; font-size: .76rem; color: #334155; background: #fff; padding: .5rem; border-radius: 6px; overflow-x: auto; border: 1px solid #e5e7eb; }
+
 @media (max-width: 768px) {
     .em-stats { grid-template-columns: repeat(2, 1fr); }
     .em-mov-desc { max-width: 200px; }
 }
+
+/* ────────────────────────────────────────────────────────────
+   DARK MODE — overrides explícitos pras classes .em-*
+   (a regra global de layout_start cobre só `.card` e `table td` —
+   não pega .em-card / .em-stat / .em-tbl etc.)
+   ──────────────────────────────────────────────────────────── */
+body.dark-mode .em-stat        { background: var(--bg-card) !important; border-color: var(--border) !important; }
+body.dark-mode .em-stat-l      { color: var(--text-muted) !important; }
+body.dark-mode .em-stat-v      { color: var(--text) !important; }
+body.dark-mode .em-stat.green  .em-stat-v { color: #4ade80 !important; }
+body.dark-mode .em-stat.amber  .em-stat-v { color: #fbbf24 !important; }
+body.dark-mode .em-stat.red    .em-stat-v { color: #f87171 !important; }
+
+body.dark-mode .em-card        { background: var(--bg-card) !important; border-color: var(--border) !important; }
+body.dark-mode .em-card-h      { background: var(--bg-secondary) !important; border-color: var(--border) !important; }
+body.dark-mode .em-card-h h3   { color: var(--text) !important; }
+
+body.dark-mode .em-tbl th      { background: var(--bg-secondary) !important; color: #cbd5e1 !important; border-color: var(--border) !important; }
+body.dark-mode .em-tbl td      { background: var(--bg-card) !important; color: var(--text) !important; border-color: var(--border) !important; }
+body.dark-mode .em-tbl tr:hover td { background: rgba(215,171,144,.10) !important; }
+body.dark-mode .em-tbl strong  { color: var(--text) !important; }
+
+body.dark-mode .em-pill.cron       { background: rgba(56,189,248,.15) !important; color: #7dd3fc !important; }
+body.dark-mode .em-pill.manual     { background: rgba(251,191,36,.15) !important; color: #fcd34d !important; }
+body.dark-mode .em-pill.descartado { background: rgba(148,163,184,.18) !important; color: #cbd5e1 !important; }
+
+body.dark-mode .em-num.zero { color: #64748b !important; }
+body.dark-mode .em-num.ok   { color: #4ade80 !important; }
+body.dark-mode .em-num.dup  { color: #fbbf24 !important; }
+body.dark-mode .em-num.err  { color: #f87171 !important; }
+
+body.dark-mode .em-det        { background: var(--bg-secondary) !important; color: var(--text) !important; border-color: var(--border) !important; }
+body.dark-mode .em-det-toggle { color: var(--text) !important; border-color: var(--border) !important; }
+
+body.dark-mode .em-resultado.ok  { background: rgba(34,197,94,.10) !important; color: #4ade80 !important; border-color: rgba(34,197,94,.30) !important; }
+body.dark-mode .em-resultado.err { background: rgba(239,68,68,.10) !important; color: #f87171 !important; border-color: rgba(239,68,68,.30) !important; }
+
+body.dark-mode .em-tab          { color: var(--text-muted) !important; }
+body.dark-mode .em-tab:hover    { color: var(--text) !important; background: rgba(255,255,255,.04) !important; }
+body.dark-mode .em-tab.active   { color: #d7ab90 !important; border-bottom-color: #d7ab90 !important; }
+body.dark-mode .em-tab .em-tab-cnt { background: rgba(255,255,255,.10) !important; color: #cbd5e1 !important; }
+body.dark-mode .em-tab.active .em-tab-cnt { background: #d7ab90 !important; color: #1a1a2e !important; }
+body.dark-mode .em-tab.tab-pendentes .em-tab-cnt[data-cnt-real]:not([data-cnt-real="0"]) { background: rgba(251,191,36,.20) !important; color: #fcd34d !important; }
+body.dark-mode .em-tab.tab-pendentes.active .em-tab-cnt[data-cnt-real]:not([data-cnt-real="0"]) { background: #fcd34d !important; color: #1a1a2e !important; }
+
+body.dark-mode .em-mov-desc { color: var(--text-muted) !important; }
+body.dark-mode .em-cnj      { color: var(--text) !important; }
+body.dark-mode .em-and-cnj  { color: var(--text-muted) !important; }
+body.dark-mode .em-and-link { color: #d7ab90 !important; }
+
+body.dark-mode .em-pend-row.descartado    { background: rgba(148,163,184,.04) !important; }
+body.dark-mode .em-pend-row.descartado td { color: var(--text-muted) !important; }
+
+body.dark-mode .em-btn-cad      { background: #15803d !important; color: #fff !important; }
+body.dark-mode .em-btn-cad:hover{ background: #166534 !important; }
+body.dark-mode .em-btn-desc     { background: rgba(239,68,68,.10) !important; color: #f87171 !important; border-color: rgba(239,68,68,.30) !important; }
+body.dark-mode .em-btn-desc:hover { background: rgba(239,68,68,.20) !important; }
+
+body.dark-mode .em-btn-run      { background: #b87333 !important; color: #fff !important; }
+body.dark-mode .em-btn-run:hover{ background: #a05c20 !important; }
+
+body.dark-mode .em-btn-recover     { background: #0369a1 !important; color: #fff !important; }
+body.dark-mode .em-btn-recover:hover { background: #075985 !important; }
+
+body.dark-mode .em-toggle-desc { color: #d7ab90 !important; }
+
+body.dark-mode .em-info-box      { background: var(--bg-secondary) !important; border-color: var(--border) !important; color: var(--text-muted) !important; }
+body.dark-mode .em-info-box pre  { background: var(--bg-card) !important; color: var(--text) !important; border-color: var(--border) !important; }
+body.dark-mode .em-info-box-warn { background: rgba(251,191,36,.08) !important; border-color: rgba(251,191,36,.30) !important; color: #fcd34d !important; }
+body.dark-mode .em-info-box-warn code { color: #fcd34d !important; }
+body.dark-mode .em-info-box-warn strong { color: #fde68a !important; }
+
+/* Contador "X pendente(s) · Y descartado(s)" no card-header da aba Pendentes */
+body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: rgba(251,191,36,.20) !important; color: #fcd34d !important; }
 </style>
 
 <div class="em-wrap">
@@ -345,9 +430,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
 
-        <div style="margin-top: 1rem; padding: .8rem 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-size: .78rem; color: var(--text-muted);">
+        <div class="em-info-box">
             <strong>Cron sugerido (cPanel TurboCloud):</strong>
-            <pre style="margin: .4rem 0 0; font-size: .76rem; color: #334155; background: #fff; padding: .5rem; border-radius: 6px; overflow-x: auto; border: 1px solid #e5e7eb;">0 8,13,19 * * * curl -s "https://ferreiraesa.com.br/conecta/email_monitor_cron.php?key=fsa-hub-deploy-2026" > /dev/null</pre>
+            <pre>0 8,13,19 * * * curl -s "https://ferreiraesa.com.br/conecta/email_monitor_cron.php?key=fsa-hub-deploy-2026" > /dev/null</pre>
         </div>
     </div>
 
@@ -363,6 +448,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($totalDescartados > 0): ?>
                         <button type="button" class="em-toggle-desc" id="emToggleDesc" onclick="emToggleDescartados()">mostrar descartados</button>
                     <?php endif; ?>
+                    <button type="button" class="em-btn-recover" id="emBtnRecover" onclick="emRecuperarHistorico()" title="Reprocessa emails antigos do PJe (já lidos) pra encontrar CNJs que entraram antes desta tabela existir. Roda em batches de 30 — clique várias vezes até esvaziar.">
+                        🔄 Recuperar histórico
+                    </button>
                 </div>
             </div>
             <div style="overflow-x: auto;">
@@ -466,7 +554,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
 
-        <div style="margin-top: 1rem; padding: .8rem 1rem; background: #fef9e7; border-radius: 8px; border: 1px solid #fde68a; font-size: .78rem; color: #92400e;">
+        <div class="em-info-box-warn">
             <strong>Como funciona:</strong> quando um email do PJe chega com CNJ que não existe em <code>cases</code>, ele aparece aqui em vez de ser ignorado.
             Clicar em <strong>Cadastrar</strong> abre o form de novo caso em outra aba e copia o CNJ + título sugerido pra área de transferência (cole com <kbd>Ctrl+V</kbd>).
             <strong>Descartar</strong> marca como ignorado (some da lista; pode reaparecer com "mostrar descartados").
@@ -535,10 +623,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <script>
 (function(){
-    var EM_KEY  = 'fsa-hub-deploy-2026';
-    var EM_URL  = '<?= url('email_monitor_cron.php') ?>?key=' + encodeURIComponent(EM_KEY);
-    var EM_CSRF = '<?= e($csrf) ?>';
-    var EM_PAGE = '<?= url('modules/email_monitor.php') ?>';
+    var EM_KEY     = 'fsa-hub-deploy-2026';
+    var EM_URL     = '<?= url('email_monitor_cron.php') ?>?key=' + encodeURIComponent(EM_KEY);
+    var EM_REC_URL = '<?= url('email_monitor_recover.php') ?>?key=' + encodeURIComponent(EM_KEY);
+    var EM_CSRF    = '<?= e($csrf) ?>';
+    var EM_PAGE    = '<?= url('modules/email_monitor.php') ?>';
 
     // ──── Tabs ────
     window.emTabSwitch = function(tab) {
@@ -650,6 +739,54 @@ require_once APP_ROOT . '/templates/layout_start.php';
         } catch (e) { /* clipboard pode falhar em alguns browsers — segue mesmo assim */ }
         // Não previne o default — link abre normalmente em nova aba
         return true;
+    };
+
+    // ──── Recuperar histórico (script one-shot email_monitor_recover.php) ────
+    window.emRecuperarHistorico = function() {
+        var btn = document.getElementById('emBtnRecover');
+        var box = document.getElementById('emResultado');
+        if (!btn || !box) return;
+
+        if (!confirm('Reprocessar emails antigos do PJe (já lidos no Gmail) pra encontrar CNJs perdidos?\n\nProcessa 30 emails por vez. Pode ser executado várias vezes — cada execução continua de onde a anterior parou.')) return;
+
+        btn.disabled = true;
+        var label0 = btn.textContent;
+        btn.textContent = 'Recuperando...';
+
+        box.className = 'em-resultado show';
+        box.textContent = 'Conectando ao Gmail e lendo histórico...';
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', EM_REC_URL, true);
+        xhr.setRequestHeader('X-Csrf-Token', EM_CSRF);
+        xhr.setRequestHeader('X-Api-Key',    EM_KEY);
+        xhr.timeout = 120000; // 2 min
+        xhr.onload = function() {
+            btn.disabled = false;
+            btn.textContent = label0;
+            if (xhr.status >= 200 && xhr.status < 300) {
+                box.className = 'em-resultado show ok';
+                box.textContent = xhr.responseText || 'Recuperação concluída.';
+                // Recarrega após 2.5s pra atualizar a aba Pendentes com os novos registros
+                setTimeout(function(){ window.location.reload(); }, 2500);
+            } else {
+                box.className = 'em-resultado show err';
+                box.textContent = 'HTTP ' + xhr.status + '\n' + xhr.responseText;
+            }
+        };
+        xhr.onerror = function() {
+            btn.disabled = false;
+            btn.textContent = label0;
+            box.className = 'em-resultado show err';
+            box.textContent = 'Erro de rede. Verifique a conexão e tente de novo.';
+        };
+        xhr.ontimeout = function() {
+            btn.disabled = false;
+            btn.textContent = label0;
+            box.className = 'em-resultado show err';
+            box.textContent = 'Timeout (>2 min). O processo pode estar rodando em background — recarregue a página em alguns minutos.';
+        };
+        xhr.send();
     };
 
     // ──── Descartar pendente ────
