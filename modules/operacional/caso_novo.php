@@ -363,7 +363,7 @@ $preCaseNumber = trim($_GET['case_number'] ?? '');
 $preTitle      = trim($_GET['title'] ?? '');
 $preOrgao      = trim($_GET['orgao'] ?? '');
 
-// Parse do órgão (texto completo do PJe) → vara + comarca.
+// Parse do órgão (texto completo do PJe) → vara + comarca + UF.
 // Exemplos:
 //   "1ª VARA DE FAMÍLIA DA COMARCA DE RESENDE"
 //     → vara: "1ª VARA DE FAMÍLIA"          comarca: "RESENDE"
@@ -373,8 +373,11 @@ $preOrgao      = trim($_GET['orgao'] ?? '');
 //     → vara: "4ª VARA DE FAMÍLIA"          comarca: "CAMPO GRANDE"
 //   "1ª VARA DE FAMÍLIA DA COMARCA DA CAPITAL"
 //     → vara: "1ª VARA DE FAMÍLIA"          comarca: "CAPITAL"
+//
+// UF = sempre 'RJ' quando vem do Email Monitor (cron filtra emails só do TJRJ).
 $preVaraOrgao    = '';
 $preComarcaOrgao = '';
+$preUfOrgao      = '';
 if ($preOrgao !== '') {
     // Non-greedy primeiro grupo + regex em flag /u (UTF-8) — match com a ÚLTIMA
     // ocorrência de "DA COMARCA" ou "DA REGIONAL" pra suportar varas com várias
@@ -386,6 +389,9 @@ if ($preOrgao !== '') {
         // Sem padrão "DA COMARCA/REGIONAL DE X" — coloca o órgão completo na vara
         $preVaraOrgao = $preOrgao;
     }
+    // Email Monitor só processa emails do TJRJ (IMAP_FROM_FILTER=tjrj.pjeadm-LD@tjrj.jus.br)
+    // — então sempre que vier órgão por aqui, a UF é RJ.
+    $preUfOrgao = 'RJ';
 }
 
 // Status para cadastro MANUAL de processo (não entra no Kanban Operacional)
@@ -753,7 +759,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
                 <!-- UF + Comarca (cidade) + Data de Distribuição -->
                 <div class="form-row">
-                    <?php $preUf = ($princData && $princData['comarca_uf']) ? $princData['comarca_uf'] : ''; ?>
+                    <?php $preUf = ($princData && $princData['comarca_uf']) ? $princData['comarca_uf'] : $preUfOrgao; ?>
                     <div class="form-col" style="max-width:120px;">
                         <label>Estado (UF)</label>
                         <select name="comarca_uf" id="comarcaUf" class="form-select" onchange="filtrarCidades()"<?= $preUf ? ' style="background:#fef9c3;"' : '' ?>>
@@ -1360,6 +1366,32 @@ function preencherCidades(nomes) {
         datalist.appendChild(opt);
     }
 }
+
+// Pré-carregamento da lista de cidades quando UF vem pré-preenchida pelo
+// servidor (caso_novo aberto via ?orgao=... do Email Monitor → UF=RJ).
+// Difere de filtrarCidades(): não limpa o valor digitado em comarcaCidade,
+// só popula o datalist pra o autocomplete funcionar.
+(function() {
+    var ufEl = document.getElementById('comarcaUf');
+    if (!ufEl || !ufEl.value) return;
+    var uf = ufEl.value;
+    if (cidadesCache[uf]) {
+        preencherCidades(cidadesCache[uf]);
+        return;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome');
+    xhr.onload = function() {
+        try {
+            var cidades = JSON.parse(xhr.responseText);
+            var nomes = [];
+            for (var i = 0; i < cidades.length; i++) nomes.push(cidades[i].nome);
+            cidadesCache[uf] = nomes;
+            preencherCidades(nomes);
+        } catch(e) {}
+    };
+    xhr.send();
+})();
 
 // ── Pré-selecionar tipo de ação do processo principal ──
 <?php if ($princData && $princData['case_type']): ?>
