@@ -59,7 +59,7 @@ elseif ($filterVinculo === 'recursos') { $where[] = "cs.is_incidental = 1 AND cs
 // Filtros especiais
 $filterEspecial = isset($_GET['especial']) ? $_GET['especial'] : '';
 if ($filterEspecial === 'sem_andamento_30d') {
-    $where[] = "((SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR NOT EXISTS (SELECT 1 FROM case_andamentos a2 WHERE a2.case_id = cs.id))";
+    $where[] = "((SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id AND a.data_andamento <= CURDATE()) < DATE_SUB(CURDATE(), INTERVAL 30 DAY) OR NOT EXISTS (SELECT 1 FROM case_andamentos a2 WHERE a2.case_id = cs.id))";
     $where[] = "cs.status NOT IN ('concluido','arquivado','cancelado')";
 }
 if ($filterEspecial === 'audiencia_marcada') {
@@ -91,7 +91,7 @@ $orderMap = array(
     'status'      => array('col' => 'cs.status'),
     'prioridade'  => array('col' => "FIELD(cs.priority,'urgente','alta','normal','baixa')"),
     'responsavel' => array('col' => 'u.name'),
-    'ultimo'      => array('col' => '(SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id)', 'default_dir' => 'DESC'),
+    'ultimo'      => array('col' => '(SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id AND a.data_andamento <= CURDATE())', 'default_dir' => 'DESC'),
     'prazo'       => array('col' => 'cs.deadline'),
 );
 if (isset($orderMap[$orderBy])) {
@@ -141,7 +141,7 @@ if ($pageNum > $totalPaginas) { $pageNum = $totalPaginas; $offset = ($pageNum - 
 $stmt = $pdo->prepare(
     "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.cpf as client_cpf,
      u.name as responsible_name,
-     (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) as ultimo_andamento,
+     (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id AND a.data_andamento <= CURDATE()) as ultimo_andamento,
      (SELECT COUNT(*) FROM agenda_eventos ae WHERE ae.case_id = cs.id AND ae.tipo = 'audiencia' AND ae.data_inicio >= NOW() AND ae.status != 'cancelado') as audiencias_futuras,
      (SELECT MIN(ae2.data_inicio) FROM agenda_eventos ae2 WHERE ae2.case_id = cs.id AND ae2.tipo = 'audiencia' AND ae2.data_inicio >= NOW() AND ae2.status != 'cancelado') as prox_audiencia,
      (SELECT GROUP_CONCAT(DISTINCT cl2.name SEPARATOR ', ') FROM case_partes cp2 INNER JOIN clients cl2 ON cl2.id = cp2.client_id WHERE cp2.case_id = cs.id AND cp2.client_id IS NOT NULL AND cp2.client_id != cs.client_id) as outros_clientes
@@ -203,7 +203,7 @@ $semAndamento30d = (int)$pdo->query(
      WHERE cs.case_number IS NOT NULL AND cs.case_number != ''
      AND cs.status NOT IN ('concluido','arquivado','cancelado')
      AND (
-         (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id) < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+         (SELECT MAX(a.data_andamento) FROM case_andamentos a WHERE a.case_id = cs.id AND a.data_andamento <= CURDATE()) < DATE_SUB(CURDATE(), INTERVAL 30 DAY)
          OR NOT EXISTS (SELECT 1 FROM case_andamentos a2 WHERE a2.case_id = cs.id)
      )"
 )->fetchColumn();
