@@ -298,7 +298,47 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                     elseif ($diff < 3600) $ago = floor($diff/60) . 'min';
                                     elseif ($diff < 86400) $ago = floor($diff/3600) . 'h';
                                     else $ago = floor($diff/86400) . 'd';
+
+                                    // Detecta se o link é wa.me/... — nesse caso renderizamos com data
+                                    // attributes pra abrir o WhatsApp do Hub (waSenderOpen) em vez
+                                    // do WhatsApp externo. Parse na hora pra extrair phone/text.
+                                    $isWaLink = !empty($n['link']) && stripos($n['link'], 'wa.me/') !== false;
+                                    if ($isWaLink) {
+                                        $waPhone = '';
+                                        $waText  = '';
+                                        $waName  = '';
+                                        $u = parse_url($n['link']);
+                                        if (isset($u['path'])) {
+                                            $waPhone = preg_replace('/\D/', '', $u['path']);
+                                        }
+                                        if (isset($u['query'])) {
+                                            parse_str($u['query'], $qs);
+                                            if (isset($qs['text'])) $waText = (string)$qs['text'];
+                                        }
+                                        // Tenta pegar nome do título: "Documentos recebidos — NOME"
+                                        if (strpos((string)$n['title'], '—') !== false) {
+                                            $partsTitle = explode('—', $n['title']);
+                                            $waName = trim((string)array_pop($partsTitle));
+                                        }
+                                    }
                                 ?>
+                                <?php if ($isWaLink): ?>
+                                <a href="javascript:void(0)" class="<?= $nClass ?>"
+                                   data-notif-id="<?= (int)$n['id'] ?>"
+                                   data-wa-phone="<?= e($waPhone) ?>"
+                                   data-wa-name="<?= e($waName) ?>"
+                                   data-wa-text="<?= e($waText) ?>"
+                                   onclick="fsaNotifClickWa(this); return false;">
+                                    <span class="notif-icon"><?= $nIcon ?></span>
+                                    <div class="notif-content">
+                                        <div class="notif-title"><?= e($n['title']) ?></div>
+                                        <?php if ($n['message']): ?>
+                                            <div class="notif-msg"><?= e(mb_substr($n['message'], 0, 60, 'UTF-8')) ?></div>
+                                        <?php endif; ?>
+                                    </div>
+                                    <span class="notif-time"><?= $ago ?></span>
+                                </a>
+                                <?php else: ?>
                                 <a href="<?= $n['link'] ? e($n['link']) . (strpos($n['link'],'?') !== false ? '&' : '?') . 'notif_id=' . $n['id'] : url('modules/notificacoes/?read=' . $n['id']) ?>" class="<?= $nClass ?>">
                                     <span class="notif-icon"><?= $nIcon ?></span>
                                     <div class="notif-content">
@@ -309,6 +349,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                     </div>
                                     <span class="notif-time"><?= $ago ?></span>
                                 </a>
+                                <?php endif; ?>
                                 <?php endforeach; ?>
                             <?php endif; ?>
                         </div>

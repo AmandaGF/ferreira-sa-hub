@@ -13,6 +13,47 @@
 <script src="<?= url('assets/js/busca_cpf.js') ?>"></script>
 <script src="<?= url('assets/js/gamificacao-efeitos.js') ?>"></script>
 <script src="<?= url('assets/js/wa_sender.js') ?>?v=<?= date('YmdHi') ?>"></script>
+<script>
+// Click handler pras notificações cujo link era wa.me/... — em vez de abrir
+// o WhatsApp externo, dispara o waSenderOpen do Hub. layout_start.php
+// renderiza essas notificações com data-wa-* attrs e onclick="fsaNotifClickWa(this); return false;"
+window.fsaNotifClickWa = function(el) {
+    var phone = el.getAttribute('data-wa-phone') || '';
+    var name  = el.getAttribute('data-wa-name')  || '';
+    var text  = el.getAttribute('data-wa-text')  || '';
+    var notifId = el.getAttribute('data-notif-id') || '';
+
+    // Marca a notificação como lida em background (fire-and-forget XHR)
+    if (notifId) {
+        try {
+            var rxhr = new XMLHttpRequest();
+            rxhr.open('GET', '<?= url('modules/notificacoes/api.php') ?>?action=read&id=' + encodeURIComponent(notifId), true);
+            rxhr.send();
+        } catch (e) {}
+        // Atualiza visualmente
+        el.classList.add('read');
+        // Decrementa contador do badge (se houver)
+        var badge = document.querySelector('.notif-badge, #notifBadge');
+        if (badge) {
+            var n = parseInt(badge.textContent, 10) || 0;
+            if (n > 1) badge.textContent = (n - 1);
+            else if (badge.style) badge.style.display = 'none';
+        }
+    }
+
+    // Abre o WhatsApp do Hub
+    if (typeof window.waSenderOpen === 'function') {
+        window.waSenderOpen({
+            telefone: phone,
+            nome:     name || 'Cliente',
+            mensagem: text,
+            canal:    '24'
+        });
+    } else {
+        alert('WhatsApp do Hub não carregado. Recarregue a página.');
+    }
+};
+</script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <script src="<?= url('assets/js/nvoip.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <!-- PWA: service worker + install prompt + update banner -->
