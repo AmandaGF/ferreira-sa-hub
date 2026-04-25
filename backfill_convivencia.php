@@ -13,10 +13,17 @@ require_once __DIR__ . '/core/database.php';
 $pdoHub = db();
 
 echo "\n=== BACKFILL CONVIVENCIA (intake_visitas → form_submissions) ===\n\n";
+@ob_flush(); flush();
 
 // 1. Cleanup: tira o teste do diag (#525) se ainda está
-$del = $pdoHub->exec("DELETE FROM form_submissions WHERE id = 525 AND payload_json LIKE '%TESTE DUAL-WRITE%'");
-echo "Cleanup #525 teste: removidos {$del}\n\n";
+echo "Etapa 1...\n"; @ob_flush(); flush();
+try {
+    $del = $pdoHub->exec("DELETE FROM form_submissions WHERE id = 525 AND payload_json LIKE '%TESTE DUAL-WRITE%'");
+    echo "Cleanup #525 teste: removidos {$del}\n\n";
+} catch (Exception $e) {
+    echo "ERRO cleanup: " . $e->getMessage() . "\n\n";
+}
+@ob_flush(); flush();
 
 // 2. Schema do form_submissions (campos esperados)
 $colunas = $pdoHub->query("SHOW COLUMNS FROM form_submissions")->fetchAll(PDO::FETCH_COLUMN);
