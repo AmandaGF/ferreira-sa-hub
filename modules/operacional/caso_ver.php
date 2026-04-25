@@ -2302,6 +2302,8 @@ foreach ($tarefasReais as $_t) {
                                     <?php endif; ?>
                                 <?php elseif ($tipoOrigem === 'importacao_lote'): ?>
                                     <span title="Importado em lote a partir dos autos em <?= !empty($and['created_at']) ? date('d/m/Y \à\s H:i', strtotime($and['created_at'])) : '' ?>" style="display:inline-flex;align-items:center;gap:3px;font-size:.62rem;background:#fef3c7;color:#92400e;padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid #fde68a;">📋 Lote</span>
+                                <?php elseif ($tipoOrigem === 'email_pje'): ?>
+                                    <span class="dj-origem-badge" title="Importado automaticamente via email PJe" style="display:inline-flex;align-items:center;gap:3px;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;">📧 Email PJe</span>
                                 <?php endif; ?>
                                 <?php
                                 // Prioridade: hora_andamento (campo próprio) > hora extraída de created_at (legado)

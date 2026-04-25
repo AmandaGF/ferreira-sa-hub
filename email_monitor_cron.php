@@ -165,6 +165,30 @@ $pdo->exec(
 );
 
 // ────────────────────────────────────────────────────────────
+// Tabela de pendentes de cadastro (self-heal — idempotente)
+// Quando chega email com CNJ que não está em `cases`, registramos aqui pra
+// Amanda decidir depois se cadastra como caso novo ou descarta.
+// UNIQUE(case_number) garante que duplicatas viram UPSERT (incrementa contador).
+// ────────────────────────────────────────────────────────────
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS email_monitor_pendentes (
+        id int unsigned NOT NULL AUTO_INCREMENT,
+        case_number varchar(30) NOT NULL,
+        polo_ativo text,
+        polo_passivo text,
+        orgao varchar(200),
+        ultimo_movimento_data date,
+        ultimo_movimento_desc text,
+        total_emails_recebidos int DEFAULT 1,
+        status enum('pendente','descartado','cadastrado') DEFAULT 'pendente',
+        primeira_vez datetime NOT NULL,
+        ultima_vez datetime NOT NULL,
+        PRIMARY KEY (id),
+        UNIQUE KEY uk_case_number (case_number)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+);
+
+// ────────────────────────────────────────────────────────────
 // IMAP
 // ────────────────────────────────────────────────────────────
 if (!function_exists('imap_open')) {
@@ -217,6 +241,23 @@ $stmtInsAndam    = $pdo->prepare(
         (?, ?, ?, 'movimentacao', ?, 0, NOW(), 0, ?, 'email_pje', ?)"
 );
 
+// UPSERT em email_monitor_pendentes: se já existe (uk_case_number), incrementa
+// total_emails_recebidos e atualiza último movimento + ultima_vez. Se não existe,
+// insere com primeira_vez=ultima_vez=NOW(), status='pendente'.
+$stmtUpsertPend  = $pdo->prepare(
+    "INSERT INTO email_monitor_pendentes
+        (case_number, polo_ativo, polo_passivo, orgao, ultimo_movimento_data, ultimo_movimento_desc, total_emails_recebidos, status, primeira_vez, ultima_vez)
+     VALUES (?, ?, ?, ?, ?, ?, 1, 'pendente', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE
+        total_emails_recebidos = total_emails_recebidos + 1,
+        polo_ativo            = COALESCE(VALUES(polo_ativo), polo_ativo),
+        polo_passivo          = COALESCE(VALUES(polo_passivo), polo_passivo),
+        orgao                 = COALESCE(VALUES(orgao), orgao),
+        ultimo_movimento_data = COALESCE(VALUES(ultimo_movimento_data), ultimo_movimento_data),
+        ultimo_movimento_desc = COALESCE(VALUES(ultimo_movimento_desc), ultimo_movimento_desc),
+        ultima_vez            = NOW()"
+);
+
 foreach ($emails as $uid) {
     $emailsLidos++;
     $uidStr = (string)$uid;
@@ -262,8 +303,38 @@ foreach ($emails as $uid) {
         $caseRows = $stmtBuscaCase->fetchAll();
         $stmtBuscaCase->closeCursor();
         if (empty($caseRows)) {
+            // CNJ não cadastrado em cases — registra/atualiza em email_monitor_pendentes
+            // pra Amanda decidir depois (cadastrar caso novo ou descartar).
+            // Pega o movimento mais recente do email pra dar contexto.
+            $ultMovData = null;
+            $ultMovDesc = null;
+            if (!empty($parsed['movimentos'])) {
+                $ultimoMov = $parsed['movimentos'][0];
+                foreach ($parsed['movimentos'] as $movX) {
+                    if (strcmp($movX['data'] . ' ' . $movX['hora'], $ultimoMov['data'] . ' ' . $ultimoMov['hora']) > 0) {
+                        $ultimoMov = $movX;
+                    }
+                }
+                $ultMovData = $ultimoMov['data'];
+                $ultMovDesc = $ultimoMov['descricao'];
+            }
+            try {
+                $stmtUpsertPend->execute(array(
+                    $parsed['cnj'],
+                    $parsed['polo_ativo']   !== '' ? $parsed['polo_ativo']   : null,
+                    $parsed['polo_passivo'] !== '' ? $parsed['polo_passivo'] : null,
+                    $parsed['orgao']        !== '' ? $parsed['orgao']        : null,
+                    $ultMovData,
+                    $ultMovDesc,
+                ));
+                $stmtUpsertPend->closeCursor();
+            } catch (Throwable $e) {
+                @$stmtUpsertPend->closeCursor();
+                $erros++;
+                $detalhes[] = "Erro upsert pendente {$parsed['cnj']}: " . $e->getMessage();
+            }
             $emailsIgnorados++;
-            $detalhes[] = "Processo {$parsed['cnj']} não cadastrado em cases (UID {$uidStr})";
+            $detalhes[] = "Processo {$parsed['cnj']} não cadastrado — registrado em pendentes (UID {$uidStr})";
             @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
             continue;
         }
