@@ -41,6 +41,9 @@ define('IMAP_BLOCK_DOMAIN',  'brevosend.com');
 
 define('LOCK_FILE',          sys_get_temp_dir() . '/email_monitor.lock');
 
+// Funções de IMAP / parsing / inserção compartilhadas com caso_novo.php
+require_once __DIR__ . '/includes/email_monitor_functions.php';
+
 $isCli = (php_sapi_name() === 'cli');
 
 // ────────────────────────────────────────────────────────────
@@ -405,128 +408,10 @@ echo "[done] lidos={$emailsLidos} inseridos={$andamentosInsert} ignorados={$emai
 // Lock liberado pelo shutdown handler — não duplica aqui
 
 // ────────────────────────────────────────────────────────────
-// Funções auxiliares
+// Funções auxiliares (parsers de IMAP/email vivem em
+// includes/email_monitor_functions.php — incluídas no topo deste arquivo).
+// Aqui ficam apenas funções específicas do cron (gravação de log).
 // ────────────────────────────────────────────────────────────
-
-/**
- * Extrai o corpo do email em texto plano, decodificando MIME e ajustando
- * encoding pra UTF-8.
- */
-function email_monitor_extract_body($mbox, $uid) {
-    $structure = @imap_fetchstructure($mbox, $uid, FT_UID);
-    if (!$structure) return '';
-
-    // Tenta achar parte text/plain; cai pra raw se falhar
-    $body = '';
-    if (!empty($structure->parts) && is_array($structure->parts)) {
-        $body = email_monitor_find_text_part($mbox, $uid, $structure->parts, '');
-    }
-    if ($body === '') {
-        $body = (string)@imap_body($mbox, $uid, FT_UID);
-        $body = email_monitor_decode_part($body, isset($structure->encoding) ? $structure->encoding : 0);
-    }
-
-    // Garante UTF-8
-    if ($body !== '' && !mb_check_encoding($body, 'UTF-8')) {
-        $convertido = @mb_convert_encoding($body, 'UTF-8', 'ISO-8859-1, UTF-8, ASCII');
-        if ($convertido !== false) $body = $convertido;
-    }
-
-    return (string)$body;
-}
-
-function email_monitor_find_text_part($mbox, $uid, $parts, $prefix) {
-    foreach ($parts as $i => $part) {
-        $sectionId = ($prefix === '') ? (string)($i + 1) : $prefix . '.' . ($i + 1);
-
-        $type    = isset($part->type) ? (int)$part->type : 0;       // 0 = text
-        $subtype = isset($part->subtype) ? strtolower($part->subtype) : '';
-
-        if ($type === 0 && $subtype === 'plain') {
-            $raw = (string)@imap_fetchbody($mbox, $uid, $sectionId, FT_UID);
-            return email_monitor_decode_part($raw, isset($part->encoding) ? $part->encoding : 0);
-        }
-        if (!empty($part->parts) && is_array($part->parts)) {
-            $sub = email_monitor_find_text_part($mbox, $uid, $part->parts, $sectionId);
-            if ($sub !== '') return $sub;
-        }
-    }
-
-    // Se não achou text/plain, tenta text/html convertido
-    foreach ($parts as $i => $part) {
-        $sectionId = ($prefix === '') ? (string)($i + 1) : $prefix . '.' . ($i + 1);
-        $type    = isset($part->type) ? (int)$part->type : 0;
-        $subtype = isset($part->subtype) ? strtolower($part->subtype) : '';
-        if ($type === 0 && $subtype === 'html') {
-            $raw = (string)@imap_fetchbody($mbox, $uid, $sectionId, FT_UID);
-            $html = email_monitor_decode_part($raw, isset($part->encoding) ? $part->encoding : 0);
-            $txt = strip_tags(preg_replace('/<br\s*\/?>/i', "\n", (string)$html));
-            return html_entity_decode($txt, ENT_QUOTES, 'UTF-8');
-        }
-    }
-
-    return '';
-}
-
-function email_monitor_decode_part($raw, $encoding) {
-    switch ((int)$encoding) {
-        case 3: return base64_decode($raw);
-        case 4: return quoted_printable_decode($raw);
-        default: return $raw;
-    }
-}
-
-/**
- * Parser do email PJe. Extrai CNJ, polos, órgão e lista de movimentos.
- */
-function email_monitor_parse($body) {
-    $result = array(
-        'cnj'          => null,
-        'polo_ativo'   => '',
-        'polo_passivo' => '',
-        'orgao'        => '',
-        'movimentos'   => array(),
-    );
-
-    // CNJ rotulado
-    if (preg_match('/N[uú]mero\s+do\s+Processo:\s*([\d\.\-]+)/iu', $body, $m)) {
-        $result['cnj'] = trim($m[1]);
-    }
-    // Fallback: detecta padrão CNJ em qualquer lugar do texto
-    if (!$result['cnj']) {
-        if (preg_match('/(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})/', $body, $m)) {
-            $result['cnj'] = $m[1];
-        }
-    }
-
-    if (preg_match('/Polo\s+Ativo:\s*(.+)/iu', $body, $m))   $result['polo_ativo']   = trim($m[1]);
-    if (preg_match('/Polo\s+Passivo:\s*(.+)/iu', $body, $m)) $result['polo_passivo'] = trim($m[1]);
-    if (preg_match('/[OÓ]rg[aã]o:\s*(.+)/iu', $body, $m))    $result['orgao']        = trim($m[1]);
-
-    // Movimentos: DD/MM/AAAA HH:MM - descrição
-    if (preg_match_all('/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})\s*-\s*(.+)/u', $body, $matches, PREG_SET_ORDER)) {
-        $vistos = array();
-        foreach ($matches as $m) {
-            $data = $m[3] . '-' . $m[2] . '-' . $m[1];
-            $hora = $m[4] . ':' . $m[5] . ':00';
-            $desc = trim($m[6]);
-            // Pula linhas-cabeçalho como "Data - Movimento"
-            if ($desc === '' || stripos($desc, 'Movimento') === 0) continue;
-            // Limpa quebras de linha vazadas no fim
-            $desc = preg_replace('/\s+/u', ' ', $desc);
-            $key = $data . '|' . $hora . '|' . $desc;
-            if (isset($vistos[$key])) continue;
-            $vistos[$key] = true;
-            $result['movimentos'][] = array(
-                'data'      => $data,
-                'hora'      => $hora,
-                'descricao' => $desc,
-            );
-        }
-    }
-
-    return $result;
-}
 
 function email_monitor_log_save($pdo, $lidos, $insert, $ignor, $dup, $erros, $detalhes, $modo) {
     $detText = implode("\n", array_slice($detalhes, 0, 80));

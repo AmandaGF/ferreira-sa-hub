@@ -188,7 +188,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {}
     }
 
-    flash_set('success', 'Processo cadastrado com sucesso!');
+    // ═══ Import automático de andamentos pendentes do email PJe ═══
+    // Se este case_number tinha registros em email_monitor_pendentes (status='pendente'),
+    // significa que andamentos do PJe chegaram por email mas o caso ainda não existia.
+    // Agora que o caso existe, varremos a caixa do Gmail (FROM do PJe + BODY contendo o
+    // CNJ) e importamos todos os movimentos pra case_andamentos com tipo_origem='email_pje'.
+    // Dedup por hash MD5 evita inserts duplicados se o email já tiver sido processado.
+    $importadosPje = 0;
+    if ($case_number !== '') {
+        try {
+            $stmtPendChk = $pdo->prepare("SELECT id FROM email_monitor_pendentes WHERE case_number = ? AND status = 'pendente' LIMIT 1");
+            $stmtPendChk->execute(array($case_number));
+            $pendRows = $stmtPendChk->fetchAll();
+            $stmtPendChk->closeCursor();
+
+            if (!empty($pendRows)) {
+                require_once __DIR__ . '/../../includes/email_monitor_functions.php';
+                $mboxImp = email_monitor_conectar_imap();
+                if ($mboxImp) {
+                    $userId = (int)current_user_id();
+                    // Search server-side por FROM + BODY contendo o CNJ — evita varrer
+                    // todos os emails (caixa pode ter milhares).
+                    $emailsImp = @imap_search($mboxImp, 'FROM "' . IMAP_FROM_FILTER . '" BODY "' . $case_number . '"', SE_UID);
+                    if (!is_array($emailsImp)) $emailsImp = array();
+                    foreach ($emailsImp as $uidImp) {
+                        try {
+                            $parsedImp = email_monitor_parsear_email($mboxImp, $uidImp);
+                            // Confirma CNJ exato (BODY pode ter falsos positivos com substring)
+                            if ($parsedImp['cnj'] !== $case_number) continue;
+                            foreach ($parsedImp['movimentos'] as $movImp) {
+                                if (email_monitor_inserir_andamento($pdo, $newId, $movImp, (int)$segredo_justica, $userId)) {
+                                    $importadosPje++;
+                                }
+                            }
+                        } catch (Throwable $e) {
+                            continue; // falha em 1 email não derruba o batch
+                        }
+                    }
+                    @imap_close($mboxImp);
+                }
+
+                // Marca pendência como 'cadastrado' independente do sucesso do IMAP —
+                // o caso EXISTE agora, então a pendência foi resolvida.
+                $stmtUpdPend = $pdo->prepare("UPDATE email_monitor_pendentes SET status = 'cadastrado' WHERE case_number = ?");
+                $stmtUpdPend->execute(array($case_number));
+                $stmtUpdPend->closeCursor();
+            }
+        } catch (Throwable $e) {
+            // Falha no import não deve impedir o cadastro do caso.
+            // Log silencioso — usuário não precisa ver detalhes técnicos do IMAP.
+        }
+    }
+
+    $msgSucesso = 'Processo cadastrado com sucesso!';
+    if ($importadosPje > 0) {
+        $msgSucesso .= ' ' . $importadosPje . ' andamento(s) do email PJe importado(s) automaticamente.';
+    }
+    flash_set('success', $msgSucesso);
     redirect(module_url('operacional', 'caso_ver.php?id=' . $newId));
 }
 
@@ -237,6 +293,32 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
 // Pré-preenchimento via query string (usado pela página Email Monitor → aba Pendentes)
 $preCaseNumber = trim($_GET['case_number'] ?? '');
 $preTitle      = trim($_GET['title'] ?? '');
+$preOrgao      = trim($_GET['orgao'] ?? '');
+
+// Parse do órgão (texto completo do PJe) → vara + comarca.
+// Exemplos:
+//   "1ª VARA DE FAMÍLIA DA COMARCA DE RESENDE"
+//     → vara: "1ª VARA DE FAMÍLIA"          comarca: "RESENDE"
+//   "VARA DE FAMÍLIA, DA INFÂNCIA, DA JUVENTUDE E DO IDOSO DA COMARCA DE BARRA DO PIRAÍ"
+//     → vara: "VARA DE FAMÍLIA, DA INFÂNCIA, DA JUVENTUDE E DO IDOSO"   comarca: "BARRA DO PIRAÍ"
+//   "4ª VARA DE FAMÍLIA DA REGIONAL DE CAMPO GRANDE"
+//     → vara: "4ª VARA DE FAMÍLIA"          comarca: "CAMPO GRANDE"
+//   "1ª VARA DE FAMÍLIA DA COMARCA DA CAPITAL"
+//     → vara: "1ª VARA DE FAMÍLIA"          comarca: "CAPITAL"
+$preVaraOrgao    = '';
+$preComarcaOrgao = '';
+if ($preOrgao !== '') {
+    // Non-greedy primeiro grupo + regex em flag /u (UTF-8) — match com a ÚLTIMA
+    // ocorrência de "DA COMARCA" ou "DA REGIONAL" pra suportar varas com várias
+    // "DA"/"DE" no nome (ex: VARA DE FAMÍLIA, DA INFÂNCIA, DA JUVENTUDE...)
+    if (preg_match('/^(.+?)\s+D[AO]\s+(?:COMARCA|REGIONAL)\s+(?:DE|DA|DAS|DO|DOS)\s+(.+)$/iu', $preOrgao, $matchOrgao)) {
+        $preVaraOrgao    = trim($matchOrgao[1]);
+        $preComarcaOrgao = trim($matchOrgao[2]);
+    } else {
+        // Sem padrão "DA COMARCA/REGIONAL DE X" — coloca o órgão completo na vara
+        $preVaraOrgao = $preOrgao;
+    }
+}
 
 // Status para cadastro MANUAL de processo (não entra no Kanban Operacional)
 // Para aparecer no Kanban, o processo deve vir pelo fluxo do Pipeline
@@ -596,7 +678,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div class="form-col">
                         <label>Vara</label>
-                        <?php $preVara = ($princData && $princData['court']) ? $princData['court'] : ''; ?>
+                        <?php $preVara = ($princData && $princData['court']) ? $princData['court'] : $preVaraOrgao; ?>
                         <input type="text" name="court" class="form-input" placeholder="Ex: 1a Vara de Familia" value="<?= e($preVara) ?>"<?= $preVara ? ' style="background:#fef9c3;"' : '' ?>>
                     </div>
                 </div>
@@ -615,7 +697,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <?php $preComarca = ($princData && $princData['comarca']) ? $princData['comarca'] : ''; ?>
+                    <?php $preComarca = ($princData && $princData['comarca']) ? $princData['comarca'] : $preComarcaOrgao; ?>
                     <div class="form-col">
                         <label>Comarca (Cidade)</label>
                         <input type="text" name="comarca" id="comarcaCidade" class="form-input" placeholder="Digite a cidade..." autocomplete="off" list="listaCidades" value="<?= e($preComarca) ?>"<?= $preComarca ? ' style="background:#fef9c3;"' : '' ?>>

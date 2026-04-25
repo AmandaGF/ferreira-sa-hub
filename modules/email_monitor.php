@@ -484,11 +484,13 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                             . ' x '
                                             . ($p['polo_passivo'] !== null && $p['polo_passivo'] !== '' ? $p['polo_passivo'] : 'Réu'));
 
-                                // URL do form de novo caso (com query string — o caso_novo.php hoje
-                                // não pré-preenche esses campos, então o JS também copia pro clipboard).
+                                // URL do form de novo caso. NÃO passa title (Amanda preenche manualmente
+                                // pra evitar criar pasta com nome incompatível com a convenção do escritório).
+                                // Passa case_number + orgao (caso_novo.php parseia o órgão pra preencher
+                                // vara + comarca automaticamente).
                                 $urlCadastrar = url('modules/operacional/caso_novo.php')
                                               . '?case_number=' . rawurlencode($p['case_number'])
-                                              . '&title='        . rawurlencode($tituloSug);
+                                              . '&orgao='       . rawurlencode((string)($p['orgao'] !== null ? $p['orgao'] : ''));
 
                                 // Polos compactos pra primeira coluna
                                 $poloA = ($p['polo_ativo']   !== null && $p['polo_ativo']   !== '') ? $p['polo_ativo']   : '—';
