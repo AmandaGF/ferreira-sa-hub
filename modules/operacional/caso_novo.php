@@ -234,6 +234,10 @@ if (isset($_GET['client_id']) && (int)$_GET['client_id'] > 0) {
     }
 }
 
+// Pré-preenchimento via query string (usado pela página Email Monitor → aba Pendentes)
+$preCaseNumber = trim($_GET['case_number'] ?? '');
+$preTitle      = trim($_GET['title'] ?? '');
+
 // Status para cadastro MANUAL de processo (não entra no Kanban Operacional)
 // Para aparecer no Kanban, o processo deve vir pelo fluxo do Pipeline
 $statusLabels = array(
@@ -495,7 +499,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-col">
                         <label>Nome da Pasta / Título *</label>
-                        <input type="text" name="title" id="tituloProcesso" class="form-input" required placeholder="Ex: Maria Silva x João Santos">
+                        <input type="text" name="title" id="tituloProcesso" class="form-input" required placeholder="Ex: Maria Silva x João Santos" value="<?= e($preTitle) ?>">
                     </div>
                 </div>
 
@@ -588,7 +592,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-col">
                         <label>N. do Processo</label>
-                        <input type="text" name="case_number" class="form-input" placeholder="0000000-00.0000.0.00.0000">
+                        <input type="text" name="case_number" class="form-input" placeholder="0000000-00.0000.0.00.0000" value="<?= e($preCaseNumber) ?>">
                     </div>
                     <div class="form-col">
                         <label>Vara</label>
