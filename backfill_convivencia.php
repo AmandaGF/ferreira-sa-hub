@@ -19,10 +19,19 @@ try {
     exit;
 }
 
-// === PASSO 2: conectar no Hub via core/database.php ===
-require_once __DIR__ . '/core/database.php';
-$pdoHub = db();
-echo "[2] Conectado no banco Hub.\n\n";
+// === PASSO 2: conectar no Hub via PDO direto (evita self-heal do db()) ===
+set_time_limit(120);
+require_once __DIR__ . '/core/config.php';
+$pdoHub = new PDO(
+    'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
+    DB_USER, DB_PASS,
+    array(
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    )
+);
+echo "[2] Conectado no banco Hub via PDO direto.\n\n";
+@ob_flush(); flush();
 
 // === PASSO 3: cleanup do teste ===
 echo "[3] iniciando cleanup...\n"; @ob_flush(); flush();
