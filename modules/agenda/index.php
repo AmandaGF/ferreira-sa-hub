@@ -337,7 +337,7 @@ if ($voltarCaso > 0): ?>
             </div>
         </div>
 
-        <div id="agBalcaoHint" style="display:none;margin:-6px 0 10px;padding:8px 12px;background:#ecfeff;border-left:3px solid #0d9488;border-radius:6px;font-size:.78rem;color:#134e4a;">⏰ Balcão Virtual TJRJ: agendamento permitido apenas <strong>entre 11:00 e 17:00</strong>.</div>
+        <div id="agBalcaoHint" style="display:none;margin:-6px 0 10px;padding:8px 12px;background:#ecfeff;border-left:3px solid #0d9488;border-radius:6px;font-size:.78rem;color:#134e4a;">⏰ Balcão Virtual TJRJ: apenas <strong>dias úteis</strong> (seg-sex, sem feriado), <strong>entre 11:00 e 17:00</strong>. Se já houver outro Balcão no horário, o sistema vai sugerir o próximo livre.</div>
 
         <div class="ag-fg">
             <label class="ag-fl">Modalidade</label>
@@ -1173,11 +1173,28 @@ function _balcaoSyncFromFields() {
     var dtFim = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes());
     document.getElementById('agDtFim').value = dtFim;
 }
-// Listeners dos campos balcão: qualquer mudança sincroniza pro hidden datetime-local
+// Listeners dos campos balcão: qualquer mudança sincroniza pro hidden datetime-local +
+// valida fds/feriado na data + checa conflito com outros balcões agendados
 document.addEventListener('DOMContentLoaded', function(){
-    ['agBalcaoData','agBalcaoHora','agBalcaoDuracao'].forEach(function(id){
+    var dataEl = document.getElementById('agBalcaoData');
+    if (dataEl) {
+        dataEl.addEventListener('change', function() {
+            // Bloqueia se for fds ou feriado — limpa o input e devolve foco
+            if (dataEl.value && !_balcaoDataValida(dataEl.value)) {
+                dataEl.value = '';
+                dataEl.focus();
+                return;
+            }
+            _balcaoSyncFromFields();
+            _balcaoChecarConflito();
+        });
+    }
+    ['agBalcaoHora','agBalcaoDuracao'].forEach(function(id){
         var el = document.getElementById(id);
-        if (el) el.addEventListener('change', _balcaoSyncFromFields);
+        if (el) el.addEventListener('change', function(){
+            _balcaoSyncFromFields();
+            _balcaoChecarConflito();
+        });
     });
 });
 
@@ -1304,18 +1321,157 @@ document.getElementById('agDtInicio').addEventListener('change', function() {
 });
 document.getElementById('agClienteBusca').addEventListener('input', atualizarPreview);
 
-// Balcão Virtual: agendamento permitido só entre 11:00 e 17:00.
-// Retorna true se ok, false se fora da janela (e mostra alert).
+// ─── Feriados (mesma lista do backend agenda/api.php) ───────────────
+// Calcula a Páscoa pelo algoritmo Anonymous Gregorian e a partir dela
+// os feriados móveis (Carnaval seg/ter, Sexta Santa, Corpus Christi).
+function _balcaoPascoa(ano) {
+    var a = ano % 19;
+    var b = Math.floor(ano / 100);
+    var c = ano % 100;
+    var d = Math.floor(b / 4);
+    var e = b % 4;
+    var f = Math.floor((b + 8) / 25);
+    var g = Math.floor((b - f + 1) / 3);
+    var h = (19 * a + b - d - g + 15) % 30;
+    var i = Math.floor(c / 4);
+    var k = c % 4;
+    var L = (32 + 2 * e + 2 * i - h - k) % 7;
+    var m = Math.floor((a + 11 * h + 22 * L) / 451);
+    var mes = Math.floor((h + L - 7 * m + 114) / 31);
+    var dia = ((h + L - 7 * m + 114) % 31) + 1;
+    return new Date(ano, mes - 1, dia);
+}
+function _balcaoFeriadosCache() {
+    if (window._balcaoFeriadosMemo) return window._balcaoFeriadosMemo;
+    var anos = [new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1];
+    var fer = {};
+    anos.forEach(function(ano) {
+        var pascoa = _balcaoPascoa(ano);
+        var add = function(d, nome) {
+            var ymd = d.getFullYear() + '-' + ('0' + (d.getMonth()+1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+            fer[ymd] = nome;
+        };
+        // Fixos
+        add(new Date(ano, 0, 1),  'Confraternização Universal');
+        add(new Date(ano, 3, 21), 'Tiradentes');
+        add(new Date(ano, 4, 1),  'Dia do Trabalho');
+        add(new Date(ano, 8, 7),  'Independência');
+        add(new Date(ano, 9, 12), 'N. Sra. Aparecida');
+        add(new Date(ano, 10, 2), 'Finados');
+        add(new Date(ano, 10, 15),'Proclamação da República');
+        add(new Date(ano, 10, 20),'Consciência Negra');
+        add(new Date(ano, 11, 25),'Natal');
+        add(new Date(ano, 3, 23), 'São Jorge (RJ)');
+        // Móveis
+        var carnSeg = new Date(pascoa); carnSeg.setDate(pascoa.getDate() - 48);
+        var carnTer = new Date(pascoa); carnTer.setDate(pascoa.getDate() - 47);
+        var sexSan  = new Date(pascoa); sexSan.setDate(pascoa.getDate() - 2);
+        var corpus  = new Date(pascoa); corpus.setDate(pascoa.getDate() + 60);
+        add(carnSeg, 'Carnaval (segunda)');
+        add(carnTer, 'Carnaval (terça)');
+        add(sexSan,  'Sexta-feira Santa');
+        add(corpus,  'Corpus Christi');
+    });
+    window._balcaoFeriadosMemo = fer;
+    return fer;
+}
+function _balcaoFeriadoNome(ymd) {
+    var fer = _balcaoFeriadosCache();
+    return fer[ymd] || null;
+}
+
+// Balcão Virtual: só seg-sex em dias úteis (sem feriado), entre 11:00 e 17:00.
+// Retorna true se ok, false caso contrário (e mostra alert).
 function _balcaoHorarioValido(dtLocalStr) {
     if (!dtLocalStr) return true;
-    var m = dtLocalStr.match(/T(\d{2}):(\d{2})/);
-    if (!m) return true;
-    var mins = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-    if (mins < 11 * 60 || mins > 17 * 60) {
-        alert('⏰ Balcão Virtual TJRJ: agendamento permitido apenas entre 11:00 e 17:00.\n\nHorário informado: ' + m[1] + ':' + m[2]);
+    var dataMatch = dtLocalStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    var horaMatch = dtLocalStr.match(/T(\d{2}):(\d{2})/);
+    if (!dataMatch) return true;
+
+    // Dia da semana — Date.getDay(): 0=domingo, 6=sábado
+    var d = new Date(parseInt(dataMatch[1],10), parseInt(dataMatch[2],10)-1, parseInt(dataMatch[3],10));
+    var dow = d.getDay();
+    if (dow === 0 || dow === 6) {
+        var nomeDia = dow === 6 ? 'sábado' : 'domingo';
+        alert('⏰ Balcão Virtual TJRJ: agendamento permitido apenas em dias úteis.\n\nData informada: ' + dataMatch[3] + '/' + dataMatch[2] + '/' + dataMatch[1] + ' (' + nomeDia + ').');
         return false;
     }
+
+    var ymd = dataMatch[1] + '-' + dataMatch[2] + '-' + dataMatch[3];
+    var feriado = _balcaoFeriadoNome(ymd);
+    if (feriado) {
+        alert('⏰ Balcão Virtual TJRJ: ' + dataMatch[3] + '/' + dataMatch[2] + '/' + dataMatch[1] + ' é feriado (' + feriado + ').\n\nEscolha outro dia.');
+        return false;
+    }
+
+    if (horaMatch) {
+        var mins = parseInt(horaMatch[1], 10) * 60 + parseInt(horaMatch[2], 10);
+        if (mins < 11 * 60 || mins > 17 * 60) {
+            alert('⏰ Balcão Virtual TJRJ: horário permitido apenas entre 11:00 e 17:00.\n\nHorário informado: ' + horaMatch[1] + ':' + horaMatch[2]);
+            return false;
+        }
+    }
     return true;
+}
+
+// Valida só a data (YYYY-MM-DD) — usado no onchange do agBalcaoData
+function _balcaoDataValida(ymdStr) {
+    if (!ymdStr) return true;
+    return _balcaoHorarioValido(ymdStr + 'T11:00');
+}
+
+// Checa conflito com outro balcão já agendado e desloca pra próxima hora se necessário.
+// Chama o endpoint balcao_proximo_slot e atualiza agBalcaoData/agBalcaoHora se a sugestão
+// vier diferente do desejado. Retorna Promise(true) se ok / atualizado.
+function _balcaoChecarConflito() {
+    var dataEl = document.getElementById('agBalcaoData');
+    var horaEl = document.getElementById('agBalcaoHora');
+    var durEl  = document.getElementById('agBalcaoDuracao');
+    if (!dataEl || !horaEl || !dataEl.value || !horaEl.value) return;
+
+    var dataHora = dataEl.value + 'T' + horaEl.value + ':00';
+    var duracao = parseInt(durEl ? durEl.value : '60', 10) || 60;
+    var excludeId = parseInt(document.getElementById('agEvId').value || '0', 10) || 0;
+
+    var url = API + '?action=balcao_proximo_slot'
+            + '&data_hora=' + encodeURIComponent(dataHora.replace('T', ' '))
+            + '&duracao_min=' + duracao
+            + '&exclude_id=' + excludeId;
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.error) return;
+            if (r.data_invalida) return; // já tratado por _balcaoHorarioValido
+            if (r.conflito && r.sugestao) {
+                // Sugestão tem formato YYYY-MM-DDTHH:MM
+                var partes = r.sugestao.split('T');
+                if (partes.length === 2) {
+                    var msg = '⚠️ Já existe outro Balcão Virtual marcado para ' + r.desejado_label + '.\n\nSugestão: ' + r.sugestao_label + '.\n\nClique OK pra usar a sugestão; cancele pra escolher outro horário manualmente.';
+                    if (confirm(msg)) {
+                        dataEl.value = partes[0];
+                        // Pode ser que a hora exata não esteja na lista de slots de 30min — adiciona se necessário
+                        var horaSug = partes[1].substr(0, 5);
+                        var jaTem = false;
+                        for (var i = 0; i < horaEl.options.length; i++) {
+                            if (horaEl.options[i].value === horaSug) { horaEl.selectedIndex = i; jaTem = true; break; }
+                        }
+                        if (!jaTem) {
+                            var opt = document.createElement('option');
+                            opt.value = horaSug; opt.text = horaSug + ' (sugerido)';
+                            horaEl.add(opt);
+                            horaEl.value = horaSug;
+                        }
+                        // Sincroniza pros campos hidden datetime-local
+                        if (typeof _balcaoSyncFromFields === 'function') _balcaoSyncFromFields();
+                    }
+                }
+            }
+        } catch (e) { /* silencioso */ }
+    };
+    xhr.send();
 }
 
 // Chip participantes — sincroniza classe .sel ao clicar

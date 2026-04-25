@@ -8,8 +8,66 @@ require_login();
 $pdo = db();
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
-// Balcão Virtual TJRJ: agendamento permitido só de segunda a sexta entre 11:00 e 17:00.
-// Retorna [ok, msg] — ok=false se for fim de semana ou horário fora da janela.
+// ─── Feriados nacionais + RJ (estaduais) ──────────────────────────────
+// Calcula a data de Páscoa (Anonymous Gregorian Algorithm — não depende
+// da extensão `calendar` do PHP) e a partir dela os móveis: Carnaval
+// (terça e segunda), Sexta-feira Santa e Corpus Christi.
+function _balcao_pascoa($ano) {
+    $a = $ano % 19;
+    $b = intdiv($ano, 100);
+    $c = $ano % 100;
+    $d = intdiv($b, 4);
+    $e = $b % 4;
+    $f = intdiv($b + 8, 25);
+    $g = intdiv($b - $f + 1, 3);
+    $h = (19 * $a + $b - $d - $g + 15) % 30;
+    $i = intdiv($c, 4);
+    $k = $c % 4;
+    $L = (32 + 2 * $e + 2 * $i - $h - $k) % 7;
+    $m = intdiv($a + 11 * $h + 22 * $L, 451);
+    $mes = intdiv($h + $L - 7 * $m + 114, 31);
+    $dia = (($h + $L - 7 * $m + 114) % 31) + 1;
+    return mktime(0, 0, 0, $mes, $dia, $ano);
+}
+
+// Retorna array 'YYYY-MM-DD' => 'Nome do feriado' pro ano informado.
+function _balcao_feriados_do_ano($ano) {
+    $pascoa = _balcao_pascoa($ano);
+    $sextaSanta   = strtotime('-2 days', $pascoa);
+    $carnavalTer  = strtotime('-47 days', $pascoa);
+    $carnavalSeg  = strtotime('-48 days', $pascoa);
+    $corpusChrist = strtotime('+60 days', $pascoa);
+    return array(
+        // Fixos nacionais
+        $ano . '-01-01' => 'Confraternização Universal',
+        $ano . '-04-21' => 'Tiradentes',
+        $ano . '-05-01' => 'Dia do Trabalho',
+        $ano . '-09-07' => 'Independência',
+        $ano . '-10-12' => 'N. Sra. Aparecida',
+        $ano . '-11-02' => 'Finados',
+        $ano . '-11-15' => 'Proclamação da República',
+        $ano . '-11-20' => 'Consciência Negra',
+        $ano . '-12-25' => 'Natal',
+        // Estadual RJ
+        $ano . '-04-23' => 'São Jorge (RJ)',
+        // Móveis (calculados a partir da Páscoa)
+        date('Y-m-d', $carnavalSeg)  => 'Carnaval (segunda)',
+        date('Y-m-d', $carnavalTer)  => 'Carnaval (terça)',
+        date('Y-m-d', $sextaSanta)   => 'Sexta-feira Santa',
+        date('Y-m-d', $corpusChrist) => 'Corpus Christi',
+    );
+}
+
+// Verifica se a data é feriado (nacional ou RJ). Retorna array [bool, nome].
+function _balcao_eh_feriado($ts) {
+    $ymd = date('Y-m-d', $ts);
+    $feriados = _balcao_feriados_do_ano((int)date('Y', $ts));
+    if (isset($feriados[$ymd])) return array(true, $feriados[$ymd]);
+    return array(false, '');
+}
+
+// Balcão Virtual TJRJ: só seg-sex, em dias úteis (sem feriado), entre 11:00 e 17:00.
+// Retorna [ok, msg] — ok=false se for fds/feriado/horário fora da janela.
 function _balcao_valida_horario($datetime_str) {
     $ts = strtotime((string)$datetime_str);
     if ($ts === false) return array(true, '');
@@ -18,7 +76,12 @@ function _balcao_valida_horario($datetime_str) {
     $diaSemana = (int)date('N', $ts);
     if ($diaSemana >= 6) {
         $nomeDia = $diaSemana === 6 ? 'sábado' : 'domingo';
-        return array(false, 'Balcão Virtual: agendamento permitido apenas de segunda a sexta-feira (recebido ' . $nomeDia . ', ' . date('d/m/Y', $ts) . ').');
+        return array(false, 'Balcão Virtual: agendamento permitido apenas em dias úteis (recebido ' . $nomeDia . ', ' . date('d/m/Y', $ts) . ').');
+    }
+
+    list($ehFer, $nomeFer) = _balcao_eh_feriado($ts);
+    if ($ehFer) {
+        return array(false, 'Balcão Virtual: ' . date('d/m/Y', $ts) . ' é feriado (' . $nomeFer . ') — escolha outro dia.');
     }
 
     $mins = ((int)date('H', $ts)) * 60 + (int)date('i', $ts);
@@ -26,6 +89,71 @@ function _balcao_valida_horario($datetime_str) {
         return array(false, 'Balcão Virtual: horário permitido entre 11:00 e 17:00 (recebido ' . date('H:i', $ts) . ').');
     }
     return array(true, '');
+}
+
+// Sugere o próximo slot livre pra Balcão Virtual a partir de uma data/hora desejada.
+// Considera: dia útil, dentro de 11h-17h, sem conflito com OUTRO balcao_virtual já agendado
+// (excluindo o próprio evento se for reagendamento — passa $excludeId).
+// Devolve string 'Y-m-d H:i:s' do slot livre, ou null se nada disponível antes do limite.
+function _balcao_proximo_slot($pdo, $datetime_desejado, $duracao_min, $excludeId = 0) {
+    $ts = strtotime((string)$datetime_desejado);
+    if ($ts === false) return null;
+    $duracao_min = max(15, (int)$duracao_min);
+    $excludeId   = (int)$excludeId;
+
+    // Tenta avançar de hora em hora dentro dos próximos 30 dias úteis (limite de segurança).
+    $tentativas = 0;
+    while ($tentativas < 30 * 7) { // ~30 dias × 7 slots/dia
+        $tentativas++;
+
+        // 1) Avança pro próximo dia útil se for fds/feriado
+        while (true) {
+            $diaSemana = (int)date('N', $ts);
+            list($ehFer,) = _balcao_eh_feriado($ts);
+            if ($diaSemana < 6 && !$ehFer) break;
+            // Pula pro próximo dia, 11:00
+            $ts = strtotime(date('Y-m-d', strtotime('+1 day', $ts)) . ' 11:00:00');
+        }
+
+        // 2) Garante horário entre 11h-17h
+        $hora = (int)date('H', $ts);
+        $mins = (int)date('i', $ts);
+        $minutosTotal = $hora * 60 + $mins;
+        if ($minutosTotal < 11 * 60) {
+            $ts = strtotime(date('Y-m-d', $ts) . ' 11:00:00');
+        } elseif ($minutosTotal > 17 * 60) {
+            // Passou de 17h — vai pro próximo dia 11h
+            $ts = strtotime(date('Y-m-d', strtotime('+1 day', $ts)) . ' 11:00:00');
+            continue; // re-valida fds/feriado
+        }
+
+        // 3) Checa conflito com outros balcão virtual nesta janela
+        $inicio = date('Y-m-d H:i:s', $ts);
+        $fim    = date('Y-m-d H:i:s', strtotime('+' . $duracao_min . ' minutes', $ts));
+        $sql = "SELECT COUNT(*) FROM agenda_eventos
+                WHERE tipo = 'balcao_virtual'
+                  AND status != 'cancelado'
+                  AND COALESCE(dia_todo,0) = 0
+                  AND data_inicio < ?
+                  AND data_fim    > ?";
+        $params = array($fim, $inicio);
+        if ($excludeId > 0) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeId;
+        }
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $conflitos = (int)$stmt->fetchColumn();
+        $stmt->closeCursor();
+
+        if ($conflitos === 0) {
+            return $inicio; // achou slot livre
+        }
+
+        // Conflito: avança 1h e tenta de novo
+        $ts = strtotime('+1 hour', $ts);
+    }
+    return null; // nada livre — improvável, mas seguro
 }
 
 // ── GET: buscar eventos (AJAX) ──────────────────────────────────────────────
@@ -200,6 +328,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $ev = $stmt->fetch();
         if (!$ev) { echo json_encode(array('error' => 'Evento não encontrado')); exit; }
         echo json_encode($ev);
+        exit;
+    }
+
+    // Sugere próximo slot livre pra Balcão Virtual evitando conflito com outros
+    // balcões já agendados. Frontend chama isso quando Amanda escolhe data+hora —
+    // se houver conflito, devolve o horário livre seguinte (avançando 1h por vez).
+    if ($action === 'balcao_proximo_slot') {
+        $dataHora = trim($_GET['data_hora'] ?? '');
+        $duracao  = (int)($_GET['duracao_min'] ?? 60);
+        $excludeId = (int)($_GET['exclude_id'] ?? 0);
+        if ($dataHora === '') {
+            echo json_encode(array('error' => 'data_hora obrigatória'));
+            exit;
+        }
+        // Valida primeiro a data informada (fds, feriado, horário) — se falhar, devolve mensagem
+        list($okValido, $msgValido) = _balcao_valida_horario($dataHora);
+        $sugestao = _balcao_proximo_slot($pdo, $dataHora, $duracao, $excludeId);
+        if ($sugestao === null) {
+            echo json_encode(array(
+                'ok'        => false,
+                'msg'       => 'Não foi possível achar slot livre nas próximas 4 semanas.',
+                'sugestao'  => null,
+            ));
+            exit;
+        }
+        // Conflito? = a sugestão é diferente da data desejada
+        $tsDesejado = strtotime($dataHora);
+        $tsSug      = strtotime($sugestao);
+        $conflito   = ($tsDesejado !== $tsSug);
+        echo json_encode(array(
+            'ok'              => true,
+            'sugestao'        => date('Y-m-d\TH:i', $tsSug), // formato HTML datetime-local
+            'sugestao_label'  => date('d/m/Y H:i', $tsSug),
+            'desejado_label'  => date('d/m/Y H:i', $tsDesejado),
+            'conflito'        => $conflito,
+            'data_invalida'   => !$okValido,
+            'msg_invalida'    => $okValido ? '' : $msgValido,
+        ));
         exit;
     }
 
