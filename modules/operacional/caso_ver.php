@@ -2715,7 +2715,7 @@ function renderPartes() {
             + '<td>' + tipo + '</td>'
             + '<td style="white-space:nowrap;">'
             +   '<button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;" title="Editar parte">Editar</button> '
-            +   '<button onclick="excluirParteDireto(' + p.id + ', ' + JSON.stringify(nome) + ')" class="btn btn-sm" style="font-size:.68rem;padding:2px 6px;color:#dc2626;border:1px solid #dc2626;background:#fff;cursor:pointer;border-radius:4px;" title="Excluir parte">×</button>'
+            +   '<button onclick="excluirParteDireto(' + p.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ')" class="btn btn-sm" style="font-size:.68rem;padding:2px 6px;color:#dc2626;border:1px solid #dc2626;background:#fff;cursor:pointer;border-radius:4px;" title="Excluir parte">×</button>'
             + '</td>'
             + '</tr>';
     });
