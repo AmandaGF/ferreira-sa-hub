@@ -24,13 +24,19 @@ $pdoHub = new PDO(
 echo "[1] Hub conectado: {$hubName}\n";
 
 // === PASSO 1: ler banco antigo via PDO direto (parseando credenciais) ===
-$confSrc = file_get_contents(dirname(__DIR__) . '/convivencia_form/config.php');
+echo "  reading config..."; @ob_flush(); flush();
+$confPath = dirname(__DIR__) . '/convivencia_form/config.php';
+$confSrc = @file_get_contents($confPath);
+echo " ok " . strlen((string)$confSrc) . " bytes\n"; @ob_flush(); flush();
+
 $dbVars = array('host'=>null,'name'=>null,'user'=>null,'pass'=>null);
 foreach (array('host'=>'DB_HOST','name'=>'DB_NAME','user'=>'DB_USER','pass'=>'DB_PASS') as $k=>$const) {
     if (preg_match("/define\(\s*['\"]" . $const . "['\"]\s*,\s*['\"]([^'\"]+)['\"]/", $confSrc, $m)) {
         $dbVars[$k] = $m[1];
     }
 }
+echo "  parsed: host={$dbVars['host']} db={$dbVars['name']} user={$dbVars['user']} pass=" . ($dbVars['pass'] ? '***' : 'null') . "\n";
+@ob_flush(); flush();
 $pdoOld = new PDO(
     "mysql:host={$dbVars['host']};dbname={$dbVars['name']};charset=utf8mb4",
     $dbVars['user'], $dbVars['pass'],
