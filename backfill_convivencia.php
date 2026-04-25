@@ -31,7 +31,8 @@ echo " ok " . strlen((string)$confSrc) . " bytes\n"; @ob_flush(); flush();
 
 $dbVars = array('host'=>null,'name'=>null,'user'=>null,'pass'=>null);
 foreach (array('host'=>'DB_HOST','name'=>'DB_NAME','user'=>'DB_USER','pass'=>'DB_PASS') as $k=>$const) {
-    if (preg_match("/define\(\s*['\"]" . $const . "['\"]\s*,\s*['\"]([^'\"]+)['\"]/", $confSrc, $m)) {
+    // Aceita: define('NOME','VALOR') OU NOME='VALOR' OU $NOME='VALOR' OU const NOME='VALOR'
+    if (preg_match("/(?:define\(\s*['\"]" . $const . "['\"]\s*,\s*|\b\\\$?" . $const . "\s*=\s*|\bconst\s+" . $const . "\s*=\s*)['\"]([^'\"]+)['\"]/", $confSrc, $m)) {
         $dbVars[$k] = $m[1];
     }
 }
