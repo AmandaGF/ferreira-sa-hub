@@ -129,9 +129,14 @@ try {
         'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
         DB_USER, DB_PASS,
         array(
-            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES   => false,
+            PDO::ATTR_ERRMODE              => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE   => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES     => false,
+            // Buffered queries: evita "Cannot execute queries while other
+            // unbuffered queries are active" quando dois prepares são executados
+            // em sequência sem fechar o cursor (caso típico: stmtChkHash dentro
+            // do foreach de movimentos enquanto stmtBuscaCase ainda tem cursor aberto).
+            PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
         )
     );
 } catch (Exception $e) {
