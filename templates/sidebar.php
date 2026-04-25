@@ -132,6 +132,7 @@ $menuItems = array(
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
     array('label' => 'Importar DJen',   'icon' => '📥', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin')),
+    array('label' => 'Andamentos Monitor', 'icon' => '📧', 'href' => url('modules/email_monitor.php'), 'id' => 'email_monitor', 'roles' => array('admin')),
     array('label' => 'Claudin (Monitor DJEN)', 'icon' => '🤖', 'href' => url('modules/admin/claudin_dashboard.php'), 'id' => 'claudin_dashboard', 'roles' => array('admin')),
     array('label' => 'Claudin — Backfill', 'icon' => '🔄', 'href' => url('modules/admin/claudin_backfill.php'), 'id' => 'claudin_backfill', 'roles' => array('admin')),
     array('label' => 'Claudin — Diag', 'icon' => '🔍', 'href' => url('modules/admin/claudin_diag.php'), 'id' => 'claudin_diag', 'roles' => array('admin')),
