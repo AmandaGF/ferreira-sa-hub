@@ -3,50 +3,45 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 @header('Content-Type: text/plain; charset=utf-8');
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
-
-echo "BACKFILL CONVIVENCIA — início\n\n";
-
-// === PASSO 1: ler do banco antigo, sem usar o db() do Hub ===
-$rows = array();
-try {
-    require_once dirname(__DIR__) . '/convivencia_form/config.php';
-    $pdoOld = pdo();
-    $rows = $pdoOld->query("SELECT * FROM intake_visitas WHERE created_at > '2026-04-01 23:59:59' ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
-    echo "[1] Lidas " . count($rows) . " linhas do banco antigo.\n\n";
-    $pdoOld = null; // fecha conexão
-} catch (Throwable $e) {
-    echo "[1 ERRO] " . $e->getMessage() . "\n";
-    exit;
-}
-
-// === PASSO 2: conectar no Hub via PDO direto (evita self-heal do db()) ===
 set_time_limit(120);
-require_once __DIR__ . '/core/config.php';
-$pdoHub = new PDO(
-    'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8mb4',
-    DB_USER, DB_PASS,
-    array(
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    )
-);
-echo "[2] Conectado no banco Hub via PDO direto.\n\n";
-@ob_flush(); flush();
 
-// === PASSO 3: cleanup do teste ===
-echo "[3] iniciando cleanup...\n"; @ob_flush(); flush();
+echo "BACKFILL CONVIVENCIA\n\n";
+
+// === PASSO 0: pegar credenciais do Hub PRIMEIRO ===
+// (config.php do banco antigo tb usa define() — se carregar antes, as constantes
+// do Hub não conseguem mais ser definidas, e tudo conecta no banco errado)
+require_once __DIR__ . '/core/config.php';
+$hubHost = DB_HOST;
+$hubName = DB_NAME;
+$hubUser = DB_USER;
+$hubPass = DB_PASS;
+
+$pdoHub = new PDO(
+    "mysql:host={$hubHost};dbname={$hubName};charset=utf8mb4",
+    $hubUser, $hubPass,
+    array(PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC)
+);
+echo "[1] Hub conectado: {$hubName}\n";
+
+// === PASSO 1: ler banco antigo (ele vai sobrescrever DB_* mas a gente já guardou) ===
+$rows = array();
+require_once dirname(__DIR__) . '/convivencia_form/config.php';
+$pdoOld = pdo();
+$rows = $pdoOld->query("SELECT * FROM intake_visitas WHERE created_at > '2026-04-01 23:59:59' ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
+echo "[2] Banco antigo lido: " . count($rows) . " linhas após 01/04\n\n";
+$pdoOld = null;
+
+// === PASSO 2: cleanup ===
 try {
-    $stmtDel = $pdoHub->prepare("DELETE FROM form_submissions WHERE id = ?");
-    $stmtDel->execute(array(525));
+    $stmtDel = $pdoHub->prepare("DELETE FROM form_submissions WHERE id = 525");
+    $stmtDel->execute();
     echo "[3] Cleanup #525: removidos " . $stmtDel->rowCount() . "\n\n";
 } catch (Exception $e) {
-    echo "[3 ERRO cleanup] " . $e->getMessage() . "\n\n";
+    echo "[3 erro] " . $e->getMessage() . "\n\n";
 }
-@ob_flush(); flush();
 
-// === PASSO 4: insert das que faltam ===
+// === PASSO 3: insert ===
 $migrados = 0; $ja = 0; $erros = 0;
-
 $ins = $pdoHub->prepare(
     "INSERT INTO form_submissions (form_type, protocol, payload_json, ip_address, user_agent, created_at, linked_client_id)
      VALUES ('convivencia', ?, ?, ?, ?, ?, ?)"
@@ -59,14 +54,11 @@ $findClient = $pdoHub->prepare(
 );
 
 foreach ($rows as $v) {
-    $name = $v['client_name'];
-    echo "[#{$v['id']}] [{$v['protocol']}] {$v['created_at']} — {$name}\n";
+    echo "[#{$v['id']}] [{$v['protocol']}] {$v['created_at']} — {$v['client_name']}\n";
 
-    // Já tem?
     $chk->execute(array('%' . $v['protocol'] . '%'));
     if ($chk->fetchColumn()) { echo "  já existe, skip\n"; $ja++; continue; }
 
-    // Cliente?
     $phoneClean = preg_replace('/\D/', '', (string)$v['client_phone']);
     $clientId = null;
     if (strlen($phoneClean) >= 9) {
