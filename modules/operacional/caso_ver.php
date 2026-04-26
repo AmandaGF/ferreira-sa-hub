@@ -255,6 +255,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .task-text.done { text-decoration:line-through; color:var(--text-muted); }
 .task-meta { font-size:.72rem; color:var(--text-muted); flex-shrink:0; }
 @keyframes spin { to { transform:rotate(360deg); } }
+.fsa-spin { animation: spin .7s linear infinite; }
+.fsa-save-ind { transition: opacity .2s; }
+input.fsa-erro, select.fsa-erro, textarea.fsa-erro { border-color:#dc2626 !important; }
+/* Toolbar sticky: usa IntersectionObserver pra aplicar sombra só quando "stuck".
+   Truque do top:-1px + sentinela é overkill — basta sombra suave permanente. */
+.cv-toolbar-sticky { box-shadow: 0 4px 8px -6px rgba(0,0,0,.15); }
+body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !important; box-shadow: 0 4px 12px -6px rgba(0,0,0,.4); }
 /* Publicacoes processuais */
 .pub-item { border-left-color: #dc2626 !important; background: #fff8f8 !important; }
 .pub-item .pub-badge {
@@ -308,7 +315,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cv-dropdown-menu .cv-divider { height:1px; background:var(--border, #e0e0e0); margin:4px 2px; }
 </style>
 
-<div style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;">
+<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:0;background:var(--bg, #f8fafc);padding:.6rem 0;z-index:50;border-bottom:1px solid transparent;">
     <?php
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
     $fromProcessos = (strpos($referer, '/processos') !== false);
@@ -1537,7 +1544,7 @@ function confirmarMarcarIncidental() {
                 <input type="hidden" name="action" value="update_status">
                 <input type="hidden" name="case_id" value="<?= $case['id'] ?>">
                 <div class="form-group" style="margin:0;">
-                    <select name="status" class="form-select" id="selectStatus" onchange="this.form.submit()" style="border-left:4px solid <?= $corStatus ?>;font-weight:700;">
+                    <select name="status" class="form-select" id="selectStatus" data-field="status" data-id="<?= $case['id'] ?>" onchange="this.form.submit()" style="border-left:4px solid <?= $corStatus ?>;font-weight:700;">
                         <?php foreach ($statusLabels as $k => $v):
                             $cor = isset($statusCores[$k]) ? $statusCores[$k] : '#888';
                         ?>
@@ -1673,11 +1680,12 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
             );
             foreach ($camposProcesso as $cp):
             ?>
-            <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row">
+            <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="<?= e($cp['field']) ?>">
                 <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;"><?= $cp['label'] ?></label>
                 <input type="<?= $cp['type'] ?>" value="<?= e($cp['value']) ?>"
                        data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
-                       onchange="salvarCampoProcesso(this)"
+                       <?= $cp['field'] === 'regional' ? 'list="listRegionaisCv" autocomplete="off"' : '' ?>
+                       onchange="salvarCampoProcesso(this); <?= in_array($cp['field'], array('comarca','comarca_uf')) ? '_atualizarRegionaisCv();' : '' ?>"
                        placeholder="<?= e($cp['placeholder']) ?>"
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
@@ -1699,10 +1707,13 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
             </div>
             <?php endforeach; ?>
         </div>
+        <!-- Datalist com regionais conhecidas (populado dinamicamente conforme UF+Comarca) -->
+        <datalist id="listRegionaisCv"></datalist>
         <!-- Segredo de justiça -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">🔒 Segredo de Justiça</label>
-            <select onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'segredo_justica'},value:this.value});this.style.background=this.value==='1'?'#fee2e2':'#f9fafb';this.style.color=this.value==='1'?'#991b1b':'var(--text-muted)';"
+            <select id="selSegredo" data-id="<?= $caseId ?>" data-field="segredo_justica"
+                    onchange="salvarCampoProcesso(this); _ajustarCorBoolean(this, 'segredo');"
                     style="padding:3px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;background:<?= !empty($case['segredo_justica']) ? '#fee2e2' : '#f9fafb' ?>;color:<?= !empty($case['segredo_justica']) ? '#991b1b' : 'var(--text-muted)' ?>;">
                 <option value="0" <?= empty($case['segredo_justica']) ? 'selected' : '' ?>>Não (processo público)</option>
                 <option value="1" <?= !empty($case['segredo_justica']) ? 'selected' : '' ?>>🔒 Sim (sob segredo)</option>
@@ -1711,7 +1722,8 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         <!-- Pro Bono -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;border-top:1px solid var(--border);">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">🤝 Pro Bono</label>
-            <select onchange="salvarCampoProcesso({dataset:{id:'<?= $caseId ?>',field:'pro_bono'},value:this.value});this.style.background=this.value==='1'?'#dcfce7':'#f9fafb';this.style.color=this.value==='1'?'#166534':'var(--text-muted)';"
+            <select id="selProBono" data-id="<?= $caseId ?>" data-field="pro_bono"
+                    onchange="salvarCampoProcesso(this); _ajustarCorBoolean(this, 'pro_bono');"
                     style="padding:3px 10px;border:1px solid var(--border);border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;background:<?= !empty($case['pro_bono']) ? '#dcfce7' : '#f9fafb' ?>;color:<?= !empty($case['pro_bono']) ? '#166534' : 'var(--text-muted)' ?>;">
                 <option value="0" <?= empty($case['pro_bono']) ? 'selected' : '' ?>>Não (cobrado)</option>
                 <option value="1" <?= !empty($case['pro_bono']) ? 'selected' : '' ?>>✓ Sim (gratuito)</option>
@@ -1726,7 +1738,7 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
             $desfAtual = $case['desfecho_processo'] ?? 'em_andamento';
             $desfInfo = $desfechos[$desfAtual] ?? $desfechos['em_andamento'];
             ?>
-            <select data-id="<?= $caseId ?>" data-field="desfecho_processo"
+            <select id="selDesfecho" data-id="<?= $caseId ?>" data-field="desfecho_processo"
                     onchange="salvarCampoProcesso(this); document.getElementById('avisoDesf').style.display = ['extinto_sem_julgamento','desistencia'].indexOf(this.value) !== -1 ? 'block' : 'none';"
                     style="border:1px solid var(--border);background:<?= $desfInfo['cor'] ?>15;color:<?= $desfInfo['cor'] ?>;font-size:.78rem;padding:3px 10px;border-radius:6px;font-weight:700;cursor:pointer;">
                 <?php foreach ($desfechos as $dk => $di): ?>
@@ -2761,11 +2773,121 @@ function copiarLinkDrive(btn, url) {
     });
 }
 
+// ── Sugestões de Regional por UF + Comarca ──
+// Lista hardcoded das regionais conhecidas. Quando UF+Comarca da pasta bate
+// com uma chave do mapa, popula o datalist de Regional pra o autocomplete
+// nativo do browser sugerir as opções. Não é exaustivo — pra qualquer
+// outra combinação, o input segue livre (pode digitar qualquer texto).
+var _mapaRegionais = {
+    'RJ|capital (rio de janeiro)': ['Centro','Madureira','Bangu','Méier','Jacarepaguá','Ilha do Governador','Pavuna','Campo Grande','Leopoldina','Santa Cruz','Barra da Tijuca','Alegria'],
+    'RJ|capital':                  ['Centro','Madureira','Bangu','Méier','Jacarepaguá','Ilha do Governador','Pavuna','Campo Grande','Leopoldina','Santa Cruz','Barra da Tijuca','Alegria'],
+    'RJ|rio de janeiro':           ['Centro','Madureira','Bangu','Méier','Jacarepaguá','Ilha do Governador','Pavuna','Campo Grande','Leopoldina','Santa Cruz','Barra da Tijuca','Alegria'],
+    'SP|são paulo':                ['Lapa','Penha','Santo Amaro','Itaquera','Pinheiros','São Miguel Paulista','Tatuapé','Vila Prudente','Nossa Senhora do Ó','Ipiranga','Jabaquara','Santana'],
+    'SP|sao paulo':                ['Lapa','Penha','Santo Amaro','Itaquera','Pinheiros','São Miguel Paulista','Tatuapé','Vila Prudente','Nossa Senhora do Ó','Ipiranga','Jabaquara','Santana'],
+    'SP|capital':                  ['Lapa','Penha','Santo Amaro','Itaquera','Pinheiros','São Miguel Paulista','Tatuapé','Vila Prudente','Nossa Senhora do Ó','Ipiranga','Jabaquara','Santana'],
+    'MG|belo horizonte':           ['Lafayette (Centro)','Barreiro','Venda Nova','Norte (Pampulha)'],
+    'MG|capital':                  ['Lafayette (Centro)','Barreiro','Venda Nova','Norte (Pampulha)']
+};
+
+document.addEventListener('DOMContentLoaded', function(){
+    if (typeof _atualizarRegionaisCv === 'function') _atualizarRegionaisCv();
+});
+
+function _atualizarRegionaisCv() {
+    var ufEl  = document.querySelector('input[data-field="comarca_uf"]');
+    var comEl = document.querySelector('input[data-field="comarca"]');
+    var dl    = document.getElementById('listRegionaisCv');
+    var rowR  = document.querySelector('[data-field-row="regional"]');
+    var inpR  = rowR ? rowR.querySelector('input[data-field="regional"]') : null;
+    if (!ufEl || !comEl || !dl) return;
+
+    var uf  = (ufEl.value || '').toUpperCase().trim();
+    var com = (comEl.value || '').toLowerCase().trim();
+    var key = uf + '|' + com;
+    var lista = _mapaRegionais[key];
+
+    dl.innerHTML = '';
+    if (lista && lista.length) {
+        lista.forEach(function(nome) {
+            var opt = document.createElement('option');
+            opt.value = nome;
+            dl.appendChild(opt);
+        });
+        if (inpR) inpR.placeholder = 'Sugestões: ' + lista.slice(0, 3).join(', ') + '...';
+    } else {
+        if (inpR) inpR.placeholder = 'Geralmente esta comarca não tem fórum regional';
+    }
+}
+
+// Ajuste visual de selects boolean (Segredo / Pro Bono): troca cor de fundo
+// e texto conforme o valor, mantendo o feedback do save inline separado.
+function _ajustarCorBoolean(el, tipo) {
+    var ativo = el.value === '1';
+    if (tipo === 'segredo') {
+        el.style.background = ativo ? '#fee2e2' : '#f9fafb';
+        el.style.color      = ativo ? '#991b1b' : 'var(--text-muted)';
+    } else if (tipo === 'pro_bono') {
+        el.style.background = ativo ? '#dcfce7' : '#f9fafb';
+        el.style.color      = ativo ? '#166534' : 'var(--text-muted)';
+    }
+}
+
+// ── Indicador visual de save inline (spinner durante / ✓ ok / ✕ erro) ──
+// Reutilizável: qualquer XHR de save inline pode chamar _fsaSave.saving(el),
+// .ok(el) ou .erro(el, msg). Insere uma badge absoluta no canto do campo
+// + colore a borda. Antes a única indicação era um flash de bg verde por 1s,
+// e erro caía em alert() — agora consistente, silencioso e não intrusivo.
+var _fsaSave = {
+    _badge: function(el) {
+        if (!el || !el.parentElement) return null;
+        var p = el.parentElement;
+        if (getComputedStyle(p).position === 'static') p.style.position = 'relative';
+        var b = p.querySelector('.fsa-save-ind');
+        if (!b) {
+            b = document.createElement('span');
+            b.className = 'fsa-save-ind';
+            b.style.cssText = 'position:absolute;top:50%;right:8px;transform:translateY(-50%);font-size:.95rem;pointer-events:none;z-index:5;line-height:1;';
+            p.appendChild(b);
+        }
+        return b;
+    },
+    _bordaOriginal: function(el) {
+        // Guarda a borda original (1ª chamada) e devolve nas resets.
+        if (!el.dataset.fsaBorder) {
+            el.dataset.fsaBorder = el.style.borderColor || '';
+        }
+        return el.dataset.fsaBorder || '';
+    },
+    saving: function(el) {
+        var b = this._badge(el);
+        if (b) b.innerHTML = '<span class="fsa-spin" style="display:inline-block;width:13px;height:13px;border:2px solid #cbd5e1;border-top-color:#4338ca;border-radius:50%;"></span>';
+        this._bordaOriginal(el);
+        if (el.style && el.style.borderColor !== undefined) el.style.borderColor = '#c7d2fe';
+    },
+    ok: function(el) {
+        var b = this._badge(el);
+        if (b) b.innerHTML = '<span style="color:#059669;font-weight:700;font-size:.95rem;">✓</span>';
+        if (el.style && el.style.borderColor !== undefined) el.style.borderColor = '#10b981';
+        setTimeout(function(){
+            if (b) b.innerHTML = '';
+            if (el.style && el.style.borderColor !== undefined) el.style.borderColor = el.dataset.fsaBorder || '';
+        }, 1800);
+    },
+    erro: function(el, msg) {
+        var b = this._badge(el);
+        var t = (msg || 'Erro ao salvar').replace(/"/g, '&quot;');
+        if (b) b.innerHTML = '<span style="color:#dc2626;font-weight:700;font-size:.95rem;cursor:help;" title="' + t + '">✕</span>';
+        if (el.style && el.style.borderColor !== undefined) el.style.borderColor = '#dc2626';
+    }
+};
+
 function salvarCampoProcesso(el) {
     var id = el.dataset ? el.dataset.id : el.id;
     var field = el.dataset ? el.dataset.field : '';
     var value = el.value !== undefined ? el.value : '';
     if (!id || !field) return;
+
+    _fsaSave.saving(el);
 
     var fd = new FormData();
     fd.append('action', 'inline_edit_case');
@@ -2782,12 +2904,15 @@ function salvarCampoProcesso(el) {
             var r = JSON.parse(xhr.responseText);
             if (r.csrf) _cvCsrf = r.csrf;
             if (r.ok) {
-                if (el.style) { el.style.background = '#ecfdf5'; setTimeout(function(){ el.style.background = 'transparent'; }, 1000); }
+                _fsaSave.ok(el);
             } else if (r.error) {
-                alert('Erro: ' + r.error);
+                _fsaSave.erro(el, r.error);
+            } else {
+                _fsaSave.erro(el, 'Resposta inválida');
             }
-        } catch(e) {}
+        } catch(e) { _fsaSave.erro(el, 'Resposta inválida'); }
     };
+    xhr.onerror = function() { _fsaSave.erro(el, 'Falha de rede'); };
     xhr.send(fd);
 }
 

@@ -110,6 +110,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional')); }
 
+// Helper: após ação de status (distribuir/suspender/cancelar/etc.), preserva
+// o contexto da pasta se a ação veio de caso_ver.php. Senão volta pro Kanban
+// (que era o destino padrão antigo). Já existia essa lógica no fim do
+// update_status (linhas ~547), mas as branches especiais saíam antes — agora
+// todas usam este helper pra ficar consistente.
+function _redir_volta_caso_ou_kanban($caseId = 0) {
+    $caseId = (int)$caseId;
+    $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+    if ($caseId > 0 && strpos($referer, 'caso_ver') !== false) {
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+    } else {
+        redirect(module_url('operacional'));
+    }
+}
+
 $action = $_POST['action'] ?? '';
 
 // Ações de leitura AJAX: não consomem CSRF (evita invalidar token para o próximo submit)
@@ -232,7 +247,7 @@ switch ($action) {
 
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set('success', 'Documento faltante sinalizado. CX notificado.');
-                redirect(module_url('operacional'));
+                _redir_volta_caso_ou_kanban($caseId);
                 exit;
             }
 
@@ -386,7 +401,7 @@ switch ($action) {
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set($dupAviso ? 'warning' : 'success', 'Processo distribuído! Dados salvos. 🎉' . $dupAviso);
                 $_SESSION['efeito_distribuicao'] = true;
-                redirect(module_url('operacional'));
+                _redir_volta_caso_ou_kanban($caseId);
                 exit;
             }
 
@@ -425,7 +440,7 @@ switch ($action) {
                 audit_log('case_suspended', 'case', $caseId, 'Anterior: ' . $oldStatus . $motivoMsg . ($suspRetorno ? ' Retorno: ' . $suspRetorno : ''));
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set('success', 'Caso suspenso.');
-                redirect(module_url('operacional'));
+                _redir_volta_caso_ou_kanban($caseId);
                 exit;
             }
 
@@ -491,7 +506,7 @@ switch ($action) {
 
                 if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
                 flash_set('success', 'Caso enviado para o Kanban PREV! 🏛️');
-                redirect(module_url('operacional'));
+                _redir_volta_caso_ou_kanban($caseId);
                 exit;
             }
 
@@ -544,12 +559,7 @@ switch ($action) {
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
             flash_set('success', 'Status atualizado.');
         }
-        $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : module_url('operacional');
-        if (strpos($referer, 'caso_ver') !== false) {
-            redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
-        } else {
-            redirect(module_url('operacional'));
-        }
+        _redir_volta_caso_ou_kanban($caseId);
         break;
 
     case 'resolve_doc':
