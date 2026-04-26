@@ -687,7 +687,7 @@ switch ($action) {
         }
 
         // Whitelist de campos editáveis
-        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url','desfecho_processo');
+        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url','desfecho_processo','competencia','vara_mista');
 
         // Se for desfecho_processo, registra a data automaticamente
         if ($field === 'desfecho_processo' && $value && $value !== 'em_andamento') {

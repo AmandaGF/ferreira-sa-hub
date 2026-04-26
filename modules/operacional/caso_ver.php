@@ -8,6 +8,13 @@ require_once __DIR__ . '/../../core/functions_djen.php';
 require_login();
 
 $pdo = db();
+
+// Self-heal: colunas pra Competência e Vara Mista (BATCH 3 do bug report 26/Abr).
+// competencia: JSON string com array de áreas ("Cível","Família","Criminal",...).
+// vara_mista: 1 se a vara julga múltiplas competências (ex: "2ª Vara Cível e Criminal").
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN competencia TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN vara_mista TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
 $caseId = (int)($_GET['id'] ?? 0);
 $userId = current_user_id();
 $isColaborador = has_role('colaborador');
@@ -335,6 +342,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     </form>
     <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
+    <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
     <?php endif; ?>
@@ -846,6 +854,32 @@ if (!empty($compFuturos)): ?>
         </div>
         <?php endforeach; ?>
     </div>
+</div>
+<?php endif; ?>
+
+<?php
+// ── Banner: ações de alimentos/pensão exigem cuidado com a legitimidade ativa ──
+// Em alimentos/pensão alimentícia/revisional/execução, a parte ativa é a CRIANÇA
+// (art. 1.694 CC c/c art. 22 ECA). O adulto contratante figura como REPRESENTANTE
+// LEGAL (art. 71 CPC c/c art. 1.634 CC). Pipeline cria a pasta com adulto = Autor
+// por default, então alertamos quando: (a) case_type bate com a família alimentos
+// e (b) ainda não existe nenhuma parte com papel='representante_legal'.
+$_caseTypeAlimentos = strtolower((string)($case['case_type'] ?? ''));
+$_ehAlimentos = (strpos($_caseTypeAlimentos, 'aliment') !== false || strpos($_caseTypeAlimentos, 'pens') !== false);
+$_jaTemRepLegal = false;
+if ($_ehAlimentos) {
+    try {
+        $stmtRl = $pdo->prepare("SELECT COUNT(*) FROM case_partes WHERE case_id = ? AND papel = 'representante_legal'");
+        $stmtRl->execute(array($caseId));
+        $_jaTemRepLegal = (int)$stmtRl->fetchColumn() > 0;
+    } catch (Exception $eRL) {}
+}
+?>
+<?php if ($_ehAlimentos && !$_jaTemRepLegal): ?>
+<div style="margin-bottom:1rem;padding:.85rem 1rem;background:#fffbeb;border:1.5px solid #fcd34d;border-left:5px solid #d97706;border-radius:8px;font-size:.85rem;color:#78350f;">
+    <strong>⚠ Verifique a legitimidade ativa em ações de alimentos.</strong>
+    Em alimentos / pensão / revisional / execução de alimentos, quem figura como <strong>Autor</strong> normalmente é a <strong>criança (alimentanda)</strong>. O adulto que contratou o escritório costuma figurar como <strong>Representante Legal</strong> (art. 71 CPC c/c art. 1.634 CC).
+    <span style="display:block;margin-top:.4rem;font-size:.78rem;color:#92400e;">Se este caso já está cadastrado corretamente, ignore o aviso. Caso contrário, ajuste em "Partes do Processo".</span>
 </div>
 <?php endif; ?>
 
@@ -1682,6 +1716,27 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
             ?>
             <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="<?= e($cp['field']) ?>">
                 <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;"><?= $cp['label'] ?></label>
+                <?php if ($cp['field'] === 'sistema_tribunal'):
+                    // Lista controlada dos sistemas de tribunal mais comuns. Mantém
+                    // valor atual como option mesmo se não bater (pra preservar
+                    // dados legados como "PJe TJRJ" digitados livres antes).
+                    $sistemasOpts = array('PJe','eProc','e-SAJ','Projudi','SEEU','Themis','TUCUJURIS','EJUD','DCP');
+                    $valAtual = (string)$cp['value'];
+                ?>
+                <select data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
+                        onchange="salvarCampoProcesso(this)"
+                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;cursor:pointer;"
+                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
+                        onblur="this.style.background='transparent'">
+                    <option value="">— Selecionar —</option>
+                    <?php foreach ($sistemasOpts as $sis): ?>
+                    <option value="<?= e($sis) ?>" <?= $valAtual === $sis ? 'selected' : '' ?>><?= e($sis) ?></option>
+                    <?php endforeach; ?>
+                    <?php if ($valAtual && !in_array($valAtual, $sistemasOpts, true)): ?>
+                    <option value="<?= e($valAtual) ?>" selected><?= e($valAtual) ?> (legado)</option>
+                    <?php endif; ?>
+                </select>
+                <?php else: ?>
                 <input type="<?= $cp['type'] ?>" value="<?= e($cp['value']) ?>"
                        data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
                        <?= $cp['field'] === 'regional' ? 'list="listRegionaisCv" autocomplete="off"' : '' ?>
@@ -1690,6 +1745,7 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
                        onblur="this.style.background='transparent'">
+                <?php endif; ?>
                 <?php if ($cp['field'] === 'drive_folder_url' && !empty($cp['value'])): ?>
                     <a href="<?= e($cp['value']) ?>" target="_blank" rel="noopener" title="Abrir pasta no Google Drive"
                        style="display:inline-flex;align-items:center;gap:4px;background:#4285f4;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;flex-shrink:0;margin-left:.4rem;">
@@ -1709,6 +1765,39 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         </div>
         <!-- Datalist com regionais conhecidas (populado dinamicamente conforme UF+Comarca) -->
         <datalist id="listRegionaisCv"></datalist>
+
+        <!-- Competência (multi-select) + Vara mista -->
+        <?php
+        $competenciasArr = array();
+        if (!empty($case['competencia'])) {
+            $tmp = json_decode($case['competencia'], true);
+            if (is_array($tmp)) $competenciasArr = $tmp;
+        }
+        $listaCompetencias = array('Cível','Família','Sucessões','Infância e Juventude','Criminal','Fazenda Pública','Trabalhista','Empresarial','Previdenciário','Tributário','Consumidor');
+        ?>
+        <div style="display:flex;align-items:flex-start;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="competencia">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;padding-top:4px;">⚖️ Competência</label>
+            <div style="flex:1;display:flex;flex-wrap:wrap;gap:4px;">
+                <?php foreach ($listaCompetencias as $cmp):
+                    $marcado = in_array($cmp, $competenciasArr, true);
+                ?>
+                <label style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border:1px solid <?= $marcado ? '#0d9488' : 'var(--border)' ?>;background:<?= $marcado ? '#f0fdfa' : '#fff' ?>;color:<?= $marcado ? '#134e4a' : 'var(--text)' ?>;border-radius:99px;font-size:.72rem;cursor:pointer;font-weight:<?= $marcado ? '700' : '500' ?>;">
+                    <input type="checkbox" class="cv-comp-chk" value="<?= e($cmp) ?>" <?= $marcado ? 'checked' : '' ?> style="width:12px;height:12px;cursor:pointer;" onchange="_salvarCompetencia(<?= $caseId ?>)">
+                    <?= e($cmp) ?>
+                </label>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="vara_mista">
+            <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;">🏛️ Vara mista?</label>
+            <select id="selVaraMista" data-id="<?= $caseId ?>" data-field="vara_mista"
+                    onchange="salvarCampoProcesso(this)"
+                    style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;cursor:pointer;">
+                <option value="0" <?= empty($case['vara_mista']) ? 'selected' : '' ?>>Não — vara especializada</option>
+                <option value="1" <?= !empty($case['vara_mista']) ? 'selected' : '' ?>>Sim — julga múltiplas competências (ex: 2ª Vara Cível e Criminal)</option>
+            </select>
+        </div>
+
         <!-- Segredo de justiça -->
         <div style="display:flex;align-items:center;padding:.45rem .6rem;gap:.5rem;">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;">🔒 Segredo de Justiça</label>
@@ -2773,6 +2862,70 @@ function copiarLinkDrive(btn, url) {
     });
 }
 
+// Gera resumo Markdown da pasta + copia pra clipboard. Útil pra colar em
+// e-mail interno, Slack, WhatsApp da equipe — sem ter que copiar campo a
+// campo. Inclui CNJ, partes (cliente + adversários), vara/comarca, status,
+// data de distribuição, último andamento.
+function copiarResumoPasta() {
+    var dadosPHP = <?= json_encode(array(
+        'titulo'      => $case['title'] ?? '',
+        'cliente'     => $case['client_name'] ?? '',
+        'tipo'        => $case['case_type'] ?? '',
+        'cnj'         => $case['case_number'] ?? '',
+        'court'       => $case['court'] ?? '',
+        'comarca'     => $case['comarca'] ?? '',
+        'comarca_uf'  => $case['comarca_uf'] ?? '',
+        'regional'    => $case['regional'] ?? '',
+        'sistema'     => $case['sistema_tribunal'] ?? '',
+        'distribuido' => $case['distribution_date'] ?? '',
+        'status'      => isset($statusLabels[$case['status']]) ? $statusLabels[$case['status']] : ($case['status'] ?? ''),
+        'segredo'     => !empty($case['segredo_justica']),
+        'responsavel' => $case['responsible_name'] ?? '',
+        'url'         => url('modules/operacional/caso_ver.php?id=' . (int)$caseId),
+    ), JSON_UNESCAPED_UNICODE) ?>;
+
+    var fmtData = function(d) { if (!d) return ''; var p = String(d).substr(0,10).split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : d; };
+    var l = [];
+    l.push('**' + dadosPHP.titulo + '**');
+    if (dadosPHP.tipo) l.push('Tipo: ' + dadosPHP.tipo);
+    if (dadosPHP.cnj) l.push('CNJ: `' + dadosPHP.cnj + '`');
+    var localBits = [];
+    if (dadosPHP.court) localBits.push(dadosPHP.court);
+    if (dadosPHP.comarca) localBits.push(dadosPHP.comarca + (dadosPHP.comarca_uf ? '/' + dadosPHP.comarca_uf : ''));
+    if (dadosPHP.regional) localBits.push('Regional ' + dadosPHP.regional);
+    if (dadosPHP.sistema) localBits.push(dadosPHP.sistema);
+    if (localBits.length) l.push('Vara: ' + localBits.join(' · '));
+    if (dadosPHP.cliente) l.push('Cliente: ' + dadosPHP.cliente);
+    if (dadosPHP.distribuido) l.push('Distribuído em: ' + fmtData(dadosPHP.distribuido));
+    if (dadosPHP.status) l.push('Status: ' + dadosPHP.status);
+    if (dadosPHP.segredo) l.push('⚠️ SEGREDO DE JUSTIÇA');
+    if (dadosPHP.responsavel) l.push('Responsável: ' + dadosPHP.responsavel);
+    l.push('');
+    l.push(dadosPHP.url);
+
+    var texto = l.join('\n');
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(texto).then(function(){
+            _fsaToastResumo('✓ Resumo copiado!');
+        }).catch(function(){ _fsaToastResumo('✗ Erro ao copiar'); });
+    } else {
+        var ta = document.createElement('textarea');
+        ta.value = texto; ta.style.position='absolute'; ta.style.left='-9999px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); _fsaToastResumo('✓ Resumo copiado!'); }
+        catch(e) { _fsaToastResumo('Cole manualmente: ' + texto.substring(0, 60)); }
+        ta.remove();
+    }
+}
+function _fsaToastResumo(msg) {
+    var t = document.createElement('div');
+    t.textContent = msg;
+    t.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#052228;color:#fff;padding:.7rem 1.2rem;border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.3);z-index:9999;font-size:.85rem;font-weight:600;';
+    document.body.appendChild(t);
+    setTimeout(function(){ t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(function(){t.remove();}, 300); }, 1800);
+}
+
 // ── Sugestões de Regional por UF + Comarca ──
 // Lista hardcoded das regionais conhecidas. Quando UF+Comarca da pasta bate
 // com uma chave do mapa, popula o datalist de Regional pra o autocomplete
@@ -2817,6 +2970,44 @@ function _atualizarRegionaisCv() {
     } else {
         if (inpR) inpR.placeholder = 'Geralmente esta comarca não tem fórum regional';
     }
+}
+
+// Salva a Competência (multi-select por checkboxes) como JSON em cases.competencia.
+// Coleta todos os .cv-comp-chk marcados, faz JSON.stringify e dispara o mesmo
+// inline_edit_case usado pra outros campos. Atualiza visual da pílula on/off.
+function _salvarCompetencia(caseId) {
+    var marcadas = [];
+    document.querySelectorAll('.cv-comp-chk').forEach(function(cb) {
+        var pill = cb.closest('label');
+        if (cb.checked) {
+            marcadas.push(cb.value);
+            if (pill) {
+                pill.style.borderColor = '#0d9488';
+                pill.style.background  = '#f0fdfa';
+                pill.style.color       = '#134e4a';
+                pill.style.fontWeight  = '700';
+            }
+        } else {
+            if (pill) {
+                pill.style.borderColor = 'var(--border)';
+                pill.style.background  = '#fff';
+                pill.style.color       = 'var(--text)';
+                pill.style.fontWeight  = '500';
+            }
+        }
+    });
+    var json = JSON.stringify(marcadas);
+
+    // Cria elemento sintético com data-* pra reusar salvarCampoProcesso (que já
+    // tem feedback visual + retry de CSRF). El.value vira a string JSON.
+    var fakeEl = {
+        dataset: { id: caseId, field: 'competencia' },
+        value: json,
+        // Mock dos campos usados pelo _fsaSave.badge() (precisa de parentElement)
+        parentElement: document.querySelector('[data-field-row="competencia"] > div:last-child'),
+        style: {}
+    };
+    salvarCampoProcesso(fakeEl);
 }
 
 // Ajuste visual de selects boolean (Segredo / Pro Bono): troca cor de fundo
@@ -2881,19 +3072,39 @@ var _fsaSave = {
     }
 };
 
+// Fila de saves por caseId pra evitar race condition: 2+ saves do mesmo caso
+// disparados em sequência (ex: usuário troca status e logo segredo) competem
+// pela mesma row. Serializa: enquanto há um save em voo pra esse caseId, os
+// próximos ficam na fila e disparam um por vez. Saves de OUTROS caseIds rodam
+// em paralelo normalmente.
+var _cvSaveQueue = {}; // { caseId: [item, item, ...] }
+var _cvSaveBusy  = {}; // { caseId: bool }
+
 function salvarCampoProcesso(el) {
     var id = el.dataset ? el.dataset.id : el.id;
     var field = el.dataset ? el.dataset.field : '';
     var value = el.value !== undefined ? el.value : '';
     if (!id || !field) return;
 
-    _fsaSave.saving(el);
+    if (!_cvSaveQueue[id]) _cvSaveQueue[id] = [];
+    _cvSaveQueue[id].push({ el: el, id: id, field: field, value: value });
+    _cvSaveProximo(id);
+}
+
+function _cvSaveProximo(caseId) {
+    if (_cvSaveBusy[caseId]) return;
+    var fila = _cvSaveQueue[caseId] || [];
+    if (!fila.length) return;
+    _cvSaveBusy[caseId] = true;
+    var item = fila.shift();
+
+    _fsaSave.saving(item.el);
 
     var fd = new FormData();
     fd.append('action', 'inline_edit_case');
-    fd.append('case_id', id);
-    fd.append('field', field);
-    fd.append('value', value);
+    fd.append('case_id', item.id);
+    fd.append('field', item.field);
+    fd.append('value', item.value);
     fd.append('<?= CSRF_TOKEN_NAME ?>', _cvCsrf);
 
     var xhr = new XMLHttpRequest();
@@ -2904,15 +3115,21 @@ function salvarCampoProcesso(el) {
             var r = JSON.parse(xhr.responseText);
             if (r.csrf) _cvCsrf = r.csrf;
             if (r.ok) {
-                _fsaSave.ok(el);
+                _fsaSave.ok(item.el);
             } else if (r.error) {
-                _fsaSave.erro(el, r.error);
+                _fsaSave.erro(item.el, r.error);
             } else {
-                _fsaSave.erro(el, 'Resposta inválida');
+                _fsaSave.erro(item.el, 'Resposta inválida');
             }
-        } catch(e) { _fsaSave.erro(el, 'Resposta inválida'); }
+        } catch(e) { _fsaSave.erro(item.el, 'Resposta inválida'); }
+        _cvSaveBusy[caseId] = false;
+        _cvSaveProximo(caseId); // dispara próximo da fila
     };
-    xhr.onerror = function() { _fsaSave.erro(el, 'Falha de rede'); };
+    xhr.onerror = function() {
+        _fsaSave.erro(item.el, 'Falha de rede');
+        _cvSaveBusy[caseId] = false;
+        _cvSaveProximo(caseId);
+    };
     xhr.send(fd);
 }
 

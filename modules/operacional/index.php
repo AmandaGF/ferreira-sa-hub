@@ -29,7 +29,7 @@ $columns = array(
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
     'suspenso'               => array('label' => 'Suspenso',                   'color' => '#5B2D8E', 'icon' => '⏸️'),
     'aguardando_prazo'       => array('label' => 'Aguard. Distribuição',        'color' => '#8b5cf6', 'icon' => '⏳'),
-    'distribuido'            => array('label' => 'Processo Distribuído',         'color' => '#15803d', 'icon' => '🏛️'),
+    'distribuido'            => array('label' => 'Distribuído — aguard. despacho','color' => '#15803d', 'icon' => '🏛️'),
     'kanban_prev'            => array('label' => 'Kanban PREV',                  'color' => '#3B4FA0', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
     'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
@@ -65,7 +65,9 @@ $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
+        (SELECT MAX(a.data_andamento) FROM case_andamentos a
+         WHERE a.case_id = cs.id AND a.data_andamento > cs.distribution_date) as andamento_pos_distrib
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -95,11 +97,13 @@ foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 $mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
-    // Distribuídos: só aparece no mês da distribuição. Depois, só na pasta de processos.
+    // Distribuídos: aparece enquanto NÃO houver andamento posterior à data de
+    // distribuição (fase crítica entre ajuizamento e primeiro despacho/citação).
+    // Quando o processo recebe o 1º andamento posterior, sai automaticamente do
+    // Kanban (fica só na pasta). Substitui a regra antiga "só no mês da distrib".
     if ($status === 'distribuido') {
-        $mesRef = $cs['distribution_date'] ? date('Y-m', strtotime($cs['distribution_date'])) : date('Y-m', strtotime($cs['updated_at']));
-        if ($mesRef !== $mesAtual) {
-            continue; // Só mostra no mês exato da distribuição
+        if (!empty($cs['andamento_pos_distrib'])) {
+            continue; // já tem despacho — sai da coluna "aguardando despacho"
         }
     }
     // Cancelados: só no mês que cancelou
