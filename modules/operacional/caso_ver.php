@@ -1777,7 +1777,7 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
         ?>
         <div style="display:flex;align-items:flex-start;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="competencia">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;padding-top:4px;">⚖️ Competência</label>
-            <div style="flex:1;display:flex;flex-wrap:wrap;gap:4px;">
+            <div style="flex:1;display:flex;flex-wrap:wrap;gap:4px;align-items:center;" id="cvCompContainer">
                 <?php foreach ($listaCompetencias as $cmp):
                     $marcado = in_array($cmp, $competenciasArr, true);
                 ?>
@@ -1786,6 +1786,23 @@ document.getElementById('parceiroSelect').addEventListener('change', function() 
                     <?= e($cmp) ?>
                 </label>
                 <?php endforeach; ?>
+                <?php // Pílulas customizadas já salvas (que não estão na lista padrão)
+                foreach ($competenciasArr as $cmpCustom):
+                    if (in_array($cmpCustom, $listaCompetencias, true)) continue; ?>
+                <label class="cv-comp-custom-pill" style="display:inline-flex;align-items:center;gap:3px;padding:2px 4px 2px 8px;border:1px solid #B87333;background:#fff7ed;color:#9a3412;border-radius:99px;font-size:.72rem;cursor:pointer;font-weight:700;">
+                    <input type="checkbox" class="cv-comp-chk" value="<?= e($cmpCustom) ?>" checked style="width:12px;height:12px;cursor:pointer;" onchange="_salvarCompetencia(<?= $caseId ?>)">
+                    <?= e($cmpCustom) ?>
+                    <button type="button" title="Remover" onclick="_removerCompCustom(this, <?= $caseId ?>)" style="background:none;border:none;color:#9a3412;cursor:pointer;font-size:.9rem;line-height:1;padding:0 2px;font-weight:700;">×</button>
+                </label>
+                <?php endforeach; ?>
+                <button type="button" id="cvCompOutrosBtn" onclick="_abrirCompOutros()" style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border:1px dashed #B87333;background:#fff;color:#B87333;border-radius:99px;font-size:.72rem;cursor:pointer;font-weight:600;">+ Outros</button>
+                <div id="cvCompOutrosBox" style="display:none;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <input type="text" id="cvCompOutrosInput" placeholder="Ex: Marítimo, Eleitoral..." maxlength="40"
+                        onkeydown="if(event.key==='Enter'){event.preventDefault();_adicionarCompCustom(<?= $caseId ?>);}else if(event.key==='Escape'){_cancelarCompOutros();}"
+                        style="padding:3px 8px;border:1.5px solid #B87333;border-radius:99px;font-size:.72rem;outline:none;min-width:160px;">
+                    <button type="button" onclick="_adicionarCompCustom(<?= $caseId ?>)" style="padding:3px 10px;border:none;background:#B87333;color:#fff;border-radius:99px;font-size:.72rem;cursor:pointer;font-weight:600;">Adicionar</button>
+                    <button type="button" onclick="_cancelarCompOutros()" style="padding:3px 8px;border:1px solid var(--border);background:#fff;color:var(--text-muted);border-radius:99px;font-size:.72rem;cursor:pointer;">Cancelar</button>
+                </div>
             </div>
         </div>
         <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="vara_mista">
@@ -2970,6 +2987,65 @@ function _atualizarRegionaisCv() {
     } else {
         if (inpR) inpR.placeholder = 'Geralmente esta comarca não tem fórum regional';
     }
+}
+
+// "+ Outros" — abre input pra cadastrar uma competência fora da lista padrão.
+function _abrirCompOutros() {
+    var btn = document.getElementById('cvCompOutrosBtn');
+    var box = document.getElementById('cvCompOutrosBox');
+    if (btn) btn.style.display = 'none';
+    if (box) box.style.display = 'inline-flex';
+    var inp = document.getElementById('cvCompOutrosInput');
+    if (inp) { inp.value = ''; inp.focus(); }
+}
+function _cancelarCompOutros() {
+    var btn = document.getElementById('cvCompOutrosBtn');
+    var box = document.getElementById('cvCompOutrosBox');
+    if (box) box.style.display = 'none';
+    if (btn) btn.style.display = 'inline-flex';
+}
+// Cria pílula nova (já marcada) e salva. Bloqueia duplicatas (case-insensitive).
+function _adicionarCompCustom(caseId) {
+    var inp = document.getElementById('cvCompOutrosInput');
+    if (!inp) return;
+    var val = (inp.value || '').trim();
+    if (!val) { inp.focus(); return; }
+    // Dedup case-insensitive contra checkboxes existentes
+    var existe = false;
+    document.querySelectorAll('.cv-comp-chk').forEach(function(cb) {
+        if ((cb.value || '').toLowerCase() === val.toLowerCase()) existe = true;
+    });
+    if (existe) {
+        alert('Essa competência já está na lista.');
+        _cancelarCompOutros();
+        return;
+    }
+    // Cria pílula custom e insere antes do botão "+ Outros"
+    var container = document.getElementById('cvCompContainer');
+    var btn = document.getElementById('cvCompOutrosBtn');
+    var lbl = document.createElement('label');
+    lbl.className = 'cv-comp-custom-pill';
+    lbl.style.cssText = 'display:inline-flex;align-items:center;gap:3px;padding:2px 4px 2px 8px;border:1px solid #B87333;background:#fff7ed;color:#9a3412;border-radius:99px;font-size:.72rem;cursor:pointer;font-weight:700;';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'cv-comp-chk'; cb.value = val; cb.checked = true;
+    cb.style.cssText = 'width:12px;height:12px;cursor:pointer;';
+    cb.addEventListener('change', function() { _salvarCompetencia(caseId); });
+    lbl.appendChild(cb);
+    lbl.appendChild(document.createTextNode(' ' + val + ' '));
+    var x = document.createElement('button');
+    x.type = 'button'; x.title = 'Remover'; x.textContent = '×';
+    x.style.cssText = 'background:none;border:none;color:#9a3412;cursor:pointer;font-size:.9rem;line-height:1;padding:0 2px;font-weight:700;';
+    x.addEventListener('click', function() { _removerCompCustom(x, caseId); });
+    lbl.appendChild(x);
+    container.insertBefore(lbl, btn);
+    _cancelarCompOutros();
+    _salvarCompetencia(caseId);
+}
+// Remove uma pílula customizada e re-salva o JSON.
+function _removerCompCustom(el, caseId) {
+    var lbl = el.closest('label');
+    if (lbl) lbl.remove();
+    _salvarCompetencia(caseId);
 }
 
 // Salva a Competência (multi-select por checkboxes) como JSON em cases.competencia.
