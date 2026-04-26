@@ -1714,16 +1714,24 @@ switch ($action) {
             }
             list($dataRaw, $horaRaw, $tipoRaw, $descRaw) = array_map('trim', $partes);
 
-            // Valida data
-            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataRaw)) {
-                $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Data inválida (esperado AAAA-MM-DD)','bruto'=>mb_substr($linha,0,150));
+            // Valida data — aceita YYYY-MM-DD (ISO) ou DD/MM/YYYY (BR).
+            // Normaliza pra ISO antes de gravar.
+            $dataIso = '';
+            if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $dataRaw, $mD)) {
+                $dataIso = $mD[1] . '-' . $mD[2] . '-' . $mD[3];
+            } elseif (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $dataRaw, $mD)) {
+                $dataIso = $mD[3] . '-' . sprintf('%02d', (int)$mD[2]) . '-' . sprintf('%02d', (int)$mD[1]);
+            } else {
+                $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Data inválida (use AAAA-MM-DD ou DD/MM/AAAA)','bruto'=>mb_substr($linha,0,150));
                 $totalErr++; continue;
             }
-            $ts = strtotime($dataRaw);
-            if (!$ts || date('Y-m-d', $ts) !== $dataRaw) {
+            $ts = strtotime($dataIso);
+            if (!$ts || date('Y-m-d', $ts) !== $dataIso) {
                 $parseados[] = array('n'=>$n,'status'=>'erro','motivo'=>'Data inexistente no calendário','bruto'=>mb_substr($linha,0,150));
                 $totalErr++; continue;
             }
+            // Daqui pra frente, $dataRaw é tratado como ISO pelo restante do fluxo
+            $dataRaw = $dataIso;
 
             // Hora opcional (formato HH:MM)
             $horaOk = '';
