@@ -26,7 +26,7 @@ $modulos = array(
         'Distribuir Petição Inicial',
         'Como movimentar o card do caso pra "Processo Distribuído" no Kanban Operacional — preenchimento do modal e gatilhos automáticos',
         '🏛️',
-        '["operacional","admin","gestao"]',
+        '["todos"]',
         25,
         50,
     ),
@@ -35,7 +35,7 @@ $modulos = array(
         'Cadastrar Processo já Existente',
         'Como cadastrar no Hub um processo que já foi protocolado (cliente que migrou de outro escritório, recurso de antigo, processo herdado)',
         '📂',
-        '["operacional","admin","gestao"]',
+        '["todos"]',
         26,
         50,
     ),
@@ -164,6 +164,14 @@ foreach ($quizzes as $q) {
     $stmtQ->execute($q);
 }
 echo "\n✓ " . count($quizzes) . " perguntas inseridas\n\n";
+
+// ─── Libera todos os módulos pra todos os perfis ───
+// Amanda pediu: qualquer usuário pode acessar qualquer módulo de treinamento
+// (no filtro "Meus" da listagem, módulos com "todos" sempre aparecem).
+// Exceções de segurança (financeiro / cobranca-honorarios) ficam mantidas
+// por whitelist no modulo.php — independente do perfis_alvo.
+$afetados = $pdo->exec("UPDATE treinamento_modulos SET perfis_alvo = '[\"todos\"]'");
+echo "✓ {$afetados} módulo(s) atualizado(s) com perfis_alvo=[\"todos\"]\n\n";
 
 echo "=== Migração concluída ===\n";
 echo "Acessível em: /conecta/modules/treinamento/modulo.php?slug=distribuir-peticao-inicial\n";

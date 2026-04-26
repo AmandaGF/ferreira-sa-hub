@@ -129,6 +129,24 @@ try {
     )->fetchAll();
 } catch (Exception $e) {}
 
+// Garante que o caso pré-selecionado (vindo de ?case_id=X da pasta do processo)
+// esteja sempre na lista, mesmo se cair fora dos 200 primeiros alfabético —
+// senão o <option selected> nunca encontra match e o dropdown abre em
+// "Sem vínculo a processo".
+if ($preCaseId > 0 && $preCase) {
+    $jaNaLista = false;
+    foreach ($casesForSelect as $c) {
+        if ((int)$c['id'] === (int)$preCaseId) { $jaNaLista = true; break; }
+    }
+    if (!$jaNaLista) {
+        array_unshift($casesForSelect, array(
+            'id'          => $preCase['id'],
+            'title'       => $preCase['title'],
+            'case_number' => $preCase['case_number'],
+        ));
+    }
+}
+
 $extraCss = '
 <style>
 /* ═══════════════════════════════════════════════════════
