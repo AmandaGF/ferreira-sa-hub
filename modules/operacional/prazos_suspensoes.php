@@ -212,11 +212,43 @@ foreach ($suspensoes as $s) {
 
 $canManage = has_role('admin', 'gestao');
 
+// ═══ Pré-processamento: PDFs colados do TJRJ costumam vir como 1 parágrafo
+//     gigante (sem quebras de linha reais). Inserimos \n antes dos padrões
+//     que marcam INÍCIO de entrada pra o parser linha-por-linha funcionar.
+function _tjrj_normalizar_texto($texto) {
+    // Normaliza whitespace (substitui qualquer combinação de \r\n\t e espaços por 1 espaço)
+    $texto = preg_replace('/[\r\n\t ]+/u', ' ', $texto);
+
+    // Quebras de linha antes de cada padrão que inicia uma nova entrada:
+    $patterns = array(
+        // Data(s) com ou sem ano (suporta múltiplas: "13/02, 16/02 e 18/02") seguida de palavra-chave de ato
+        '/ (?=\d{1,2}\/\d{1,2}(?:\/\d{4})?(?:[,\s]+(?:e\s+)?\d{1,2}\/\d{1,2}(?:\/\d{4})?)*\s+(?:ATO\s+EXECUTIVO|ATO\s+ADMINISTRATIVO|LEI\s+(?:FEDERAL|ESTADUAL|ORGÂNICA)|DECRETO\s+(?:Nº|N°|ESTADUAL)|DECRETO|AVISO|ART\.\s*\d+|Lei\s+(?:Federal|Estadual|Orgânica)))/u',
+        // "Período de DD/MM..."
+        '/ (?=Período\s+de\s+\d{2}\/\d{2})/u',
+        // "Período de recesso forense..."
+        '/ (?=Período\s+de\s+recesso)/u',
+        // "Com início ou vencimento..."
+        '/ (?=Com\s+início\s+ou\s+vencimento)/u',
+        // "Transfere do dia..."
+        '/ (?=Transfere\s+do\s+dia)/u',
+        // Cabeçalhos de mês "Janeiro Período", "Fevereiro Período" etc.
+        '/ (?=(?:Janeiro|Fevereiro|Março|Marco|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+Período)/u',
+    );
+    foreach ($patterns as $p) {
+        $texto = preg_replace($p, "\n", $texto);
+    }
+    return $texto;
+}
+
 // ═══ Parser principal: recebe o texto bruto colado da página TJRJ e
 //     retorna array de blocos parseados (cada um com `datas`, `motivo`,
 //     `abrangencia`, `comarca`, `tipo`, `ato`). NÃO insere nada — devolve
 //     pra o caller decidir se mostra preview ou insere direto.
 function _parsear_suspensoes_tjrj_completo($texto, $anoDefault) {
+    // Pré-processa pra inserir \n nos pontos certos (PDF copy vem como
+    // 1 parágrafo gigante)
+    $texto = _tjrj_normalizar_texto($texto);
+
     // Cortar tudo após "CONSULTA POR ASSUNTO" — daqui pra frente as suspensões
     // se repetem agrupadas por categoria, gerando duplicatas no parse.
     $posCorte = strpos($texto, 'CONSULTA POR ASSUNTO');
@@ -453,6 +485,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .empty-state { text-align: center; padding: 40px 20px; color: #94a3b8; }
 .empty-state .empty-icon { font-size: 2.5rem; margin-bottom: 8px; }
 </style>
+
+<!-- Voltar pra Calculadora -->
+<div style="margin-bottom:1rem;">
+    <a href="<?= e(module_url('operacional', 'prazos_calc.php')) ?>" class="btn btn-outline btn-sm" style="font-size:.82rem;">&larr; Voltar à Calculadora de Prazos</a>
+</div>
 
 <!-- Year navigation -->
 <div class="year-nav">
