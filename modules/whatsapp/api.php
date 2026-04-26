@@ -355,6 +355,39 @@ if ($action === 'mesclar_conversas') {
     exit;
 }
 
+// ── LIMPAR DUPLICATAS POR CLIENT_ID (one-shot) ─────────────
+// Varre TODAS as conversas com client_id setado e mescla as duplicatas
+// (mesmo client_id + mesmo canal) na conversa MAIS RECENTE de cada cliente.
+// Só mexe em conversas que NÃO são grupos. Roda zapi_auto_merge_por_client_id
+// pra cada cliente que tem 2+ conversas no mesmo canal.
+if ($action === 'limpar_duplicatas_canal') {
+    $stmt = $pdo->query(
+        "SELECT client_id, canal, COUNT(*) as cnt, MAX(id) AS id_destino
+         FROM zapi_conversas
+         WHERE client_id IS NOT NULL AND client_id > 0
+           AND COALESCE(eh_grupo,0) = 0
+         GROUP BY client_id, canal
+         HAVING cnt > 1"
+    );
+    $grupos = $stmt->fetchAll();
+    $totalMerged = 0;
+    $clientesAfetados = 0;
+    foreach ($grupos as $g) {
+        $merged = zapi_auto_merge_por_client_id($pdo, (int)$g['id_destino'], (int)$g['client_id'], $g['canal']);
+        if ($merged > 0) {
+            $totalMerged += $merged;
+            $clientesAfetados++;
+        }
+    }
+    audit_log('zapi_limpar_dup', 'zapi_conversas', 0, "$clientesAfetados clientes — $totalMerged conversas mescladas");
+    echo json_encode(array(
+        'ok' => true,
+        'clientes_afetados' => $clientesAfetados,
+        'conversas_mescladas' => $totalMerged,
+    ));
+    exit;
+}
+
 // ── MEU NOME DE ATENDIMENTO (display name WhatsApp) ──────
 if ($action === 'salvar_display_name') {
     $novo = trim($_POST['wa_display_name'] ?? '');
@@ -840,6 +873,8 @@ if ($action === 'nova_conversa') {
     $conv = zapi_buscar_ou_criar_conversa($telefone, $canal, $nome ?: null);
     if ($conv && $clientId && !$conv['client_id']) {
         $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")->execute(array($clientId, $conv['id']));
+        // Auto-merge: se já existem outras conversas deste cliente no canal, mescla
+        try { zapi_auto_merge_por_client_id($pdo, $conv['id'], (int)$clientId, $canal); } catch (Exception $e) {}
     }
     if ($conv) {
         // Grava a mensagem enviada
@@ -1328,6 +1363,8 @@ if ($action === 'enviar_rapido') {
         // Se passou client_id e a conversa ainda não tem, vincula
         if ($clientId && !$conv['client_id']) {
             $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")->execute(array($clientId, $conv['id']));
+            // Auto-merge: se já existem outras conversas deste cliente no canal, mescla
+            try { zapi_auto_merge_por_client_id($pdo, $conv['id'], (int)$clientId, $canal); } catch (Exception $e) {}
         }
         if ($leadId && !$conv['lead_id']) {
             $pdo->prepare("UPDATE zapi_conversas SET lead_id = ? WHERE id = ?")->execute(array($leadId, $conv['id']));

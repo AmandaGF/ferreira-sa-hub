@@ -513,6 +513,59 @@ function zapi_extrai_ddd($telefone) {
 }
 
 /**
+ * Auto-merge: encontra outras conversas do MESMO client_id no MESMO canal e
+ * mescla todas em uma só ($conversaIdDestino é mantida; outras viram parte dela).
+ * Mensagens, etiquetas e config (atendente, status) ficam em $conversaIdDestino.
+ * Use sempre que `client_id` for vinculado/setado em uma conversa — evita
+ * duplicatas tipo "@lid vs telefone real" do MultiDevice.
+ *
+ * Regra inegociável: NUNCA mescla canais diferentes (21 vs 24 são números
+ * físicos distintos do escritório).
+ *
+ * @return int número de conversas mescladas (0 se nenhuma duplicata encontrada)
+ */
+function zapi_auto_merge_por_client_id($pdo, $conversaIdDestino, $clientId, $canal) {
+    $conversaIdDestino = (int)$conversaIdDestino;
+    $clientId = (int)$clientId;
+    $canal    = (string)$canal;
+    if ($conversaIdDestino <= 0 || $clientId <= 0 || $canal === '') return 0;
+
+    $stmt = $pdo->prepare("SELECT id FROM zapi_conversas WHERE client_id = ? AND canal = ? AND id != ? AND COALESCE(eh_grupo,0) = 0");
+    $stmt->execute(array($clientId, $canal, $conversaIdDestino));
+    $outrasIds = array();
+    foreach ($stmt->fetchAll() as $r) $outrasIds[] = (int)$r['id'];
+    if (empty($outrasIds)) return 0;
+
+    $merged = 0;
+    foreach ($outrasIds as $origemId) {
+        try {
+            $pdo->beginTransaction();
+            $pdo->prepare("UPDATE zapi_mensagens SET conversa_id = ? WHERE conversa_id = ?")
+                ->execute(array($conversaIdDestino, $origemId));
+            $pdo->prepare("UPDATE IGNORE zapi_conversa_etiquetas SET conversa_id = ? WHERE conversa_id = ?")
+                ->execute(array($conversaIdDestino, $origemId));
+            $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ?")
+                ->execute(array($origemId));
+            $pdo->prepare("DELETE FROM zapi_conversas WHERE id = ?")->execute(array($origemId));
+            $pdo->commit();
+            $merged++;
+        } catch (Exception $e) {
+            try { $pdo->rollBack(); } catch (Exception $e2) {}
+        }
+    }
+
+    if ($merged > 0) {
+        try {
+            $pdo->prepare("UPDATE zapi_conversas co
+                           SET ultima_mensagem = (SELECT conteudo FROM zapi_mensagens WHERE conversa_id = co.id ORDER BY id DESC LIMIT 1),
+                               ultima_msg_em   = (SELECT created_at FROM zapi_mensagens WHERE conversa_id = co.id ORDER BY id DESC LIMIT 1)
+                           WHERE id = ?")->execute(array($conversaIdDestino));
+        } catch (Exception $e) {}
+    }
+    return $merged;
+}
+
+/**
  * Busca ou cria uma conversa com base em telefone + DDD da instância.
  * @return array linha da conversa com id
  */
@@ -596,6 +649,15 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
         $inst['id'], $telefone_norm, $nome_contato, $clientId, $leadId, $ddd_instancia, $botAtivo, $ehGrupo ? 1 : 0
     ));
     $newId = (int)$pdo->lastInsertId();
+
+    // Auto-merge: se a nova conversa já nasceu com client_id (lookup de phone
+    // achou cliente cadastrado), checar se já existia outra conversa do mesmo
+    // cliente no mesmo canal e mesclar tudo na mais recente (a que acabamos
+    // de criar). Resolve o cenário de @lid vs telefone real do MultiDevice
+    // — agora ficam unificadas em UMA só.
+    if (!$ehGrupo && $clientId) {
+        try { zapi_auto_merge_por_client_id($pdo, $newId, (int)$clientId, $ddd_instancia); } catch (Exception $e) {}
+    }
 
     // Busca foto de perfil automaticamente ao criar nova conversa (exceto grupos)
     // Falha silenciosa: se a Z-API não responder, a conversa existe e recebe foto depois
