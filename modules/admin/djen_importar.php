@@ -644,14 +644,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
             <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem;align-items:center;">
                 <!-- Form A: vincular a pasta existente via autocomplete -->
-                <form method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+                <form method="POST" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;position:relative;" id="formVincPend<?= (int)$pi['id'] ?>">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="processar_pendente">
                     <input type="hidden" name="pending_id" value="<?= (int)$pi['id'] ?>">
                     <input type="hidden" name="acao_pendente" value="vincular">
-                    <label style="font-size:.7rem;color:#4338ca;font-weight:600;">Vincular a pasta existente:</label>
-                    <input type="number" name="case_id_escolhido" placeholder="ID da pasta" style="width:110px;font-size:.78rem;padding:3px 8px;border:1px solid #c7d2fe;border-radius:6px;" required>
-                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;padding:4px 10px;">Importar</button>
+                    <input type="hidden" name="case_id_escolhido" id="vincId<?= (int)$pi['id'] ?>" required>
+                    <label style="font-size:.7rem;color:#4338ca;font-weight:600;">Vincular a pasta:</label>
+                    <div style="position:relative;">
+                        <input type="text"
+                               id="vincBusca<?= (int)$pi['id'] ?>"
+                               placeholder="Buscar por título, CNJ, cliente..."
+                               autocomplete="off"
+                               style="width:300px;font-size:.78rem;padding:3px 8px;border:1px solid #c7d2fe;border-radius:6px;"
+                               onfocus="vincAbrirSugestoes(<?= (int)$pi['id'] ?>, this.value)"
+                               oninput="vincBuscarPasta(<?= (int)$pi['id'] ?>, this.value)">
+                        <div id="vincSugest<?= (int)$pi['id'] ?>"
+                             style="display:none;position:absolute;top:100%;left:0;width:420px;background:#fff;border:1px solid #c7d2fe;border-radius:6px;max-height:280px;overflow-y:auto;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.1);font-size:.78rem;"
+                             data-numero="<?= e($pi['numero_processo']) ?>"
+                             data-partes="<?= e(json_encode($partesArr, JSON_UNESCAPED_UNICODE)) ?>">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;padding:4px 10px;" disabled id="btnVinc<?= (int)$pi['id'] ?>">Importar</button>
                 </form>
 
                 <!-- Form B: criar pasta nova -->
@@ -969,6 +983,119 @@ document.addEventListener('change', function(e) {
         }
         contSel();
     }
+});
+
+// ─── Vincular pasta existente — autocomplete + sugestões automáticas ───
+// Cada linha de pendente tem inputs vincBusca/vincId/vincSugest sufixados com pendId.
+// Reusa o endpoint operacional/api.php?action=buscar_caso_para_vincular pra
+// busca por texto. Pra sugestões INICIAIS (foco), envia o CNJ da intimação como
+// query — o endpoint dá match por dígitos (REPLACE). Em paralelo envia partes
+// como pista pra busca em case_partes.
+var _vincTimers = {};
+var _vincLoaded = {};
+
+function vincAbrirSugestoes(pendId, currentVal) {
+    var box = document.getElementById('vincSugest' + pendId);
+    if (!box) return;
+    if (currentVal && currentVal.trim().length >= 2) {
+        // Já tem texto digitado — mostra sugestões da query
+        vincBuscarPasta(pendId, currentVal);
+    } else {
+        // Sem texto: usa CNJ da intimação como pista inicial
+        if (_vincLoaded[pendId]) { box.style.display = 'block'; return; }
+        var numeroProcesso = box.getAttribute('data-numero') || '';
+        var partesJson     = box.getAttribute('data-partes') || '[]';
+        _vincBuscarComContexto(pendId, '', numeroProcesso, partesJson);
+        _vincLoaded[pendId] = true;
+    }
+}
+
+function vincBuscarPasta(pendId, q) {
+    clearTimeout(_vincTimers[pendId]);
+    _vincTimers[pendId] = setTimeout(function() {
+        var box = document.getElementById('vincSugest' + pendId);
+        var numeroProcesso = box ? (box.getAttribute('data-numero') || '') : '';
+        var partesJson     = box ? (box.getAttribute('data-partes') || '[]') : '[]';
+        _vincBuscarComContexto(pendId, q, numeroProcesso, partesJson);
+    }, 250);
+}
+
+function _vincBuscarComContexto(pendId, q, numeroProcesso, partesJson) {
+    var box = document.getElementById('vincSugest' + pendId);
+    if (!box) return;
+    var qFinal = (q || '').trim();
+    // Sem texto digitado: faz busca pelo CNJ
+    if (!qFinal && numeroProcesso) qFinal = numeroProcesso;
+    // Ainda sem nada — mostra mensagem
+    if (!qFinal) {
+        box.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;">Digite título, CNJ ou nome do cliente...</div>';
+        box.style.display = 'block';
+        return;
+    }
+
+    var url = '<?= module_url("operacional", "api.php") ?>?action=buscar_caso_para_vincular&q=' + encodeURIComponent(qFinal);
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var rs = JSON.parse(xhr.responseText);
+            if (!rs.ok) { box.style.display = 'none'; return; }
+            var lista = rs.casos || [];
+            // Se busca por CNJ não bateu nada, tenta por nome da 1ª parte
+            if (!lista.length) {
+                var partes = [];
+                try { partes = JSON.parse(partesJson) || []; } catch(e) {}
+                if (partes.length && qFinal === numeroProcesso) {
+                    // Recursão: busca pela 1ª parte
+                    return _vincBuscarComContexto(pendId, partes[0], '', '[]');
+                }
+                box.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;">Nenhuma pasta encontrada — digite outro termo ou crie pasta nova.</div>';
+                box.style.display = 'block';
+                return;
+            }
+            var html = '';
+            // Cabeçalho com contexto
+            if (q.trim() === '') {
+                html += '<div style="padding:6px 12px;background:#eef2ff;color:#4338ca;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #c7d2fe;">💡 Sugestões — match com CNJ ' + (numeroProcesso ? numeroProcesso.substring(0, 25) : '') + '</div>';
+            }
+            lista.forEach(function(c) {
+                var nome = (c.title || ('#' + c.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                var cli  = c.client_name ? (' — ' + c.client_name) : '';
+                html += '<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;" onmouseover="this.style.background=\'#f5f3ff\'" onmouseout="this.style.background=\'\'" onclick="vincSelecionarPasta(' + pendId + ', ' + c.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ', ' + JSON.stringify(c.case_number || '').replace(/"/g, '&quot;') + ')">';
+                html += '<strong>' + nome + '</strong>' + cli + '<div style="font-size:.7rem;color:#6b7280;font-family:monospace;">' + (c.case_number || 'sem número') + '  ·  ID #' + c.id + '</div></div>';
+            });
+            box.innerHTML = html;
+            box.style.display = 'block';
+        } catch (e) { box.style.display = 'none'; }
+    };
+    xhr.send();
+}
+
+function vincSelecionarPasta(pendId, caseId, nome, cnj) {
+    document.getElementById('vincId' + pendId).value = caseId;
+    var inp = document.getElementById('vincBusca' + pendId);
+    inp.value = nome + ' (#' + caseId + ')';
+    var box = document.getElementById('vincSugest' + pendId);
+    box.style.display = 'none';
+    var btn = document.getElementById('btnVinc' + pendId);
+    if (btn) {
+        btn.disabled = false;
+        btn.style.background = '#059669';
+        btn.style.borderColor = '#059669';
+    }
+}
+
+// Fecha sugestões ao clicar fora
+document.addEventListener('click', function(e) {
+    document.querySelectorAll('[id^="vincSugest"]').forEach(function(box) {
+        if (box.style.display === 'none') return;
+        var pendId = box.id.replace('vincSugest', '');
+        var input = document.getElementById('vincBusca' + pendId);
+        if (input && input.contains(e.target)) return;
+        if (box.contains(e.target)) return;
+        box.style.display = 'none';
+    });
 });
 </script>
 
