@@ -350,6 +350,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $case['client_id']) ?>">➕ <div><strong>Novo Processo</strong><div style="font-size:.7rem;color:#888;">pro mesmo cliente</div></div></a>
             <?php endif; ?>
             <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" style="color:#dc2626;">🎫 <div><strong>Abrir Chamado</strong><div style="font-size:.7rem;color:#888;">helpdesk interno</div></div></a>
+            <?php if (has_min_role('gestao')): ?>
+            <button type="button" onclick="abrirMarcarComoIncidental()" class="cv-item" style="color:#6366f1;">
+                📎 <div>
+                    <strong>Marcar como incidental de outro</strong>
+                    <div style="font-size:.7rem;color:#888;">vincular este a um processo principal</div>
+                </div>
+            </button>
+            <?php endif; ?>
             <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="duplicate_case">
@@ -845,6 +853,206 @@ if (!empty($compFuturos)): ?>
     <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
+
+<!-- Banner: este processo é incidental de outro -->
+<?php if ($processoPrincipal && $case['is_incidental']): ?>
+<div class="card mb-2" style="border-left:4px solid #6366f1;background:#eef2ff;">
+    <div class="card-body" style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
+        <span style="font-size:1.4rem;">📎</span>
+        <div style="flex:1;min-width:240px;">
+            <div style="font-size:.74rem;color:#4338ca;font-weight:700;text-transform:uppercase;letter-spacing:.4px;">
+                <?= ($case['tipo_vinculo'] === 'recurso') ? 'Este é recurso de' : 'Este é processo incidental de' ?>
+            </div>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$processoPrincipal['id']) ?>" style="font-weight:700;color:#1e1b4b;text-decoration:none;font-size:1rem;">
+                <?= e($processoPrincipal['title'] ?: ('Processo #' . $processoPrincipal['id'])) ?>
+            </a>
+            <?php if (!empty($processoPrincipal['case_number'])): ?>
+                <div style="font-size:.78rem;color:#4338ca;margin-top:2px;font-family:monospace;"><?= e(format_cnj($processoPrincipal['case_number'])) ?></div>
+            <?php endif; ?>
+            <?php if (!empty($case['tipo_relacao'])): ?>
+                <div style="font-size:.74rem;color:#6b7280;margin-top:3px;">Relação: <strong><?= e($case['tipo_relacao']) ?></strong></div>
+            <?php endif; ?>
+        </div>
+        <?php if (has_min_role('gestao')): ?>
+        <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Remover o vínculo de incidental? Este processo passa a existir de forma independente.');" style="margin:0;">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="desvincular_incidental">
+            <input type="hidden" name="case_id" value="<?= $caseId ?>">
+            <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;">Desvincular</button>
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal: Marcar este processo como incidental de outro -->
+<?php if (has_min_role('gestao')): ?>
+<div id="modalMarcarIncidental" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:560px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.5rem;">📎 Vincular este processo a outro</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">Este processo (<strong><?= e($case['title'] ?: ('#' . $caseId)) ?></strong>) ficará vinculado ao processo principal escolhido abaixo.</p>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Tipo de vínculo *</label>
+            <div style="display:flex;border:2px solid var(--petrol-900);border-radius:10px;overflow:hidden;">
+                <button type="button" id="btnMkIncTipoInc" onclick="mkIncSetVinculo('incidental')" style="flex:1;padding:8px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:var(--petrol-900);color:#fff;">📎 Processo Incidental</button>
+                <button type="button" id="btnMkIncTipoRec" onclick="mkIncSetVinculo('recurso')" style="flex:1;padding:8px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);">📜 Recurso</button>
+            </div>
+            <input type="hidden" id="mkIncTipoVinculo" value="incidental">
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;" id="mkIncTipoRelacaoLabel">Tipo de relação *</label>
+            <select id="mkIncTipoRelacao" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Selecione...</option>
+                <?php foreach ($tiposRelacao as $tr): ?>
+                <option value="<?= e($tr) ?>" data-grupo="incidental"><?= e($tr) ?></option>
+                <?php endforeach; ?>
+                <?php foreach ($tiposRecurso as $tr): ?>
+                <option value="<?= e($tr) ?>" data-grupo="recurso" style="display:none;"><?= e($tr) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Processo principal *</label>
+            <input type="text" id="mkIncBusca" placeholder="Buscar por título, CNJ, cliente..." autocomplete="off"
+                   style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+            <div id="mkIncResultados" style="max-height:240px;overflow-y:auto;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;display:none;"></div>
+            <input type="hidden" id="mkIncPrincipalId" value="">
+            <div id="mkIncSelecionado" style="display:none;margin-top:.5rem;padding:.5rem .75rem;background:#eef2ff;border:1px solid #c7d2fe;border-radius:8px;font-size:.82rem;color:#4338ca;"></div>
+        </div>
+
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+            <button onclick="document.getElementById('modalMarcarIncidental').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
+            <button id="btnMkIncConfirmar" onclick="confirmarMarcarIncidental()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
+        </div>
+    </div>
+</div>
+<script>
+function abrirMarcarComoIncidental() {
+    document.getElementById('modalMarcarIncidental').style.display = 'flex';
+    document.getElementById('mkIncBusca').focus();
+}
+
+// Toggle entre Incidental e Recurso — filtra opções do dropdown e atualiza UI
+function mkIncSetVinculo(tipo) {
+    document.getElementById('mkIncTipoVinculo').value = tipo;
+    var btnInc = document.getElementById('btnMkIncTipoInc');
+    var btnRec = document.getElementById('btnMkIncTipoRec');
+    if (tipo === 'recurso') {
+        btnRec.style.background = 'var(--petrol-900)'; btnRec.style.color = '#fff';
+        btnInc.style.background = '#fff'; btnInc.style.color = 'var(--petrol-900)';
+        document.getElementById('mkIncTipoRelacaoLabel').textContent = 'Tipo de recurso *';
+    } else {
+        btnInc.style.background = 'var(--petrol-900)'; btnInc.style.color = '#fff';
+        btnRec.style.background = '#fff'; btnRec.style.color = 'var(--petrol-900)';
+        document.getElementById('mkIncTipoRelacaoLabel').textContent = 'Tipo de relação *';
+    }
+    // Filtra opções do select conforme grupo
+    var sel = document.getElementById('mkIncTipoRelacao');
+    sel.value = '';
+    Array.prototype.forEach.call(sel.options, function(opt) {
+        if (!opt.value) { opt.style.display = ''; return; }
+        var grupo = opt.getAttribute('data-grupo');
+        opt.style.display = (grupo === tipo) ? '' : 'none';
+    });
+}
+
+var _mkIncTimer = null;
+document.getElementById('mkIncBusca').addEventListener('input', function() {
+    clearTimeout(_mkIncTimer);
+    var q = this.value.trim();
+    var box = document.getElementById('mkIncResultados');
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    _mkIncTimer = setTimeout(function() {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_caso_para_vincular&q=' + encodeURIComponent(q) + '&exclude_id=<?= $caseId ?>');
+        xhr.onload = function() {
+            try {
+                var rs = JSON.parse(xhr.responseText);
+                if (!rs.ok || !rs.casos || !rs.casos.length) {
+                    box.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;font-size:.8rem;">Nenhum processo encontrado</div>';
+                    box.style.display = 'block';
+                    return;
+                }
+                var html = '';
+                rs.casos.forEach(function(c) {
+                    var nome = (c.title || ('#' + c.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                    var num  = c.case_number ? ('  ·  ' + c.case_number) : '';
+                    var cli  = c.client_name ? (' — ' + c.client_name) : '';
+                    html += '<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;font-size:.82rem;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'\'" onclick="mkIncSelecionar(' + c.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ', ' + JSON.stringify((c.case_number || '')).replace(/"/g, '&quot;') + ')">';
+                    html += '<strong>' + nome + '</strong>' + cli + '<div style="font-size:.72rem;color:#6b7280;font-family:monospace;">' + (c.case_number || 'sem número') + '</div></div>';
+                });
+                box.innerHTML = html;
+                box.style.display = 'block';
+            } catch (e) { box.style.display = 'none'; }
+        };
+        xhr.send();
+    }, 300);
+});
+
+function mkIncSelecionar(id, nome, num) {
+    document.getElementById('mkIncPrincipalId').value = id;
+    document.getElementById('mkIncBusca').value = '';
+    document.getElementById('mkIncResultados').style.display = 'none';
+    var sel = document.getElementById('mkIncSelecionado');
+    sel.innerHTML = '✓ <strong>' + nome + '</strong> ' + (num ? ('— <span style="font-family:monospace;">' + num + '</span>') : '') + ' <button onclick="mkIncLimpar()" style="background:none;border:none;color:#dc2626;cursor:pointer;margin-left:8px;">×</button>';
+    sel.style.display = 'block';
+}
+function mkIncLimpar() {
+    document.getElementById('mkIncPrincipalId').value = '';
+    document.getElementById('mkIncSelecionado').style.display = 'none';
+    document.getElementById('mkIncSelecionado').innerHTML = '';
+}
+
+function confirmarMarcarIncidental() {
+    var principalId = document.getElementById('mkIncPrincipalId').value;
+    var tipoRel     = document.getElementById('mkIncTipoRelacao').value;
+    var tipoVinc    = document.getElementById('mkIncTipoVinculo').value || 'incidental';
+    if (!principalId) { alert('Selecione o processo principal.'); return; }
+    if (!tipoRel) { alert('Selecione o tipo de ' + (tipoVinc === 'recurso' ? 'recurso' : 'relação') + '.'); return; }
+
+    var btn = document.getElementById('btnMkIncConfirmar');
+    btn.disabled = true;
+    btn.textContent = 'Vinculando...';
+
+    // Action diferente conforme o tipo de vínculo:
+    //  - incidental → vincular_incidental (incidental_id = este caso)
+    //  - recurso    → vincular_recurso    (recurso_id    = este caso)
+    var fd = new FormData();
+    fd.append('action', tipoVinc === 'recurso' ? 'vincular_recurso' : 'vincular_incidental');
+    fd.append('csrf_token', '<?= e($csrf ?? generate_csrf_token()) ?>');
+    fd.append('principal_id', principalId);
+    if (tipoVinc === 'recurso') {
+        fd.append('recurso_id', '<?= $caseId ?>');
+    } else {
+        fd.append('incidental_id', '<?= $caseId ?>');
+    }
+    fd.append('tipo_relacao', tipoRel);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>', true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.error) { alert('Erro: ' + r.error); btn.disabled = false; btn.textContent = 'Vincular →'; return; }
+            if (r.ok) {
+                alert('✓ Processo vinculado como incidental.');
+                window.location.reload();
+            }
+        } catch (e) {
+            alert('Resposta inválida do servidor.');
+            btn.disabled = false;
+            btn.textContent = 'Vincular →';
+        }
+    };
+    xhr.onerror = function() { alert('Erro de rede.'); btn.disabled = false; btn.textContent = 'Vincular →'; };
+    xhr.send(fd);
+}
+</script>
+<?php endif; ?>
 
 <!-- Processos Incidentais -->
 <?php if (!empty($incidentais) || !$case['is_incidental']): ?>

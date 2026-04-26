@@ -1580,6 +1580,34 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'buscar_caso_para_vincular':
+        // Busca processos pra autocomplete do modal "Marcar como incidental/recurso de outro"
+        $q = trim($_GET['q'] ?? '');
+        $excludeId = (int)($_GET['exclude_id'] ?? 0);
+        if (mb_strlen($q) < 2) {
+            header('Content-Type: application/json');
+            echo json_encode(array('ok' => true, 'casos' => array()));
+            exit;
+        }
+        $like = '%' . $q . '%';
+        $qDigits = preg_replace('/\D/', '', $q);
+        $sql = "SELECT cs.id, cs.title, cs.case_number, cl.name AS client_name
+                FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id
+                WHERE cs.id != ?
+                  AND (cs.title LIKE ? OR cl.name LIKE ? OR cs.case_number LIKE ?";
+        $params = array($excludeId, $like, $like, $like);
+        if (strlen($qDigits) >= 4) {
+            $sql .= " OR REPLACE(REPLACE(REPLACE(cs.case_number, '-', ''), '.', ''), '/', '') LIKE ?";
+            $params[] = '%' . $qDigits . '%';
+        }
+        $sql .= ") ORDER BY cs.updated_at DESC LIMIT 15";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $casos = $stmt->fetchAll();
+        header('Content-Type: application/json');
+        echo json_encode(array('ok' => true, 'casos' => $casos));
+        exit;
+
     case 'vincular_incidental':
         $principalId = (int)($_POST['principal_id'] ?? 0);
         $incidentalId = (int)($_POST['incidental_id'] ?? 0);
