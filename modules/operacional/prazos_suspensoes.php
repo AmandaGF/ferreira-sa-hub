@@ -9,6 +9,10 @@ require_access('operacional');
 
 $pageTitle = 'Suspensões de Prazos';
 $pdo = db();
+
+// Self-heal: colunas pra suspensões condicionais (INSS, AGU, etc — não aplicam automaticamente)
+try { $pdo->exec("ALTER TABLE prazos_suspensoes ADD COLUMN requer_confirmacao TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE prazos_suspensoes ADD COLUMN aplica_se VARCHAR(255) NULL"); } catch (Exception $e) {}
 $currentYear = (int)date('Y');
 $filtroAno = (int)($_GET['ano'] ?? $currentYear);
 $filtroMes = isset($_GET['mes']) ? (int)$_GET['mes'] : 0; // 0 = todos
@@ -56,14 +60,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                 $stmtChk->execute(array($di, $df));
                 $jaExiste = !!$stmtChk->fetchColumn();
                 $itens[] = array(
-                    'data_inicio' => $di,
-                    'data_fim'    => $df,
-                    'tipo'        => $res['tipo'],
-                    'abrangencia' => $res['abrangencia'],
-                    'comarca'     => $res['comarca'],
-                    'motivo'      => $res['motivo'],
-                    'ato'         => $res['ato'],
-                    'ja_existe'   => $jaExiste,
+                    'data_inicio'         => $di,
+                    'data_fim'            => $df,
+                    'tipo'                => $res['tipo'],
+                    'abrangencia'         => $res['abrangencia'],
+                    'comarca'             => $res['comarca'],
+                    'motivo'              => $res['motivo'],
+                    'ato'                 => $res['ato'],
+                    'requer_confirmacao'  => isset($res['requer_confirmacao']) ? (int)$res['requer_confirmacao'] : 0,
+                    'aplica_se'           => isset($res['aplica_se']) ? $res['aplica_se'] : '',
+                    'ja_existe'           => $jaExiste,
                 );
             }
         }
@@ -82,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $duplicatas = 0;
         $erros      = 0;
         $stmtChk = $pdo->prepare("SELECT id FROM prazos_suspensoes WHERE data_inicio = ? AND data_fim = ? LIMIT 1");
-        $stmtIns = $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)");
+        $stmtIns = $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por, requer_confirmacao, aplica_se) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
         $userId  = current_user_id();
         foreach ($payload as $it) {
             $di = isset($it['data_inicio']) ? trim($it['data_inicio']) : '';
@@ -100,6 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                     !empty($it['ato'])        ? clean_str($it['ato'], 200)         : null,
                     'Importação TJRJ',
                     $userId,
+                    !empty($it['requer_confirmacao']) ? 1 : 0,
+                    !empty($it['aplica_se'])  ? clean_str($it['aplica_se'], 255)   : null,
                 ));
                 $importados++;
             } catch (Exception $e) {
@@ -424,6 +432,38 @@ function _parsear_bloco_tjrj($linhas, $anoDefault, $mesContexto) {
     elseif (strpos($blocoLower, 'são sebastião') !== false || strpos($blocoLower, 'lei orgânica') !== false) $tipo = 'feriado_municipal';
     else $tipo = 'outros';
 
+    // ── Detectar SUSPENSÕES CONDICIONAIS ──
+    // Suspensões que só se aplicam a certos casos (INSS, AGU, advogados específicos)
+    // — não devem aplicar automaticamente a TODOS os processos. Marcamos como
+    // requer_confirmacao=1; o usuário decide caso a caso na calculadora.
+    $requerConfirmacao = 0;
+    $aplicaSe = '';
+    if (preg_match('/INSS|Instituto\s+Nacional\s+do\s+Seguro\s+Social/iu', $bloco)) {
+        $requerConfirmacao = 1;
+        $aplicaSe = 'Apenas processos que envolvam o INSS';
+    } elseif (preg_match('/Advocacia[\-\s]Geral\s+da\s+União|\bAGU\b/iu', $bloco)) {
+        $requerConfirmacao = 1;
+        $aplicaSe = 'Apenas processos que envolvam a AGU (União)';
+    } elseif (preg_match('/inscrição\s+principal\s+na\s+Subseção\s+de\s+([A-Za-zÀ-ú\s]+?)(?:\s*[-\s]\s*[A-Z]{2}|\s+e\b)/iu', $bloco, $mAdv)) {
+        $requerConfirmacao = 1;
+        $aplicaSe = 'Apenas advogados com inscrição em ' . trim($mAdv[1]);
+    } elseif ($abrangencia === 'comarca_especifica') {
+        // Suspensão de comarca específica também é condicional — só aplica se
+        // o caso for daquela comarca exatamente
+        $requerConfirmacao = 1;
+        $aplicaSe = 'Apenas processos da Comarca de ' . ($comarca ?: '?');
+    } elseif (preg_match('/Fórum\s+Regional/iu', $bloco)) {
+        $requerConfirmacao = 1;
+        if (preg_match('/Fórum\s+Regional\s+(?:de|d[ao])?\s*([A-Za-zÀ-ú\s]+?)(?:[,\.\)]|$|no dia)/iu', $bloco, $mFR)) {
+            $aplicaSe = 'Apenas processos do Fórum Regional de ' . trim($mFR[1]);
+        } else {
+            $aplicaSe = 'Apenas processos do Fórum Regional indicado';
+        }
+    } elseif (preg_match('/(I{1,3}V?|V|VI{0,3})\s+Juizado\s+Especial/iu', $bloco)) {
+        $requerConfirmacao = 1;
+        $aplicaSe = 'Apenas processos do Juizado Especial indicado no ato';
+    }
+
     return array(
         'datas' => $datas,
         'motivo' => $motivo,
@@ -431,6 +471,8 @@ function _parsear_bloco_tjrj($linhas, $anoDefault, $mesContexto) {
         'tipo' => $tipo,
         'abrangencia' => $abrangencia,
         'comarca' => $comarca,
+        'requer_confirmacao' => $requerConfirmacao,
+        'aplica_se' => $aplicaSe,
     );
 }
 

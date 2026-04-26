@@ -13,21 +13,38 @@
 /**
  * Verifica se uma data é dia suspenso (feriado/recesso/suspensão)
  */
-function is_dia_suspenso($data, $comarca = null)
+function is_dia_suspenso($data, $comarca = null, $idsCondicionaisAceitos = array())
 {
     static $cache = array();
-    $key = $data . '|' . ($comarca ?: '_');
+    // Cache por (data, comarca, ids condicionais aceitos)
+    $idsKey = is_array($idsCondicionaisAceitos) ? implode(',', $idsCondicionaisAceitos) : '';
+    $key = $data . '|' . ($comarca ?: '_') . '|' . $idsKey;
     if (isset($cache[$key])) return $cache[$key];
 
     $pdo = db();
+    // Suspensões "automáticas" (requer_confirmacao=0): aplicam sempre
+    // Suspensões "condicionais" (requer_confirmacao=1): aplicam só se o ID estiver
+    // em $idsCondicionaisAceitos (usuário marcou na calculadora)
     $sql = "SELECT COUNT(*) FROM prazos_suspensoes
             WHERE ? BETWEEN data_inicio AND data_fim
-            AND (abrangencia = 'todo_estado' OR abrangencia = 'capital'";
+            AND (
+                (
+                    COALESCE(requer_confirmacao,0) = 0
+                    AND (abrangencia = 'todo_estado' OR abrangencia = 'capital'";
     $params = array($data);
 
     if ($comarca) {
         $sql .= " OR (abrangencia = 'comarca_especifica' AND comarca = ?)";
         $params[] = $comarca;
+    }
+    $sql .= ")
+                )";
+
+    if (!empty($idsCondicionaisAceitos)) {
+        $idsInt = array_map('intval', array_filter($idsCondicionaisAceitos, 'is_numeric'));
+        if (!empty($idsInt)) {
+            $sql .= " OR (COALESCE(requer_confirmacao,0) = 1 AND id IN (" . implode(',', $idsInt) . "))";
+        }
     }
     $sql .= ")";
 
@@ -46,24 +63,24 @@ function is_dia_suspenso($data, $comarca = null)
 /**
  * Verifica se uma data é dia útil forense
  */
-function is_dia_util($data, $comarca = null)
+function is_dia_util($data, $comarca = null, $idsCondicionaisAceitos = array())
 {
     $dt = new DateTime($data);
     $dow = (int)$dt->format('w');
     // Sábado (6) e Domingo (0)
     if ($dow === 0 || $dow === 6) return false;
-    // Verificar suspensões
-    return !is_dia_suspenso($data, $comarca);
+    // Verificar suspensões (ignora condicionais por default; usuário pode aceitar via array)
+    return !is_dia_suspenso($data, $comarca, $idsCondicionaisAceitos);
 }
 
 /**
  * Avança para o próximo dia útil (se já for útil, retorna o mesmo)
  */
-function proximo_dia_util($data, $comarca = null)
+function proximo_dia_util($data, $comarca = null, $idsCondicionaisAceitos = array())
 {
     $dt = new DateTime($data);
     $max = 60; $i = 0;
-    while (!is_dia_util($dt->format('Y-m-d'), $comarca) && $i < $max) {
+    while (!is_dia_util($dt->format('Y-m-d'), $comarca, $idsCondicionaisAceitos) && $i < $max) {
         $dt->modify('+1 day');
         $i++;
     }
@@ -93,7 +110,7 @@ function calcular_inicio_contagem($data_publicacao)
 /**
  * Calcula prazo em DIAS ÚTEIS
  */
-function calcular_prazo_dias($data_inicio, $quantidade, $comarca = null)
+function calcular_prazo_dias($data_inicio, $quantidade, $comarca = null, $idsCondicionaisAceitos = array())
 {
     $atual = new DateTime($data_inicio);
     $dias_contados = 0;
@@ -102,7 +119,7 @@ function calcular_prazo_dias($data_inicio, $quantidade, $comarca = null)
     while ($dias_contados < $quantidade && $i < $max) {
         $atual->modify('+1 day');
         $i++;
-        if (is_dia_util($atual->format('Y-m-d'), $comarca)) {
+        if (is_dia_util($atual->format('Y-m-d'), $comarca, $idsCondicionaisAceitos)) {
             $dias_contados++;
         }
     }
@@ -113,11 +130,11 @@ function calcular_prazo_dias($data_inicio, $quantidade, $comarca = null)
 /**
  * Calcula prazo em MESES (calendário, avança se cair em não útil)
  */
-function calcular_prazo_meses($data_inicio, $quantidade, $comarca = null)
+function calcular_prazo_meses($data_inicio, $quantidade, $comarca = null, $idsCondicionaisAceitos = array())
 {
     $fatal = new DateTime($data_inicio);
     $fatal->modify("+{$quantidade} months");
-    return proximo_dia_util($fatal->format('Y-m-d'), $comarca);
+    return proximo_dia_util($fatal->format('Y-m-d'), $comarca, $idsCondicionaisAceitos);
 }
 
 /**
@@ -128,16 +145,16 @@ function calcular_prazo_meses($data_inicio, $quantidade, $comarca = null)
  * Art. 231 CPC: prazo começa no dia útil seguinte à juntada
  * Não tem etapa de publicação — a data informada É a data da juntada
  */
-function calcular_prazo_juntada($data_juntada, $quantidade, $unidade = 'dias', $comarca = null)
+function calcular_prazo_juntada($data_juntada, $quantidade, $unidade = 'dias', $comarca = null, $idsCondicionaisAceitos = array())
 {
     $inicio = new DateTime($data_juntada);
     $inicio->modify('+1 day');
-    $inicioStr = proximo_dia_util($inicio->format('Y-m-d'));
+    $inicioStr = proximo_dia_util($inicio->format('Y-m-d'), $comarca, $idsCondicionaisAceitos);
 
     if ($unidade === 'meses') {
-        $fatal = calcular_prazo_meses($inicioStr, $quantidade, $comarca);
+        $fatal = calcular_prazo_meses($inicioStr, $quantidade, $comarca, $idsCondicionaisAceitos);
     } else {
-        $fatal = calcular_prazo_dias($inicioStr, $quantidade, $comarca);
+        $fatal = calcular_prazo_dias($inicioStr, $quantidade, $comarca, $idsCondicionaisAceitos);
     }
 
     $suspensoes = get_suspensoes_periodo($inicioStr, $fatal, $comarca);
@@ -167,15 +184,15 @@ function calcular_prazo_juntada($data_juntada, $quantidade, $unidade = 'dias', $
     );
 }
 
-function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade = 'dias', $comarca = null)
+function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade = 'dias', $comarca = null, $idsCondicionaisAceitos = array())
 {
     $publicacao = calcular_data_publicacao($data_disponibilizacao);
     $inicio = calcular_inicio_contagem($publicacao);
 
     if ($unidade === 'meses') {
-        $fatal = calcular_prazo_meses($inicio, $quantidade, $comarca);
+        $fatal = calcular_prazo_meses($inicio, $quantidade, $comarca, $idsCondicionaisAceitos);
     } else {
-        $fatal = calcular_prazo_dias($inicio, $quantidade, $comarca);
+        $fatal = calcular_prazo_dias($inicio, $quantidade, $comarca, $idsCondicionaisAceitos);
     }
 
     // Contar dias suspensos no período
@@ -215,8 +232,10 @@ function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade =
 function get_suspensoes_periodo($data_inicio, $data_fim, $comarca = null)
 {
     $pdo = db();
+    // Apenas suspensões NÃO-condicionais (as automáticas) — pra exibição padrão.
     $sql = "SELECT * FROM prazos_suspensoes
             WHERE data_inicio <= ? AND data_fim >= ?
+            AND COALESCE(requer_confirmacao, 0) = 0
             AND (abrangencia = 'todo_estado' OR abrangencia = 'capital'";
     $params = array($data_fim, $data_inicio);
 
@@ -226,6 +245,28 @@ function get_suspensoes_periodo($data_inicio, $data_fim, $comarca = null)
     }
     $sql .= ") ORDER BY data_inicio";
 
+    try {
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll();
+    } catch (Exception $e) {
+        return array();
+    }
+}
+
+/**
+ * Retorna as suspensões CONDICIONAIS (requer_confirmacao=1) cujo intervalo
+ * intercepta o período do prazo. Usado pela calculadora pra mostrar a
+ * Amanda os ITENS opcionais — ela marca caso a caso quais aplicam.
+ */
+function get_suspensoes_condicionais_periodo($data_inicio, $data_fim, $comarca = null)
+{
+    $pdo = db();
+    $sql = "SELECT * FROM prazos_suspensoes
+            WHERE data_inicio <= ? AND data_fim >= ?
+              AND COALESCE(requer_confirmacao, 0) = 1
+            ORDER BY data_inicio ASC";
+    $params = array($data_fim, $data_inicio);
     try {
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);

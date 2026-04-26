@@ -40,13 +40,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $tipoPrazo = clean_str(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '', 100);
     $caseId    = (int)(isset($_POST['case_id']) ? $_POST['case_id'] : 0);
 
+    // IDs de suspensões condicionais que o usuário decidiu APLICAR
+    // (vem dos checkboxes mostrados após o 1º cálculo). Default: array vazio.
+    $condIdsAceitos = array();
+    if (isset($_POST['cond_ids']) && is_array($_POST['cond_ids'])) {
+        foreach ($_POST['cond_ids'] as $cid) {
+            $cidInt = (int)$cid;
+            if ($cidInt > 0) $condIdsAceitos[] = $cidInt;
+        }
+    }
+
     $modoJuntada = isset($_POST['modo_juntada']) ? (int)$_POST['modo_juntada'] : 0;
 
     if ($dataDisp && $qtd > 0) {
         if ($modoJuntada) {
-            $resultado = calcular_prazo_juntada($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
+            $resultado = calcular_prazo_juntada($dataDisp, $qtd, $unidade, $comarca ? $comarca : null, $condIdsAceitos);
         } else {
-            $resultado = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca ? $comarca : null);
+            $resultado = calcular_prazo_completo($dataDisp, $qtd, $unidade, $comarca ? $comarca : null, $condIdsAceitos);
+        }
+        // Lista de suspensões condicionais que tocam o período do prazo —
+        // pra mostrar checkboxes no resultado e Amanda decidir.
+        if (isset($resultado['inicio_contagem']) && isset($resultado['data_fatal'])) {
+            $resultado['suspensoes_condicionais'] = get_suspensoes_condicionais_periodo(
+                $resultado['inicio_contagem'],
+                $resultado['data_fatal'],
+                $comarca ? $comarca : null
+            );
+            $resultado['cond_ids_aceitos'] = $condIdsAceitos;
         }
 
         if (isset($_POST['salvar']) && $_POST['salvar']) {
@@ -1079,6 +1099,54 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                     <?php else: ?>
                         <div class="susp-none">Nenhuma suspensao encontrada no periodo.</div>
+                    <?php endif; ?>
+
+                    <!-- Suspensões CONDICIONAIS — Amanda escolhe caso a caso -->
+                    <?php if (!empty($resultado['suspensoes_condicionais'])):
+                        $condAceitos = isset($resultado['cond_ids_aceitos']) ? $resultado['cond_ids_aceitos'] : array();
+                    ?>
+                    <div style="margin-top:1rem;padding:1rem 1.2rem;background:#fffbeb;border:1.5px solid #fcd34d;border-radius:10px;">
+                        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;">
+                            <span style="font-size:1.2rem;">⚠️</span>
+                            <strong style="color:#92400e;">Suspensões CONDICIONAIS no período</strong>
+                            <span style="font-size:.72rem;color:#78350f;">(não aplicadas por padrão — marque as que valem pro seu caso)</span>
+                        </div>
+                        <p style="font-size:.78rem;color:#78350f;margin:0 0 .8rem;">
+                            Estas suspensões só se aplicam a casos específicos (INSS, AGU, comarca específica, etc.). Marque as que se aplicam ao seu processo e clique em <strong>"Recalcular com seleção"</strong> pra ajustar a data fatal.
+                        </p>
+                        <form method="POST" id="formCondicionais" style="margin:0;">
+                            <?= csrf_input() ?>
+                            <!-- Reenvia campos do cálculo original -->
+                            <input type="hidden" name="data_disponibilizacao" value="<?= e(isset($_POST['data_disponibilizacao']) ? $_POST['data_disponibilizacao'] : '') ?>">
+                            <input type="hidden" name="quantidade" value="<?= e((string)(isset($_POST['quantidade']) ? $_POST['quantidade'] : '15')) ?>">
+                            <input type="hidden" name="unidade" value="<?= e(isset($_POST['unidade']) ? $_POST['unidade'] : 'dias') ?>">
+                            <input type="hidden" name="comarca" value="<?= e(isset($_POST['comarca']) ? $_POST['comarca'] : '') ?>">
+                            <input type="hidden" name="comarca_uf" value="<?= e(isset($_POST['comarca_uf']) ? $_POST['comarca_uf'] : '') ?>">
+                            <input type="hidden" name="tipo_prazo" value="<?= e(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '') ?>">
+                            <input type="hidden" name="case_id" value="<?= e((string)(isset($_POST['case_id']) ? $_POST['case_id'] : '0')) ?>">
+                            <input type="hidden" name="modo_juntada" value="<?= e(isset($_POST['modo_juntada']) ? $_POST['modo_juntada'] : '0') ?>">
+                            <div style="display:flex;flex-direction:column;gap:.4rem;">
+                                <?php foreach ($resultado['suspensoes_condicionais'] as $sc):
+                                    $cId = (int)$sc['id'];
+                                    $marcado = in_array($cId, $condAceitos, true);
+                                ?>
+                                <label style="display:flex;align-items:flex-start;gap:.5rem;padding:.5rem .7rem;background:#fff;border:1px solid #fde68a;border-radius:6px;cursor:pointer;font-size:.82rem;">
+                                    <input type="checkbox" name="cond_ids[]" value="<?= $cId ?>" <?= $marcado ? 'checked' : '' ?> style="margin-top:3px;">
+                                    <div style="flex:1;">
+                                        <strong style="color:#1A1A1A;">
+                                            <?= data_br($sc['data_inicio']) ?><?php if ($sc['data_fim'] !== $sc['data_inicio']): ?> a <?= data_br($sc['data_fim']) ?><?php endif; ?>
+                                        </strong>
+                                        — <?= e($sc['motivo']) ?>
+                                        <?php if (!empty($sc['aplica_se'])): ?>
+                                            <div style="font-size:.74rem;color:#92400e;margin-top:2px;"><strong>Aplica-se:</strong> <?= e($sc['aplica_se']) ?></div>
+                                        <?php endif; ?>
+                                    </div>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top:.8rem;font-size:.82rem;">🔄 Recalcular com seleção</button>
+                        </form>
+                    </div>
                     <?php endif; ?>
 
                     <!-- Safety date -->
