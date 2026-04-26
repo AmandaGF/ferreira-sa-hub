@@ -378,4 +378,47 @@ return array(
     'missao' => 'Abra o módulo Aniversários e veja quem faz aniversário esta semana.',
 ),
 
+'distribuir-peticao-inicial' => array(
+    'por_que' => 'Quando a petição inicial está pronta e protocolada no tribunal, o caso precisa subir pra **Processo Distribuído** no Kanban Operacional. É essa movimentação que: (1) registra o número CNJ no sistema, (2) gera andamento automático no histórico do processo, (3) avisa o cliente pelo WhatsApp + Sala VIP que o processo foi ajuizado.',
+    'passos' => array(
+        'Abra **Kanban Operacional** na sidebar.',
+        'Localize o card do caso — geralmente está em **Em Elaboração** ou **Em Andamento**.',
+        '**Arraste** o card pra coluna **🏛️ Processo Distribuído** (verde escuro, à direita).',
+        'Modal **"Dados do Processo Distribuído"** abre automaticamente.',
+        'Toggle **🏛️ Judicial** já vem selecionado — use **📋 Extrajudicial** se for medida administrativa (divórcio em cartório, inventário extrajudicial, etc).',
+        'Preencha **Número do processo** — formato CNJ `0000000-00.0000.0.00.0000` (o sistema mascara automaticamente conforme você digita).',
+        'Preencha **Vara/Juízo** — ex: "1ª Vara de Família de Resende".',
+        'Preencha **Tipo de demanda**, **Data da distribuição** (vem com hoje), **Comarca** (autocomplete RJ), **UF** (RJ default), **Regional** (se aplicável), **Sistema** (PJe / PROJUDI / e-SAJ / EPROC).',
+        'Preencha **Parte(s) contrária(s)** — nome do réu/autor adverso.',
+        '**Valor da causa** é opcional (formato R$).',
+        'Salva. Sistema registra `case_number`, `court`, `comarca` no caso, cria andamento "Processo distribuído" no histórico, e dispara notificação pro cliente.',
+    ),
+    'atencao' => 'Se o caso já tinha número cadastrado (ex: pelo Email Monitor → aba Pendentes), o modal verifica e pré-preenche — evita pedir 2x. **Cuidado com a regra de visibilidade:** o card "Distribuído" só fica visível no Kanban Operacional durante o **MÊS** da distribuição. Depois disso some do Kanban (mas continua na lista de Processos com status `distribuido`).',
+    'dica' => 'Se o processo já estava distribuído mas você só ficou sabendo agora, pode arrastar o card direto de qualquer coluna pra **Processo Distribuído** (sem regra de bloqueio). Use a data da distribuição real, não a de hoje.',
+    'missao' => 'Pegue um caso em "Em Elaboração" ou "Em Andamento" que JÁ foi distribuído mas ainda não está marcado no Hub. Mova o card pra **Processo Distribuído**, preencha os dados e salve. Depois abre a pasta do caso e confirma: (1) número CNJ aparece no cabeçalho, (2) há um andamento "Processo distribuído" na timeline, (3) status mudou no Kanban.',
+),
+
+'cadastrar-processo-existente' => array(
+    'por_que' => 'Tem casos onde o processo **já está em andamento** quando o cliente chega pra cá: cliente migrou de outro escritório, recurso de processo antigo, pasta herdada, etc. O fluxo do Pipeline Comercial assume processo NOVO (vai cadastrar lead → mover até "Contrato Assinado" → criar pasta automaticamente). Pra esses casos onde já existe número CNJ, vara, andamentos, etc, faz mais sentido cadastrar **direto no Operacional** já com tudo preenchido.',
+    'passos' => array(
+        'Abra **Kanban Operacional** ou **Processos** (lista) na sidebar.',
+        'Clique em **+ Novo Processo** (botão no topo da página).',
+        'Form abre. Comece pelo campo **Cliente *** — use a busca: digite **nome, CPF (com ou sem pontuação) ou parte do CPF (3+ dígitos)**. Selecione o cliente. Se for cliente novo, cadastre-o antes via Pipeline Comercial pra manter a métrica do funil.',
+        '**Papel do Cliente** — Autor / Réu / Rep. Legal (a depender do polo do seu cliente).',
+        '**Nome da Pasta / Título *** — convenção da casa: **"NOME DO CLIENTE x TIPO DE AÇÃO"** (ex: "MARIA SILVA x Divórcio"). Não invente formato próprio — relatórios e dashboards seguem esse padrão.',
+        '**Tipo de Ação** (dropdown — Família, Sucessões, Cível, Imobiliário, etc).',
+        '**Nº do Processo** — CNJ. Quando preencher, o sistema verifica se já existe em outro caso e avisa.',
+        '**Vara**, **Comarca** (autocomplete RJ), **UF** (default RJ), **Regional** (Volta Redonda, Madureira, etc), **Sistema** (PJe / PROJUDI / e-SAJ).',
+        '**Status** — geralmente "Em andamento" se o processo já está tramitando. Pra processos antigos arquivados, use "Concluído / Arquivado".',
+        '**Data de Distribuição** — quando o processo foi originalmente ajuizado (busque no PJe se não souber).',
+        '**Departamento** (Operacional default), **Categoria** (Judicial / Extrajudicial), **Responsável** (advogada/o que cuida do caso).',
+        'Bloco **Partes do Processo** — adicione autor / réu / litisconsorte / representante legal. O nome tem **autocomplete contra `clients`**: se bater com cliente cadastrado, linka automaticamente, marca o checkbox "CLIENTE" e puxa o CPF (badge **NOSSO CLIENTE** aparece depois na pasta).',
+        '**Filhos** (em ações de família com criança envolvida) — nome + nascimento + CPF. Salvo em `filhos_json` da pasta.',
+        'Salva. Sistema cria registros em `cases` + `case_partes` (e, se o CNJ tinha sido capturado pelo Email Monitor antes, importa os andamentos antigos automaticamente).',
+    ),
+    'atencao' => 'Se o cliente JÁ existe no sistema mas nunca passou pelo Pipeline Comercial, considere lançar como lead em **"Cadastro Preenchido"** e mover até **"Contrato Assinado"** — isso dispara automaticamente: criação da pasta no Drive, abertura do caso no Operacional e mensagem de boas-vindas. Cadastrar direto no Operacional pula isso e perde a métrica do funil.',
+    'dica' => 'Se você está cadastrando um caso que veio de email do PJe (CNJ aparecendo na aba **Pendentes** do Email Monitor), use o botão **+ Cadastrar** lá — ele já abre este form com **CNJ, Vara, Comarca, UF e partes pré-preenchidos** pelo email. Bem mais rápido que digitar tudo de novo.',
+    'missao' => 'Cliente novo chegou aqui com processo Cível ajuizado em outro escritório, com número CNJ e vara em Volta Redonda. Cadastre no Hub: (1) cliente novo (cadastre antes pelo Pipeline ou direto pelo módulo Clientes), (2) processo com número CNJ + vara + comarca, (3) cliente como Autor + parte contrária como Réu, (4) status "Em andamento". Depois abra a pasta criada e confirme que está tudo lá.',
+),
+
 );
