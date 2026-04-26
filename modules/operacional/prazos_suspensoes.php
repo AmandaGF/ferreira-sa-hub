@@ -35,116 +35,91 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
     }
 
-    if ($action === 'importar_texto') {
+    // ═══ PREVIEW XHR: parseia o texto colado do TJRJ e devolve a lista
+    //     de suspensões detectadas pra Amanda revisar antes de salvar ═══
+    if ($action === 'preview_tjrj') {
+        header('Content-Type: application/json; charset=utf-8');
         $texto = $_POST['texto_pdf'] ?? '';
+        if (trim($texto) === '') {
+            echo json_encode(array('ok' => false, 'erro' => 'Cole o texto antes de analisar.'));
+            exit;
+        }
+
+        $resultados = _parsear_suspensoes_tjrj_completo($texto, $filtroAno);
+
+        // Achata em linhas individuais (1 par data_inicio/data_fim por item) e marca dup
+        $itens = array();
+        $stmtChk = $pdo->prepare("SELECT id FROM prazos_suspensoes WHERE data_inicio = ? AND data_fim = ? LIMIT 1");
+        foreach ($resultados as $res) {
+            foreach ($res['datas'] as $par) {
+                $di = $par[0]; $df = $par[1];
+                $stmtChk->execute(array($di, $df));
+                $jaExiste = !!$stmtChk->fetchColumn();
+                $itens[] = array(
+                    'data_inicio' => $di,
+                    'data_fim'    => $df,
+                    'tipo'        => $res['tipo'],
+                    'abrangencia' => $res['abrangencia'],
+                    'comarca'     => $res['comarca'],
+                    'motivo'      => $res['motivo'],
+                    'ato'         => $res['ato'],
+                    'ja_existe'   => $jaExiste,
+                );
+            }
+        }
+
+        echo json_encode(array('ok' => true, 'itens' => $itens));
+        exit;
+    }
+
+    // ═══ SALVAR seleção do preview ═══
+    if ($action === 'salvar_suspensoes_selecionadas') {
+        header('Content-Type: application/json; charset=utf-8');
+        $payload = json_decode($_POST['items'] ?? '[]', true);
+        if (!is_array($payload)) $payload = array();
+
         $importados = 0;
-        $erros = array();
-
-        if ($texto) {
-            // ═══ PARSER TJRJ v3 ═══
-            // Estratégia: processar APENAS a Seção 1 (antes de "CONSULTA POR ASSUNTO")
-            // que lista suspensões por mês, sem duplicação.
-            // Cortar tudo após "CONSULTA POR ASSUNTO"
-            $posCorte = strpos($texto, 'CONSULTA POR ASSUNTO');
-            if ($posCorte !== false) $texto = substr($texto, 0, $posCorte);
-
-            // Também cortar após "CONSULTA POR COMARCA"
-            $posCorte2 = strpos($texto, 'CONSULTA POR COMARCA');
-            if ($posCorte2 !== false) $texto = substr($texto, 0, $posCorte2);
-
-            // Mapa de meses para resolver datas sem ano (dd/mm)
-            $mesContexto = 0; // mês atual detectado pelo cabeçalho
-            $mesesMap = array(
-                'Janeiro'=>1,'Fevereiro'=>2,'Março'=>3,'Marco'=>3,'Abril'=>4,'Maio'=>5,
-                'Junho'=>6,'Julho'=>7,'Agosto'=>8,'Setembro'=>9,'Outubro'=>10,
-                'Novembro'=>11,'Dezembro'=>12
-            );
-
-            $linhas = preg_split('/\r?\n/', $texto);
-            $blocoAtual = array();
-            $resultados = array();
-
-            foreach ($linhas as $l) {
-                $l = trim($l);
-
-                // Detectar mês do cabeçalho: "Abril Período Ato..." ou "Abril" isolado
-                foreach ($mesesMap as $nomeMes => $numMes) {
-                    if (strpos($l, $nomeMes) === 0 && (strlen($l) < 20 || strpos($l, 'Período') !== false)) {
-                        $mesContexto = $numMes;
-                        break;
-                    }
-                }
-
-                // Ignorar linhas de lixo
-                if ($l === '' || $l === 'Índice' || $l === 'PJERJ') continue;
-                if (strpos($l, 'Todo conteúdo') !== false) continue;
-                if (strpos($l, 'Portal do Conhecimento') !== false) continue;
-                if (strpos($l, 'SUSPENSÃO DE PRAZOS') !== false) continue;
-                if (strpos($l, 'CALENDÁRIO DE FERIADOS') !== false) continue;
-                if (strpos($l, 'Data da atualização') !== false) continue;
-                if (preg_match('/^SÁBADOS:/', $l) || preg_match('/^DOMINGOS:/', $l)) continue;
-                if (preg_match('/^▪|^•/', $l)) continue;
-                if (strpos($l, 'Período Ato') !== false) continue;
-                if (preg_match('/^\d{4}$/', $l)) continue;
-                if (strpos($l, 'Suspensão dos Prazos') !== false) continue;
-                if (strpos($l, 'Consulta por') !== false || strpos($l, 'Consulta de') !== false) continue;
-                // Meses isolados como cabeçalho
-                if (isset($mesesMap[$l])) continue;
-                if (preg_match('/^(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+Período/', $l)) continue;
-
-                // Detectar início de novo bloco: linha que COMEÇA com data dd/mm ou "Período de"
-                $isNovaData = preg_match('/^(?:Período de\s+)?\d{2}\/\d{2}/', $l)
-                    || preg_match('/^(?:Com início|Transfere)/', $l);
-
-                if ($isNovaData && !empty($blocoAtual)) {
-                    // Processar bloco anterior
-                    $r = _parsear_bloco_tjrj($blocoAtual, $filtroAno, $mesContexto);
-                    if ($r) $resultados[] = $r;
-                    $blocoAtual = array();
-                }
-
-                $blocoAtual[] = $l;
-            }
-            // Último bloco
-            if (!empty($blocoAtual)) {
-                $r = _parsear_bloco_tjrj($blocoAtual, $filtroAno, $mesContexto);
-                if ($r) $resultados[] = $r;
-            }
-
-            // Inserir resultados (com dedup)
-            foreach ($resultados as $res) {
-                foreach ($res['datas'] as $dataPar) {
-                    $di = $dataPar[0];
-                    $df = $dataPar[1];
-
-                    // Verificar duplicidade por data + motivo similar
-                    $dupCheck = $pdo->prepare("SELECT COUNT(*) FROM prazos_suspensoes WHERE data_inicio = ? AND data_fim = ?");
-                    $dupCheck->execute(array($di, $df));
-                    if ((int)$dupCheck->fetchColumn() > 0) continue;
-
-                    try {
-                        $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)")
-                            ->execute(array($di, $df, $res['tipo'], $res['abrangencia'], $res['comarca'],
-                                clean_str($res['motivo'], 300), $res['ato'] ? clean_str($res['ato'], 200) : null,
-                                'Importação TJRJ', current_user_id()));
-                        $importados++;
-                    } catch (Exception $e) {
-                        $erros[] = $di . ': ' . $e->getMessage();
-                    }
-                }
+        $duplicatas = 0;
+        $erros      = 0;
+        $stmtChk = $pdo->prepare("SELECT id FROM prazos_suspensoes WHERE data_inicio = ? AND data_fim = ? LIMIT 1");
+        $stmtIns = $pdo->prepare("INSERT INTO prazos_suspensoes (data_inicio, data_fim, tipo, abrangencia, comarca, motivo, ato_legislacao, fonte_pdf, criado_por) VALUES (?,?,?,?,?,?,?,?,?)");
+        $userId  = current_user_id();
+        foreach ($payload as $it) {
+            $di = isset($it['data_inicio']) ? trim($it['data_inicio']) : '';
+            $df = isset($it['data_fim'])    ? trim($it['data_fim'])    : '';
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $di) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $df)) continue;
+            $stmtChk->execute(array($di, $df));
+            if ($stmtChk->fetchColumn()) { $duplicatas++; continue; }
+            try {
+                $stmtIns->execute(array(
+                    $di, $df,
+                    isset($it['tipo'])        ? clean_str($it['tipo'], 50)         : 'outros',
+                    isset($it['abrangencia']) ? clean_str($it['abrangencia'], 30)  : 'todo_estado',
+                    !empty($it['comarca'])    ? clean_str($it['comarca'], 100)     : null,
+                    isset($it['motivo'])      ? clean_str($it['motivo'], 300)      : 'Suspensão de prazos',
+                    !empty($it['ato'])        ? clean_str($it['ato'], 200)         : null,
+                    'Importação TJRJ',
+                    $userId,
+                ));
+                $importados++;
+            } catch (Exception $e) {
+                $erros++;
             }
         }
 
-        if ($importados > 0) {
-            flash_set('success', $importados . ' suspensão(ões) importada(s)!');
-        }
-        if (!empty($erros)) {
-            flash_set('error', 'Erros: ' . implode('; ', array_slice($erros, 0, 3)));
-        }
-        if ($importados === 0 && empty($erros)) {
-            flash_set('error', 'Nenhuma suspensão nova encontrada (podem já estar cadastradas).');
-        }
-        redirect(module_url('operacional', 'prazos_suspensoes.php?ano=' . $filtroAno));
+        // Atualiza o timestamp da última importação TJRJ
+        try {
+            $stmtCfg = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('suspensoes_tjrj_atualizado_em', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+            $stmtCfg->execute(array(date('Y-m-d H:i:s')));
+        } catch (Exception $e) { /* tabela pode não existir em ambientes velhos */ }
+
+        echo json_encode(array(
+            'ok'         => true,
+            'importados' => $importados,
+            'duplicatas' => $duplicatas,
+            'erros'      => $erros,
+        ));
+        exit;
     }
 
     if ($action === 'excluir' && has_role('admin')) {
@@ -180,6 +155,15 @@ foreach ($suspensoes as $s) {
 }
 
 $comarcas = comarcas_rj();
+
+// Última atualização do TJRJ (se já foi importado alguma vez)
+$ultimaAtualizTjrj = '';
+try {
+    $stmtLast = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'suspensoes_tjrj_atualizado_em' LIMIT 1");
+    $stmtLast->execute();
+    $rowLast = $stmtLast->fetchAll();
+    if (!empty($rowLast)) $ultimaAtualizTjrj = (string)$rowLast[0]['valor'];
+} catch (Exception $e) { /* tabela configuracoes pode não existir */ }
 $tipoLabels = array(
     'feriado_nacional' => 'Feriado Nacional',
     'feriado_estadual' => 'Feriado Estadual',
@@ -227,6 +211,68 @@ foreach ($suspensoes as $s) {
 }
 
 $canManage = has_role('admin', 'gestao');
+
+// ═══ Parser principal: recebe o texto bruto colado da página TJRJ e
+//     retorna array de blocos parseados (cada um com `datas`, `motivo`,
+//     `abrangencia`, `comarca`, `tipo`, `ato`). NÃO insere nada — devolve
+//     pra o caller decidir se mostra preview ou insere direto.
+function _parsear_suspensoes_tjrj_completo($texto, $anoDefault) {
+    // Cortar tudo após "CONSULTA POR ASSUNTO" — daqui pra frente as suspensões
+    // se repetem agrupadas por categoria, gerando duplicatas no parse.
+    $posCorte = strpos($texto, 'CONSULTA POR ASSUNTO');
+    if ($posCorte !== false) $texto = substr($texto, 0, $posCorte);
+    $posCorte2 = strpos($texto, 'CONSULTA POR COMARCA');
+    if ($posCorte2 !== false) $texto = substr($texto, 0, $posCorte2);
+
+    $mesesMap = array(
+        'Janeiro'=>1,'Fevereiro'=>2,'Março'=>3,'Marco'=>3,'Abril'=>4,'Maio'=>5,
+        'Junho'=>6,'Julho'=>7,'Agosto'=>8,'Setembro'=>9,'Outubro'=>10,
+        'Novembro'=>11,'Dezembro'=>12
+    );
+
+    $linhas = preg_split('/\r?\n/', $texto);
+    $blocoAtual = array();
+    $resultados = array();
+    $mesContexto = 0;
+
+    foreach ($linhas as $l) {
+        $l = trim($l);
+        foreach ($mesesMap as $nomeMes => $numMes) {
+            if (strpos($l, $nomeMes) === 0 && (strlen($l) < 20 || strpos($l, 'Período') !== false)) {
+                $mesContexto = $numMes; break;
+            }
+        }
+        if ($l === '' || $l === 'Índice' || $l === 'PJERJ') continue;
+        if (strpos($l, 'Todo conteúdo') !== false) continue;
+        if (strpos($l, 'Portal do Conhecimento') !== false) continue;
+        if (strpos($l, 'SUSPENSÃO DE PRAZOS') !== false) continue;
+        if (strpos($l, 'CALENDÁRIO DE FERIADOS') !== false) continue;
+        if (strpos($l, 'Data da atualização') !== false) continue;
+        if (preg_match('/^SÁBADOS:/', $l) || preg_match('/^DOMINGOS:/', $l)) continue;
+        if (preg_match('/^▪|^•/', $l)) continue;
+        if (strpos($l, 'Período Ato') !== false) continue;
+        if (preg_match('/^\d{4}$/', $l)) continue;
+        if (strpos($l, 'Suspensão dos Prazos') !== false) continue;
+        if (strpos($l, 'Consulta por') !== false || strpos($l, 'Consulta de') !== false) continue;
+        if (isset($mesesMap[$l])) continue;
+        if (preg_match('/^(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+Período/', $l)) continue;
+
+        $isNovaData = preg_match('/^(?:Período de\s+)?\d{2}\/\d{2}/', $l)
+            || preg_match('/^(?:Com início|Transfere)/', $l);
+
+        if ($isNovaData && !empty($blocoAtual)) {
+            $r = _parsear_bloco_tjrj($blocoAtual, $anoDefault, $mesContexto);
+            if ($r) $resultados[] = $r;
+            $blocoAtual = array();
+        }
+        $blocoAtual[] = $l;
+    }
+    if (!empty($blocoAtual)) {
+        $r = _parsear_bloco_tjrj($blocoAtual, $anoDefault, $mesContexto);
+        if ($r) $resultados[] = $r;
+    }
+    return $resultados;
+}
 
 // ═══ Função auxiliar: parsear um bloco do TJRJ ═══
 function _parsear_bloco_tjrj($linhas, $anoDefault, $mesContexto) {
@@ -507,32 +553,191 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card" style="margin-bottom: 20px;">
     <div class="card-header form-toggle" onclick="toggleImport()">
         <span class="toggle-icon" id="toggleImportIcon">&#9654;</span>
-        <strong>Importar do PDF do TJRJ</strong>
+        <strong>🔄 Atualizar suspensões do TJRJ</strong>
+        <?php if ($ultimaAtualizTjrj): ?>
+            <span style="margin-left:auto;font-size:.74rem;color:#0369a1;background:#e0f2fe;padding:3px 10px;border-radius:99px;font-weight:600;">
+                Última atualização: <?= e(date('d/m/Y H:i', strtotime($ultimaAtualizTjrj))) ?>
+            </span>
+        <?php else: ?>
+            <span style="margin-left:auto;font-size:.74rem;color:#92400e;background:#fef3c7;padding:3px 10px;border-radius:99px;font-weight:600;">
+                Nunca atualizado pelo TJRJ
+            </span>
+        <?php endif; ?>
     </div>
     <div class="card-body" id="importCollapse" style="display:none;">
-        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:.75rem;">
-            Acesse o <a href="https://www.tjrj.jus.br/web/guest/informativo-de-suspensao-dos-prazos-processuais-e-expediente-forense" target="_blank" style="color:var(--rose);font-weight:600;">site do TJRJ</a>, selecione todo o texto da página (Ctrl+A), copie (Ctrl+C) e cole abaixo.
-            O sistema filtra automaticamente o lixo e extrai apenas as suspensões reais.
-        </p>
-        <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--radius);padding:.6rem .8rem;margin-bottom:.75rem;font-size:.78rem;color:#166534;">
-            <strong>O parser inteligente detecta:</strong><br>
-            - Feriados nacionais e estaduais com ato legislativo<br>
-            - Suspensões por comarca (chuvas, energia, sistema)<br>
-            - Recesso forense, Carnaval, Semana Santa<br>
-            - Ignora cabeçalhos, rodapés, índices e textos repetidos<br>
-            - Verifica duplicidade (não importa o que já existe)
+        <ol style="font-size:.85rem;color:var(--text);margin:0 0 1rem;padding-left:1.4rem;line-height:1.7;">
+            <li><strong>Abra o portal oficial do TJRJ</strong> em outra aba:
+                <a href="https://www.tjrj.jus.br/web/portal-conhecimento/feriados-locais-e-suspensao-de-prazos"
+                   target="_blank" rel="noopener"
+                   style="display:inline-block;background:#0369a1;color:#fff;padding:4px 12px;border-radius:6px;font-size:.78rem;font-weight:700;text-decoration:none;margin-left:6px;">
+                   🔗 tjrj.jus.br/feriados-locais-e-suspensao-de-prazos
+                </a>
+            </li>
+            <li><strong>Selecione todo o conteúdo do PDF</strong> que abrir (Ctrl+A) e copie (Ctrl+C).</li>
+            <li><strong>Cole no campo abaixo</strong> e clique em "🔍 Analisar texto".</li>
+            <li>O sistema mostra um <strong>preview com as suspensões detectadas</strong> — você revisa, marca/desmarca e salva só o que estiver correto.</li>
+        </ol>
+
+        <textarea id="textoPdfTjrj" class="form-textarea" rows="10" style="font-size:.82rem;font-family:monospace;width:100%;" placeholder="Cole aqui o conteúdo da página do TJRJ (Ctrl+V)..."></textarea>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+            <button type="button" id="btnAnalisarTjrj" onclick="suspensoesAnalisarTexto()" class="btn btn-primary">🔍 Analisar texto</button>
+            <button type="button" onclick="document.getElementById('textoPdfTjrj').value=''; document.getElementById('previewSuspensoes').style.display='none';" class="btn btn-outline btn-sm">Limpar</button>
+            <span id="suspensoesStatus" style="font-size:.78rem;color:var(--text-muted);"></span>
         </div>
-        <form method="POST">
-            <?= csrf_input() ?>
-            <input type="hidden" name="action" value="importar_texto">
-            <textarea name="texto_pdf" class="form-textarea" rows="10" style="font-size:.82rem;font-family:monospace;width:100%;" placeholder="Cole aqui o texto copiado do PDF..."></textarea>
-            <div style="margin-top:.5rem;display:flex;gap:.5rem;">
-                <button type="submit" class="btn btn-primary">Importar suspensões</button>
-                <span style="font-size:.72rem;color:var(--text-muted);align-self:center;">O sistema vai detectar e cadastrar as suspensões automaticamente</span>
+
+        <!-- Preview (popula via JS após análise) -->
+        <div id="previewSuspensoes" style="display:none;margin-top:1.2rem;padding:1rem;background:#fffbeb;border:1.5px solid #fde68a;border-radius:8px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;flex-wrap:wrap;gap:.5rem;">
+                <strong style="color:#92400e;">📋 Preview — revise antes de salvar</strong>
+                <span id="previewResumo" style="font-size:.78rem;color:#78350f;"></span>
             </div>
-        </form>
+            <div style="overflow-x:auto;">
+                <table id="previewTabela" style="width:100%;border-collapse:collapse;font-size:.78rem;background:#fff;">
+                    <thead>
+                        <tr style="background:#fef3c7;color:#78350f;">
+                            <th style="padding:6px 8px;text-align:center;width:40px;">
+                                <input type="checkbox" id="previewSelTodos" onchange="suspensoesToggleTodos(this)" checked>
+                            </th>
+                            <th style="padding:6px 8px;text-align:left;">Início</th>
+                            <th style="padding:6px 8px;text-align:left;">Fim</th>
+                            <th style="padding:6px 8px;text-align:left;">Tipo</th>
+                            <th style="padding:6px 8px;text-align:left;">Abrangência</th>
+                            <th style="padding:6px 8px;text-align:left;">Comarca</th>
+                            <th style="padding:6px 8px;text-align:left;">Motivo</th>
+                            <th style="padding:6px 8px;text-align:left;">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewLinhas"></tbody>
+                </table>
+            </div>
+            <div style="margin-top:.8rem;display:flex;gap:.5rem;">
+                <button type="button" id="btnSalvarSelecionadas" onclick="suspensoesSalvarSelecionadas()" class="btn btn-primary">✅ Salvar selecionadas</button>
+                <button type="button" onclick="document.getElementById('previewSuspensoes').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+var SUSPENSOES_CSRF = <?= json_encode($csrf ?? generate_csrf_token()) ?>;
+var SUSPENSOES_URL  = window.location.pathname;
+
+function suspensoesAnalisarTexto() {
+    var textarea = document.getElementById('textoPdfTjrj');
+    var status   = document.getElementById('suspensoesStatus');
+    var btn      = document.getElementById('btnAnalisarTjrj');
+    if (!textarea.value.trim()) { alert('Cole o texto do TJRJ antes de analisar.'); return; }
+
+    btn.disabled = true;
+    status.textContent = 'Analisando texto...';
+
+    var fd = new FormData();
+    fd.append('action', 'preview_tjrj');
+    fd.append('csrf_token', SUSPENSOES_CSRF);
+    fd.append('texto_pdf', textarea.value);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', SUSPENSOES_URL, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        btn.disabled = false;
+        status.textContent = '';
+        var r;
+        try { r = JSON.parse(xhr.responseText); } catch (e) { alert('Resposta inválida do servidor.'); return; }
+        if (!r.ok) { alert('Erro: ' + (r.erro || 'desconhecido')); return; }
+        suspensoesRenderPreview(r.itens || []);
+    };
+    xhr.onerror = function() { btn.disabled = false; status.textContent = ''; alert('Erro de rede.'); };
+    xhr.send(fd);
+}
+
+function suspensoesRenderPreview(itens) {
+    var tbody = document.getElementById('previewLinhas');
+    var resumo = document.getElementById('previewResumo');
+    var preview = document.getElementById('previewSuspensoes');
+    if (!itens.length) {
+        tbody.innerHTML = '<tr><td colspan="8" style="padding:1rem;text-align:center;color:#94a3b8;">Nenhuma suspensão detectada no texto.</td></tr>';
+        resumo.textContent = '';
+        preview.style.display = 'block';
+        return;
+    }
+    var novas = 0, dups = 0;
+    var html = '';
+    for (var i = 0; i < itens.length; i++) {
+        var it = itens[i];
+        if (it.ja_existe) dups++; else novas++;
+        var rowBg = it.ja_existe ? 'background:#f1f5f9;color:#94a3b8;' : '';
+        var checked = it.ja_existe ? '' : 'checked';
+        var status = it.ja_existe
+            ? '<span style="background:#e2e8f0;color:#475569;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;">JÁ CADASTRADO</span>'
+            : '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700;">NOVO</span>';
+
+        html += '<tr style="' + rowBg + '" data-idx="' + i + '">';
+        html += '<td style="padding:5px 8px;text-align:center;border-bottom:1px solid #f3f4f6;"><input type="checkbox" class="prev-chk" ' + checked + ' data-idx="' + i + '"></td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;font-family:monospace;">' + suspensoesFmtData(it.data_inicio) + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;font-family:monospace;">' + suspensoesFmtData(it.data_fim) + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">' + suspensoesEsc(it.tipo) + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">' + suspensoesEsc(it.abrangencia) + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;">' + suspensoesEsc(it.comarca || '—') + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;max-width:340px;">' + suspensoesEsc(it.motivo) + '</td>';
+        html += '<td style="padding:5px 8px;border-bottom:1px solid #f3f4f6;text-align:center;">' + status + '</td>';
+        html += '</tr>';
+    }
+    tbody.innerHTML = html;
+    resumo.textContent = (novas + dups) + ' detectada(s): ' + novas + ' nova(s), ' + dups + ' já cadastrada(s).';
+    preview.style.display = 'block';
+    window._suspensoesItens = itens;
+    preview.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function suspensoesToggleTodos(checkbox) {
+    var chks = document.querySelectorAll('.prev-chk');
+    for (var i = 0; i < chks.length; i++) chks[i].checked = checkbox.checked;
+}
+
+function suspensoesSalvarSelecionadas() {
+    var itens = window._suspensoesItens || [];
+    var marcados = [];
+    var chks = document.querySelectorAll('.prev-chk');
+    for (var i = 0; i < chks.length; i++) {
+        if (chks[i].checked) {
+            var idx = parseInt(chks[i].getAttribute('data-idx'), 10);
+            if (!isNaN(idx) && itens[idx]) marcados.push(itens[idx]);
+        }
+    }
+    if (!marcados.length) { alert('Marque pelo menos uma suspensão pra salvar.'); return; }
+    if (!confirm('Salvar ' + marcados.length + ' suspensão(ões) no banco?')) return;
+
+    var btn = document.getElementById('btnSalvarSelecionadas');
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    var fd = new FormData();
+    fd.append('action', 'salvar_suspensoes_selecionadas');
+    fd.append('csrf_token', SUSPENSOES_CSRF);
+    fd.append('items', JSON.stringify(marcados));
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', SUSPENSOES_URL, true);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        btn.disabled = false;
+        btn.textContent = '✅ Salvar selecionadas';
+        var r;
+        try { r = JSON.parse(xhr.responseText); } catch (e) { alert('Resposta inválida.'); return; }
+        if (!r.ok) { alert('Erro: ' + (r.erro || 'desconhecido')); return; }
+        alert('✓ ' + r.importados + ' suspensão(ões) importada(s).' +
+              (r.duplicatas > 0 ? '\n' + r.duplicatas + ' já existiam.' : '') +
+              (r.erros > 0 ? '\n' + r.erros + ' com erro.' : ''));
+        window.location.reload();
+    };
+    xhr.onerror = function() { btn.disabled = false; btn.textContent = '✅ Salvar selecionadas'; alert('Erro de rede.'); };
+    xhr.send(fd);
+}
+
+function suspensoesEsc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function suspensoesFmtData(s) { if (!s || s.length < 10) return s || ''; var p = s.substr(0,10).split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+</script>
 <?php endif; ?>
 
 <!-- Suspensions table -->
