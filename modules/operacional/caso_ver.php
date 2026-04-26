@@ -933,6 +933,51 @@ if (!empty($compFuturos)): ?>
 function abrirMarcarComoIncidental() {
     document.getElementById('modalMarcarIncidental').style.display = 'flex';
     document.getElementById('mkIncBusca').focus();
+    // Carrega sugestões automáticas (mesmo cliente, partes em comum) imediatamente
+    mkIncCarregarSugestoes();
+}
+
+// Carrega sugestões iniciais — sem digitar nada — baseadas em
+// outros casos do mesmo cliente OU partes em comum.
+function mkIncCarregarSugestoes() {
+    var box = document.getElementById('mkIncResultados');
+    box.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:.78rem;">Carregando sugestões...</div>';
+    box.style.display = 'block';
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_caso_para_vincular&q=&exclude_id=<?= $caseId ?>');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var rs = JSON.parse(xhr.responseText);
+            if (!rs.ok) { box.style.display = 'none'; return; }
+            var sug = rs.sugestoes || [];
+            if (!sug.length) {
+                box.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:.78rem;">Sem sugestões — digite pra buscar processos.</div>';
+                return;
+            }
+            mkIncRenderResultados(sug, true);
+        } catch (e) { box.style.display = 'none'; }
+    };
+    xhr.send();
+}
+
+function mkIncRenderResultados(lista, ehSugestao) {
+    var box = document.getElementById('mkIncResultados');
+    var html = '';
+    if (ehSugestao) {
+        html += '<div style="padding:6px 12px;background:#fef9e7;color:#78350f;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #fde68a;">💡 Sugestões — mesmo cliente ou partes em comum</div>';
+    }
+    lista.forEach(function(c) {
+        var nome = (c.title || ('#' + c.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        var cli  = c.client_name ? (' — ' + c.client_name) : '';
+        var motivo = '';
+        if (c.motivo === 'cliente') motivo = '<span style="font-size:.62rem;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:6px;">MESMO CLIENTE</span>';
+        else if (c.motivo === 'parte') motivo = '<span style="font-size:.62rem;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:6px;">PARTE EM COMUM</span>';
+        html += '<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;font-size:.82rem;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'\'" onclick="mkIncSelecionar(' + c.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ', ' + JSON.stringify((c.case_number || '')).replace(/"/g, '&quot;') + ')">';
+        html += '<strong>' + nome + '</strong>' + cli + motivo + '<div style="font-size:.72rem;color:#6b7280;font-family:monospace;">' + (c.case_number || 'sem número') + '</div></div>';
+    });
+    box.innerHTML = html;
+    box.style.display = 'block';
 }
 
 // Toggle entre Incidental e Recurso — filtra opções do dropdown e atualiza UI
@@ -964,28 +1009,26 @@ document.getElementById('mkIncBusca').addEventListener('input', function() {
     clearTimeout(_mkIncTimer);
     var q = this.value.trim();
     var box = document.getElementById('mkIncResultados');
-    if (q.length < 2) { box.style.display = 'none'; return; }
+    // Vazio → volta pras sugestões iniciais
+    if (q.length < 2) {
+        mkIncCarregarSugestoes();
+        return;
+    }
     _mkIncTimer = setTimeout(function() {
         var xhr = new XMLHttpRequest();
         xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_caso_para_vincular&q=' + encodeURIComponent(q) + '&exclude_id=<?= $caseId ?>');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
         xhr.onload = function() {
             try {
                 var rs = JSON.parse(xhr.responseText);
-                if (!rs.ok || !rs.casos || !rs.casos.length) {
-                    box.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;font-size:.8rem;">Nenhum processo encontrado</div>';
+                if (!rs.ok) { box.style.display = 'none'; return; }
+                var lista = rs.casos || [];
+                if (!lista.length) {
+                    box.innerHTML = '<div style="padding:10px 12px;color:#94a3b8;font-size:.8rem;">Nenhum processo encontrado pra "' + q.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '"</div>';
                     box.style.display = 'block';
                     return;
                 }
-                var html = '';
-                rs.casos.forEach(function(c) {
-                    var nome = (c.title || ('#' + c.id)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-                    var num  = c.case_number ? ('  ·  ' + c.case_number) : '';
-                    var cli  = c.client_name ? (' — ' + c.client_name) : '';
-                    html += '<div style="padding:8px 12px;border-bottom:1px solid #f3f4f6;cursor:pointer;font-size:.82rem;" onmouseover="this.style.background=\'#eef2ff\'" onmouseout="this.style.background=\'\'" onclick="mkIncSelecionar(' + c.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ', ' + JSON.stringify((c.case_number || '')).replace(/"/g, '&quot;') + ')">';
-                    html += '<strong>' + nome + '</strong>' + cli + '<div style="font-size:.72rem;color:#6b7280;font-family:monospace;">' + (c.case_number || 'sem número') + '</div></div>';
-                });
-                box.innerHTML = html;
-                box.style.display = 'block';
+                mkIncRenderResultados(lista, false);
             } catch (e) { box.style.display = 'none'; }
         };
         xhr.send();

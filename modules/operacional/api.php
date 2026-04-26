@@ -9,6 +9,105 @@ require_login();
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
+// ── GET: ações de leitura puras (autocomplete) ────────────
+// Antes do bloqueio que rejeita não-POST, atendemos os endpoints GET
+// que servem autocomplete / sugestão. Não exigem CSRF (são GET, não mutate).
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_caso_para_vincular') {
+    header('Content-Type: application/json; charset=utf-8');
+    $pdo = db();
+    $q = trim($_GET['q'] ?? '');
+    $excludeId = (int)($_GET['exclude_id'] ?? 0);
+
+    // Carrega dados do caso atual pra sugerir baseado em cliente/partes
+    $clienteIdAtual = 0;
+    $partesNomes = array();
+    if ($excludeId) {
+        $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+        $stmtC->execute(array($excludeId));
+        $clienteIdAtual = (int)$stmtC->fetchColumn();
+        try {
+            $stmtP = $pdo->prepare("SELECT DISTINCT TRIM(COALESCE(nome, razao_social, '')) AS n FROM case_partes WHERE case_id = ? AND COALESCE(TRIM(COALESCE(nome, razao_social, '')), '') != ''");
+            $stmtP->execute(array($excludeId));
+            foreach ($stmtP->fetchAll() as $r) {
+                if (!empty($r['n'])) $partesNomes[] = $r['n'];
+            }
+        } catch (Exception $e) {}
+    }
+
+    $casos = array();
+    $sugestoes = array();
+
+    // 1) Se há query de texto (>=2 chars), busca direta
+    if (mb_strlen($q) >= 2) {
+        $like = '%' . $q . '%';
+        $qDigits = preg_replace('/\D/', '', $q);
+        $sql = "SELECT cs.id, cs.title, cs.case_number, cl.name AS client_name
+                FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id
+                WHERE cs.id != ?
+                  AND (cs.title LIKE ? OR cl.name LIKE ? OR cs.case_number LIKE ?";
+        $params = array($excludeId, $like, $like, $like);
+        if (strlen($qDigits) >= 4) {
+            $sql .= " OR REPLACE(REPLACE(REPLACE(cs.case_number, '-', ''), '.', ''), '/', '') LIKE ?";
+            $params[] = '%' . $qDigits . '%';
+        }
+        $sql .= ") ORDER BY cs.updated_at DESC LIMIT 15";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $casos = $stmt->fetchAll();
+    }
+
+    // 2) Sugestões automáticas — sempre carrega quando excludeId existe
+    //    (tela aparece mesmo sem digitar nada)
+    if ($excludeId) {
+        // Sugestão A: outros casos do mesmo cliente principal
+        if ($clienteIdAtual > 0) {
+            try {
+                $stA = $pdo->prepare(
+                    "SELECT cs.id, cs.title, cs.case_number, cl.name AS client_name, 'cliente' AS motivo
+                     FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id
+                     WHERE cs.client_id = ? AND cs.id != ?
+                     ORDER BY cs.updated_at DESC LIMIT 10"
+                );
+                $stA->execute(array($clienteIdAtual, $excludeId));
+                foreach ($stA->fetchAll() as $r) $sugestoes[] = $r;
+            } catch (Exception $e) {}
+        }
+
+        // Sugestão B: casos com partes em comum (nome bate em case_partes)
+        if (!empty($partesNomes)) {
+            $jaIds = array_map(function($x){ return (int)$x['id']; }, $sugestoes);
+            $jaIds[] = $excludeId;
+            try {
+                $placeholders = implode(',', array_fill(0, count($partesNomes), '?'));
+                $sqlB = "SELECT DISTINCT cs.id, cs.title, cs.case_number, cl.name AS client_name, 'parte' AS motivo
+                         FROM case_partes cp
+                         JOIN cases cs ON cs.id = cp.case_id
+                         LEFT JOIN clients cl ON cl.id = cs.client_id
+                         WHERE (
+                             LOWER(TRIM(COALESCE(cp.nome,''))) IN (" . $placeholders . ")
+                             OR LOWER(TRIM(COALESCE(cp.razao_social,''))) IN (" . $placeholders . ")
+                         )
+                         AND cs.id NOT IN (" . implode(',', array_fill(0, count($jaIds), '?')) . ")
+                         ORDER BY cs.updated_at DESC LIMIT 10";
+                $paramsB = array();
+                foreach ($partesNomes as $n) $paramsB[] = mb_strtolower(trim($n));
+                foreach ($partesNomes as $n) $paramsB[] = mb_strtolower(trim($n));
+                foreach ($jaIds as $id) $paramsB[] = $id;
+                $stB = $pdo->prepare($sqlB);
+                $stB->execute($paramsB);
+                foreach ($stB->fetchAll() as $r) $sugestoes[] = $r;
+            } catch (Exception $e) {}
+        }
+    }
+
+    echo json_encode(array(
+        'ok' => true,
+        'casos' => $casos,
+        'sugestoes' => $sugestoes,
+    ));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('operacional')); }
 
 $action = $_POST['action'] ?? '';
@@ -1579,34 +1678,6 @@ switch ($action) {
         flash_set('success', 'Andamento atualizado.');
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
-
-    case 'buscar_caso_para_vincular':
-        // Busca processos pra autocomplete do modal "Marcar como incidental/recurso de outro"
-        $q = trim($_GET['q'] ?? '');
-        $excludeId = (int)($_GET['exclude_id'] ?? 0);
-        if (mb_strlen($q) < 2) {
-            header('Content-Type: application/json');
-            echo json_encode(array('ok' => true, 'casos' => array()));
-            exit;
-        }
-        $like = '%' . $q . '%';
-        $qDigits = preg_replace('/\D/', '', $q);
-        $sql = "SELECT cs.id, cs.title, cs.case_number, cl.name AS client_name
-                FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id
-                WHERE cs.id != ?
-                  AND (cs.title LIKE ? OR cl.name LIKE ? OR cs.case_number LIKE ?";
-        $params = array($excludeId, $like, $like, $like);
-        if (strlen($qDigits) >= 4) {
-            $sql .= " OR REPLACE(REPLACE(REPLACE(cs.case_number, '-', ''), '.', ''), '/', '') LIKE ?";
-            $params[] = '%' . $qDigits . '%';
-        }
-        $sql .= ") ORDER BY cs.updated_at DESC LIMIT 15";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
-        $casos = $stmt->fetchAll();
-        header('Content-Type: application/json');
-        echo json_encode(array('ok' => true, 'casos' => $casos));
-        exit;
 
     case 'vincular_incidental':
         $principalId = (int)($_POST['principal_id'] ?? 0);
