@@ -897,7 +897,8 @@ tbody tr:last-child td { border-bottom: none; }
 
 /* ─── Print ───────────────────────────────────────────── */
 @media print {
-    .sidebar, .topbar, .btn-sidebar-toggle, .sidebar-overlay { display: none !important; }
+    .sidebar, .topbar, .btn-sidebar-toggle, .sidebar-overlay,
+    .fav-bar, .alert, .no-print { display: none !important; }
     .main-content { margin-left: 0 !important; }
     .card { box-shadow: none; border: 1px solid #ddd; }
 }

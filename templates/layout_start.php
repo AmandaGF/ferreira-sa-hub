@@ -388,7 +388,7 @@ try {
 } catch (Exception $e) { $__prazosUrgentes = array(); }
 if (!empty($__prazosUrgentes)):
 ?>
-<div style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;font-size:.78rem;">
+<div class="no-print" style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;font-size:.78rem;">
     <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
         <span style="font-size:1rem;">🚨</span>
         <strong><?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!</strong>
@@ -420,7 +420,7 @@ try {
             $__diasRest = (int)floor((strtotime($__exp) - time()) / 86400);
             if ($__diasRest <= 15):
 ?>
-<div style="background:linear-gradient(135deg,<?= $__diasRest < 0 ? '#7f1d1d,#991b1b' : '#d97706,#b45309' ?>);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;font-size:.82rem;display:flex;align-items:center;gap:.7rem;">
+<div class="no-print" style="background:linear-gradient(135deg,<?= $__diasRest < 0 ? '#7f1d1d,#991b1b' : '#d97706,#b45309' ?>);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;font-size:.82rem;display:flex;align-items:center;gap:.7rem;">
     <span style="font-size:1.3rem;"><?= $__diasRest < 0 ? '⛔' : '⚠️' ?></span>
     <div style="flex:1;">
         <strong>
