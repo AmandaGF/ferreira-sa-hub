@@ -903,7 +903,7 @@ if (!empty($compFuturos)): ?>
 
         <div style="margin-bottom:1rem;">
             <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;" id="mkIncTipoRelacaoLabel">Tipo de relação *</label>
-            <select id="mkIncTipoRelacao" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+            <select id="mkIncTipoRelacao" onchange="mkIncToggleOutros()" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
                 <option value="">Selecione...</option>
                 <?php foreach ($tiposRelacao as $tr): ?>
                 <option value="<?= e($tr) ?>" data-grupo="incidental"><?= e($tr) ?></option>
@@ -912,6 +912,7 @@ if (!empty($compFuturos)): ?>
                 <option value="<?= e($tr) ?>" data-grupo="recurso" style="display:none;"><?= e($tr) ?></option>
                 <?php endforeach; ?>
             </select>
+            <input type="text" id="mkIncTipoRelacaoOutros" placeholder="Especifique a natureza jurídica (ex: Embargos de Terceiro, Habilitação de Crédito...)" style="display:none;width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #fbbf24;border-radius:8px;font-family:inherit;margin-top:.4rem;background:#fffbeb;">
         </div>
 
         <div style="margin-bottom:1rem;">
@@ -1002,6 +1003,20 @@ function mkIncSetVinculo(tipo) {
         var grupo = opt.getAttribute('data-grupo');
         opt.style.display = (grupo === tipo) ? '' : 'none';
     });
+    mkIncToggleOutros();
+}
+
+// Mostra/esconde input de texto livre quando "Outros" é escolhido
+function mkIncToggleOutros() {
+    var sel = document.getElementById('mkIncTipoRelacao');
+    var inp = document.getElementById('mkIncTipoRelacaoOutros');
+    if (sel.value === 'Outros') {
+        inp.style.display = 'block';
+        inp.focus();
+    } else {
+        inp.style.display = 'none';
+        inp.value = '';
+    }
 }
 
 var _mkIncTimer = null;
@@ -1055,6 +1070,16 @@ function confirmarMarcarIncidental() {
     var tipoVinc    = document.getElementById('mkIncTipoVinculo').value || 'incidental';
     if (!principalId) { alert('Selecione o processo principal.'); return; }
     if (!tipoRel) { alert('Selecione o tipo de ' + (tipoVinc === 'recurso' ? 'recurso' : 'relação') + '.'); return; }
+    // Se "Outros", usa o texto livre como natureza jurídica real
+    if (tipoRel === 'Outros') {
+        var outrosTxt = (document.getElementById('mkIncTipoRelacaoOutros').value || '').trim();
+        if (!outrosTxt) {
+            alert('Especifique a natureza jurídica (ex: Embargos de Terceiro, Habilitação de Crédito...).');
+            document.getElementById('mkIncTipoRelacaoOutros').focus();
+            return;
+        }
+        tipoRel = outrosTxt;
+    }
 
     var btn = document.getElementById('btnMkIncConfirmar');
     btn.disabled = true;
