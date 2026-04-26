@@ -39,6 +39,15 @@ $modulos = array(
         26,
         50,
     ),
+    array(
+        'vincular-incidentais-recursos',
+        'Vincular Processos — Incidentais e Recursos',
+        'Como marcar um processo como incidental ou recurso de outro principal — uso correto do "Outros" e catálogo de naturezas jurídicas',
+        '📎',
+        '["todos"]',
+        27,
+        50,
+    ),
 );
 
 $stmtMod = $pdo->prepare(
@@ -57,8 +66,8 @@ foreach ($modulos as $m) {
     echo "✓ módulo: {$m[0]}\n";
 }
 
-// ─── Quiz: limpa e repopula só pros 2 slugs novos ───
-$pdo->prepare("DELETE FROM treinamento_quiz WHERE modulo_slug IN ('distribuir-peticao-inicial','cadastrar-processo-existente')")
+// ─── Quiz: limpa e repopula só pros slugs novos ───
+$pdo->prepare("DELETE FROM treinamento_quiz WHERE modulo_slug IN ('distribuir-peticao-inicial','cadastrar-processo-existente','vincular-incidentais-recursos')")
     ->execute();
 
 $quizzes = array(
@@ -152,6 +161,63 @@ $quizzes = array(
         'b',
         'Autocomplete por nome também busca em clients — se achar match exato (case-insensitive), linka automaticamente. CPF do cliente entra no campo doc da parte.',
         4,
+    ),
+
+    // vincular-incidentais-recursos ───────────────────────────────────────
+    array(
+        'vincular-incidentais-recursos',
+        'Onde fica a opção de marcar um processo como incidental/recurso de outro?',
+        'Botão "+ Vincular processo incidental" (na seção Processos Incidentais)',
+        'Dropdown ⚙️ Ações ▾ → 📎 Marcar como incidental de outro',
+        'Editando o título do processo',
+        'Não tem essa opção',
+        'b',
+        'O botão "+ Vincular processo incidental" adiciona FILHOS (este processo é o principal). Pra marcar este como FILHO de outro, use ⚙️ Ações → 📎 Marcar como incidental de outro.',
+        1,
+    ),
+    array(
+        'vincular-incidentais-recursos',
+        'Quando devo escolher "Recurso" em vez de "Incidental"?',
+        'Quando o processo é antigo',
+        'Quando é uma Apelação, Agravo, Embargos de Declaração, REsp, RE — alguma peça que ATACA decisão do principal',
+        'Sempre que tiver número CNJ',
+        'Quando é processo de família',
+        'b',
+        'Recurso = ataque a decisão judicial em instância superior. Incidental = processo que pega carona no principal pra resolver questão acessória (execução, tutela, embargos de terceiro, etc.)',
+        2,
+    ),
+    array(
+        'vincular-incidentais-recursos',
+        'O que acontece quando seleciono "Outros" no Tipo de relação?',
+        'Salva literalmente "Outros" no banco',
+        'Aparece campo amarelo obrigatório pra digitar a natureza jurídica (ex: Carta Precatória, Embargos de Terceiro)',
+        'Vincula sem precisar especificar',
+        'Bloqueia o cadastro',
+        'b',
+        '"Outros" é genérico demais pra ser útil. Quando escolhe, abre input pra digitar a natureza jurídica real — esse texto é o que vai pro banco em tipo_relacao, não a string "Outros".',
+        3,
+    ),
+    array(
+        'vincular-incidentais-recursos',
+        'Quais destes EXEMPLOS típicos cabem em "Outros" pra Incidental?',
+        'Apelação, Agravo, Embargos de Declaração',
+        'Carta Precatória, Embargos de Terceiro, Habilitação de Crédito, Cumprimento Provisório, Impugnação ao Cumprimento, Restauração de Autos',
+        'Audiência, Reunião, Prazo',
+        'Cliente VIP, Cliente Comum',
+        'b',
+        'Os típicos: Carta Precatória (cumprimento de ato em outra comarca), Embargos de Terceiro (terceiro reivindica bem), Habilitação de Crédito (em execução/inventário), Cumprimento Provisório (CPC art. 520), Impugnação, Restauração de Autos. Apelação/Agravo/ED são RECURSOS (escolher Recurso → tem opção própria).',
+        4,
+    ),
+    array(
+        'vincular-incidentais-recursos',
+        'Ao abrir o modal sem digitar nada, o que aparece de "Sugestões"?',
+        'Lista aleatória de processos',
+        'Outros processos do MESMO CLIENTE + processos com PARTE EM COMUM (badges azul e âmbar)',
+        'Os 10 últimos cadastrados',
+        'Nada — só após digitar 2+ chars',
+        'b',
+        'O sistema usa o caso atual pra sugerir: outros casos do mesmo client_id + casos com partes em comum (match em case_partes.nome/razao_social). Badges visuais identificam por qual motivo cada um veio.',
+        5,
     ),
 );
 

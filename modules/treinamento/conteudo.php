@@ -398,6 +398,50 @@ return array(
     'missao' => 'Pegue um caso em "Em Elaboração" ou "Em Andamento" que JÁ foi distribuído mas ainda não está marcado no Hub. Mova o card pra **Processo Distribuído**, preencha os dados e salve. Depois abre a pasta do caso e confirma: (1) número CNJ aparece no cabeçalho, (2) há um andamento "Processo distribuído" na timeline, (3) status mudou no Kanban.',
 ),
 
+'vincular-incidentais-recursos' => array(
+    'por_que' => 'Processos não andam isolados. Carta precatória, execução, embargos, recursos — cada um tem **vida própria** mas pertence a uma cadeia que parte de **um processo principal**. Quando o sistema sabe dessa relação: você abre a pasta principal e vê todos os filhos, abre um filho e vê o principal, busca o cliente e tudo aparece organizado. Vinculação errada ou ausente = informação espalhada e pasta perdida.',
+    'passos' => array(
+        '1. Abra a pasta do processo que quer marcar como **incidental ou recurso de outro**.',
+        '2. Toolbar superior → **⚙️ Ações ▾** → clique em **📎 Marcar como incidental de outro**.',
+        '3. Modal abre. Primeira escolha: **Tipo de vínculo**.',
+        '   • **📎 Processo Incidental** (default) — pega carona no principal pra resolver questão acessória (execução, tutela, embargos de terceiro).',
+        '   • **📜 Recurso** — ataca decisão do principal em instância superior (Apelação, Agravo, ED, REsp, RE).',
+        '4. **Tipo de relação** — dropdown filtra conforme o vínculo escolhido. Se nenhum se aplica → **"Outros"** abre campo amarelo obrigatório pra você digitar a natureza jurídica real.',
+        '5. **Processo principal** — campo de busca com **autocomplete em tempo real**. Já abre com **Sugestões automáticas** (mesmo cliente + partes em comum, com badges visuais).',
+        '6. Selecione o principal → confira **Vincular →** → pasta recarrega com banner azul "📎 Este é processo incidental de [PRINCIPAL]".',
+        '7. Pra **desvincular**: o banner azul tem botão Desvincular (gestao+).',
+    ),
+    'atencao' => '**Vinculação é bilateral.** Se você cadastra **A como incidental de B**, automaticamente B passa a mostrar A na seção "Processos Incidentais (1)". Você não precisa fazer dos dois lados. Cuidado: **não use Incidental pra Recurso e vice-versa** — Recurso tem regras próprias (instância superior, prazos diferentes), e relatórios filtram por `tipo_vinculo`.',
+    'dica' => 'Sempre use as **Sugestões automáticas** primeiro. Se a vinculação faz sentido (mesmo cliente, partes em comum), elas vão estar lá. Digitar texto livre é só pra casos exóticos.',
+    'missao' => 'Pegue na sua pasta um processo que VOCÊ SABE ser incidental ou recurso de outro. Vincule. Confira: (1) banner azul aparece no topo, (2) o processo principal mostra este na seção Processos Incidentais ou Recursos.',
+),
+
+// ─── Catálogo de "Outros" — pro tipo de relação ───
+// Esses exemplos cobrem 95% dos casos onde "Outros" se aplica e ajudam Amanda
+// a NÃO cadastrar tudo como literalmente "Outros" (que perde a especificidade).
+//
+// INCIDENTAL "Outros" (digitar a natureza jurídica):
+//   • Carta Precatória — cumprimento de ato em outra comarca
+//   • Embargos de Terceiro — terceiro reivindica bem em execução
+//   • Habilitação de Crédito — credor pede habilitação em execução/inventário
+//   • Cumprimento Provisório — CPC art. 520 (sentença sem trânsito em julgado)
+//   • Impugnação ao Cumprimento de Sentença — defesa do executado
+//   • Embargos do Devedor / Embargos à Execução
+//   • Embargos à Adjudicação
+//   • Restauração de Autos — autos perdidos/destruídos
+//   • Liquidação de Sentença — fixar valor antes da execução
+//   • Reconvenção (vinculada à ação principal)
+//   • Suscitação de Dúvida (CNJ — Provimento)
+//
+// RECURSO "Outros" (digitar a natureza jurídica):
+//   • Conflito de Competência
+//   • Mandado de Segurança Recursal
+//   • Pedido de Suspensão
+//   • Habeas Corpus
+//   • Carta Testemunhal (recurso contra denegação de outro recurso)
+//   • Reclamação Constitucional
+//   • Pedido de Reconsideração
+
 'cadastrar-processo-existente' => array(
     'por_que' => 'Tem casos onde o processo **já está em andamento** quando o cliente chega pra cá: cliente migrou de outro escritório, recurso de processo antigo, pasta herdada, etc. O fluxo do Pipeline Comercial assume processo NOVO (vai cadastrar lead → mover até "Contrato Assinado" → criar pasta automaticamente). Pra esses casos onde já existe número CNJ, vara, andamentos, etc, faz mais sentido cadastrar **direto no Operacional** já com tudo preenchido.',
     'passos' => array(
