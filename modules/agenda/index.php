@@ -289,6 +289,18 @@ if ($voltarCaso > 0): ?>
             </div>
         </div>
 
+        <!-- Sub-tipo de audiência (só aparece quando tipo=audiencia) -->
+        <div class="ag-fg" id="agSubTipoAudWrap" style="display:none;">
+            <label class="ag-fl">Tipo de Audiência</label>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;" id="agSubTipoAudGrid">
+                <button type="button" class="ag-subtipo-aud" data-sub="" onclick="agSelSubAud('', this)" style="flex:1;min-width:140px;padding:8px 12px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text-muted);">Não especificar</button>
+                <button type="button" class="ag-subtipo-aud" data-sub="Conciliação/Mediação" onclick="agSelSubAud('Conciliação/Mediação', this)" style="flex:1;min-width:140px;padding:8px 12px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text);">🤝 Conciliação/Mediação</button>
+                <button type="button" class="ag-subtipo-aud" data-sub="AIJ" onclick="agSelSubAud('AIJ', this)" style="flex:1;min-width:140px;padding:8px 12px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text);" title="Audiência de Instrução e Julgamento">⚖️ AIJ</button>
+                <button type="button" class="ag-subtipo-aud" data-sub="Audiência Especial" onclick="agSelSubAud('Audiência Especial', this)" style="flex:1;min-width:140px;padding:8px 12px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:600;color:var(--text);">📌 Audiência Especial</button>
+            </div>
+            <input type="hidden" id="agSubTipoAud" value="">
+        </div>
+
         <div class="ag-fg">
             <label class="ag-fl">Título</label>
             <input type="text" class="ag-fi" id="agTitulo" placeholder="Ex: Audiência — Wendel Magno x Alimentos">
@@ -926,6 +938,14 @@ function abrirModal(dataStr) {
     document.getElementById('agModalTitulo').textContent = 'Novo compromisso';
     document.getElementById('agEvId').value = '0';
     document.getElementById('agTitulo').value = '';
+    // Reset sub-tipo de audiência (visual + hidden)
+    var subHidden = document.getElementById('agSubTipoAud');
+    if (subHidden) subHidden.value = '';
+    document.querySelectorAll('.ag-subtipo-aud').forEach(function(b){
+        b.style.background = '#fff';
+        b.style.color = b.getAttribute('data-sub') ? 'var(--text)' : 'var(--text-muted)';
+        b.style.borderColor = 'var(--border)';
+    });
     document.getElementById('agLocal').value = '';
     document.getElementById('agDescricao').value = '';
     document.getElementById('agClienteBusca').value = '';
@@ -971,6 +991,25 @@ function abrirModalEditar(id) {
             document.getElementById('agModalTitulo').textContent = 'Editar compromisso';
             document.getElementById('agEvId').value = ev.id;
             document.getElementById('agTitulo').value = ev.titulo;
+            // Tenta detectar sub-tipo de audiência embebido no título
+            // ("Audiência AIJ — X", "Audiência Conciliação/Mediação — X", etc.)
+            (function(){
+                var subHid = document.getElementById('agSubTipoAud');
+                if (!subHid) return;
+                var t = (ev.titulo || '').trim();
+                var detectados = ['Conciliação/Mediação','AIJ','Audiência Especial'];
+                var sub = '';
+                for (var i = 0; i < detectados.length; i++) {
+                    if (t.indexOf('Audiência ' + detectados[i]) === 0) { sub = detectados[i]; break; }
+                }
+                subHid.value = sub;
+                document.querySelectorAll('.ag-subtipo-aud').forEach(function(b){
+                    var match = b.getAttribute('data-sub') === sub;
+                    b.style.background = match ? '#e67e22' : '#fff';
+                    b.style.color = match ? '#fff' : (b.getAttribute('data-sub') ? 'var(--text)' : 'var(--text-muted)');
+                    b.style.borderColor = match ? '#e67e22' : 'var(--border)';
+                });
+            })();
             document.getElementById('agLocal').value = ev.local || '';
             document.getElementById('agDescricao').value = ev.descricao || '';
             document.getElementById('agModalidade').value = ev.modalidade || 'presencial';
@@ -1052,9 +1091,44 @@ function abrirModalEditar(id) {
 
 function fecharModal() { document.getElementById('agOverlay').classList.remove('aberto'); }
 
-document.getElementById('agOverlay').addEventListener('click', function(e) {
-    if (e.target === document.getElementById('agOverlay')) fecharModal();
+// Antes: clique no overlay (fora do modal) fechava — perdia o trabalho.
+// Agora só fecha pelo botão ✕, botão Cancelar, ou tecla ESC. Se o usuário
+// quiser fechar mesmo, ESC é mais rápido que apontar pra fora do modal.
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        var overlay = document.getElementById('agOverlay');
+        if (overlay && overlay.classList.contains('aberto')) fecharModal();
+    }
 });
+
+// Sub-tipo de Audiência (Conciliação/AIJ/Especial). Atualiza hidden + visual + título
+function agSelSubAud(sub, btn) {
+    document.getElementById('agSubTipoAud').value = sub;
+    document.querySelectorAll('.ag-subtipo-aud').forEach(function(b){
+        b.style.background = '#fff';
+        b.style.color = b.getAttribute('data-sub') ? 'var(--text)' : 'var(--text-muted)';
+        b.style.borderColor = 'var(--border)';
+    });
+    if (btn) {
+        btn.style.background = '#e67e22'; // mesma cor de "audiencia" em CORES
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#e67e22';
+    }
+    // Re-aplica título com sub-tipo prefixado se o tipo atual é audiencia e o título
+    // ainda é "Audiência..." (ou seja, ainda no padrão)
+    if (tipoSelecionado === 'audiencia') {
+        var tit = document.getElementById('agTitulo');
+        var clienteNome = document.getElementById('agClienteBusca').value.trim();
+        var base = sub ? ('Audiência ' + sub) : 'Audiência';
+        // Só sobrescreve se o título atual está no padrão "Audiência..." OU
+        // "Audiência [sub-anterior]..." — preserva edição manual do usuário
+        var atual = tit.value.trim();
+        var ehPadraoAudiencia = atual === '' || atual === 'Audiência' || atual.indexOf('Audiência ') === 0 || atual.indexOf('Audiência —') === 0;
+        if (ehPadraoAudiencia) {
+            tit.value = base + (clienteNome ? ' — ' + clienteNome : '');
+        }
+    }
+}
 
 function selTipo(tipo, btn) {
     tipoSelecionado = tipo;
@@ -1063,6 +1137,16 @@ function selTipo(tipo, btn) {
     var corFundo = CORES[tipo] || '#888';
     btn.style.background = corFundo;
     btn.style.color = '#fff';
+
+    // Mostra/esconde seletor de sub-tipo conforme tipo escolhido
+    var subAudWrap = document.getElementById('agSubTipoAudWrap');
+    if (subAudWrap) {
+        subAudWrap.style.display = (tipo === 'audiencia') ? 'block' : 'none';
+        if (tipo !== 'audiencia') {
+            document.getElementById('agSubTipoAud').value = '';
+        }
+    }
+
     // Preencher título padrão com nome do cliente
     var tit = document.getElementById('agTitulo');
     var titVazio = !tit.value.trim();
@@ -1071,9 +1155,14 @@ function selTipo(tipo, btn) {
         var base = titulosPadrao[k];
         if (tit.value.trim() === base || tit.value.trim().indexOf(base + ' — ') === 0) { titEhPadrao = true; break; }
     }
+    // Pra audiência, considera também "Audiência [sub-tipo] —" como padrão
+    if (!titEhPadrao && tit.value.trim().indexOf('Audiência ') === 0) titEhPadrao = true;
+
     if ((titVazio || titEhPadrao) && titulosPadrao[tipo]) {
         var clienteNome = document.getElementById('agClienteBusca').value.trim();
-        tit.value = titulosPadrao[tipo] + (clienteNome ? ' — ' + clienteNome : '');
+        var sub = (tipo === 'audiencia') ? (document.getElementById('agSubTipoAud').value || '') : '';
+        var baseTit = titulosPadrao[tipo] + (sub ? ' ' + sub : '');
+        tit.value = baseTit + (clienteNome ? ' — ' + clienteNome : '');
     }
     // Trocar mensagem padrão ao mudar tipo (se vazia ou se era msg de outro tipo)
     var msg = document.getElementById('agMsgCliente');
