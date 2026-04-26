@@ -12,16 +12,22 @@ $pdo = db();
 $preCaseId = (int)($_GET['case_id'] ?? 0);
 $preTipo   = isset($_GET['tipo']) ? $_GET['tipo'] : '';
 $preComarca = isset($_GET['comarca']) ? $_GET['comarca'] : '';
+$preUf      = isset($_GET['uf']) ? strtoupper($_GET['uf']) : '';
 
 $preCase = null;
 if ($preCaseId) {
-    $stmt = $pdo->prepare("SELECT id, title, case_number, court, comarca, case_type FROM cases WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT id, title, case_number, court, comarca, comarca_uf, case_type FROM cases WHERE id = ?");
     $stmt->execute(array($preCaseId));
     $preCase = $stmt->fetch();
     if ($preCase && !$preComarca) {
         $preComarca = $preCase['comarca'] ? $preCase['comarca'] : '';
     }
+    if ($preCase && !$preUf) {
+        $preUf = $preCase['comarca_uf'] ? strtoupper($preCase['comarca_uf']) : '';
+    }
 }
+// Default UF = RJ se não veio nada
+if ($preUf === '') $preUf = 'RJ';
 
 $resultado = null;
 $salvoComSucesso = false;
@@ -901,20 +907,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                     </div>
 
-                    <!-- Comarca -->
-                    <div class="field-group">
-                        <label class="field-label" for="comarca">Comarca</label>
-                        <select name="comarca" id="comarca" class="field-select">
-                            <option value="">-- Selecione a comarca --</option>
-                            <?php foreach ($comarcas as $cm): ?>
-                                <option value="<?= e($cm) ?>"
-                                    <?php
-                                        $postComarca = isset($_POST['comarca']) ? $_POST['comarca'] : $preComarca;
-                                        if ($postComarca === $cm) echo ' selected';
-                                    ?>
-                                ><?= e($cm) ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    <!-- Estado (UF) + Comarca -->
+                    <div class="field-group" style="display:grid;grid-template-columns:120px 1fr;gap:.6rem;">
+                        <div>
+                            <label class="field-label" for="comarcaUf">Estado (UF)</label>
+                            <?php $postUf = isset($_POST['comarca_uf']) ? strtoupper($_POST['comarca_uf']) : $preUf; ?>
+                            <select name="comarca_uf" id="comarcaUf" class="field-select" onchange="prazoUfChanged()">
+                                <?php foreach (array('AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO') as $uf): ?>
+                                    <option value="<?= $uf ?>" <?= $postUf === $uf ? 'selected' : '' ?>><?= $uf ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="comarca">Comarca</label>
+                            <?php $postComarca = isset($_POST['comarca']) ? $_POST['comarca'] : $preComarca; ?>
+                            <input type="text" name="comarca" id="comarca" class="field-select"
+                                   list="prazoListaComarcas"
+                                   autocomplete="off"
+                                   placeholder="Digite ou selecione..."
+                                   value="<?= e($postComarca) ?>">
+                            <datalist id="prazoListaComarcas">
+                                <?php
+                                // Se UF = RJ na primeira renderização, popula com a lista curada do escritório.
+                                // Pra outras UFs, JS vai recarregar via IBGE no DOMContentLoaded.
+                                if ($postUf === 'RJ') {
+                                    foreach ($comarcas as $cm) {
+                                        echo '<option value="' . e($cm) . '">';
+                                    }
+                                }
+                                ?>
+                            </datalist>
+                        </div>
                     </div>
 
                     <!-- Modo: Disponibilização (DJe) ou Juntada aos Autos -->
@@ -1277,6 +1300,55 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- JavaScript                                            -->
 <!-- ═══════════════════════════════════════════════════════ -->
 <script>
+// ─── Troca de UF na calculadora: popula datalist de comarcas/cidades ───
+// RJ usa lista curada do escritório (renderizada server-side no datalist).
+// Outras UFs puxam municípios da API IBGE e populam dinamicamente.
+var _prazoComarcasRJ = <?= json_encode(array_values(comarcas_rj()), JSON_UNESCAPED_UNICODE) ?>;
+var _prazoCacheCidades = { 'RJ': _prazoComarcasRJ };
+
+function _prazoSetDatalist(nomes) {
+    var dl = document.getElementById('prazoListaComarcas');
+    if (!dl) return;
+    dl.innerHTML = '';
+    for (var i = 0; i < nomes.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = nomes[i];
+        dl.appendChild(opt);
+    }
+}
+
+function prazoUfChanged() {
+    var uf = (document.getElementById('comarcaUf') || {}).value || '';
+    var inputComarca = document.getElementById('comarca');
+    if (!uf || !inputComarca) return;
+    // Se já existe cache (RJ ou já buscado antes), usa
+    if (_prazoCacheCidades[uf]) {
+        _prazoSetDatalist(_prazoCacheCidades[uf]);
+        return;
+    }
+    // Senão, busca IBGE (não limpa o input — só repopula a lista)
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome');
+    xhr.onload = function() {
+        try {
+            var arr = JSON.parse(xhr.responseText);
+            var nomes = [];
+            for (var i = 0; i < arr.length; i++) nomes.push(arr[i].nome);
+            _prazoCacheCidades[uf] = nomes;
+            _prazoSetDatalist(nomes);
+        } catch (e) {}
+    };
+    xhr.send();
+}
+
+// Pré-carrega lista no page load se UF != RJ (o RJ já vem renderizado server-side)
+document.addEventListener('DOMContentLoaded', function() {
+    var ufEl = document.getElementById('comarcaUf');
+    if (ufEl && ufEl.value && ufEl.value !== 'RJ') {
+        prazoUfChanged();
+    }
+});
+
 (function() {
     var dataInput = document.getElementById('dataDisp');
     var qtdInput  = document.getElementById('quantidade');
