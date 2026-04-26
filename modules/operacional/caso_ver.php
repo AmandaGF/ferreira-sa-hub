@@ -843,6 +843,7 @@ if (!empty($compFuturos)): ?>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
     <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#dc2626;">Calcular Prazo</a>
     <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
+    <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
 
 <!-- Processos Incidentais -->
