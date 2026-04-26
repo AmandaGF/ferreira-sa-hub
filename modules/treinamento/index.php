@@ -28,6 +28,7 @@ try {
 
 $filtroPerfil = $_GET['perfil'] ?? 'todos';
 $filtroCategoria = $_GET['cat'] ?? 'todas';
+$filtroBusca = trim($_GET['q'] ?? '');
 
 // Mapa slug → categoria temática (filtro "Tipo de conteúdo")
 $catMap = array(
@@ -102,6 +103,23 @@ if ($filtroCategoria !== 'todas') {
     $modulosFiltrados = array_filter($modulosFiltrados, function($m) use ($filtroCategoria, $catMap){
         $cat = isset($catMap[$m['slug']]) ? $catMap[$m['slug']] : 'internas';
         return $cat === $filtroCategoria;
+    });
+}
+// Busca livre (título + descrição + slug, case/acento-insensitive)
+if ($filtroBusca !== '') {
+    $_norm = function($s) {
+        $s = mb_strtolower($s, 'UTF-8');
+        $de  = array('á','à','â','ã','ä','é','è','ê','ë','í','ì','î','ï','ó','ò','ô','õ','ö','ú','ù','û','ü','ç','ñ');
+        $pra = array('a','a','a','a','a','e','e','e','e','i','i','i','i','o','o','o','o','o','u','u','u','u','c','n');
+        return str_replace($de, $pra, $s);
+    };
+    $termos = array_filter(array_map($_norm, preg_split('/\s+/', $filtroBusca)));
+    $modulosFiltrados = array_filter($modulosFiltrados, function($m) use ($termos, $_norm) {
+        $hay = $_norm(($m['titulo'] ?? '') . ' ' . ($m['descricao'] ?? '') . ' ' . ($m['slug'] ?? ''));
+        foreach ($termos as $t) {
+            if (strpos($hay, $t) === false) return false;
+        }
+        return true;
     });
 }
 
@@ -196,6 +214,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<!-- Barra de busca livre nos módulos -->
+<form method="get" action="" style="margin:.8rem 0 .6rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
+    <?php if ($filtroPerfil !== 'todos'): ?><input type="hidden" name="perfil" value="<?= e($filtroPerfil) ?>"><?php endif; ?>
+    <?php if ($filtroCategoria !== 'todas'): ?><input type="hidden" name="cat" value="<?= e($filtroCategoria) ?>"><?php endif; ?>
+    <div style="position:relative;flex:1;min-width:240px;max-width:520px;">
+        <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1rem;color:#94a3b8;pointer-events:none;">🔎</span>
+        <input type="text" name="q" value="<?= e($filtroBusca) ?>" placeholder="O que você quer estudar? (ex: cadastro do processo, intimação, agenda)"
+            autocomplete="off"
+            style="width:100%;padding:10px 14px 10px 40px;border:1.5px solid #d1d5db;border-radius:99px;font-size:.88rem;outline:none;background:#fff;transition:border-color .15s;"
+            onfocus="this.style.borderColor='#B87333'" onblur="this.style.borderColor='#d1d5db'">
+    </div>
+    <button type="submit" style="padding:9px 18px;border:none;background:#052228;color:#fff;border-radius:99px;font-size:.82rem;font-weight:700;cursor:pointer;">Buscar</button>
+    <?php if ($filtroBusca !== ''): ?>
+        <a href="?<?= http_build_query(array_filter(array(
+            'perfil' => $filtroPerfil !== 'todos' ? $filtroPerfil : null,
+            'cat'    => $filtroCategoria !== 'todas' ? $filtroCategoria : null,
+        ))) ?>" style="font-size:.78rem;color:#6b7280;text-decoration:none;">✕ limpar</a>
+        <span style="font-size:.78rem;color:#6b7280;">— <strong><?= count($modulosFiltrados) ?></strong> resultado(s) pra <em>"<?= e($filtroBusca) ?>"</em></span>
+    <?php endif; ?>
+</form>
+
 <div class="tr-filters">
     <?php
     $filtros = array(
@@ -208,7 +247,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     );
     foreach ($filtros as $k => $lbl):
         $active = $filtroPerfil === $k ? 'active' : '';
-        $qs = '?perfil=' . $k . ($filtroCategoria !== 'todas' ? '&cat=' . urlencode($filtroCategoria) : '');
+        $qs = '?perfil=' . $k
+            . ($filtroCategoria !== 'todas' ? '&cat=' . urlencode($filtroCategoria) : '')
+            . ($filtroBusca !== '' ? '&q=' . urlencode($filtroBusca) : '');
     ?>
         <a href="<?= e($qs) ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
     <?php endforeach; ?>
@@ -231,7 +272,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     );
     foreach ($categorias as $k => $lbl):
         $active = $filtroCategoria === $k ? 'active' : '';
-        $qs = '?cat=' . $k . ($filtroPerfil !== 'todos' ? '&perfil=' . urlencode($filtroPerfil) : '');
+        $qs = '?cat=' . $k
+            . ($filtroPerfil !== 'todos' ? '&perfil=' . urlencode($filtroPerfil) : '')
+            . ($filtroBusca !== '' ? '&q=' . urlencode($filtroBusca) : '');
     ?>
         <a href="<?= e($qs) ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
     <?php endforeach; ?>
@@ -271,7 +314,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </a>
         <?php endforeach; ?>
         <?php if (empty($modulosFiltrados)): ?>
-            <div style="grid-column:1/-1;text-align:center;padding:2rem;color:#6b7280;">Nenhum módulo para este filtro.</div>
+            <div style="grid-column:1/-1;text-align:center;padding:2rem;color:#6b7280;">
+                <?php if ($filtroBusca !== ''): ?>
+                    Nenhum módulo encontrado para <em>"<?= e($filtroBusca) ?>"</em>. Tente outro termo ou <a href="?" style="color:#B87333;">limpe os filtros</a>.
+                <?php else: ?>
+                    Nenhum módulo para este filtro.
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
     </div>
 
