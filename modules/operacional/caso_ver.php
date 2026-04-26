@@ -322,7 +322,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
 .cv-dropdown-menu .cv-divider { height:1px; background:var(--border, #e0e0e0); margin:4px 2px; }
 </style>
 
-<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:0;background:var(--bg, #f8fafc);padding:.6rem 0;z-index:5;border-bottom:1px solid transparent;">
+<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 32px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:5;border-bottom:1px solid transparent;">
     <?php
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
     $fromProcessos = (strpos($referer, '/processos') !== false);
