@@ -27,6 +27,45 @@ try {
 } catch (Exception $e) {}
 
 $filtroPerfil = $_GET['perfil'] ?? 'todos';
+$filtroCategoria = $_GET['cat'] ?? 'todas';
+
+// Mapa slug → categoria temática (filtro "Tipo de conteúdo")
+$catMap = array(
+    // 🚀 Iniciantes
+    'visao-geral'                  => 'iniciantes',
+    'painel-dia'                   => 'iniciantes',
+    'drawer-card'                  => 'iniciantes',
+    // 💼 Comercial
+    'kanban-comercial'             => 'comercial',
+    'procuracao-regras'            => 'comercial',
+    'documentos'                   => 'comercial',
+    // ⚙️ Operacional
+    'kanban-operacional'           => 'operacional',
+    'kanban-prev'                  => 'operacional',
+    'fabrica-peticoes'             => 'operacional',
+    'tarefas'                      => 'operacional',
+    'distribuir-peticao-inicial'   => 'operacional',
+    'cadastrar-processo-existente' => 'operacional',
+    // ⏰ Prazos & Agenda
+    'calculadora-prazos'           => 'prazos',
+    'datajud'                      => 'prazos',
+    'agenda'                       => 'prazos',
+    // 👤 Cliente
+    'sala-vip'                     => 'cliente',
+    'aniversarios'                 => 'cliente',
+    // 💰 Financeiro
+    'financeiro'                   => 'financeiro',
+    'cobranca-honorarios'          => 'financeiro',
+    // 📞 Comunicação
+    'whatsapp-crm'                 => 'comunicacao',
+    'newsletter'                   => 'comunicacao',
+    'ligacoes-nvoip'               => 'comunicacao',
+    // 🛠️ Ferramentas Internas
+    'helpdesk'                     => 'internas',
+    'wiki'                         => 'internas',
+    'ranking'                      => 'internas',
+    'links-tribunais'              => 'internas',
+);
 
 $modulos = $pdo->query(
     "SELECT m.*,
@@ -51,12 +90,18 @@ if (!can_access_financeiro()) {
 
 $modulosFiltrados = $modulos;
 if ($filtroPerfil !== 'todos') {
-    $modulosFiltrados = array_filter($modulos, function($m) use ($filtroPerfil, $role){
+    $modulosFiltrados = array_filter($modulosFiltrados, function($m) use ($filtroPerfil, $role){
         $perfis = json_decode($m['perfis_alvo'], true) ?: array();
         if ($filtroPerfil === 'meus') {
             return in_array('todos', $perfis, true) || in_array($role, $perfis, true);
         }
         return in_array('todos', $perfis, true) || in_array($filtroPerfil, $perfis, true);
+    });
+}
+if ($filtroCategoria !== 'todas') {
+    $modulosFiltrados = array_filter($modulosFiltrados, function($m) use ($filtroCategoria, $catMap){
+        $cat = isset($catMap[$m['slug']]) ? $catMap[$m['slug']] : 'internas';
+        return $cat === $filtroCategoria;
     });
 }
 
@@ -163,8 +208,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
     );
     foreach ($filtros as $k => $lbl):
         $active = $filtroPerfil === $k ? 'active' : '';
+        $qs = '?perfil=' . $k . ($filtroCategoria !== 'todas' ? '&cat=' . urlencode($filtroCategoria) : '');
     ?>
-        <a href="?perfil=<?= $k ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
+        <a href="<?= e($qs) ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
+    <?php endforeach; ?>
+</div>
+
+<!-- Segunda linha: filtro por TIPO DE CONTEÚDO (categoria temática) -->
+<div class="tr-filters" style="margin-top:-.4rem;">
+    <span style="font-size:.72rem;color:#94a3b8;font-weight:700;align-self:center;text-transform:uppercase;letter-spacing:.4px;margin-right:.2rem;">Tipo:</span>
+    <?php
+    $categorias = array(
+        'todas'       => '🎯 Todos os tipos',
+        'iniciantes'  => '🚀 Iniciantes',
+        'comercial'   => '💼 Comercial',
+        'operacional' => '⚙️ Operacional',
+        'prazos'      => '⏰ Prazos & Agenda',
+        'cliente'     => '👤 Cliente & VIP',
+        'comunicacao' => '📞 Comunicação',
+        'financeiro'  => '💰 Financeiro',
+        'internas'    => '🛠️ Ferramentas Internas',
+    );
+    foreach ($categorias as $k => $lbl):
+        $active = $filtroCategoria === $k ? 'active' : '';
+        $qs = '?cat=' . $k . ($filtroPerfil !== 'todos' ? '&perfil=' . urlencode($filtroPerfil) : '');
+    ?>
+        <a href="<?= e($qs) ?>" class="tr-filter <?= $active ?>"><?= e($lbl) ?></a>
     <?php endforeach; ?>
 </div>
 
