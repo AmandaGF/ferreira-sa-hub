@@ -3442,6 +3442,19 @@ function mudouTipoPessoa() {
 
 function mudouPapel() {
     var p = document.getElementById('partePapel').value;
+    // Se mudou pra papel adverso após ter marcado "Esta parte é nosso cliente",
+    // desmarca automaticamente — evita ficar tag indevida em réu/recorrido/etc.
+    var ehNossoLado = (p === 'autor' || p === 'litisconsorte_ativo');
+    if (!ehNossoLado) {
+        var chk = document.getElementById('parteEhCliente');
+        if (chk && chk.checked) {
+            chk.checked = false;
+            document.getElementById('parteClientId').value = 0;
+            document.getElementById('parteClienteBusca').style.display = 'none';
+            document.getElementById('parteClienteNome').textContent = '';
+            document.getElementById('parteClienteBuscaInput').value = '';
+        }
+    }
     var box = document.getElementById('parteRepBox');
     if (p === 'representante_legal') {
         box.style.display = 'block';
@@ -3572,13 +3585,19 @@ function buscarNomeParte(q) {
                                 if (p.cep) document.getElementById('parteCep').value = p.cep;
                             } catch(e) {}
                         }
-                        // Vincular client_id se veio da base de clientes
+                        // Vincular client_id se veio da base de clientes — mas só marcar
+                        // "Esta parte é nosso cliente" quando o papel é do nosso lado.
+                        // Pra réu/recorrido/terceiro/litisconsorte passivo: preenche dados mas
+                        // NÃO marca, evita contaminar parte adversa que já apareceu em outro
+                        // processo (e por isso está na base de clientes).
                         if (p.client_id) {
-                            document.getElementById('parteClientId').value = p.client_id;
-                            document.getElementById('parteEhCliente').checked = true;
-                            document.getElementById('parteClienteBusca').style.display = 'block';
-                            document.getElementById('parteClienteNome').textContent = '✓ ' + (p.nome || '');
-                            document.getElementById('parteClienteBuscaInput').value = p.nome || '';
+                            var _papelAtual = document.getElementById('partePapel').value;
+                            var _ehNossoLado = (_papelAtual === 'autor' || _papelAtual === 'litisconsorte_ativo');
+                            document.getElementById('parteClientId').value = _ehNossoLado ? p.client_id : 0;
+                            document.getElementById('parteEhCliente').checked = _ehNossoLado;
+                            document.getElementById('parteClienteBusca').style.display = _ehNossoLado ? 'block' : 'none';
+                            document.getElementById('parteClienteNome').textContent = _ehNossoLado ? ('✓ ' + (p.nome || '')) : '';
+                            document.getElementById('parteClienteBuscaInput').value = _ehNossoLado ? (p.nome || '') : '';
                         }
                         box.style.display = 'none';
                     };
