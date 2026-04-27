@@ -3806,18 +3806,21 @@ function toggleVisibilidade(andId, btn) {
 function editarAndamento(andId) {
     var descEl = document.getElementById('andDesc' + andId);
     var textoAtual = descEl.textContent;
-    // Pegar hora e data atuais do andamento
-    var item = descEl.closest('.and-item');
-    var horaSpan = item ? item.querySelector('[data-hora]') : null;
+    // Pegar hora e data atuais. Usa lookup direto pelo data-and-hora/data-and-data
+    // (cada andamento tem o id no atributo) — antes usava .closest('.and-item') mas
+    // a classe correta no DOM é .andamento-item, e o closest retornava null,
+    // resultando em inputs vazios e values em branco enviados ao backend.
+    var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
     var horaAtual = horaSpan ? horaSpan.getAttribute('data-hora') : '';
-    var dataSpan = item ? item.querySelector('[data-data]') : null;
+    var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
     var dataAtual = dataSpan ? dataSpan.getAttribute('data-data') : '';
+    var item = descEl.closest('.andamento-item');
 
     var wrapper = document.createElement('div');
     wrapper.id = 'andEditWrap' + andId;
 
-    // Pegar tipo atual
-    var tipoSpan = item ? item.querySelector('[data-tipo-val]') : null;
+    // Pegar tipo atual (mesma estratégia: lookup direto por data-and-tipo)
+    var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
     var tipoAtual = tipoSpan ? tipoSpan.getAttribute('data-tipo-val') : '';
 
     var tipoOpcoes = [
