@@ -1119,7 +1119,7 @@ if (!$showEditor) {
         <a href="<?= module_url('documentos') ?>">← Voltar</a>
         <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante)) ?>">✏️ Editar</a>
         <button onclick="imprimirLimpo()">🖨️ Imprimir / PDF</button>
-        <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.doc)</button>
+        <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.docx)</button>
         <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
         <?php if ($phone): ?>
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $phone) ?>',nome:<?= e(json_encode($client['name'] ?? '')) ?>,clientId:<?= (int)$clientId ?>})" class="btn-zap">💬 WhatsApp</button>
@@ -1291,56 +1291,27 @@ function imprimirLimpo() {
     setTimeout(function() { win.print(); }, 500);
 }
 
+// Gera DOCX real via endpoint backend (modules/documentos/baixar_docx.php).
+// Antes: MHTML disfar\u00e7ado de .doc \u2014 Word abria com fonte/margem/indent quebrados.
+// Agora: OOXML leg\u00edtimo, mant\u00e9m Calibri 12pt, justify, line 1.5, indent, timbrado.
 function baixarWord() {
     var conteudo = document.querySelector('.doc-body').innerHTML;
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("documentos", "baixar_docx.php") ?>';
+    form.target = '_blank';
 
-    // Word precisa MHTML para renderizar imagens base64
-    var boundary = '----=_NextPart_DOC';
-    var imgCid = 'logo001.png@FSA';
+    var fHtml = document.createElement('input');
+    fHtml.type = 'hidden'; fHtml.name = 'html'; fHtml.value = conteudo;
+    form.appendChild(fHtml);
 
-    var timbradoTopoWord = '<div style="text-align:center;margin-bottom:16px;">'
-        + (_logoB64Raw ? '<img src="cid:' + imgCid + '" width="380" style="max-width:380px;height:auto;" alt="Ferreira e Sa">' : '<h2 style="color:#052228;font-family:Calibri,sans-serif;">FERREIRA &amp; SA</h2>')
-        + '</div>'
-        + '<div style="border-bottom:3px solid #B87333;margin-bottom:24px;"></div>';
+    var fTit = document.createElement('input');
+    fTit.type = 'hidden'; fTit.name = 'titulo'; fTit.value = '<?= addslashes($docFileName) ?>';
+    form.appendChild(fTit);
 
-    var htmlPart = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
-        + '<head><meta charset="utf-8">'
-        + '<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->'
-        + '<style>'
-        + '@page{size:A4;margin:1.5cm 2cm 1.5cm 2cm;}'
-        + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;text-align:justify;}'
-        + 'p{text-indent:4em;margin-bottom:8pt;}'
-        + '.doc-title{text-align:center;font-weight:700;font-size:14pt;margin:20px 0;text-indent:0;}'
-        + '.local-data{text-align:right;margin:24pt 0 16pt;text-indent:0;}'
-        + '.assinatura{text-align:center;margin-top:20pt;}'
-        + '.assinatura .linha{border-bottom:1px solid #333;width:80%;margin:0 auto 4pt;}'
-        + '.nome-ass{font-weight:700;font-size:10pt;}'
-        + 'table{border-collapse:collapse;width:100%;}'
-        + 'td,th{border:none;padding:4pt 8pt;}'
-        + '</style></head>'
-        + '<body>' + timbradoTopoWord + conteudo + _timbradoRodape + '</body></html>';
-
-    var mhtml = 'MIME-Version: 1.0\r\n'
-        + 'Content-Type: multipart/related; boundary="' + boundary + '"\r\n\r\n'
-        + '--' + boundary + '\r\n'
-        + 'Content-Location: file:///C:/doc.htm\r\n'
-        + 'Content-Type: text/html; charset="utf-8"\r\n'
-        + 'Content-Transfer-Encoding: 8bit\r\n\r\n'
-        + htmlPart + '\r\n\r\n'
-        + '--' + boundary + '\r\n'
-        + 'Content-Location: file:///C:/logo.png\r\n'
-        + 'Content-Type: image/png\r\n'
-        + 'Content-Transfer-Encoding: base64\r\n'
-        + 'Content-ID: <' + imgCid + '>\r\n\r\n'
-        + _logoB64Raw + '\r\n\r\n'
-        + '--' + boundary + '--';
-
-    var blob = new Blob(['\ufeff' + mhtml], {type: 'application/msword'});
-    var link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = '<?= addslashes($docFileName) ?>.doc';
-    link.click();
-    URL.revokeObjectURL(link.href);
+    document.body.appendChild(form);
+    form.submit();
+    setTimeout(function() { form.remove(); }, 1000);
 }
 </script>
 <script src="<?= url('assets/js/ibge_cidades.js') ?>"></script>
