@@ -898,16 +898,15 @@ function template_audiencia_remota($d) {
     $html .= '<p style="margin:2px 0;"><strong>luizeduardo@ferreiraesa.com.br</strong></p>';
     $html .= '</div>';
 
-    // Fechamento
-    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
-    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
-
-    // Assinatura
-    $html .= '<div class="assinatura" style="margin-top:2.5rem;">';
-    $html .= '<div class="linha"></div>';
-    $html .= '<div class="nome-ass">' . $esc['adv1_nome'] . '</div>';
-    $html .= '<div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div>';
-    $html .= '</div>';
+    // Fechamento — parágrafos explícitos com text-indent:0 e line-height controlado.
+    // Antes: <div class="linha"> vazia + <div class="nome-ass"> + <div> OAB. O <div>
+    // de altura zero colapsava em alguns renderizadores PDF (Salvar como PDF do Chrome),
+    // colando local/data e nome na mesma linha. Agora tudo em <p> com altura real.
+    $html .= '<p style="text-align:center;margin:24pt 0 8pt;text-indent:0;line-height:1.4;">Nestes termos, pede deferimento.</p>';
+    $html .= '<p style="text-align:right;margin:8pt 0 0 0;text-indent:0;line-height:1.4;">' . f($d['cidade_data']) . '</p>';
+    $html .= '<p style="text-align:center;margin:60pt 0 0 0;text-indent:0;line-height:1.2;letter-spacing:1px;">_______________________________________</p>';
+    $html .= '<p style="text-align:center;margin:4pt 0 0 0;text-indent:0;font-weight:700;font-size:11pt;line-height:1.4;">' . $esc['adv1_nome'] . '</p>';
+    $html .= '<p style="text-align:center;margin:0;text-indent:0;font-size:10pt;color:#444;line-height:1.4;">OAB/RJ ' . $esc['adv1_oab'] . '</p>';
 
     return $html;
 }
