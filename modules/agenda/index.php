@@ -1509,9 +1509,9 @@ function _balcaoDataValida(ymdStr) {
     return _balcaoHorarioValido(ymdStr + 'T11:00');
 }
 
-// Checa conflito com outro balcão já agendado e desloca pra próxima hora se necessário.
-// Chama o endpoint balcao_proximo_slot e atualiza agBalcaoData/agBalcaoHora se a sugestão
-// vier diferente do desejado. Retorna Promise(true) se ok / atualizado.
+// Checa conflito com outro balcão já agendado e AVISA. Política do escritório:
+// sistema NUNCA altera horário automaticamente. Se houver conflito, mostra alerta
+// pra Amanda decidir manualmente (ela pode trocar a hora, ou manter e ciente).
 function _balcaoChecarConflito() {
     var dataEl = document.getElementById('agBalcaoData');
     var horaEl = document.getElementById('agBalcaoHora');
@@ -1534,29 +1534,9 @@ function _balcaoChecarConflito() {
             var r = JSON.parse(xhr.responseText);
             if (r.error) return;
             if (r.data_invalida) return; // já tratado por _balcaoHorarioValido
-            if (r.conflito && r.sugestao) {
-                // Sugestão tem formato YYYY-MM-DDTHH:MM
-                var partes = r.sugestao.split('T');
-                if (partes.length === 2) {
-                    var msg = '⚠️ Já existe outro Balcão Virtual marcado para ' + r.desejado_label + '.\n\nSugestão: ' + r.sugestao_label + '.\n\nClique OK pra usar a sugestão; cancele pra escolher outro horário manualmente.';
-                    if (confirm(msg)) {
-                        dataEl.value = partes[0];
-                        // Pode ser que a hora exata não esteja na lista de slots de 30min — adiciona se necessário
-                        var horaSug = partes[1].substr(0, 5);
-                        var jaTem = false;
-                        for (var i = 0; i < horaEl.options.length; i++) {
-                            if (horaEl.options[i].value === horaSug) { horaEl.selectedIndex = i; jaTem = true; break; }
-                        }
-                        if (!jaTem) {
-                            var opt = document.createElement('option');
-                            opt.value = horaSug; opt.text = horaSug + ' (sugerido)';
-                            horaEl.add(opt);
-                            horaEl.value = horaSug;
-                        }
-                        // Sincroniza pros campos hidden datetime-local
-                        if (typeof _balcaoSyncFromFields === 'function') _balcaoSyncFromFields();
-                    }
-                }
+            if (r.conflito) {
+                // Apenas avisa — não altera nada. Equipe decide se mantém ou troca manualmente.
+                alert('⚠️ Já existe outro Balcão Virtual marcado para ' + r.desejado_label + '.\n\nO horário foi mantido conforme você pediu. Se preferir, escolha outro horário manualmente.');
             }
         } catch (e) { /* silencioso */ }
     };
@@ -1641,6 +1621,18 @@ function salvarEvento() {
             var r = JSON.parse(xhr.responseText);
             if (r.csrf) CSRF = r.csrf;
             if (r.error) { alert(r.error); return; }
+            // Avisa sobre conflito de horário (sistema gravou como pedido, equipe foi notificada).
+            if (r.conflitos && r.conflitos.length > 0) {
+                var linhas = r.conflitos.map(function(c){
+                    return '· ' + c.titulo + ' (' + c.inicio + '–' + c.fim + ')'
+                         + (c.responsavel ? ' — ' + c.responsavel : '');
+                });
+                alert('⚠️ Atenção — conflito de horário detectado:\n\n'
+                    + linhas.join('\n')
+                    + '\n\nO compromisso foi salvo no horário que você pediu. '
+                    + 'A equipe foi notificada pra ficar ciente. '
+                    + 'Se quiser, edite e troque o horário manualmente.');
+            }
             fecharModal();
             recarregarEventos();
         } catch(ex) { alert('Erro ao salvar: ' + (xhr.responseText || '').substring(0, 200)); }

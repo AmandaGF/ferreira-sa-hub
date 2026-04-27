@@ -91,6 +91,92 @@ function _balcao_valida_horario($datetime_str) {
     return array(true, '');
 }
 
+// Detecta conflitos de horário entre eventos da agenda. Devolve lista dos eventos
+// existentes que se sobrepõem ao intervalo dado. NÃO desloca nem altera nada —
+// apenas reporta. Quem chama decide o que fazer (notificar, gravar mesmo, etc).
+// Regra do escritório (memória "nunca_alterar_horario_agenda"): sistema jamais
+// muda horário. Conflito gera apenas alerta/notificação pra equipe.
+function _agenda_checar_conflitos($pdo, $dataInicio, $dataFim, $excludeId = 0) {
+    if (!$dataInicio || !$dataFim) return array();
+    $sql = "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.data_fim, e.responsavel_id,
+                   c.name AS client_name, u.name AS responsavel_name
+            FROM agenda_eventos e
+            LEFT JOIN clients c ON c.id = e.client_id
+            LEFT JOIN users u ON u.id = e.responsavel_id
+            WHERE e.status != 'cancelado'
+              AND COALESCE(e.dia_todo, 0) = 0
+              AND e.data_inicio < ?
+              AND e.data_fim    > ?";
+    $params = array($dataFim, $dataInicio);
+    if ((int)$excludeId > 0) {
+        $sql .= " AND e.id != ?";
+        $params[] = (int)$excludeId;
+    }
+    $sql .= " ORDER BY e.data_inicio ASC LIMIT 10";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll();
+}
+
+// Resumo simples dos conflitos pra devolver ao frontend (e mostrar alerta na UI).
+function _agenda_conflitos_resumo($conflitos) {
+    $out = array();
+    foreach ($conflitos as $c) {
+        $out[] = array(
+            'id'    => (int)$c['id'],
+            'titulo'=> $c['titulo'],
+            'tipo'  => $c['tipo'],
+            'inicio'=> date('d/m/Y H:i', strtotime($c['data_inicio'])),
+            'fim'   => date('H:i', strtotime($c['data_fim'])),
+            'responsavel' => $c['responsavel_name'] ?? '',
+        );
+    }
+    return $out;
+}
+
+// Notifica gestão + responsável de um conflito de agenda. Mensagem inclui o
+// novo evento E os existentes, pra equipe decidir o que fazer (manter, remarcar
+// algum, etc). NÃO altera nada — só avisa.
+function _agenda_notificar_conflitos($novoId, $novoTitulo, $novoTipo, $novoInicio, $responsavelId, $conflitos) {
+    if (empty($conflitos)) return;
+    $tiposLbl = array(
+        'audiencia' => 'Audiência', 'reuniao_cliente' => 'Reunião com cliente',
+        'reuniao_interna' => 'Reunião interna', 'prazo' => 'Prazo',
+        'onboarding' => 'Onboarding', 'mediacao_cejusc' => 'Mediação/CEJUSC',
+        'balcao_virtual' => 'Balcão Virtual', 'ligacao' => 'Ligação',
+    );
+    $rotulo = $tiposLbl[$novoTipo] ?? 'Compromisso';
+    $dataHumana = date('d/m/Y \à\s H:i', strtotime($novoInicio));
+
+    $linhasExistentes = array();
+    foreach ($conflitos as $c) {
+        $r = isset($tiposLbl[$c['tipo']]) ? $tiposLbl[$c['tipo']] : 'Compromisso';
+        $linhasExistentes[] = '· ' . $r . ' "' . $c['titulo'] . '" '
+            . date('H:i', strtotime($c['data_inicio'])) . '–' . date('H:i', strtotime($c['data_fim']))
+            . (!empty($c['responsavel_name']) ? ' (' . $c['responsavel_name'] . ')' : '');
+    }
+    $msg = 'Novo: ' . $rotulo . ' "' . $novoTitulo . '" em ' . $dataHumana . '.' . "\n"
+         . 'Conflito com:' . "\n" . implode("\n", $linhasExistentes)
+         . "\n\n⚠️ Sistema NÃO alterou nenhum horário. Equipe decide.";
+    $link = url('modules/agenda/?evento=' . $novoId);
+
+    try { notify_gestao('⚠️ Conflito de agenda', $msg, 'alerta', $link, '⚠️'); } catch (Exception $e) {}
+
+    // Notifica também o responsável do novo evento (se diferente da gestão)
+    if ($responsavelId && $responsavelId !== current_user_id()) {
+        try { notify((int)$responsavelId, '⚠️ Conflito de agenda', $msg, 'alerta', $link, '⚠️'); } catch (Exception $e) {}
+    }
+    // Notifica os responsáveis dos eventos conflitantes pra ficarem cientes
+    $jaNotificados = array((int)$responsavelId, (int)current_user_id());
+    foreach ($conflitos as $c) {
+        $rid = (int)($c['responsavel_id'] ?? 0);
+        if ($rid > 0 && !in_array($rid, $jaNotificados, true)) {
+            try { notify($rid, '⚠️ Conflito de agenda', $msg, 'alerta', $link, '⚠️'); } catch (Exception $e) {}
+            $jaNotificados[] = $rid;
+        }
+    }
+}
+
 // Sugere o próximo slot livre pra Balcão Virtual a partir de uma data/hora desejada.
 // Considera: dia útil, dentro de 11h-17h, sem conflito com OUTRO balcao_virtual já agendado
 // (excluindo o próprio evento se for reagendamento — passa $excludeId).
@@ -458,6 +544,15 @@ if ($action === 'salvar') {
         if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
     }
 
+    // Detecta conflito de horário com outro evento (audiência, reunião, balcão,
+    // qualquer evento da agenda no mesmo intervalo). Política do escritório:
+    // gravamos exatamente o que foi pedido, e SE houver conflito, notificamos a
+    // equipe pra ficar ciente. JAMAIS deslocamos o horário.
+    $conflitos = array();
+    if (!$diaTodo) {
+        $conflitos = _agenda_checar_conflitos($pdo, $dataInicio, $dataFim, $id);
+    }
+
     if ($id) {
         // Editar — todos os usuários logados podem editar compromissos
         $stmt = $pdo->prepare(
@@ -473,7 +568,11 @@ if ($action === 'salvar') {
             $participantesJson, $id
         ));
         audit_log('AGENDA_EDITADO', 'agenda', $id, $titulo);
-        echo json_encode(array('ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf));
+        if (!empty($conflitos)) _agenda_notificar_conflitos($id, $titulo, $tipo, $dataInicio, $responsavelId, $conflitos);
+        echo json_encode(array(
+            'ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf,
+            'conflitos' => _agenda_conflitos_resumo($conflitos),
+        ));
     } else {
         // Criar
         try {
@@ -571,7 +670,11 @@ if ($action === 'salvar') {
         }
 
         audit_log('AGENDA_CRIADO', 'agenda', $newId, $titulo);
-        echo json_encode(array('ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => $newCsrf));
+        if (!empty($conflitos)) _agenda_notificar_conflitos($newId, $titulo, $tipo, $dataInicio, $responsavelId, $conflitos);
+        echo json_encode(array(
+            'ok' => true, 'id' => $newId, 'msg' => 'Evento criado', 'csrf' => $newCsrf,
+            'conflitos' => _agenda_conflitos_resumo($conflitos),
+        ));
     }
     exit;
 }
