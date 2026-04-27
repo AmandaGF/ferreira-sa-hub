@@ -412,7 +412,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         elseif ($diasPrazo <= 3) $prazoClass = 'prazo-3d';
                     }
                 ?>
-                <div class="op-card <?= $prazoClass ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
+                <div class="op-card <?= $prazoClass ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
@@ -707,6 +707,24 @@ sort($opTipos);
 </div>
 
 <!-- Modal: Documento Faltante -->
+<!-- Modal: Em Execução — pergunta quem está executando -->
+<div id="executanteModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#0ea5e9;margin-bottom:.5rem;">⚙️ Em Execução — Quem está executando?</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:.75rem;">Selecione o responsável pela execução. Será marcado como responsável do caso.</p>
+        <select id="execUserId" style="width:100%;padding:.6rem .8rem;font-size:.9rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;">
+            <option value="">— Selecionar responsável —</option>
+            <?php foreach ($users as $u): ?>
+                <option value="<?= (int)$u['id'] ?>"><?= e($u['name']) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <div style="display:flex;gap:.5rem;margin-top:1rem;justify-content:flex-end;">
+            <button onclick="closeExecutanteModal()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Cancelar</button>
+            <button onclick="confirmExecutante()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#0ea5e9;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar ⚙️</button>
+        </div>
+    </div>
+</div>
+
 <div id="docFaltanteModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
         <h3 style="font-size:1rem;font-weight:700;color:#dc2626;margin-bottom:.5rem;">⚠️ Documento Faltante</h3>
@@ -1286,7 +1304,89 @@ function handleOpMove(select) {
         return;
     }
 
+    if (status === 'em_andamento') {
+        _pendingOpForm = form;
+        _pendingExecCard = null; _pendingExecCol = null;
+        // Pré-seleciona responsável atual do caso, se houver
+        var card = select.closest('.op-card') || select.closest('tr');
+        var respAtual = card ? (card.dataset.responsibleId || '') : '';
+        var execSel = document.getElementById('execUserId');
+        if (execSel) execSel.value = respAtual || '';
+        document.getElementById('executanteModal').style.display = 'flex';
+        if (execSel) execSel.focus();
+        select.value = '';
+        return;
+    }
+
     form.submit();
+}
+
+// Em Execução — perguntar quem está executando
+var _pendingExecCard = null;
+var _pendingExecCol = null;
+var _pendingExecCaseId = null;
+
+function closeExecutanteModal() {
+    document.getElementById('executanteModal').style.display = 'none';
+    _pendingOpForm = null;
+    _pendingExecCard = null;
+    _pendingExecCol = null;
+    _pendingExecCaseId = null;
+}
+
+function confirmExecutante() {
+    var sel = document.getElementById('execUserId');
+    var uid = sel ? sel.value : '';
+    if (!uid) { if (sel) sel.style.borderColor = '#ef4444'; return; }
+    document.getElementById('executanteModal').style.display = 'none';
+
+    // Caminho 1: veio do dropdown — usa form existente
+    if (_pendingOpForm) {
+        var statusSel = _pendingOpForm.querySelector('select[name="new_status"]');
+        if (statusSel) statusSel.removeAttribute('name');
+        var iSt = document.createElement('input');
+        iSt.type = 'hidden'; iSt.name = 'new_status'; iSt.value = 'em_andamento';
+        _pendingOpForm.appendChild(iSt);
+        var iU = document.createElement('input');
+        iU.type = 'hidden'; iU.name = 'responsible_user_id'; iU.value = uid;
+        _pendingOpForm.appendChild(iU);
+        _pendingOpForm.submit();
+        return;
+    }
+
+    // Caminho 2: veio do drag-drop — XHR direto (segue padrão dos outros drops)
+    if (!_pendingExecCaseId || !_pendingExecCard || !_pendingExecCol) return;
+    var caseId = _pendingExecCaseId;
+    var card = _pendingExecCard;
+    var col = _pendingExecCol;
+
+    var fd = new FormData();
+    fd.append('action', 'update_status');
+    fd.append('case_id', caseId);
+    fd.append('new_status', 'em_andamento');
+    fd.append('responsible_user_id', uid);
+    fd.append('csrf_token', csrfToken);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                if (resp.error) { showToast(resp.error, 'error'); location.reload(); }
+                else {
+                    showToast('Caso movido pra Em Execução!');
+                    var empty = col.querySelector('.op-empty');
+                    if (empty) empty.remove();
+                    col.appendChild(card);
+                    card.dataset.responsibleId = uid;
+                }
+            } catch(ex) { location.reload(); }
+        } else { location.reload(); }
+        _pendingExecCard = null; _pendingExecCol = null; _pendingExecCaseId = null;
+    };
+    xhr.send(fd);
 }
 
 // Doc Faltante
@@ -1655,6 +1755,19 @@ function confirmProcesso() {
                 var form = dragCard.querySelector('form');
                 _pendingOpForm = form;
                 abrirDistribuicaoInteligente(dragCard);
+                return;
+            }
+
+            if (newStatus === 'em_andamento') {
+                _pendingOpForm = null;
+                _pendingExecCard = dragCard;
+                _pendingExecCol = col;
+                _pendingExecCaseId = caseId;
+                var respAtual = dragCard.dataset.responsibleId || '';
+                var execSel = document.getElementById('execUserId');
+                if (execSel) execSel.value = respAtual || '';
+                document.getElementById('executanteModal').style.display = 'flex';
+                if (execSel) execSel.focus();
                 return;
             }
 

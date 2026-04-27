@@ -528,8 +528,24 @@ switch ($action) {
                 }
             }
 
-            // ── EM EXECUÇÃO: auto-finalizar Pipeline se Pasta Apta ──
+            // ── EM EXECUÇÃO: auto-finalizar Pipeline se Pasta Apta + marcar executante ──
             if ($status === 'em_andamento') {
+                // Modal pergunta quem está executando — grava como responsável do caso
+                if (isset($_POST['responsible_user_id']) && (int)$_POST['responsible_user_id'] > 0) {
+                    $newRespId = (int)$_POST['responsible_user_id'];
+                    $oldRespId = $currentCase ? (int)$currentCase['responsible_user_id'] : 0;
+                    $pdo->prepare('UPDATE cases SET responsible_user_id = ?, updated_at = NOW() WHERE id = ?')
+                        ->execute(array($newRespId, $caseId));
+                    if ($newRespId !== $oldRespId) {
+                        audit_log('case_responsavel', 'case', $caseId, 'Em Execução: responsável #' . $newRespId);
+                        // Notificar quem foi designado (se não for ele mesmo movendo)
+                        if ($newRespId !== current_user_id()) {
+                            try {
+                                notify($newRespId, 'Você é o executante!', ($currentCase ? $currentCase['title'] : 'Caso #' . $caseId) . ' foi marcado como Em Execução.', 'info', url('modules/operacional/caso_ver.php?id=' . $caseId), '⚙️');
+                            } catch (Exception $e) {}
+                        }
+                    }
+                }
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
                 if ($leadRow && $leadRow['stage'] === 'pasta_apta') {
                     $pdo->prepare("UPDATE pipeline_leads SET stage = 'finalizado', updated_at = NOW() WHERE id = ?")
