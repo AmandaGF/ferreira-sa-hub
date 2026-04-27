@@ -948,8 +948,53 @@ if (!$showEditor) {
             </div>
             <div style="margin-bottom:.75rem;">
                 <label>Motivo / Justificativa (opcional — se vazio, gera texto padrão sobre justa causa)</label>
-                <textarea name="motivo_audiencia" rows="4" placeholder="Ex: A patrona da Autora exerce atividade docente presencial na cidade de Volta Redonda – RJ na data designada para a audiência, o que torna materialmente inviável seu deslocamento até a Comarca..."><?= e($motivoAudiencia) ?></textarea>
+                <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;">
+                    <select id="motivoAudPreset" onchange="aplicarMotivoAudiencia(this.value)" style="flex:1;min-width:240px;padding:.45rem .6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;background:#fff;">
+                        <option value="">📋 Escolher um modelo de justificativa pronta…</option>
+                        <option value="patrono_outra_comarca">⚖️ Patrono(a) em audiência/atividade em outra comarca</option>
+                        <option value="patrono_audiencia_concomitante">⏰ Patrono(a) com audiência concomitante na mesma data</option>
+                        <option value="patrono_saude">🩺 Patrono(a) com questão de saúde / licença médica</option>
+                        <option value="cliente_distancia">📍 Cliente reside em outra cidade/estado (distância inviável)</option>
+                        <option value="cliente_mobilidade">♿ Cliente com restrição de mobilidade / idade avançada</option>
+                        <option value="cliente_filho_menor">👶 Cliente responsável por filho(s) menor(es) sem rede de apoio</option>
+                        <option value="cliente_trabalho">💼 Cliente com vínculo empregatício que impede ausência</option>
+                        <option value="cliente_vulnerabilidade">💰 Cliente em vulnerabilidade econômica (beneficiário da gratuidade)</option>
+                        <option value="comarca_distante">🚗 Comarca distante / sem acesso a transporte</option>
+                        <option value="celeridade">⚡ Princípio da celeridade e economia processual</option>
+                    </select>
+                    <button type="button" onclick="document.getElementById('motivoAudPreset').value='';document.querySelector('textarea[name=motivo_audiencia]').value='';" style="padding:.45rem .8rem;border:1px solid #d1d5db;background:#fff;border-radius:8px;font-size:.78rem;cursor:pointer;color:#6b7280;">✕ limpar</button>
+                </div>
+                <textarea name="motivo_audiencia" rows="4" placeholder="Escolha um modelo acima ou escreva livremente. Ex: A patrona da Autora exerce atividade docente presencial na cidade de Volta Redonda – RJ na data designada para a audiência..."><?= e($motivoAudiencia) ?></textarea>
+                <small style="color:#6b7280;font-size:.72rem;">Os modelos preenchem o campo abaixo — você pode editar livremente antes de gerar.</small>
             </div>
+            <script>
+            (function() {
+                var motivos = {
+                    patrono_outra_comarca: 'A patrona da Autora exerce atividade profissional na comarca de [INFORMAR CIDADE] – [UF] na data designada para a audiência, tendo compromisso anteriormente assumido que torna materialmente inviável seu deslocamento até esta Comarca, em prejuízo do regular exercício da advocacia e do direito da parte ao patrocínio efetivo.',
+                    patrono_audiencia_concomitante: 'Na data e horário designados para a audiência, a patrona da Autora possui outro ato processual previamente agendado em audiência concomitante perante o juízo da [INFORMAR VARA / COMARCA], o que impossibilita seu comparecimento simultâneo a este ato, em prejuízo da defesa técnica de ambas as partes representadas.',
+                    patrono_saude: 'A patrona encontra-se em tratamento de saúde, conforme atestado médico em anexo, situação que recomenda a participação por videoconferência, preservando-se a integridade física e o regular exercício da advocacia.',
+                    cliente_distancia: 'A parte autora reside em [INFORMAR CIDADE] – [UF], distante aproximadamente [INFORMAR KM] km da Comarca onde tramita o feito, sendo o deslocamento financeira e materialmente inviável, especialmente considerando-se a vulnerabilidade econômica da parte.',
+                    cliente_mobilidade: 'A parte autora possui restrição de mobilidade decorrente de [INFORMAR MOTIVO — idade avançada / condição de saúde / etc.], conforme documentação anexa, o que torna o deslocamento até a Comarca excessivamente oneroso e prejudicial à sua saúde.',
+                    cliente_filho_menor: 'A parte autora é responsável legal por filho(s) menor(es) de idade e não dispõe de rede de apoio para o cuidado da criança no horário designado para a audiência, sendo a participação remota a única forma de viabilizar o ato sem prejuízo à proteção integral do(s) menor(es).',
+                    cliente_trabalho: 'A parte autora possui vínculo empregatício que não permite ausência integral no dia/horário designado para a audiência presencial, sendo a participação por videoconferência indispensável à preservação de seu sustento e ao exercício pleno do direito de defesa.',
+                    cliente_vulnerabilidade: 'A parte autora é beneficiária da gratuidade de justiça e encontra-se em situação de vulnerabilidade econômica, não dispondo de recursos financeiros para arcar com despesas de deslocamento, alimentação e demais custos inerentes ao comparecimento presencial.',
+                    comarca_distante: 'A Comarca onde tramita o feito apresenta acesso restrito por transporte público no dia da audiência designada, e o deslocamento por meio próprio é inviável diante das circunstâncias da parte/patrona, conforme exposto.',
+                    celeridade: 'A realização da audiência por videoconferência atende aos princípios da celeridade e economia processual previstos no art. 4º do CPC, sem qualquer prejuízo ao contraditório e à ampla defesa, sendo medida adequada às atuais práticas forenses consolidadas pelo CNJ (Resolução nº 354/2020).'
+                };
+                window.aplicarMotivoAudiencia = function(key) {
+                    if (!key) return;
+                    var ta = document.querySelector('textarea[name="motivo_audiencia"]');
+                    if (!ta) return;
+                    var atual = ta.value.trim();
+                    if (atual && !confirm('Já há texto preenchido. Substituir pelo modelo selecionado?')) {
+                        document.getElementById('motivoAudPreset').value = '';
+                        return;
+                    }
+                    ta.value = motivos[key] || '';
+                    ta.focus();
+                };
+            })();
+            </script>
             <div style="margin-bottom:.75rem;">
                 <label>E-mails para envio do link (além dos e-mails do escritório que já são incluídos)</label>
                 <input name="emails_audiencia" value="<?= e($emailsAudiencia) ?>" placeholder="Ex: email-pessoal@cliente.com">
