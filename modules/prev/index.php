@@ -7,7 +7,10 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!can_view_operacional()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
+// Antes usava can_view_operacional() (só admin/gestão/operacional). Agora
+// permite override individual via user_permissions['prev'] — Simone, p.ex.,
+// só tem acesso a esse módulo, sem precisar liberar Operacional inteiro.
+if (!can_access('prev')) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
 $pageTitle = 'Kanban PREV';
 $pdo = db();

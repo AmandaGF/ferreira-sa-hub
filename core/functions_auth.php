@@ -65,10 +65,24 @@ function _permission_defaults()
         'whatsapp'            => $todos,
         'whatsapp_21'         => $todos,
         'whatsapp_24'         => $todos,
+        'whatsapp_fila'       => $todos,
         'whatsapp_bot'        => array('admin','gestao'),
         'whatsapp_dashboard'  => array('admin','gestao'),
         'whatsapp_templates'  => array('admin','gestao'),
         'whatsapp_config'     => array('admin','gestao'),
+        // Módulos adicionais — adicionados aqui pra que o sidebar filtre via
+        // can_access (permite override individual em user_permissions).
+        // Comportamento default mantido (quem tinha acesso continua tendo).
+        'painel'              => $todos,
+        'prev'                => $todos,
+        'mensagens'           => $todos,
+        'notificacoes'        => $todos,
+        'aniversarios'        => $todos,
+        'wiki'                => $todos,
+        'gamificacao'         => $todos,
+        'salavip'             => $todos,
+        'salavip_ged'         => $todos,
+        'treinamento'         => $todos,
     );
 }
 

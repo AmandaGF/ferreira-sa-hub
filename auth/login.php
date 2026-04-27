@@ -5,9 +5,20 @@
 
 require_once __DIR__ . '/../core/auth.php';
 
+// Página inicial conforme permissões: usuários com acesso restrito (ex: Simone
+// só com prev) caem direto na primeira tela que conseguem ver, evitando loop
+// de "Acesso Negado".
+function _landing_module() {
+    $candidatos = array('painel', 'dashboard', 'prev', 'agenda', 'whatsapp_21');
+    foreach ($candidatos as $mod) {
+        if (can_access($mod)) return $mod;
+    }
+    return 'painel'; // fallback (require_login decidirá)
+}
+
 // Se já está logado, redireciona
 if (is_logged_in()) {
-    redirect(url('modules/painel/'));
+    redirect(url('modules/' . _landing_module() . '/'));
 }
 
 $error = '';
@@ -40,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Limpa flashes de erro antigos (ex: "Faça login..." que ficou da tentativa anterior)
                 unset($_SESSION['flash']['error'], $_SESSION['flash']['warning']);
                 flash_set('success', 'Bem-vindo(a), ' . $user['name'] . '!');
-                redirect(url('modules/painel/'));
+                redirect(url('modules/' . _landing_module() . '/'));
             } else {
                 $error = 'E-mail ou senha incorretos.';
             }

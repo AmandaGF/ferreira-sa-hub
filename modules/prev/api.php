@@ -6,6 +6,7 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
+require_access('prev');
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 

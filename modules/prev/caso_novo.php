@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
+require_access('prev');
 
 $pdo = db();
 
