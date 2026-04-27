@@ -951,6 +951,7 @@ if (!$showEditor) {
                 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;">
                     <select id="motivoAudPreset" onchange="aplicarMotivoAudiencia(this.value)" style="flex:1;min-width:240px;padding:.45rem .6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.85rem;background:#fff;">
                         <option value="">📋 Escolher um modelo de justificativa pronta…</option>
+                        <option value="patrono_docente_interior_rj">🎓 Patrona docente no interior do RJ (Volta Redonda / Resende) — aula na data</option>
                         <option value="patrono_outra_comarca">⚖️ Patrono(a) em audiência/atividade em outra comarca</option>
                         <option value="patrono_audiencia_concomitante">⏰ Patrono(a) com audiência concomitante na mesma data</option>
                         <option value="patrono_saude">🩺 Patrono(a) com questão de saúde / licença médica</option>
@@ -970,6 +971,7 @@ if (!$showEditor) {
             <script>
             (function() {
                 var motivos = {
+                    patrono_docente_interior_rj: 'A patrona da Autora exerce atividade docente presencial no interior do Estado do Rio de Janeiro, na cidade de [INFORMAR — Volta Redonda OU Resende], onde leciona em instituição de ensino, com aulas previamente designadas e obrigatórias na data da audiência ora marcada. A distância entre o município em que ministra as aulas e a Comarca onde tramita o feito, somada ao horário de início das atividades letivas, torna materialmente inviável seu deslocamento presencial sem prejuízo aos seus alunos e ao regular cumprimento do calendário acadêmico, razão pela qual se requer a designação da audiência em modalidade remota ou, alternativamente, híbrida, com fundamento no art. 236, §3º, do CPC e na Resolução nº 354/2020 do CNJ.',
                     patrono_outra_comarca: 'A patrona da Autora exerce atividade profissional na comarca de [INFORMAR CIDADE] – [UF] na data designada para a audiência, tendo compromisso anteriormente assumido que torna materialmente inviável seu deslocamento até esta Comarca, em prejuízo do regular exercício da advocacia e do direito da parte ao patrocínio efetivo.',
                     patrono_audiencia_concomitante: 'Na data e horário designados para a audiência, a patrona da Autora possui outro ato processual previamente agendado em audiência concomitante perante o juízo da [INFORMAR VARA / COMARCA], o que impossibilita seu comparecimento simultâneo a este ato, em prejuízo da defesa técnica de ambas as partes representadas.',
                     patrono_saude: 'A patrona encontra-se em tratamento de saúde, conforme atestado médico em anexo, situação que recomenda a participação por videoconferência, preservando-se a integridade física e o regular exercício da advocacia.',
