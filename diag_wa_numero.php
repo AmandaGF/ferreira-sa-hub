@@ -42,18 +42,17 @@ echo '<div class="box">Variantes testadas: <code>' . htmlspecialchars(implode(',
 
 // 1. Conversas
 echo '<h2>1. Conversas no banco</h2>';
-$st = $pdo->prepare("SELECT id, telefone, chat_lid, client_id, canal, ultima_mensagem_em, status_atendimento, atendente_id
-                     FROM zapi_conversas WHERE telefone IN ($placeholders) OR chat_lid IN ($placeholders)
-                     ORDER BY ultima_mensagem_em DESC");
+$st = $pdo->prepare("SELECT * FROM zapi_conversas WHERE telefone IN ($placeholders) OR chat_lid IN ($placeholders)
+                     ORDER BY id DESC LIMIT 20");
 $params = array_merge($variantes, $variantes);
 $st->execute($params);
 $conversas = $st->fetchAll();
 if (empty($conversas)) {
     echo '<p class="no">Nenhuma conversa encontrada com esse número.</p>';
 } else {
-    echo '<table><thead><tr><th>ID</th><th>Telefone</th><th>chat_lid</th><th>client_id</th><th>Canal</th><th>Última msg</th><th>Status</th><th>Atendente</th></tr></thead><tbody>';
+    echo '<table><thead><tr><th>ID</th><th>Telefone</th><th>chat_lid</th><th>client_id</th><th>Canal</th><th>Status</th><th>Atendente</th><th>Bot</th></tr></thead><tbody>';
     foreach ($conversas as $c) {
-        echo '<tr><td>' . $c['id'] . '</td><td>' . htmlspecialchars($c['telefone']) . '</td><td>' . htmlspecialchars($c['chat_lid'] ?: '—') . '</td><td>' . ($c['client_id'] ?: '—') . '</td><td>' . htmlspecialchars($c['canal']) . '</td><td>' . $c['ultima_mensagem_em'] . '</td><td>' . htmlspecialchars($c['status_atendimento']) . '</td><td>' . ($c['atendente_id'] ?: '—') . '</td></tr>';
+        echo '<tr><td>' . $c['id'] . '</td><td>' . htmlspecialchars($c['telefone'] ?? '') . '</td><td>' . htmlspecialchars($c['chat_lid'] ?? '—') . '</td><td>' . ($c['client_id'] ?? '—') . '</td><td>' . htmlspecialchars($c['canal'] ?? '') . '</td><td>' . htmlspecialchars($c['status'] ?? '-') . '</td><td>' . ($c['atendente_id'] ?? '—') . '</td><td>' . (isset($c['bot_ativo']) ? $c['bot_ativo'] : '-') . '</td></tr>';
     }
     echo '</tbody></table>';
 }
@@ -78,10 +77,8 @@ if (empty($clientes)) {
 if (!empty($conversas)) {
     $convIds = array_column($conversas, 'id');
     $phMsg = implode(',', array_fill(0, count($convIds), '?'));
-    $st = $pdo->prepare("SELECT id, conversa_id, direcao, tipo, conteudo, zapi_message_id, zapi_response, status,
-                                enviado_por_id, criada_em, lida
-                         FROM zapi_mensagens WHERE conversa_id IN ($phMsg)
-                         ORDER BY criada_em DESC LIMIT 50");
+    $st = $pdo->prepare("SELECT * FROM zapi_mensagens WHERE conversa_id IN ($phMsg)
+                         ORDER BY id DESC LIMIT 50");
     $st->execute($convIds);
     $msgs = $st->fetchAll();
 
@@ -91,20 +88,22 @@ if (!empty($conversas)) {
     } else {
         $enviadas = 0; $recebidas = 0; $semId = 0;
         foreach ($msgs as $m) {
-            if ($m['direcao'] === 'enviada') $enviadas++;
-            elseif ($m['direcao'] === 'recebida') $recebidas++;
-            if ($m['direcao'] === 'enviada' && empty($m['zapi_message_id'])) $semId++;
+            $dir = $m['direcao'] ?? '';
+            $msgId = $m['zapi_message_id'] ?? '';
+            if ($dir === 'enviada') $enviadas++;
+            elseif ($dir === 'recebida') $recebidas++;
+            if ($dir === 'enviada' && empty($msgId)) $semId++;
         }
         echo '<div class="box">📊 ' . $enviadas . ' enviadas · ' . $recebidas . ' recebidas · ' . $semId . ' enviadas SEM zapi_message_id (provável falha de envio)</div>';
 
         echo '<table><thead><tr><th>ID</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Status</th><th>zapi_message_id</th><th>Quando</th><th>Z-API response (resumo)</th></tr></thead><tbody>';
         foreach ($msgs as $m) {
-            $resp = $m['zapi_response'];
+            $resp = $m['zapi_response'] ?? '';
             $respCurto = '';
             if ($resp) {
                 $j = json_decode($resp, true);
                 if ($j) {
-                    $respCurto = isset($j['error']) ? '❌ ' . $j['error']
+                    $respCurto = isset($j['error']) ? '❌ ' . (is_string($j['error']) ? $j['error'] : json_encode($j['error']))
                               : (isset($j['message']) ? $j['message']
                               : (isset($j['zaapId']) ? 'OK zaapId=' . substr($j['zaapId'], 0, 16)
                               : substr($resp, 0, 80)));
@@ -112,16 +111,18 @@ if (!empty($conversas)) {
                     $respCurto = substr($resp, 0, 80);
                 }
             }
-            $cor = $m['direcao'] === 'enviada' ? '#ecfdf5' : '#fff';
-            if ($m['direcao'] === 'enviada' && empty($m['zapi_message_id'])) $cor = '#fee2e2';
+            $msgId = $m['zapi_message_id'] ?? '';
+            $cor = ($m['direcao'] ?? '') === 'enviada' ? '#ecfdf5' : '#fff';
+            if (($m['direcao'] ?? '') === 'enviada' && empty($msgId)) $cor = '#fee2e2';
+            $criadaEm = $m['criada_em'] ?? ($m['created_at'] ?? '?');
             echo '<tr style="background:' . $cor . ';">';
             echo '<td>' . $m['id'] . '</td>';
-            echo '<td><strong>' . htmlspecialchars($m['direcao']) . '</strong></td>';
-            echo '<td>' . htmlspecialchars($m['tipo'] ?: '-') . '</td>';
-            echo '<td>' . htmlspecialchars(mb_substr($m['conteudo'] ?: '', 0, 60)) . '</td>';
-            echo '<td>' . htmlspecialchars($m['status'] ?: '-') . '</td>';
-            echo '<td><code style="font-size:10px;">' . htmlspecialchars($m['zapi_message_id'] ?: '<vazio>') . '</code></td>';
-            echo '<td>' . htmlspecialchars($m['criada_em']) . '</td>';
+            echo '<td><strong>' . htmlspecialchars($m['direcao'] ?? '?') . '</strong></td>';
+            echo '<td>' . htmlspecialchars($m['tipo'] ?? '-') . '</td>';
+            echo '<td>' . htmlspecialchars(mb_substr($m['conteudo'] ?? '', 0, 60)) . '</td>';
+            echo '<td>' . htmlspecialchars($m['status'] ?? '-') . '</td>';
+            echo '<td><code style="font-size:10px;">' . htmlspecialchars($msgId ?: '<vazio>') . '</code></td>';
+            echo '<td>' . htmlspecialchars($criadaEm) . '</td>';
             echo '<td>' . htmlspecialchars($respCurto) . '</td>';
             echo '</tr>';
         }
@@ -130,7 +131,7 @@ if (!empty($conversas)) {
         // Mostra o último response completo de uma mensagem enviada com falha (se houver)
         $ultimaFalha = null;
         foreach ($msgs as $m) {
-            if ($m['direcao'] === 'enviada' && (empty($m['zapi_message_id']) || $m['status'] === 'erro')) {
+            if (($m['direcao'] ?? '') === 'enviada' && (empty($m['zapi_message_id'] ?? '') || ($m['status'] ?? '') === 'erro')) {
                 $ultimaFalha = $m; break;
             }
         }
