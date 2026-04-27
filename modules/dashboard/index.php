@@ -155,11 +155,16 @@ $rankingAcoes = qrows($pdo, "SELECT case_type, COUNT(*) as total, IFNULL(SUM(est
 // Processos por tipo de ação (para aba Operacional)
 $processosPorTipo = qrows($pdo, "SELECT case_type, COUNT(*) as total FROM cases WHERE case_type IS NOT NULL AND case_type != '' AND status NOT IN ('cancelado','arquivado') GROUP BY case_type ORDER BY total DESC LIMIT 15");
 
-$casosEmAndamento = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'em_andamento'");
-$casosSuspensos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'suspenso'");
-$casosDocFaltante = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'doc_faltante'");
-$distribuidos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'");
-$distribuidosAnt = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAnterior'");
+// KPIs de status alinhados com o que o Kanban Operacional efetivamente mostra:
+// (1) IFNULL(kanban_oculto,0)=0 — exclui casos manualmente ocultados do Kanban
+// (2) "Em Execução" no Kanban também acumula renunciamos/finalizado (status sem
+//     coluna própria caem na coluna em_andamento via fallback)
+$kanbanFiltro = "IFNULL(kanban_oculto, 0) = 0";
+$casosEmAndamento = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('em_andamento','renunciamos','finalizado') AND $kanbanFiltro");
+$casosSuspensos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'suspenso' AND $kanbanFiltro");
+$casosDocFaltante = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'doc_faltante' AND $kanbanFiltro");
+$distribuidos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual' AND $kanbanFiltro");
+$distribuidosAnt = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAnterior' AND $kanbanFiltro");
 $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluido','arquivado') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'");
 
 // Prazos vencendo em 7 dias
