@@ -12,6 +12,8 @@
  *
  * Acesso: ?key=fsa-hub-deploy-2026&numero=21967029991
  */
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 require_once __DIR__ . '/core/database.php';
 
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
