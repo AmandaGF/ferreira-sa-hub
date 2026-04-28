@@ -300,6 +300,22 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
+    // Se $audio for caminho de arquivo local, converte pra data URI base64.
+    // Razão: quando passamos URL pública, a Z-API só re-hospeda no CDN dela
+    // se reconhece o formato (.ogg/.mp3). Pra .webm (saída padrão do
+    // MediaRecorder do Chrome) ela só repassa o link, e o WhatsApp da cliente
+    // não cacheia direito — replay mostra "Este áudio não está mais disponível".
+    // Com base64, força a Z-API a baixar o conteúdo, processar e re-hospedar.
+    // Forçamos mime "audio/ogg; codecs=opus" porque é o formato canônico que
+    // a Z-API e o WhatsApp esperam (codec opus já está dentro do .webm do
+    // Chrome — só o container muda).
+    if (is_string($audio) && file_exists($audio) && is_readable($audio)) {
+        $bin = @file_get_contents($audio);
+        if ($bin !== false && strlen($bin) > 0) {
+            $audio = 'data:audio/ogg;base64,' . base64_encode($bin);
+        }
+    }
+
     $body = array(
         'phone'    => zapi_normaliza_telefone($telefone),
         'audio'    => $audio,

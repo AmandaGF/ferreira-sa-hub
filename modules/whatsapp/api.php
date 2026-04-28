@@ -1163,7 +1163,12 @@ if ($action === 'enviar_audio') {
     @chmod($dest, 0644);
     $publicUrl = 'https://' . ($_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br') . '/conecta/files/whatsapp/' . rawurlencode($storedName);
 
-    $resp = zapi_send_audio($conv['canal'], $conv['telefone'], $publicUrl, true);
+    // Passa o CAMINHO LOCAL pra zapi_send_audio. Se o arquivo for legível,
+    // ela converte pra base64 e força Z-API a re-hospedar no CDN dela —
+    // resolve o bug "Este áudio não está mais disponível" pra WebM do Chrome.
+    // Fallback: se o arquivo não estiver legível, manda a URL pública mesmo.
+    $audioParam = is_readable($dest) ? $dest : $publicUrl;
+    $resp = zapi_send_audio($conv['canal'], $conv['telefone'], $audioParam, true);
     if (empty($resp['ok'])) {
         echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
         exit;
