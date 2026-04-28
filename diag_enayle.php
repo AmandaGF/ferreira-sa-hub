@@ -1,0 +1,99 @@
+<?php
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+require_once __DIR__ . '/core/database.php';
+if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit; }
+$pdo = db();
+
+echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Diag Enayle</title>';
+echo '<style>body{font-family:system-ui;padding:20px;max-width:1300px;margin:0 auto}table{width:100%;border-collapse:collapse;margin:.5rem 0}th,td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:12px;text-align:left;vertical-align:top}th{background:#052228;color:#fff}h2{color:#052228;border-bottom:2px solid #B87333;padding-bottom:6px;margin-top:2rem}pre{background:#f8fafc;padding:8px;border-radius:6px;font-size:11px;max-height:200px;overflow:auto}</style></head><body>';
+echo '<h1>🔍 Caso Enayle Garcia Fontes — mensagens "perdidas"</h1>';
+
+// 1. Todas as conversas que tenham 99839644, 132508599484417 ou client_id=674
+echo '<h2>1. Todas as conversas relacionadas (telefone, lid, client_id=674)</h2>';
+$st = $pdo->query("SELECT id, telefone, chat_lid, client_id, canal, status, criada_em
+                   FROM zapi_conversas
+                   WHERE telefone LIKE '%99839644%'
+                      OR chat_lid LIKE '%132508599484417%'
+                      OR client_id = 674
+                   ORDER BY id ASC");
+$convs = $st->fetchAll();
+echo '<table><thead><tr><th>ID</th><th>Telefone</th><th>chat_lid</th><th>client_id</th><th>Canal</th><th>Status</th><th>Criada</th></tr></thead><tbody>';
+foreach ($convs as $c) echo '<tr><td>' . $c['id'] . '</td><td>' . htmlspecialchars($c['telefone'] ?? '') . '</td><td>' . htmlspecialchars($c['chat_lid'] ?? '-') . '</td><td>' . ($c['client_id'] ?? '-') . '</td><td>' . $c['canal'] . '</td><td>' . htmlspecialchars($c['status'] ?? '-') . '</td><td>' . ($c['criada_em'] ?? '-') . '</td></tr>';
+echo '</tbody></table>';
+
+// 2. Em audit_log: merges/limpezas envolvendo conv 660 ou client 674
+echo '<h2>2. audit_log envolvendo conv 660 ou client 674</h2>';
+$st = $pdo->prepare("SELECT * FROM audit_log
+                     WHERE (entidade_tipo = 'zapi_conversas' AND entidade_id = 660)
+                        OR (entidade_tipo = 'clients' AND entidade_id = 674)
+                        OR detalhes LIKE '%conv%660%'
+                        OR detalhes LIKE '%client%674%'
+                        OR detalhes LIKE '%99839644%'
+                        OR detalhes LIKE '%132508599484417%'
+                     ORDER BY id DESC LIMIT 30");
+$st->execute();
+$logs = $st->fetchAll();
+if (empty($logs)) {
+    echo '<p>Nenhum registro de auditoria.</p>';
+} else {
+    echo '<table><thead><tr><th>ID</th><th>Quando</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th>Detalhes</th></tr></thead><tbody>';
+    foreach ($logs as $l) echo '<tr><td>' . $l['id'] . '</td><td>' . $l['created_at'] . '</td><td>' . ($l['user_id'] ?? '-') . '</td><td>' . htmlspecialchars($l['acao'] ?? '') . '</td><td>' . htmlspecialchars($l['entidade_tipo'] ?? '') . ' #' . ($l['entidade_id'] ?? '') . '</td><td>' . htmlspecialchars(mb_substr($l['detalhes'] ?? '', 0, 200)) . '</td></tr>';
+    echo '</tbody></table>';
+}
+
+// 3. TODAS as mensagens da conv 660 (cronológico) - pra ver onde acontece o gap
+echo '<h2>3. Linha do tempo COMPLETA da conv 660</h2>';
+$st = $pdo->prepare("SELECT id, direcao, tipo, LEFT(conteudo, 70) as preview, status, zapi_message_id, criada_em
+                     FROM zapi_mensagens WHERE conversa_id = 660 ORDER BY id ASC");
+$st->execute();
+$msgs = $st->fetchAll();
+echo '<p>Total: <strong>' . count($msgs) . '</strong> mensagens registradas. Atenção em GAPS de id (saltos grandes).</p>';
+echo '<table><thead><tr><th>ID</th><th>Quando</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Status</th></tr></thead><tbody>';
+$prevId = 0;
+foreach ($msgs as $m) {
+    $gap = $prevId ? ($m['id'] - $prevId) : 0;
+    $bg = '';
+    if ($gap > 100) $bg = 'background:#fee2e2;'; // gap grande = vermelho
+    elseif ($gap > 20) $bg = 'background:#fef3c7;'; // gap médio = amarelo
+    echo '<tr style="' . $bg . '"><td>' . $m['id'] . ($gap > 20 ? ' <em>(+' . $gap . ')</em>' : '') . '</td><td>' . $m['criada_em'] . '</td><td><strong>' . $m['direcao'] . '</strong></td><td>' . htmlspecialchars($m['tipo'] ?? '-') . '</td><td>' . htmlspecialchars($m['preview'] ?? '') . '</td><td>' . htmlspecialchars($m['status'] ?? '-') . '</td></tr>';
+    $prevId = $m['id'];
+}
+echo '</tbody></table>';
+
+// 4. Mensagens em ALGUMA outra conversa que possa ter o lid dela
+echo '<h2>4. Mensagens com remetente igual ao @lid dela em OUTRAS conversas</h2>';
+$st = $pdo->prepare("SELECT m.id, m.conversa_id, c.telefone, c.chat_lid, c.client_id, m.direcao, m.tipo, LEFT(m.conteudo, 70) as preview, m.criada_em
+                     FROM zapi_mensagens m
+                     JOIN zapi_conversas c ON c.id = m.conversa_id
+                     WHERE c.id != 660
+                       AND (c.chat_lid LIKE '%132508599484417%'
+                            OR c.telefone LIKE '%99839644%'
+                            OR (c.client_id = 674))
+                     ORDER BY m.id DESC LIMIT 50");
+$st->execute();
+$outras = $st->fetchAll();
+if (empty($outras)) {
+    echo '<p>Nenhuma mensagem em outra conversa relacionada.</p>';
+} else {
+    echo '<p style="color:#991b1b;font-weight:700;">⚠️ ' . count($outras) . ' mensagens encontradas em outras conversas que podem ser dela!</p>';
+    echo '<table><thead><tr><th>msg_id</th><th>conv_id</th><th>Telefone conv</th><th>chat_lid</th><th>client_id</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Quando</th></tr></thead><tbody>';
+    foreach ($outras as $m) echo '<tr><td>' . $m['id'] . '</td><td><strong>' . $m['conversa_id'] . '</strong></td><td>' . htmlspecialchars($m['telefone'] ?? '') . '</td><td>' . htmlspecialchars($m['chat_lid'] ?? '-') . '</td><td>' . ($m['client_id'] ?? '-') . '</td><td>' . $m['direcao'] . '</td><td>' . $m['tipo'] . '</td><td>' . htmlspecialchars($m['preview'] ?? '') . '</td><td>' . $m['criada_em'] . '</td></tr>';
+    echo '</tbody></table>';
+}
+
+// 5. Logs de webhook do Z-API: alguma rejeição / erro pra esse número/lid?
+echo '<h2>5. Procurar em logs de erro recentes (zapi_webhook_log se houver)</h2>';
+try {
+    $st = $pdo->prepare("SELECT * FROM zapi_webhook_log WHERE payload LIKE '%99839644%' OR payload LIKE '%132508599484417%' ORDER BY id DESC LIMIT 30");
+    $st->execute();
+    $logs = $st->fetchAll();
+    if (empty($logs)) echo '<p>Nada no webhook log.</p>';
+    else {
+        echo '<table><thead><tr><th>ID</th><th>Quando</th><th>OK?</th><th>Erro</th><th>Payload (resumo)</th></tr></thead><tbody>';
+        foreach ($logs as $l) echo '<tr><td>' . $l['id'] . '</td><td>' . ($l['created_at'] ?? '-') . '</td><td>' . ($l['processado'] ?? '-') . '</td><td>' . htmlspecialchars($l['erro'] ?? '-') . '</td><td><code style="font-size:10px">' . htmlspecialchars(mb_substr($l['payload'] ?? '', 0, 200)) . '</code></td></tr>';
+        echo '</tbody></table>';
+    }
+} catch (Exception $e) { echo '<p>Tabela zapi_webhook_log: ' . htmlspecialchars($e->getMessage()) . '</p>'; }
+
+echo '</body></html>';
