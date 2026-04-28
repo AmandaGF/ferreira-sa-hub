@@ -120,6 +120,35 @@ try {
                 if ($conv) $log("[{$numero}] MATCH-CHATLID chatLid={$chatLid} → conversa #{$conv['id']}");
             }
 
+            // Estratégia 0a-bis: Match via clients.whatsapp_lid (LID canônico do cliente).
+            // Adicionado em 28/Abr/2026 — resolve o bug que criava conversas duplicadas
+            // pra clientes que já tinham LID cadastrado, mas a conv antiga deles ainda não
+            // tinha chat_lid preenchido (vinha do tempo pré-Sprint 26).
+            // Caso real: Enayle Garcia Fontes (id 674, whatsapp_lid=132508599484417@lid)
+            // tinha conv 660 sem chat_lid + conv 795 duplicada criada durante o bug @lid.
+            // Ao achar a conv mais recente do client_id no canal, ATUALIZA conv.chat_lid
+            // pra próximas msgs já baterem na Estratégia 0 acima.
+            if (!$conv && !$ehGrupo && ($chatLid || $ehLid)) {
+                $lidBuscar = $chatLid ?: $phoneRaw;
+                $q0b2 = $pdo->prepare("SELECT c.* FROM zapi_conversas c
+                                       JOIN clients cl ON cl.id = c.client_id
+                                       WHERE c.canal = ?
+                                         AND (cl.whatsapp_lid = ? OR cl.whatsapp_lid = ?)
+                                         AND (c.eh_grupo = 0 OR c.eh_grupo IS NULL)
+                                       ORDER BY c.ultima_msg_em DESC, c.id DESC LIMIT 1");
+                $q0b2->execute(array($numero, $lidBuscar, str_replace('@lid', '', $lidBuscar)));
+                $conv = $q0b2->fetch();
+                if ($conv) {
+                    $log("[{$numero}] MATCH-CLIENT-LID lid={$lidBuscar} → conversa #{$conv['id']} (via clients.whatsapp_lid)");
+                    // Auto-popula chat_lid na conv pra próximas msgs já baterem na Estratégia 0
+                    if (empty($conv['chat_lid']) && $chatLid) {
+                        $pdo->prepare("UPDATE zapi_conversas SET chat_lid = ? WHERE id = ?")
+                            ->execute(array($chatLid, $conv['id']));
+                        $log("[{$numero}] auto-upgrade conv #{$conv['id']} chat_lid={$chatLid}");
+                    }
+                }
+            }
+
             // Estratégia 0b: Match por TELEFONE REAL (senderPhoneNumber)
             // Se temos o número real, procura conversa que já tenha esse número,
             // mesmo que a conversa atual esteja com @lid.
