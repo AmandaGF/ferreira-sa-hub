@@ -26,8 +26,8 @@ echo "LID: {$c['whatsapp_lid']}\n";
 $canal = $pdo->query("SELECT valor FROM configuracoes WHERE chave = 'zapi_auto_aniversario_canal'")->fetchColumn() ?: '24';
 echo "Canal: {$canal}\n\n";
 
-$msg = "Joyce, perdoe o engano da mensagem anterior! 🥰\n\n"
-     . "Desejamos um feliz aniversário, repleto de alegria, saúde e muitas realizações! 🎂✨\n\n"
+$msg = "Feliz aniversário, Joyce! 🎂✨\n\n"
+     . "Desejamos um dia repleto de alegria, saúde e muitas realizações! 🥳\n\n"
      . "Com carinho,\n"
      . "Equipe Ferreira & Sá Advocacia";
 
