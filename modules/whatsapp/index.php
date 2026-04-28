@@ -1295,6 +1295,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     });
 
     // ── GRAVADOR DE ÁUDIO (MediaRecorder) ───────────────
+    // fix-webm-duration.js INJETADO ABAIXO via append no body. Ele expõe
+    // window.fixWebmDuration usado em enviarAudioBlob() pra corrigir o bug
+    // do MediaRecorder do Chrome que grava .webm sem Duration no header EBML.
     var mediaRecorder = null;
     var recChunks = [];
     var recStream = null;
@@ -2773,5 +2776,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </script>
 
 <?php endif; ?>
+
+<!-- fix-webm-duration.js: injeta Duration no header EBML do .webm gravado pelo MediaRecorder
+     do Chrome (bug crítico — sem isso o WhatsApp da cliente recebe áudio com duração 00:00
+     e considera mudo, não toca). Carregado APÓS o bloco do gravador, mas o gravador só roda
+     no clique do botão (deferido), então a função window.fixWebmDuration estará disponível
+     quando enviarAudioBlob() executar. -->
+<script src="<?= url('assets/js/fix-webm-duration.js') ?>"></script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
