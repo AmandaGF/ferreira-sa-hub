@@ -48,41 +48,56 @@ if (empty($logs)) {
 
 // 3. TODAS as mensagens da conv 660 (cronológico) - pra ver onde acontece o gap
 echo '<h2>3. Linha do tempo COMPLETA da conv 660</h2>';
-$st = $pdo->prepare("SELECT id, direcao, tipo, LEFT(conteudo, 70) as preview, status, zapi_message_id, criada_em
-                     FROM zapi_mensagens WHERE conversa_id = 660 ORDER BY id ASC");
-$st->execute();
-$msgs = $st->fetchAll();
+try {
+    $st = $pdo->prepare("SELECT * FROM zapi_mensagens WHERE conversa_id = 660 ORDER BY id ASC");
+    $st->execute();
+    $msgs = $st->fetchAll();
+} catch (Exception $e) {
+    echo '<p>Erro: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    $msgs = array();
+}
 echo '<p>Total: <strong>' . count($msgs) . '</strong> mensagens registradas. Atenção em GAPS de id (saltos grandes).</p>';
 echo '<table><thead><tr><th>ID</th><th>Quando</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Status</th></tr></thead><tbody>';
 $prevId = 0;
 foreach ($msgs as $m) {
     $gap = $prevId ? ($m['id'] - $prevId) : 0;
     $bg = '';
-    if ($gap > 100) $bg = 'background:#fee2e2;'; // gap grande = vermelho
-    elseif ($gap > 20) $bg = 'background:#fef3c7;'; // gap médio = amarelo
-    echo '<tr style="' . $bg . '"><td>' . $m['id'] . ($gap > 20 ? ' <em>(+' . $gap . ')</em>' : '') . '</td><td>' . $m['criada_em'] . '</td><td><strong>' . $m['direcao'] . '</strong></td><td>' . htmlspecialchars($m['tipo'] ?? '-') . '</td><td>' . htmlspecialchars($m['preview'] ?? '') . '</td><td>' . htmlspecialchars($m['status'] ?? '-') . '</td></tr>';
+    if ($gap > 100) $bg = 'background:#fee2e2;';
+    elseif ($gap > 20) $bg = 'background:#fef3c7;';
+    $quando = $m['criada_em'] ?? $m['created_at'] ?? '?';
+    $preview = mb_substr($m['conteudo'] ?? '', 0, 70);
+    echo '<tr style="' . $bg . '"><td>' . $m['id'] . ($gap > 20 ? ' <em>(+' . $gap . ')</em>' : '') . '</td><td>' . htmlspecialchars($quando) . '</td><td><strong>' . htmlspecialchars($m['direcao'] ?? '-') . '</strong></td><td>' . htmlspecialchars($m['tipo'] ?? '-') . '</td><td>' . htmlspecialchars($preview) . '</td><td>' . htmlspecialchars($m['status'] ?? '-') . '</td></tr>';
     $prevId = $m['id'];
 }
 echo '</tbody></table>';
 
 // 4. Mensagens em ALGUMA outra conversa que possa ter o lid dela
 echo '<h2>4. Mensagens com remetente igual ao @lid dela em OUTRAS conversas</h2>';
-$st = $pdo->prepare("SELECT m.id, m.conversa_id, c.telefone, c.chat_lid, c.client_id, m.direcao, m.tipo, LEFT(m.conteudo, 70) as preview, m.criada_em
-                     FROM zapi_mensagens m
-                     JOIN zapi_conversas c ON c.id = m.conversa_id
-                     WHERE c.id != 660
-                       AND (c.chat_lid LIKE '%132508599484417%'
-                            OR c.telefone LIKE '%99839644%'
-                            OR (c.client_id = 674))
-                     ORDER BY m.id DESC LIMIT 50");
-$st->execute();
-$outras = $st->fetchAll();
+try {
+    $st = $pdo->prepare("SELECT m.*, c.telefone AS conv_tel, c.chat_lid AS conv_lid, c.client_id AS conv_cli
+                         FROM zapi_mensagens m
+                         JOIN zapi_conversas c ON c.id = m.conversa_id
+                         WHERE c.id != 660
+                           AND (c.chat_lid LIKE '%132508599484417%'
+                                OR c.telefone LIKE '%99839644%'
+                                OR (c.client_id = 674))
+                         ORDER BY m.id ASC LIMIT 100");
+    $st->execute();
+    $outras = $st->fetchAll();
+} catch (Exception $e) {
+    echo '<p>Erro: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    $outras = array();
+}
 if (empty($outras)) {
     echo '<p>Nenhuma mensagem em outra conversa relacionada.</p>';
 } else {
     echo '<p style="color:#991b1b;font-weight:700;">⚠️ ' . count($outras) . ' mensagens encontradas em outras conversas que podem ser dela!</p>';
-    echo '<table><thead><tr><th>msg_id</th><th>conv_id</th><th>Telefone conv</th><th>chat_lid</th><th>client_id</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Quando</th></tr></thead><tbody>';
-    foreach ($outras as $m) echo '<tr><td>' . $m['id'] . '</td><td><strong>' . $m['conversa_id'] . '</strong></td><td>' . htmlspecialchars($m['telefone'] ?? '') . '</td><td>' . htmlspecialchars($m['chat_lid'] ?? '-') . '</td><td>' . ($m['client_id'] ?? '-') . '</td><td>' . $m['direcao'] . '</td><td>' . $m['tipo'] . '</td><td>' . htmlspecialchars($m['preview'] ?? '') . '</td><td>' . $m['criada_em'] . '</td></tr>';
+    echo '<table><thead><tr><th>msg_id</th><th>conv_id</th><th>Tel conv</th><th>chat_lid conv</th><th>Direção</th><th>Tipo</th><th>Conteúdo</th><th>Quando</th></tr></thead><tbody>';
+    foreach ($outras as $m) {
+        $quando = $m['criada_em'] ?? $m['created_at'] ?? '?';
+        $preview = mb_substr($m['conteudo'] ?? '', 0, 80);
+        echo '<tr><td>' . $m['id'] . '</td><td><strong>' . $m['conversa_id'] . '</strong></td><td>' . htmlspecialchars($m['conv_tel'] ?? '') . '</td><td>' . htmlspecialchars($m['conv_lid'] ?? '-') . '</td><td><strong>' . htmlspecialchars($m['direcao'] ?? '-') . '</strong></td><td>' . htmlspecialchars($m['tipo'] ?? '-') . '</td><td>' . htmlspecialchars($preview) . '</td><td>' . htmlspecialchars($quando) . '</td></tr>';
+    }
     echo '</tbody></table>';
 }
 
