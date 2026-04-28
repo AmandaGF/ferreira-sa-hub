@@ -1334,6 +1334,12 @@ function gerarMeet() {
         fd.append('lembrete_whatsapp', '1');
         fd.append('lembrete_portal', '1');
         fd.append('lembrete_cliente', '1');
+        // Backend exige participantes_ids pra reuniao_cliente/reuniao_interna.
+        // Sem isso o salvar retorna 'É obrigatório marcar pelo menos um participante'
+        // mesmo se Amanda já marcou na UI — o FormData simplesmente não tava
+        // incluindo o campo. Mesmo padrão de salvarEvento() abaixo.
+        var _partsMeet = (typeof _getParticipantesIds === 'function') ? _getParticipantesIds() : [];
+        _partsMeet.forEach(function(pid) { fd.append('participantes_ids[]', pid); });
 
         var xhr = new XMLHttpRequest();
         xhr.open('POST', API);
