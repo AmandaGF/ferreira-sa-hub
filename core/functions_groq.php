@@ -31,6 +31,12 @@ function groq_transcribe_file($filePath, $mime = null) {
     if (!$apiKey) return array('ok' => false, 'erro' => 'Chave Groq não configurada');
     if (!is_readable($filePath)) return array('ok' => false, 'erro' => 'Arquivo não legível: ' . $filePath);
 
+    // Pré-check: arquivos muito pequenos não passam no Whisper (mín 0.01s).
+    $tamanho = @filesize($filePath);
+    if ($tamanho !== false && $tamanho < 2048) {
+        return array('ok' => false, 'erro' => 'Áudio muito curto pra transcrever (' . $tamanho . ' bytes). Provavelmente foi enviado sem gravar conteúdo, ou metadata corrompido.');
+    }
+
     $mime = $mime ?: (mime_content_type($filePath) ?: 'audio/webm');
     $cfile = new CURLFile($filePath, $mime, basename($filePath));
 
@@ -60,6 +66,10 @@ function groq_transcribe_file($filePath, $mime = null) {
     $data = json_decode($resp, true);
     if ($code >= 200 && $code < 300 && isset($data['text'])) {
         return array('ok' => true, 'text' => trim($data['text']));
+    }
+    // Tradução de erro técnico do Groq pra mensagem humana
+    if ($code === 400 && isset($data['error']['message']) && stripos($data['error']['message'], 'too short') !== false) {
+        return array('ok' => false, 'erro' => 'Áudio sem duração definida no metadata (bug comum do Chrome em quem gravou). Reproduza ouvindo direto pelo player ▶️ — a transcrição automática não consegue processar.');
     }
     return array('ok' => false, 'erro' => 'HTTP ' . $code . ': ' . mb_substr($resp, 0, 300));
 }
