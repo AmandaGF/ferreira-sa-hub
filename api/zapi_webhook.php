@@ -39,6 +39,45 @@ $log("[{$numero}] " . substr($rawBody, 0, 500));
 $tipoEvt = $payload['type'] ?? '';
 $pdo = db();
 
+// ─── Log estruturado em DB pra debug forense (item 1 do plano de prevenção) ─
+// Cada webhook chamada vira 1 linha com payload + estratégia que bateu + conv/msg
+// resultantes. Quando der bug, dá pra reconstruir exatamente o que aconteceu.
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_webhook_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    canal VARCHAR(10) NULL,
+    tipo_evento VARCHAR(40) NULL,
+    payload_json LONGTEXT NULL,
+    estrategia_match VARCHAR(40) NULL,
+    conversa_id INT NULL,
+    mensagem_id INT NULL,
+    erro TEXT NULL,
+    duracao_ms INT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_created (created_at),
+    INDEX idx_canal_evt (canal, tipo_evento),
+    INDEX idx_conv (conversa_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
+$_zapiWebhookStart = microtime(true);
+$_zapiWebhookCtx = array(
+    'estrategia' => null, 'conversa_id' => null, 'mensagem_id' => null, 'erro' => null,
+);
+function _zapi_webhook_log_finalizar($numero, $tipoEvt, $rawBody) {
+    global $_zapiWebhookStart, $_zapiWebhookCtx;
+    try {
+        $duracao = (int)((microtime(true) - $_zapiWebhookStart) * 1000);
+        db()->prepare("INSERT INTO zapi_webhook_log
+            (canal, tipo_evento, payload_json, estrategia_match, conversa_id, mensagem_id, erro, duracao_ms)
+            VALUES (?,?,?,?,?,?,?,?)")
+            ->execute(array(
+                $numero, $tipoEvt, mb_substr($rawBody, 0, 8000),
+                $_zapiWebhookCtx['estrategia'], $_zapiWebhookCtx['conversa_id'],
+                $_zapiWebhookCtx['mensagem_id'], $_zapiWebhookCtx['erro'], $duracao
+            ));
+    } catch (Exception $e) {}
+}
+register_shutdown_function('_zapi_webhook_log_finalizar', $numero, $tipoEvt, $rawBody);
+
 try {
     switch ($tipoEvt) {
 
@@ -117,7 +156,7 @@ try {
                                      LIMIT 1");
                 $q0->execute(array($numero, $chatLid));
                 $conv = $q0->fetch();
-                if ($conv) $log("[{$numero}] MATCH-CHATLID chatLid={$chatLid} → conversa #{$conv['id']}");
+                if ($conv) { $log("[{$numero}] MATCH-CHATLID chatLid={$chatLid} → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'CHATLID'; }
             }
 
             // Estratégia 0a-bis: Match via clients.whatsapp_lid (LID canônico do cliente).
@@ -140,11 +179,19 @@ try {
                 $conv = $q0b2->fetch();
                 if ($conv) {
                     $log("[{$numero}] MATCH-CLIENT-LID lid={$lidBuscar} → conversa #{$conv['id']} (via clients.whatsapp_lid)");
+                    $_zapiWebhookCtx['estrategia'] = 'CLIENT-LID';
                     // Auto-popula chat_lid na conv pra próximas msgs já baterem na Estratégia 0
                     if (empty($conv['chat_lid']) && $chatLid) {
                         $pdo->prepare("UPDATE zapi_conversas SET chat_lid = ? WHERE id = ?")
                             ->execute(array($chatLid, $conv['id']));
                         $log("[{$numero}] auto-upgrade conv #{$conv['id']} chat_lid={$chatLid}");
+                    }
+                    // Auto-merge agressivo (item 3 do plano): se houver outras conv
+                    // duplicadas pro mesmo client_id no canal, mescla todas pra cá.
+                    // Resolve sozinho casos legacy sem precisar de script manual.
+                    if (!empty($conv['client_id'])) {
+                        $merged = zapi_auto_merge_por_client_id($pdo, (int)$conv['id'], (int)$conv['client_id'], $numero);
+                        if ($merged > 0) $log("[{$numero}] auto-merge: {$merged} conversa(s) mescladas em #{$conv['id']}");
                     }
                 }
             }
@@ -162,7 +209,7 @@ try {
                                       ORDER BY ultima_msg_em DESC LIMIT 1");
                 $q0b->execute(array($numero, $ult10));
                 $conv = $q0b->fetch();
-                if ($conv) $log("[{$numero}] MATCH-TELREAL senderPhone={$senderPhoneNum} → conversa #{$conv['id']}");
+                if ($conv) { $log("[{$numero}] MATCH-TELREAL senderPhone={$senderPhoneNum} → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'TELREAL'; }
             }
 
             // Estratégia 0c: Match por @LID PURO (phone igual a LID)
@@ -177,7 +224,7 @@ try {
                                       ORDER BY ultima_msg_em DESC LIMIT 1");
                 $q0c->execute(array($numero, $phoneRaw, $phoneRaw));
                 $conv = $q0c->fetch();
-                if ($conv) $log("[{$numero}] MATCH-LID phone={$phoneRaw} → conversa #{$conv['id']}");
+                if ($conv) { $log("[{$numero}] MATCH-LID phone={$phoneRaw} → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'LID-PURO'; }
             }
 
             // Estratégia 0d: isEdit — acha conversa via editMessageId (mensagem
@@ -190,7 +237,7 @@ try {
                                       ORDER BY m.id DESC LIMIT 1");
                 $q0d->execute(array($payload['editMessageId'], $numero));
                 $conv = $q0d->fetch();
-                if ($conv) $log("[{$numero}] MATCH-EDIT editMessageId={$payload['editMessageId']} → conversa #{$conv['id']}");
+                if ($conv) { $log("[{$numero}] MATCH-EDIT editMessageId={$payload['editMessageId']} → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'EDIT'; }
             }
 
             // Estratégias 1 e 2 (MATCH por NOME EXATO e PARCIAL) REMOVIDAS em 24/Abr/2026.
@@ -212,12 +259,13 @@ try {
                                         ORDER BY ultima_msg_em DESC LIMIT 1");
                     $q->execute(array($numero, '%' . substr($telPuro, -10) . '%'));
                     $conv = $q->fetch();
-                    if ($conv) $log("[{$numero}] MATCH-TEL tel-final='{$telPuro}' → conversa #{$conv['id']}");
+                    if ($conv) { $log("[{$numero}] MATCH-TEL tel-final='{$telPuro}' → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'TEL-PURO'; }
                 }
             }
 
             if (!$conv) {
                 $conv = zapi_buscar_ou_criar_conversa($telefone, $numero, $nome, $ehGrupo);
+                $_zapiWebhookCtx['estrategia'] = 'NOVA';
             } elseif ($ehGrupo && !empty($chatName)) {
                 // Conversa de grupo já existente: mantém nome_contato sincronizado com
                 // o chatName atual (nome do grupo pode ter mudado, ou foi gravado
@@ -399,6 +447,8 @@ try {
                     $arquivo['mime'] ?? null, $arquivo['tamanho'] ?? null,
                 ));
                 $msgId = (int)$pdo->lastInsertId();
+                $_zapiWebhookCtx['conversa_id'] = (int)$conv['id'];
+                $_zapiWebhookCtx['mensagem_id'] = $msgId;
 
                 // Atualiza resumo (sem incrementar não-lidas)
                 $ultMsg = $conteudo ?: ('[' . $tipo . ']');
