@@ -18,15 +18,15 @@ if (empty($convs)) exit;
 // Últimas msgs da conversa
 $convId = $convs[0]['id'];
 echo "\n=== Últimas 15 mensagens (conv {$convId}) ===\n";
-$st = $pdo->prepare("SELECT id, direcao, tipo, LEFT(conteudo, 60) as txt, status, zapi_message_id, zapi_response, created_at FROM zapi_mensagens WHERE conversa_id = ? ORDER BY id DESC LIMIT 15");
-$st->execute(array($convId));
-foreach (array_reverse($st->fetchAll()) as $m) {
-    echo "id={$m['id']} | {$m['direcao']} | {$m['tipo']} | status={$m['status']} | msg_id=" . ($m['zapi_message_id'] ?: '<vazio>') . " | {$m['created_at']} | {$m['txt']}\n";
-    if ($m['direcao'] === 'enviada' && $m['zapi_response']) {
-        $j = json_decode($m['zapi_response'], true);
-        if ($j) echo "    response: " . json_encode($j, JSON_UNESCAPED_UNICODE) . "\n";
+try {
+    $st = $pdo->prepare("SELECT * FROM zapi_mensagens WHERE conversa_id = ? ORDER BY id DESC LIMIT 15");
+    $st->execute(array($convId));
+    $rows = $st->fetchAll();
+    foreach (array_reverse($rows) as $m) {
+        $txt = mb_substr($m['conteudo'] ?? '', 0, 60);
+        echo "id={$m['id']} | {$m['direcao']} | {$m['tipo']} | status=" . ($m['status'] ?? '-') . " | msg_id=" . ($m['zapi_message_id'] ?: '<vazio>') . " | " . ($m['created_at'] ?? '') . " | {$txt}\n";
     }
-}
+} catch (Exception $e) { echo "Erro: " . $e->getMessage() . "\n"; }
 
 // Phone-exists na Z-API pra esse número
 echo "\n=== Validar número via Z-API /phone-exists ===\n";
