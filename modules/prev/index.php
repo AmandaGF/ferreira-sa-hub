@@ -25,6 +25,17 @@ $filterTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
 $filterComarca = isset($_GET['comarca']) ? trim($_GET['comarca']) : '';
 
 // Colunas do Kanban PREV
+// Self-heal: tabela genérica pra esconder colunas de Kanbans por usuário.
+// Permite ocultar qualquer aba pra um user específico sem mexer no código.
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS user_kanban_hidden_columns (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    kanban_modulo VARCHAR(40) NOT NULL,
+    column_key VARCHAR(60) NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_kanban_col (user_id, kanban_modulo, column_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
 $columns = array(
     'aguardando_docs'           => array('label' => 'Aguardando Docs',            'color' => '#E67E22', 'icon' => '📁'),
     'pasta_apta'                => array('label' => 'Pasta Apta',                  'color' => '#27AE60', 'icon' => '✅'),
@@ -40,6 +51,15 @@ $columns = array(
     'parceria'                  => array('label' => 'Parceria',                    'color' => '#17A589', 'icon' => '🤝'),
     'cancelado'                 => array('label' => 'Cancelado',                   'color' => '#616A6B', 'icon' => '✕'),
 );
+
+// Esconde colunas configuradas pra esse usuário (ex: Simone não vê 'Parceria')
+try {
+    $stHide = $pdo->prepare("SELECT column_key FROM user_kanban_hidden_columns WHERE user_id = ? AND kanban_modulo = 'prev'");
+    $stHide->execute(array($userId));
+    foreach ($stHide->fetchAll(PDO::FETCH_COLUMN) as $colKey) {
+        if (isset($columns[$colKey])) unset($columns[$colKey]);
+    }
+} catch (Exception $e) {}
 
 // Tipos de benefício
 $tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
