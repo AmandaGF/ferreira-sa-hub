@@ -58,7 +58,10 @@ if (!empty($candidatos)) {
             echo "Sample[0]: " . json_encode(array_slice($r['results'], 0, 2), JSON_UNESCAPED_UNICODE) . "\n";
             $atualizados = 0;
             foreach ($r['results'] as $row) {
-                $phoneRet = preg_replace('/\D/', '', $row['phone'] ?? '');
+                // Z-API responde {exists, inputPhone, outputPhone, lid}.
+                // outputPhone = número normalizado pela Z-API (pode mudar — ex: 9 mudo).
+                // inputPhone = o que mandamos. Tentamos ambos pra ser robusto.
+                $phoneRet = preg_replace('/\D/', '', $row['outputPhone'] ?? $row['inputPhone'] ?? $row['phone'] ?? '');
                 $lidRet = $row['lid'] ?? null;
                 if (!$phoneRet) continue;
                 // Tenta match exato primeiro, depois sufixo (caso Z-API responda sem 55)
@@ -111,7 +114,10 @@ if (!empty($revalidar)) {
         if (!empty($r['results'])) {
             $iguais = 0; $mudados = 0; $sumiu = 0;
             foreach ($r['results'] as $row) {
-                $phoneRet = preg_replace('/\D/', '', $row['phone'] ?? '');
+                // Z-API responde {exists, inputPhone, outputPhone, lid}.
+                // outputPhone = número normalizado pela Z-API (pode mudar — ex: 9 mudo).
+                // inputPhone = o que mandamos. Tentamos ambos pra ser robusto.
+                $phoneRet = preg_replace('/\D/', '', $row['outputPhone'] ?? $row['inputPhone'] ?? $row['phone'] ?? '');
                 $lidRet = $row['lid'] ?? null;
                 if (!$phoneRet || !isset($phonesByDigits[$phoneRet])) continue;
                 $cli = $phonesByDigits[$phoneRet];
