@@ -78,10 +78,17 @@ foreach ($convs as $c) {
         }
         $params[] = $c['id'];
         if ($confirmar) {
-            $pdo->prepare("UPDATE zapi_conversas SET " . implode(', ', $upd) . " WHERE id = ?")->execute($params);
+            try {
+                $pdo->prepare("UPDATE zapi_conversas SET " . implode(', ', $upd) . " WHERE id = ?")->execute($params);
+                $r['acao'] = 'UPGRADE';
+                $upgraded++;
+            } catch (Exception $e) {
+                $r['acao'] = 'ERRO: ' . $e->getMessage();
+            }
+        } else {
+            $r['acao'] = 'UPGRADE';
+            $upgraded++;
         }
-        $r['acao'] = 'UPGRADE';
-        $upgraded++;
     } else {
         $r['acao'] = 'sem dados nos logs';
     }
