@@ -11,15 +11,26 @@ echo '<h1>🎵 Verificar arquivos físicos dos áudios da Enayle</h1>';
 
 // Áudios da conv 660 e 795
 echo '<h2>Áudios das conversas 660 e 795 (Enayle)</h2>';
-$st = $pdo->prepare("SELECT id, conversa_id, direcao, tipo, conteudo, arquivo_url, arquivo_mime, criada_em
-                     FROM zapi_mensagens WHERE conversa_id IN (660, 795) AND tipo IN ('audio','documento','imagem','video')
-                     ORDER BY id DESC LIMIT 30");
-$st->execute();
-$msgs = $st->fetchAll();
+try {
+    $st = $pdo->prepare("SELECT * FROM zapi_mensagens WHERE conversa_id IN (660, 795) AND tipo IN ('audio','documento','imagem','video') ORDER BY id DESC LIMIT 30");
+    $st->execute();
+    $msgs = $st->fetchAll();
+    if (!empty($msgs)) {
+        echo '<p style="color:#6b7280;font-size:.8rem">Colunas disponíveis: <code>' . htmlspecialchars(implode(', ', array_keys($msgs[0]))) . '</code></p>';
+    }
+} catch (Exception $e) {
+    echo '<p class="no">Erro: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    $msgs = array();
+}
 
 echo '<table><thead><tr><th>ID</th><th>Conv</th><th>Dir</th><th>Tipo</th><th>arquivo_url</th><th>Mime</th><th>Quando</th><th>Existe servidor?</th></tr></thead><tbody>';
 foreach ($msgs as $m) {
-    $url = $m['arquivo_url'] ?? '';
+    // Tenta achar URL do arquivo em vários nomes possíveis
+    $url = $m['arquivo_url'] ?? $m['midia_url'] ?? $m['file_url'] ?? $m['url'] ?? '';
+    // Conteúdo pode conter a URL também (se for media salvo na coluna texto)
+    if (!$url && !empty($m['conteudo']) && (strpos($m['conteudo'], 'http') === 0 || strpos($m['conteudo'], '/files/whatsapp') !== false)) {
+        $url = $m['conteudo'];
+    }
     $existe = '?';
     $tamanho = '';
     $contentType = '';
@@ -59,7 +70,9 @@ foreach ($msgs as $m) {
         $existe = '<em>(sem URL)</em>';
     }
 
-    echo '<tr><td>' . $m['id'] . '</td><td>' . $m['conversa_id'] . '</td><td>' . htmlspecialchars($m['direcao']) . '</td><td><strong>' . htmlspecialchars($m['tipo']) . '</strong></td><td><code style="font-size:10px">' . htmlspecialchars(mb_substr($url ?: '(vazio)', 0, 80)) . '</code></td><td>' . htmlspecialchars($m['arquivo_mime'] ?? '-') . '</td><td>' . htmlspecialchars($m['criada_em'] ?? '-') . '</td><td>' . $existe . $tamanho . '</td></tr>';
+    $mime = $m['arquivo_mime'] ?? $m['midia_mime'] ?? $m['mime'] ?? '-';
+    $quando = $m['criada_em'] ?? $m['created_at'] ?? '-';
+    echo '<tr><td>' . $m['id'] . '</td><td>' . $m['conversa_id'] . '</td><td>' . htmlspecialchars($m['direcao'] ?? '-') . '</td><td><strong>' . htmlspecialchars($m['tipo'] ?? '-') . '</strong></td><td><code style="font-size:10px">' . htmlspecialchars(mb_substr($url ?: '(vazio)', 0, 80)) . '</code></td><td>' . htmlspecialchars($mime) . '</td><td>' . htmlspecialchars($quando) . '</td><td>' . $existe . $tamanho . '</td></tr>';
 }
 echo '</tbody></table>';
 
