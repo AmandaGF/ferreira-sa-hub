@@ -310,6 +310,51 @@ try {
                 exit;
             }
 
+            // ── AUTO-UPGRADE de conv legacy (28/Abr/2026 — fix do bug Anselmo/Juliano) ──
+            // Quando uma conv foi criada inicialmente com lid bruto (msg fromMe sem
+            // senderPhoneNumber no payload) e DEPOIS chega uma msg do cliente COM
+            // número real e/ou chatName válido, atualiza a conv: telefone real,
+            // nome_contato real, marca como revisada (precisa_revisao = 0).
+            // Sem esse upgrade, conv ficava pra sempre com lid bruto na UI.
+            if (!$ehGrupo && $conv) {
+                $upd = array();
+                $params = array();
+                $telConvDigits = preg_replace('/\D/', '', (string)($conv['telefone'] ?? ''));
+                $telPayloadDigits = $senderPhoneNum ? preg_replace('/\D/', '', $senderPhoneNum) : '';
+                // Se tel da conv tem >14 dígitos (= lid bruto) E payload trouxe número real
+                if (strlen($telConvDigits) > 14 && strlen($telPayloadDigits) >= 10 && strlen($telPayloadDigits) <= 14) {
+                    $upd[] = "telefone = ?";
+                    $params[] = $senderPhoneNum;
+                    $log("[{$numero}] auto-upgrade conv #{$conv['id']} telefone: '{$conv['telefone']}' → '{$senderPhoneNum}'");
+                }
+                // Se nome_contato é igual ao lid bruto OU vazio E chatName veio como nome real
+                $nomeAtual = trim((string)($conv['nome_contato'] ?? ''));
+                $nomeEhLid = $nomeAtual === '' || strpos($nomeAtual, '@lid') !== false || preg_match('/^\d{14,}$/', $nomeAtual);
+                if ($nomeEhLid && !empty($chatName) && !preg_match('/@lid/', $chatName) && !preg_match('/^\d{14,}$/', $chatName)) {
+                    $upd[] = "nome_contato = ?";
+                    $params[] = $chatName;
+                    $log("[{$numero}] auto-upgrade conv #{$conv['id']} nome_contato: '{$nomeAtual}' → '{$chatName}'");
+                }
+                // Se conseguimos número real, limpa flag de revisão
+                if (!empty($upd) && strlen($telPayloadDigits) >= 10 && strlen($telPayloadDigits) <= 14) {
+                    $upd[] = "precisa_revisao = 0";
+                    $upd[] = "motivo_revisao = NULL";
+                }
+                if (!empty($upd)) {
+                    $params[] = $conv['id'];
+                    try {
+                        $pdo->prepare("UPDATE zapi_conversas SET " . implode(', ', $upd) . " WHERE id = ?")
+                            ->execute($params);
+                        // Recarrega conv pra refletir mudanças no resto do fluxo
+                        $reload = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+                        $reload->execute(array($conv['id']));
+                        $conv = $reload->fetch() ?: $conv;
+                    } catch (Exception $e) {
+                        $log("[{$numero}] auto-upgrade conv #{$conv['id']} ERRO: " . $e->getMessage());
+                    }
+                }
+            }
+
             // ── DEFESA fromMe (24/Abr/2026) ──
             // Se é fromMe (mensagem enviada pelo escritório) e o telefone do payload
             // NÃO bate com o telefone da conversa achada, CRIA conversa nova em vez
