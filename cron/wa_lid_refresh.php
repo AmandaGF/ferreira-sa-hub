@@ -54,13 +54,30 @@ if (!empty($candidatos)) {
         $r = zapi_phone_exists_batch('21', array_keys($phonesByDigits));
         echo "Batch HTTP " . ($r['http_code'] ?? '?') . " - results: " . (isset($r['results']) ? count($r['results']) : 0) . "\n";
         if (!empty($r['results'])) {
+            // Debug: primeiros 2 results pra inspecionar formato real
+            echo "Sample[0]: " . json_encode(array_slice($r['results'], 0, 2), JSON_UNESCAPED_UNICODE) . "\n";
             $atualizados = 0;
             foreach ($r['results'] as $row) {
                 $phoneRet = preg_replace('/\D/', '', $row['phone'] ?? '');
                 $lidRet = $row['lid'] ?? null;
-                if (!$phoneRet || !$lidRet) continue;
-                if (!isset($phonesByDigits[$phoneRet])) continue;
-                $clientId = $phonesByDigits[$phoneRet];
+                if (!$phoneRet) continue;
+                // Tenta match exato primeiro, depois sufixo (caso Z-API responda sem 55)
+                $clientId = null;
+                if (isset($phonesByDigits[$phoneRet])) {
+                    $clientId = $phonesByDigits[$phoneRet];
+                } else {
+                    foreach ($phonesByDigits as $key => $cid) {
+                        if (substr($key, -10) === substr($phoneRet, -10) && strlen($phoneRet) >= 10) {
+                            $clientId = $cid; break;
+                        }
+                    }
+                }
+                if (!$clientId) continue;
+                if (!$lidRet) {
+                    $pdo->prepare("UPDATE clients SET whatsapp_lid_updated_at = NOW() WHERE id = ?")
+                        ->execute(array($clientId));
+                    continue;
+                }
                 $pdo->prepare("UPDATE clients SET whatsapp_lid = ?, whatsapp_lid_updated_at = NOW() WHERE id = ? AND (whatsapp_lid IS NULL OR whatsapp_lid = '')")
                     ->execute(array($lidRet, $clientId));
                 $atualizados++;
