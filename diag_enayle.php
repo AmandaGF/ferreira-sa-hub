@@ -11,34 +11,38 @@ echo '<h1>🔍 Caso Enayle Garcia Fontes — mensagens "perdidas"</h1>';
 
 // 1. Todas as conversas que tenham 99839644, 132508599484417 ou client_id=674
 echo '<h2>1. Todas as conversas relacionadas (telefone, lid, client_id=674)</h2>';
-$st = $pdo->query("SELECT id, telefone, chat_lid, client_id, canal, status, criada_em
-                   FROM zapi_conversas
+$st = $pdo->query("SELECT * FROM zapi_conversas
                    WHERE telefone LIKE '%99839644%'
                       OR chat_lid LIKE '%132508599484417%'
                       OR client_id = 674
                    ORDER BY id ASC");
 $convs = $st->fetchAll();
-echo '<table><thead><tr><th>ID</th><th>Telefone</th><th>chat_lid</th><th>client_id</th><th>Canal</th><th>Status</th><th>Criada</th></tr></thead><tbody>';
-foreach ($convs as $c) echo '<tr><td>' . $c['id'] . '</td><td>' . htmlspecialchars($c['telefone'] ?? '') . '</td><td>' . htmlspecialchars($c['chat_lid'] ?? '-') . '</td><td>' . ($c['client_id'] ?? '-') . '</td><td>' . $c['canal'] . '</td><td>' . htmlspecialchars($c['status'] ?? '-') . '</td><td>' . ($c['criada_em'] ?? '-') . '</td></tr>';
+echo '<table><thead><tr><th>ID</th><th>Telefone</th><th>chat_lid</th><th>client_id</th><th>Canal</th><th>Status</th></tr></thead><tbody>';
+foreach ($convs as $c) echo '<tr><td>' . $c['id'] . '</td><td>' . htmlspecialchars($c['telefone'] ?? '') . '</td><td>' . htmlspecialchars($c['chat_lid'] ?? '-') . '</td><td>' . ($c['client_id'] ?? '-') . '</td><td>' . ($c['canal'] ?? '-') . '</td><td>' . htmlspecialchars($c['status'] ?? '-') . '</td></tr>';
 echo '</tbody></table>';
 
 // 2. Em audit_log: merges/limpezas envolvendo conv 660 ou client 674
 echo '<h2>2. audit_log envolvendo conv 660 ou client 674</h2>';
-$st = $pdo->prepare("SELECT * FROM audit_log
-                     WHERE (entidade_tipo = 'zapi_conversas' AND entidade_id = 660)
-                        OR (entidade_tipo = 'clients' AND entidade_id = 674)
-                        OR detalhes LIKE '%conv%660%'
-                        OR detalhes LIKE '%client%674%'
-                        OR detalhes LIKE '%99839644%'
-                        OR detalhes LIKE '%132508599484417%'
-                     ORDER BY id DESC LIMIT 30");
-$st->execute();
-$logs = $st->fetchAll();
+try {
+    $st = $pdo->prepare("SELECT * FROM audit_log WHERE
+                         (entity_type IN ('zapi_conversas','conv','conversa') AND entity_id = 660)
+                         OR (entity_type IN ('clients','client') AND entity_id = 674)
+                         OR description LIKE '%99839644%'
+                         OR description LIKE '%132508599484417%'
+                         OR description LIKE '%conv%660%'
+                         OR action LIKE '%merge%'
+                         ORDER BY id DESC LIMIT 30");
+    $st->execute();
+    $logs = $st->fetchAll();
+} catch (Exception $e) {
+    echo '<p>Erro audit: ' . htmlspecialchars($e->getMessage()) . '</p>';
+    $logs = array();
+}
 if (empty($logs)) {
     echo '<p>Nenhum registro de auditoria.</p>';
 } else {
     echo '<table><thead><tr><th>ID</th><th>Quando</th><th>Usuário</th><th>Ação</th><th>Entidade</th><th>Detalhes</th></tr></thead><tbody>';
-    foreach ($logs as $l) echo '<tr><td>' . $l['id'] . '</td><td>' . $l['created_at'] . '</td><td>' . ($l['user_id'] ?? '-') . '</td><td>' . htmlspecialchars($l['acao'] ?? '') . '</td><td>' . htmlspecialchars($l['entidade_tipo'] ?? '') . ' #' . ($l['entidade_id'] ?? '') . '</td><td>' . htmlspecialchars(mb_substr($l['detalhes'] ?? '', 0, 200)) . '</td></tr>';
+    foreach ($logs as $l) echo '<tr><td>' . $l['id'] . '</td><td>' . ($l['created_at'] ?? '-') . '</td><td>' . ($l['user_id'] ?? '-') . '</td><td>' . htmlspecialchars($l['action'] ?? $l['acao'] ?? '') . '</td><td>' . htmlspecialchars(($l['entity_type'] ?? $l['entidade_tipo'] ?? '') . ' #' . ($l['entity_id'] ?? $l['entidade_id'] ?? '')) . '</td><td>' . htmlspecialchars(mb_substr($l['description'] ?? $l['detalhes'] ?? '', 0, 200)) . '</td></tr>';
     echo '</tbody></table>';
 }
 
