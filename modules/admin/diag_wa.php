@@ -10,20 +10,24 @@
  *
  * Acesso admin: ?key=fsa-hub-deploy-2026 [&numero=SUFIXO]
  */
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
+require_once __DIR__ . '/../../core/middleware.php';
+require_login();
+require_role('admin');
 
-require_once __DIR__ . '/core/database.php';
-require_once __DIR__ . '/core/functions_zapi.php';
+require_once __DIR__ . '/../../core/functions_zapi.php';
 
-if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
+$pageTitle = 'Diagnóstico WhatsApp';
+include __DIR__ . '/../../templates/layout_start.php';
+
 $pdo = db();
 $sufixoBusca = preg_replace('/\D/', '', $_GET['numero'] ?? '');
 
-echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Saúde WhatsApp Hub</title>';
-echo '<style>body{font-family:system-ui,Arial;padding:20px;max-width:1400px;margin:0 auto;}h1,h2{color:#052228;border-bottom:2px solid #B87333;padding-bottom:6px;margin-top:2rem}h2{font-size:1.05rem}table{width:100%;border-collapse:collapse;margin:.5rem 0}th,td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px;vertical-align:top}th{background:#052228;color:#fff}pre{background:#f8fafc;padding:8px;border-radius:6px;font-size:11px;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-all}.box{background:#fef3c7;padding:.6rem 1rem;border-radius:8px;margin:.5rem 0;font-size:.85rem}.ok{color:#065f46;font-weight:700}.no{color:#991b1b;font-weight:700}.warn{color:#b45309;font-weight:700}tr.fail{background:#fee2e2}tr.ok{background:#ecfdf5}.tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:700}</style>';
-echo '</head><body>';
-echo '<h1>🩺 Saúde WhatsApp Hub — ' . date('d/m/Y H:i') . '</h1>';
+echo '<style>h2.diag-h{color:#052228;border-bottom:2px solid #B87333;padding-bottom:6px;margin-top:2rem;font-size:1.05rem}.diag-tbl{width:100%;border-collapse:collapse;margin:.5rem 0}.diag-tbl th,.diag-tbl td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px;vertical-align:top}.diag-tbl th{background:#052228;color:#fff}pre{background:#f8fafc;padding:8px;border-radius:6px;font-size:11px;max-height:240px;overflow:auto;white-space:pre-wrap;word-break:break-all}.diag-box{background:#fef3c7;padding:.6rem 1rem;border-radius:8px;margin:.5rem 0;font-size:.85rem}.diag-ok-c{color:#065f46;font-weight:700}.diag-no-c{color:#991b1b;font-weight:700}.diag-warn-c{color:#b45309;font-weight:700}tr.diag-fail{background:#fee2e2}tr.diag-ok-r{background:#ecfdf5}</style>';
+echo '<h1 style="color:#052228">🩺 Diagnóstico WhatsApp Hub</h1>';
+echo '<p style="color:#6b7280;font-size:.85rem">Verificação ao vivo · ' . date('d/m/Y H:i') . ' · <a href="?numero=" style="color:#B87333">recarregar</a> · <form method="get" style="display:inline">Buscar nº (sufixo): <input type="text" name="numero" value="' . htmlspecialchars($sufixoBusca) . '" placeholder="ex: 67029991" style="padding:3px 8px;border:1px solid #ccc;border-radius:4px"> <button style="padding:3px 12px;border-radius:4px;background:#052228;color:#fff;border:0">Buscar</button></form></p>';
+
+// Aliasing pra não quebrar o resto do script que usa essas classes
+echo '<style>h2{font-size:1.05rem;color:#052228;border-bottom:2px solid #B87333;padding-bottom:6px;margin-top:2rem}body table{width:100%;border-collapse:collapse;margin:.5rem 0}body table th,body table td{padding:6px 8px;border-bottom:1px solid #e5e7eb;text-align:left;font-size:12px;vertical-align:top}body table th{background:#052228;color:#fff}.box{background:#fef3c7;padding:.6rem 1rem;border-radius:8px;margin:.5rem 0;font-size:.85rem}.ok{color:#065f46;font-weight:700}.no{color:#991b1b;font-weight:700}.warn{color:#b45309;font-weight:700}tr.fail{background:#fee2e2}tr.ok{background:#ecfdf5}</style>';
 
 // ─── 1. Status das instâncias 21 e 24 ────────────────────────────────
 echo '<h2>1. Status das instâncias Z-API</h2>';
@@ -228,4 +232,5 @@ if ($sufixoBusca) {
 }
 
 echo '<hr><p style="font-size:.8rem;color:#94a3b8;">Diag rodado em ' . date('Y-m-d H:i:s') . '</p>';
-echo '</body></html>';
+
+include __DIR__ . '/../../templates/layout_end.php';
