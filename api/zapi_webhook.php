@@ -159,6 +159,31 @@ try {
                 if ($conv) { $log("[{$numero}] MATCH-CHATLID chatLid={$chatLid} → conversa #{$conv['id']}"); $_zapiWebhookCtx['estrategia'] = 'CHATLID'; }
             }
 
+            // Estratégia 0bis: Match por SENDER_LID. Doc oficial Z-API confirma que
+            // senderLid vem em "quase todos os payloads" (sempre com sufixo @lid),
+            // enquanto chatLid é opcional (só em templates e certos tipos). Por isso
+            // o senderLid é mais consistente como chave de matching e deve ser
+            // testado logo após chatLid. Ref: developer.z-api.io/tips/lid +
+            // z-api.io/blog/lid-no-whatsapp-o-que-e-por-que-aparece
+            if (!$conv && !$ehGrupo && !empty($senderLid) && $senderLid !== $chatLid) {
+                $q0bis = $pdo->prepare("SELECT * FROM zapi_conversas
+                                        WHERE canal = ?
+                                          AND (chat_lid = ? OR telefone = ?)
+                                          AND (eh_grupo = 0 OR eh_grupo IS NULL)
+                                        ORDER BY ultima_msg_em DESC LIMIT 1");
+                $q0bis->execute(array($numero, $senderLid, $senderLid));
+                $conv = $q0bis->fetch();
+                if ($conv) {
+                    $log("[{$numero}] MATCH-SENDERLID senderLid={$senderLid} → conversa #{$conv['id']}");
+                    $_zapiWebhookCtx['estrategia'] = 'SENDERLID';
+                    // Auto-popula chat_lid pra próximas msgs caírem na Estratégia 0
+                    if (empty($conv['chat_lid'])) {
+                        $pdo->prepare("UPDATE zapi_conversas SET chat_lid = ? WHERE id = ?")
+                            ->execute(array($senderLid, $conv['id']));
+                    }
+                }
+            }
+
             // Estratégia 0a-bis: Match via clients.whatsapp_lid (LID canônico do cliente).
             // Adicionado em 28/Abr/2026 — resolve o bug que criava conversas duplicadas
             // pra clientes que já tinham LID cadastrado, mas a conv antiga deles ainda não

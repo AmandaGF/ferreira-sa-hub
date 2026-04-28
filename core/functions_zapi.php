@@ -92,6 +92,60 @@ function zapi_phone_exists($ddd, $phone) {
 }
 
 /**
+ * Consulta /phone-exists-batch da Z-API — recebe lista de telefones, devolve
+ * array com {phone, exists, lid} pra cada. Doc: aceita até 50.000 números/req.
+ * Ref: https://developer.z-api.io/contacts/get-iswhatsapp-batch.md
+ *
+ * @param string $ddd Canal ('21' ou '24')
+ * @param array $phones Lista de strings (qualquer formato — normalizamos pra E.164 BR)
+ * @return array ['ok' => bool, 'results' => [{phone, exists, lid}], 'erro' => string|null, 'http_code' => int]
+ */
+function zapi_phone_exists_batch($ddd, $phones) {
+    $inst = zapi_get_instancia($ddd);
+    if (!$inst) return array('ok' => false, 'erro' => 'Instância DDD ' . $ddd . ' não configurada');
+    $cfg = zapi_get_config();
+
+    // Normaliza cada número pra "55XXYYYYYYYYY" (E.164 BR)
+    $normalizados = array();
+    foreach ($phones as $p) {
+        $num = preg_replace('/\D/', '', (string)$p);
+        if (strlen($num) === 10 || strlen($num) === 11) $num = '55' . $num;
+        if (strlen($num) >= 10) $normalizados[] = $num;
+    }
+    $normalizados = array_values(array_unique($normalizados));
+    if (empty($normalizados)) return array('ok' => false, 'erro' => 'Nenhum telefone válido na lista');
+
+    $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/phone-exists-batch';
+    $headers = array('Content-Type: application/json');
+    if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 60,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_POSTFIELDS     => json_encode(array('phones' => $normalizados)),
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+
+    if ($err) return array('ok' => false, 'erro' => $err, 'http_code' => $code);
+    if ($code < 200 || $code >= 300) {
+        return array('ok' => false, 'erro' => 'HTTP ' . $code . ': ' . substr($resp, 0, 300), 'http_code' => $code);
+    }
+
+    $data = json_decode($resp, true);
+    if (!is_array($data)) return array('ok' => false, 'erro' => 'Resposta inválida', 'http_code' => $code);
+
+    // Doc devolve array de objetos. Cada um tem {exists, phone, lid}
+    return array('ok' => true, 'results' => $data, 'http_code' => $code);
+}
+
+/**
  * Consulta o @lid de um cliente via Z-API e salva em clients.whatsapp_lid.
  * Idempotente — se já tem @lid salvo, retorna sem chamar API (só atualiza se force=true).
  *
