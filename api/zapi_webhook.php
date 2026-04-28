@@ -462,14 +462,16 @@ try {
                 // Mensagem enviada pelo celular — espelhar como 'enviada' no Hub
                 $tiposValidos = array('texto','imagem','documento','audio','video','sticker','localizacao','contato','outro');
                 if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outro';
+                $momment = isset($payload['momment']) ? (int)$payload['momment'] : null;
                 $pdo->prepare(
                     "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
-                        arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status)
-                     VALUES (?, ?, 'enviada', ?, ?, ?, ?, ?, ?, 'enviada')"
+                        arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, momment_ms)
+                     VALUES (?, ?, 'enviada', ?, ?, ?, ?, ?, ?, 'enviada', ?)"
                 )->execute(array(
                     $conv['id'], $zapiMsgId, $tipo, $conteudo,
                     $arquivo['url']  ?? null, $arquivo['nome'] ?? null,
                     $arquivo['mime'] ?? null, $arquivo['tamanho'] ?? null,
+                    $momment,
                 ));
                 $msgId = (int)$pdo->lastInsertId();
                 $_zapiWebhookCtx['conversa_id'] = (int)$conv['id'];

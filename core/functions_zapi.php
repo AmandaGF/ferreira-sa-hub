@@ -938,10 +938,19 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
     $tiposValidos = array('texto','imagem','documento','audio','video','sticker','localizacao','contato','outro');
     if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outro';
 
+    // Self-heal: coluna momment_ms (timestamp original em ms da Z-API).
+    // Doc Z-API confirma campo `momment` (sic — com 2 m's) no payload de
+    // ReceivedCallback. Usado pra ordenar mensagens cronologicamente quando
+    // várias chegam em rajada (ordem de inserção != ordem de envio do cliente).
+    try { db()->exec("ALTER TABLE zapi_mensagens ADD COLUMN momment_ms BIGINT NULL"); } catch (Exception $e) {}
+    try { db()->exec("CREATE INDEX idx_msgs_momment ON zapi_mensagens(conversa_id, momment_ms)"); } catch (Exception $e) {}
+
+    $momment = isset($payload['momment']) ? (int)$payload['momment'] : null;
+
     db()->prepare(
         "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
-            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status)
-         VALUES (?, ?, 'recebida', ?, ?, ?, ?, ?, ?, 'recebida')"
+            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, momment_ms)
+         VALUES (?, ?, 'recebida', ?, ?, ?, ?, ?, ?, 'recebida', ?)"
     )->execute(array(
         $conversaId,
         $zapiMsgId,
@@ -951,6 +960,7 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
         $arquivo['nome']    ?? null,
         $arquivo['mime']    ?? null,
         $arquivo['tamanho'] ?? null,
+        $momment,
     ));
     return (int)db()->lastInsertId();
 }

@@ -436,19 +436,23 @@ if ($action === 'abrir_conversa') {
     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN pinned_at DATETIME NULL"); } catch (Exception $e) {}
 
-    // Mensagens: últimas 500 MAIS RECENTES (pegar só 200 ASC estava escondendo
-    // as recentes em conversas mescladas/longas — bug relatado pela Amanda).
-    // Pega desc com LIMIT e reordena ASC em PHP pra exibir cronologia correta.
+    // Mensagens: últimas 500 MAIS RECENTES, ordenadas pelo timestamp ORIGINAL
+    // da Z-API (momment_ms — em ms desde epoch). Antes era ORDER BY id, mas
+    // quando o cliente manda várias msgs em rajada a Z-API pode entregar fora
+    // de ordem; ordenar por id mostrava elas embaralhadas. Fallback pra
+    // UNIX_TIMESTAMP(created_at)*1000 quando momment_ms não veio (msgs antigas).
+    // Desempate por id pra manter estabilidade.
     $msgs = $pdo->prepare("SELECT * FROM (
                                 SELECT m.*, u.name AS enviado_por_name, u.wa_display_name AS enviado_por_display_name,
+                                    COALESCE(m.momment_ms, UNIX_TIMESTAMP(m.created_at)*1000) AS _ord_ts,
                                     (SELECT m2.conteudo FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_conteudo,
                                     (SELECT m2.direcao  FROM zapi_mensagens m2 WHERE m2.conversa_id = m.conversa_id AND m2.zapi_message_id = m.reply_to_message_id LIMIT 1) AS reply_to_direcao
                                 FROM zapi_mensagens m
                                 LEFT JOIN users u ON u.id = m.enviado_por_id
                                 WHERE m.conversa_id = ?
-                                ORDER BY m.id DESC
+                                ORDER BY _ord_ts DESC, m.id DESC
                                 LIMIT 500
-                           ) sub ORDER BY id ASC");
+                           ) sub ORDER BY _ord_ts ASC, id ASC");
     $msgs->execute(array($id));
     $mensagens = $msgs->fetchAll();
 
