@@ -5,6 +5,80 @@
  */
 
 /**
+ * Decide qual nome usar pra saudação automática (aniversário, lembretes, etc).
+ *
+ * Estratégia em cascata:
+ * 1. clients.nome_preferido (override manual — primeiro nome custom)
+ * 2. zapi_conversas.nome_contato da conv mais recente (push name do WhatsApp
+ *    do próprio cliente — é como ELE escolheu se identificar)
+ * 3. Primeiro nome de clients.name (fallback — pode ser nome legal completo)
+ *
+ * Ex: Cliente cadastrada como "RAYANE JOYCE DA SILVA MACHADO" mas no WhatsApp
+ * dela aparece como "Joyce Machado" → retorna "Joyce" em vez de "Rayane".
+ *
+ * Filtra push names que não são nome de pessoa (emoji, "Pai", "Mãe", etc).
+ *
+ * @param int $clientId
+ * @return string Primeiro nome capitalizado, pronto pra usar em "Olá, X!"
+ */
+function zapi_nome_saudacao($clientId) {
+    $clientId = (int)$clientId;
+    if ($clientId <= 0) return '';
+    $pdo = db();
+
+    // Self-heal: coluna nome_preferido pra override manual
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN nome_preferido VARCHAR(60) NULL"); } catch (Exception $e) {}
+
+    $cli = $pdo->prepare("SELECT name, nome_preferido FROM clients WHERE id = ?");
+    $cli->execute(array($clientId));
+    $row = $cli->fetch();
+    if (!$row) return '';
+
+    // 1. Override manual
+    if (!empty($row['nome_preferido'])) {
+        return _zapi_primeiro_nome($row['nome_preferido']);
+    }
+
+    // 2. Push name da conversa mais recente
+    $stmt = $pdo->prepare("SELECT nome_contato FROM zapi_conversas
+                           WHERE client_id = ? AND COALESCE(eh_grupo,0)=0
+                             AND nome_contato IS NOT NULL AND nome_contato != ''
+                           ORDER BY id DESC LIMIT 1");
+    $stmt->execute(array($clientId));
+    $nomeWa = $stmt->fetchColumn();
+    if ($nomeWa && _zapi_eh_nome_de_pessoa($nomeWa)) {
+        return _zapi_primeiro_nome($nomeWa);
+    }
+
+    // 3. Fallback: primeiro nome do cadastro
+    return _zapi_primeiro_nome($row['name'] ?? '');
+}
+
+function _zapi_primeiro_nome($s) {
+    $s = trim((string)$s);
+    if ($s === '') return '';
+    $partes = preg_split('/\s+/', $s);
+    return mb_convert_case(mb_strtolower($partes[0], 'UTF-8'), MB_CASE_TITLE, 'UTF-8');
+}
+
+function _zapi_eh_nome_de_pessoa($s) {
+    $s = trim((string)$s);
+    if (mb_strlen($s, 'UTF-8') < 2) return false;
+    // Primeiro char tem que ser letra (filtra emojis, números, símbolos)
+    if (!preg_match('/^\p{L}/u', $s)) return false;
+    // Push names que NÃO são nome próprio
+    $blocklist = array('mamae','mamãe','papai','pai','mae','mãe','vovo','vovó','vovô',
+        'admin','test','teste','desconhecido','sem nome','contato','contact',
+        'cliente','aluno','aluna','dono','dona','chefe','novo','nova',
+        'eu','my self','myself','user','usuario','usuário');
+    $sLower = mb_strtolower($s, 'UTF-8');
+    foreach ($blocklist as $b) {
+        if ($sLower === $b || strpos($sLower, $b . ' ') === 0) return false;
+    }
+    return true;
+}
+
+/**
  * Retorna config global (base_url + client_token)
  */
 function zapi_get_config() {

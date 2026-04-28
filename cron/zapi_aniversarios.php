@@ -93,7 +93,11 @@ if (empty($clientes)) { echo "Nada a enviar.\n"; exit; }
 // 3) Enviar para cada um
 $ok = 0; $falhas = 0; $pulados = 0;
 foreach ($clientes as $c) {
-    $nome = explode(' ', trim($c['name']))[0];
+    // Nome de saudação respeita push name do WhatsApp do cliente quando disponível.
+    // Ex: cadastro "RAYANE JOYCE DA SILVA MACHADO" mas push name "Joyce Machado"
+    // → usa "Joyce" em vez de "Rayane". Fallback pro primeiro nome do cadastro.
+    $nome = zapi_nome_saudacao((int)$c['id']);
+    if ($nome === '') $nome = explode(' ', trim($c['name']))[0]; // safety fallback
 
     // PROTEÇÃO @LID (24/Abr/2026) ──
     // Valida que o phone do cadastro realmente corresponde a um @lid existente
