@@ -67,27 +67,70 @@ foreach ($convs as $c) {
     );
 
     if ($achouPhone || ($achouNome && (!$c['nome_contato'] || strpos($c['nome_contato'], '@lid') !== false))) {
-        $upd = array(); $params = array();
-        if ($achouPhone) { $upd[] = "telefone = ?"; $params[] = $achouPhone; }
-        if ($achouNome && (!$c['nome_contato'] || strpos($c['nome_contato'], '@lid') !== false || preg_match('/^\d{14,}$/', $c['nome_contato']))) {
-            $upd[] = "nome_contato = ?"; $params[] = $achouNome;
-        }
+        // Antes de UPDATE, verifica se já existe outra conv com o phone real (mesmo canal).
+        // Se sim, é DUPLICATA → mescla a do lid bruto na conv "boa" e apaga.
+        $convDestino = null;
         if ($achouPhone) {
-            $upd[] = "precisa_revisao = 0";
-            $upd[] = "motivo_revisao = NULL";
+            $stChk = $pdo->prepare("SELECT id FROM zapi_conversas
+                                    WHERE canal = (SELECT canal FROM zapi_conversas WHERE id = ?)
+                                      AND telefone = ?
+                                      AND id != ?
+                                      AND COALESCE(eh_grupo,0)=0
+                                    LIMIT 1");
+            $stChk->execute(array($c['id'], $achouPhone, $c['id']));
+            $convDestino = $stChk->fetchColumn();
         }
-        $params[] = $c['id'];
-        if ($confirmar) {
-            try {
-                $pdo->prepare("UPDATE zapi_conversas SET " . implode(', ', $upd) . " WHERE id = ?")->execute($params);
-                $r['acao'] = 'UPGRADE';
+
+        if ($convDestino) {
+            // MESCLAR: move msgs e etiquetas da conv lid-bruto pra conv "boa"
+            $r['acao'] = 'MESCLAR → conv ' . $convDestino;
+            if ($confirmar) {
+                try {
+                    $pdo->beginTransaction();
+                    $pdo->prepare("UPDATE zapi_mensagens SET conversa_id = ? WHERE conversa_id = ?")
+                        ->execute(array($convDestino, $c['id']));
+                    $pdo->prepare("UPDATE IGNORE zapi_conversa_etiquetas SET conversa_id = ? WHERE conversa_id = ?")
+                        ->execute(array($convDestino, $c['id']));
+                    $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ?")
+                        ->execute(array($c['id']));
+                    // Se conv destino não tem chat_lid, copia da origem
+                    $pdo->prepare("UPDATE zapi_conversas SET chat_lid = COALESCE(NULLIF(chat_lid,''), ?) WHERE id = ?")
+                        ->execute(array($c['chat_lid'] ?: $c['telefone'], $convDestino));
+                    $pdo->prepare("DELETE FROM zapi_conversas WHERE id = ?")->execute(array($c['id']));
+                    $pdo->commit();
+                    $r['acao'] = 'MESCLADA → conv ' . $convDestino;
+                    $upgraded++;
+                } catch (Exception $e) {
+                    try { $pdo->rollBack(); } catch (Exception $e2) {}
+                    $r['acao'] = 'ERRO MERGE: ' . $e->getMessage();
+                }
+            } else {
                 $upgraded++;
-            } catch (Exception $e) {
-                $r['acao'] = 'ERRO: ' . $e->getMessage();
             }
         } else {
-            $r['acao'] = 'UPGRADE';
-            $upgraded++;
+            // UPDATE simples — não há conflito
+            $upd = array(); $params = array();
+            if ($achouPhone) { $upd[] = "telefone = ?"; $params[] = $achouPhone; }
+            if ($achouNome && (!$c['nome_contato'] || strpos($c['nome_contato'], '@lid') !== false || preg_match('/^\d{14,}$/', $c['nome_contato']))) {
+                $upd[] = "nome_contato = ?"; $params[] = $achouNome;
+            }
+            if ($achouPhone) {
+                $upd[] = "precisa_revisao = 0";
+                $upd[] = "motivo_revisao = NULL";
+            }
+            $params[] = $c['id'];
+            if ($confirmar) {
+                try {
+                    $pdo->prepare("UPDATE zapi_conversas SET " . implode(', ', $upd) . " WHERE id = ?")->execute($params);
+                    $r['acao'] = 'UPGRADE';
+                    $upgraded++;
+                } catch (Exception $e) {
+                    $r['acao'] = 'ERRO UPDATE: ' . $e->getMessage();
+                }
+            } else {
+                $r['acao'] = 'UPGRADE';
+                $upgraded++;
+            }
         }
     } else {
         $r['acao'] = 'sem dados nos logs';
