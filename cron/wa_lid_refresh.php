@@ -112,15 +112,26 @@ if (!empty($revalidar)) {
         $r = zapi_phone_exists_batch('21', array_keys($phonesByDigits));
         echo "Batch HTTP " . ($r['http_code'] ?? '?') . " - results: " . (isset($r['results']) ? count($r['results']) : 0) . "\n";
         if (!empty($r['results'])) {
+            // Debug: 2 primeiros pra inspecionar formato
+            echo "Sample[0]: " . json_encode(array_slice($r['results'], 0, 2), JSON_UNESCAPED_UNICODE) . "\n";
             $iguais = 0; $mudados = 0; $sumiu = 0;
             foreach ($r['results'] as $row) {
                 // Z-API responde {exists, inputPhone, outputPhone, lid}.
-                // outputPhone = número normalizado pela Z-API (pode mudar — ex: 9 mudo).
-                // inputPhone = o que mandamos. Tentamos ambos pra ser robusto.
+                // outputPhone = número normalizado pela Z-API (pode tirar/colocar o 9 mudo).
+                // Match exato + fallback por sufixo 10 dígitos pra cobrir normalização.
                 $phoneRet = preg_replace('/\D/', '', $row['outputPhone'] ?? $row['inputPhone'] ?? $row['phone'] ?? '');
                 $lidRet = $row['lid'] ?? null;
-                if (!$phoneRet || !isset($phonesByDigits[$phoneRet])) continue;
-                $cli = $phonesByDigits[$phoneRet];
+                if (!$phoneRet) continue;
+                $cli = null;
+                if (isset($phonesByDigits[$phoneRet])) {
+                    $cli = $phonesByDigits[$phoneRet];
+                } elseif (strlen($phoneRet) >= 10) {
+                    $sfx = substr($phoneRet, -10);
+                    foreach ($phonesByDigits as $key => $c) {
+                        if (substr($key, -10) === $sfx) { $cli = $c; break; }
+                    }
+                }
+                if (!$cli) continue;
 
                 if (!$lidRet) {
                     $sumiu++;
