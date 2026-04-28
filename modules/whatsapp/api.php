@@ -543,6 +543,13 @@ if ($action === 'enviar_mensagem') {
                    WHERE id = ?")
         ->execute(array(mb_substr($textoEnviar, 0, 500), $userId, $convId));
 
+    // Atendente acabou de mandar msg — etiqueta "AT DESBLOQUEADO" perde o sentido
+    $etqAt = _zapi_etiqueta_at_desbloqueado_id();
+    if ($etqAt) {
+        $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
+            ->execute(array($convId, $etqAt));
+    }
+
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId));
     exit;
 }
@@ -566,6 +573,12 @@ if ($action === 'assumir_atendimento') {
     }
     $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, bot_ativo = 0, status = 'em_atendimento' WHERE id = ?")
         ->execute(array($userId, $convId));
+    // Remove etiqueta "🔓 AT DESBLOQUEADO" — quem assumiu agora tá ativo
+    $etqAt = _zapi_etiqueta_at_desbloqueado_id();
+    if ($etqAt) {
+        $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
+            ->execute(array($convId, $etqAt));
+    }
     audit_log('zapi_assumir', 'zapi_conversas', $convId);
     echo json_encode(array('ok' => true));
     exit;
@@ -590,6 +603,12 @@ if ($action === 'delegar_conversa') {
 
     $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, delegada = 1, delegada_por = ?, delegada_em = NOW(), bot_ativo = 0, status = 'em_atendimento' WHERE id = ?")
         ->execute(array($alvoId, $userId, $convId));
+    // Remove etiqueta "🔓 AT DESBLOQUEADO" — atendente novo entrou
+    $etqAt = _zapi_etiqueta_at_desbloqueado_id();
+    if ($etqAt) {
+        $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ? AND etiqueta_id = ?")
+            ->execute(array($convId, $etqAt));
+    }
 
     // Notifica o atendente alvo
     try {
