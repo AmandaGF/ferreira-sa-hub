@@ -1,7 +1,12 @@
 <?php
 /**
  * Migração: Kanban PREV — campos previdenciários na tabela cases
+ *
+ * Key-protected. Chamada direta via ?key=...; também é incluída pelo
+ * deploy2.php (que já passou no key check, então $_GET['key'] continua setado).
  */
+
+if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
 
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';

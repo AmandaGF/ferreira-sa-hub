@@ -309,6 +309,46 @@ window.fsaNotifClickWa = function(el) {
     setTimeout(heartbeat, 30000);
     setInterval(heartbeat, HEARTBEAT_MS);
 })();
+
+/**
+ * Helper global pra AJAX seguros — evita "saves silenciosos" quando sessão expira.
+ *
+ * Padrão correto:
+ *   var data = await fsaFetch(url, {method:'POST', body: fd});
+ *   if (data === null) return; // 401: modal de sessão expirada já foi mostrado
+ *
+ * Comportamento:
+ *  - injeta header X-Requested-With: XMLHttpRequest (faz middleware retornar JSON 401/403 em vez de HTML do login)
+ *  - se response.status === 401 → mostra modal de sessão expirada e retorna null
+ *  - se response.status === 403 → alerta permissão e retorna null
+ *  - !response.ok → tenta parsear JSON e retorna {ok:false, erro:...} se for JSON, senão {ok:false, erro:'HTTP <status>'}
+ *  - sucesso → retorna o JSON parsed (ou texto se response não-JSON)
+ */
+window.fsaFetch = function(url, opts) {
+    opts = opts || {};
+    var headers = opts.headers || {};
+    headers['X-Requested-With'] = 'XMLHttpRequest';
+    opts.headers = headers;
+    if (!opts.credentials) opts.credentials = 'same-origin';
+
+    return fetch(url, opts).then(function(r) {
+        if (r.status === 401) {
+            if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada();
+            return null;
+        }
+        if (r.status === 403) {
+            try { window.alert('Sem permissão para essa ação.'); } catch(e) {}
+            return null;
+        }
+        var ct = (r.headers.get('Content-Type') || '').toLowerCase();
+        if (ct.indexOf('application/json') !== -1) {
+            return r.json().catch(function(){ return { ok: false, erro: 'JSON inválido' }; });
+        }
+        return r.text();
+    }).catch(function(e) {
+        return { ok: false, erro: 'Erro de rede: ' + (e && e.message ? e.message : 'desconhecido') };
+    });
+};
 </script>
 
 <?php if (!empty($extraJs)): ?>

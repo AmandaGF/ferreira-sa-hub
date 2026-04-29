@@ -1,4 +1,5 @@
 <?php
+if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
