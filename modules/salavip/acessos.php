@@ -14,11 +14,50 @@ if (!has_min_role('gestao')) {
 $pageTitle = 'Clientes com Acesso — Central VIP';
 $pdo = db();
 
+// Self-heal: tabela de tokens de impersonate (Amanda entrar como cliente)
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS salavip_impersonate_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    token CHAR(64) NOT NULL UNIQUE,
+    salavip_user_id INT NOT NULL,
+    admin_user_id INT NOT NULL,
+    usado_em DATETIME NULL,
+    criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+    expira_em DATETIME NOT NULL,
+    INDEX idx_token (token),
+    INDEX idx_expira (expira_em)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
 // ── POST handlers ───────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     validate_csrf();
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
+
+    // ── Gerar link de impersonate (SÓ Amanda — user_id=1) ──
+    // Cria token de uso único, válido 5min. Amanda clica → entra como cliente.
+    if ($action === 'gerar_link_impersonate') {
+        if ((int)current_user_id() !== 1) {
+            flash_set('error', 'Apenas Amanda pode entrar como cliente.');
+            redirect(module_url('salavip', 'acessos.php'));
+            exit;
+        }
+        $stmtU = $pdo->prepare("SELECT id, cliente_id FROM salavip_usuarios WHERE id = ? AND ativo = 1");
+        $stmtU->execute(array($id));
+        $u = $stmtU->fetch();
+        if (!$u) {
+            flash_set('error', 'Usuário não encontrado ou inativo.');
+            redirect(module_url('salavip', 'acessos.php'));
+            exit;
+        }
+        $token = bin2hex(random_bytes(32));
+        $pdo->prepare("INSERT INTO salavip_impersonate_tokens (token, salavip_user_id, admin_user_id, expira_em) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))")
+            ->execute(array($token, (int)$u['id'], (int)current_user_id()));
+        audit_log('salavip_impersonate', 'salavip_usuarios', $id, 'Amanda gerou token de impersonate');
+        // Redireciona direto pro fluxo de login admin no salavip
+        $url = 'https://www.ferreiraesa.com.br/salavip/login_admin.php?token=' . $token;
+        header('Location: ' . $url);
+        exit;
+    }
 
     // ── Reenviar Link (regenerar token + enviar e-mail) ─
     if ($action === 'reenviar_link') {
@@ -176,6 +215,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             </td>
                             <td>
                                 <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
+                                    <?php if ((int)current_user_id() === 1 && $u['ativo']): ?>
+                                    <!-- Entrar como cliente (impersonate) — só Amanda -->
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Entrar na Central VIP como este cliente? (modo admin, ações ficam logadas)');">
+                                        <?= csrf_input() ?>
+                                        <input type="hidden" name="action" value="gerar_link_impersonate">
+                                        <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                                        <button type="submit" class="btn btn-sm" title="Entrar como cliente (modo admin)" style="background:#7c3aed;color:#fff;border:none;">&#128065;</button>
+                                    </form>
+                                    <?php endif; ?>
+
                                     <!-- Reenviar Link -->
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Regenerar o link de acesso?');">
                                         <?= csrf_input() ?>

@@ -63,6 +63,18 @@ if (!isset($pageTitle)) {
 </head>
 <body>
 
+<?php if (!empty($_SESSION['salavip_impersonator_admin_id'])): ?>
+<!-- Banner de modo admin (impersonate) — só aparece pra Amanda quando entrou via /login_admin.php -->
+<div style="background:linear-gradient(135deg,#7c3aed,#5b21b6);color:#fff;padding:.55rem 1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;font-size:.82rem;flex-wrap:wrap;position:sticky;top:0;z-index:1000;box-shadow:0 2px 8px rgba(124,58,237,.4);">
+    <div style="display:flex;align-items:center;gap:.6rem;">
+        <span style="font-size:1.1rem;">🔒</span>
+        <strong>Modo admin</strong>
+        <span style="opacity:.9;">— você está vendo a Central VIP como <strong><?= sv_e($_svUser['nome_exibicao']) ?></strong>. Suas ações ficam logadas.</span>
+    </div>
+    <a href="<?= sv_e(SALAVIP_BASE_URL) ?>/logout.php" style="background:rgba(255,255,255,.15);color:#fff;text-decoration:none;padding:.35rem .9rem;border-radius:6px;font-weight:600;font-size:.78rem;border:1px solid rgba(255,255,255,.3);">✕ Sair desta sessão</a>
+</div>
+<?php endif; ?>
+
 <!-- Mobile Header -->
 <div class="sv-mobile-header">
     <button type="button" id="btn-menu-open" aria-label="Abrir menu" style="background:none;border:none;color:#c9a94e;font-size:1.5rem;cursor:pointer;">&#9776;</button>
