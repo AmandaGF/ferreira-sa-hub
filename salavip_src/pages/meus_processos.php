@@ -5,14 +5,6 @@
 require_once __DIR__ . '/../config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
-
-// Modo debug temporário (caso Aline 29/abr) — ativa errors visíveis com ?debug=fsa-hub-deploy-2026
-$_DEBUG_MEUSPROC = (($_GET['debug'] ?? '') === 'fsa-hub-deploy-2026');
-if ($_DEBUG_MEUSPROC) {
-    ini_set('display_errors', '1');
-    error_reporting(E_ALL);
-}
-
 $pdo = sv_db();
 $user = salavip_current_user();
 $clienteId = salavip_current_cliente_id();
@@ -316,23 +308,19 @@ $statusBorderColors = [
 
     <div class="sv-processos-grid">
         <?php foreach ($processos as $caso):
-            if ($_DEBUG_MEUSPROC) echo "<div style='background:#fffbeb;color:#92400e;padding:8px;font-family:monospace;border:1px dashed #92400e;margin:8px 0;'>DEBUG iter case_id={$caso['id']}, title=" . htmlspecialchars($caso['title']) . ", status={$caso['status']}</div>";
-            try {
-                $status = $caso['status'] ?? '';
-                $borderColor = $statusBorderColors[$status] ?? 'var(--sv-accent)';
+            $status = $caso['status'] ?? '';
+            $borderColor = $statusBorderColors[$status] ?? 'var(--sv-accent)';
 
-                // Último andamento
-                $stmtAndamento->execute([$caso['id']]);
-                $ultimoAndamento = $stmtAndamento->fetch();
+            // Último andamento — closeCursor() obrigatório p/ liberar conexão antes da próxima query
+            // (sem ele PDO+MySQL erra "unbuffered queries active" na 2ª iteração)
+            $stmtAndamento->execute([$caso['id']]);
+            $ultimoAndamento = $stmtAndamento->fetch();
+            $stmtAndamento->closeCursor();
 
-                // Documentos pendentes
-                $stmtDocsPend->execute([$caso['id']]);
-                $qtdDocsPend = (int) $stmtDocsPend->fetchColumn();
-            } catch (Throwable $_e) {
-                if ($_DEBUG_MEUSPROC) echo "<div style='background:#fee2e2;color:#991b1b;padding:8px;font-family:monospace;border:2px solid #991b1b;margin:8px 0;'>EXCEPTION case_id={$caso['id']}: " . htmlspecialchars($_e->getMessage()) . "</div>";
-                error_log("[meus_processos] case_id={$caso['id']} EXCEPTION: " . $_e->getMessage());
-                continue;
-            }
+            // Documentos pendentes
+            $stmtDocsPend->execute([$caso['id']]);
+            $qtdDocsPend = (int) $stmtDocsPend->fetchColumn();
+            $stmtDocsPend->closeCursor();
         ?>
             <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$caso['id']) ?>" class="sv-card sv-card--processo" style="border-left-color: <?= $borderColor ?>;">
 

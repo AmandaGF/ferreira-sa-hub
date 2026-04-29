@@ -32,9 +32,13 @@ function sv_db(): PDO {
             sprintf('mysql:host=%s;dbname=%s;charset=%s', DB_HOST, DB_NAME, DB_CHARSET),
             DB_USER, DB_PASS,
             [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false
+                PDO::ATTR_ERRMODE              => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE   => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES     => false,
+                // Buffered query: baixa todos os resultados na hora, libera o cursor automaticamente.
+                // Sem isso, fetch() em loop deixa cursor aberto e a próxima execute() erra com
+                // "SQLSTATE[HY000] 2014: Cannot execute queries while other unbuffered queries are active"
+                PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
             ]
         );
     }

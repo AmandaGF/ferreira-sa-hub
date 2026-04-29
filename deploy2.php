@@ -132,6 +132,29 @@ foreach ($migracoes as $mig) {
 }
 echo "   OK\n\n";
 
+echo "7. Deploy da Central VIP (/salavip/ é pasta separada)...\n";
+$depSalavip = $dir . '/deploy_salavip.php';
+if (file_exists($depSalavip)) {
+    ob_start();
+    try {
+        $_GET['key'] = 'fsa-hub-deploy-2026';
+        $_GET['_chained'] = 1;
+        include $depSalavip;
+    } catch (Throwable $e) {
+        echo "   ERRO: " . $e->getMessage() . "\n";
+    }
+    $svOut = ob_get_clean();
+    // Mostra só as linhas relevantes pra não poluir
+    foreach (explode("\n", $svOut) as $ln) {
+        if (preg_match('/(?:^=|CONCLUI|copiados|atualizados|ERRO|Erro)/', $ln)) {
+            echo "   " . trim($ln) . "\n";
+        }
+    }
+} else {
+    echo "   AVISO: deploy_salavip.php não encontrado — Central VIP NÃO foi atualizada\n";
+}
+echo "\n";
+
 echo "=== DEPLOY CONCLUIDO! ===\n";
 echo "Arquivos atualizados: $count\n";
 
