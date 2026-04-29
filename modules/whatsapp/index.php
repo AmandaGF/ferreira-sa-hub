@@ -455,31 +455,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
-// Intercept de fetch p/ esta página: garante header X-Requested-With (faz middleware
-// retornar JSON 401/403 em vez de HTML do login) e mostra modal de sessão expirada
-// quando 401 — antes desse patch, dezenas de saves AJAX desta tela falhavam silenciosos
-// quando a sessão expirava (mostrava ✓ "salvo" mas nada gravado).
-(function(){
-    if (window._waFetchPatched) return;
-    window._waFetchPatched = true;
-    var _origFetch = window.fetch.bind(window);
-    window.fetch = function(input, opts) {
-        opts = opts || {};
-        opts.headers = opts.headers || {};
-        if (!opts.headers['X-Requested-With'] && !(opts.headers instanceof Headers)) {
-            opts.headers['X-Requested-With'] = 'XMLHttpRequest';
-        }
-        if (!opts.credentials) opts.credentials = 'same-origin';
-        return _origFetch(input, opts).then(function(r) {
-            if (r.status === 401) {
-                if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada();
-                // Devolve response com JSON neutro pra `.then(r => r.json())` não crashar
-                return new Response(JSON.stringify({ ok: false, error: '__SESSAO_EXPIRADA__' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
-            }
-            return r;
-        });
-    };
-})();
+// Intercept global de fetch (protege saves AJAX desta tela contra sessão expirada)
+// vive em templates/footer.php e cobre TODOS os fetches same-origin do Hub.
 (function(){
     var canal  = '<?= e($canal) ?>';
     var apiUrl = '<?= module_url('whatsapp', 'api.php') ?>';

@@ -311,6 +311,92 @@ window.fsaNotifClickWa = function(el) {
 })();
 
 /**
+ * Intercept GLOBAL de window.fetch — protege saves AJAX silenciosos em TODAS as páginas.
+ *
+ * Antes disso, dezenas de saves AJAX (whatsapp, drawer, pipeline, wa_sender, etc.)
+ * mostravam ✓ "salvo" quando a sessão expirava — server retornava redirect HTML pro login,
+ * fetch tratava como sucesso, JSON.parse silenciava erro, código de "salvo" rodava
+ * sobre dado vazio. Bug sistêmico documentado em CLAUDE.md (mar/abr 2026).
+ *
+ * O intercept só age em URLs same-origin (não polui requisições a CDN/APIs externas).
+ *  - Adiciona header X-Requested-With: XMLHttpRequest → middleware retorna JSON 401/403
+ *  - Em 401 → mostra modal de sessão expirada e devolve Response neutro (não crasha .json())
+ */
+(function(){
+    if (window._fsaFetchPatched) return;
+    window._fsaFetchPatched = true;
+    if (typeof window.fetch !== 'function') return; // browser muito antigo, sem fetch
+    var _origFetch = window.fetch.bind(window);
+    function isSameOrigin(input) {
+        try {
+            var u = (typeof input === 'string') ? input : (input && input.url ? input.url : '');
+            if (!u) return true;
+            if (u.indexOf('//') === -1) return true;            // relative
+            if (u.indexOf(location.origin) === 0) return true;  // mesmo origin
+            return false;
+        } catch(e) { return true; }
+    }
+    window.fetch = function(input, opts) {
+        if (!isSameOrigin(input)) return _origFetch(input, opts);
+        opts = opts || {};
+        if (!(opts.headers instanceof Headers)) {
+            opts.headers = opts.headers || {};
+            if (!opts.headers['X-Requested-With']) opts.headers['X-Requested-With'] = 'XMLHttpRequest';
+        }
+        if (!opts.credentials) opts.credentials = 'same-origin';
+        return _origFetch(input, opts).then(function(r) {
+            if (r.status === 401) {
+                if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada();
+                return new Response(JSON.stringify({ ok: false, error: '__SESSAO_EXPIRADA__' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
+            }
+            return r;
+        });
+    };
+})();
+
+/**
+ * Intercept GLOBAL de XMLHttpRequest — protege XHRs (drawer.js, código legado, etc.)
+ * com a mesma lógica do intercept de fetch.
+ *
+ * Estratégia: wrap o `send()`. Antes de chamar o original:
+ *   - injeta header X-Requested-With (best-effort; setRequestHeader silencia se inválido)
+ *   - wrap o `onload` que o usuário definiu, pra checar status 401 antes do callback original
+ *
+ * Limitações: se o código setar `onload` DEPOIS de chamar `send()` (anti-padrão), o
+ * wrap não pega. Mas todo o código nosso segue open() → setHeaders → onload= → send().
+ */
+(function(){
+    if (window._fsaXhrPatched) return;
+    if (typeof XMLHttpRequest !== 'function') return;
+    window._fsaXhrPatched = true;
+    var XP = XMLHttpRequest.prototype;
+    var origOpen = XP.open;
+    var origSend = XP.send;
+    XP.open = function(method, url) {
+        try {
+            this._fsaUrl = url || '';
+            this._fsaSameOrigin = (typeof url !== 'string') || (url.indexOf('//') === -1) || (url.indexOf(location.origin) === 0);
+        } catch(e) { this._fsaSameOrigin = true; }
+        return origOpen.apply(this, arguments);
+    };
+    XP.send = function(body) {
+        var xhr = this;
+        if (xhr._fsaSameOrigin !== false) {
+            try { xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest'); } catch(e) {}
+            var origOnLoad = xhr.onload;
+            xhr.onload = function() {
+                if (xhr.status === 401) {
+                    if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada();
+                    return; // não roda o callback original — dado é inválido
+                }
+                if (origOnLoad) return origOnLoad.apply(this, arguments);
+            };
+        }
+        return origSend.apply(this, arguments);
+    };
+})();
+
+/**
  * Helper global pra AJAX seguros — evita "saves silenciosos" quando sessão expira.
  *
  * Padrão correto:
