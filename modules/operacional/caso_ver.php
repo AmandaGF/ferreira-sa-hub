@@ -501,14 +501,22 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php endif; ?>
     <div class="actions">
         <?php
-        // Montar lista de clientes com WhatsApp
+        // Montar lista de clientes com WhatsApp. Usa waSenderOpen() do Hub
+        // (modal interno) em vez de wa.me — assim a msg sai pelo número
+        // oficial do escritório e fica registrada no histórico do CRM.
         $clientesComWa = array();
         foreach ($clientesVinculados as $cv) {
             $ph = $cv['phone'] ? preg_replace('/\D/', '', $cv['phone']) : '';
             if ($ph) {
                 $primeiro = explode(' ', trim($cv['name']))[0];
-                $msg = "Olá " . $primeiro . ", tudo bem? Aqui é do escritório Ferreira & Sá Advocacia. Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
-                $clientesComWa[] = array('name' => $cv['name'], 'primeiro' => $primeiro, 'wa' => 'https://wa.me/55' . $ph . '?text=' . rawurlencode($msg));
+                $msg = "Olá " . $primeiro . ", tudo bem? Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
+                $clientesComWa[] = array(
+                    'id' => (int)$cv['id'],
+                    'name' => $cv['name'],
+                    'primeiro' => $primeiro,
+                    'phone' => $ph,
+                    'msg' => $msg,
+                );
             }
         }
         ?>
@@ -531,14 +539,15 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                 </div>
             </div>
         <?php endif; ?>
-        <?php if (count($clientesComWa) === 1): ?>
-            <a href="<?= $clientesComWa[0]['wa'] ?>" target="_blank" class="btn btn-success btn-sm">💬 WhatsApp</a>
+        <?php if (count($clientesComWa) === 1): $cw0 = $clientesComWa[0]; ?>
+            <button type="button" class="btn btn-success btn-sm"
+                onclick="waSenderOpen({telefone:<?= e(json_encode($cw0['phone'])) ?>,nome:<?= e(json_encode($cw0['name'])) ?>,clientId:<?= $cw0['id'] ?>,canal:'24',mensagem:<?= e(json_encode($cw0['msg'])) ?>});">💬 WhatsApp</button>
         <?php elseif (count($clientesComWa) > 1): ?>
             <div style="position:relative;display:inline-block;">
                 <button type="button" onclick="var m=document.getElementById('menuWa');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-success btn-sm">💬 WhatsApp ▾</button>
                 <div id="menuWa" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
                     <?php foreach ($clientesComWa as $cw): ?>
-                    <a href="<?= $cw['wa'] ?>" target="_blank" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
+                    <a href="javascript:void(0)" onclick="document.getElementById('menuWa').style.display='none';waSenderOpen({telefone:<?= e(json_encode($cw['phone'])) ?>,nome:<?= e(json_encode($cw['name'])) ?>,clientId:<?= $cw['id'] ?>,canal:'24',mensagem:<?= e(json_encode($cw['msg'])) ?>});" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
                         💬 <?= e($cw['name']) ?>
                     </a>
                     <?php endforeach; ?>
