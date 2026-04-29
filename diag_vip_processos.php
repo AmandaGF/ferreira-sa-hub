@@ -11,21 +11,23 @@ $pdo = db();
 
 $busca = trim($_GET['cliente'] ?? '');
 
-// Visão GERAL: quantos casos cada cliente VIP tem com salavip_ativo<>1
-echo "=== Visão geral: clientes VIP com casos OCULTOS (salavip_ativo != 1) ===\n";
-$st = $pdo->query("SELECT cl.id, cl.name, cl.cpf,
-                          COUNT(c.id) AS total,
-                          SUM(CASE WHEN c.salavip_ativo = 1 THEN 1 ELSE 0 END) AS ativos,
-                          SUM(CASE WHEN COALESCE(c.salavip_ativo,0) <> 1 THEN 1 ELSE 0 END) AS ocultos
-                   FROM clients cl
-                   JOIN cases c ON c.client_id = cl.id
-                   WHERE cl.salavip_acesso_ativo = 1
-                   GROUP BY cl.id
-                   HAVING ocultos > 0
-                   ORDER BY ocultos DESC LIMIT 30");
-foreach ($st->fetchAll() as $r) {
-    echo "  cliente {$r['id']} | {$r['name']} | CPF {$r['cpf']} | total={$r['total']} | ativos no VIP={$r['ativos']} | OCULTOS={$r['ocultos']}\n";
-}
+// Visão GERAL: quantos casos cada cliente tem com salavip_ativo<>1
+// (sem filtrar por clients.salavip_acesso_ativo — coluna pode não existir)
+echo "=== Visão geral: clientes com casos OCULTOS no VIP (salavip_ativo != 1) ===\n";
+try {
+    $st = $pdo->query("SELECT cl.id, cl.name, cl.cpf,
+                              COUNT(c.id) AS total,
+                              SUM(CASE WHEN c.salavip_ativo = 1 THEN 1 ELSE 0 END) AS ativos,
+                              SUM(CASE WHEN COALESCE(c.salavip_ativo,0) <> 1 THEN 1 ELSE 0 END) AS ocultos
+                       FROM clients cl
+                       JOIN cases c ON c.client_id = cl.id
+                       GROUP BY cl.id
+                       HAVING ocultos > 0
+                       ORDER BY ocultos DESC LIMIT 30");
+    foreach ($st->fetchAll() as $r) {
+        echo "  cliente {$r['id']} | {$r['name']} | CPF {$r['cpf']} | total={$r['total']} | ativos no VIP={$r['ativos']} | OCULTOS={$r['ocultos']}\n";
+    }
+} catch (Exception $e) { echo "ERRO: " . $e->getMessage() . "\n"; }
 
 if (!$busca) {
     echo "\nUse ?cliente=NOME_OU_CPF pra investigar um cliente específico.\n";
