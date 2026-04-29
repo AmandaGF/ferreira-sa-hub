@@ -49,6 +49,22 @@ try {
     }
 } catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
+echo "\n==== 4b. Reproduz EXATAMENTE o KPI do dashboard.php (cliente_id=432) ====\n";
+try {
+    $st = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE client_id = ? AND salavip_ativo = 1 AND status NOT IN ('cancelado','arquivado')");
+    $st->execute([432]);
+    echo "  KPI dashboard: " . (int)$st->fetchColumn() . " caso(s)\n";
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
+
+echo "\n==== 4c. Status de cada caso da Aline 432 ====\n";
+try {
+    $st = $pdo->prepare("SELECT id, title, status, salavip_ativo, kanban_oculto FROM cases WHERE client_id = ? ORDER BY id");
+    $st->execute([432]);
+    foreach ($st->fetchAll() as $r) {
+        echo "  case {$r['id']} | {$r['title']} | status={$r['status']} | salavip_ativo={$r['salavip_ativo']} | kanban_oculto={$r['kanban_oculto']}\n";
+    }
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
+
 echo "\n==== 5. Token de impersonate mais recente da Aline ====\n";
 try {
     $st = $pdo->prepare("SELECT t.id, t.salavip_user_id, t.admin_user_id, t.usado_em, t.expira_em, t.criado_em, u.nome_exibicao, u.cliente_id
