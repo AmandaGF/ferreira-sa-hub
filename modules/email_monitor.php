@@ -147,14 +147,25 @@ foreach ($pendentes as $p) {
     elseif ($p['status'] === 'descartado') $totalDescartados++;
 }
 
-// Andamentos importados: feed dos últimos 50 inserts feitos pelo cron
+// Andamentos importados: feed dos últimos 50 inserts feitos pelo cron.
+// Whitelist de ordenação (preview da query string ?ordem=). Default: data_andamento
+// DESC (movimentação mais recente primeiro), que é mais útil que "importado em".
+$ordensValidas = array(
+    'data_desc'      => 'a.data_andamento DESC, a.hora_andamento DESC, a.id DESC',
+    'data_asc'       => 'a.data_andamento ASC, a.hora_andamento ASC, a.id ASC',
+    'importado_desc' => 'a.created_at DESC, a.id DESC',
+    'importado_asc'  => 'a.created_at ASC, a.id ASC',
+);
+$ordemAndamentos = $_GET['ordem'] ?? 'data_desc';
+if (!isset($ordensValidas[$ordemAndamentos])) $ordemAndamentos = 'data_desc';
+
 $stmtAnd = $pdo->prepare(
     "SELECT a.id, a.data_andamento, a.hora_andamento, a.descricao, a.created_at,
             c.id AS case_id, c.title AS case_title, c.case_number
      FROM case_andamentos a
      INNER JOIN cases c ON c.id = a.case_id
      WHERE a.tipo_origem = 'email_pje'
-     ORDER BY a.created_at DESC, a.id DESC
+     ORDER BY " . $ordensValidas[$ordemAndamentos] . "
      LIMIT 50"
 );
 $stmtAnd->execute();
@@ -576,12 +587,27 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
             <div style="overflow-x: auto;">
                 <table class="em-tbl">
                     <thead>
+                        <?php
+                        // Ajuda pra montar link de ordenação alternando ASC/DESC.
+                        // Mantém demais query strings (caso futuro tenha filtros).
+                        $_qsBase = $_GET; unset($_qsBase['ordem']);
+                        $_mkOrd = function($colKey, $label) use ($ordemAndamentos, $_qsBase) {
+                            $asc = $colKey . '_asc'; $desc = $colKey . '_desc';
+                            $proxima = ($ordemAndamentos === $desc) ? $asc : $desc;
+                            $seta = '';
+                            if ($ordemAndamentos === $desc) $seta = ' ↓';
+                            elseif ($ordemAndamentos === $asc) $seta = ' ↑';
+                            $qs = http_build_query(array_merge($_qsBase, array('ordem' => $proxima))) . '#emTab-andamentos';
+                            return '<a href="?' . htmlspecialchars($qs) . '" style="color:inherit;text-decoration:none;cursor:pointer">'
+                                 . htmlspecialchars($label) . '<span style="color:#B87333;font-weight:700">' . $seta . '</span></a>';
+                        };
+                        ?>
                         <tr>
                             <th>Caso</th>
                             <th>CNJ</th>
-                            <th>Data / Hora</th>
+                            <th><?= $_mkOrd('data', 'Data / Hora') ?></th>
                             <th>Descrição</th>
-                            <th>Importado em</th>
+                            <th><?= $_mkOrd('importado', 'Importado em') ?></th>
                         </tr>
                     </thead>
                     <tbody>
