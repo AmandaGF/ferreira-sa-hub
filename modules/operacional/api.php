@@ -12,6 +12,19 @@ $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP
 // ── GET: ações de leitura puras (autocomplete) ────────────
 // Antes do bloqueio que rejeita não-POST, atendemos os endpoints GET
 // que servem autocomplete / sugestão. Não exigem CSRF (são GET, não mutate).
+// Autocomplete simples por nome dentro de `clients` (ex.: campo "Nome do novo parceiro")
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_clients_nome') {
+    header('Content-Type: application/json; charset=utf-8');
+    $pdo = db();
+    $q = trim($_GET['q'] ?? '');
+    if (mb_strlen($q) < 2) { echo json_encode(array()); exit; }
+    $stmt = $pdo->prepare("SELECT id, name, cpf, phone FROM clients
+                           WHERE name LIKE ? ORDER BY name ASC LIMIT 12");
+    $stmt->execute(array('%' . $q . '%'));
+    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_caso_para_vincular') {
     header('Content-Type: application/json; charset=utf-8');
     $pdo = db();

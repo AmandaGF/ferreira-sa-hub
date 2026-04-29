@@ -1711,7 +1711,11 @@ $parceriaExecutor = isset($case['parceria_executor']) ? $case['parceria_executor
                 <!-- Cadastro rápido de parceiro -->
                 <div id="novoParcBox" style="display:none;background:#f0fdf4;border:1.5px solid #a7f3d0;border-radius:8px;padding:.75rem;margin-bottom:.75rem;">
                     <label style="font-size:.72rem;font-weight:700;color:#059669;display:block;margin-bottom:.3rem;">Nome do novo parceiro *</label>
-                    <input type="text" name="novo_parceiro_nome" id="novoParcNome" class="form-input" style="font-size:.85rem;" placeholder="Nome completo do advogado parceiro">
+                    <div style="position:relative;">
+                        <input type="text" name="novo_parceiro_nome" id="novoParcNome" class="form-input" style="font-size:.85rem;" placeholder="Digite pra buscar nos contatos cadastrados ou preencher manual" autocomplete="off" oninput="buscarParceiroSugest(this.value)" onblur="setTimeout(function(){var b=document.getElementById('novoParcSugest');if(b)b.style.display='none';},200)">
+                        <div id="novoParcSugest" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d1d5db;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,.1);max-height:240px;overflow-y:auto;z-index:50;margin-top:2px;"></div>
+                    </div>
+                    <div style="font-size:.65rem;color:#059669;margin-top:.3rem;">💡 Digite 2+ letras pra puxar dos contatos cadastrados, ou preencha um nome novo livremente.</div>
                 </div>
             </div>
 
@@ -1728,6 +1732,43 @@ function toggleParceriaFields() {
 document.getElementById('parceiroSelect').addEventListener('change', function() {
     document.getElementById('novoParcBox').style.display = this.value === '_novo' ? '' : 'none';
 });
+
+// Autocomplete: puxa nomes dos contatos cadastrados (clients) ao digitar
+var _novoParcTimer = null;
+function buscarParceiroSugest(q) {
+    var box = document.getElementById('novoParcSugest');
+    q = (q || '').trim();
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    clearTimeout(_novoParcTimer);
+    _novoParcTimer = setTimeout(function() {
+        var x = new XMLHttpRequest();
+        x.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_clients_nome&q=' + encodeURIComponent(q));
+        x.onload = function() {
+            if (x.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+            try {
+                var res = JSON.parse(x.responseText);
+                if (!Array.isArray(res) || res.length === 0) { box.style.display = 'none'; return; }
+                box.innerHTML = '';
+                res.forEach(function(c) {
+                    var div = document.createElement('div');
+                    div.style.cssText = 'padding:8px 10px;cursor:pointer;font-size:.82rem;border-bottom:1px solid #f3f4f6;';
+                    var sub = c.cpf ? ' — ' + c.cpf : (c.phone ? ' — ' + c.phone : '');
+                    div.innerHTML = '<strong>' + (c.name || '').replace(/</g,'&lt;') + '</strong><span style="color:#6b7280;font-size:.72rem;">' + sub + '</span>';
+                    div.onmouseenter = function() { this.style.background = 'rgba(5,150,105,.1)'; };
+                    div.onmouseleave = function() { this.style.background = ''; };
+                    div.onmousedown = function(ev) { ev.preventDefault(); }; // evita blur antes do click
+                    div.onclick = function() {
+                        document.getElementById('novoParcNome').value = c.name || '';
+                        box.style.display = 'none';
+                    };
+                    box.appendChild(div);
+                });
+                box.style.display = 'block';
+            } catch (e) { box.style.display = 'none'; }
+        };
+        x.send();
+    }, 220);
+}
 </script>
 
 <!-- Dados do Processo (editável inline) -->
