@@ -501,23 +501,35 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php endif; ?>
     <div class="actions">
         <?php
-        // Montar lista de clientes com WhatsApp. Usa waSenderOpen() do Hub
-        // (modal interno) em vez de wa.me — assim a msg sai pelo número
-        // oficial do escritório e fica registrada no histórico do CRM.
+        // Monta botão WhatsApp inteligente: se já existe conversa do cliente
+        // no Hub (canal 24, mais recente), abre direto a conversa pra Amanda
+        // ver histórico e responder no contexto. Se ainda não tem conversa,
+        // fallback pro modal waSenderOpen() que envia 1ª msg.
         $clientesComWa = array();
         foreach ($clientesVinculados as $cv) {
             $ph = $cv['phone'] ? preg_replace('/\D/', '', $cv['phone']) : '';
-            if ($ph) {
-                $primeiro = explode(' ', trim($cv['name']))[0];
-                $msg = "Olá " . $primeiro . ", tudo bem? Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
-                $clientesComWa[] = array(
-                    'id' => (int)$cv['id'],
-                    'name' => $cv['name'],
-                    'primeiro' => $primeiro,
-                    'phone' => $ph,
-                    'msg' => $msg,
-                );
-            }
+            if (!$ph) continue;
+            $primeiro = explode(' ', trim($cv['name']))[0];
+            $msg = "Olá " . $primeiro . ", tudo bem? Entramos em contato sobre o seu processo" . ($case['title'] ? " (" . $case['title'] . ")" : "") . ".";
+
+            // Procura conv existente (canal 24 prioritário; depois 21)
+            $convId = 0;
+            try {
+                $stConv = $pdo->prepare("SELECT id FROM zapi_conversas
+                                         WHERE client_id = ? AND COALESCE(eh_grupo,0)=0
+                                         ORDER BY (canal = '24') DESC, ultima_msg_em DESC, id DESC LIMIT 1");
+                $stConv->execute(array($cv['id']));
+                $convId = (int)$stConv->fetchColumn();
+            } catch (Exception $e) {}
+
+            $clientesComWa[] = array(
+                'id' => (int)$cv['id'],
+                'name' => $cv['name'],
+                'primeiro' => $primeiro,
+                'phone' => $ph,
+                'msg' => $msg,
+                'conv_id' => $convId,
+            );
         }
         ?>
         <?php
@@ -539,16 +551,33 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                 </div>
             </div>
         <?php endif; ?>
+        <?php
+        // Helper: gera o atributo onclick correto pra cada cliente.
+        // Se já tem conversa aberta no Hub, vai direto pra ela (deep-link).
+        // Se não tem, abre o modal pra começar primeira mensagem.
+        $_waBtnAttr = function($c) {
+            if (!empty($c['conv_id'])) {
+                $href = url('modules/whatsapp/?abrir=' . (int)$c['conv_id']);
+                return 'onclick="window.location.href=' . htmlspecialchars(json_encode($href), ENT_QUOTES) . '"';
+            }
+            return 'onclick="waSenderOpen({telefone:' . htmlspecialchars(json_encode($c['phone']), ENT_QUOTES)
+                 . ',nome:' . htmlspecialchars(json_encode($c['name']), ENT_QUOTES)
+                 . ',clientId:' . (int)$c['id']
+                 . ',canal:\'24\',mensagem:' . htmlspecialchars(json_encode($c['msg']), ENT_QUOTES) . '})"';
+        };
+        ?>
         <?php if (count($clientesComWa) === 1): $cw0 = $clientesComWa[0]; ?>
-            <button type="button" class="btn btn-success btn-sm"
-                onclick="waSenderOpen({telefone:<?= e(json_encode($cw0['phone'])) ?>,nome:<?= e(json_encode($cw0['name'])) ?>,clientId:<?= $cw0['id'] ?>,canal:'24',mensagem:<?= e(json_encode($cw0['msg'])) ?>});">💬 WhatsApp</button>
+            <button type="button" class="btn btn-success btn-sm" <?= $_waBtnAttr($cw0) ?>
+                title="<?= !empty($cw0['conv_id']) ? 'Abrir conversa #' . (int)$cw0['conv_id'] . ' no Hub' : 'Iniciar nova mensagem' ?>">
+                💬 WhatsApp<?= !empty($cw0['conv_id']) ? '' : ' <span style="font-size:.65rem;opacity:.7;">(novo)</span>' ?>
+            </button>
         <?php elseif (count($clientesComWa) > 1): ?>
             <div style="position:relative;display:inline-block;">
                 <button type="button" onclick="var m=document.getElementById('menuWa');m.style.display=m.style.display==='block'?'none':'block';" class="btn btn-success btn-sm">💬 WhatsApp ▾</button>
-                <div id="menuWa" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:220px;margin-top:4px;overflow:hidden;">
+                <div id="menuWa" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:240px;margin-top:4px;overflow:hidden;">
                     <?php foreach ($clientesComWa as $cw): ?>
-                    <a href="javascript:void(0)" onclick="document.getElementById('menuWa').style.display='none';waSenderOpen({telefone:<?= e(json_encode($cw['phone'])) ?>,nome:<?= e(json_encode($cw['name'])) ?>,clientId:<?= $cw['id'] ?>,canal:'24',mensagem:<?= e(json_encode($cw['msg'])) ?>});" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
-                        💬 <?= e($cw['name']) ?>
+                    <a href="javascript:void(0)" onclick="document.getElementById('menuWa').style.display='none';<?= !empty($cw['conv_id']) ? 'window.location.href=' . htmlspecialchars(json_encode(url('modules/whatsapp/?abrir=' . (int)$cw['conv_id'])), ENT_QUOTES) : 'waSenderOpen({telefone:' . htmlspecialchars(json_encode($cw['phone']), ENT_QUOTES) . ',nome:' . htmlspecialchars(json_encode($cw['name']), ENT_QUOTES) . ',clientId:' . (int)$cw['id'] . ',canal:\'24\',mensagem:' . htmlspecialchars(json_encode($cw['msg']), ENT_QUOTES) . '})' ?>;" style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">
+                        💬 <?= e($cw['name']) ?><?= !empty($cw['conv_id']) ? '' : ' <span style="font-size:.7rem;color:#94a3b8;">(novo)</span>' ?>
                     </a>
                     <?php endforeach; ?>
                 </div>

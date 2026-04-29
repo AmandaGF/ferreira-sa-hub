@@ -14,6 +14,18 @@ $user = current_user();
 $canal = $_GET['canal'] ?? '21';
 if (!in_array($canal, array('21', '24'), true)) $canal = '21';
 
+// Auto-abrir conversa específica via ?abrir=ID (deep-link de outras páginas)
+$autoAbrirConv = isset($_GET['abrir']) ? (int)$_GET['abrir'] : 0;
+// Se abrir veio mas o canal não foi especificado, descobre o canal correto
+if ($autoAbrirConv > 0 && empty($_GET['canal'])) {
+    try {
+        $st = db()->prepare("SELECT canal FROM zapi_conversas WHERE id = ?");
+        $st->execute(array($autoAbrirConv));
+        $cConv = $st->fetchColumn();
+        if ($cConv && in_array($cConv, array('21','24'), true)) $canal = $cConv;
+    } catch (Exception $e) {}
+}
+
 $isComercial = ($canal === '21');
 $canalLabel  = $isComercial ? 'Comercial' : 'CX/Operacional';
 $pageTitle   = 'WhatsApp ' . $canalLabel . ' (DDD ' . $canal . ')';
@@ -2745,6 +2757,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     // Polling a cada 5s: atualiza lista + conversa aberta
     carregarLista();
+    // Auto-abrir conversa específica via ?abrir=ID (deep-link de outras páginas)
+    <?php if ($autoAbrirConv > 0): ?>
+    setTimeout(function() { try { window.waAbrir(<?= $autoAbrirConv ?>); } catch(e) {} }, 600);
+    <?php endif; ?>
     pollTimer = setInterval(function(){
         carregarLista();
         if (convAtiva) {
