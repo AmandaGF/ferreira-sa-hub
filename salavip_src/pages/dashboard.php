@@ -156,13 +156,14 @@ require_once __DIR__ . '/../includes/header.php';
                 $tipo = $and['tipo'] ?? 'observacao';
                 $tipoLabel = $tipoLabels[$tipo] ?? ucfirst($tipo);
                 $tipoCor = $tipoCores[$tipo] ?? '#64748b';
+                $procCor = sv_cor_processo((int)$and['case_id']);
             ?>
-                <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$and['case_id']) ?>" style="display:block;border-bottom:1px solid var(--sv-border);padding-bottom:.75rem;text-decoration:none;transition:all .15s;border-radius:6px;padding:.6rem;margin:-.1rem -.4rem;" onmouseover="this.style.background='var(--sv-accent-bg)'" onmouseout="this.style.background=''">
+                <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$and['case_id']) ?>" style="display:block;border-left:3px solid <?= $procCor['border'] ?>;border-bottom:1px solid var(--sv-border);text-decoration:none;transition:all .15s;border-radius:6px;padding:.6rem .8rem;margin:0 -.4rem;" onmouseover="this.style.background='var(--sv-accent-bg)'" onmouseout="this.style.background=''">
                     <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
                         <strong style="color:var(--sv-accent);"><?= sv_formatar_data($and['data_andamento']) ?></strong>
                         <span style="background:<?= $tipoCor ?>20;color:<?= $tipoCor ?>;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;"><?= sv_e($tipoLabel) ?></span>
                         <?php if (!empty($and['caso_titulo'])): ?>
-                        <span style="color:var(--sv-text-muted);font-size:.75rem;">— <?= sv_e($and['caso_titulo']) ?></span>
+                        <span style="background:<?= $procCor['bg'] ?>;color:<?= $procCor['text'] ?>;padding:2px 10px;border-radius:9999px;font-size:.72rem;font-weight:700;letter-spacing:.02em;"><?= sv_e($and['caso_titulo']) ?></span>
                         <?php endif; ?>
                         <span style="color:var(--sv-accent);font-size:.72rem;margin-left:auto;">Ver detalhes →</span>
                     </div>

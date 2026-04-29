@@ -81,6 +81,25 @@ function sv_badge_status_processo(string $status): string {
 }
 
 /**
+ * Cor consistente por processo (case_id) para tema dark da Central VIP.
+ * Retorna ['bg' => transparente, 'text' => claro, 'border' => sólida].
+ * Mesmo case_id sempre cai na mesma cor da paleta.
+ */
+function sv_cor_processo(int $caseId): array {
+    $palette = [
+        ['bg' => 'rgba(96,165,250,.15)',  'text' => '#93c5fd', 'border' => '#3b82f6'], // blue
+        ['bg' => 'rgba(244,114,182,.15)', 'text' => '#f9a8d4', 'border' => '#ec4899'], // pink
+        ['bg' => 'rgba(74,222,128,.15)',  'text' => '#86efac', 'border' => '#22c55e'], // green
+        ['bg' => 'rgba(251,191,36,.15)',  'text' => '#fcd34d', 'border' => '#f59e0b'], // amber
+        ['bg' => 'rgba(167,139,250,.15)', 'text' => '#c4b5fd', 'border' => '#8b5cf6'], // violet
+        ['bg' => 'rgba(232,121,249,.15)', 'text' => '#f0abfc', 'border' => '#d946ef'], // fuchsia
+        ['bg' => 'rgba(248,113,113,.15)', 'text' => '#fca5a5', 'border' => '#ef4444'], // red
+        ['bg' => 'rgba(34,211,238,.15)',  'text' => '#67e8f9', 'border' => '#06b6d4'], // cyan
+    ];
+    return $palette[$caseId % count($palette)];
+}
+
+/**
  * Badge HTML para status de parcela financeira.
  */
 function sv_badge_status_parcela(string $status): string {
