@@ -65,6 +65,46 @@ try {
     }
 } catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
+echo "\n==== 4d. case_andamentos do case 710 (visivel_cliente=1) ====\n";
+try {
+    $st = $pdo->prepare("SELECT id, data_andamento, descricao, visivel_cliente, created_at FROM case_andamentos WHERE case_id = 710 AND visivel_cliente = 1 ORDER BY data_andamento DESC, created_at DESC LIMIT 3");
+    $st->execute();
+    foreach ($st->fetchAll() as $r) {
+        echo "  and {$r['id']} | data={$r['data_andamento']} | created={$r['created_at']}\n";
+        echo "      desc=" . substr($r['descricao'] ?? '', 0, 100) . "\n";
+    }
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
+
+echo "\n==== 4e. Tenta CAPTURAR a renderizacao real do meus_processos.php pra cliente_id=432 ====\n";
+echo "  (simulando sessao via injecao temporaria)\n";
+$_SESSION['salavip_user_id'] = 103;
+$_SESSION['salavip_cliente_id'] = 432;
+$_SESSION['salavip_nome_exibicao'] = 'ALINE FERNANDES CARVALHO';
+$_SESSION['salavip_cpf'] = '111.779.687-62';
+$_SESSION['salavip_email'] = 'ac4730955@gmail.com';
+$_SESSION['salavip_logado_em'] = date('Y-m-d H:i:s');
+$_SESSION['salavip_ultimo_atividade'] = time();
+
+ob_start();
+try {
+    define('SALAVIP_DIAG_INJECTED', 1);
+    // chama via include numa "sandbox" - se der erro, captura
+    chdir(__DIR__ . '/salavip_src');
+    @include __DIR__ . '/salavip_src/pages/meus_processos.php';
+} catch (Throwable $e) {
+    echo "  EXCEPTION: " . $e->getMessage() . "\n";
+}
+$html = ob_get_clean();
+$cardCount = substr_count($html, 'sv-card--processo');
+echo "  Tamanho HTML capturado: " . strlen($html) . " bytes\n";
+echo "  'sv-card--processo' aparece: $cardCount vez(es)\n";
+echo "  'sv-empty' aparece: " . substr_count($html, 'sv-empty') . " vez(es)\n";
+echo "  'processos ativos' aparece: " . substr_count($html, 'processos ativo') . " vez(es)\n";
+// Procura erros no html
+if (preg_match('/(Fatal error|Warning|Notice|Parse error)[^<\n]+/i', $html, $m)) {
+    echo "  ERRO ENCONTRADO NO HTML: " . substr($m[0], 0, 200) . "\n";
+}
+
 echo "\n==== 5. Token de impersonate mais recente da Aline ====\n";
 try {
     $st = $pdo->prepare("SELECT t.id, t.salavip_user_id, t.admin_user_id, t.usado_em, t.expira_em, t.criado_em, u.nome_exibicao, u.cliente_id
