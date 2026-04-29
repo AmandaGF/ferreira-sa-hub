@@ -100,7 +100,10 @@ if ($filterComarca) {
 
 $whereStr = implode(' AND ', $where);
 
-$sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
+// Self-heal da coluna senha_gov (pra exibição no card PREV)
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN senha_gov VARCHAR(100) NULL"); } catch (Exception $e) {}
+
+$sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.senha_gov as client_senha_gov, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks
         FROM cases cs
@@ -292,6 +295,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php endif; ?>
                     <?php if (!empty($cs['prev_numero_beneficio'])): ?>
                         <div class="pv-card-process" style="display:block;text-decoration:none;">📋 NB: <?= e($cs['prev_numero_beneficio']) ?></div>
+                    <?php endif; ?>
+                    <?php if (!empty($cs['client_senha_gov'])):
+                        $sgUid = 'sg' . (int)$cs['id'];
+                    ?>
+                        <div style="background:rgba(91,45,142,.1);border:1px solid rgba(91,45,142,.3);border-radius:6px;padding:.3rem .45rem;font-size:.65rem;color:#5B2D8E;margin-top:.25rem;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;" onclick="event.stopPropagation();">
+                            <span style="font-weight:700;">🔐 gov.br:</span>
+                            <span id="<?= $sgUid ?>" data-senha="<?= e($cs['client_senha_gov']) ?>" data-show="0" style="font-family:monospace;letter-spacing:.04em;">••••••••</span>
+                            <button type="button" onclick="event.stopPropagation();pvSenhaGovToggle('<?= $sgUid ?>',this)" style="background:none;border:1px solid rgba(91,45,142,.4);border-radius:4px;cursor:pointer;font-size:.6rem;padding:1px 6px;color:#5B2D8E;">👁</button>
+                            <button type="button" onclick="event.stopPropagation();pvSenhaGovCopiar('<?= $sgUid ?>',this)" style="background:none;border:1px solid rgba(91,45,142,.4);border-radius:4px;cursor:pointer;font-size:.6rem;padding:1px 6px;color:#5B2D8E;">📋</button>
+                        </div>
                     <?php endif; ?>
                     <?php
                     $caseDocs = isset($docsPendentes[$cs['id']]) ? $docsPendentes[$cs['id']] : array();
@@ -488,6 +501,34 @@ function confirmPvParc() {
         var h1 = document.createElement('input'); h1.type='hidden'; h1.name='new_prev_status'; h1.value='parceria'; _pvPendingForm.appendChild(h1);
         var h2 = document.createElement('input'); h2.type='hidden'; h2.name='parceiro_id'; h2.value=parceiroId; _pvPendingForm.appendChild(h2);
         _pvPendingForm.submit();
+    }
+}
+
+// Toggle e copiar senha gov.br do card PREV
+function pvSenhaGovToggle(uid, btn) {
+    var el = document.getElementById(uid);
+    if (!el) return;
+    if (el.getAttribute('data-show') === '1') {
+        el.textContent = '••••••••';
+        el.setAttribute('data-show', '0');
+        btn.textContent = '👁';
+    } else {
+        el.textContent = el.getAttribute('data-senha') || '';
+        el.setAttribute('data-show', '1');
+        btn.textContent = '🙈';
+    }
+}
+function pvSenhaGovCopiar(uid, btn) {
+    var el = document.getElementById(uid);
+    if (!el) return;
+    var senha = el.getAttribute('data-senha') || '';
+    if (!senha) return;
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(senha).then(function(){
+            var orig = btn.textContent;
+            btn.textContent = '✓';
+            setTimeout(function(){ btn.textContent = orig; }, 1200);
+        });
     }
 }
 

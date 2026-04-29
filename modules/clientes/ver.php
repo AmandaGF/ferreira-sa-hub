@@ -10,6 +10,9 @@ require_login();
 $pdo = db();
 $clientId = (int)($_GET['id'] ?? 0);
 
+// Self-heal da coluna senha_gov (Sprint 31 — pra casos PREV gov.br)
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN senha_gov VARCHAR(100) NULL"); } catch (Exception $e) {}
+
 $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
 $stmt->execute(array($clientId));
 $client = $stmt->fetch();
@@ -270,9 +273,107 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php endif; ?>
             <div class="info-item"><label>Nacionalidade</label><span><?= e(isset($client['nacionalidade']) && $client['nacionalidade'] ? $client['nacionalidade'] : '—') ?></span></div>
             <div class="info-item"><label>Chave PIX</label><span><?= e(isset($client['pix_key']) && $client['pix_key'] ? $client['pix_key'] : '—') ?></span></div>
+            <?php $senhaGov = isset($client['senha_gov']) ? (string)$client['senha_gov'] : ''; ?>
+            <div class="info-item" id="senhaGovBox" style="grid-column:1/-1;">
+                <label>Senha gov.br <span style="font-size:.65rem;color:var(--text-muted);font-weight:400;">(usado em casos previdenciários)</span></label>
+                <div id="senhaGovView" style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
+                    <span id="senhaGovTxt" data-senha="<?= e($senhaGov) ?>" data-mascarada="1" style="font-family:monospace;letter-spacing:.05em;<?= $senhaGov === '' ? 'color:var(--text-muted);font-style:italic;' : '' ?>">
+                        <?= $senhaGov === '' ? 'Não cadastrada' : '••••••••' ?>
+                    </span>
+                    <?php if ($senhaGov !== ''): ?>
+                    <button type="button" onclick="senhaGovToggle()" id="senhaGovOlho" class="btn btn-sm btn-outline" style="padding:2px 8px;font-size:.7rem;">👁 Mostrar</button>
+                    <button type="button" onclick="senhaGovCopiar()" class="btn btn-sm btn-outline" style="padding:2px 8px;font-size:.7rem;">📋 Copiar</button>
+                    <?php endif; ?>
+                    <button type="button" onclick="senhaGovEditar()" class="btn btn-sm btn-outline" style="padding:2px 8px;font-size:.7rem;"><?= $senhaGov === '' ? '+ Cadastrar' : '✏️ Editar' ?></button>
+                </div>
+                <div id="senhaGovEdit" style="display:none;align-items:center;gap:.4rem;flex-wrap:wrap;">
+                    <input type="text" id="senhaGovInput" value="<?= e($senhaGov) ?>" class="form-input" style="width:240px;font-family:monospace;" placeholder="Senha do gov.br do cliente" maxlength="100">
+                    <button type="button" onclick="senhaGovSalvar()" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;border:none;padding:4px 10px;">Salvar</button>
+                    <button type="button" onclick="senhaGovCancelar()" class="btn btn-sm btn-outline" style="padding:4px 10px;">Cancelar</button>
+                    <span id="senhaGovStatus" style="font-size:.72rem;color:var(--text-muted);"></span>
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+(function(){
+    var elTxt    = document.getElementById('senhaGovTxt');
+    var elView   = document.getElementById('senhaGovView');
+    var elEdit   = document.getElementById('senhaGovEdit');
+    var elInput  = document.getElementById('senhaGovInput');
+    var elStatus = document.getElementById('senhaGovStatus');
+
+    window.senhaGovToggle = function() {
+        var olho = document.getElementById('senhaGovOlho');
+        var senha = elTxt.getAttribute('data-senha') || '';
+        var mascarada = elTxt.getAttribute('data-mascarada') === '1';
+        if (mascarada) {
+            elTxt.textContent = senha;
+            elTxt.setAttribute('data-mascarada', '0');
+            if (olho) olho.textContent = '🙈 Ocultar';
+        } else {
+            elTxt.textContent = senha === '' ? 'Não cadastrada' : '••••••••';
+            elTxt.setAttribute('data-mascarada', '1');
+            if (olho) olho.textContent = '👁 Mostrar';
+        }
+    };
+
+    window.senhaGovCopiar = function() {
+        var senha = elTxt.getAttribute('data-senha') || '';
+        if (!senha) return;
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(senha).then(function(){
+                elStatus.textContent = '✓ Copiada';
+                setTimeout(function(){ elStatus.textContent = ''; }, 1500);
+            });
+        }
+    };
+
+    window.senhaGovEditar = function() {
+        elView.style.display = 'none';
+        elEdit.style.display = 'flex';
+        elInput.focus();
+        elInput.select();
+    };
+
+    window.senhaGovCancelar = function() {
+        elEdit.style.display = 'none';
+        elView.style.display = 'flex';
+        elInput.value = elTxt.getAttribute('data-senha') || '';
+    };
+
+    window.senhaGovSalvar = function() {
+        var nova = elInput.value.trim();
+        elStatus.textContent = 'Salvando…';
+        var fd = new FormData();
+        fd.append('action', 'update_senha_gov');
+        fd.append('client_id', '<?= (int)$client['id'] ?>');
+        fd.append('senha_gov', nova);
+        fd.append('csrf_token', document.querySelector('meta[name=csrf-token]')?.content || '<?= e(generate_csrf_token()) ?>');
+        fetch('<?= module_url('crm', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){
+                if (r.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); throw new Error('401'); }
+                return r.json();
+            })
+            .then(function(j){
+                if (j && j.ok) {
+                    elStatus.textContent = '✓ Salva';
+                    elTxt.setAttribute('data-senha', nova);
+                    elTxt.setAttribute('data-mascarada', '1');
+                    elTxt.textContent = nova === '' ? 'Não cadastrada' : '••••••••';
+                    elTxt.style.color  = nova === '' ? 'var(--text-muted)' : '';
+                    elTxt.style.fontStyle = nova === '' ? 'italic' : '';
+                    setTimeout(function(){ window.location.reload(); }, 600);
+                } else {
+                    elStatus.textContent = '✕ ' + (j && j.erro ? j.erro : 'Erro ao salvar');
+                }
+            })
+            .catch(function(){ elStatus.textContent = '✕ Erro de rede'; });
+    };
+})();
+</script>
 
 <!-- Endereço -->
 <div class="card" style="margin-bottom:1.25rem;">

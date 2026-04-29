@@ -70,6 +70,20 @@ switch ($action) {
         redirect(module_url('crm', 'cliente_ver.php?id=' . $clientId));
         break;
 
+    case 'update_senha_gov':
+        // Save AJAX da senha gov.br do cliente (campo único da Sprint 31)
+        header('Content-Type: application/json; charset=utf-8');
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $senha = trim($_POST['senha_gov'] ?? '');
+        if ($clientId <= 0) { echo json_encode(array('ok' => false, 'erro' => 'client_id inválido')); exit; }
+        // Self-heal da coluna
+        try { $pdo->exec("ALTER TABLE clients ADD COLUMN senha_gov VARCHAR(100) NULL"); } catch (Exception $e) {}
+        $pdo->prepare('UPDATE clients SET senha_gov = ?, updated_at = NOW() WHERE id = ?')
+            ->execute(array($senha === '' ? null : $senha, $clientId));
+        audit_log('senha_gov_atualizada', 'client', $clientId);
+        echo json_encode(array('ok' => true, 'preenchida' => $senha !== ''));
+        exit;
+
     case 'update_client_status':
         $clientId = (int)($_POST['client_id'] ?? 0);
         $newStatus = $_POST['client_status'] ?? '';
