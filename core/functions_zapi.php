@@ -437,11 +437,29 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
     // Forçamos mime "audio/ogg; codecs=opus" porque é o formato canônico que
     // a Z-API e o WhatsApp esperam (codec opus já está dentro do .webm do
     // Chrome — só o container muda).
+    // Log da tentativa pra diagnóstico (rastreia se o fix base64 está funcionando em produção)
+    $logCtx = array('input_type' => '', 'tamanho' => 0, 'extensao' => '', 'mime_detectado' => '', 'modo' => '');
+
     if (is_string($audio) && file_exists($audio) && is_readable($audio)) {
         $bin = @file_get_contents($audio);
         if ($bin !== false && strlen($bin) > 0) {
+            $logCtx['input_type'] = 'arquivo_local';
+            $logCtx['tamanho']    = strlen($bin);
+            $logCtx['extensao']   = strtolower(pathinfo($audio, PATHINFO_EXTENSION));
+            $logCtx['mime_detectado'] = function_exists('mime_content_type') ? @mime_content_type($audio) : '';
+            $logCtx['modo']       = 'base64';
             $audio = 'data:audio/ogg;base64,' . base64_encode($bin);
+        } else {
+            $logCtx['input_type'] = 'arquivo_local_vazio';
+            $logCtx['modo']       = 'url_fallback';
         }
+    } elseif (is_string($audio) && strpos($audio, 'data:') === 0) {
+        $logCtx['input_type'] = 'data_uri';
+        $logCtx['tamanho']    = strlen($audio);
+        $logCtx['modo']       = 'data_uri';
+    } else {
+        $logCtx['input_type'] = 'url_externa';
+        $logCtx['modo']       = 'url';
     }
 
     $body = array(
@@ -450,7 +468,36 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
         'waveform' => (bool)$asPtt,
         'viewOnce' => false,
     );
-    return _zapi_post($url, $headers, $body);
+    $r = _zapi_post($url, $headers, $body);
+
+    // Log persistente (tabela self-heal) — útil pra revisar se o fix base64 chega à Z-API
+    try {
+        $pdo = db();
+        $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_envio_audio_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            ddd VARCHAR(4),
+            telefone VARCHAR(40),
+            input_type VARCHAR(30),
+            extensao VARCHAR(10),
+            mime_detectado VARCHAR(60),
+            modo VARCHAR(20),
+            tamanho_bytes INT,
+            zapi_http INT,
+            zapi_msg_id VARCHAR(100),
+            zapi_data_resumo VARCHAR(500),
+            INDEX idx_criado (criado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $msgId = '';
+        if (is_array($r['data'] ?? null)) {
+            $msgId = $r['data']['id'] ?? ($r['data']['zaapId'] ?? ($r['data']['messageId'] ?? ''));
+        }
+        $resumo = is_array($r['data'] ?? null) ? json_encode(array_slice($r['data'], 0, 3, true)) : substr((string)($r['data'] ?? ''), 0, 200);
+        $pdo->prepare("INSERT INTO zapi_envio_audio_log (ddd, telefone, input_type, extensao, mime_detectado, modo, tamanho_bytes, zapi_http, zapi_msg_id, zapi_data_resumo) VALUES (?,?,?,?,?,?,?,?,?,?)")
+            ->execute(array($ddd, zapi_normaliza_telefone($telefone), $logCtx['input_type'], $logCtx['extensao'], $logCtx['mime_detectado'], $logCtx['modo'], $logCtx['tamanho'], $r['http_code'] ?? 0, $msgId, $resumo));
+    } catch (Exception $e) {}
+
+    return $r;
 }
 
 /**
