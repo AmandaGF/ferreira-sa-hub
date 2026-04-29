@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -39,6 +39,7 @@ $typeLabels = array(
     'habilitacao' => 'Petição de Habilitação nos Autos',
     'audiencia_remota' => 'Petição de Audiência Remota/Híbrida',
     'mandado_pagamento' => 'Requerimento de Mandado de Pagamento',
+    'averbacao_sentenca' => 'Averbação de Sentença — Divórcio',
 );
 
 $acaoLabels = array(
@@ -262,6 +263,9 @@ $beneficiarioMandado = $_POST['beneficiario_mandado'] ?? 'escritorio';
 $darQuitacao = $_POST['dar_quitacao'] ?? 'sim';
 $paginaProcuracao = $_POST['pagina_procuracao'] ?? '';
 
+// Campo averbação sentença
+$gratuidadeAvb = $_POST['gratuidade_avb'] ?? 'sim';
+
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
 $objetoCiencia = $_POST['objeto_ciencia'] ?? '';
@@ -276,7 +280,7 @@ $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -877,6 +881,20 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'averbacao_sentenca'): ?>
+        <div class="section">
+            <h4>💔 Averbação Sentença — opções</h4>
+            <div style="margin-bottom:.75rem;">
+                <label>Cliente tem gratuidade de justiça deferida nos autos?</label>
+                <select name="gratuidade_avb">
+                    <option value="sim" selected>Sim — incluir parágrafo sobre Malote Digital obrigatório</option>
+                    <option value="nao">Não — omitir o parágrafo da gratuidade</option>
+                </select>
+                <small style="color:#6b7280;">Quando há gratuidade, cartórios geralmente aceitam Malote Digital. Sem gratuidade, talvez ela tenha que pagar a averbação direto.</small>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <?php if ($tipo === 'audiencia_remota'): ?>
         <div class="section">
             <h4>🖥️ Dados da Audiência Remota/Híbrida</h4>
@@ -1193,6 +1211,7 @@ if (!$showEditor) {
         'dar_quitacao' => $darQuitacao,
         'pagina_procuracao' => $paginaProcuracao,
         'qtd_menores' => $qtdMenores,
+        'gratuidade_avb' => $gratuidadeAvb,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -1209,6 +1228,7 @@ if (!$showEditor) {
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
     elseif ($tipo === 'audiencia_remota') echo template_audiencia_remota($d);
     elseif ($tipo === 'mandado_pagamento') echo template_mandado_pagamento($d);
+    elseif ($tipo === 'averbacao_sentenca') echo template_averbacao_sentenca($d);
     ?>
     </div>
 

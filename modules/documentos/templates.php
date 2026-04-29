@@ -965,3 +965,38 @@ function template_mandado_pagamento($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════════
+// AVERBAÇÃO DE SENTENÇA — DIVÓRCIO (Aviso CGJ 154/2021)
+// Ciência da sentença + renúncia ao prazo recursal + requer
+// expedição de Carta de Sentença via Malote Digital pro RCPN
+// ═══════════════════════════════════════════════════════════
+function template_averbacao_sentenca($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $isGratuidade = !isset($d['gratuidade_avb']) || $d['gratuidade_avb'] !== 'nao';
+
+    $html = '';
+    $html .= enderecamento($d);
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">'
+           . qualificacao_legitimidade($d)
+           . ', vem, respeitosamente, por intermédio de sua advogada que esta subscreve, exarar ciência quanto ao teor da r. sentença, <strong>renunciando ao prazo recursal</strong>.</p>';
+
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">'
+           . 'Após o trânsito em julgado da presente demanda, e em atenção ao disposto no <strong>Aviso CGJ nº 154/2021 da Corregedoria Geral da Justiça</strong>, requer que a <strong>Carta de Sentença</strong> seja expedida e encaminhada por meio do <strong>Malote Digital</strong> ao Serviço de Registro Civil das Pessoas Naturais competente, onde foi lavrado o Casamento das partes, a fim de que se proceda à devida averbação à margem do registro.</p>';
+
+    if ($isGratuidade) {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">'
+               . 'Informa, na oportunidade, que a patrona da parte efetuou contato com o cartório competente, tendo sido informada que, como há <strong>gratuidade de justiça deferida nos Autos</strong>, a solicitação da averbação deverá ser realizada via Malote Digital.</p>';
+    }
+
+    $html .= '<p style="text-align:center;margin:24pt 0 8pt;text-indent:0;line-height:1.4;">Nestes termos, pede deferimento.</p>';
+    $html .= '<p style="text-align:right;margin:8pt 0 0 0;text-indent:0;line-height:1.4;">' . f($d['cidade_data']) . '</p>';
+    $html .= '<p style="text-align:center;margin:60pt 0 0 0;text-indent:0;line-height:1.2;letter-spacing:1px;">_______________________________________</p>';
+    $html .= '<p style="text-align:center;margin:4pt 0 0 0;text-indent:0;font-weight:700;font-size:11pt;line-height:1.4;">' . $esc['adv1_nome'] . '</p>';
+    $html .= '<p style="text-align:center;margin:0;text-indent:0;font-size:10pt;color:#444;line-height:1.4;">OAB/RJ ' . $esc['adv1_oab'] . '</p>';
+
+    return $html;
+}
