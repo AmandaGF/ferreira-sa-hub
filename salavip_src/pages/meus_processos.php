@@ -261,10 +261,34 @@ $statusBorderColors = [
 }
 
 @media (max-width: 600px) {
-    .sv-card--processo { padding: 1rem; }
+    .sv-card--processo {
+        padding: 1rem;
+        /* Padding direito maior pra a seta '→' não sobrepor o título */
+        padding-right: 2.6rem;
+    }
     .sv-card__header { flex-direction: column; gap: .5rem; }
     .sv-card__andamento { flex-direction: column; gap: .25rem; }
     .sv-card__andamento-desc { white-space: normal; }
+    .sv-card__title {
+        /* Garante que título quebra linha sem invadir a seta */
+        padding-right: .5rem;
+        word-break: break-word;
+    }
+    .sv-card--processo::after {
+        font-size: 1.2rem;
+        top: 1rem;
+        right: 1rem;
+        /* Em mobile, seta sempre visível (não só no hover) — touch não tem hover */
+        opacity: .6;
+    }
+    .sv-card--processo:active {
+        background: rgba(255,255,255,.06);
+        transform: translateY(-1px);
+    }
+    .sv-processos-dica {
+        font-size: .78rem;
+        padding: .55rem .75rem;
+    }
 }
 </style>
 
