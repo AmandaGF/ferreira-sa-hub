@@ -72,11 +72,43 @@ $statusBorderColors = [
     border-left: 4px solid var(--sv-accent);
     border-radius: 10px;
     padding: 1.25rem 1.5rem;
-    transition: box-shadow .2s, transform .15s;
+    transition: box-shadow .2s, transform .15s, border-color .2s;
+    /* Card inteiro vira um <a> — cursor pointer + sem underline */
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    cursor: pointer;
+    position: relative;
 }
 .sv-card--processo:hover {
-    box-shadow: 0 4px 20px rgba(0,0,0,.25);
-    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,.35);
+    transform: translateY(-3px);
+    border-color: var(--sv-accent);
+}
+/* Indicação visual sutil "clicável" no canto */
+.sv-card--processo::after {
+    content: "→";
+    position: absolute;
+    top: 1.25rem;
+    right: 1.5rem;
+    color: var(--sv-accent);
+    font-size: 1.4rem;
+    opacity: .35;
+    transition: opacity .15s, transform .15s;
+}
+.sv-card--processo:hover::after {
+    opacity: 1;
+    transform: translateX(4px);
+}
+/* Dica de navegação quando há mais de 1 processo */
+.sv-processos-dica {
+    font-size: .82rem;
+    color: var(--sv-text-muted);
+    margin-bottom: 1rem;
+    padding: .5rem .85rem;
+    background: rgba(255,255,255,.04);
+    border-left: 2px solid var(--sv-accent);
+    border-radius: 4px;
 }
 
 .sv-card__header {
@@ -244,6 +276,12 @@ $statusBorderColors = [
         <span><?= $totalAtivos ?></span> processo<?= $totalAtivos !== 1 ? 's' : '' ?> ativo<?= $totalAtivos !== 1 ? 's' : '' ?>
     </div>
 
+    <?php if ($totalAtivos > 1): ?>
+        <div class="sv-processos-dica">
+            👆 Toque em qualquer processo abaixo pra ver os detalhes. Você tem <strong><?= $totalAtivos ?></strong> processos — role a página pra ver todos.
+        </div>
+    <?php endif; ?>
+
     <div class="sv-processos-grid">
         <?php foreach ($processos as $caso):
             $status = $caso['status'] ?? '';
@@ -257,7 +295,7 @@ $statusBorderColors = [
             $stmtDocsPend->execute([$caso['id']]);
             $qtdDocsPend = (int) $stmtDocsPend->fetchColumn();
         ?>
-            <div class="sv-card sv-card--processo" style="border-left-color: <?= $borderColor ?>;">
+            <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$caso['id']) ?>" class="sv-card sv-card--processo" style="border-left-color: <?= $borderColor ?>;">
 
                 <!-- Header: título + badge status -->
                 <div class="sv-card__header">
@@ -269,7 +307,7 @@ $statusBorderColors = [
                 <?php if (!empty($caso['case_number'])): ?>
                     <div class="sv-card__number">
                         <span id="num-<?= (int)$caso['id'] ?>"><?= sv_e($caso['case_number']) ?></span>
-                        <button class="sv-card__copy-btn" onclick="svCopyNum(<?= (int)$caso['id'] ?>)" title="Copiar número">
+                        <button class="sv-card__copy-btn" onclick="event.preventDefault();event.stopPropagation();svCopyNum(<?= (int)$caso['id'] ?>);return false;" title="Copiar número">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
                         </button>
                     </div>
@@ -310,14 +348,14 @@ $statusBorderColors = [
                     </div>
                 <?php endif; ?>
 
-                <!-- Botão -->
+                <!-- Botão (redundante com o card todo clicável, mas mantido como dica visual) -->
                 <div class="sv-card__footer">
-                    <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$caso['id']) ?>" class="sv-btn sv-btn-outline">
+                    <span class="sv-btn sv-btn-outline" style="pointer-events:none;">
                         Ver Detalhes &rarr;
-                    </a>
+                    </span>
                 </div>
 
-            </div>
+            </a>
         <?php endforeach; ?>
     </div>
 
