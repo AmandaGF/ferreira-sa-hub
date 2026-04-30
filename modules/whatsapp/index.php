@@ -783,7 +783,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 html += '<div class="'+cls+'" style="position:relative;">';
                 // Botões hover (apagar/editar/responder) só pra mensagens enviadas pelo Hub e não deletadas
                 if (m.direcao === 'enviada' && m.status !== 'deletada' && m.zapi_message_id) {
-                    html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<div class="wa-msg-actions" style="position:absolute;top:-28px;right:2px;display:none;gap:3px;z-index:20;">';
                     html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     if (m.tipo === 'texto') html += '<button onclick="waEditarMsg('+m.id+')" title="Editar (até 15 min)" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">✏️</button>';
@@ -793,7 +793,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
                 // Hover de reagir/responder/fixar também pra mensagens recebidas
                 if (m.direcao === 'recebida' && m.status !== 'deletada' && m.zapi_message_id) {
-                    html += '<div class="wa-msg-actions" style="position:absolute;top:2px;right:2px;display:none;gap:3px;">';
+                    html += '<div class="wa-msg-actions" style="position:absolute;top:-28px;right:2px;display:none;gap:3px;z-index:20;">';
                     html += '<button onclick="waResponderMsg(\''+(m.zapi_message_id||'')+'\','+m.id+')" title="Responder a esta mensagem" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">↩️</button>';
                     html += '<button onclick="waAbrirReacaoPicker(this,'+m.id+')" title="Reagir" style="background:rgba(255,255,255,.9);border:1px solid #e5e7eb;border-radius:4px;width:22px;height:22px;font-size:.75rem;cursor:pointer;padding:0;">😀</button>';
                     html += '<button onclick="waPinMsg('+m.id+')" title="'+(+m.pinned?'Desfixar':'Fixar no topo')+'" style="background:'+(+m.pinned?'#fef3c7':'rgba(255,255,255,.9)')+';border:1px solid '+(+m.pinned?'#fbbf24':'#e5e7eb')+';border-radius:4px;width:22px;height:22px;font-size:.7rem;cursor:pointer;padding:0;">📌</button>';
