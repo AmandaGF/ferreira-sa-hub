@@ -461,6 +461,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var canal  = '<?= e($canal) ?>';
     var apiUrl = '<?= module_url('whatsapp', 'api.php') ?>';
     var csrf   = '<?= e($csrfToken) ?>';
+    window._FSA_CSRF = window._FSA_CSRF || csrf;
+    setInterval(function(){ if (window._FSA_CSRF) csrf = window._FSA_CSRF; }, 1500);
     // Status inicial vem da URL (?status=aguardando|em_atendimento|bot|nao_lidas|resolvido)
     // Útil pra linkar direto do Dashboard já filtrado.
     var filtroAtual = <?= json_encode(in_array($_GET['status'] ?? '', array('aguardando','em_atendimento','bot','nao_lidas','resolvido'), true) ? $_GET['status'] : 'todos') ?>;
