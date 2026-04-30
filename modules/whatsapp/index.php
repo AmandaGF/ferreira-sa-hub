@@ -26,6 +26,18 @@ if ($autoAbrirConv > 0 && empty($_GET['canal'])) {
     } catch (Exception $e) {}
 }
 
+// Deep-link por telefone: ?telefone=<num>&canal=24&texto=<msg> (resolvido p/ ?abrir=ID)
+if ($autoAbrirConv === 0 && !empty($_GET['telefone'])) {
+    $_telDeep = preg_replace('/\D/', '', $_GET['telefone']);
+    if ($_telDeep !== '') {
+        try {
+            $convDeep = zapi_buscar_ou_criar_conversa($_telDeep, $canal, $_GET['nome'] ?? null);
+            if ($convDeep && !empty($convDeep['id'])) $autoAbrirConv = (int)$convDeep['id'];
+        } catch (Exception $e) {}
+    }
+}
+$prefillTexto = isset($_GET['texto']) ? (string)$_GET['texto'] : '';
+
 $isComercial = ($canal === '21');
 $canalLabel  = $isComercial ? 'Comercial' : 'CX/Operacional';
 $pageTitle   = 'WhatsApp ' . $canalLabel . ' (DDD ' . $canal . ')';
@@ -2800,7 +2812,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
     carregarLista();
     // Auto-abrir conversa específica via ?abrir=ID (deep-link de outras páginas)
     <?php if ($autoAbrirConv > 0): ?>
-    setTimeout(function() { try { window.waAbrir(<?= $autoAbrirConv ?>); } catch(e) {} }, 600);
+    setTimeout(function() {
+        try {
+            window.waAbrir(<?= $autoAbrirConv ?>);
+            <?php if ($prefillTexto !== ''): ?>
+            setTimeout(function(){
+                var inp = document.getElementById('waInput');
+                if (inp) { inp.value = <?= json_encode($prefillTexto, JSON_UNESCAPED_UNICODE) ?>; inp.focus(); inp.dispatchEvent(new Event('input')); }
+            }, 400);
+            <?php endif; ?>
+        } catch(e) {}
+    }, 600);
     <?php endif; ?>
     pollTimer = setInterval(function(){
         carregarLista();

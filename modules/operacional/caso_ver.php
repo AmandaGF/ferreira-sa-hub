@@ -802,7 +802,7 @@ if (!empty($compFuturos)): ?>
                 if ($comp['local']) $msg .= "\n\n📍 Local: " . $comp['local'];
                 if ($comp['meet_link']) $msg .= "\n\n💻 Link de acesso: " . $comp['meet_link'];
                 $msg .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
-                $waComps[] = array('name' => $cvw['name'], 'url' => 'https://wa.me/55' . $ph . '?text=' . rawurlencode($msg));
+                $waComps[] = array('name' => $cvw['name'], 'url' => module_url('whatsapp') . '?canal=24&telefone=' . rawurlencode($ph) . '&nome=' . rawurlencode($cvw['name']) . '&texto=' . rawurlencode($msg));
             }
             ?>
             <?php if (count($waComps) === 1): ?>
