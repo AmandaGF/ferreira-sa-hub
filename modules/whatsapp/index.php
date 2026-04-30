@@ -1430,57 +1430,94 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         // Pré-check: se a permissão já está 'denied', não adianta chamar getUserMedia.
         // A API Permissions pode não estar disponível em todos os browsers — nesse caso só tentamos.
+        // Finaliza o áudio (chamado por opus.ondataavailable OU mediaRecorder.onstop)
+        var finalizarAudio = function(blob, usedMime) {
+            paraTimer();
+            fecharStream();
+            var devoEnviar = recEnviarAoParar;
+            recEnviarAoParar = false;
+            if (recCancelada || !blob || blob.size === 0) {
+                mostrarBarraGravacao(false);
+                mediaRecorder = null;
+                return;
+            }
+            var duracao = Date.now() - recInicio;
+            mediaRecorder = null;
+            if (duracao < 500) {
+                mostrarBarraGravacao(false);
+                alert('Áudio curto demais.');
+                return;
+            }
+            if (devoEnviar) {
+                mostrarBarraGravacao(false);
+                enviarAudioBlob(blob, usedMime, duracao);
+                return;
+            }
+            audioPronto = { blob: blob, mime: usedMime, duracaoMs: duracao, previewUrl: null };
+            mostrarBarraAudioPronto();
+        };
+
         var iniciar = function() {
             navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream){
                 recStream = stream;
                 recChunks = [];
                 recCancelada = false;
-                var mime = '';
-                if (window.MediaRecorder) {
-                    if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
-                    else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
-                    else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime = 'audio/ogg;codecs=opus';
-                    else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
-                }
-                try {
-                    mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-                } catch (err) {
-                    alert('Não foi possível iniciar o gravador: ' + err);
-                    fecharStream();
-                    return;
-                }
 
-                mediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) recChunks.push(e.data); };
-                mediaRecorder.onstop = function(){
-                    paraTimer();
-                    fecharStream();
-                    var devoEnviar = recEnviarAoParar;
-                    recEnviarAoParar = false;
-                    if (recCancelada || recChunks.length === 0) {
-                        mostrarBarraGravacao(false);
+                // 1) PREFERIDO: OpusRecorder → grava OGG OPUS direto (formato canônico WhatsApp)
+                if (window.Recorder && typeof window.Recorder === 'function') {
+                    try {
+                        var AC = window.AudioContext || window.webkitAudioContext;
+                        var ac = new AC();
+                        var srcNode = ac.createMediaStreamSource(stream);
+                        var opus = new Recorder({
+                            encoderPath: '<?= url('assets/js/vendor/opus-recorder/encoderWorker.min.js') ?>',
+                            encoderSampleRate: 16000,
+                            numberOfChannels: 1,
+                            encoderApplication: 2049,  // VOIP — otimizado pra voz
+                            streamPages: false,
+                            sourceNode: srcNode
+                        });
+                        opus.ondataavailable = function(arrayBuffer) {
+                            var blob = new Blob([arrayBuffer], { type: 'audio/ogg' });
+                            try { ac.close(); } catch(e) {}
+                            finalizarAudio(blob, 'audio/ogg');
+                        };
+                        // Wrapper compat-MediaRecorder (start/stop/state)
+                        mediaRecorder = {
+                            _opus: opus,
+                            state: 'inactive',
+                            start: function() { mediaRecorder.state = 'recording'; opus.start(); },
+                            stop:  function() { mediaRecorder.state = 'inactive';  opus.stop();  }
+                        };
+                    } catch (e) {
+                        console.warn('[wa] opus-recorder falhou no init, fallback MediaRecorder:', e);
                         mediaRecorder = null;
-                        return;
                     }
+                }
 
-                    var usedMime = mediaRecorder.mimeType || 'audio/webm';
-                    var blob = new Blob(recChunks, { type: usedMime });
-                    var duracao = Date.now() - recInicio;
-                    mediaRecorder = null;
-                    if (duracao < 500) {
-                        mostrarBarraGravacao(false);
-                        alert('Áudio curto demais.');
+                // 2) FALLBACK: MediaRecorder (WebM) — usa fix-webm-duration.js antes de enviar
+                if (!mediaRecorder) {
+                    var mime = '';
+                    if (window.MediaRecorder) {
+                        if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
+                        else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
+                        else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime = 'audio/ogg;codecs=opus';
+                        else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
+                    }
+                    try {
+                        mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+                    } catch (err) {
+                        alert('Não foi possível iniciar o gravador: ' + err);
+                        fecharStream();
                         return;
                     }
-                    // Se Amanda clicou ➤ Enviar durante a gravação, envia direto (não guarda pra revisão)
-                    if (devoEnviar) {
-                        mostrarBarraGravacao(false);
-                        enviarAudioBlob(blob, usedMime, duracao);
-                        return;
-                    }
-                    // ⏹ apenas PARA — áudio fica aguardando Amanda clicar ➤ Enviar
-                    audioPronto = { blob: blob, mime: usedMime, duracaoMs: duracao, previewUrl: null };
-                    mostrarBarraAudioPronto();
-                };
+                    mediaRecorder.ondataavailable = function(e){ if (e.data && e.data.size) recChunks.push(e.data); };
+                    mediaRecorder.onstop = function(){
+                        var usedMime = mediaRecorder.mimeType || 'audio/webm';
+                        var blob = recChunks.length ? new Blob(recChunks, { type: usedMime }) : null;
+                        finalizarAudio(blob, usedMime);
+                    };
+                }
 
                 mediaRecorder.start();
                 recInicio = Date.now();
@@ -2795,11 +2832,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <?php endif; ?>
 
-<!-- fix-webm-duration.js: injeta Duration no header EBML do .webm gravado pelo MediaRecorder
-     do Chrome (bug crítico — sem isso o WhatsApp da cliente recebe áudio com duração 00:00
-     e considera mudo, não toca). Carregado APÓS o bloco do gravador, mas o gravador só roda
-     no clique do botão (deferido), então a função window.fixWebmDuration estará disponível
-     quando enviarAudioBlob() executar. -->
+<!-- opus-recorder: grava áudio direto em OGG OPUS (formato canônico do WhatsApp Voice Note).
+     Resolve o bug "Este áudio não está mais disponível" — Chrome MediaRecorder só consegue
+     gravar em WebM, e o WhatsApp do cliente não cacheia WebM direito. Com OGG OPUS, o áudio
+     é re-hospedado pela Z-API no CDN e o WhatsApp processa normalmente.
+     fix-webm-duration.js continua carregado como fallback (caso opus-recorder falhe). -->
+<script src="<?= url('assets/js/vendor/opus-recorder/recorder.min.js') ?>"></script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>"></script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
