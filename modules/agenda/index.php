@@ -239,6 +239,8 @@ if ($voltarCaso > 0): ?>
             <div class="ag-chip-dot" style="background:<?= $t['cor'] ?>"></div> <?= $t['label'] ?>
         </div>
         <?php endforeach; ?>
+        <button type="button" onclick="agMarcarTodosFiltros()" style="background:transparent;border:1px dashed var(--border);border-radius:100px;padding:4px 12px;font-size:.72rem;color:var(--text-muted);cursor:pointer;font-weight:600;">Marcar todos</button>
+        <button type="button" onclick="agDesmarcarTodosFiltros()" style="background:transparent;border:1px dashed var(--border);border-radius:100px;padding:4px 12px;font-size:.72rem;color:var(--text-muted);cursor:pointer;font-weight:600;">Desmarcar todos</button>
     </div>
 
     <!-- VISÃO MENSAL -->
@@ -564,6 +566,14 @@ function filtrosAtivos() {
     return ativos;
 }
 function toggleFiltro(el) { el.classList.toggle('ativo'); renderVis(); }
+function agMarcarTodosFiltros() {
+    document.querySelectorAll('.ag-filtros .ag-chip').forEach(function(c){ c.classList.add('ativo'); });
+    renderVis();
+}
+function agDesmarcarTodosFiltros() {
+    document.querySelectorAll('.ag-filtros .ag-chip').forEach(function(c){ c.classList.remove('ativo'); });
+    renderVis();
+}
 function eventosFiltrados() {
     var f = filtrosAtivos();
     return eventos.filter(function(ev) {
