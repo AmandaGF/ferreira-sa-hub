@@ -303,6 +303,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
     /* Mensagem ocupa mais largura na tela pequena */
     .wa-msg { max-width:85%; }
+    /* Campo de digitação maior e font-size 16px (evita zoom auto do iOS) */
+    .wa-chat-input { padding:.6rem .55rem;gap:.3rem; }
+    .wa-chat-input textarea { min-height:64px;max-height:180px;font-size:16px;padding:10px 12px; }
+    .wa-btn-send { padding:10px 14px;font-size:.95rem; }
+    .wa-btn-tpl { padding:8px 9px;font-size:1.1rem; }
 }
 .wa-btn-voltar-lista { display:none; }  /* default: escondido (só aparece em mobile via media query) */
 </style>
