@@ -2080,9 +2080,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         })
             .then(function(r){ return r.json(); })
             .then(function(d){
-                var casos = (d && d.casos) || [];
+                var casos = ((d && d.casos) || []).filter(function(c){ return c.status !== 'arquivado'; });
                 if (!casos.length) {
-                    alert('Esse cliente não tem processo cadastrado no Operacional.');
+                    alert('Esse cliente não tem processo ativo cadastrado no Operacional.');
                     return;
                 }
                 if (casos.length === 1) {
