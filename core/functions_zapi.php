@@ -928,7 +928,27 @@ function zapi_extrai_conteudo($payload, $tipo) {
         $lng = $payload['location']['longitude'] ?? '';
         return "[localização] $lat, $lng";
     }
-    if ($tipo === 'contato') return '[contato]';
+    if ($tipo === 'contato') {
+        // Z-API manda contato em vários formatos: contact (objeto), contacts (array), contactMessage
+        $cs = $payload['contacts'] ?? null;
+        if (!$cs && isset($payload['contact'])) $cs = array($payload['contact']);
+        if (!$cs && isset($payload['contactMessage'])) $cs = array($payload['contactMessage']);
+        if (is_array($cs) && !empty($cs)) {
+            $linhas = array();
+            foreach ($cs as $c) {
+                if (!is_array($c)) continue;
+                $nome = $c['displayName'] ?? ($c['name'] ?? ($c['fullName'] ?? ''));
+                $tel  = $c['phoneNumber'] ?? ($c['number'] ?? '');
+                $vcard = $c['vCard'] ?? ($c['vcard'] ?? '');
+                if (!$nome && $vcard && preg_match('/^FN:(.+)$/m', $vcard, $m)) $nome = trim($m[1]);
+                if (!$tel  && $vcard && preg_match('/TEL[^:]*:(.+)$/m', $vcard, $m)) $tel = trim($m[1]);
+                $linha = trim($nome . ($tel ? ' — ' . $tel : ''));
+                if ($linha !== '') $linhas[] = $linha;
+            }
+            if (!empty($linhas)) return '[contato] ' . implode(' | ', $linhas);
+        }
+        return '[contato]';
+    }
     if ($tipo === 'reacao') {
         $emoji = $payload['reaction']['value'] ?? ($payload['reaction']['reaction'] ?? '');
         return '[reagiu com ' . $emoji . ']';
