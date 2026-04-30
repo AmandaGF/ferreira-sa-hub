@@ -822,16 +822,22 @@ if (!empty($compFuturos)): ?>
             <?php endif; ?>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&editar=<?= (int)$comp['id'] ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:#fff;background:#052228;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;" title="Alterar data, hora, local, responsável, etc.">✏️ Editar</a>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
-            <?php if ($comp['tipo'] === 'prazo' && empty($comp['pub_vinc_id']) && (has_min_role('operacional') || has_min_role('gestao'))):
+            <?php
+            // Mostra "Cumprir/Realizado" exceto quando há pub vinculada PENDENTE
+            // (nesse caso o botão "Dar baixa" abaixo já cobre)
+            $_pubPendente = !empty($comp['pub_vinc_id']) && ($comp['pub_vinc_status'] ?? '') === 'pendente';
+            if (!$_pubPendente && (has_min_role('operacional') || has_min_role('gestao'))):
                 $_backPasta = htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8');
+                $_btnLabel = ($comp['tipo'] === 'prazo') ? '✓ Cumprir' : '✓ Realizado';
+                $_confirmMsg = ($comp['tipo'] === 'prazo') ? 'Cumprir este prazo? (vai marcar como realizado)' : 'Marcar este compromisso como realizado?';
             ?>
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Cumprir este prazo? (vai marcar como realizado)');">
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm(<?= json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) ?>);">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="evento_realizado">
                     <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
-                    <button type="submit" title="Cumprir prazo — marca como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;">✓ Cumprir</button>
+                    <button type="submit" title="Marcar como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
             <?php endif; ?>
             <?php
