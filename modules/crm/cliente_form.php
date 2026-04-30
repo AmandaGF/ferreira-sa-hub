@@ -25,7 +25,12 @@ if ($editId) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!validate_csrf()) { $errors[] = 'Token inválido.'; }
+    if (!validate_csrf()) {
+        $errors[] = 'Token inválido.';
+        @file_put_contents(APP_ROOT . '/files/cliente_save_debug.log',
+            date('Y-m-d H:i:s') . " uid=" . current_user_id() . " editId={$editId} CSRF_INVALIDO\n",
+            FILE_APPEND);
+    }
 
     $f = [
         'name'           => clean_str($_POST['name'] ?? '', 150),
@@ -85,12 +90,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         if ($editId) {
-            $pdo->prepare(
+            $stmtUpd = $pdo->prepare(
                 'UPDATE clients SET name=?, cpf=?, rg=?, birth_date=?, email=?, phone=?, phone2=?,
                  address_street=?, address_city=?, address_state=?, address_zip=?,
                  profession=?, marital_status=?, gender=?, has_children=?, children_names=?,
                  children_json=?, pix_key=?, nacionalidade=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
-            )->execute([
+            );
+            $stmtUpd->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
                 $f['address_street'] ?: null, $f['address_city'] ?: null,
@@ -100,6 +106,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, $editId
             ]);
+            @file_put_contents(APP_ROOT . '/files/cliente_save_debug.log',
+                date('Y-m-d H:i:s') . " uid=" . current_user_id() . " editId={$editId}" .
+                " rows=" . $stmtUpd->rowCount() .
+                " name=" . substr($f['name'], 0, 60) .
+                " phone=" . $f['phone'] .
+                " email=" . $f['email'] . "\n",
+                FILE_APPEND);
             audit_log('client_updated', 'client', $editId);
             flash_set('success', 'Cliente atualizado.');
         } else {
