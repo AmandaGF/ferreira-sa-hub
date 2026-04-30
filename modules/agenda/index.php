@@ -862,6 +862,7 @@ function renderLista() {
             (ev.responsavel_name ? '<span>\uD83D\uDC64 ' + esc(ev.responsavel_name) + '</span>' : '') +
             (ev.client_name ? '<span>\uD83D\uDCCB ' + esc(ev.client_name) + '</span>' : '') +
             (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + (ev.case_number ? ' — ' + esc(ev.case_number) : '') + '</span>' : '') +
+            (ev.local ? '<span>📍 ' + esc(ev.local) + '</span>' : (ev.case_comarca ? '<span>📍 Comarca: ' + esc(ev.case_comarca) + '</span>' : '')) +
             prioHtml + statusHtml +
             '</div>' +
             (function(){

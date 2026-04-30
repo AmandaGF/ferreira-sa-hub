@@ -254,7 +254,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $responsavel = isset($_GET['responsavel']) ? (int)$_GET['responsavel'] : 0;
 
         $sql = "SELECT e.*, c.name as client_name, c.phone as client_phone,
-                       cs.title as case_title, cs.case_number,
+                       cs.title as case_title, cs.case_number, cs.comarca as case_comarca,
                        u.name as responsavel_name,
                        (SELECT COUNT(*) FROM case_andamentos ca
                         WHERE ca.case_id = e.case_id
