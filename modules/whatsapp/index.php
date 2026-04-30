@@ -33,7 +33,12 @@ if ($autoAbrirConv === 0 && !empty($_GET['telefone'])) {
         try {
             $convDeep = zapi_buscar_ou_criar_conversa($_telDeep, $canal, $_GET['nome'] ?? null);
             if ($convDeep && !empty($convDeep['id'])) $autoAbrirConv = (int)$convDeep['id'];
-        } catch (Exception $e) {}
+        } catch (\Throwable $e) {
+            @file_put_contents(APP_ROOT . '/files/wa_deeplink_err.log',
+                date('Y-m-d H:i:s') . ' tel=' . $_telDeep . ' canal=' . $canal .
+                ' err=' . $e->getMessage() . ' file=' . $e->getFile() . ':' . $e->getLine() . "\n",
+                FILE_APPEND);
+        }
     }
 }
 $prefillTexto = isset($_GET['texto']) ? (string)$_GET['texto'] : '';
