@@ -776,7 +776,11 @@ if (!empty($compFuturos)): ?>
                     <?php if ($comp['data_fim']): ?> — <?= date('H:i', strtotime($comp['data_fim'])) ?><?php endif; ?>
                     &middot;
                 <?php endif; ?>
-                <?= date('d/m/Y', strtotime($dtInicio)) ?>
+                <?php
+                $_diasSemComp = array('domingo','segunda','terça','quarta','quinta','sexta','sábado');
+                $_diaSemComp = $_diasSemComp[(int)date('w', strtotime($dtInicio))];
+                ?>
+                <?= date('d/m/Y', strtotime($dtInicio)) ?> (<?= $_diaSemComp ?>)
                 <?php if ($comp['local']): ?> &middot; <?= e($comp['local']) ?><?php endif; ?>
                 <?php if ($comp['responsavel_name']): ?> &middot; <?= e(explode(' ', $comp['responsavel_name'])[0]) ?><?php endif; ?>
             </div>
