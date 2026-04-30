@@ -2133,12 +2133,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             params.set('title', 'Atendimento WhatsApp — ' + nome);
             params.set('client_name', nome);
             params.set('client_contact', c.telefone);
-            // Últimas 3 mensagens recebidas como descrição de contexto
-            var msgs = (d.mensagens || []).filter(function(m){ return m.direcao === 'recebida' && m.conteudo; }).slice(-3);
+            // Últimas 5 mensagens (recebidas + enviadas) como descrição de contexto
+            var msgs = (d.mensagens || []).filter(function(m){ return m.conteudo; }).slice(-5);
             if (msgs.length) {
                 var desc = 'Contexto da conversa WhatsApp ('+ (c.canal === '21' ? 'Comercial' : 'CX') +'):\n\n';
-                msgs.forEach(function(m){ desc += '• ' + m.conteudo.substring(0, 200) + '\n'; });
-                desc += '\nLink do chat: ' + window.location.origin + '<?= module_url('whatsapp') ?>?canal=' + c.canal + '&conv=' + c.id;
+                msgs.forEach(function(m){
+                    var quem = (m.direcao === 'enviada')
+                        ? (m.enviado_por_name ? m.enviado_por_name : 'Atendente')
+                        : (c.nome_contato || c.client_name || c.lead_name || 'Cliente');
+                    desc += quem + ': ' + m.conteudo.substring(0, 250) + '\n';
+                });
+                desc += '\nLink do chat: ' + window.location.origin + '<?= module_url('whatsapp') ?>?canal=' + c.canal + '&abrir=' + c.id;
                 params.set('description', desc);
             }
             // Abre em nova aba (não perde a conversa)
