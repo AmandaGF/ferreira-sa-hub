@@ -1842,6 +1842,11 @@ function buscarParceiroSugest(q) {
                        style="display:inline-flex;align-items:center;gap:4px;background:#7c3aed;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;flex-shrink:0;margin-left:.3rem;">
                         ✍️ ZapSign
                     </a>
+                <?php elseif ($cp['field'] === 'drive_folder_url' && empty($cp['value'])): ?>
+                    <button type="button" onclick="criarPastaDrive(<?= (int)$caseId ?>, this)" title="Criar pasta deste caso no Google Drive"
+                            style="background:#059669;color:#fff;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;flex-shrink:0;margin-left:.4rem;">
+                        📂 Criar pasta
+                    </button>
                 <?php endif; ?>
             </div>
             <?php endforeach; ?>
@@ -2945,6 +2950,31 @@ function logWhatsApp(andamentoId) {
 
 // ── Edição inline campos do processo ──
 var _cvCsrf = '<?= generate_csrf_token() ?>';
+function criarPastaDrive(caseId, btn) {
+    if (!confirm('Criar pasta deste caso no Google Drive?')) return;
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = '⏳ Criando...';
+    var fd = new FormData();
+    fd.append('action', 'criar_pasta_drive');
+    fd.append('case_id', caseId);
+    fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url('operacional', 'api.php') ?>', {method:'POST', body:fd, credentials:'same-origin'})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.ok && d.folderUrl) {
+                btn.textContent = '✓ Pasta criada!';
+                setTimeout(function(){ location.reload(); }, 800);
+            } else {
+                btn.disabled = false; btn.textContent = orig;
+                alert('Falha ao criar pasta:\n\n' + ((d && d.error) || 'erro desconhecido') + '\n\nVerifique se o Google Apps Script está configurado e autorizado.');
+            }
+        })
+        .catch(function(e){
+            btn.disabled = false; btn.textContent = orig;
+            alert('Erro de rede ao criar pasta: ' + e);
+        });
+}
 function copiarLinkDrive(btn, url) {
     navigator.clipboard.writeText(url).then(function(){
         var origText = btn.textContent;

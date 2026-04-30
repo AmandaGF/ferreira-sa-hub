@@ -141,6 +141,9 @@ switch ($action) {
 
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline contrato_assinado - lead: ' . $leadId);
                 notify_gestao('Contrato assinado!', $lead['name'] . ' — Caso criado no Operacional.' . ($driveResult['success'] ? ' Pasta criada no Drive!' : ''), 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '✅');
+                if (!$driveResult['success']) {
+                    notify_gestao('Falha ao criar pasta no Drive', $lead['name'] . ' — ' . ($driveResult['error'] ?? 'erro desconhecido') . '. Use o botão "Criar pasta" na pasta do caso pra tentar de novo.', 'erro', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '⚠️');
+                }
 
                 // GAMIFICAÇÃO: contrato fechado
                 $assignedTo = isset($lead['assigned_to']) ? (int)$lead['assigned_to'] : 0;
@@ -160,6 +163,22 @@ switch ($action) {
 
                 // BLOCO 4: Notificar cliente — Boas-vindas
                 notificar_cliente('boas_vindas', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $newCaseId, $leadId);
+            } else {
+                // Lead já tinha caso vinculado. Se o caso está sem pasta no Drive,
+                // tentar criar agora (cobre falhas do Apps Script na criação inicial).
+                $stCase = $pdo->prepare("SELECT id, title, case_type, drive_folder_url FROM cases WHERE id = ?");
+                $stCase->execute(array($existingCase));
+                $caseExistente = $stCase->fetch();
+                if ($caseExistente && empty($caseExistente['drive_folder_url'])) {
+                    require_once APP_ROOT . '/core/google_drive.php';
+                    $driveFolderName = $folderName ? $folderName : ($caseExistente['title'] ?: ($lead['name'] . ($lead['case_type'] ? ' x ' . $lead['case_type'] : '')));
+                    $driveResult = create_drive_folder($driveFolderName, $caseExistente['case_type'] ?: 'outro', (int)$existingCase, $caseExistente['title']);
+                    if ($driveResult['success']) {
+                        notify_gestao('Pasta criada!', $lead['name'] . ' — pasta do Drive criada (retry).', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $existingCase), '📂');
+                    } else {
+                        notify_gestao('Falha ao criar pasta no Drive', $lead['name'] . ' — ' . ($driveResult['error'] ?? 'erro desconhecido'), 'erro', url('modules/operacional/caso_ver.php?id=' . $existingCase), '⚠️');
+                    }
+                }
             }
         }
 

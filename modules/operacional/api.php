@@ -150,6 +150,25 @@ if (!$skipCsrf && !validate_csrf()) {
 }
 $pdo = db();
 
+// ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
+if ($action === 'criar_pasta_drive') {
+    header('Content-Type: application/json; charset=utf-8');
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+    $st = $pdo->prepare("SELECT id, title, case_type, drive_folder_url FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $caso = $st->fetch();
+    if (!$caso) { echo json_encode(array('error' => 'Caso não encontrado')); exit; }
+    if (!empty($caso['drive_folder_url'])) {
+        echo json_encode(array('ok' => true, 'already' => true, 'folderUrl' => $caso['drive_folder_url'])); exit;
+    }
+    require_once APP_ROOT . '/core/google_drive.php';
+    $r = create_drive_folder($caso['title'], $caso['case_type'] ?: 'outro', $caseId, $caso['title']);
+    if ($r['success']) echo json_encode(array('ok' => true, 'folderUrl' => $r['folderUrl']));
+    else echo json_encode(array('error' => $r['error'] ?? 'Erro desconhecido'));
+    exit;
+}
+
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
 function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
     // Primeiro por linked_case_id
