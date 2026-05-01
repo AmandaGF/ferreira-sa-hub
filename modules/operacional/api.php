@@ -150,6 +150,25 @@ if (!$skipCsrf && !validate_csrf()) {
 }
 $pdo = db();
 
+// ── Arquivar TODOS os cases que estão na coluna "Para Arquivar" ──
+if ($action === 'arquivar_todos_para_arquivar') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!has_min_role('gestao') && !has_min_role('admin')) {
+        echo json_encode(array('error' => 'Apenas gestão/admin')); exit;
+    }
+    $st = $pdo->query("SELECT id, title FROM cases WHERE status = 'para_arquivar'");
+    $alvo = $st->fetchAll();
+    $arquivados = 0;
+    foreach ($alvo as $c) {
+        $pdo->prepare("UPDATE cases SET status = 'arquivado', kanban_oculto = 1, closed_at = COALESCE(closed_at, CURDATE()), updated_at = NOW() WHERE id = ?")
+            ->execute(array((int)$c['id']));
+        audit_log('arquivar_em_massa', 'case', (int)$c['id'], 'para_arquivar -> arquivado (botão Arquivar Todos)');
+        $arquivados++;
+    }
+    echo json_encode(array('ok' => true, 'arquivados' => $arquivados));
+    exit;
+}
+
 // ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
 if ($action === 'criar_pasta_drive') {
     header('Content-Type: application/json; charset=utf-8');
@@ -201,7 +220,7 @@ switch ($action) {
         // Qualquer usuário logado pode mover cards no operacional
         $caseId = (int)($_POST['case_id'] ?? 0);
         $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
-        $validStatuses = array('em_andamento','suspenso','arquivado','renunciamos',
+        $validStatuses = array('em_andamento','suspenso','arquivado','renunciamos','para_arquivar',
             // Legados (processos antigos que ainda têm esses status)
             'aguardando_docs','em_elaboracao','doc_faltante','aguardando_prazo','distribuido','kanban_prev','parceria_previdenciario','cancelado','concluido','finalizado');
 

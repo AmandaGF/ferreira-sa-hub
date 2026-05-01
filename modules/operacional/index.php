@@ -33,6 +33,7 @@ $columns = array(
     'kanban_prev'            => array('label' => 'Kanban PREV',                  'color' => '#3B4FA0', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
     'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
+    'para_arquivar'          => array('label' => 'Para Arquivar',               'color' => '#374151', 'icon' => '📦'),
 );
 
 // Construir query
@@ -90,29 +91,12 @@ try {
 } catch (Exception $e) { /* tabela pode não existir */ }
 
 // Agrupar por status
-// Regra: "distribuido" só aparece no Kanban no mês da distribuição.
-// Meses anteriores ficam ocultos do Kanban (mas continuam no banco como "distribuido").
+// REGRA (Amanda 01/Mai/2026): NUNCA tirar cards do Kanban automaticamente.
+// Cards só saem quando movidos manualmente para "Para Arquivar" e arquivados em massa.
 $byStatus = array();
 foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
-$mesAtual = date('Y-m');
 foreach ($allCases as $cs) {
     $status = $cs['status'];
-    // Distribuídos: aparece enquanto NÃO houver andamento posterior à data de
-    // distribuição (fase crítica entre ajuizamento e primeiro despacho/citação).
-    // Quando o processo recebe o 1º andamento posterior, sai automaticamente do
-    // Kanban (fica só na pasta). Substitui a regra antiga "só no mês da distrib".
-    if ($status === 'distribuido') {
-        if (!empty($cs['andamento_pos_distrib'])) {
-            continue; // já tem despacho — sai da coluna "aguardando despacho"
-        }
-    }
-    // Cancelados: só no mês que cancelou
-    if ($status === 'cancelado') {
-        $mesRef = date('Y-m', strtotime($cs['updated_at']));
-        if ($mesRef !== $mesAtual) {
-            continue;
-        }
-    }
     // Kanban PREV: aparece na coluna PREV do Operacional só no mês de envio
     if (!empty($cs['kanban_prev']) && $cs['kanban_prev'] == 1) {
         $prevMes = isset($cs['prev_mes_envio']) ? (int)$cs['prev_mes_envio'] : 0;
@@ -396,6 +380,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <span><?= $col['icon'] ?> <?= $col['label'] ?></span>
             <span class="count"><?= count($byStatus[$colKey]) ?></span>
         </div>
+        <?php if ($colKey === 'para_arquivar' && (has_min_role('gestao') || has_min_role('admin'))): ?>
+            <button type="button" onclick="arquivarTodosParaArquivar()" style="margin:.4rem .5rem;padding:.45rem .6rem;background:#dc2626;color:#fff;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;width:calc(100% - 1rem);">📦 Arquivar TODOS desta coluna</button>
+        <?php endif; ?>
         <div class="op-col-body" data-status="<?= $colKey ?>">
             <?php if (empty($byStatus[$colKey])): ?>
                 <div class="op-empty">Nenhum caso</div>
@@ -1246,6 +1233,23 @@ function arquivarCard(caseId) {
     var f3 = document.createElement('input'); f3.type='hidden'; f3.name='case_id'; f3.value=caseId; form.appendChild(f3);
     document.body.appendChild(form);
     form.submit();
+}
+
+function arquivarTodosParaArquivar() {
+    var qtd = parseInt(document.querySelectorAll('[data-status="para_arquivar"] .op-card').length, 10) || 0;
+    if (qtd === 0) { alert('Não há cards na coluna "Para Arquivar".'); return; }
+    if (!confirm('Arquivar TODOS os ' + qtd + ' processo(s) que estão na coluna "Para Arquivar"?\n\nOs processos vão pra status "arquivado" e somem do Kanban.\n\nEsta ação NÃO pode ser desfeita em massa.')) return;
+    if (!confirm('Confirma de novo? Vai arquivar ' + qtd + ' processo(s).')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', csrfToken);
+    fd.append('action', 'arquivar_todos_para_arquivar');
+    fetch('<?= module_url("operacional", "api.php") ?>', {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.ok) { alert('✓ ' + d.arquivados + ' processo(s) arquivado(s).'); location.reload(); }
+            else alert('Falha: ' + ((d && d.error) || 'erro'));
+        })
+        .catch(function(e){ alert('Erro de rede: ' + e); });
 }
 
 function handleOpMove(select) {

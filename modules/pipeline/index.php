@@ -24,6 +24,7 @@ $stages = array(
     'pasta_apta'          => array('label' => 'Pasta Apta',                 'color' => '#15803d', 'icon' => '✔️', 'resp' => 'CX'),
     'cancelado'           => array('label' => 'Cancelado',                  'color' => '#6b7280', 'icon' => '❌', 'resp' => 'Admin'),
     'suspenso'            => array('label' => 'Suspenso',                   'color' => '#9ca3af', 'icon' => '⏸️', 'resp' => 'Admin'),
+    'para_arquivar'       => array('label' => 'Para Arquivar',              'color' => '#374151', 'icon' => '📦', 'resp' => 'Admin'),
 );
 
 // Stages que só aparecem na Tabela (histórico), não no Kanban — pra renderizar badge.
@@ -47,17 +48,10 @@ $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 // ══════════════════════════════════════════════════════════════════
 
 // ─── Query do KANBAN ─────────────────────────────────────────────
-// Mostra todos os leads em estágios ativos, COM UMA EXCEÇÃO: leads
-// em 'pasta_apta' ou 'cancelado' só ficam no Kanban no mês em que
-// entraram nesse estágio. Ao virar o mês, somem (reinicia o ciclo).
-// Os demais stages (contrato_assinado, agendado_docs, reuniao_cobranca,
-// doc_faltante, etc.) ficam sempre, porque ainda exigem trabalho do
-// comercial independente do mês.
-$kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')
-                AND (
-                    pl.stage NOT IN ('pasta_apta','cancelado')
-                    OR DATE_FORMAT(COALESCE(pl.converted_at, pl.updated_at), '%Y-%m') = DATE_FORMAT(NOW(), '%Y-%m')
-                )";
+// REGRA (Amanda 01/Mai/2026): NUNCA tirar leads do Kanban automaticamente.
+// Leads só saem quando movidos manualmente pra 'para_arquivar' e arquivados em massa.
+// Ficam fora apenas os já consolidados como histórico (finalizado/perdido/arquivado).
+$kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')";
 $kanbanParams = array();
 if ($searchPipeline) {
     $kanbanWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
@@ -340,6 +334,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <span><?= $stage['icon'] ?> <?= $stage['label'] ?></span>
             <span class="count"><?= count($byStage[$stageKey]) ?></span>
         </div>
+        <?php if ($stageKey === 'para_arquivar' && (has_min_role('gestao') || has_min_role('admin'))): ?>
+            <button type="button" onclick="arquivarTodosParaArquivarComercial()" style="margin:.4rem .5rem;padding:.45rem .6rem;background:#dc2626;color:#fff;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;width:calc(100% - 1rem);">📦 Arquivar TODOS desta coluna</button>
+        <?php endif; ?>
         <div class="kanban-body" data-stage="<?= $stageKey ?>">
             <?php if (empty($byStage[$stageKey])): ?>
                 <div style="text-align:center;padding:1rem .5rem;color:var(--text-muted);font-size:.72rem;">Nenhum</div>
@@ -1089,6 +1086,23 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
     window._dragging = false;
     var csrfToken = '<?= generate_csrf_token() ?>';
     var apiUrl = '<?= module_url("pipeline", "api.php") ?>';
+
+    window.arquivarTodosParaArquivarComercial = function() {
+        var qtd = parseInt(document.querySelectorAll('[data-stage="para_arquivar"] .lead-card').length, 10) || 0;
+        if (qtd === 0) { alert('Não há leads na coluna "Para Arquivar".'); return; }
+        if (!confirm('Arquivar TODOS os ' + qtd + ' lead(s) que estão na coluna "Para Arquivar"?\n\nOs leads vão pra status "arquivado" e somem do Kanban.\n\nEsta ação NÃO pode ser desfeita em massa.')) return;
+        if (!confirm('Confirma de novo? Vai arquivar ' + qtd + ' lead(s).')) return;
+        var fd = new FormData();
+        fd.append('csrf_token', csrfToken);
+        fd.append('action', 'arquivar_todos_para_arquivar');
+        fetch(apiUrl, {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d && d.ok) { alert('✓ ' + d.arquivados + ' lead(s) arquivado(s).'); location.reload(); }
+                else alert('Falha: ' + ((d && d.error) || 'erro'));
+            })
+            .catch(function(e){ alert('Erro de rede: ' + e); });
+    };
 
     document.querySelectorAll('.lead-card[draggable]').forEach(function(card) {
         card.addEventListener('dragstart', function(e) {

@@ -38,7 +38,7 @@ switch ($action) {
         $notes = clean_str($_POST['notes'] ?? '', 500);
         $folderName = isset($_POST['folder_name']) ? clean_str($_POST['folder_name'], 200) : '';
 
-        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','cancelado','suspenso','finalizado','perdido');
+        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','cancelado','suspenso','finalizado','perdido','para_arquivar');
         if (!$leadId || !in_array($toStage, $validStages)) {
             flash_set('error', 'Dados inválidos.');
             redirect(module_url('pipeline'));
@@ -318,6 +318,24 @@ switch ($action) {
         flash_set('success', 'Lead movido para "' . (isset($stageLabels[$toStage]) ? $stageLabels[$toStage] : $toStage) . '".');
         redirect(module_url('pipeline'));
         break;
+
+    case 'arquivar_todos_para_arquivar':
+        if (!has_min_role('gestao') && !has_min_role('admin')) _api_fail('Apenas gestão/admin', 403);
+        header('Content-Type: application/json; charset=utf-8');
+        $st = $pdo->query("SELECT id FROM pipeline_leads WHERE stage = 'para_arquivar'");
+        $alvo = $st->fetchAll();
+        $arquivados = 0;
+        foreach ($alvo as $l) {
+            $lid = (int)$l['id'];
+            $pdo->prepare("UPDATE pipeline_leads SET stage = 'arquivado', arquivado_por = ?, arquivado_em = NOW(), updated_at = NOW() WHERE id = ?")
+                ->execute(array(current_user_id(), $lid));
+            $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
+                ->execute(array($lid, 'para_arquivar', 'arquivado', current_user_id(), 'Botão Arquivar Todos'));
+            audit_log('arquivar_em_massa', 'lead', $lid, 'para_arquivar -> arquivado (botão Arquivar Todos)');
+            $arquivados++;
+        }
+        echo json_encode(array('ok' => true, 'arquivados' => $arquivados));
+        exit;
 
     case 'convert':
         // Manter compatibilidade
