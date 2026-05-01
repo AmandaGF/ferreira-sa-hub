@@ -47,9 +47,11 @@ foreach ($cases as $c) {
     }
 }
 
-// 2) LEADS com stage='arquivado' E updated_at de hoje (caso o pipeline tenha sido afetado também)
+// 2) LEADS com stage='arquivado' E updated_at de hoje
 echo "\n";
-$lrows = $pdo->prepare("SELECT id, name, stage, linked_case_id, updated_at, stage_antes_para_arquivar
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+$lrows = $pdo->prepare("SELECT id, name, stage, linked_case_id, updated_at
                         FROM pipeline_leads
                         WHERE stage = 'arquivado'
                           AND DATE(updated_at) = ?
