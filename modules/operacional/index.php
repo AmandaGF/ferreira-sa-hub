@@ -15,8 +15,8 @@ $userId = current_user_id();
 $isColaborador = has_role('colaborador');
 $canMove = can_move_operacional();
 
-// Self-heal: coluna para guardar status anterior quando entra na coluna "Para Arquivar"
-try { $pdo->exec("ALTER TABLE cases ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+// Self-heal: flag de marcação visual "Para Arquivar" (não altera status real)
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
 
 // Filtros
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
@@ -96,9 +96,15 @@ try {
 // Agrupar por status
 // REGRA (Amanda 01/Mai/2026): NUNCA tirar cards do Kanban automaticamente.
 // Cards só saem quando movidos manualmente para "Para Arquivar" e arquivados em massa.
+// "Para Arquivar" é flag visual (marcado_para_arquivar=1) — NÃO muda status real.
 $byStatus = array();
 foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 foreach ($allCases as $cs) {
+    // Marcados para arquivar vão pra coluna especial, independente do status real
+    if (!empty($cs['marcado_para_arquivar'])) {
+        $byStatus['para_arquivar'][] = $cs;
+        continue;
+    }
     $status = $cs['status'];
     // Kanban PREV: aparece na coluna PREV do Operacional só no mês de envio
     if (!empty($cs['kanban_prev']) && $cs['kanban_prev'] == 1) {

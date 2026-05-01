@@ -150,25 +150,23 @@ if (!$skipCsrf && !validate_csrf()) {
 }
 $pdo = db();
 
-// ── Arquivar TODOS os cases que estão na coluna "Para Arquivar" ──
-// SÓ oculta do Kanban (kanban_oculto=1) — NÃO muda status, closed_at, drive_folder
-// ou qualquer outro vínculo. O case continua aparecendo na pasta do cliente,
-// na agenda, em todos os outros lugares. Restaura status original salvo em
-// stage_antes_para_arquivar (quando moveu pra coluna).
+// ── Arquivar TODOS os cases marcados como "Para Arquivar" ──
+// SÓ oculta do Kanban (kanban_oculto=1) — NÃO muda status real, closed_at,
+// drive_folder ou qualquer outro vínculo. O case continua aparecendo na sessão
+// de processos com seu status real (distribuido/em_andamento/etc).
 if ($action === 'arquivar_todos_para_arquivar') {
     header('Content-Type: application/json; charset=utf-8');
     if (!has_min_role('gestao') && !has_min_role('admin')) {
         echo json_encode(array('error' => 'Apenas gestão/admin')); exit;
     }
-    try { $pdo->exec("ALTER TABLE cases ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
-    $st = $pdo->query("SELECT id, title, status, stage_antes_para_arquivar FROM cases WHERE status = 'para_arquivar'");
+    try { $pdo->exec("ALTER TABLE cases ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+    $st = $pdo->query("SELECT id, title, status FROM cases WHERE marcado_para_arquivar = 1");
     $alvo = $st->fetchAll();
     $arquivados = 0;
     foreach ($alvo as $c) {
-        $statusRestaurar = $c['stage_antes_para_arquivar'] ?: 'em_andamento';
-        $pdo->prepare("UPDATE cases SET status = ?, kanban_oculto = 1, updated_at = NOW() WHERE id = ?")
-            ->execute(array($statusRestaurar, (int)$c['id']));
-        audit_log('arquivar_kanban_massa', 'case', (int)$c['id'], "para_arquivar -> kanban_oculto=1 (status restaurado: {$statusRestaurar})");
+        $pdo->prepare("UPDATE cases SET kanban_oculto = 1, marcado_para_arquivar = 0, updated_at = NOW() WHERE id = ?")
+            ->execute(array((int)$c['id']));
+        audit_log('arquivar_kanban_massa', 'case', (int)$c['id'], "kanban_oculto=1 (status real preservado: {$c['status']})");
         $arquivados++;
     }
     echo json_encode(array('ok' => true, 'arquivados' => $arquivados));
@@ -237,11 +235,23 @@ switch ($action) {
             $currentCase = $caseStmt->fetch();
             $oldStatus = $currentCase ? $currentCase['status'] : '';
 
-            // ── PARA ARQUIVAR: salvar status anterior pra restaurar quando "Arquivar Todos" ──
-            if ($status === 'para_arquivar' && $oldStatus !== 'para_arquivar') {
-                try { $pdo->exec("ALTER TABLE cases ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
-                $pdo->prepare("UPDATE cases SET stage_antes_para_arquivar = ? WHERE id = ?")
-                    ->execute(array($oldStatus, $caseId));
+            // ── PARA ARQUIVAR: marcação visual do Kanban — NÃO muda status real ──
+            // Seta flag marcado_para_arquivar=1, mantém status anterior intacto
+            // (status real continua em outras telas; só Kanban exibe na coluna especial)
+            if ($status === 'para_arquivar') {
+                try { $pdo->exec("ALTER TABLE cases ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                $pdo->prepare("UPDATE cases SET marcado_para_arquivar = 1, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($caseId));
+                audit_log('marcar_para_arquivar', 'case', $caseId, "status real mantido: {$oldStatus}");
+                if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'marcado' => true)); exit; }
+                flash_set('success', 'Marcado para arquivar. Status real mantido.');
+                _redir_volta_caso_ou_kanban($caseId);
+                exit;
+            }
+            // Se está saindo da coluna "Para Arquivar" (move pra outra coluna), limpa a flag
+            if ($oldStatus !== 'para_arquivar') {
+                try { $pdo->exec("ALTER TABLE cases ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+                try { $pdo->prepare("UPDATE cases SET marcado_para_arquivar = 0 WHERE id = ? AND marcado_para_arquivar = 1")->execute(array($caseId)); } catch (Exception $e) {}
             }
 
             // ── DOC FALTANTE: espelhar no Pipeline Comercial/CX ──

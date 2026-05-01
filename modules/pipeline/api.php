@@ -58,12 +58,19 @@ switch ($action) {
             exit;
         }
 
-        // ── PARA ARQUIVAR: salvar stage anterior pra restaurar quando "Arquivar Todos" ──
-        if ($toStage === 'para_arquivar' && $fromStage !== 'para_arquivar') {
-            try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
-            $pdo->prepare("UPDATE pipeline_leads SET stage_antes_para_arquivar = ? WHERE id = ?")
-                ->execute(array($fromStage, $leadId));
+        // ── PARA ARQUIVAR: marcação visual do Kanban — NÃO muda stage real ──
+        if ($toStage === 'para_arquivar') {
+            try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+            $pdo->prepare("UPDATE pipeline_leads SET marcado_para_arquivar = 1, updated_at = NOW() WHERE id = ?")
+                ->execute(array($leadId));
+            audit_log('marcar_para_arquivar', 'lead', $leadId, "stage real mantido: {$fromStage}");
+            flash_set('success', 'Lead marcado para arquivar. Stage real mantido.');
+            redirect(module_url('pipeline'));
+            exit;
         }
+        // Saindo da coluna "Para Arquivar" (drag pra outra) → limpa flag
+        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->prepare("UPDATE pipeline_leads SET marcado_para_arquivar = 0 WHERE id = ? AND marcado_para_arquivar = 1")->execute(array($leadId)); } catch (Exception $e) {}
 
         // Atualizar estágio
         $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
@@ -327,22 +334,20 @@ switch ($action) {
         break;
 
     case 'arquivar_todos_para_arquivar':
-        // SÓ oculta do Kanban (kanban_oculto=1) — NÃO muda stage, NÃO mexe em
-        // case vinculado, NÃO afeta a pasta do cliente. Restaura stage original
-        // salvo em stage_antes_para_arquivar quando o card foi movido pra coluna.
+        // SÓ oculta do Kanban (kanban_oculto=1) — stage real preservado.
+        // Lead continua aparecendo na sessão de processos com seu stage real.
         if (!has_min_role('gestao') && !has_min_role('admin')) _api_fail('Apenas gestão/admin', 403);
         header('Content-Type: application/json; charset=utf-8');
         try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
-        $st = $pdo->query("SELECT id, stage_antes_para_arquivar FROM pipeline_leads WHERE stage = 'para_arquivar'");
+        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        $st = $pdo->query("SELECT id, stage FROM pipeline_leads WHERE marcado_para_arquivar = 1");
         $alvo = $st->fetchAll();
         $arquivados = 0;
         foreach ($alvo as $l) {
             $lid = (int)$l['id'];
-            $stageRestaurar = $l['stage_antes_para_arquivar'] ?: 'pasta_apta';
-            $pdo->prepare("UPDATE pipeline_leads SET stage = ?, kanban_oculto = 1, updated_at = NOW() WHERE id = ?")
-                ->execute(array($stageRestaurar, $lid));
-            audit_log('arquivar_kanban_massa', 'lead', $lid, "para_arquivar -> kanban_oculto=1 (stage restaurado: {$stageRestaurar})");
+            $pdo->prepare("UPDATE pipeline_leads SET kanban_oculto = 1, marcado_para_arquivar = 0, updated_at = NOW() WHERE id = ?")
+                ->execute(array($lid));
+            audit_log('arquivar_kanban_massa', 'lead', $lid, "kanban_oculto=1 (stage real preservado: {$l['stage']})");
             $arquivados++;
         }
         echo json_encode(array('ok' => true, 'arquivados' => $arquivados));

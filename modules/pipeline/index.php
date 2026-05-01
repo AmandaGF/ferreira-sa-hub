@@ -12,9 +12,9 @@ if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url(
 $pageTitle = 'Kanban Comercial';
 $pdo = db();
 
-// Self-heal: colunas para o fluxo "Para Arquivar" sem afetar pasta/vínculos
+// Self-heal: flags para fluxo "Para Arquivar" sem afetar stage real ou outras telas
 try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
 
 // Estágios do funil (conforme doc técnico)
 $stages = array(
@@ -81,6 +81,11 @@ $leads = $stmt->fetchAll();
 $byStage = array();
 foreach (array_keys($stages) as $s) { $byStage[$s] = array(); }
 foreach ($leads as $lead) {
+    // Marcados para arquivar vão pra coluna especial, independente do stage real
+    if (!empty($lead['marcado_para_arquivar'])) {
+        $byStage['para_arquivar'][] = $lead;
+        continue;
+    }
     $st = $lead['stage'];
     if (isset($byStage[$st])) {
         $byStage[$st][] = $lead;
