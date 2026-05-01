@@ -58,6 +58,13 @@ switch ($action) {
             exit;
         }
 
+        // ── PARA ARQUIVAR: salvar stage anterior pra restaurar quando "Arquivar Todos" ──
+        if ($toStage === 'para_arquivar' && $fromStage !== 'para_arquivar') {
+            try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+            $pdo->prepare("UPDATE pipeline_leads SET stage_antes_para_arquivar = ? WHERE id = ?")
+                ->execute(array($fromStage, $leadId));
+        }
+
         // Atualizar estágio
         $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
             ->execute(array($toStage, $leadId));
@@ -320,18 +327,22 @@ switch ($action) {
         break;
 
     case 'arquivar_todos_para_arquivar':
+        // SÓ oculta do Kanban (kanban_oculto=1) — NÃO muda stage, NÃO mexe em
+        // case vinculado, NÃO afeta a pasta do cliente. Restaura stage original
+        // salvo em stage_antes_para_arquivar quando o card foi movido pra coluna.
         if (!has_min_role('gestao') && !has_min_role('admin')) _api_fail('Apenas gestão/admin', 403);
         header('Content-Type: application/json; charset=utf-8');
-        $st = $pdo->query("SELECT id FROM pipeline_leads WHERE stage = 'para_arquivar'");
+        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+        $st = $pdo->query("SELECT id, stage_antes_para_arquivar FROM pipeline_leads WHERE stage = 'para_arquivar'");
         $alvo = $st->fetchAll();
         $arquivados = 0;
         foreach ($alvo as $l) {
             $lid = (int)$l['id'];
-            $pdo->prepare("UPDATE pipeline_leads SET stage = 'arquivado', arquivado_por = ?, arquivado_em = NOW(), updated_at = NOW() WHERE id = ?")
-                ->execute(array(current_user_id(), $lid));
-            $pdo->prepare("INSERT INTO pipeline_history (lead_id, from_stage, to_stage, changed_by, notes) VALUES (?,?,?,?,?)")
-                ->execute(array($lid, 'para_arquivar', 'arquivado', current_user_id(), 'Botão Arquivar Todos'));
-            audit_log('arquivar_em_massa', 'lead', $lid, 'para_arquivar -> arquivado (botão Arquivar Todos)');
+            $stageRestaurar = $l['stage_antes_para_arquivar'] ?: 'pasta_apta';
+            $pdo->prepare("UPDATE pipeline_leads SET stage = ?, kanban_oculto = 1, updated_at = NOW() WHERE id = ?")
+                ->execute(array($stageRestaurar, $lid));
+            audit_log('arquivar_kanban_massa', 'lead', $lid, "para_arquivar -> kanban_oculto=1 (stage restaurado: {$stageRestaurar})");
             $arquivados++;
         }
         echo json_encode(array('ok' => true, 'arquivados' => $arquivados));

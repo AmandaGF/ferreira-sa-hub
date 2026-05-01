@@ -12,6 +12,10 @@ if (!can_view_pipeline()) { flash_set('error', 'Sem permissão.'); redirect(url(
 $pageTitle = 'Kanban Comercial';
 $pdo = db();
 
+// Self-heal: colunas para o fluxo "Para Arquivar" sem afetar pasta/vínculos
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+
 // Estágios do funil (conforme doc técnico)
 $stages = array(
     'cadastro_preenchido' => array('label' => 'Cadastro Preenchido',        'color' => '#6366f1', 'icon' => '📋', 'resp' => 'Auto'),
@@ -49,9 +53,10 @@ $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 
 // ─── Query do KANBAN ─────────────────────────────────────────────
 // REGRA (Amanda 01/Mai/2026): NUNCA tirar leads do Kanban automaticamente.
-// Leads só saem quando movidos manualmente pra 'para_arquivar' e arquivados em massa.
-// Ficam fora apenas os já consolidados como histórico (finalizado/perdido/arquivado).
-$kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado')";
+// Leads só saem quando movidos manualmente pra 'para_arquivar' e arquivados em massa
+// via botão "Arquivar TODOS" — que seta kanban_oculto=1 e restaura stage original
+// (NUNCA muda stage pra 'arquivado' pra não afetar pasta do cliente / vínculos).
+$kanbanWhere = "pl.stage NOT IN ('finalizado','perdido','arquivado') AND IFNULL(pl.kanban_oculto, 0) = 0";
 $kanbanParams = array();
 if ($searchPipeline) {
     $kanbanWhere .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";

@@ -15,6 +15,9 @@ $userId = current_user_id();
 $isColaborador = has_role('colaborador');
 $canMove = can_move_operacional();
 
+// Self-heal: coluna para guardar status anterior quando entra na coluna "Para Arquivar"
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN stage_antes_para_arquivar VARCHAR(40) DEFAULT NULL"); } catch (Exception $e) {}
+
 // Filtros
 $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
