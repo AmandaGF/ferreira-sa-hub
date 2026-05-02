@@ -1827,6 +1827,30 @@ function buscarParceiroSugest(q) {
         <span style="font-size:.68rem;color:var(--text-muted);">Clique em qualquer campo para editar</span>
     </div>
     <div class="card-body" style="padding:.75rem 1rem;">
+        <?php
+            // Listas controladas (pra padronizar e viabilizar estatísticas).
+            // O valor atual é preservado mesmo se não bater (rótulo "(legado)") — não perdemos dados antigos.
+            $tiposAcaoOpts = array(
+                'Alimentos','Oferecimento de Alimentos','Revisão de Alimentos','Execução de Alimentos','Exoneração de Alimentos','Cumprimento de Sentença de Alimentos',
+                'Divórcio Consensual','Divórcio Litigioso','Separação',
+                'Reconhecimento de União Estável','Dissolução de União Estável',
+                'Guarda','Regulamentação de Visitas','Modificação de Guarda',
+                'Investigação de Paternidade','Negatória de Paternidade','Reconhecimento de Paternidade',
+                'Curatela','Tutela','Adoção','Interdição',
+                'Inventário','Arrolamento','Sucessão','Testamento',
+                'Indenização por Danos Morais','Indenização por Danos Materiais','Cobrança','Execução de Título Extrajudicial','Cumprimento de Sentença',
+                'Aposentadoria por Idade','Aposentadoria por Tempo de Contribuição','Aposentadoria por Invalidez','BPC/LOAS','Auxílio-Doença','Pensão por Morte','Revisional INSS',
+                'Reclamação Trabalhista','Rescisão Indireta',
+                'Direito do Consumidor','Bancário','Imobiliário',
+                'Mandado de Segurança','Habeas Corpus','Ação Penal','Defesa Criminal',
+                'Outros',
+            );
+            $ufsOpts = array('AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO');
+            // Datalists alimentados com valores DISTINCT já presentes — autocomplete que ajuda a padronizar
+            $comarcasExistentes = array(); $varasExistentes = array();
+            try { $comarcasExistentes = $pdo->query("SELECT DISTINCT comarca FROM cases WHERE comarca IS NOT NULL AND comarca != '' ORDER BY comarca")->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
+            try { $varasExistentes    = $pdo->query("SELECT DISTINCT court   FROM cases WHERE court   IS NOT NULL AND court   != '' ORDER BY court")  ->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
+        ?>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
             <?php
             $camposProcesso = array(
@@ -1844,31 +1868,51 @@ function buscarParceiroSugest(q) {
             ?>
             <div style="display:flex;align-items:center;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="<?= e($cp['field']) ?>">
                 <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;"><?= $cp['label'] ?></label>
-                <?php if ($cp['field'] === 'sistema_tribunal'):
-                    // Lista controlada dos sistemas de tribunal mais comuns. Mantém
-                    // valor atual como option mesmo se não bater (pra preservar
-                    // dados legados como "PJe TJRJ" digitados livres antes).
-                    $sistemasOpts = array('PJe','eProc','e-SAJ','Projudi','SEEU','Themis','TUCUJURIS','EJUD','DCP');
+                <?php
+                    // Lista controlada (select) por campo. Preserva valor legado se não bater.
+                    $selectOptsMap = array(
+                        'sistema_tribunal' => array('PJe','eProc','e-SAJ','Projudi','SEEU','Themis','TUCUJURIS','EJUD','DCP'),
+                        'case_type'        => $tiposAcaoOpts,
+                        'comarca_uf'       => $ufsOpts,
+                    );
+                    $isSelect = isset($selectOptsMap[$cp['field']]);
+                    $isDataList = in_array($cp['field'], array('comarca','court'), true);
                     $valAtual = (string)$cp['value'];
                 ?>
+                <?php if ($isSelect):
+                    $opcoes = $selectOptsMap[$cp['field']];
+                    $extraOnChange = ($cp['field'] === 'comarca_uf') ? '_atualizarRegionaisCv();' : '';
+                ?>
                 <select data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
-                        onchange="salvarCampoProcesso(this)"
+                        onchange="salvarCampoProcesso(this); <?= $extraOnChange ?>"
                         style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;cursor:pointer;"
                         onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
                         onblur="this.style.background='transparent'">
                     <option value="">— Selecionar —</option>
-                    <?php foreach ($sistemasOpts as $sis): ?>
-                    <option value="<?= e($sis) ?>" <?= $valAtual === $sis ? 'selected' : '' ?>><?= e($sis) ?></option>
+                    <?php foreach ($opcoes as $opc): ?>
+                    <option value="<?= e($opc) ?>" <?= $valAtual === $opc ? 'selected' : '' ?>><?= e($opc) ?></option>
                     <?php endforeach; ?>
-                    <?php if ($valAtual && !in_array($valAtual, $sistemasOpts, true)): ?>
+                    <?php if ($valAtual && !in_array($valAtual, $opcoes, true)): ?>
                     <option value="<?= e($valAtual) ?>" selected><?= e($valAtual) ?> (legado)</option>
                     <?php endif; ?>
                 </select>
+                <?php elseif ($isDataList):
+                    $listId = $cp['field'] === 'comarca' ? 'dlComarcasCv' : 'dlVarasCv';
+                    $extraOnChange = ($cp['field'] === 'comarca') ? '_atualizarRegionaisCv();' : '';
+                ?>
+                <input type="text" value="<?= e($cp['value']) ?>"
+                       data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
+                       list="<?= $listId ?>" autocomplete="off"
+                       onchange="salvarCampoProcesso(this); <?= $extraOnChange ?>"
+                       placeholder="<?= e($cp['placeholder']) ?>"
+                       style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
+                       onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
+                       onblur="this.style.background='transparent'">
                 <?php else: ?>
                 <input type="<?= $cp['type'] ?>" value="<?= e($cp['value']) ?>"
                        data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
                        <?= $cp['field'] === 'regional' ? 'list="listRegionaisCv" autocomplete="off"' : '' ?>
-                       onchange="salvarCampoProcesso(this); <?= in_array($cp['field'], array('comarca','comarca_uf')) ? '_atualizarRegionaisCv();' : '' ?>"
+                       onchange="salvarCampoProcesso(this);"
                        placeholder="<?= e($cp['placeholder']) ?>"
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
@@ -1898,6 +1942,13 @@ function buscarParceiroSugest(q) {
         </div>
         <!-- Datalist com regionais conhecidas (populado dinamicamente conforme UF+Comarca) -->
         <datalist id="listRegionaisCv"></datalist>
+        <!-- Autocomplete de Comarca/Vara — sugestões a partir dos casos já cadastrados -->
+        <datalist id="dlComarcasCv">
+            <?php foreach ($comarcasExistentes as $_co): ?><option value="<?= e($_co) ?>"><?php endforeach; ?>
+        </datalist>
+        <datalist id="dlVarasCv">
+            <?php foreach ($varasExistentes as $_va): ?><option value="<?= e($_va) ?>"><?php endforeach; ?>
+        </datalist>
 
         <!-- Competência (multi-select) + Vara mista -->
         <?php
