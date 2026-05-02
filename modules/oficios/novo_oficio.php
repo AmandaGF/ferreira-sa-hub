@@ -165,6 +165,23 @@ if (!$cliente && !empty($oficioExistente['client_id'])) {
     $cliente = $st->fetch();
 }
 
+// Partes adversas do caso (réu/alimentante/genitor) — pra sugerir como funcionário do ofício
+$partesAdversas = array();
+if ($caseId > 0) {
+    try {
+        $stP = $pdo->prepare(
+            "SELECT id, papel, nome, cpf, profissao
+             FROM case_partes
+             WHERE case_id = ?
+               AND (papel IS NULL OR papel NOT IN ('autor','requerente','exequente','assistido','representante_legal','advogado','testemunha'))
+               AND nome IS NOT NULL AND nome != ''
+             ORDER BY FIELD(papel,'reu','requerido','executado','alimentante') DESC, id ASC"
+        );
+        $stP->execute(array($caseId));
+        $partesAdversas = $stP->fetchAll();
+    } catch (Exception $e) { /* tabela pode não existir */ }
+}
+
 // Helper pra pegar valor inicial dos campos (preferindo o ofício existente)
 function _of($campo, $oficio, $caso = null, $cliente = null, $default = '') {
     if ($oficio && isset($oficio[$campo]) && $oficio[$campo] !== null && $oficio[$campo] !== '') return $oficio[$campo];
@@ -422,7 +439,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="of-sec">
         <h4>👤 Funcionário (alimentante)</h4>
         <div class="of-grid">
-            <div><span class="of-lab">Nome</span><input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" value="<?= e($oficioExistente['funcionario_nome'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div>
+                <span class="of-lab">Nome</span>
+                <input type="text" name="funcionario_nome" id="funcionario_nome" class="of-inp" placeholder="Nome completo do funcionário" value="<?= e($oficioExistente['funcionario_nome'] ?? '') ?>" oninput="atualizarPreviews()">
+                <?php if (!empty($partesAdversas)): ?>
+                    <div style="display:flex;flex-wrap:wrap;gap:.3rem;margin-top:.35rem;">
+                        <span style="font-size:.7rem;color:var(--text-muted);align-self:center;">Pré-encher do processo:</span>
+                        <?php foreach ($partesAdversas as $_pa):
+                            $_papelLbl = $_pa['papel'] ? ucfirst(str_replace('_', ' ', $_pa['papel'])) : 'Parte';
+                        ?>
+                            <button type="button"
+                                    onclick="preencherFuncionarioParte(this)"
+                                    data-nome="<?= e($_pa['nome']) ?>"
+                                    data-cpf="<?= e($_pa['cpf'] ?? '') ?>"
+                                    data-cargo="<?= e($_pa['profissao'] ?? '') ?>"
+                                    title="Clicar para preencher o nome (e cargo, se houver)"
+                                    style="font-size:.72rem;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:5px;padding:3px 8px;cursor:pointer;font-weight:600;">
+                                + <?= e(explode(' ', $_pa['nome'])[0]) ?> <span style="opacity:.6;font-weight:400;">(<?= e($_papelLbl) ?>)</span>
+                            </button>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
             <div><span class="of-lab">Sexo / Gênero</span><select name="funcionario_genero" id="funcionario_genero" class="of-inp" onchange="atualizarPreviews()">
                 <?php $_fg = $oficioExistente['funcionario_genero'] ?? 'M'; ?>
                 <option value="M" <?= $_fg === 'M' ? 'selected' : '' ?>>Masculino (pai/genitor/colaborador)</option>
@@ -529,6 +567,18 @@ var _T = userGenero === 'F'
 var userOAB = <?= json_encode(current_user()['oab'] ?? 'OAB-RJ 163.260') ?>;
 var userTel = <?= json_encode(current_user()['phone'] ?? '(24) 99205-0096') ?>;
 var casoInfo = <?= json_encode(array('client_name' => $cliente['name'] ?? '', 'phone' => $cliente['phone'] ?? '', 'client_id' => $cliente['id'] ?? 0)) ?>;
+
+// Preenche o campo Nome do funcionário (e Cargo, se houver) a partir de uma parte do processo
+function preencherFuncionarioParte(btn) {
+    var nome  = btn.getAttribute('data-nome')  || '';
+    var cargo = btn.getAttribute('data-cargo') || '';
+    var inpNome = document.getElementById('funcionario_nome');
+    if (inpNome) inpNome.value = nome;
+    var inpCargo = document.getElementById('funcionario_cargo');
+    if (inpCargo && cargo && !inpCargo.value) inpCargo.value = cargo;
+    if (typeof atualizarPreviews === 'function') atualizarPreviews();
+    if (inpNome) inpNome.focus();
+}
 
 function atualizarPreviews() {
     var emp    = (document.getElementById('empregador').value || '').trim();
