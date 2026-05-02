@@ -692,14 +692,10 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
 <?php
 $compromissosCaso = array();
 $compromissosRealizados = array();
-// Self-heal: rastreio de "cliente avisado sobre o compromisso"
-try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
-try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
 try {
     // Traz pub vinculada ao evento (qualquer status) via agenda_id ou por data_disp batendo
     $stmtComp = $pdo->prepare(
         "SELECT e.*, u.name as responsavel_name,
-                (SELECT name FROM users WHERE id = e.cliente_avisado_por) as avisado_por_name,
                 (SELECT cp.id FROM case_publicacoes cp
                  WHERE cp.case_id = e.case_id
                    AND (cp.agenda_id = e.id OR cp.data_disponibilizacao = DATE(e.data_inicio))
@@ -814,34 +810,17 @@ if (!empty($compFuturos)): ?>
                 $waComps[] = array('name' => $cvw['name'], 'url' => module_url('whatsapp') . '?canal=24&telefone=' . rawurlencode($ph) . '&nome=' . rawurlencode($cvw['name']) . '&texto=' . rawurlencode($msg));
             }
             ?>
-            <?php
-            // Marca tipos onde o badge "Avisar cliente" faz sentido (cliente precisa estar ciente)
-            $_avisarTipos = array('audiencia','reuniao','balcao','onboarding');
-            $_mostraAvisar = in_array($comp['tipo'], $_avisarTipos, true);
-            $_jaAvisado = !empty($comp['cliente_avisado_em']);
-            ?>
             <?php if (count($waComps) === 1): ?>
-                <a href="<?= e($waComps[0]['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">WhatsApp</a>
+                <a href="<?= e($waComps[0]['url']) ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">WhatsApp</a>
             <?php elseif (count($waComps) > 1): ?>
                 <div style="position:relative;display:inline-block;">
                     <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;border:none;font-weight:600;cursor:pointer;">WhatsApp ▾</button>
                     <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:4px;overflow:hidden;">
                         <?php foreach ($waComps as $wc): ?>
-                        <a href="<?= e($wc['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
+                        <a href="<?= e($wc['url']) ?>" target="_blank" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
                         <?php endforeach; ?>
                     </div>
                 </div>
-            <?php endif; ?>
-            <?php if ($_mostraAvisar): ?>
-                <span data-aviso-badge="<?= (int)$comp['id'] ?>" style="font-size:.65rem;padding:3px 7px;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;<?= $_jaAvisado ? 'background:#dcfce7;color:#15803d;border:1px solid #86efac;' : 'background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;' ?>"
-                      title="<?= $_jaAvisado ? 'Avisado por ' . e($comp['avisado_por_name'] ?? '?') . ' em ' . date('d/m/Y H:i', strtotime($comp['cliente_avisado_em'])) : 'Cliente ainda não foi avisado sobre este compromisso' ?>">
-                    <?php if ($_jaAvisado): ?>
-                        ✅ Avisado <?= date('d/m', strtotime($comp['cliente_avisado_em'])) ?>
-                        <button type="button" onclick="fsaDesmarcarAvisado(<?= (int)$comp['id'] ?>)" title="Desfazer (cliente não foi avisado)" style="background:none;border:none;cursor:pointer;color:#15803d;padding:0;font-size:.7rem;opacity:.6;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.6">✕</button>
-                    <?php else: ?>
-                        🔔 Avisar cliente
-                    <?php endif; ?>
-                </span>
             <?php endif; ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
@@ -3191,59 +3170,6 @@ var _mapaRegionais = {
 document.addEventListener('DOMContentLoaded', function(){
     if (typeof _atualizarRegionaisCv === 'function') _atualizarRegionaisCv();
 });
-
-// ===== Cliente avisado sobre compromisso (auto-marca ao clicar no WhatsApp) =====
-(function(){
-    var API = '<?= module_url('operacional', 'api.php') ?>';
-    var CSRF = '<?= generate_csrf_token() ?>';
-
-    function atualizarBadge(eventoId, dados) {
-        var badge = document.querySelector('[data-aviso-badge="' + eventoId + '"]');
-        if (!badge) return;
-        if (dados && dados.avisado) {
-            var dt = new Date(dados.avisado_em || Date.now());
-            var ddmm = String(dt.getDate()).padStart(2,'0') + '/' + String(dt.getMonth()+1).padStart(2,'0');
-            badge.style.cssText = 'font-size:.65rem;padding:3px 7px;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;background:#dcfce7;color:#15803d;border:1px solid #86efac;';
-            badge.title = 'Avisado por ' + (dados.por_name || 'você') + ' agora';
-            badge.innerHTML = '✅ Avisado ' + ddmm + ' <button type="button" onclick="fsaDesmarcarAvisado(' + eventoId + ')" title="Desfazer" style="background:none;border:none;cursor:pointer;color:#15803d;padding:0;font-size:.7rem;opacity:.6;">✕</button>';
-        } else {
-            badge.style.cssText = 'font-size:.65rem;padding:3px 7px;border-radius:5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;';
-            badge.title = 'Cliente ainda não foi avisado sobre este compromisso';
-            badge.textContent = '🔔 Avisar cliente';
-        }
-    }
-
-    function marcarAvisado(eventoId) {
-        var fd = new FormData();
-        fd.append('action', 'marcar_cliente_avisado');
-        fd.append('evento_id', eventoId);
-        fd.append('csrf_token', CSRF);
-        fd.append('ajax', '1');
-        return fetch(API, { method:'POST', body: fd, credentials:'same-origin' })
-            .then(function(r){ return r.json(); })
-            .then(function(d){ if (d && d.ok) atualizarBadge(eventoId, { avisado: true, avisado_em: d.avisado_em, por_name: d.por_name }); });
-    }
-
-    window.fsaDesmarcarAvisado = function(eventoId) {
-        if (!confirm('Desfazer aviso? (vai voltar para "🔔 Avisar cliente")')) return;
-        var fd = new FormData();
-        fd.append('action', 'desmarcar_cliente_avisado');
-        fd.append('evento_id', eventoId);
-        fd.append('csrf_token', CSRF);
-        fd.append('ajax', '1');
-        fetch(API, { method:'POST', body: fd, credentials:'same-origin' })
-            .then(function(r){ return r.json(); })
-            .then(function(d){ if (d && d.ok) atualizarBadge(eventoId, { avisado: false }); });
-    };
-
-    // Intercepta cliques nos links WhatsApp dos cards de compromisso
-    document.addEventListener('click', function(e){
-        var a = e.target.closest('a[data-wa-aviso]');
-        if (!a) return;
-        var eid = parseInt(a.getAttribute('data-wa-aviso'), 10);
-        if (eid > 0) marcarAvisado(eid); // dispara em paralelo, link abre normal
-    });
-})();
 
 function _atualizarRegionaisCv() {
     var ufEl  = document.querySelector('input[data-field="comarca_uf"]');
