@@ -163,8 +163,10 @@ $kanbanFiltro = "IFNULL(kanban_oculto, 0) = 0";
 $casosEmAndamento = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('em_andamento','renunciamos','finalizado') AND $kanbanFiltro");
 $casosSuspensos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'suspenso' AND $kanbanFiltro");
 $casosDocFaltante = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'doc_faltante' AND $kanbanFiltro");
-$distribuidos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual' AND $kanbanFiltro");
-$distribuidosAnt = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAnterior' AND $kanbanFiltro");
+// Distribuídos no mês: usa distribution_date (data REAL da distribuição, não updated_at —
+// senão qualquer edição posterior do caso o jogava na contagem do mês corrente)
+$distribuidos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND distribution_date IS NOT NULL AND DATE_FORMAT(distribution_date,'%Y-%m')='$mesAtual' AND $kanbanFiltro");
+$distribuidosAnt = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND distribution_date IS NOT NULL AND DATE_FORMAT(distribution_date,'%Y-%m')='$mesAnterior' AND $kanbanFiltro");
 $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluido','arquivado') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'");
 
 // Prazos vencendo em 7 dias
@@ -175,7 +177,7 @@ $prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fa
 $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c.updated_at) as dias_parado FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') AND c.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY) ORDER BY dias_parado DESC LIMIT 10");
 
 // Carga por responsável (só ativos)
-$cargaResp = qrows($pdo, "SELECT u.name, COUNT(CASE WHEN c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') THEN 1 END) as ativos, COUNT(CASE WHEN c.status='distribuido' AND DATE_FORMAT(c.updated_at,'%Y-%m')='$mesAtual' THEN 1 END) as distribuidos_mes FROM users u LEFT JOIN cases c ON c.responsible_user_id = u.id WHERE u.is_active = 1 GROUP BY u.id ORDER BY ativos DESC");
+$cargaResp = qrows($pdo, "SELECT u.name, COUNT(CASE WHEN c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') THEN 1 END) as ativos, COUNT(CASE WHEN c.status='distribuido' AND c.distribution_date IS NOT NULL AND DATE_FORMAT(c.distribution_date,'%Y-%m')='$mesAtual' THEN 1 END) as distribuidos_mes FROM users u LEFT JOIN cases c ON c.responsible_user_id = u.id WHERE u.is_active = 1 GROUP BY u.id ORDER BY ativos DESC");
 
 // ═══ ONBOARDING STATS ═══
 $onbRealizados = qval($pdo, "SELECT COUNT(*) FROM agenda_eventos WHERE tipo='onboarding' AND status='realizado'");
@@ -195,7 +197,7 @@ $distPendLabels = array(); $distPendDist = array(); $distPendPend = array();
 for ($i = 5; $i >= 0; $i--) {
     $mes = date('Y-m', strtotime("-$i months"));
     $distPendLabels[] = $ML[(int)date('n', strtotime("-$i months"))];
-    $distPendDist[] = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status='distribuido' AND DATE_FORMAT(updated_at,'%Y-%m')='$mes'");
+    $distPendDist[] = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status='distribuido' AND distribution_date IS NOT NULL AND DATE_FORMAT(distribution_date,'%Y-%m')='$mes'");
     $distPendPend[] = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('em_elaboracao','em_andamento','pasta_apta') AND DATE_FORMAT(updated_at,'%Y-%m')='$mes'");
 }
 
