@@ -40,6 +40,8 @@ if ($isColaborador && (int)$case['responsible_user_id'] !== $userId) {
 $pageTitle = $case['title'];
 
 // Tarefas
+// Self-heal: coluna pra responsáveis adicionais (CSV de user_ids — primário continua em assigned_to)
+try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
 $tasks = $pdo->prepare(
     'SELECT ct.*, u.name as assigned_name FROM case_tasks ct
      LEFT JOIN users u ON u.id = ct.assigned_to
@@ -49,6 +51,9 @@ $tasks->execute([$caseId]);
 $tasks = $tasks->fetchAll();
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+// Mapa id => nome curto pra renderizar nomes extras nas tarefas
+$_userNameMap = array();
+foreach ($users as $_u) { $_userNameMap[(int)$_u['id']] = $_u['name']; }
 
 // Andamentos do caso
 $andamentos = array();
@@ -2197,10 +2202,27 @@ foreach ($tarefasReais as $_t) {
                 <?php foreach ($tarefasReais as $task):
                     $isDone = ($task['status'] === 'concluido' || $task['status'] === 'feito');
                 ?>
+                <?php
+                    // Lista de IDs responsáveis (primário + extras), pra exibição e edição
+                    $_assignedIds = array();
+                    if (!empty($task['assigned_to'])) $_assignedIds[] = (int)$task['assigned_to'];
+                    if (!empty($task['assigned_extra_ids'])) {
+                        foreach (explode(',', $task['assigned_extra_ids']) as $_xid) {
+                            $_xid = (int)trim($_xid);
+                            if ($_xid && !in_array($_xid, $_assignedIds, true)) $_assignedIds[] = $_xid;
+                        }
+                    }
+                    $_assignedNomes = array();
+                    foreach ($_assignedIds as $_aid) {
+                        if (isset($_userNameMap[$_aid])) {
+                            $_assignedNomes[] = explode(' ', $_userNameMap[$_aid])[0];
+                        }
+                    }
+                ?>
                 <li class="task-item" id="taskReal<?= $task['id'] ?>" data-task-id="<?= $task['id'] ?>"
                     data-title="<?= e($task['title']) ?>"
                     data-tipo="<?= e($task['tipo'] ?? '') ?>"
-                    data-assigned="<?= (int)($task['assigned_to'] ?? 0) ?>"
+                    data-assigned="<?= e(implode(',', $_assignedIds)) ?>"
                     data-due="<?= e($task['due_date'] ?? '') ?>">
                     <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
@@ -2214,7 +2236,7 @@ foreach ($tarefasReais as $_t) {
                     <span class="task-text <?= $isDone ? 'done' : '' ?>" data-field="title"><?= e($task['title']) ?></span>
                     <span class="task-meta">
                         <?php if ($task['tipo']): ?><span data-field="tipo" style="font-size:.65rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:600;"><?= e($task['tipo']) ?></span><?php endif; ?>
-                        <?php if ($task['assigned_name']): ?><span data-field="assigned"><?= e(explode(' ', $task['assigned_name'])[0]) ?></span><?php endif; ?>
+                        <?php if (!empty($_assignedNomes)): ?><span data-field="assigned"><?= e(implode(' + ', $_assignedNomes)) ?></span><?php endif; ?>
                         <?php if ($task['due_date']): ?> · <span data-field="due"><?= data_br($task['due_date']) ?></span><?php endif; ?>
                     </span>
                     <span class="task-actions" style="margin-left:auto;display:inline-flex;gap:4px;">
@@ -2242,12 +2264,17 @@ foreach ($tarefasReais as $_t) {
                     <option value="oficio">Ofício</option>
                     <option value="acordo">Acordo/Conciliação</option>
                 </select>
-                <select data-f="assigned" class="form-select" style="width:130px;font-size:.8rem;">
-                    <option value="">Quem?</option>
-                    <?php foreach ($users as $u): ?>
-                        <option value="<?= $u['id'] ?>"><?= e($u['name']) ?></option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="multi-resp" data-multi-resp-wrap style="position:relative;width:140px;font-size:.8rem;">
+                    <button type="button" class="form-input" data-multi-resp-btn style="width:100%;text-align:left;cursor:pointer;font-size:.8rem;background:#fff;">Quem?</button>
+                    <div data-multi-resp-pop style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);padding:.4rem;z-index:200;max-height:240px;overflow:auto;min-width:200px;">
+                        <?php foreach ($users as $u): ?>
+                            <label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .35rem;cursor:pointer;font-size:.8rem;border-radius:4px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background=''">
+                                <input type="checkbox" data-multi-resp-cb value="<?= (int)$u['id'] ?>" data-name="<?= e(explode(' ', $u['name'])[0]) ?>"> <?= e($u['name']) ?>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <input type="hidden" data-f="assigned" value="">
+                </div>
                 <input type="date" data-f="due" class="form-input" style="width:140px;font-size:.8rem;">
                 <button type="button" class="btn btn-primary btn-sm" data-act="salvar">Salvar</button>
                 <button type="button" class="btn btn-outline btn-sm" data-act="cancelar">Cancelar</button>
@@ -2267,8 +2294,16 @@ foreach ($tarefasReais as $_t) {
                 var form = tpl.querySelector('.task-edit-form');
                 form.querySelector('[data-f=title]').value = li.dataset.title || '';
                 form.querySelector('[data-f=tipo]').value = li.dataset.tipo || 'outros';
-                form.querySelector('[data-f=assigned]').value = li.dataset.assigned || '';
                 form.querySelector('[data-f=due]').value = li.dataset.due || '';
+                // Pré-marca os responsáveis (CSV em data-assigned)
+                var ids = (li.dataset.assigned || '').split(',').map(function(s){ return s.trim(); }).filter(Boolean);
+                var wrap = form.querySelector('[data-multi-resp-wrap]');
+                if (wrap) {
+                    wrap.querySelectorAll('[data-multi-resp-cb]').forEach(function(cb){
+                        if (ids.indexOf(cb.value) >= 0) cb.checked = true;
+                    });
+                    fsaSyncMultiResp(wrap);
+                }
                 form.querySelector('[data-act=salvar]').onclick = function(){ salvarEdicaoTarefa(taskId, form); };
                 form.querySelector('[data-act=cancelar]').onclick = function(){ location.reload(); };
                 // Esconde o conteúdo original e insere o form
@@ -2288,7 +2323,7 @@ foreach ($tarefasReais as $_t) {
                 fd.append('ajax', '1');
                 fd.append('title', form.querySelector('[data-f=title]').value);
                 fd.append('tipo', form.querySelector('[data-f=tipo]').value);
-                fd.append('assigned_to', form.querySelector('[data-f=assigned]').value);
+                fd.append('assigned_to_multi', form.querySelector('[data-f=assigned]').value);
                 fd.append('due_date', form.querySelector('[data-f=due]').value);
                 fetch(API_URL, { method:'POST', body:fd })
                     .then(function(r){ return r.json(); })
@@ -2298,6 +2333,43 @@ foreach ($tarefasReais as $_t) {
                     })
                     .catch(function(){ alert('Erro de rede'); btn.disabled=false; btn.textContent='Salvar'; });
             }
+
+            // ===== Multi-responsável (popover de checkboxes) =====
+            window.fsaSyncMultiResp = function(wrap) {
+                var cbs = wrap.querySelectorAll('[data-multi-resp-cb]');
+                var ids = [], nomes = [];
+                cbs.forEach(function(cb){ if (cb.checked) { ids.push(cb.value); nomes.push(cb.dataset.name || ''); } });
+                var hidden = wrap.querySelector('input[type=hidden]');
+                if (hidden) hidden.value = ids.join(',');
+                var btn = wrap.querySelector('[data-multi-resp-btn]');
+                if (btn) {
+                    if (nomes.length === 0) btn.textContent = 'Quem?';
+                    else if (nomes.length === 1) btn.textContent = nomes[0];
+                    else if (nomes.length === 2) btn.textContent = nomes.join(' + ');
+                    else btn.textContent = nomes[0] + ' +' + (nomes.length - 1);
+                }
+            };
+            document.addEventListener('click', function(e){
+                var btn = e.target.closest('[data-multi-resp-btn]');
+                if (btn) {
+                    e.preventDefault();
+                    var pop = btn.parentElement.querySelector('[data-multi-resp-pop]');
+                    var aberto = pop.style.display !== 'none';
+                    // Fecha todos os outros
+                    document.querySelectorAll('[data-multi-resp-pop]').forEach(function(p){ p.style.display = 'none'; });
+                    pop.style.display = aberto ? 'none' : 'block';
+                    return;
+                }
+                if (!e.target.closest('[data-multi-resp-pop]')) {
+                    document.querySelectorAll('[data-multi-resp-pop]').forEach(function(p){ p.style.display = 'none'; });
+                }
+            });
+            document.addEventListener('change', function(e){
+                if (e.target && e.target.matches('[data-multi-resp-cb]')) {
+                    var wrap = e.target.closest('[data-multi-resp-wrap]');
+                    if (wrap) window.fsaSyncMultiResp(wrap);
+                }
+            });
 
             window.excluirTarefaReal = function(taskId) {
                 if (!confirm('Excluir esta tarefa? Não dá pra desfazer.')) return;
@@ -2334,12 +2406,17 @@ foreach ($tarefasReais as $_t) {
                 <option value="oficio">Ofício</option>
                 <option value="acordo">Acordo/Conciliação</option>
             </select>
-            <select name="assigned_to" class="form-select" style="width:130px;">
-                <option value="">Quem?</option>
-                <?php foreach ($users as $u): ?>
-                    <option value="<?= $u['id'] ?>"><?= e($u['name']) ?></option>
-                <?php endforeach; ?>
-            </select>
+            <div class="multi-resp" data-multi-resp-wrap style="position:relative;width:140px;">
+                <button type="button" class="form-input" data-multi-resp-btn style="width:100%;text-align:left;cursor:pointer;background:#fff;">Quem?</button>
+                <div data-multi-resp-pop style="display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #e5e7eb;border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.12);padding:.4rem;z-index:200;max-height:240px;overflow:auto;min-width:200px;">
+                    <?php foreach ($users as $u): ?>
+                        <label style="display:flex;align-items:center;gap:.4rem;padding:.25rem .35rem;cursor:pointer;font-size:.8rem;border-radius:4px;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background=''">
+                            <input type="checkbox" data-multi-resp-cb value="<?= (int)$u['id'] ?>" data-name="<?= e(explode(' ', $u['name'])[0]) ?>"> <?= e($u['name']) ?>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
+                <input type="hidden" name="assigned_to_multi" value="">
+            </div>
             <input type="date" name="due_date" class="form-input" style="width:140px;">
             <button type="submit" class="btn btn-primary btn-sm">+</button>
         </form>

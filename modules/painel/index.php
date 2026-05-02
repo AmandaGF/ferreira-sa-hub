@@ -186,9 +186,11 @@ usort($agendaHoje, function($a, $b) {
 // ─── COLUNA 2: Resumo ───
 $resumo = array();
 try {
-    $resumo['tarefas'] = (int)$pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE due_date = ? AND status != 'concluido'" . (!$isGestao ? " AND assigned_to = $userId" : ''))->execute(array($hoje)) ? (int)$pdo->query("SELECT FOUND_ROWS()")->fetchColumn() : 0;
-    // Recalcular corretamente
-    $stR = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE due_date = ? AND status != 'concluido'" . (!$isGestao ? " AND assigned_to = $userId" : ''));
+    // Self-heal: coluna pra co-responsáveis (silenciosa se já existe)
+    try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
+    // Conta tarefas do dia: gestão vê todas; demais veem onde são responsável OU co-responsável
+    $tarefaFiltro = !$isGestao ? " AND (assigned_to = $userId OR FIND_IN_SET($userId, assigned_extra_ids))" : '';
+    $stR = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE due_date = ? AND status != 'concluido'" . $tarefaFiltro);
     $stR->execute(array($hoje));
     $resumo['tarefas'] = (int)$stR->fetchColumn();
 

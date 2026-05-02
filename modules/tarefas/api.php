@@ -10,6 +10,9 @@ header('Content-Type: application/json; charset=utf-8');
 $pdo = db();
 $userId = current_user_id();
 
+// Self-heal: coluna pra co-responsáveis (CSV de user_ids)
+try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
+
 // ── GET ──
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? 'listar';
@@ -23,13 +26,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $where = array("t.tipo IS NOT NULL AND t.tipo != ''");
         $params = array();
 
-        if ($responsavel) { $where[] = 't.assigned_to = ?'; $params[] = $responsavel; }
+        if ($responsavel) {
+            // Considera o usuário como responsável principal OU co-responsável
+            $where[] = '(t.assigned_to = ? OR FIND_IN_SET(?, t.assigned_extra_ids))';
+            $params[] = $responsavel; $params[] = $responsavel;
+        }
         if ($tipo) { $where[] = 't.tipo = ?'; $params[] = $tipo; }
         if ($prioridade) { $where[] = 't.prioridade = ?'; $params[] = $prioridade; }
         if ($caseFilter) { $where[] = 't.case_id = ?'; $params[] = $caseFilter; }
 
-        // Colaborador vê só suas
-        if (has_role('colaborador')) { $where[] = 't.assigned_to = ?'; $params[] = $userId; }
+        // Colaborador vê só suas (incluindo as em que é co-responsável)
+        if (has_role('colaborador')) {
+            $where[] = '(t.assigned_to = ? OR FIND_IN_SET(?, t.assigned_extra_ids))';
+            $params[] = $userId; $params[] = $userId;
+        }
 
         $sql = "SELECT t.*, cs.title as case_title, cs.case_number, cs.case_type,
                        c.name as client_name, u.name as assigned_name

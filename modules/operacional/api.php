@@ -911,18 +911,31 @@ switch ($action) {
     case 'add_task':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $title = clean_str($_POST['title'] ?? '', 200);
-        $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
+        // Múltiplos responsáveis: assigned_to_multi (CSV) tem prioridade; cai em assigned_to legado se vazio
+        $multiCsv = trim((string)($_POST['assigned_to_multi'] ?? ''));
+        $assignedTo = null; $extraIds = '';
+        if ($multiCsv !== '') {
+            $ids = array();
+            foreach (explode(',', $multiCsv) as $x) { $x = (int)trim($x); if ($x && !in_array($x, $ids, true)) $ids[] = $x; }
+            if (!empty($ids)) {
+                $assignedTo = (int)array_shift($ids);
+                $extraIds = empty($ids) ? '' : implode(',', $ids);
+            }
+        } else {
+            $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
+        }
         $dueDate = $_POST['due_date'] ?? null;
         if ($dueDate === '') $dueDate = null;
         $tiposValidos = array('peticionar','juntar_documento','prazo','oficio','acordo','outros');
         $tipo = $_POST['tipo'] ?? '';
         if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outros';
         if ($caseId && $title) {
+            try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
             $stmt = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM case_tasks WHERE case_id = ?');
             $stmt->execute(array($caseId));
             $nextOrder = (int)$stmt->fetchColumn();
-            $pdo->prepare('INSERT INTO case_tasks (case_id, title, tipo, assigned_to, due_date, sort_order) VALUES (?,?,?,?,?,?)')
-                ->execute(array($caseId, $title, $tipo, $assignedTo, $dueDate, $nextOrder));
+            $pdo->prepare('INSERT INTO case_tasks (case_id, title, tipo, assigned_to, assigned_extra_ids, due_date, sort_order) VALUES (?,?,?,?,?,?,?)')
+                ->execute(array($caseId, $title, $tipo, $assignedTo, ($extraIds !== '' ? $extraIds : null), $dueDate, $nextOrder));
             flash_set('success', 'Tarefa adicionada.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
@@ -964,22 +977,34 @@ switch ($action) {
         $caseId = (int)($_POST['case_id'] ?? 0);
         $isAjax = isset($_POST['ajax']);
         $title = clean_str($_POST['title'] ?? '', 200);
-        $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
+        $multiCsv = trim((string)($_POST['assigned_to_multi'] ?? ''));
+        $assignedTo = null; $extraIds = null;
+        if ($multiCsv !== '') {
+            $ids = array();
+            foreach (explode(',', $multiCsv) as $x) { $x = (int)trim($x); if ($x && !in_array($x, $ids, true)) $ids[] = $x; }
+            if (!empty($ids)) {
+                $assignedTo = (int)array_shift($ids);
+                $extraIds = empty($ids) ? null : implode(',', $ids);
+            }
+        } else {
+            $assignedTo = (int)($_POST['assigned_to'] ?? 0) ?: null;
+        }
         $dueDate = $_POST['due_date'] ?? null;
         if ($dueDate === '') $dueDate = null;
         $tiposValidos = array('peticionar','juntar_documento','prazo','oficio','acordo','outros');
         $tipo = $_POST['tipo'] ?? '';
         if (!in_array($tipo, $tiposValidos, true)) $tipo = 'outros';
         if ($taskId && $title) {
-            $pdo->prepare('UPDATE case_tasks SET title=?, tipo=?, assigned_to=?, due_date=? WHERE id=?')
-                ->execute(array($title, $tipo, $assignedTo, $dueDate, $taskId));
+            try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
+            $pdo->prepare('UPDATE case_tasks SET title=?, tipo=?, assigned_to=?, assigned_extra_ids=?, due_date=? WHERE id=?')
+                ->execute(array($title, $tipo, $assignedTo, $extraIds, $dueDate, $taskId));
             if (!$isAjax) flash_set('success', 'Tarefa atualizada.');
         }
         if ($isAjax) {
             header('Content-Type: application/json');
             // devolve o registro atualizado (junto com nome do responsável)
             $st = $pdo->prepare(
-                'SELECT ct.id, ct.title, ct.tipo, ct.assigned_to, ct.due_date, ct.status, u.name AS assigned_name
+                'SELECT ct.id, ct.title, ct.tipo, ct.assigned_to, ct.assigned_extra_ids, ct.due_date, ct.status, u.name AS assigned_name
                  FROM case_tasks ct LEFT JOIN users u ON u.id = ct.assigned_to WHERE ct.id = ?'
             );
             $st->execute(array($taskId));
