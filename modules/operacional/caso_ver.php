@@ -2297,15 +2297,10 @@ foreach ($tarefasReais as $_t) {
                     data-tipo="<?= e($task['tipo'] ?? '') ?>"
                     data-assigned="<?= e(implode(',', $_assignedIds)) ?>"
                     data-due="<?= e($task['due_date'] ?? '') ?>">
-                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
-                        <?= csrf_input() ?>
-                        <input type="hidden" name="action" value="toggle_task">
-                        <input type="hidden" name="task_id" value="<?= $task['id'] ?>">
-                        <input type="hidden" name="case_id" value="<?= $caseId ?>">
-                        <button type="submit" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>">
-                            <?= $isDone ? '✓' : '' ?>
-                        </button>
-                    </form>
+                    <button type="button" class="task-check <?= $isDone ? 'done' : '' ?>" title="<?= $isDone ? 'Desfazer' : 'Concluir' ?>"
+                            onclick="toggleTarefaReal(<?= $task['id'] ?>, this)">
+                        <?= $isDone ? '✓' : '' ?>
+                    </button>
                     <span class="task-text <?= $isDone ? 'done' : '' ?>" data-field="title"><?= e($task['title']) ?></span>
                     <span class="task-meta">
                         <?php if ($task['tipo']): ?><span data-field="tipo" style="font-size:.65rem;background:#eff6ff;color:#3b82f6;padding:1px 5px;border-radius:3px;font-weight:600;"><?= e($task['tipo']) ?></span><?php endif; ?>
@@ -2443,6 +2438,35 @@ foreach ($tarefasReais as $_t) {
                     if (wrap) window.fsaSyncMultiResp(wrap);
                 }
             });
+
+            // Toggle tarefa real via AJAX (sem reload — mantém posição da página)
+            window.toggleTarefaReal = function(taskId, btn) {
+                btn.disabled = true;
+                var fd = new FormData();
+                fd.append('action', 'toggle_task');
+                fd.append('task_id', taskId);
+                fd.append('case_id', CASE_ID);
+                fd.append('csrf_token', CSRF);
+                fd.append('ajax', '1');
+                fetch(API_URL, { method:'POST', body:fd, credentials:'same-origin' })
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        btn.disabled = false;
+                        if (d && d.ok) {
+                            var wasDone = btn.classList.contains('done');
+                            btn.classList.toggle('done');
+                            btn.textContent = wasDone ? '' : '✓';
+                            btn.title = wasDone ? 'Concluir' : 'Desfazer';
+                            // Risca/desrisca o título
+                            var li = document.getElementById('taskReal' + taskId);
+                            if (li) {
+                                var span = li.querySelector('.task-text');
+                                if (span) span.classList.toggle('done');
+                            }
+                        }
+                    })
+                    .catch(function(){ btn.disabled = false; });
+            };
 
             window.excluirTarefaReal = function(taskId) {
                 if (!confirm('Excluir esta tarefa? Não dá pra desfazer.')) return;
