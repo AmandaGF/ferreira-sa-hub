@@ -597,14 +597,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <span style="font-size:.7rem;color:#4338ca;">Publicações sem pasta — escolha uma existente ou crie nova</span>
         </div>
 
+        <!-- Datalist único pra autocomplete de cliente nas pendências -->
+        <datalist id="dlClientesPendentes">
+            <?php foreach ($clientes as $_cl): ?>
+                <option data-cid="<?= (int)$_cl['id'] ?>" value="<?= e($_cl['name']) ?><?= !empty($_cl['cpf']) ? ' — ' . e($_cl['cpf']) : '' ?>"></option>
+            <?php endforeach; ?>
+        </datalist>
         <?php foreach ($pendentes as $pi):
             $partesArr = !empty($pi['partes']) ? json_decode($pi['partes'], true) : array();
             if (!is_array($partesArr)) $partesArr = array();
-            $clienteSugNome = null;
+            $clienteSugNome = null; $clienteSugId = 0; $clienteSugCpf = '';
             foreach ($clientes as $cl) {
                 foreach ($partesArr as $pn) {
                     if (mb_stripos($pn, $cl['name']) !== false || mb_stripos($cl['name'], $pn) !== false) {
-                        $clienteSugNome = $cl['name']; break 2;
+                        $clienteSugNome = $cl['name'];
+                        $clienteSugId = (int)$cl['id'];
+                        $clienteSugCpf = $cl['cpf'] ?? '';
+                        break 2;
                     }
                 }
             }
@@ -693,19 +702,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php else: ?>
                     <div style="font-size:.7rem;color:#d97706;margin-bottom:.4rem;">⚠️ Nenhum cliente bateu com as partes — selecione manualmente</div>
                 <?php endif; ?>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;">
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.4rem;align-items:center;">
                     <input type="text" name="title_novo" style="width:280px;font-size:.78rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" value="<?= e($tituloSug) ?>" placeholder="Título" required>
-                    <select name="client_id_novo" style="width:220px;font-size:.78rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;" required>
-                        <option value="">— Cliente —</option>
-                        <?php foreach ($clientes as $cl):
-                            $presel = false;
-                            foreach ($partesArr as $pn) {
-                                if (mb_stripos($pn, $cl['name']) !== false || mb_stripos($cl['name'], $pn) !== false) { $presel = true; break; }
-                            }
-                        ?>
-                        <option value="<?= $cl['id'] ?>" <?= $presel ? 'selected' : '' ?>><?= e($cl['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php
+                        $_inpVal = $clienteSugNome ? ($clienteSugNome . ($clienteSugCpf ? ' — ' . $clienteSugCpf : '')) : '';
+                    ?>
+                    <input type="text" list="dlClientesPendentes"
+                           value="<?= e($_inpVal) ?>"
+                           oninput="resolverClientePendente(this)"
+                           onchange="resolverClientePendente(this)"
+                           placeholder="Buscar cliente por nome ou CPF..."
+                           style="width:240px;font-size:.78rem;padding:4px 8px;border:1px solid var(--border);border-radius:6px;">
+                    <input type="hidden" name="client_id_novo" value="<?= $clienteSugId ?: '' ?>" required>
                     <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;">Criar e importar</button>
                 </div>
             </form>
@@ -912,6 +920,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
+// Resolve nome/CPF digitado → preenche hidden client_id_novo (pendentes)
+function resolverClientePendente(inp) {
+    var val = (inp.value || '').trim();
+    var hidden = inp.parentElement.querySelector('input[name="client_id_novo"]');
+    if (!hidden) return;
+    if (!val) { hidden.value = ''; inp.style.borderColor = ''; return; }
+    var dl = document.getElementById('dlClientesPendentes');
+    if (!dl) return;
+    // Match exato (caso usuário tenha selecionado uma option) ou parcial
+    var match = null;
+    var opts = dl.querySelectorAll('option');
+    var valLower = val.toLowerCase();
+    for (var i = 0; i < opts.length; i++) {
+        if (opts[i].value === val) { match = opts[i]; break; }
+    }
+    if (!match) {
+        // Match parcial: nome OU cpf contém o que foi digitado
+        for (var j = 0; j < opts.length; j++) {
+            if (opts[j].value.toLowerCase().indexOf(valLower) !== -1) { match = opts[j]; break; }
+        }
+    }
+    if (match) {
+        hidden.value = match.getAttribute('data-cid') || '';
+        inp.style.borderColor = '#10b981';
+    } else {
+        hidden.value = '';
+        inp.style.borderColor = '#dc2626';
+    }
+}
+
 function contSel() {
     var t = document.querySelectorAll('.cb-pub:checked').length;
     var el = document.getElementById('contadorSel');
