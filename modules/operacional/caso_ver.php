@@ -692,6 +692,9 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
 <?php
 $compromissosCaso = array();
 $compromissosRealizados = array();
+// Self-heal: rastreio de "cliente avisado sobre o compromisso" (preenchido ao clicar no WhatsApp)
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
 try {
     // Traz pub vinculada ao evento (qualquer status) via agenda_id ou por data_disp batendo
     $stmtComp = $pdo->prepare(
@@ -811,17 +814,36 @@ if (!empty($compFuturos)): ?>
             }
             ?>
             <?php if (count($waComps) === 1): ?>
-                <a href="<?= e($waComps[0]['url']) ?>" target="_blank" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">WhatsApp</a>
+                <a href="<?= e($waComps[0]['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">WhatsApp</a>
             <?php elseif (count($waComps) > 1): ?>
                 <div style="position:relative;display:inline-block;">
                     <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:5px;border:none;font-weight:600;cursor:pointer;">WhatsApp ▾</button>
                     <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:4px;overflow:hidden;">
                         <?php foreach ($waComps as $wc): ?>
-                        <a href="<?= e($wc['url']) ?>" target="_blank" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
+                        <a href="<?= e($wc['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
                         <?php endforeach; ?>
                     </div>
                 </div>
             <?php endif; ?>
+            <?php
+            // Badge "Avisar cliente" — só pra tipos onde cliente precisa estar ciente
+            $_avisarTipos = array('audiencia','reuniao','balcao','onboarding');
+            if (in_array($comp['tipo'] ?? '', $_avisarTipos, true)) {
+                $_avisadoEm  = $comp['cliente_avisado_em']  ?? null;
+                $_avisadoPor = (int)($comp['cliente_avisado_por'] ?? 0);
+                $_avisadoNome = ($_avisadoPor && isset($_userNameMap[$_avisadoPor])) ? explode(' ', $_userNameMap[$_avisadoPor])[0] : '';
+                if ($_avisadoEm) {
+                    $_titulo = 'Cliente avisado por ' . ($_avisadoNome ?: 'alguém') . ' em ' . date('d/m/Y H:i', strtotime($_avisadoEm)) . '. Clique pra desfazer.';
+                    $_label  = 'Avisado ' . date('d/m', strtotime($_avisadoEm));
+                    $_estilo = 'background:#dcfce7;color:#15803d;border:1px solid #86efac;';
+                } else {
+                    $_titulo = 'Cliente ainda nao foi avisado. Sera marcado automaticamente ao clicar no WhatsApp.';
+                    $_label  = 'Avisar cliente';
+                    $_estilo = 'background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;';
+                }
+            ?>
+                <button type="button" data-aviso-btn="<?= (int)$comp['id'] ?>" data-aviso-estado="<?= $_avisadoEm ? '1' : '0' ?>" title="<?= e($_titulo) ?>" style="font-size:.7rem;padding:3px 8px;border-radius:5px;font-weight:600;cursor:pointer;<?= $_estilo ?>"><?= e($_label) ?></button>
+            <?php } ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
@@ -3170,6 +3192,73 @@ var _mapaRegionais = {
 document.addEventListener('DOMContentLoaded', function(){
     if (typeof _atualizarRegionaisCv === 'function') _atualizarRegionaisCv();
 });
+
+// ===== Cliente avisado sobre compromisso (auto-marca ao clicar no WhatsApp) =====
+(function(){
+    var API  = <?= json_encode(module_url('operacional', 'api.php')) ?>;
+    var CSRF = <?= json_encode(generate_csrf_token()) ?>;
+
+    function aplicarVisualBadge(eid, avisado, dataIso, porNome) {
+        var btn = document.querySelector('[data-aviso-btn="' + eid + '"]');
+        if (!btn) return;
+        if (avisado) {
+            var dt = dataIso ? new Date(dataIso.replace(' ', 'T')) : new Date();
+            var ddmm = ('0'+dt.getDate()).slice(-2) + '/' + ('0'+(dt.getMonth()+1)).slice(-2);
+            btn.textContent = 'Avisado ' + ddmm;
+            btn.style.cssText = 'font-size:.7rem;padding:3px 8px;border-radius:5px;font-weight:600;cursor:pointer;background:#dcfce7;color:#15803d;border:1px solid #86efac;';
+            btn.title = 'Cliente avisado por ' + (porNome || 'voce') + ' agora. Clique pra desfazer.';
+            btn.setAttribute('data-aviso-estado', '1');
+        } else {
+            btn.textContent = 'Avisar cliente';
+            btn.style.cssText = 'font-size:.7rem;padding:3px 8px;border-radius:5px;font-weight:600;cursor:pointer;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;';
+            btn.title = 'Cliente ainda nao foi avisado. Sera marcado automaticamente ao clicar no WhatsApp.';
+            btn.setAttribute('data-aviso-estado', '0');
+        }
+    }
+
+    function marcar(eid) {
+        var fd = new FormData();
+        fd.append('action', 'marcar_cliente_avisado');
+        fd.append('evento_id', eid);
+        fd.append('csrf_token', CSRF);
+        fd.append('ajax', '1');
+        fetch(API, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (d && d.ok) aplicarVisualBadge(eid, true, d.avisado_em, d.por_name); })
+            .catch(function(){});
+    }
+    function desmarcar(eid) {
+        var fd = new FormData();
+        fd.append('action', 'desmarcar_cliente_avisado');
+        fd.append('evento_id', eid);
+        fd.append('csrf_token', CSRF);
+        fd.append('ajax', '1');
+        fetch(API, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){ if (d && d.ok) aplicarVisualBadge(eid, false); })
+            .catch(function(){});
+    }
+
+    // Click no WhatsApp do compromisso → marca avisado em paralelo
+    document.addEventListener('click', function(e){
+        var a = e.target.closest('a[data-wa-aviso]');
+        if (a) {
+            var eid = parseInt(a.getAttribute('data-wa-aviso'), 10);
+            if (eid > 0) marcar(eid);
+            return;
+        }
+        var btn = e.target.closest('[data-aviso-btn]');
+        if (btn) {
+            var eid2 = parseInt(btn.getAttribute('data-aviso-btn'), 10);
+            var ja = btn.getAttribute('data-aviso-estado') === '1';
+            if (ja) {
+                if (confirm('Desfazer aviso? (vai voltar para "Avisar cliente")')) desmarcar(eid2);
+            } else {
+                marcar(eid2);
+            }
+        }
+    });
+})();
 
 function _atualizarRegionaisCv() {
     var ufEl  = document.querySelector('input[data-field="comarca_uf"]');
