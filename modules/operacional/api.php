@@ -908,6 +908,28 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'marcar_cliente_avisado':
+    case 'desmarcar_cliente_avisado': {
+        header('Content-Type: application/json; charset=utf-8');
+        $eid = (int)($_POST['evento_id'] ?? 0);
+        if (!$eid) { echo json_encode(array('ok' => false, 'erro' => 'evento inválido')); exit; }
+        try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
+        if ($action === 'marcar_cliente_avisado') {
+            $pdo->prepare("UPDATE agenda_eventos SET cliente_avisado_em = NOW(), cliente_avisado_por = ? WHERE id = ?")
+                ->execute(array(current_user_id(), $eid));
+            $st = $pdo->prepare("SELECT cliente_avisado_em, (SELECT name FROM users WHERE id = cliente_avisado_por) AS por_name FROM agenda_eventos WHERE id = ?");
+            $st->execute(array($eid));
+            $row = $st->fetch();
+            echo json_encode(array('ok' => true, 'avisado_em' => $row['cliente_avisado_em'] ?? null, 'por_name' => $row['por_name'] ?? null));
+        } else {
+            $pdo->prepare("UPDATE agenda_eventos SET cliente_avisado_em = NULL, cliente_avisado_por = NULL WHERE id = ?")
+                ->execute(array($eid));
+            echo json_encode(array('ok' => true));
+        }
+        exit;
+    }
+
     case 'add_task':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $title = clean_str($_POST['title'] ?? '', 200);
