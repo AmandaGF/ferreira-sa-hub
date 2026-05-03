@@ -157,7 +157,10 @@ function calcular_prazo_juntada($data_juntada, $quantidade, $unidade = 'dias', $
         $fatal = calcular_prazo_dias($inicioStr, $quantidade, $comarca, $idsCondicionaisAceitos);
     }
 
-    $suspensoes = get_suspensoes_periodo($inicioStr, $fatal, $comarca);
+    // Suspensões: janela do marco inicial (juntada) até o fatal — assim
+    // o usuário vê na tela TUDO que o cálculo está pulando, inclusive
+    // suspensões anteriores ao início da contagem (que justificam o jump)
+    $suspensoes = get_suspensoes_periodo($data_juntada, $fatal, $comarca);
     $seguranca = _dia_util_anterior($fatal, $comarca);
 
     $hoje = new DateTime();
@@ -195,8 +198,9 @@ function calcular_prazo_completo($data_disponibilizacao, $quantidade, $unidade =
         $fatal = calcular_prazo_dias($inicio, $quantidade, $comarca, $idsCondicionaisAceitos);
     }
 
-    // Contar dias suspensos no período
-    $suspensoes = get_suspensoes_periodo($inicio, $fatal, $comarca);
+    // Janela de exibição: do marco inicial (disponibilização) até o fatal —
+    // pra mostrar inclusive feriados anteriores ao início que justificam o D+2
+    $suspensoes = get_suspensoes_periodo($data_disponibilizacao, $fatal, $comarca);
 
     // Data de segurança: 1 dia útil ANTES da data fatal
     $seguranca = _dia_util_anterior($fatal, $comarca);
