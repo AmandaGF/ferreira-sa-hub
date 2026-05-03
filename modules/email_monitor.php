@@ -194,6 +194,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .em-tbl th { padding: 8px 12px; text-align: left; font-weight: 700; font-size: .7rem; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); border-bottom: 1px solid var(--border); background: #f9fafb; }
 .em-tbl td { padding: 8px 12px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
 .em-tbl tr:hover td { background: #fafbfc; }
+.em-tbl th.em-sortable { cursor: pointer; user-select: none; transition: color .15s; }
+.em-tbl th.em-sortable:hover { color: var(--petrol-900, #052228); }
+.em-tbl th.em-sortable.active { color: var(--petrol-900, #052228); background: #eef2ff; }
+.em-sort-arrow { display: inline-block; width: 10px; opacity: .4; font-size: .7rem; margin-left: 2px; }
+.em-tbl th.em-sortable.active .em-sort-arrow { opacity: 1; }
 .em-pill   { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
 .em-pill.cron   { background: #e0f2fe; color: #0369a1; }
 .em-pill.manual { background: #fef3c7; color: #b45309; }
@@ -465,16 +470,16 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                 </div>
             </div>
             <div style="overflow-x: auto;">
-                <table class="em-tbl">
+                <table class="em-tbl em-tbl-pendentes">
                     <thead>
                         <tr>
-                            <th>CNJ</th>
-                            <th>Polo Ativo × Polo Passivo</th>
-                            <th>Órgão</th>
-                            <th>Último Movimento</th>
-                            <th title="Total de emails recebidos">Emails</th>
-                            <th>Primeira vez</th>
-                            <th>Última vez</th>
+                            <th class="em-sortable" data-sort-type="text"   data-sort-col="0">CNJ <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="text"   data-sort-col="1">Polo Ativo × Polo Passivo <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="text"   data-sort-col="2">Órgão <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="date"   data-sort-col="3">Último Movimento <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="number" data-sort-col="4" title="Total de emails recebidos">Emails <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="date"   data-sort-col="5">Primeira vez <span class="em-sort-arrow"></span></th>
+                            <th class="em-sortable" data-sort-type="date"   data-sort-col="6">Última vez <span class="em-sort-arrow"></span></th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -514,20 +519,20 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                 $movDesc = !empty($p['ultimo_movimento_desc']) ? $p['ultimo_movimento_desc'] : '';
                             ?>
                             <tr class="<?= e($rowClasses) ?>" id="emPendRow<?= (int)$p['id'] ?>">
-                                <td>
+                                <td data-sort="<?= e($p['case_number']) ?>">
                                     <span class="em-cnj"><?= e($p['case_number']) ?></span>
                                     <?php if ($isDesc): ?>
                                         <br><span class="em-pill descartado" style="margin-top:3px;">descartado</span>
                                     <?php endif; ?>
                                 </td>
-                                <td style="font-size:.78rem;">
+                                <td style="font-size:.78rem;" data-sort="<?= e($poloA) ?>">
                                     <div><strong>Ativo:</strong> <?= e($poloA) ?></div>
                                     <div><strong>Passivo:</strong> <?= e($poloP) ?></div>
                                 </td>
-                                <td style="font-size:.78rem;">
+                                <td style="font-size:.78rem;" data-sort="<?= e($p['orgao'] ?? '') ?>">
                                     <?= !empty($p['orgao']) ? e($p['orgao']) : '<span style="color:#cbd5e1;">—</span>' ?>
                                 </td>
-                                <td>
+                                <td data-sort="<?= e($p['ultimo_movimento_data'] ?? '') ?>">
                                     <div style="font-size:.78rem;"><strong><?= e($movData) ?></strong></div>
                                     <?php if ($movDesc !== ''): ?>
                                         <div class="em-mov-desc" title="<?= e($movDesc) ?>">
@@ -535,13 +540,13 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                         </div>
                                     <?php endif; ?>
                                 </td>
-                                <td style="text-align:center;">
+                                <td style="text-align:center;" data-sort="<?= (int)$p['total_emails_recebidos'] ?>">
                                     <span style="background:#fef3c7;color:#b45309;font-weight:700;padding:2px 8px;border-radius:99px;font-size:.74rem;">
                                         <?= (int)$p['total_emails_recebidos'] ?>
                                     </span>
                                 </td>
-                                <td style="white-space:nowrap;font-size:.74rem;color:var(--text-muted);"><?= e(date('d/m/Y H:i', strtotime($p['primeira_vez']))) ?></td>
-                                <td style="white-space:nowrap;font-size:.74rem;color:var(--text-muted);"><?= e(date('d/m/Y H:i', strtotime($p['ultima_vez']))) ?></td>
+                                <td style="white-space:nowrap;font-size:.74rem;color:var(--text-muted);" data-sort="<?= e($p['primeira_vez']) ?>"><?= e(date('d/m/Y H:i', strtotime($p['primeira_vez']))) ?></td>
+                                <td style="white-space:nowrap;font-size:.74rem;color:var(--text-muted);" data-sort="<?= e($p['ultima_vez']) ?>"><?= e(date('d/m/Y H:i', strtotime($p['ultima_vez']))) ?></td>
                                 <td>
                                     <div class="em-pend-actions">
                                         <?php if (!$isDesc): ?>
@@ -731,6 +736,68 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
         if (!el) return;
         el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
     };
+
+    // ──── Ordenação clicável da tabela de Pendentes ────
+    (function(){
+        var tbl = document.querySelector('.em-tbl-pendentes');
+        if (!tbl) return;
+        var ths = tbl.querySelectorAll('th.em-sortable');
+        var estado = { col: -1, asc: true };
+
+        function comparar(a, b, tipo) {
+            if (tipo === 'number') {
+                return (parseFloat(a) || 0) - (parseFloat(b) || 0);
+            }
+            if (tipo === 'date') {
+                // data-sort vem como ISO 'YYYY-MM-DD HH:MM:SS' ou 'YYYY-MM-DD'
+                // String compare ordena cronologicamente bem; vazio vai pro fim
+                if (!a && !b) return 0;
+                if (!a) return 1;
+                if (!b) return -1;
+                if (a < b) return -1;
+                if (a > b) return 1;
+                return 0;
+            }
+            // texto (case-insensitive)
+            return (a || '').localeCompare(b || '', 'pt-BR', { sensitivity: 'base' });
+        }
+
+        function ordenar(colIdx, tipo) {
+            var tbody = tbl.querySelector('tbody');
+            if (!tbody) return;
+            var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr.em-pend-row'));
+            if (estado.col === colIdx) { estado.asc = !estado.asc; }
+            else { estado.col = colIdx; estado.asc = true; }
+            rows.sort(function(r1, r2) {
+                var c1 = r1.cells[colIdx], c2 = r2.cells[colIdx];
+                var v1 = c1 ? (c1.getAttribute('data-sort') || c1.textContent || '').trim() : '';
+                var v2 = c2 ? (c2.getAttribute('data-sort') || c2.textContent || '').trim() : '';
+                var d = comparar(v1, v2, tipo);
+                return estado.asc ? d : -d;
+            });
+            rows.forEach(function(r) { tbody.appendChild(r); });
+            // Atualiza setinhas
+            ths.forEach(function(th, idx) {
+                th.classList.remove('active');
+                var seta = th.querySelector('.em-sort-arrow');
+                if (seta) seta.textContent = '';
+            });
+            var thAtivo = ths[colIdx];
+            if (thAtivo) {
+                thAtivo.classList.add('active');
+                var setaAtv = thAtivo.querySelector('.em-sort-arrow');
+                if (setaAtv) setaAtv.textContent = estado.asc ? '▲' : '▼';
+            }
+        }
+
+        ths.forEach(function(th) {
+            th.addEventListener('click', function() {
+                var col  = parseInt(th.getAttribute('data-sort-col'), 10);
+                var tipo = th.getAttribute('data-sort-type') || 'text';
+                if (!isNaN(col)) ordenar(col, tipo);
+            });
+        });
+    })();
 
     // ──── Mostrar/ocultar descartados ────
     window.emToggleDescartados = function() {
