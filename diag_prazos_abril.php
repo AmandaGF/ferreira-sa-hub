@@ -19,7 +19,9 @@ try {
         echo '  #' . $r['id'] . '  ' . $r['data_inicio'] . '..' . $r['data_fim']
            . '  [' . ($r['abrangencia'] ?? '?') . (!empty($r['comarca']) ? '/' . $r['comarca'] : '') . ']'
            . '  req_conf=' . (int)($r['requer_confirmacao'] ?? 0)
-           . '  ' . ($r['descricao'] ?? $r['nome'] ?? $r['feriado'] ?? '?') . "\n";
+           . '  tipo=' . ($r['tipo'] ?? '?')
+           . '  motivo=' . ($r['motivo'] ?? '?')
+           . '  ato=' . ($r['ato_legislacao'] ?? '?') . "\n";
     }
 
     echo "\n=== Analise dia 14 a 18 de abril 2026 (comarca=Resende) ===\n";
