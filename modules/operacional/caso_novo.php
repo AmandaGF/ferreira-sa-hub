@@ -149,6 +149,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $newId = (int)$pdo->lastInsertId();
 
+    // ═══ Cria pasta no Google Drive automaticamente ═══
+    // Só cria se não veio drive_folder_url manual (Amanda pode colar URL existente).
+    // Falhas são logadas mas NÃO bloqueiam o cadastro — Amanda pode clicar
+    // 'Criar pasta' depois pela tela do caso (operacional/api.php action criar_pasta_drive).
+    if (empty($drive_folder_url)) {
+        require_once APP_ROOT . '/core/google_drive.php';
+        try {
+            $clienteNomePasta = '';
+            if ($client_id > 0) {
+                $stN = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+                $stN->execute(array($client_id));
+                $clienteNomePasta = (string)$stN->fetchColumn();
+            }
+            if ($clienteNomePasta !== '') {
+                $resultDrive = create_drive_folder($clienteNomePasta, $case_type, $newId, $title);
+                if (empty($resultDrive['success'])) {
+                    audit_log('drive_folder_failed', 'case', $newId, substr((string)($resultDrive['error'] ?? '?'), 0, 200));
+                }
+            }
+        } catch (Throwable $eDrive) {
+            @error_log('[caso_novo drive] ' . $eDrive->getMessage());
+            audit_log('drive_folder_failed', 'case', $newId, 'exc: ' . substr($eDrive->getMessage(), 0, 180));
+        }
+    }
+
     // ═══ Criar partes na tabela case_partes ═══
     // Cliente = papel selecionado (autor, réu ou rep. legal)
     $clientePapel = isset($_POST['cliente_papel']) ? $_POST['cliente_papel'] : 'autor';
