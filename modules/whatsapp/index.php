@@ -224,7 +224,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-msg-tag { font-size:.62rem;font-weight:700;margin-bottom:2px; }
 .wa-msg-time { font-size:.62rem;color:#9ca3af;text-align:right;margin-top:3px; }
 .wa-chat-input { padding:.5rem .6rem;border-top:1px solid var(--border);background:#fff;display:flex;gap:.4rem;align-items:flex-end; }
-.wa-chat-input textarea { flex:1;min-height:38px;max-height:120px;resize:none;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;font-family:inherit; }
+.wa-chat-input textarea { flex:1;min-height:38px;max-height:260px;resize:vertical;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:.85rem;font-family:inherit;line-height:1.4; }
+.wa-chat-input textarea.wa-expanded { max-height:60vh;min-height:200px; }
+.wa-btn-expand { background:#fff;border:1px solid var(--border);border-radius:8px;padding:6px 9px;cursor:pointer;font-size:.95rem;color:#64748b;transition:all .15s; }
+.wa-btn-expand:hover { background:#f1f5f9;color:#052228; }
 .wa-btn-send { padding:8px 16px;background:<?= $accentColor ?>;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem; }
 .wa-btn-send:disabled { opacity:.5;cursor:not-allowed; }
 .wa-btn-tpl { padding:8px 10px;background:#fff;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:1rem; }
@@ -462,7 +465,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button class="wa-btn-tpl" id="waBtnMic" onclick="waGravarAudio()" title="Gravar áudio">🎤</button>
             <input type="file" id="waFile" style="display:none;" accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip,.rar">
             <input type="file" id="waSticker" style="display:none;" accept="image/webp,image/png,image/jpeg,image/gif" onchange="waEnviarSticker(this.files[0])">
-            <textarea id="waInput" placeholder="Digite uma mensagem ou cole uma imagem (Ctrl+V)..." rows="1"></textarea>
+            <textarea id="waInput" placeholder="Digite uma mensagem ou cole uma imagem (Ctrl+V)..." rows="1" oninput="waInputAutoGrow(this)"></textarea>
+            <button class="wa-btn-expand" id="waBtnExpand" onclick="waToggleExpand()" title="Ampliar área de digitação">⤢</button>
             <!-- Barra de gravação (mostra no lugar do textarea enquanto grava) -->
             <div id="waRecBar" style="display:none;flex:1;align-items:center;gap:8px;padding:8px 10px;border:1px solid #ef4444;border-radius:8px;background:#fef2f2;">
                 <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;animation:waPulse 1s infinite;"></span>
@@ -977,6 +981,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         document.getElementById('waReplyBar').style.display = 'none';
     };
 
+    // ─── Auto-grow do textarea conforme digita (até max-height do CSS) ─────
+    window.waInputAutoGrow = function(el) {
+        if (!el) return;
+        // Reset pra recalcular scrollHeight; a CSS max-height limita o crescimento
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight + 2, 600) + 'px';
+    };
+
+    // ─── Botão de expandir/recolher (modo "área grande") ──────────────────
+    window.waToggleExpand = function() {
+        var inp = document.getElementById('waInput');
+        var btn = document.getElementById('waBtnExpand');
+        if (!inp || !btn) return;
+        var expanded = inp.classList.toggle('wa-expanded');
+        if (expanded) {
+            inp.style.height = '';  // deixa CSS controlar (60vh)
+            btn.textContent = '⤡';
+            btn.title = 'Recolher área de digitação';
+        } else {
+            btn.textContent = '⤢';
+            btn.title = 'Ampliar área de digitação';
+            waInputAutoGrow(inp);
+        }
+        inp.focus();
+    };
+
     window.waEnviar = function() {
         if (!convAtiva) return;
         // Se está GRAVANDO agora, para e envia direto (flag setada, envio acontece no onstop)
@@ -1033,7 +1063,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             btn.disabled = false; btn.textContent = '➤ Enviar';
             if (d.error) { alert('Erro: ' + d.error); return; }
-            document.getElementById('waInput').value = '';
+            var _inp = document.getElementById('waInput');
+            _inp.value = '';
+            _inp.style.height = '';  // reseta auto-grow
             waCancelarResposta(); // limpa estado de resposta após enviar
             window.waAbrir(convAtiva);
             carregarLista();
