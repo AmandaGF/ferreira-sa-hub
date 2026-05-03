@@ -209,6 +209,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .em-tbl th.em-sortable.active { color: var(--petrol-900, #052228); background: #eef2ff; }
 .em-sort-arrow { display: inline-block; width: 10px; opacity: .4; font-size: .7rem; margin-left: 2px; }
 .em-tbl th.em-sortable.active .em-sort-arrow { opacity: 1; }
+.em-tbl tr.hidden-busca { display: none; }
 .em-pill   { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; }
 .em-pill.cron   { background: #e0f2fe; color: #0369a1; }
 .em-pill.manual { background: #fef3c7; color: #b45309; }
@@ -468,7 +469,10 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
             <div class="em-card-h">
                 <h3>Pendentes de Cadastro</h3>
                 <div style="display:flex; align-items:center; gap:.8rem; flex-wrap:wrap;">
-                    <span style="font-size: .72rem; color: var(--text-muted);">
+                    <input type="text" id="emBuscaPendentes" placeholder="🔍 Buscar por CNJ, nome do polo, órgão..."
+                           oninput="emFiltrarPendentes(this.value)"
+                           style="font-size:.78rem;padding:5px 10px;border:1px solid var(--border);border-radius:6px;width:280px;">
+                    <span id="emCntPendentes" style="font-size: .72rem; color: var(--text-muted);">
                         <?= (int)$totalPendentes ?> pendente(s)<?php if ($totalDescartados > 0): ?> · <?= (int)$totalDescartados ?> descartado(s)<?php endif; ?>
                     </span>
                     <?php if ($totalDescartados > 0): ?>
@@ -594,8 +598,11 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
     <div class="em-tab-content" id="emTab-andamentos">
         <div class="em-card">
             <div class="em-card-h">
-                <h3>Andamentos Importados <span style="font-weight:400;color:var(--text-muted);font-size:.85rem;">(<?= count($andamentosImportados) ?> de <?= (int)$totalAndamentos ?>)</span></h3>
+                <h3>Andamentos Importados <span id="emCntAndamentos" style="font-weight:400;color:var(--text-muted);font-size:.85rem;">(<?= count($andamentosImportados) ?> de <?= (int)$totalAndamentos ?>)</span></h3>
                 <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+                    <input type="text" id="emBuscaAndamentos" placeholder="🔍 Buscar por caso, CNJ ou descrição..."
+                           oninput="emFiltrarAndamentos(this.value)"
+                           style="font-size:.78rem;padding:5px 10px;border:1px solid var(--border);border-radius:6px;width:280px;">
                     <span style="font-size: .72rem; color: var(--text-muted);"><code>tipo_origem='email_pje'</code></span>
                     <label style="font-size:.72rem;color:var(--text-muted);">
                         Mostrar:
@@ -608,7 +615,7 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                 </div>
             </div>
             <div style="overflow-x: auto;">
-                <table class="em-tbl">
+                <table class="em-tbl em-tbl-andamentos">
                     <thead>
                         <?php
                         // Ajuda pra montar link de ordenação alternando ASC/DESC.
@@ -644,7 +651,7 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                                 $hHora = !empty($and['hora_andamento']) ? substr($and['hora_andamento'], 0, 5) : '';
                                 $urlCaso = url('modules/operacional/caso_ver.php') . '?id=' . (int)$and['case_id'];
                             ?>
-                            <tr>
+                            <tr class="em-and-row">
                                 <td>
                                     <a class="em-and-link" href="<?= e($urlCaso) ?>" target="_blank" rel="noopener">
                                         <?= e($and['case_title'] ?: ('Caso #' . (int)$and['case_id'])) ?>
@@ -816,6 +823,58 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
             });
         });
     })();
+
+    // ──── Busca client-side (Pendentes) ────
+    // Normaliza pra ignorar acento + caixa em ambos os lados da comparação.
+    function emNormaliza(s) {
+        return (s || '').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    window.emFiltrarPendentes = function(termo) {
+        var q = emNormaliza(termo).trim();
+        var rows = document.querySelectorAll('.em-tbl-pendentes tbody tr.em-pend-row');
+        var visiveis = 0, total = rows.length;
+        rows.forEach(function(r) {
+            // Não mexe em rows descartadas que estão escondidas pela toggle existente
+            // (apenas filtra dentro do conjunto atualmente visível). Pra simplificar,
+            // deixa o termo casar contra TODO o texto da row (CNJ + polos + órgão).
+            if (q === '') {
+                r.classList.remove('hidden-busca');
+                visiveis++;
+                return;
+            }
+            var txt = emNormaliza(r.textContent);
+            if (txt.indexOf(q) !== -1) {
+                r.classList.remove('hidden-busca');
+                visiveis++;
+            } else {
+                r.classList.add('hidden-busca');
+            }
+        });
+        var cnt = document.getElementById('emCntPendentes');
+        if (cnt) {
+            if (q === '') cnt.textContent = total + ' pendente(s)';
+            else cnt.textContent = visiveis + ' de ' + total + ' visível(eis) — busca: "' + termo + '"';
+        }
+    };
+
+    window.emFiltrarAndamentos = function(termo) {
+        var q = emNormaliza(termo).trim();
+        var rows = document.querySelectorAll('.em-tbl-andamentos tbody tr.em-and-row');
+        var visiveis = 0, total = rows.length;
+        rows.forEach(function(r) {
+            if (q === '') { r.classList.remove('hidden-busca'); visiveis++; return; }
+            var txt = emNormaliza(r.textContent);
+            if (txt.indexOf(q) !== -1) { r.classList.remove('hidden-busca'); visiveis++; }
+            else r.classList.add('hidden-busca');
+        });
+        var cnt = document.getElementById('emCntAndamentos');
+        if (cnt) {
+            cnt.textContent = q === ''
+                ? '(' + total + ' visível(eis))'
+                : '(' + visiveis + ' de ' + total + ' — busca: "' + termo + '")';
+        }
+    };
 
     // ──── Mostrar/ocultar descartados ────
     window.emToggleDescartados = function() {
