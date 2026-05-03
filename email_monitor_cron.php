@@ -218,8 +218,11 @@ if (!$mbox) {
     exit;
 }
 
-// Busca emails NÃO vistos do remetente desejado (UID retornado)
-$emails = imap_search($mbox, 'UNSEEN FROM "' . IMAP_FROM_FILTER . '"', SE_UID);
+// Busca emails NÃO vistos do remetente desejado (UID retornado).
+// Filtro SINCE: ignora emails anteriores a 15/abril/2026 — esses já foram
+// processados manualmente / vieram pelo DataJud. Impede que backlog antigo
+// segure o processamento dos andamentos recentes (Amanda 03/05/2026).
+$emails = imap_search($mbox, 'UNSEEN FROM "' . IMAP_FROM_FILTER . '" SINCE "15-Apr-2026"', SE_UID);
 if (!is_array($emails)) $emails = array();
 
 // Limite por execução (evita estourar timeout + permite várias rodadas).
