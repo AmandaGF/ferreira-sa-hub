@@ -367,20 +367,6 @@ require_once APP_ROOT . '/templates/sidebar.php';
         <div class="page-content">
             <?= flash_html() ?>
 
-<!-- ╔═══════════════════════════════════════════════════════════════════════╗
-     AVISO TEMPORÁRIO DO TI — Sistema instável
-     Adicionado em 27/Abr/2026 a pedido da Amanda. Pra REMOVER quando o
-     sistema estabilizar, apague todo este bloco até a próxima linha "╚══".
-     ╚═══════════════════════════════════════════════════════════════════════╝ -->
-<div class="no-print" style="background:linear-gradient(135deg,#0ea5e9,#0369a1);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;font-size:.82rem;display:flex;align-items:center;gap:.7rem;box-shadow:0 2px 8px rgba(14,165,233,.25);">
-    <span style="font-size:1.4rem;line-height:1;">🛠️</span>
-    <div style="flex:1;">
-        <strong style="font-size:.9rem;">Aviso do TI — sistema instável</strong>
-        <div style="font-size:.76rem;opacity:.95;margin-top:2px;">Já estamos cientes e trabalhando na correção. Se algo travar, tente recarregar a página (Ctrl+F5). Obrigada pela paciência. 💙</div>
-    </div>
-</div>
-<!-- ╚══ FIM do aviso do TI ══════════════════════════════════════════════ -->
-
 <?php
 // Banner de prazos urgentes (próximos 3 dias) — visível em todas as páginas
 try {
