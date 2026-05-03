@@ -38,6 +38,18 @@ try {
 
     echo "\n=== proximo_dia_util(2026-04-15, Resende) ===\n";
     echo '  ' . proximo_dia_util('2026-04-15', 'Resende') . "\n";
+
+    echo "\n=== Detalhe das suspensoes 13-16/abril (suspeitas) ===\n";
+    $st2 = $pdo->prepare("SELECT s.*, u.name AS criador_nome FROM prazos_suspensoes s
+                          LEFT JOIN users u ON u.id = s.criado_por
+                          WHERE s.data_inicio BETWEEN '2026-04-13' AND '2026-04-16'");
+    $st2->execute();
+    foreach ($st2->fetchAll() as $r) {
+        echo "  #" . $r['id'] . "  " . $r['data_inicio'] . "  motivo='" . $r['motivo']
+           . "'  ato='" . ($r['ato_legislacao'] ?? '') . "'  publicacao='" . ($r['publicacao'] ?? '')
+           . "'  criado_em=" . ($r['created_at'] ?? '?')
+           . "  por=" . ($r['criador_nome'] ?? ('user_id ' . ($r['criado_por'] ?? 'null'))) . "\n";
+    }
 } catch (Throwable $e) {
     echo "\n!! ERRO: " . $e->getMessage() . " em " . $e->getFile() . ':' . $e->getLine() . "\n";
 }
