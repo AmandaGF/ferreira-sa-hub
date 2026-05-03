@@ -146,9 +146,15 @@ echo voltar_ao_processo_html();
                         <option value="">— Selecionar —</option>
                         <option value="Prazo">📅 Prazo</option>
                         <option value="Audiência">⚖️ Audiência</option>
-                        <option value="WhatsApp">💬 WhatsApp</option>
+                        <option value="Petição">📝 Petição</option>
                         <option value="Documentos">📄 Documentos</option>
+                        <option value="Cliente">👤 Cliente</option>
+                        <option value="WhatsApp">💬 WhatsApp</option>
+                        <option value="Cobrança de Honorários">💰 Cobrança de Honorários</option>
+                        <option value="Processo">🔄 Processo</option>
                         <option value="Administrativo">🏢 Administrativo</option>
+                        <option value="Marketing">📢 Marketing</option>
+                        <option value="TI / Sistema">🛠️ TI / Sistema</option>
                         <option value="Outros">📌 Outros</option>
                     </select>
                     <span class="form-hint">Prazo e Audiência são auto-urgentes</span>
