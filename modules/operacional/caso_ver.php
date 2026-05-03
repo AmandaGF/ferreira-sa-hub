@@ -4149,29 +4149,49 @@ function buscarCnpjParte() {
 var andCsrf = '<?= generate_csrf_token() ?>';
 
 function toggleVisibilidade(andId, btn) {
+    if (btn.disabled) return;
     var atual = parseInt(btn.getAttribute('data-vis'));
     var novo = atual ? 0 : 1;
+    btn.disabled = true;
+    var labelOriginal = btn.innerHTML;
+    btn.innerHTML = '⏳';
+    btn.style.opacity = '.6';
+
+    function aplicarEstado(visivel) {
+        btn.setAttribute('data-vis', visivel);
+        if (visivel) {
+            btn.innerHTML = '&#128065; Visível';
+            btn.style.background = '#ecfdf5'; btn.style.color = '#059669';
+            btn.title = 'Visível ao cliente — clique para ocultar';
+        } else {
+            btn.innerHTML = '&#128274; Interno';
+            btn.style.background = '#fef2f2'; btn.style.color = '#dc2626';
+            btn.title = 'Oculto do cliente — clique para tornar visível';
+        }
+        btn.style.opacity = '1';
+    }
+    function reverter(msg) {
+        btn.innerHTML = labelOriginal;
+        btn.style.opacity = '1';
+        if (msg) alert(msg);
+    }
+
     var x = new XMLHttpRequest();
     x.open('POST', '<?= module_url("operacional", "api.php") ?>');
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     x.onload = function() {
-        try { var r = JSON.parse(x.responseText);
-            if (r.csrf) andCsrf = r.csrf;
-            if (r.ok) {
-                btn.setAttribute('data-vis', novo);
-                if (novo) {
-                    btn.innerHTML = '&#128065; Visível';
-                    btn.style.background = '#ecfdf5'; btn.style.color = '#059669';
-                    btn.title = 'Visível ao cliente — clique para ocultar';
-                } else {
-                    btn.innerHTML = '&#128274; Interno';
-                    btn.style.background = '#fef2f2'; btn.style.color = '#dc2626';
-                    btn.title = 'Oculto do cliente — clique para tornar visível';
-                }
-            } else if (r.error) { alert(r.error); }
-        } catch(e) {}
+        btn.disabled = false;
+        if (x.status === 401 && window.fsaMostrarSessaoExpirada) { reverter(); window.fsaMostrarSessaoExpirada(); return; }
+        if (x.status !== 200) { reverter('Erro de servidor (HTTP ' + x.status + '). Tente recarregar.'); return; }
+        var r;
+        try { r = JSON.parse(x.responseText); }
+        catch (e) { reverter('Resposta inválida — recarregue a página (F5).'); return; }
+        if (r.csrf) andCsrf = r.csrf;
+        if (r.ok) { aplicarEstado(novo); return; }
+        reverter(r.error || 'Erro desconhecido ao salvar visibilidade.');
     };
+    x.onerror = function() { btn.disabled = false; reverter('Falha de rede. Tente novamente.'); };
     x.send('action=toggle_visibilidade&andamento_id=' + andId + '&visivel=' + novo + '&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
