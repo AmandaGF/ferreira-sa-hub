@@ -4,6 +4,11 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
 
+// Garante que o self-heal disparou (idempotente — ignorado se já existe)
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN subtipo VARCHAR(40) DEFAULT NULL AFTER tipo"); echo "  + coluna subtipo criada agora\n"; } catch (Exception $e) { echo "  - coluna subtipo ja existe (ok)\n"; }
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD INDEX idx_subtipo (subtipo)"); echo "  + index idx_subtipo criado agora\n"; } catch (Exception $e) { echo "  - index idx_subtipo ja existe (ok)\n"; }
+echo "\n";
+
 echo "=== SHOW CREATE TABLE agenda_eventos ===\n";
 $row = $pdo->query("SHOW CREATE TABLE agenda_eventos")->fetch(PDO::FETCH_ASSOC);
 echo ($row['Create Table'] ?? array_values($row)[1]) . "\n\n";
