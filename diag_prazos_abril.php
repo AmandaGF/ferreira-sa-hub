@@ -6,8 +6,10 @@ $pdo = db();
 
 try {
     echo "=== Suspensoes cadastradas em abril/2026 ===\n";
-    $st = $pdo->prepare("SELECT id, descricao, data_inicio, data_fim, abrangencia, comarca, requer_confirmacao
-                         FROM prazos_suspensoes
+    // Lista colunas pra montar SELECT *
+    $cols = $pdo->query("SHOW COLUMNS FROM prazos_suspensoes")->fetchAll(PDO::FETCH_COLUMN);
+    echo "  cols: " . implode(', ', $cols) . "\n";
+    $st = $pdo->prepare("SELECT * FROM prazos_suspensoes
                          WHERE data_inicio <= '2026-04-30' AND data_fim >= '2026-04-01'
                          ORDER BY data_inicio");
     $st->execute();
@@ -15,9 +17,9 @@ try {
     if (!$rows) { echo "  (nenhuma)\n"; }
     foreach ($rows as $r) {
         echo '  #' . $r['id'] . '  ' . $r['data_inicio'] . '..' . $r['data_fim']
-           . '  [' . $r['abrangencia'] . ($r['comarca'] ? '/' . $r['comarca'] : '') . ']'
-           . '  req_conf=' . (int)$r['requer_confirmacao']
-           . '  ' . $r['descricao'] . "\n";
+           . '  [' . ($r['abrangencia'] ?? '?') . (!empty($r['comarca']) ? '/' . $r['comarca'] : '') . ']'
+           . '  req_conf=' . (int)($r['requer_confirmacao'] ?? 0)
+           . '  ' . ($r['descricao'] ?? $r['nome'] ?? $r['feriado'] ?? '?') . "\n";
     }
 
     echo "\n=== Analise dia 14 a 18 de abril 2026 (comarca=Resende) ===\n";
