@@ -147,7 +147,7 @@ foreach ($pendentes as $p) {
     elseif ($p['status'] === 'descartado') $totalDescartados++;
 }
 
-// Andamentos importados: feed dos últimos 50 inserts feitos pelo cron.
+// Andamentos importados: feed paginado dos inserts feitos pelo cron.
 // Whitelist de ordenação (preview da query string ?ordem=). Default: data_andamento
 // DESC (movimentação mais recente primeiro), que é mais útil que "importado em".
 $ordensValidas = array(
@@ -159,6 +159,16 @@ $ordensValidas = array(
 $ordemAndamentos = $_GET['ordem'] ?? 'data_desc';
 if (!isset($ordensValidas[$ordemAndamentos])) $ordemAndamentos = 'data_desc';
 
+// Limite parametrizável (?limite=N). Default 200, max 5000.
+$limitesValidos    = array(50, 100, 200, 500, 1000, 2000, 5000);
+$limiteAndamentos  = isset($_GET['limite']) ? (int)$_GET['limite'] : 200;
+if (!in_array($limiteAndamentos, $limitesValidos, true)) $limiteAndamentos = 200;
+
+// Total real (pra mostrar "N de TOTAL")
+$totalAndamentos = (int)$pdo->query(
+    "SELECT COUNT(*) FROM case_andamentos WHERE tipo_origem = 'email_pje'"
+)->fetchColumn();
+
 $stmtAnd = $pdo->prepare(
     "SELECT a.id, a.data_andamento, a.hora_andamento, a.descricao, a.created_at,
             c.id AS case_id, c.title AS case_title, c.case_number
@@ -166,7 +176,7 @@ $stmtAnd = $pdo->prepare(
      INNER JOIN cases c ON c.id = a.case_id
      WHERE a.tipo_origem = 'email_pje'
      ORDER BY " . $ordensValidas[$ordemAndamentos] . "
-     LIMIT 50"
+     LIMIT " . (int)$limiteAndamentos
 );
 $stmtAnd->execute();
 $andamentosImportados = $stmtAnd->fetchAll(PDO::FETCH_ASSOC);
@@ -384,7 +394,7 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
         </button>
         <button type="button" class="em-tab" data-tab="andamentos" onclick="emTabSwitch('andamentos')">
             Andamentos Importados
-            <span class="em-tab-cnt"><?= count($andamentosImportados) ?></span>
+            <span class="em-tab-cnt" title="Total no banco"><?= (int)$totalAndamentos ?></span>
         </button>
     </div>
 
@@ -584,10 +594,18 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
     <div class="em-tab-content" id="emTab-andamentos">
         <div class="em-card">
             <div class="em-card-h">
-                <h3>Andamentos Importados (últimos 50)</h3>
-                <span style="font-size: .72rem; color: var(--text-muted);">
-                    <?= count($andamentosImportados) ?> registro(s) · <code>tipo_origem='email_pje'</code>
-                </span>
+                <h3>Andamentos Importados <span style="font-weight:400;color:var(--text-muted);font-size:.85rem;">(<?= count($andamentosImportados) ?> de <?= (int)$totalAndamentos ?>)</span></h3>
+                <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+                    <span style="font-size: .72rem; color: var(--text-muted);"><code>tipo_origem='email_pje'</code></span>
+                    <label style="font-size:.72rem;color:var(--text-muted);">
+                        Mostrar:
+                        <select onchange="if(this.value){window.location.href='?limite='+this.value+'&ordem=<?= e($ordemAndamentos) ?>#emTab-andamentos'}" style="font-size:.74rem;padding:3px 6px;border:1px solid var(--border);border-radius:5px;margin-left:4px;">
+                            <?php foreach ($limitesValidos as $_l): ?>
+                                <option value="<?= $_l ?>" <?= $_l === $limiteAndamentos ? 'selected' : '' ?>><?= $_l ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+                </div>
             </div>
             <div style="overflow-x: auto;">
                 <table class="em-tbl">
