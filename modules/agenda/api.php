@@ -8,6 +8,11 @@ require_login();
 $pdo = db();
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
+// Self-heal: subtipo de audiência (conciliacao, instrucao, una, mediacao_cejusc,
+// audiencia_inicial, oitiva_testemunha, interrogatorio). Aditivo, default NULL.
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN subtipo VARCHAR(40) DEFAULT NULL AFTER tipo"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD INDEX idx_subtipo (subtipo)"); } catch (Exception $e) {}
+
 // ─── Feriados nacionais + RJ (estaduais) ──────────────────────────────
 // Calcula a data de Páscoa (Anonymous Gregorian Algorithm — não depende
 // da extensão `calendar` do PHP) e a partir dela os móveis: Carnaval
@@ -509,6 +514,14 @@ if ($action === 'salvar') {
     $modalidadesValidas = array('presencial','online','nao_aplicavel');
     $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 
+    // Subtipo de audiência (opcional, default NULL — não quebra chamadas que não enviem)
+    $subtiposAudienciaValidos = array('conciliacao','instrucao','una','mediacao_cejusc','audiencia_inicial','oitiva_testemunha','interrogatorio');
+    $subtipoIn = trim((string)($_POST['subtipo'] ?? ''));
+    $subtipo = null;
+    if ($tipo === 'audiencia' && $subtipoIn !== '' && in_array($subtipoIn, $subtiposAudienciaValidos, true)) {
+        $subtipo = $subtipoIn;
+    }
+
     if (!$titulo) { echo json_encode(array('error' => 'Título é obrigatório')); exit; }
     if (!$dataInicio) { echo json_encode(array('error' => 'Data de início é obrigatória')); exit; }
     if (!in_array($tipo, $tiposValidos)) $tipo = 'reuniao_cliente';
@@ -556,13 +569,13 @@ if ($action === 'salvar') {
     if ($id) {
         // Editar — todos os usuários logados podem editar compromissos
         $stmt = $pdo->prepare(
-            "UPDATE agenda_eventos SET titulo=?, tipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
+            "UPDATE agenda_eventos SET titulo=?, tipo=?, subtipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
              local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
              msg_cliente=?, lembrete_email=?, lembrete_whatsapp=?, lembrete_portal=?, lembrete_cliente=?,
              participantes_ids=?, updated_at=NOW() WHERE id=?"
         );
         $stmt->execute(array(
-            $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+            $titulo, $tipo, $subtipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
             $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
             $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
             $participantesJson, $id
@@ -581,14 +594,14 @@ if ($action === 'salvar') {
             $visivelCliente = in_array($tipo, $tiposVisiveis) ? 1 : 0;
 
             $stmt = $pdo->prepare(
-                "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
+                "INSERT INTO agenda_eventos (titulo, tipo, subtipo, modalidade, data_inicio, data_fim, dia_todo,
                  local, meet_link, descricao, client_id, case_id, responsavel_id,
                  msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
                  participantes_ids, visivel_cliente, status, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
             );
             $stmt->execute(array(
-                $titulo, $tipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+                $titulo, $tipo, $subtipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
                 $local ?: null, $meetLink ?: null, $descricao ?: null, $clientId, $caseId, $responsavelId,
                 $msgCliente ?: null, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
                 $participantesJson, $visivelCliente, current_user_id()

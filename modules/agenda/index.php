@@ -303,6 +303,21 @@ if ($voltarCaso > 0): ?>
             <input type="hidden" id="agSubTipoAud" value="">
         </div>
 
+        <!-- Subtipo estruturado (Marina) — só aparece quando tipo=audiencia. Persiste em agenda_eventos.subtipo -->
+        <div class="ag-fg" id="agSubtipoMarinaWrap" style="display:none;">
+            <label class="ag-fl" for="agSubtipo">Subtipo (estruturado)</label>
+            <select class="ag-fi" id="agSubtipo">
+                <option value="">— Não classificar —</option>
+                <option value="conciliacao">Conciliação</option>
+                <option value="instrucao">Instrução</option>
+                <option value="una">Una</option>
+                <option value="mediacao_cejusc">Mediação CEJUSC</option>
+                <option value="audiencia_inicial">Audiência inicial</option>
+                <option value="oitiva_testemunha">Oitiva de testemunha</option>
+                <option value="interrogatorio">Interrogatório</option>
+            </select>
+        </div>
+
         <div class="ag-fg">
             <label class="ag-fl">Título</label>
             <input type="text" class="ag-fi" id="agTitulo" placeholder="Ex: Audiência — Wendel Magno x Alimentos">
@@ -1021,6 +1036,11 @@ function abrirModalEditar(id) {
                     b.style.borderColor = match ? '#e67e22' : 'var(--border)';
                 });
             })();
+            // Subtipo estruturado (Marina): popula com ev.subtipo se vier, senão fica vazio
+            (function(){
+                var selSub = document.getElementById('agSubtipo');
+                if (selSub) selSub.value = ev.subtipo || '';
+            })();
             document.getElementById('agLocal').value = ev.local || '';
             document.getElementById('agDescricao').value = ev.descricao || '';
             document.getElementById('agModalidade').value = ev.modalidade || 'presencial';
@@ -1155,6 +1175,15 @@ function selTipo(tipo, btn) {
         subAudWrap.style.display = (tipo === 'audiencia') ? 'block' : 'none';
         if (tipo !== 'audiencia') {
             document.getElementById('agSubTipoAud').value = '';
+        }
+    }
+    // Subtipo estruturado (Marina) — independente do legacy, mesma regra de visibilidade
+    var subMarinaWrap = document.getElementById('agSubtipoMarinaWrap');
+    if (subMarinaWrap) {
+        subMarinaWrap.style.display = (tipo === 'audiencia') ? 'block' : 'none';
+        if (tipo !== 'audiencia') {
+            var selSub = document.getElementById('agSubtipo');
+            if (selSub) selSub.value = '';
         }
     }
 
@@ -1628,6 +1657,9 @@ function salvarEvento() {
     fd.append('lembrete_whatsapp', '1');
     fd.append('lembrete_portal', '1');
     fd.append('lembrete_cliente', '1');
+    // Subtipo estruturado (Marina) — backend força NULL se tipo != 'audiencia'
+    var _selSubtipo = document.getElementById('agSubtipo');
+    fd.append('subtipo', (_selSubtipo && tipoSelecionado === 'audiencia') ? (_selSubtipo.value || '') : '');
     participantes.forEach(function(pid) { fd.append('participantes_ids[]', pid); });
 
     var xhr = new XMLHttpRequest();
