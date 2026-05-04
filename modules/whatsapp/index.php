@@ -127,6 +127,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 .wa-wrap { display:grid;grid-template-columns:360px 1fr;gap:.5rem;height:calc(100vh - 140px);min-height:560px; }
+/* Tablet: lista mais compacta */
+@media (min-width:901px) and (max-width:1280px) {
+    .wa-wrap { grid-template-columns:300px 1fr; }
+}
+/* Wide screens (>=1600px): lista um pouco maior */
+@media (min-width:1600px) {
+    .wa-wrap { grid-template-columns:400px 1fr; }
+}
 .wa-pane { background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;display:flex;flex-direction:column; }
 .wa-head { padding:.6rem .9rem;background:<?= $accentColor ?>;color:#fff;font-weight:600;font-size:.9rem;display:flex;align-items:center;gap:.5rem; }
 .wa-head-sub { font-size:.7rem;opacity:.8;font-weight:400;margin-left:auto; }
@@ -193,7 +201,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-unread { background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-weight:700;font-size:.65rem; }
 .wa-bot-badge { background:#7c3aed;color:#fff;padding:1px 5px;border-radius:4px;font-size:.6rem;margin-left:4px; }
 .wa-empty { padding:2rem 1rem;text-align:center;color:var(--text-muted);font-size:.85rem; }
-.wa-chat-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;padding:2rem; }
+.wa-chat-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);text-align:center;padding:2rem;max-width:480px;margin:0 auto; }
 .wa-chat-empty-ico { font-size:3rem;margin-bottom:.5rem;opacity:.4; }
 .wa-chat-head { padding:.6rem .9rem;background:#f9fafb;color:var(--text);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem; }
 .wa-chat-head strong { font-size:.9rem; }
@@ -252,14 +260,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-name-display:hover { border-bottom-color:var(--text-muted); }
 .wa-etq-filter { padding:3px 8px;border-radius:10px;font-size:.68rem;background:#fff;border:1px solid var(--border);cursor:pointer;color:var(--text-muted);white-space:nowrap; }
 .wa-etq-filter.active { color:#fff !important;border-color:transparent !important; }
-@media (max-width:900px){ .wa-wrap{grid-template-columns:1fr;height:auto;} }
+/* ─── Tela estreita (até tablet): lista + chat como "2 páginas" ────────
+   Em telas até 900px (smartphone, tablet, janela pequena de desktop),
+   a lista de conversas ocupa a tela inteira. Quando o usuário clica
+   numa conv, uma classe `.wa-show-chat` é adicionada no wrapper e a
+   lista some, dando lugar ao chat em tela cheia. Botão ← no header
+   do chat volta pra lista.
 
-/* ─── Mobile portrait: lista + chat como "2 páginas" ────────
-   Em telas estreitas (smartphone portrait), a lista de conversas ocupa
-   a tela inteira. Quando o usuário clica numa conv, uma classe
-   `.wa-show-chat` é adicionada no wrapper e a lista some, dando lugar
-   ao chat em tela cheia. Botão ← no header do chat volta pra lista. */
-@media (max-width:768px) {
+   Antes esse modo só rodava ≤768px e entre 769-900px ficava empilhado
+   (lista em cima, chat embaixo) — péssimo de usar. Agora cobre tudo. */
+@media (max-width:900px) {
     .wa-wrap {
         grid-template-columns:1fr !important;
         height:calc(100vh - 100px);

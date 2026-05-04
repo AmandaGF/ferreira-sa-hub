@@ -133,6 +133,46 @@ function _fila_link($status, $clientFilter) {
 <?php endif; ?>
 
 <script>
+// Helpers de UI: ajusta contador na tab + remove card da lista atual
+function _filaAjustarContador(statusKey, delta) {
+    document.querySelectorAll('.fila-tab').forEach(function(a){
+        var href = a.getAttribute('href') || '';
+        var m = href.match(/status=([a-z]+)/);
+        if (!m || m[1] !== statusKey) return;
+        a.innerHTML = a.innerHTML.replace(/\((\d+)\)/, function(_, n){
+            return '(' + Math.max(0, parseInt(n, 10) + delta) + ')';
+        });
+    });
+}
+
+function _filaRemoverCard(filaId, statusOrigem, statusDestino) {
+    var el = document.getElementById('fila_' + filaId);
+    if (!el) return;
+    el.style.transition = 'opacity .25s ease, max-height .35s ease, margin .35s ease, padding .35s ease';
+    el.style.maxHeight = el.offsetHeight + 'px';
+    requestAnimationFrame(function(){
+        el.style.opacity = '0';
+        el.style.maxHeight = '0';
+        el.style.marginBottom = '0';
+        el.style.paddingTop = '0';
+        el.style.paddingBottom = '0';
+        el.style.overflow = 'hidden';
+    });
+    setTimeout(function(){
+        el.remove();
+        if (statusOrigem) _filaAjustarContador(statusOrigem, -1);
+        if (statusDestino) _filaAjustarContador(statusDestino, +1);
+        // Empty state se a lista ficou vazia
+        if (!document.querySelector('.fila-item')) {
+            var container = document.querySelector('.fila-tabs') ? document.querySelector('.fila-tabs').parentNode : document.body;
+            var empty = document.createElement('div');
+            empty.style.cssText = 'text-align:center;padding:3rem;color:var(--text-muted);background:#fff;border-radius:10px;';
+            empty.textContent = 'Nenhuma mensagem com este status 🎉';
+            container.appendChild(empty);
+        }
+    }, 380);
+}
+
 function filaEnviar(filaId, telefone, nome, canal, clientId) {
     // Pega a mensagem ATUAL (possivelmente editada) do textarea ou preview
     var editor = document.getElementById('fila_' + filaId + '_editor');
@@ -154,8 +194,7 @@ function filaEnviar(filaId, telefone, nome, canal, clientId) {
             fetch(window.FSA_WHATSAPP_API_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function(r){ return r.json(); })
                 .then(function(){
-                    var el = document.getElementById('fila_' + filaId);
-                    if (el) { el.classList.remove('pendente'); el.classList.add('enviada'); el.querySelector('.fila-acoes').remove(); }
+                    _filaRemoverCard(filaId, 'pendente', 'enviada');
                 });
         }
     });
@@ -207,8 +246,7 @@ function filaDescartar(filaId) {
         .then(function(r){ return r.json(); })
         .then(function(d){
             if (d.ok) {
-                var el = document.getElementById('fila_' + filaId);
-                if (el) { el.classList.remove('pendente'); el.classList.add('descartada'); el.querySelector('.fila-acoes').remove(); }
+                _filaRemoverCard(filaId, 'pendente', 'descartada');
             } else alert('Falha: ' + (d.error || '?'));
         });
 }
