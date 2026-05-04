@@ -88,10 +88,24 @@ try {
     }
 } catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
-echo "\n=== Erros recentes em /files/ logs ===\n";
-foreach (glob(__DIR__ . '/files/zapi*.log') as $log) {
-    echo "  arquivo: $log (" . filesize($log) . " bytes)\n";
-    $tail = file($log);
-    $ult = array_slice($tail, -10);
-    foreach ($ult as $l) echo "    " . trim($l) . "\n";
+echo "\n=== Procurando messageId 1D15804415AA654C832A no log do webhook ===\n";
+$log = __DIR__ . '/files/zapi_webhook.log';
+if (file_exists($log)) {
+    $cmd = 'tail -n 50000 ' . escapeshellarg($log) . ' | grep -F "1D15804415AA654C832A" | head -10';
+    $out = shell_exec($cmd);
+    echo $out ? $out : "  (NAO encontrado nos ultimos 50k linhas — webhook nao confirmou esta msg)\n";
+}
+
+echo "\n=== Procurando entradas pra telefone 5524999247948 (Sarah) no webhook ===\n";
+if (file_exists($log)) {
+    $cmd = 'tail -n 50000 ' . escapeshellarg($log) . ' | grep -F "5524999247948" | tail -10';
+    $out = shell_exec($cmd);
+    echo $out ? $out : "  (nenhuma entrada — webhook nunca processou esse telefone)\n";
+}
+
+echo "\n=== Logs zapi_send se existirem ===\n";
+foreach (glob(__DIR__ . '/files/zapi_send*.log') as $sl) {
+    echo "  arquivo: $sl (" . filesize($sl) . " bytes)\n";
+    $cmd = 'tail -n 100 ' . escapeshellarg($sl);
+    echo shell_exec($cmd);
 }
