@@ -109,6 +109,13 @@ if ($action === 'listar_conversas') {
     $where   = array('co.canal = ?');
     $params  = array($canal);
 
+    // Restrição de visibilidade — Simone (user#5) não pode ver conversas com
+    // contatos chamados "Gisele" (qualquer Gisele). Pedido Amanda 04/05/2026.
+    // Aplica em listagem + detalhe (action=obter abaixo) + abrir (zapi_buscar)
+    if ($userId === 5) {
+        $where[] = "(co.nome_contato IS NULL OR LOWER(co.nome_contato) NOT LIKE '%gisele%')";
+    }
+
     if ($status && $status !== 'todos') {
         if ($status === 'bot')  $where[] = 'co.bot_ativo = 1';
         elseif ($status === 'nao_lidas') $where[] = 'co.nao_lidas > 0';
@@ -411,6 +418,12 @@ if ($action === 'abrir_conversa') {
     $stmt->execute(array($id));
     $conv = $stmt->fetch();
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    // Defesa: Simone (user#5) não pode abrir conversa de contato chamado "Gisele"
+    // (mesmo se descobrir o ID via URL direta). Pedido Amanda 04/05/2026.
+    if ($userId === 5 && !empty($conv['nome_contato']) && stripos($conv['nome_contato'], 'gisele') !== false) {
+        echo json_encode(array('error' => 'Conversa não encontrada')); exit;
+    }
 
     // Display name curto do atendente
     if (!empty($conv['atendente_name'])) {
