@@ -189,6 +189,8 @@ $papelClienteAud = $_POST['papel_cliente_aud'] ?? 'autor';
 $pleiteanteAud = $_POST['pleiteante_aud'] ?? 'proprio';
 $childNamesAud = $_POST['child_names_aud'] ?? '';
 $qualifMenorAud = $_POST['qualif_menor_aud'] ?? 'impubere';
+$cidadeAssinaturaAud = $_POST['cidade_assinatura_aud'] ?? '';
+if (!in_array($cidadeAssinaturaAud, array('Volta Redonda','Resende'), true)) $cidadeAssinaturaAud = '';
 $repLegalAud = $_POST['rep_legal_aud'] ?? 'nao';
 $dataAudiencia = $_POST['data_audiencia'] ?? '';
 
@@ -957,6 +959,17 @@ if (!$showEditor) {
                     <input type="date" name="data_audiencia" value="<?= e($dataAudiencia) ?>">
                 </div>
             </div>
+            <div class="row">
+                <div>
+                    <label>Cidade da assinatura</label>
+                    <select name="cidade_assinatura_aud">
+                        <option value="" <?= $cidadeAssinaturaAud === '' ? 'selected' : '' ?>>— Manter padrão (cidade do cliente) —</option>
+                        <option value="Volta Redonda" <?= $cidadeAssinaturaAud === 'Volta Redonda' ? 'selected' : '' ?>>Volta Redonda</option>
+                        <option value="Resende" <?= $cidadeAssinaturaAud === 'Resende' ? 'selected' : '' ?>>Resende</option>
+                    </select>
+                    <small style="color:#6b7280;font-size:.72rem;">Sobrescreve a cidade no fechamento da petição (Bairro Unamar/etc some)</small>
+                </div>
+            </div>
             <div style="margin-bottom:.75rem;">
                 <label>Motivo / Justificativa (opcional — se vazio, gera texto padrão sobre justa causa)</label>
                 <div style="display:flex;gap:.5rem;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;">
@@ -1198,6 +1211,7 @@ if (!$showEditor) {
         'pleiteante_aud' => $pleiteanteAud,
         'child_names_aud' => $childNamesAud,
         'qualif_menor_aud' => $qualifMenorAud,
+        'cidade_assinatura_aud' => $cidadeAssinaturaAud,
         'rep_legal_aud' => $repLegalAud,
         'data_audiencia' => $dataAudiencia,
         'beneficiario_mandado' => $beneficiarioMandado,

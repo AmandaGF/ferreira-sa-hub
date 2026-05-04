@@ -846,9 +846,9 @@ function template_audiencia_remota($d) {
         $qtdMen = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
         if ($qtdMen <= 0) $qtdMen = max(1, count(array_filter(array_map('trim', explode(',', $nomeFilhos)))));
         $multiplos = ($qtdMen > 1);
-        $repTexto = $multiplos ? 'representados' : 'representado(a)';
-        $menorTexto = $multiplos ? 'menores' : 'menor';
-        $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        // Novo padrão: "{nome}, parte representada por sua genitora {genitora}, já qualificada nos autos"
+        $parteTexto = $multiplos ? 'partes representadas' : 'parte representada';
+        $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $parteTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificada nos autos';
         $verbo = $multiplos ? 'vêm' : 'vem';
     } else {
         $html .= '<strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
@@ -904,7 +904,17 @@ function template_audiencia_remota($d) {
     // de altura zero colapsava em alguns renderizadores PDF (Salvar como PDF do Chrome),
     // colando local/data e nome na mesma linha. Agora tudo em <p> com altura real.
     $html .= '<p style="text-align:center;margin:24pt 0 8pt;text-indent:0;line-height:1.4;">Nestes termos, pede deferimento.</p>';
-    $html .= '<p style="text-align:right;margin:8pt 0 0 0;text-indent:0;line-height:1.4;">' . f($d['cidade_data']) . '</p>';
+    // Cidade da assinatura: se Amanda escolheu 'Volta Redonda' ou 'Resende' no form,
+    // sobrescreve o $d['cidade_data'] (que vem do endereço do cliente — ex: Bairro Unamar)
+    $cidadeAssAud = isset($d['cidade_assinatura_aud']) && $d['cidade_assinatura_aud'] ? $d['cidade_assinatura_aud'] : '';
+    if ($cidadeAssAud) {
+        $mesesPt = array('','janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro');
+        $hojeFmt = date('d') . ' de ' . $mesesPt[(int)date('m')] . ' de ' . date('Y');
+        $cidadeDataAud = $cidadeAssAud . ', ' . $hojeFmt;
+    } else {
+        $cidadeDataAud = isset($d['cidade_data']) ? $d['cidade_data'] : '';
+    }
+    $html .= '<p style="text-align:right;margin:8pt 0 0 0;text-indent:0;line-height:1.4;">' . f($cidadeDataAud) . '</p>';
     $html .= '<p style="text-align:center;margin:60pt 0 0 0;text-indent:0;line-height:1.2;letter-spacing:1px;">_______________________________________</p>';
     $html .= '<p style="text-align:center;margin:4pt 0 0 0;text-indent:0;font-weight:700;font-size:11pt;line-height:1.4;">' . $esc['adv1_nome'] . '</p>';
     $html .= '<p style="text-align:center;margin:0;text-indent:0;font-size:10pt;color:#444;line-height:1.4;">OAB/RJ ' . $esc['adv1_oab'] . '</p>';
