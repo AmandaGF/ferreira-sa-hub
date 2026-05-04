@@ -4394,28 +4394,40 @@ function salvarAndamento(andId) {
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     x.onload = function() {
-        try { var r = JSON.parse(x.responseText);
-            if (r.csrf) andCsrf = r.csrf;
-            if (r.ok) {
-                // Se tipo mudou, recarregar para atualizar cor e ícone
-                var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
-                if (novoTipo && tipoSpan && tipoSpan.getAttribute('data-tipo-val') !== novoTipo) {
-                    location.reload();
-                    return;
-                }
-                document.getElementById('andDesc' + andId).textContent = novoTexto;
-                var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
-                if (horaSpan && novaHora) horaSpan.textContent = novaHora;
-                var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
-                if (dataSpan && novaData) {
-                    var p = novaData.split('-');
-                    dataSpan.textContent = p[2] + '/' + p[1] + '/' + p[0];
-                    dataSpan.setAttribute('data-data', novaData);
-                }
-                cancelarEdicaoAnd(andId);
-            } else if (r.error) { alert(r.error); }
-        } catch(e) { alert('Erro ao salvar'); }
+        // Sessão expirada → middleware retorna 401 com header XHR
+        if (x.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+        if (x.status !== 200) { alert('Erro ao salvar — HTTP ' + x.status + '. Recarregue a página (F5).'); return; }
+        var r;
+        try { r = JSON.parse(x.responseText); }
+        catch (e) {
+            // Resposta HTML (provável redirect pro login após sessão expirar mesmo sem 401)
+            console.error('[salvarAndamento] resposta não-JSON:', x.responseText.substring(0, 300));
+            alert('Resposta inválida do servidor — provavelmente sua sessão expirou. Recarregue (F5) e tente de novo.');
+            return;
+        }
+        if (r.csrf) andCsrf = r.csrf;
+        if (r.ok) {
+            // Se tipo mudou, recarregar para atualizar cor e ícone
+            var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
+            if (novoTipo && tipoSpan && tipoSpan.getAttribute('data-tipo-val') !== novoTipo) {
+                location.reload();
+                return;
+            }
+            document.getElementById('andDesc' + andId).textContent = novoTexto;
+            var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
+            if (horaSpan && novaHora) horaSpan.textContent = novaHora;
+            var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
+            if (dataSpan && novaData) {
+                var p = novaData.split('-');
+                dataSpan.textContent = p[2] + '/' + p[1] + '/' + p[0];
+                dataSpan.setAttribute('data-data', novaData);
+            }
+            cancelarEdicaoAnd(andId);
+            return;
+        }
+        alert('Erro ao salvar: ' + (r.error || 'desconhecido'));
     };
+    x.onerror = function() { alert('Falha de rede ao salvar. Tente novamente.'); };
     x.send('action=edit_andamento&andamento_id=' + andId + '&descricao=' + encodeURIComponent(novoTexto) + '&hora=' + encodeURIComponent(novaHora) + '&data=' + encodeURIComponent(novaData) + '&tipo=' + encodeURIComponent(novoTipo) + '&case_id=<?= $caseId ?>&<?= CSRF_TOKEN_NAME ?>=' + andCsrf);
 }
 
