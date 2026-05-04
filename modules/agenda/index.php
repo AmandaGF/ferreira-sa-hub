@@ -916,6 +916,11 @@ function mudarVis(vis, btn) {
         var idx = vis==='mensal'?0:vis==='semanal'?1:2;
         btns[idx].classList.add('ativo');
     }
+    // Botão chama-se "Hoje" — sempre resetar a referência pra hoje ao entrar
+    // na vis 'lista', senão fica preso num dia anterior se o usuário navegou.
+    if (vis === 'lista') {
+        diaLista = new Date(hoje);
+    }
     recarregarEventos();
 }
 
