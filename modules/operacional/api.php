@@ -908,6 +908,33 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'calc_prazo_publicacao': {
+        // Calcula data fatal a partir de (data_disponibilizacao, qtd, unidade, comarca)
+        // Usado pelo card de intimação pendente: Amanda digita "15 dias úteis" e
+        // o sistema retorna a data resultante usando a calculadora oficial.
+        header('Content-Type: application/json; charset=utf-8');
+        require_once APP_ROOT . '/core/functions_prazos.php';
+        $disp     = trim($_POST['disponibilizacao'] ?? '');
+        $qtd      = max(1, (int)($_POST['qtd'] ?? 0));
+        $unidade  = ($_POST['unidade'] ?? 'dias') === 'meses' ? 'meses' : 'dias';
+        $comarca  = trim($_POST['comarca'] ?? '');
+        if (!$disp || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $disp)) {
+            echo json_encode(array('ok' => false, 'erro' => 'data_disponibilizacao invalida')); exit;
+        }
+        try {
+            $r = calcular_prazo_completo($disp, $qtd, $unidade, $comarca ?: null);
+            echo json_encode(array(
+                'ok'              => true,
+                'data_fatal'      => $r['data_fatal'],
+                'inicio_contagem' => $r['inicio_contagem'],
+                'publicacao'      => $r['publicacao'],
+            ));
+        } catch (Exception $e) {
+            echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
+        }
+        exit;
+    }
+
     case 'marcar_cliente_avisado':
     case 'desmarcar_cliente_avisado': {
         header('Content-Type: application/json; charset=utf-8');

@@ -2862,14 +2862,28 @@ foreach ($tarefasReais as $_t) {
                         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                             <span style="font-size:.68rem;color:var(--text-muted);"><?= e($pub['criado_por_nome'] ?? '') ?></span>
                             <?php if ($pub['status_prazo'] === 'pendente' && (has_min_role('operacional') || has_min_role('gestao'))): ?>
-                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;" id="formPub<?= $pub['id'] ?>">
+                            <form method="POST" action="<?= module_url('operacional', 'api.php') ?>"
+                                  style="display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap;"
+                                  id="formPub<?= $pub['id'] ?>"
+                                  data-disp="<?= e($pub['data_disponibilizacao']) ?>"
+                                  data-comarca="<?= e($case['comarca'] ?? '') ?>">
                                 <?= csrf_input() ?>
                                 <input type="hidden" name="action" value="confirmar_prazo_publicacao">
                                 <input type="hidden" name="pub_id" value="<?= $pub['id'] ?>">
                                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
                                 <input type="hidden" name="novo_status" value="confirmado" id="status<?= $pub['id'] ?>">
                                 <input type="date" name="nova_data_prazo" id="data<?= $pub['id'] ?>" value="<?= e($pub['data_prazo_fim'] ?? '') ?>" style="display:none;font-size:.7rem;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;">
-                                <button type="button" onclick="var i=document.getElementById('data<?= $pub['id'] ?>');var b=this;if(i.style.display==='none'){i.style.display='';b.textContent='Cancelar ajuste';}else{i.style.display='none';i.value='<?= e($pub['data_prazo_fim'] ?? '') ?>';b.textContent='✏️ Ajustar data';}" style="font-size:.65rem;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Editar data do prazo se o cálculo automático estiver errado">✏️ Ajustar data</button>
+                                <button type="button" onclick="var i=document.getElementById('data<?= $pub['id'] ?>');var b=this;if(i.style.display==='none'){i.style.display='';b.textContent='Cancelar ajuste';}else{i.style.display='none';i.value='<?= e($pub['data_prazo_fim'] ?? '') ?>';b.textContent='✏️ Ajustar data';}" style="font-size:.65rem;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Editar data do prazo manualmente">✏️ Ajustar data</button>
+                                <!-- Calculadora rápida: digite N + unidade → calcula data e preenche o input date acima -->
+                                <button type="button" id="btnCalc<?= $pub['id'] ?>" onclick="togglePubCalc(<?= $pub['id'] ?>)" style="font-size:.65rem;background:#fff;color:#1e40af;border:1px solid #93c5fd;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Digite o prazo (ex: 15 dias úteis) e o sistema calcula a data fatal automaticamente">🧮 Calcular prazo</button>
+                                <span id="calcWrap<?= $pub['id'] ?>" style="display:none;align-items:center;gap:3px;">
+                                    <input type="number" id="calcQtd<?= $pub['id'] ?>" min="1" max="999" value="15" oninput="calcPubPrazo(<?= $pub['id'] ?>)" style="width:48px;font-size:.7rem;padding:1px 4px;border:1px solid #93c5fd;border-radius:3px;">
+                                    <select id="calcUni<?= $pub['id'] ?>" onchange="calcPubPrazo(<?= $pub['id'] ?>)" style="font-size:.7rem;padding:1px 4px;border:1px solid #93c5fd;border-radius:3px;">
+                                        <option value="dias">dias úteis</option>
+                                        <option value="meses">meses</option>
+                                    </select>
+                                    <span id="calcStatus<?= $pub['id'] ?>" style="font-size:.65rem;color:#64748b;"></span>
+                                </span>
                                 <button type="submit" onclick="document.getElementById('status<?= $pub['id'] ?>').value='confirmado';" style="font-size:.65rem;background:#059669;color:#fff;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;">✓ Confirmar prazo</button>
                                 <button type="submit" onclick="if(!confirm('Descartar intimação? Marca como \'não precisa fazer nada\'.'))return false;document.getElementById('status<?= $pub['id'] ?>').value='descartado';" style="font-size:.65rem;background:#fff;color:#b45309;border:1px solid #fbbf24;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Não precisa fazer nada nessa intimação">⊘ Descartar</button>
                             </form>
@@ -4147,6 +4161,74 @@ function buscarCnpjParte() {
 }
 
 var andCsrf = '<?= generate_csrf_token() ?>';
+
+// ===== Calculadora rápida de prazo no card de intimação pendente =====
+function togglePubCalc(pubId) {
+    var wrap = document.getElementById('calcWrap' + pubId);
+    var btn  = document.getElementById('btnCalc' + pubId);
+    var inpDate = document.getElementById('data' + pubId);
+    if (wrap.style.display === 'none' || wrap.style.display === '') {
+        wrap.style.display = 'inline-flex';
+        btn.textContent = 'Fechar calculadora';
+        if (inpDate) inpDate.style.display = '';
+        calcPubPrazo(pubId); // já calcula com os defaults (15 dias úteis)
+    } else {
+        wrap.style.display = 'none';
+        btn.textContent = '🧮 Calcular prazo';
+    }
+}
+
+function calcPubPrazo(pubId) {
+    var qtd = parseInt(document.getElementById('calcQtd' + pubId).value, 10) || 0;
+    var uni = document.getElementById('calcUni' + pubId).value;
+    var disp = '<?php /* será preenchido por foreach via dataset abaixo */ ?>';
+    // Pega disponibilizacao + comarca do dataset do form pai
+    var form = document.getElementById('formPub' + pubId);
+    if (!form) return;
+    var dispData = form.getAttribute('data-disp') || '';
+    var comarca  = form.getAttribute('data-comarca') || '';
+    var status = document.getElementById('calcStatus' + pubId);
+    var inpDate = document.getElementById('data' + pubId);
+    if (qtd <= 0 || !dispData) { if (status) status.textContent = ''; return; }
+
+    if (status) { status.textContent = 'calculando...'; status.style.color = '#64748b'; }
+
+    var fd = new FormData();
+    fd.append('action', 'calc_prazo_publicacao');
+    fd.append('csrf_token', andCsrf);
+    fd.append('disponibilizacao', dispData);
+    fd.append('qtd', qtd);
+    fd.append('unidade', uni);
+    fd.append('comarca', comarca);
+    fd.append('ajax', '1');
+
+    fetch('<?= module_url("operacional", "api.php") ?>', {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+        if (d && d.ok) {
+            if (inpDate) {
+                inpDate.value = d.data_fatal;
+                inpDate.style.background = '#dcfce7';
+                setTimeout(function(){ inpDate.style.background = ''; }, 1200);
+            }
+            if (status) {
+                var dt = new Date(d.data_fatal + 'T12:00:00');
+                var ddmm = ('0'+dt.getDate()).slice(-2) + '/' + ('0'+(dt.getMonth()+1)).slice(-2) + '/' + dt.getFullYear();
+                status.textContent = '→ ' + ddmm;
+                status.style.color = '#059669';
+            }
+        } else {
+            if (status) { status.textContent = 'erro: ' + (d.erro || '?'); status.style.color = '#dc2626'; }
+        }
+    })
+    .catch(function() {
+        if (status) { status.textContent = 'falha de rede'; status.style.color = '#dc2626'; }
+    });
+}
 
 function toggleVisibilidade(andId, btn) {
     if (btn.disabled) return;
