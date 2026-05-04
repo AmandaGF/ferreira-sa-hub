@@ -4,22 +4,25 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
 
-echo "=== Mensagens RECENTES (últimas 30 min) — sem filtro ===\n";
-$st = $pdo->query("
-    SELECT m.id, m.created_at, m.direcao, m.tipo, m.status, m.zapi_msg_id,
-           m.de_nome, m.de_telefone, c.nome_contato, c.telefone, c.canal_numero,
-           SUBSTRING(m.texto, 1, 60) AS preview
-    FROM zapi_mensagens m
-    LEFT JOIN zapi_conversas c ON c.id = m.conversa_id
-    WHERE m.created_at >= DATE_SUB(NOW(), INTERVAL 30 MINUTE)
-    ORDER BY m.id DESC LIMIT 25
-");
-foreach ($st->fetchAll() as $r) {
-    echo "  #{$r['id']}  {$r['created_at']}  [{$r['direcao']}/{$r['tipo']}] status={$r['status']}\n";
-    echo "    pra: {$r['nome_contato']} ({$r['telefone']}) via canal {$r['canal_numero']}\n";
-    echo "    zapi_id: " . ($r['zapi_msg_id'] ?: '(vazio)') . "\n";
-    echo "    texto: " . $r['preview'] . "\n\n";
-}
+echo "=== Estrutura zapi_mensagens (colunas) ===\n";
+try {
+    $cols = $pdo->query("SHOW COLUMNS FROM zapi_mensagens")->fetchAll(PDO::FETCH_COLUMN);
+    echo "  " . implode(', ', $cols) . "\n\n";
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
+
+echo "=== Mensagens RECENTES (ultimas 60 min) ===\n";
+try {
+    $st = $pdo->query("SELECT * FROM zapi_mensagens WHERE created_at >= DATE_SUB(NOW(), INTERVAL 60 MINUTE) ORDER BY id DESC LIMIT 15");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        echo "  #{$r['id']}  {$r['created_at']}\n";
+        foreach ($r as $k => $v) {
+            if ($v === null || $v === '') continue;
+            $vs = is_string($v) ? substr($v, 0, 80) : (string)$v;
+            echo "    $k: $vs\n";
+        }
+        echo "\n";
+    }
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
 echo "=== Procurando 'sarah' / 'Sarah' nas conversas ===\n";
 $st = $pdo->prepare("
