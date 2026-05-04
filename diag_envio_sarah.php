@@ -24,17 +24,31 @@ try {
     }
 } catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
-echo "=== Procurando 'sarah' / 'Sarah' nas conversas ===\n";
-$st = $pdo->prepare("
-    SELECT id, telefone, nome_contato, canal_numero, ultima_msg_em, status_atendimento
-    FROM zapi_conversas
-    WHERE nome_contato LIKE '%arah%'
-    ORDER BY ultima_msg_em DESC LIMIT 10
-");
-$st->execute();
-foreach ($st->fetchAll() as $r) {
-    echo "  conv#{$r['id']}  {$r['nome_contato']}  ({$r['telefone']})  canal={$r['canal_numero']}  ultima_msg_em={$r['ultima_msg_em']}  status={$r['status_atendimento']}\n";
-}
+echo "=== Conversas com 'arah' no nome ===\n";
+try {
+    $cols = $pdo->query("SHOW COLUMNS FROM zapi_conversas")->fetchAll(PDO::FETCH_COLUMN);
+    echo "  cols zapi_conversas: " . implode(', ', $cols) . "\n\n";
+    $st = $pdo->query("SELECT * FROM zapi_conversas WHERE nome_contato LIKE '%arah%' ORDER BY id DESC LIMIT 10");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        echo "  conv#" . $r['id'] . " — " . ($r['nome_contato'] ?? '?') . "  tel=" . ($r['telefone'] ?? '?') . "  canal=" . ($r['canal_numero'] ?? '?') . "\n";
+    }
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
+
+echo "\n=== Mensagens enviadas pela user_id=1 (Amanda) nas ultimas 4h ===\n";
+try {
+    $st = $pdo->query("SELECT m.id, m.created_at, m.conversa_id, m.zapi_message_id, m.tipo, m.status,
+                              SUBSTRING(m.conteudo, 1, 80) AS preview, c.nome_contato, c.telefone
+                       FROM zapi_mensagens m
+                       LEFT JOIN zapi_conversas c ON c.id = m.conversa_id
+                       WHERE m.direcao = 'enviada' AND m.enviado_por_id = 1
+                         AND m.created_at >= DATE_SUB(NOW(), INTERVAL 4 HOUR)
+                       ORDER BY m.id DESC LIMIT 15");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        echo "  #{$r['id']}  {$r['created_at']}  conv#{$r['conversa_id']} ({$r['nome_contato']}/{$r['telefone']})  status={$r['status']}\n";
+        echo "    zapi_id: " . ($r['zapi_message_id'] ?: '(VAZIO!)') . "\n";
+        echo "    " . $r['preview'] . "\n\n";
+    }
+} catch (Exception $e) { echo "  ERRO: " . $e->getMessage() . "\n"; }
 
 echo "\n=== Status Z-API (instâncias) ===\n";
 try {
