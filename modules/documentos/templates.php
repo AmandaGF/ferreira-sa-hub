@@ -842,11 +842,12 @@ function template_audiencia_remota($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
+        // Detecta múltiplos pela vírgula no nome (mais confiável que qtd_menores que pode não vir)
         $qtdMen = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
+        if ($qtdMen <= 0) $qtdMen = max(1, count(array_filter(array_map('trim', explode(',', $nomeFilhos)))));
         $multiplos = ($qtdMen > 1);
-        $qualifSemParenteses = str_replace(array('(s)', '(a)'), '', $qualifMenor);
         $repTexto = $multiplos ? 'representados' : 'representado(a)';
-        $menorTexto = $multiplos ? 'menores ' . $qualifSemParenteses . 's' : 'menor ' . $qualifSemParenteses;
+        $menorTexto = $multiplos ? 'menores' : 'menor';
         $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificados nos autos';
         $verbo = $multiplos ? 'vêm' : 'vem';
     } else {

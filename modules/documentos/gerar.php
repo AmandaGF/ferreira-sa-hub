@@ -930,17 +930,10 @@ if (!$showEditor) {
                 </div>
             </div>
             <div class="row" id="dadosMenorAud" style="<?= $pleiteanteAud === 'menor' ? '' : 'display:none;' ?>">
-                <div>
+                <div style="grid-column:1/-1;">
                     <label>Nome completo do(s) menor(es) *</label>
-                    <input name="child_names_aud" value="<?= e($childNamesAud) ?>" placeholder="Ex: ARTHUR REIS CABRAL">
-                    <small style="color:#6b7280;font-size:.72rem;">A petição será feita em nome do menor, representado pelo cliente</small>
-                </div>
-                <div>
-                    <label>Qualificação do menor</label>
-                    <select name="qualif_menor_aud">
-                        <option value="impubere" <?= $qualifMenorAud === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
-                        <option value="pubere" <?= $qualifMenorAud === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
-                    </select>
+                    <input name="child_names_aud" value="<?= e($childNamesAud) ?>" placeholder="Ex: ARTHUR REIS CABRAL (separe por vírgula se houver mais de um)">
+                    <small style="color:#6b7280;font-size:.72rem;">A petição será feita em nome do menor, representado pelo cliente. O menor será cadastrado automaticamente como parte do processo.</small>
                 </div>
             </div>
             <input type="hidden" name="rep_legal_aud" id="rep_legal_aud_hidden" value="<?= e($repLegalAud) ?>">
@@ -1226,7 +1219,31 @@ if (!$showEditor) {
     elseif ($tipo === 'prevjud') echo template_prevjud($d);
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
-    elseif ($tipo === 'audiencia_remota') echo template_audiencia_remota($d);
+    elseif ($tipo === 'audiencia_remota') {
+        // Salva o(s) menor(es) como parte do processo automaticamente.
+        // Roda uma única vez por (case_id + nome). Idempotente.
+        if ($caseIdDoc > 0 && $pleiteanteAud === 'menor' && trim($childNamesAud) !== '') {
+            try {
+                $papelMenor = $papelClienteAud === 'reu' ? 'reu' : 'autor';
+                $nomesMenor = array_filter(array_map('trim', explode(',', $childNamesAud)));
+                foreach ($nomesMenor as $nomeMenor) {
+                    if ($nomeMenor === '') continue;
+                    // Evita duplicar (case-insensitive)
+                    $stChk = $pdo->prepare("SELECT id FROM case_partes WHERE case_id = ? AND LOWER(nome) = LOWER(?) LIMIT 1");
+                    $stChk->execute(array($caseIdDoc, $nomeMenor));
+                    if ($stChk->fetchColumn()) continue; // ja existe
+                    $pdo->prepare("INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, observacoes, created_at) VALUES (?, ?, 'fisica', ?, 'Cadastrado automaticamente via Audiência Remota/Híbrida (menor representado)', NOW())")
+                        ->execute(array($caseIdDoc, $papelMenor, $nomeMenor));
+                }
+                if (function_exists('audit_log')) {
+                    @audit_log('case_partes_auto', 'case', $caseIdDoc, 'Menor(es) cadastrado(s) via doc audiencia_remota: ' . $childNamesAud);
+                }
+            } catch (Exception $e) {
+                @error_log('[gerar.php audiencia_remota partes] ' . $e->getMessage());
+            }
+        }
+        echo template_audiencia_remota($d);
+    }
     elseif ($tipo === 'mandado_pagamento') echo template_mandado_pagamento($d);
     elseif ($tipo === 'averbacao_sentenca') echo template_averbacao_sentenca($d);
     ?>
