@@ -24,7 +24,7 @@ $stmt = $pdo->prepare(
     "SELECT t.*, c.title as processo_titulo
      FROM tickets t
      LEFT JOIN cases c ON c.id = t.case_id
-     WHERE t.id = ? AND t.client_id = ?"
+     WHERE t.id = ? AND t.client_id = ? AND t.origem = 'salavip'"
 );
 $stmt->execute(array($ticketId, $clienteId));
 $ticket = $stmt->fetch();

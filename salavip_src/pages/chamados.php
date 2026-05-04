@@ -117,6 +117,7 @@ try {
          FROM tickets t
          LEFT JOIN cases c ON c.id = t.case_id
          WHERE t.client_id = ?
+           AND t.origem = 'salavip'
          ORDER BY t.updated_at DESC"
     );
     $stmtCh->execute(array($clienteId));
