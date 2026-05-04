@@ -935,6 +935,100 @@ switch ($action) {
         exit;
     }
 
+    case 'enviar_aviso_compromisso': {
+        // Envia mensagem-padrão via Z-API canal 24 pra todos os clientes
+        // vinculados ao caso do compromisso, e ao final marca cliente_avisado_em.
+        // Reusa o mesmo template que aparece no link WhatsApp do card.
+        header('Content-Type: application/json; charset=utf-8');
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $eid = (int)($_POST['evento_id'] ?? 0);
+        if (!$eid) { echo json_encode(array('ok' => false, 'erro' => 'evento invalido')); exit; }
+
+        try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
+
+        $st = $pdo->prepare("SELECT id, tipo, data_inicio, dia_todo, local, meet_link, case_id FROM agenda_eventos WHERE id = ?");
+        $st->execute(array($eid));
+        $ev = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$ev) { echo json_encode(array('ok' => false, 'erro' => 'evento nao encontrado')); exit; }
+        if (empty($ev['case_id'])) { echo json_encode(array('ok' => false, 'erro' => 'evento sem caso vinculado')); exit; }
+
+        // Clientes vinculados (principal + partes com client_id)
+        $clientes = array();
+        $stC = $pdo->prepare("SELECT cl.id, cl.name, cl.phone FROM cases cs INNER JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?");
+        $stC->execute(array((int)$ev['case_id']));
+        if ($cli = $stC->fetch(PDO::FETCH_ASSOC)) { $clientes[(int)$cli['id']] = $cli; }
+        $stP = $pdo->prepare("SELECT DISTINCT cp.client_id AS id, c.name, c.phone FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id WHERE cp.case_id = ? AND cp.client_id IS NOT NULL");
+        $stP->execute(array((int)$ev['case_id']));
+        foreach ($stP->fetchAll(PDO::FETCH_ASSOC) as $p) { $clientes[(int)$p['id']] = $p; }
+
+        if (empty($clientes)) { echo json_encode(array('ok' => false, 'erro' => 'nenhum cliente vinculado ao caso')); exit; }
+
+        // Monta a mensagem (mesmo template do link WhatsApp do card)
+        $tipoLabels = array(
+            'audiencia'=>'audiência','reuniao_cliente'=>'reunião','prazo'=>'prazo',
+            'onboarding'=>'onboarding','reuniao_interna'=>'reunião interna','mediacao_cejusc'=>'mediação',
+            'balcao_virtual'=>'balcão virtual','ligacao'=>'ligação',
+        );
+        $tipoTxt = $tipoLabels[$ev['tipo']] ?? $ev['tipo'];
+        $dataFmt = date('d/m/Y', strtotime($ev['data_inicio']));
+        $horaFmt = ((int)$ev['dia_todo'] !== 1) ? date('H:i', strtotime($ev['data_inicio'])) : '';
+
+        $resultados = array();
+        $algumOk = false;
+        foreach ($clientes as $cli) {
+            $ph = preg_replace('/\D/', '', (string)($cli['phone'] ?? ''));
+            if (!$ph || strlen($ph) < 10) {
+                $resultados[] = array('cliente' => $cli['name'], 'ok' => false, 'erro' => 'sem telefone');
+                continue;
+            }
+            $primeiro = explode(' ', trim($cli['name']))[0];
+            $msg = "Olá " . $primeiro . ", tudo bem?\n\nGostaríamos de lembrar sobre a *" . $tipoTxt . "* agendada para o dia *" . $dataFmt . "*";
+            if ($horaFmt) $msg .= " às *" . $horaFmt . "*";
+            $msg .= ".";
+            if (!empty($ev['local'])) $msg .= "\n\n📍 Local: " . $ev['local'];
+            if (!empty($ev['meet_link'])) $msg .= "\n\n💻 Link de acesso: " . $ev['meet_link'];
+            $msg .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
+
+            $r = zapi_send_text(24, $ph, $msg);
+            if (!empty($r['ok'])) {
+                $algumOk = true;
+                $resultados[] = array('cliente' => $cli['name'], 'ok' => true);
+                // Grava na tabela de mensagens (mesmo padrão do action enviar_rapido do whatsapp/api.php)
+                try {
+                    $zapiId = '';
+                    if (is_array($r['data'])) $zapiId = $r['data']['id'] ?? ($r['data']['zaapId'] ?? ($r['data']['messageId'] ?? ''));
+                    $conv = zapi_buscar_ou_criar_conversa($ph, 24, $cli['name']);
+                    if ($conv) {
+                        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_id, zapi_message_id, status, created_at) VALUES (?, 'enviada', 'texto', ?, ?, ?, 'enviada', NOW())")
+                            ->execute(array($conv['id'], $msg, current_user_id(), $zapiId));
+                        $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
+                            ->execute(array(mb_substr($msg, 0, 500), $conv['id']));
+                    }
+                } catch (Exception $e) { /* não bloqueia */ }
+            } else {
+                $resultados[] = array('cliente' => $cli['name'], 'ok' => false, 'erro' => $r['erro'] ?? ('HTTP ' . ($r['http_code'] ?? '?')));
+            }
+        }
+
+        if ($algumOk) {
+            $pdo->prepare("UPDATE agenda_eventos SET cliente_avisado_em = NOW(), cliente_avisado_por = ? WHERE id = ?")
+                ->execute(array(current_user_id(), $eid));
+            $st2 = $pdo->prepare("SELECT cliente_avisado_em, (SELECT name FROM users WHERE id = cliente_avisado_por) AS por_name FROM agenda_eventos WHERE id = ?");
+            $st2->execute(array($eid));
+            $row = $st2->fetch();
+            echo json_encode(array(
+                'ok'         => true,
+                'avisado_em' => $row['cliente_avisado_em'] ?? null,
+                'por_name'   => $row['por_name'] ?? null,
+                'resultados' => $resultados,
+            ));
+        } else {
+            echo json_encode(array('ok' => false, 'erro' => 'nenhum envio bem-sucedido', 'resultados' => $resultados));
+        }
+        exit;
+    }
+
     case 'marcar_cliente_avisado':
     case 'desmarcar_cliente_avisado': {
         header('Content-Type: application/json; charset=utf-8');

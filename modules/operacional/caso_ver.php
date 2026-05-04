@@ -3328,7 +3328,40 @@ document.addEventListener('DOMContentLoaded', function(){
             .catch(function(){});
     }
 
-    // Click no WhatsApp do compromisso → marca avisado em paralelo
+    function enviarAvisoReal(eid, btn) {
+        if (btn) { btn.disabled = true; var labelOrig = btn.textContent; btn.textContent = 'Enviando...'; }
+        var fd = new FormData();
+        fd.append('action', 'enviar_aviso_compromisso');
+        fd.append('evento_id', eid);
+        fd.append('csrf_token', CSRF);
+        fd.append('ajax', '1');
+        fetch(API, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (btn) { btn.disabled = false; }
+                if (d && d.ok) {
+                    aplicarVisualBadge(eid, true, d.avisado_em, d.por_name);
+                    var nomes = (d.resultados || []).filter(function(x){ return x.ok; }).map(function(x){ return x.cliente; }).join(', ');
+                    var falhas = (d.resultados || []).filter(function(x){ return !x.ok; });
+                    var aviso = '✅ Mensagem enviada' + (nomes ? ' para: ' + nomes : '');
+                    if (falhas.length) aviso += '\n\n⚠️ Falhou em: ' + falhas.map(function(x){ return x.cliente + ' (' + x.erro + ')'; }).join(', ');
+                    alert(aviso);
+                } else {
+                    if (btn) btn.textContent = labelOrig;
+                    var msg = (d && d.erro) ? d.erro : 'Erro ao enviar';
+                    if (d && d.resultados) {
+                        msg += '\n\nDetalhes:\n' + d.resultados.map(function(x){ return '• ' + x.cliente + ': ' + (x.ok ? 'OK' : x.erro); }).join('\n');
+                    }
+                    alert('Erro: ' + msg);
+                }
+            })
+            .catch(function(){
+                if (btn) { btn.disabled = false; btn.textContent = labelOrig; }
+                alert('Falha de rede ao enviar.');
+            });
+    }
+
+    // Click no WhatsApp do compromisso → marca avisado em paralelo (sem enviar)
     document.addEventListener('click', function(e){
         var a = e.target.closest('a[data-wa-aviso]');
         if (a) {
@@ -3343,7 +3376,9 @@ document.addEventListener('DOMContentLoaded', function(){
             if (ja) {
                 if (confirm('Desfazer aviso? (vai voltar para "Avisar cliente")')) desmarcar(eid2);
             } else {
-                marcar(eid2);
+                if (confirm('Enviar lembrete via WhatsApp para todos os clientes vinculados a este caso?\n\n(A mensagem padrão de lembrete da Ferreira & Sá será enviada pelo canal CX/Operacional 24)')) {
+                    enviarAvisoReal(eid2, btn);
+                }
             }
         }
     });
