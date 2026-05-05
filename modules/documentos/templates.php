@@ -64,14 +64,15 @@ function enderecamento($d) {
 function qualificacao_legitimidade($d) {
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : 'proprio';
     $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
-    $qualifMenorRaw = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere' : 'impúbere';
+    // Detecta múltiplos por vírgula no nome quando qtd_menores não vier (campo legacy)
     $qtd = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
+    if ($qtd <= 0 && $nomeFilhos) $qtd = max(1, count(array_filter(array_map('trim', explode(',', $nomeFilhos)))));
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
         $multiplos = ($qtd > 1);
-        $menorTexto = $multiplos ? 'menores ' . $qualifMenorRaw . 's' : 'menor ' . $qualifMenorRaw;
-        $repTexto = $multiplos ? 'representados' : 'representado(a)';
-        return '<strong>' . f($nomeFilhos) . '</strong>, ' . $menorTexto . ', neste ato ' . $repTexto . ' por sua genitora <strong>' . f($d['nome']) . '</strong>, já qualificados nos autos';
+        // Padrão Amanda 04/05/2026: 'parte representada' (sem qualificar como impúbere/púbere)
+        $parteTexto = $multiplos ? 'partes representadas' : 'parte representada';
+        return '<strong>' . f($nomeFilhos) . '</strong>, ' . $parteTexto . ' por sua genitora <strong>' . f($d['nome']) . '</strong>, já qualificada nos autos';
     }
     return '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
 }
@@ -691,21 +692,21 @@ function template_habilitacao($d) {
 
     // Qualificação
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : ($isRepLegal ? 'menor' : 'proprio');
-    $qualifMenor = isset($d['qualif_menor']) && $d['qualif_menor'] === 'pubere' ? 'púbere(s)' : 'impúbere(s)';
 
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
 
+    // Detecta múltiplos pela vírgula no nome (mais confiável que qtd_menores)
     $qtdMenHab = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
+    if ($qtdMenHab <= 0 && $nomeFilhos) $qtdMenHab = max(1, count(array_filter(array_map('trim', explode(',', $nomeFilhos)))));
     $multiplosHab = ($qtdMenHab > 1);
 
     if ($pleiteante === 'menor' && $nomeFilhos) {
-        $qualifMenorTexto = $multiplosHab ? 'menores ' . str_replace(array('(s)','(a)'), '', $qualifMenor) . 's' : 'menor ' . str_replace(array('(s)','(a)'), '', $qualifMenor);
-        $repTextoHab = $multiplosHab ? 'representados' : 'representado(a)';
-        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $qualifMenorTexto . ', neste ato ' . $repTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
+        // Padrão Amanda 04/05/2026: 'parte representada' (sem qualificar como impúbere/púbere)
+        $parteTextoHab = $multiplosHab ? 'partes representadas' : 'parte representada';
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $parteTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
     } elseif ($isRepLegal && $nomeFilhos) {
-        $qualifMenorTexto = $multiplosHab ? 'menores impúberes' : 'menor impúbere';
-        $repTextoHab = $multiplosHab ? 'representados' : 'representado(a)';
-        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $qualifMenorTexto . ', ' . $repTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
+        $parteTextoHab = $multiplosHab ? 'partes representadas' : 'parte representada';
+        $html .= '<strong>' . f($nomeFilhos) . '</strong>, ' . $parteTextoHab . ' por sua genitora <strong>' . f($d['nome']) . '</strong>';
     } else {
         // Habilitação no nome próprio do cliente
         $html .= '<strong>' . f($d['nome']) . '</strong>';

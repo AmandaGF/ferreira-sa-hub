@@ -850,17 +850,10 @@ if (!$showEditor) {
                 </div>
             </div>
             <div class="row" id="dadosMenorHab" style="<?= ($d['pleiteante_hab'] ?? '') === 'menor' ? '' : 'display:none;' ?>">
-                <div>
+                <div style="grid-column:1/-1;">
                     <label>Nome completo do(s) menor(es) *</label>
-                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: JOÃO DA SILVA E MARIA DA SILVA">
+                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: JOÃO DA SILVA E MARIA DA SILVA (separe por vírgula se houver mais de um)">
                     <small style="color:#6b7280;font-size:.72rem;">O pedido de habilitação será feito no nome do menor, representado pelo cliente</small>
-                </div>
-                <div>
-                    <label>Qualificação do menor</label>
-                    <select name="qualif_menor">
-                        <option value="impubere" <?= ($d['qualif_menor'] ?? '') === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
-                        <option value="pubere" <?= ($d['qualif_menor'] ?? '') === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
-                    </select>
                 </div>
             </div>
             <div class="row">
@@ -1107,17 +1100,10 @@ if (!$showEditor) {
                 </div>
             </div>
             <div class="row" id="dadosMenorInter" style="<?= $pleiteanteHab === 'menor' ? '' : 'display:none;' ?>">
-                <div>
+                <div style="grid-column:1/-1;">
                     <label>Nome completo do(s) menor(es) *</label>
-                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: SOFIA COUTO PATRÍCIO E JONAS COUTO PATRÍCIO">
+                    <input name="child_names" value="<?= e($childNames) ?>" placeholder="Ex: SOFIA COUTO PATRÍCIO, JONAS COUTO PATRÍCIO (separe por vírgula se houver mais de um)">
                     <small style="color:#6b7280;font-size:.72rem;">A petição será feita em nome do menor, representado pelo cliente</small>
-                </div>
-                <div>
-                    <label>Qualificação do menor</label>
-                    <select name="qualif_menor">
-                        <option value="impubere" <?= ($qualifMenor ?? '') === 'impubere' ? 'selected' : '' ?>>Menor impúbere (até 16 anos)</option>
-                        <option value="pubere" <?= ($qualifMenor ?? '') === 'pubere' ? 'selected' : '' ?>>Menor púbere (16 a 18 anos)</option>
-                    </select>
                 </div>
             </div>
             <input type="hidden" name="rep_legal" id="rep_legal_inter_hidden" value="<?= e($repLegal) ?>">
