@@ -731,6 +731,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
+        if (PODE_DELEGAR) {
+            actions += '<button onclick="waEditarTelefone()" title="Corrigir o número desta conversa (caso esteja malformado, ex: aparece como +60 ou +1 quando é BR)" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">✏️ Nº</button>';
+        }
         actions += '</div>';
 
         var subTxt = formatTel(c.telefone);
@@ -2193,6 +2196,41 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
+    // Permite corrigir o numero da conversa quando ele veio malformado da Z-API
+    // (ex: nº BR exibido como +60 ou +1 porque chegou sem o prefixo 55).
+    window.waEditarTelefone = function() {
+        if (!convAtiva) return;
+        var atual = prompt(
+            'Corrigir número desta conversa\n\n' +
+            'Digite o número correto no formato BR (com DDD):\n' +
+            'Ex: (32) 99428-3065  ou  5532994283065\n\n' +
+            '⚠ Atenção: ao salvar, esta conversa passa a usar o novo número.\n' +
+            'Verifique se está correto antes de confirmar.'
+        );
+        if (atual === null) return;
+        atual = atual.trim();
+        if (atual === '') return;
+        if (!confirm('Confirma a correção do número para "' + atual + '"?\n\nMensagens enviadas a partir de agora vão para esse número.')) return;
+
+        var fd = new FormData();
+        fd.append('action', 'editar_conversa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('telefone', atual);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (j && j.ok) {
+                    alert('✓ Número corrigido para: ' + (j.telefone || atual));
+                    window.waAbrir(convAtiva);
+                    carregarLista();
+                } else {
+                    alert('❌ ' + (j && j.error ? j.error : 'Falha ao corrigir número.'));
+                }
+            })
+            .catch(function(err){ alert('❌ Erro: ' + err.message); });
+    };
+
     window.waEditarNome = function() {
         var disp = document.getElementById('waNomeDisplay');
         if (!disp) return;

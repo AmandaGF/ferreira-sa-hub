@@ -762,13 +762,56 @@ if ($action === 'listar_usuarios') {
 
 // ── EDITAR CONVERSA (nome, anotações) ───────────────────
 if ($action === 'editar_conversa') {
-    $convId = (int)($_POST['conversa_id'] ?? 0);
-    $nome   = trim($_POST['nome_contato'] ?? '');
+    $convId   = (int)($_POST['conversa_id'] ?? 0);
+    $nome     = trim($_POST['nome_contato'] ?? '');
+    $telefone = trim($_POST['telefone'] ?? '');
     if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
     if (mb_strlen($nome) > 150) $nome = mb_substr($nome, 0, 150);
-    $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ? WHERE id = ?")->execute(array($nome ?: null, $convId));
-    audit_log('zapi_editar_conv', 'zapi_conversas', $convId, "nome={$nome}");
-    echo json_encode(array('ok' => true));
+
+    // Se telefone foi enviado, normaliza pra E.164 BR (5532994283065).
+    // Aceita: "32 99428-3065", "(32)99428-3065", "32994283065", "55329...", etc.
+    $telOk = null;
+    if ($telefone !== '') {
+        $tDigits = preg_replace('/\D/', '', $telefone);
+        // Se vier com 0 inicial parasita (ex: 055xx...), remove
+        $tDigits = ltrim($tDigits, '0');
+        // Se nao comecar com 55 e tiver 10 ou 11 digitos (DDD+numero BR), prefixa 55
+        if (preg_match('/^[1-9]\d{9,10}$/', $tDigits)) {
+            $tDigits = '55' . $tDigits;
+        }
+        // Validacao final: 12-13 digitos (55 + DDD + 8/9 digitos)
+        if (!preg_match('/^55\d{10,11}$/', $tDigits)) {
+            echo json_encode(array('error' => 'Telefone inválido. Use formato BR: (32) 99428-3065 ou 5532994283065'));
+            exit;
+        }
+        $telOk = $tDigits;
+    }
+
+    if ($telOk !== null) {
+        // Verifica conflito: se ja existe outra conversa com esse telefone no mesmo canal
+        $stmtVer = $pdo->prepare("SELECT canal FROM zapi_conversas WHERE id = ?");
+        $stmtVer->execute(array($convId));
+        $canalConv = $stmtVer->fetchColumn();
+        $stmtConf = $pdo->prepare("SELECT id FROM zapi_conversas WHERE canal = ? AND telefone = ? AND id != ? LIMIT 1");
+        $stmtConf->execute(array($canalConv, $telOk, $convId));
+        $conflito = $stmtConf->fetchColumn();
+        if ($conflito) {
+            echo json_encode(array(
+                'error' => 'Já existe outra conversa com esse número no mesmo canal (#' . (int)$conflito . '). Considere mesclar ao invés de duplicar.',
+                'conflito_id' => (int)$conflito,
+            ));
+            exit;
+        }
+
+        $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ?, telefone = ? WHERE id = ?")
+            ->execute(array($nome ?: null, $telOk, $convId));
+        audit_log('zapi_editar_conv', 'zapi_conversas', $convId, "nome={$nome};tel={$telOk}");
+    } else {
+        $pdo->prepare("UPDATE zapi_conversas SET nome_contato = ? WHERE id = ?")
+            ->execute(array($nome ?: null, $convId));
+        audit_log('zapi_editar_conv', 'zapi_conversas', $convId, "nome={$nome}");
+    }
+    echo json_encode(array('ok' => true, 'telefone' => $telOk));
     exit;
 }
 
