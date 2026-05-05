@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/onboarding_docs_schema.php';
 require_login();
 require_role('admin');
 
@@ -103,6 +104,40 @@ try {
 // Self-heal coluna CPF caso a tabela ja existisse de antes
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN cpf VARCHAR(14) NULL AFTER data_nascimento"); } catch (Exception $e) {}
 
+// Self-heal: coluna perfil_cargo (estagiario / advogado_associado / clt / sociedade / outro)
+// Usada pra sugerir quais documentos a colaboradora deve assinar.
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN perfil_cargo VARCHAR(40) NULL AFTER cargo"); } catch (Exception $e) {}
+
+// Self-heal: tabela de documentos vinculados a cada colaborador.
+// Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
+// Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
+// dados especificos preenchidos por admin/colaborador.
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS colaboradores_documentos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        colaborador_id INT NOT NULL,
+        tipo VARCHAR(60) NOT NULL,
+        status VARCHAR(40) NOT NULL DEFAULT 'pendente',
+        dados_admin_json LONGTEXT NULL,
+        dados_estagiario_json LONGTEXT NULL,
+        assinatura_estagiario_em DATETIME NULL,
+        assinatura_estagiario_ip VARCHAR(45) NULL,
+        assinatura_estagiario_nome VARCHAR(200) NULL,
+        assinatura_admin_em DATETIME NULL,
+        assinatura_admin_user_id INT NULL,
+        pdf_drive_file_id VARCHAR(120) NULL,
+        pdf_drive_url VARCHAR(500) NULL,
+        pdf_html_snapshot LONGTEXT NULL,
+        criado_por INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_col (colaborador_id),
+        INDEX idx_tipo (tipo),
+        INDEX idx_status (status),
+        UNIQUE KEY uniq_colab_tipo (colaborador_id, tipo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
 /**
  * Gera senha padrao do escritorio: 9 primeiros digitos do CPF + "@".
  * Ex: CPF 123.456.789-00 → "123456789@"
@@ -111,6 +146,30 @@ function gerar_senha_padrao_fsa($cpf) {
     $digits = preg_replace('/\D/', '', (string)$cpf);
     if (strlen($digits) < 9) return '';
     return substr($digits, 0, 9) . '@';
+}
+
+/**
+ * Sincroniza os documentos vinculados ao colaborador.
+ * Cria registros novos para tipos marcados que ainda nao existem;
+ * NAO apaga os existentes (mesmo se desmarcados) para preservar
+ * historico de assinaturas — admin tem que arquivar manualmente.
+ */
+function sincronizar_docs_vinculados($pdo, $colaboradorId, $tiposMarcados) {
+    if (!is_array($tiposMarcados)) $tiposMarcados = array();
+    global $ONBOARDING_DOC_SCHEMAS;
+    foreach ($tiposMarcados as $tipo) {
+        $tipo = trim((string)$tipo);
+        if (!isset($ONBOARDING_DOC_SCHEMAS[$tipo])) continue;
+        try {
+            // INSERT IGNORE pra criar so se nao existe (uniq_colab_tipo previne duplicata)
+            $pdo->prepare("INSERT IGNORE INTO colaboradores_documentos
+                           (colaborador_id, tipo, status, criado_por)
+                           VALUES (?, ?, 'pendente', ?)")
+                ->execute(array($colaboradorId, $tipo, current_user_id()));
+        } catch (Exception $e) {
+            error_log('[onboarding] erro vinculando doc ' . $tipo . ': ' . $e->getMessage());
+        }
+    }
 }
 
 // ── Handlers POST ─────────────────────────────────────────
@@ -144,6 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'beneficios'           => trim($_POST['beneficios'] ?? ''),
             'mensagem_pessoal'     => trim($_POST['mensagem_pessoal'] ?? ''),
             'link_contrato_url'    => trim($_POST['link_contrato_url'] ?? ''),
+            'perfil_cargo'         => trim($_POST['perfil_cargo'] ?? ''),
         );
 
         if (!$dados['nome_completo'] || !$dados['data_nascimento']) {
@@ -157,6 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                     $vals[] = $id;
                     $pdo->prepare("UPDATE colaboradores_onboarding SET " . implode(', ', $sets) . " WHERE id = ?")
                         ->execute($vals);
+                    sincronizar_docs_vinculados($pdo, $id, $_POST['docs_vinculados'] ?? array());
                     flash_set('success', 'Cadastro atualizado.');
                 } else {
                     $token = bin2hex(random_bytes(16));
@@ -166,6 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                     $pdo->prepare("INSERT INTO colaboradores_onboarding (" . implode(',', $cols) . ") VALUES ($place)")
                         ->execute($vals);
                     $newId = $pdo->lastInsertId();
+                    sincronizar_docs_vinculados($pdo, $newId, $_POST['docs_vinculados'] ?? array());
                     flash_set('success', 'Colaborador(a) cadastrado(a)! Compartilhe o link único de boas-vindas.');
                     redirect(module_url('admin', 'onboarding.php?id=' . $newId));
                 }
@@ -200,10 +262,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 // ── Carrega registro pra edição ──────────────────────────
 $editId = (int)($_GET['id'] ?? 0);
 $reg = null;
+$docsVinculados = array(); // tipos de documento ja vinculados a este colaborador
 if ($editId) {
     $st = $pdo->prepare("SELECT * FROM colaboradores_onboarding WHERE id = ?");
     $st->execute(array($editId));
     $reg = $st->fetch();
+    if ($reg) {
+        try {
+            $stD = $pdo->prepare("SELECT tipo, status, dados_admin_json, assinatura_estagiario_em
+                                  FROM colaboradores_documentos WHERE colaborador_id = ?");
+            $stD->execute(array($editId));
+            foreach ($stD->fetchAll() as $d) {
+                $docsVinculados[$d['tipo']] = $d;
+            }
+        } catch (Exception $e) {}
+    }
 }
 
 // ── Lista todos pendentes/ativos ─────────────────────────
@@ -303,6 +376,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <label>Setor / Área de atuação</label>
                 <input name="setor" value="<?= e($reg['setor'] ?? '') ?>" placeholder="Ex: Família e Sucessões">
             </div>
+            <div>
+                <label>Perfil de cargo <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(define documentos a assinar)</span></label>
+                <select name="perfil_cargo" id="perfilCargoSelect" onchange="atualizarDocsDisponiveis()">
+                    <option value="">— Selecione —</option>
+                    <?php foreach (onboarding_perfis_cargo() as $k => $lbl): ?>
+                        <option value="<?= e($k) ?>" <?= ($reg['perfil_cargo'] ?? '') === $k ? 'selected' : '' ?>><?= e($lbl) ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
         </div>
 
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">📧 Acesso institucional</h4>
@@ -386,6 +468,67 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input name="link_contrato_url" type="url" value="<?= e($reg['link_contrato_url'] ?? '') ?>" placeholder="https://...">
             </div>
         </div>
+
+        <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">📄 Documentos para preencher e assinar</h4>
+        <div id="docsVincularWrap" style="background:#fff7ed;border:1px dashed #d7ab90;border-radius:10px;padding:1rem;">
+            <div id="docsVincularLista" style="display:flex;flex-direction:column;gap:.6rem;">
+                <p id="docsVincularEmpty" style="font-size:.82rem;color:#6b7280;margin:0;">Selecione um <strong>perfil de cargo</strong> acima para ver os documentos disponíveis.</p>
+            </div>
+            <p style="font-size:.7rem;color:#6a3c2c;margin-top:.6rem;margin-bottom:0;">
+                💡 Os campos administrativos de cada documento (modalidade, datas, valores, etc.) serão preenchidos depois — esta página só vincula os documentos. Os campos pessoais ficam para a colaboradora preencher na página de boas-vindas.
+            </p>
+        </div>
+
+        <script>
+        // Schemas dos documentos por perfil — carregados do PHP
+        var DOC_SCHEMAS_PHP = <?= json_encode(onboarding_perfis_cargo()) ?>;
+        var DOCS_BY_PERFIL = <?php
+            $byPerfil = array();
+            foreach (onboarding_perfis_cargo() as $perfilKey => $_) {
+                $byPerfil[$perfilKey] = array();
+                foreach (onboarding_docs_por_perfil($perfilKey) as $tipoDoc => $schema) {
+                    $byPerfil[$perfilKey][] = array(
+                        'tipo' => $tipoDoc,
+                        'label' => $schema['label'],
+                        'icon' => $schema['icon'],
+                        'descricao' => $schema['descricao'],
+                    );
+                }
+            }
+            echo json_encode($byPerfil);
+        ?>;
+        var DOCS_VINCULADOS = <?= json_encode(array_keys($docsVinculados)) ?>;
+
+        function atualizarDocsDisponiveis() {
+            var perfil = document.getElementById('perfilCargoSelect').value;
+            var lista = document.getElementById('docsVincularLista');
+            var empty = document.getElementById('docsVincularEmpty');
+            if (!perfil) {
+                lista.innerHTML = '<p id="docsVincularEmpty" style="font-size:.82rem;color:#6b7280;margin:0;">Selecione um <strong>perfil de cargo</strong> acima para ver os documentos disponíveis.</p>';
+                return;
+            }
+            var docs = DOCS_BY_PERFIL[perfil] || [];
+            if (!docs.length) {
+                lista.innerHTML = '<p style="font-size:.82rem;color:#6b7280;margin:0;">Nenhum documento cadastrado ainda para este perfil.</p>';
+                return;
+            }
+            var html = '';
+            docs.forEach(function(d) {
+                var jaVinculado = DOCS_VINCULADOS.indexOf(d.tipo) !== -1;
+                html += '<label style="display:flex;align-items:flex-start;gap:.55rem;padding:.6rem .8rem;background:#fff;border:1.5px solid ' + (jaVinculado ? '#059669' : '#e5e7eb') + ';border-radius:8px;cursor:pointer;font-size:.85rem;">'
+                      + '<input type="checkbox" name="docs_vinculados[]" value="' + d.tipo + '" ' + (jaVinculado ? 'checked' : '') + ' style="margin-top:3px;">'
+                      + '<div style="flex:1;">'
+                      + '<strong>' + d.icon + ' ' + d.label + '</strong>'
+                      + (jaVinculado ? ' <span style="background:#d1fae5;color:#065f46;font-size:.65rem;padding:1px 6px;border-radius:4px;font-weight:700;">VINCULADO</span>' : '')
+                      + '<br><span style="font-size:.74rem;color:#6b7280;">' + d.descricao + '</span>'
+                      + '</div>'
+                      + '</label>';
+            });
+            lista.innerHTML = html;
+        }
+
+        document.addEventListener('DOMContentLoaded', atualizarDocsDisponiveis);
+        </script>
 
         <div style="margin-top:1.2rem;display:flex;gap:.5rem;flex-wrap:wrap;">
             <button type="submit" class="btn btn-primary">💾 <?= $reg ? 'Atualizar cadastro' : 'Cadastrar e gerar link' ?></button>

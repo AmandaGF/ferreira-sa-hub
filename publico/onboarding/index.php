@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/../../core/config.php';
 require_once __DIR__ . '/../../core/database.php';
+require_once __DIR__ . '/../../core/onboarding_docs_schema.php';
 
 @session_start();
 
@@ -83,6 +84,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_aceitar']) && !e
 }
 
 $autenticado = !empty($_SESSION[$sessKey]);
+
+// Carrega documentos vinculados quando ja autenticado
+$documentosVinculados = array();
+if ($autenticado && $reg) {
+    try {
+        $stD = $pdo->prepare("SELECT id, tipo, status, dados_admin_json, dados_estagiario_json,
+                                     assinatura_estagiario_em, pdf_drive_url
+                              FROM colaboradores_documentos
+                              WHERE colaborador_id = ?
+                              ORDER BY id ASC");
+        $stD->execute(array($reg['id']));
+        $documentosVinculados = $stD->fetchAll();
+    } catch (Exception $e) {
+        $documentosVinculados = array();
+    }
+}
 
 function fmt_data_br($d) {
     if (!$d) return '';
@@ -634,6 +651,67 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     📄 Acessar e assinar o contrato
                 </a>
             </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- DOCUMENTOS PARA PREENCHER E ASSINAR -->
+        <?php if (!empty($documentosVinculados)): ?>
+        <div class="card-block">
+            <div class="card-title-row">
+                <div class="card-title-icon">📄</div>
+                <h2>Documentos para preencher e assinar</h2>
+            </div>
+            <p>Esses são os documentos da sua admissão. Preencha os seus dados, leia com calma e assine.</p>
+
+            <div style="display:flex;flex-direction:column;gap:.75rem;margin-top:1rem;">
+            <?php foreach ($documentosVinculados as $doc):
+                $schema = onboarding_doc_schema($doc['tipo']);
+                if (!$schema) continue;
+                $statusLabel = '';
+                $statusCor = '';
+                $assinado = !empty($doc['assinatura_estagiario_em']);
+                if ($assinado) {
+                    $statusLabel = '✓ Assinado em ' . date('d/m/Y H:i', strtotime($doc['assinatura_estagiario_em']));
+                    $statusCor = '#065f46';
+                    $statusBg = '#d1fae5';
+                } elseif ($doc['status'] === 'em_preenchimento') {
+                    $statusLabel = '⏳ Em preenchimento';
+                    $statusCor = '#9a3412';
+                    $statusBg = '#fed7aa';
+                } else {
+                    $statusLabel = '📋 Pendente';
+                    $statusCor = '#92400e';
+                    $statusBg = '#fef3c7';
+                }
+            ?>
+                <div style="background:#fff;border:1.5px solid <?= $assinado ? '#34d399' : '#e5e7eb' ?>;border-radius:12px;padding:1rem 1.2rem;">
+                    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+                        <div style="font-size:1.8rem;line-height:1;"><?= htmlspecialchars($schema['icon']) ?></div>
+                        <div style="flex:1;min-width:200px;">
+                            <h3 style="font-size:1.05rem;margin:0 0 .15rem;color:var(--petrol-900);font-family:'Open Sans',sans-serif;font-weight:700;"><?= htmlspecialchars($schema['label']) ?></h3>
+                            <p style="font-size:.78rem;color:var(--muted);margin:0;"><?= htmlspecialchars($schema['descricao']) ?></p>
+                            <span style="display:inline-block;margin-top:.4rem;background:<?= $statusBg ?>;color:<?= $statusCor ?>;padding:.15rem .55rem;border-radius:10px;font-size:.7rem;font-weight:700;"><?= htmlspecialchars($statusLabel) ?></span>
+                        </div>
+                        <div>
+                        <?php if ($assinado && !empty($doc['pdf_drive_url'])): ?>
+                            <a href="<?= htmlspecialchars($doc['pdf_drive_url']) ?>" target="_blank" rel="noopener" style="background:#059669;color:#fff;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;">📎 Ver PDF</a>
+                        <?php elseif ($assinado): ?>
+                            <span style="background:#d1fae5;color:#065f46;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;">✓ Concluído</span>
+                        <?php else: ?>
+                            <a href="?token=<?= htmlspecialchars($token) ?>&doc=<?= (int)$doc['id'] ?>" style="background:linear-gradient(135deg,var(--cobre),var(--cobre-light));color:#fff;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;">
+                                <?php if ($schema['fluxo'] === 'so_assina'): ?>✍️ Ler e assinar<?php else: ?>📝 Preencher e assinar<?php endif; ?>
+                            </a>
+                        <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            </div>
+
+            <p style="font-size:.78rem;color:var(--muted);margin-top:1rem;text-align:center;">
+                ⏳ A funcionalidade de preenchimento e assinatura estará disponível em breve.
+                Por enquanto, fale com a Dra. Amanda para receber os documentos.
+            </p>
         </div>
         <?php endif; ?>
 
