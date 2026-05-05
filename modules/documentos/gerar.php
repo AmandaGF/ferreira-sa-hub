@@ -51,6 +51,7 @@ $acaoLabels = array(
     'indenizacao' => 'AÇÃO DE INDENIZAÇÃO POR DANOS MORAIS E/OU MATERIAIS',
     'trabalhista' => 'RECLAMAÇÃO TRABALHISTA',
     'inventario' => 'INVENTÁRIO E PARTILHA DE BENS',
+    'salario_maternidade' => 'AÇÃO PREVIDENCIÁRIA — SALÁRIO-MATERNIDADE',
     'outro' => '',
 );
 
@@ -505,7 +506,13 @@ if (!$showEditor) {
                 .contr-card-titulo { font-size:.95rem; font-weight:800; color:#052228; }
                 .contr-card-desc { font-size:.7rem; color:#6b7280; line-height:1.3; }
             </style>
-            <?php $preSubtipo = ($_GET['subtipo_contrato'] ?? '') === 'salario_maternidade' ? 'sm' : 'padrao'; ?>
+            <?php
+            // Pré-seleciona modelo: SM se tipo_acao=salario_maternidade OU se vier explícito via GET
+            $preSubtipo = (
+                $tipoAcao === 'salario_maternidade'
+                || ($_GET['subtipo_contrato'] ?? '') === 'salario_maternidade'
+            ) ? 'sm' : 'padrao';
+            ?>
             <div style="margin-bottom:1rem;">
                 <label>Escolha o modelo</label>
                 <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
@@ -1261,8 +1268,10 @@ if (!$showEditor) {
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
     elseif ($tipo === 'contrato') {
-        // Sub-tipo: padrão ou Salário-Maternidade (Previdenciário)
+        // Sub-tipo: padrão ou Salário-Maternidade (Previdenciário).
+        // Tipo de acao = salario_maternidade força SM automaticamente.
         $subtipoContrato = $_POST['subtipo_contrato'] ?? 'padrao';
+        if ($tipoAcao === 'salario_maternidade') $subtipoContrato = 'salario_maternidade';
         if ($subtipoContrato === 'salario_maternidade') {
             echo template_contrato_prevjud_sm($d);
         } else {
