@@ -902,6 +902,21 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         </div>
         <?php endif; ?>
 
+        <!-- FECHAMENTO EMOCIONAL -->
+        <div style="background:linear-gradient(135deg,var(--petrol-900),var(--petrol-700));color:#fff;border-radius:var(--radius);padding:2.2rem 1.8rem;text-align:center;margin-top:2rem;position:relative;overflow:hidden;">
+            <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 30% 30%,rgba(215,171,144,.18) 0%,transparent 50%),radial-gradient(circle at 70% 70%,rgba(184,115,51,.15) 0%,transparent 50%);pointer-events:none;"></div>
+            <div style="position:relative;z-index:1;">
+                <div style="font-size:2.4rem;margin-bottom:.4rem;">💜</div>
+                <h2 style="color:#fff;font-size:1.5rem;margin-bottom:.6rem;line-height:1.3;">
+                    Queremos que você tenha <span style="color:var(--nude);">orgulho</span><br>
+                    de falar que faz parte da <span style="color:var(--nude);">Família Ferreira &amp; Sá</span>!
+                </h2>
+                <p style="font-size:.95rem;opacity:.9;margin-top:.8rem;max-width:480px;margin-left:auto;margin-right:auto;">
+                    Vamos construir essa história lindamente, <?= g('juntas', 'juntos', $genero) ?>. ✨
+                </p>
+            </div>
+        </div>
+
         <!-- ACEITE -->
         <?php if ($jaAceitou): ?>
             <div class="aceite-box aceito">
