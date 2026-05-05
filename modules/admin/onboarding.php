@@ -12,6 +12,60 @@ require_role('admin');
 $pageTitle = 'Onboarding de Colaboradores';
 $pdo = db();
 
+// ── AJAX: autocomplete de nome ────────────────────────────
+// Busca em colaboradores_onboarding (re-cadastro) e em clients
+// (caso a colaboradora ja tenha sido cliente do escritorio).
+if (isset($_GET['ajax']) && $_GET['ajax'] === 'buscar_nome') {
+    header('Content-Type: application/json; charset=utf-8');
+    $q = trim($_GET['q'] ?? '');
+    if (mb_strlen($q) < 2) { echo json_encode(array()); exit; }
+    $like = '%' . $q . '%';
+    $resultados = array();
+
+    // Onboarding existente (re-cadastro / atualizacao)
+    try {
+        $st = $pdo->prepare("SELECT nome_completo, data_nascimento, cpf, email_institucional, cargo, setor
+                             FROM colaboradores_onboarding
+                             WHERE nome_completo LIKE ? AND status != 'arquivado'
+                             ORDER BY nome_completo LIMIT 5");
+        $st->execute(array($like));
+        foreach ($st->fetchAll() as $r) {
+            $resultados[] = array(
+                'fonte' => 'onboarding',
+                'nome'  => $r['nome_completo'],
+                'data_nascimento' => $r['data_nascimento'],
+                'cpf'   => $r['cpf'] ?: '',
+                'email' => $r['email_institucional'] ?: '',
+                'cargo' => $r['cargo'] ?: '',
+                'setor' => $r['setor'] ?: '',
+            );
+        }
+    } catch (Exception $e) {}
+
+    // Clients (ex-cliente que virou colaborador)
+    try {
+        $st = $pdo->prepare("SELECT name, birth_date, cpf, email
+                             FROM clients
+                             WHERE name LIKE ?
+                             ORDER BY name LIMIT 5");
+        $st->execute(array($like));
+        foreach ($st->fetchAll() as $r) {
+            $resultados[] = array(
+                'fonte' => 'cliente',
+                'nome'  => $r['name'],
+                'data_nascimento' => $r['birth_date'],
+                'cpf'   => $r['cpf'] ?: '',
+                'email' => $r['email'] ?: '',
+                'cargo' => '',
+                'setor' => '',
+            );
+        }
+    } catch (Exception $e) {}
+
+    echo json_encode($resultados);
+    exit;
+}
+
 // ── Self-heal: cria tabela ────────────────────────────────
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS colaboradores_onboarding (
@@ -228,9 +282,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1rem 0 .5rem;">👤 Dados pessoais</h4>
         <div class="ob-grid">
-            <div>
+            <div style="position:relative;">
                 <label>Nome completo *</label>
-                <input name="nome_completo" required value="<?= e($reg['nome_completo'] ?? '') ?>" placeholder="Ex: Maria Silva Santos">
+                <input name="nome_completo" id="nomeCompletoInput" required value="<?= e($reg['nome_completo'] ?? '') ?>" placeholder="Ex: Maria Silva Santos" autocomplete="off" oninput="onNomeChange(this.value)">
+                <div id="nomeAutocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d7ab90;border-radius:8px;max-height:240px;overflow-y:auto;z-index:20;box-shadow:0 6px 16px rgba(0,0,0,.12);margin-top:2px;"></div>
             </div>
             <div>
                 <label>Data de nascimento *</label>
@@ -383,6 +438,91 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
+// Autocomplete pelo nome — busca em colaboradores existentes + clients
+var _nomeTimer;
+function onNomeChange(q) {
+    clearTimeout(_nomeTimer);
+    var box = document.getElementById('nomeAutocomplete');
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    _nomeTimer = setTimeout(function() {
+        fetch('?ajax=buscar_nome&q=' + encodeURIComponent(q))
+            .then(function(r) { return r.json(); })
+            .then(function(arr) {
+                if (!arr.length) { box.style.display = 'none'; return; }
+                var html = '';
+                arr.forEach(function(p, i) {
+                    var fonteTag = p.fonte === 'onboarding'
+                        ? '<span style="background:#d7ab90;color:#052228;padding:1px 6px;border-radius:4px;font-size:.65rem;font-weight:700;">RE-CADASTRO</span>'
+                        : '<span style="background:#bae6fd;color:#075985;padding:1px 6px;border-radius:4px;font-size:.65rem;font-weight:700;">CLIENTE</span>';
+                    html += '<div data-idx="' + i + '" onclick="aplicarSugestao(' + i + ')" '
+                          + 'style="padding:.55rem .8rem;cursor:pointer;border-bottom:1px solid #f0e9e0;font-size:.85rem;" '
+                          + 'onmouseover="this.style.background=\'#fff7ed\'" onmouseout="this.style.background=\'\'">'
+                          + '<div style="display:flex;align-items:center;gap:.5rem;">'
+                          + '<strong>' + escapeHtml(p.nome) + '</strong> ' + fonteTag
+                          + '</div>'
+                          + '<div style="font-size:.72rem;color:#6b7280;margin-top:2px;">'
+                          + (p.cpf ? 'CPF ' + escapeHtml(p.cpf) : '')
+                          + (p.cpf && p.data_nascimento ? ' · ' : '')
+                          + (p.data_nascimento ? '🎂 ' + formatDataBR(p.data_nascimento) : '')
+                          + (p.email ? ' · ✉ ' + escapeHtml(p.email) : '')
+                          + '</div></div>';
+                });
+                box.innerHTML = html;
+                box.style.display = 'block';
+                box._sugestoes = arr;
+            })
+            .catch(function() { box.style.display = 'none'; });
+    }, 250);
+}
+
+function aplicarSugestao(idx) {
+    var box = document.getElementById('nomeAutocomplete');
+    var p = box._sugestoes && box._sugestoes[idx];
+    if (!p) return;
+    document.getElementById('nomeCompletoInput').value = p.nome || '';
+    if (p.data_nascimento) {
+        var inp = document.querySelector('input[name="data_nascimento"]');
+        if (inp) inp.value = p.data_nascimento;
+    }
+    if (p.cpf) {
+        var cpf = document.getElementById('cpfInput');
+        if (cpf) { cpf.value = p.cpf; onCpfChange(); }
+    }
+    if (p.email) {
+        var em = document.querySelector('input[name="email_institucional"]');
+        if (em && !em.value) em.value = p.email;
+    }
+    if (p.cargo) {
+        var cg = document.querySelector('input[name="cargo"]');
+        if (cg && !cg.value) cg.value = p.cargo;
+    }
+    if (p.setor) {
+        var st = document.querySelector('input[name="setor"]');
+        if (st && !st.value) st.value = p.setor;
+    }
+    box.style.display = 'none';
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+}
+function formatDataBR(iso) {
+    if (!iso) return '';
+    var p = iso.split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+}
+
+// Fecha autocomplete ao clicar fora
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#nomeCompletoInput, #nomeAutocomplete')) {
+        var box = document.getElementById('nomeAutocomplete');
+        if (box) box.style.display = 'none';
+    }
+});
+
 // Mascara CPF + auto-preenchimento da senha padrao do escritorio
 function onCpfChange() {
     var inp = document.getElementById('cpfInput');
