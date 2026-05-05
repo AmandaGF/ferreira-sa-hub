@@ -167,8 +167,17 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         radial-gradient(circle at 80% 60%, rgba(184,115,51,.15) 0%, transparent 50%);
 }
 .hero-inner { position: relative; z-index: 1; max-width: 720px; margin: 0 auto; }
-.hero-logo { font-family: 'Playfair Display', serif; font-size: 1.8rem; letter-spacing: .15em; font-weight: 700; opacity: .85; margin-bottom: .3rem; }
-.hero-subtitle { font-size: .72rem; letter-spacing: .35em; opacity: .65; text-transform: uppercase; margin-bottom: 2rem; }
+.hero-logo {
+    background: rgba(255, 255, 255, .96);
+    border-radius: 14px;
+    padding: 14px 28px;
+    display: inline-block;
+    margin-bottom: .9rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .12);
+}
+.hero-logo img { max-height: 60px; width: auto; display: block; }
+.hero-logo-fallback { font-family: 'Playfair Display', serif; font-size: 1.6rem; letter-spacing: .15em; font-weight: 700; color: var(--petrol-900); }
+.hero-subtitle { font-size: .72rem; letter-spacing: .35em; opacity: .65; text-transform: uppercase; margin-bottom: 2rem; color:#fff; }
 .hero-emoji { font-size: 4rem; margin-bottom: 1rem; line-height: 1; }
 .hero h1 { color: #fff; font-size: 2.6rem; font-weight: 700; line-height: 1.15; margin-bottom: 1rem; }
 .hero h1 .nome-destaque { color: var(--nude); }
@@ -369,7 +378,10 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     <!-- ─── TELA DE LOGIN ──────────────────────────────────── -->
     <div class="hero">
         <div class="hero-inner">
-            <div class="hero-logo">FERREIRA &amp; SÁ</div>
+            <div class="hero-logo">
+                <img src="../../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                     onerror="this.outerHTML='<div class=\'hero-logo-fallback\'>FERREIRA &amp; S&Aacute;</div>'">
+            </div>
             <div class="hero-subtitle">Advocacia Especializada</div>
             <div class="hero-emoji">🔒</div>
             <h1>Acesso ao seu portal de boas-vindas</h1>
@@ -400,7 +412,10 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     <!-- HERO -->
     <div class="hero">
         <div class="hero-inner">
-            <div class="hero-logo">FERREIRA &amp; SÁ</div>
+            <div class="hero-logo">
+                <img src="../../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                     onerror="this.outerHTML='<div class=\'hero-logo-fallback\'>FERREIRA &amp; S&Aacute;</div>'">
+            </div>
             <div class="hero-subtitle">Advocacia Especializada</div>
             <div class="hero-emoji">🎉</div>
             <h1>Seja muito bem-vinda(o), <span class="nome-destaque"><?= htmlspecialchars($primeiroNome) ?></span>!</h1>
