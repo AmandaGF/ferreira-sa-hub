@@ -494,7 +494,24 @@ if (!$showEditor) {
 
         <?php if ($tipo === 'contrato'): ?>
         <div class="section">
-            <h4>📝 Dados financeiros do contrato</h4>
+            <h4>📝 Modelo do contrato</h4>
+            <div style="margin-bottom:1rem;">
+                <label>Escolha o modelo</label>
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="lbl_padrao">
+                        <input type="radio" name="subtipo_contrato" value="padrao" checked onchange="toggleSubtipoContrato()"> 📝 Padrão (fixo / risco)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #fbcfe8;border-radius:8px;background:#fdf2f8;" id="lbl_sm">
+                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" onchange="toggleSubtipoContrato()"> 🤰 Previdenciário — Salário-Maternidade
+                    </label>
+                </div>
+                <div id="info_sm" style="display:none;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:10px 14px;margin-top:.6rem;font-size:.8rem;color:#9f1239;">
+                    <strong>Modelo Salário-Maternidade:</strong> honorários fixos em <strong>30% sobre cada uma das 4 parcelas</strong> do benefício (sem necessidade de preencher valor/parcelas). Conteúdo do contrato é padrão; só preencha os dados pessoais da CONTRATANTE acima.
+                </div>
+            </div>
+
+            <div id="bloco_financeiro_padrao">
+            <h4>💵 Dados financeiros do contrato</h4>
 
             <!-- Tipo: fixo ou risco -->
             <div style="margin-bottom:.75rem;">
@@ -551,6 +568,7 @@ if (!$showEditor) {
                 <div><label>Estado do foro</label><input name="estado_foro" value="<?= e($uf) ?>" placeholder="RJ"></div>
             </div>
             <div><label>Data do contrato</label><input name="data_contrato" value="<?= e($cidadeData) ?>"></div>
+            </div><!-- /bloco_financeiro_padrao -->
         </div>
 
         <script>
@@ -673,6 +691,16 @@ if (!$showEditor) {
             var isRisco = document.querySelector('input[name="tipo_cobranca"]:checked').value === 'risco';
             document.getElementById('campos_fixo').style.display = isRisco ? 'none' : 'block';
             document.getElementById('campos_risco').style.display = isRisco ? 'block' : 'none';
+        }
+        // Sub-tipo do contrato: padrão ou Salário-Maternidade. Quando SM, esconde
+        // todo o bloco financeiro (porcentagem é fixa em 30% sobre cada parcela).
+        function toggleSubtipoContrato() {
+            var sel = document.querySelector('input[name="subtipo_contrato"]:checked');
+            var isSm = sel && sel.value === 'salario_maternidade';
+            var bloco = document.getElementById('bloco_financeiro_padrao');
+            var info  = document.getElementById('info_sm');
+            if (bloco) bloco.style.display = isSm ? 'none' : 'block';
+            if (info)  info.style.display  = isSm ? 'block' : 'none';
         }
 
         // Auto-formatar campos ao carregar a página
@@ -1208,8 +1236,15 @@ if (!$showEditor) {
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
-    elseif ($tipo === 'contrato') echo template_contrato($d);
-    elseif ($tipo === 'contrato_prevjud_sm') echo template_contrato_prevjud_sm($d);
+    elseif ($tipo === 'contrato') {
+        // Sub-tipo: padrão ou Salário-Maternidade (Previdenciário)
+        $subtipoContrato = $_POST['subtipo_contrato'] ?? 'padrao';
+        if ($subtipoContrato === 'salario_maternidade') {
+            echo template_contrato_prevjud_sm($d);
+        } else {
+            echo template_contrato($d);
+        }
+    }
     elseif ($tipo === 'substabelecimento') echo template_substabelecimento($d);
     elseif ($tipo === 'hipossuficiencia') echo template_hipossuficiencia($d);
     elseif ($tipo === 'isencao_ir') echo template_isencao_ir($d);

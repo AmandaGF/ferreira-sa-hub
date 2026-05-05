@@ -18,8 +18,7 @@ $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY
 // Tipos de documento
 $docTypes = array(
     'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Ad Judicia Et Extra — tipo de ação e outorgante'),
-    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Fixo ou risco, com todas as cláusulas'),
-    'contrato_prevjud_sm' => array('label' => 'Contrato — Salário-Maternidade', 'icon' => '🤰', 'color' => '#db2777', 'desc' => 'Contrato Previdenciário específico para SALÁRIO MATERNIDADE: 30% sobre cada uma das 4 parcelas do benefício'),
+    'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Padrão (fixo/risco) ou Previdenciário Salário-Maternidade'),
     'substabelecimento' => array('label' => 'Substabelecimento', 'icon' => '🔄', 'color' => '#6366f1', 'desc' => 'Com ou sem reserva de poderes'),
     'hipossuficiencia' => array('label' => 'Decl. Hipossuficiência', 'icon' => '📄', 'color' => '#d97706', 'desc' => 'Art. 98 CPC + Lei 1.060/50'),
     'isencao_ir' => array('label' => 'Decl. Isenção de IR', 'icon' => '🏦', 'color' => '#6a3c2c', 'desc' => 'IN RFB 1548/2015 + Lei 7.115/83'),
