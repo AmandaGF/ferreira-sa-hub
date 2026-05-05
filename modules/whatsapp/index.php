@@ -1801,7 +1801,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // Traz candidatas automáticas + campo de busca livre (nome, telefone, #ID)
     // pra casos onde @lid não compartilha dígitos com telefone real.
     window.waAbrirMesclar = function() {
-        if (!PODE_DELEGAR || !convAtiva) return;
+        if (!convAtiva) return;
 
         var overlay = document.createElement('div');
         overlay.id = 'waMesclarOverlay';
