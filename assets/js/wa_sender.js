@@ -52,7 +52,7 @@
           +       '<option value="21" '+(canal==='21'?'selected':'')+'>💼 DDD 21 (Comercial)</option>'
           +     '</select>'
           +     '<label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Mensagem (edite antes de enviar)</label>'
-          +     '<textarea data-field="msg" rows="10" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:.88rem;font-family:inherit;resize:vertical;">'+esc(mensagem)+'</textarea>'
+          +     '<textarea data-field="msg" rows="14" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:.88rem;font-family:inherit;resize:vertical;min-height:240px;max-height:60vh;line-height:1.45;">'+esc(mensagem)+'</textarea>'
           +     '<div style="font-size:.68rem;color:#9ca3af;margin-top:.3rem;">A mensagem fica registrada no histórico do WhatsApp do Hub e o cliente pode responder por lá.</div>'
           +     '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">'
           +       '<button type="button" data-act="close" style="background:#f3f4f6;border:1px solid #d1d5db;padding:8px 16px;border-radius:6px;cursor:pointer;">Cancelar</button>'
