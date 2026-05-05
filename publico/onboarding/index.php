@@ -755,7 +755,52 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     <h4>Tecnologia a seu favor</h4>
                     <p>Use a tecnologia a seu favor! <strong>Inteligência Artificial é muito bem-vinda</strong>, mas não deixe de <strong>conferir as informações</strong>, dar o seu toque pessoal e — especialmente — <strong>conferir os julgados e artigos</strong> que ela mencionar.</p>
                 </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🎮</div>
+                    <h4>Discord no expediente</h4>
+                    <p>Estar online no <strong>Discord durante o horário de expediente</strong> é muito importante: facilita a comunicação, permite descontração em momentos adequados e diminui as barreiras do home office, aproximando a equipe.</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🥂</div>
+                    <h4>Encontros e confraternizações</h4>
+                    <p>Tente participar dos <strong>encontros, confraternizações e eventos</strong> realizados pelo escritório. Preparamos tudo com muito carinho e ter você nesses momentos fará tudo muito mais especial.</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">💗</div>
+                    <h4>Empatia com quem nos procura</h4>
+                    <p>Lembre-se de que trabalhamos com <strong>pessoas que têm necessidades e dores específicas</strong>. É muito importante compreender isso antes de a gente se estressar (rs).</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🚀</div>
+                    <h4>Vamos crescer juntos</h4>
+                    <p>Estamos aqui para <strong>crescer juntos</strong> e transformar o Ferreira &amp; Sá no <strong>maior escritório de advocacia da região</strong> — e para isso contamos muito com a sua ajuda.</p>
+                    <p style="margin-top:.4rem;">Qualquer dúvida, dica, sugestão ou reclamação <strong>pode (e deve!)</strong> ser passada para a gente, para que possamos sempre melhorar. 💜</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🎓</div>
+                    <h4>Treinamentos importam</h4>
+                    <p>Realize os <strong>treinamentos disponibilizados</strong> com atenção. Tudo aqui é muito cíclico — o que você aprende no treinamento volta repetidamente no dia a dia, e dominar esses fluxos faz toda a diferença na sua entrega.</p>
+                </div>
             </div>
+        </div>
+
+        <!-- PLANO DE INCENTIVO À SAÚDE -->
+        <div class="card-block" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #34d399;">
+            <div class="card-title-row">
+                <div class="card-title-icon" style="background:linear-gradient(135deg,#86efac,#4ade80);">💪</div>
+                <h2 style="color:#065f46;">Plano de Incentivo Ferreira &amp; Sá</h2>
+            </div>
+            <p>Nós também nos preocupamos com a <strong>saúde da equipe</strong>! Por isso, criamos o <strong>Plano de Incentivo Ferreira &amp; Sá</strong>: um adicional financeiro pra quem cuida do corpo durante o mês.</p>
+
+            <div style="background:#fff;border:1.5px dashed #10b981;border-radius:12px;padding:1.2rem 1.4rem;margin-top:1rem;">
+                <div style="text-align:center;font-size:.7rem;letter-spacing:3px;font-weight:700;color:#065f46;margin-bottom:.4rem;">RECEBA POR MÊS</div>
+                <div style="text-align:center;font-size:2.4rem;font-weight:900;color:#047857;line-height:1;">R$ 100,00</div>
+                <div style="text-align:center;font-size:.85rem;color:#065f46;margin-top:.5rem;">de incentivo por treinar</div>
+            </div>
+
+            <p style="margin-top:1rem;font-size:.92rem;"><strong>Como funciona:</strong> dentro de um mês (a contar do <strong>1º dia útil</strong>), quem treinar pelo menos <strong>3 dias na semana</strong>, com no mínimo <strong>30 minutos por treino</strong>, em qualquer modalidade (academia, corrida, pilates, dança, etc.), recebe os <strong>R$ 100,00</strong> como adicional do mês seguinte.</p>
+
+            <p style="font-size:.82rem;color:#065f46;margin-top:.5rem;">💚 É o nosso jeitinho de te lembrar que cuidar de você também faz parte da jornada.</p>
         </div>
 
         <!-- CONTRATO PARA ASSINATURA -->
