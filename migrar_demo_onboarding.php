@@ -98,20 +98,22 @@ $senha = '123456789@';
 
 try {
     $pdo->prepare("INSERT INTO colaboradores_onboarding
-        (token, nome_completo, data_nascimento, cpf, email_institucional, senha_inicial,
-         kit_descricao, modalidade, dias_trabalho, horario_inicio, horario_fim,
+        (token, nome_completo, data_nascimento, genero, cpf, email_institucional, senha_inicial,
+         kit_descricao, modalidade, local_presencial, dias_trabalho, horario_inicio, horario_fim,
          setor, cargo, perfil_cargo, tipo_remuneracao, valor_remuneracao,
          data_pagamento, beneficios, mensagem_pessoal, status)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         ->execute(array(
             $token,
             'Maria Estagiária Demo',
             '2002-05-15',
+            'F',
             $cpf,
             'maria.demo@ferreiraesa.com.br',
             $senha,
             "Caneca personalizada F&S\nCaderno de anotações\nCaneta\nCamiseta tamanho M\nSerá entregue em até 7 dias úteis",
             'Híbrido',
+            'Barra Mansa/RJ — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom',
             'Segunda a sexta',
             '13:00:00',
             '19:00:00',
@@ -122,7 +124,7 @@ try {
             1500.00,
             'Todo dia 5 do mês seguinte ao trabalhado',
             "Vale-transporte\nLanche no escritório\nDay-off no aniversário\nPlano de saúde após período de experiência",
-            "Maria, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com calma para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale comigo direto pelo WhatsApp.\n\nDra. Amanda",
+            "Maria, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com muito carinho para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale com a gente no WhatsApp.\n\nDra. Amanda Ferreira e Dr. Luiz Eduardo de Sá",
             'pendente'
         ));
     $colabId = (int)$pdo->lastInsertId();

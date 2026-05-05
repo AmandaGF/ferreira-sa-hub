@@ -108,6 +108,18 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN cpf VARCHAR(14
 // Usada pra sugerir quais documentos a colaboradora deve assinar.
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN perfil_cargo VARCHAR(40) NULL AFTER cargo"); } catch (Exception $e) {}
 
+// Self-heal: genero (F/M) — pra ajustar concordancia nas mensagens
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN genero VARCHAR(1) NULL AFTER data_nascimento"); } catch (Exception $e) {}
+
+// Self-heal: foto_path — caminho relativo da foto da colaboradora (baixada do WhatsApp)
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN foto_path VARCHAR(300) NULL AFTER genero"); } catch (Exception $e) {}
+
+// Self-heal: telefone_whatsapp — usado pra buscar foto de perfil via Z-API
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN telefone_whatsapp VARCHAR(20) NULL AFTER foto_path"); } catch (Exception $e) {}
+
+// Self-heal: local_presencial (endereço onde a colaboradora trabalha quando presencial/híbrido)
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN local_presencial VARCHAR(300) NULL AFTER modalidade"); } catch (Exception $e) {}
+
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
 // Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
@@ -204,7 +216,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'mensagem_pessoal'     => trim($_POST['mensagem_pessoal'] ?? ''),
             'link_contrato_url'    => trim($_POST['link_contrato_url'] ?? ''),
             'perfil_cargo'         => trim($_POST['perfil_cargo'] ?? ''),
+            'genero'               => in_array(($_POST['genero'] ?? ''), array('F','M'), true) ? $_POST['genero'] : null,
+            'telefone_whatsapp'    => preg_replace('/\D/', '', trim($_POST['telefone_whatsapp'] ?? '')) ?: null,
+            'local_presencial'     => trim($_POST['local_presencial'] ?? ''),
         );
+
+        // Se admin informou WhatsApp da colaboradora, tenta buscar foto de perfil
+        // via Z-API (canal 24 — colaborativo). Se houver foto, baixa e salva
+        // em /files/onboarding_fotos/. Se nao houver, deixa null (sem foto).
+        if (!empty($dados['telefone_whatsapp'])) {
+            try {
+                require_once APP_ROOT . '/core/functions_zapi.php';
+                $fotoUrl = zapi_fetch_profile_picture('24', $dados['telefone_whatsapp']);
+                if ($fotoUrl) {
+                    $imgRaw = @file_get_contents($fotoUrl);
+                    if ($imgRaw && strlen($imgRaw) > 200) {
+                        $uploadDir = APP_ROOT . '/files/onboarding_fotos';
+                        if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+                        $nomeArq = 'wa_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
+                        $destino = $uploadDir . '/' . $nomeArq;
+                        if (file_put_contents($destino, $imgRaw)) {
+                            $dados['foto_path'] = '/files/onboarding_fotos/' . $nomeArq;
+                        }
+                    }
+                }
+            } catch (Exception $e) {
+                error_log('[onboarding] erro buscando foto WA: ' . $e->getMessage());
+            }
+        }
 
         if (!$dados['nome_completo'] || !$dados['data_nascimento']) {
             flash_set('error', 'Nome completo e data de nascimento são obrigatórios.');
@@ -369,6 +408,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input name="cpf" id="cpfInput" value="<?= e($reg['cpf'] ?? '') ?>" placeholder="000.000.000-00" oninput="onCpfChange()">
             </div>
             <div>
+                <label>Gênero <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(concordância nas mensagens)</span></label>
+                <div style="display:flex;gap:.6rem;margin-top:.3rem;">
+                    <label style="flex:1;display:flex;align-items:center;gap:.3rem;cursor:pointer;padding:.4rem .7rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.82rem;background:<?= ($reg['genero'] ?? '') === 'F' ? '#fdf2f8' : '#fff' ?>;border-color:<?= ($reg['genero'] ?? '') === 'F' ? '#db2777' : '#e5e7eb' ?>;">
+                        <input type="radio" name="genero" value="F" <?= ($reg['genero'] ?? '') === 'F' ? 'checked' : '' ?>> 👩 Feminino
+                    </label>
+                    <label style="flex:1;display:flex;align-items:center;gap:.3rem;cursor:pointer;padding:.4rem .7rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.82rem;background:<?= ($reg['genero'] ?? '') === 'M' ? '#eff6ff' : '#fff' ?>;border-color:<?= ($reg['genero'] ?? '') === 'M' ? '#2563eb' : '#e5e7eb' ?>;">
+                        <input type="radio" name="genero" value="M" <?= ($reg['genero'] ?? '') === 'M' ? 'checked' : '' ?>> 👨 Masculino
+                    </label>
+                </div>
+            </div>
+            <div>
+                <label>WhatsApp da colaboradora <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(busca foto de perfil automática)</span></label>
+                <input name="telefone_whatsapp" value="<?= e($reg['telefone_whatsapp'] ?? '') ?>" placeholder="Ex: 24992050096">
+                <?php if (!empty($reg['foto_path'])): ?>
+                    <div style="margin-top:.4rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:#059669;">
+                        <img src="<?= e($reg['foto_path']) ?>" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;">
+                        ✓ Foto carregada do WhatsApp
+                    </div>
+                <?php endif; ?>
+            </div>
+            <div>
                 <label>Cargo / Função</label>
                 <input name="cargo" value="<?= e($reg['cargo'] ?? '') ?>" placeholder="Ex: Estagiária">
             </div>
@@ -409,6 +469,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <option value="<?= e($m) ?>" <?= ($reg['modalidade'] ?? '') === $m ? 'selected' : '' ?>><?= e($m) ?></option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+            <div>
+                <label>Local presencial <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(quando híbrido/presencial)</span></label>
+                <input name="local_presencial" value="<?= e($reg['local_presencial'] ?? '') ?>" placeholder="Ex: Barra Mansa/RJ — Rua Dr. Aldrovando, 140 — Ano Bom">
             </div>
             <div>
                 <label>Dias de trabalho</label>

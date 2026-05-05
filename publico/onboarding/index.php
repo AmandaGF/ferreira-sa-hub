@@ -101,6 +101,15 @@ if ($autenticado && $reg) {
     }
 }
 
+/**
+ * Helper de gênero — retorna uma das 2 strings dependendo do gênero.
+ * Ex: g('bem-vinda', 'bem-vindo', $reg['genero'])
+ * Default (genero null) = feminino, pra evitar "(o)/(a)" feio na tela.
+ */
+function g($fem, $masc, $genero) {
+    return ($genero === 'M') ? $masc : $fem;
+}
+
 function fmt_data_br($d) {
     if (!$d) return '';
     $dt = DateTime::createFromFormat('Y-m-d', $d);
@@ -179,6 +188,14 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 .hero-logo-fallback { font-family: 'Playfair Display', serif; font-size: 1.6rem; letter-spacing: .15em; font-weight: 700; color: var(--petrol-900); }
 .hero-subtitle { font-size: .72rem; letter-spacing: .35em; opacity: .65; text-transform: uppercase; margin-bottom: 2rem; color:#fff; }
 .hero-emoji { font-size: 4rem; margin-bottom: 1rem; line-height: 1; }
+.hero-foto-colab {
+    width: 110px; height: 110px; margin: 0 auto 1rem;
+    border-radius: 50%; overflow: hidden;
+    border: 4px solid var(--nude);
+    box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    background: rgba(255,255,255,.05);
+}
+.hero-foto-colab img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .hero h1 { color: #fff; font-size: 2.6rem; font-weight: 700; line-height: 1.15; margin-bottom: 1rem; }
 .hero h1 .nome-destaque { color: var(--nude); }
 .hero p { font-size: 1.05rem; opacity: .92; max-width: 520px; margin: 0 auto; }
@@ -291,6 +308,8 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     margin-top: 1rem;
 }
 .acesso-destaque h4 { color: #fff; font-size: 1rem; margin-bottom: .8rem; letter-spacing: .1em; }
+.acesso-destaque p, .acesso-destaque strong, .acesso-destaque span { color: #fff !important; }
+.acesso-destaque .acesso-aviso strong { color: #fef3c7 !important; }
 .acesso-item { background: rgba(255,255,255,.08); border: 1px solid rgba(215,171,144,.3); border-radius: 10px; padding: .7rem 1rem; margin-bottom: .5rem; display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
 .acesso-item .lbl { font-size: .7rem; opacity: .75; letter-spacing: .08em; text-transform: uppercase; }
 .acesso-item .val { font-family: 'Courier New', monospace; font-size: 1rem; font-weight: 700; color: var(--nude); user-select: all; }
@@ -379,8 +398,8 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     <div class="hero">
         <div class="hero-inner">
             <div class="hero-logo">
-                <img src="../../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
-                     onerror="this.outerHTML='<div class=\'hero-logo-fallback\'>FERREIRA &amp; S&Aacute;</div>'">
+                <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                     onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
             <div class="hero-subtitle">Advocacia Especializada</div>
             <div class="hero-emoji">🔒</div>
@@ -407,19 +426,27 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     // ─── TELA AUTENTICADA — BOAS-VINDAS ───────────────────────
     $primeiroNome = explode(' ', $reg['nome_completo'])[0];
     $jaAceitou = !empty($reg['aceite_em']);
+    $genero = isset($reg['genero']) ? $reg['genero'] : 'F'; // default feminino
+    $fotoColab = !empty($reg['foto_path']) ? $reg['foto_path'] : '';
 ?>
 
     <!-- HERO -->
     <div class="hero">
         <div class="hero-inner">
             <div class="hero-logo">
-                <img src="../../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
-                     onerror="this.outerHTML='<div class=\'hero-logo-fallback\'>FERREIRA &amp; S&Aacute;</div>'">
+                <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                     onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
             <div class="hero-subtitle">Advocacia Especializada</div>
-            <div class="hero-emoji">🎉</div>
-            <h1>Seja muito bem-vinda(o), <span class="nome-destaque"><?= htmlspecialchars($primeiroNome) ?></span>!</h1>
-            <p>Estamos super felizes que você está começando essa jornada com a gente. Vamos juntas/juntos! 💜</p>
+            <?php if ($fotoColab): ?>
+                <div class="hero-foto-colab">
+                    <img src="<?= htmlspecialchars($fotoColab) ?>" alt="<?= htmlspecialchars($primeiroNome) ?>" onerror="this.parentNode.style.display='none';">
+                </div>
+            <?php else: ?>
+                <div class="hero-emoji">🎉</div>
+            <?php endif; ?>
+            <h1>Seja muito <?= g('bem-vinda', 'bem-vindo', $genero) ?>, <span class="nome-destaque"><?= htmlspecialchars($primeiroNome) ?></span>!</h1>
+            <p>Estamos super <?= g('felizes', 'felizes', $genero) ?> de você estar começando essa jornada com a gente. Vamos <?= g('juntas', 'juntos', $genero) ?>! 💜</p>
             <div class="hero-emojis">💼 ⚖️ 💖</div>
         </div>
     </div>
@@ -529,6 +556,9 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <?php endif; ?>
                 <?php if ($reg['modalidade']): ?>
                 <div class="dado-item"><div class="dado-label">Modalidade</div><div class="dado-valor"><?= htmlspecialchars($reg['modalidade']) ?></div></div>
+                <?php endif; ?>
+                <?php if (!empty($reg['local_presencial'])): ?>
+                <div class="dado-item" style="grid-column:1/-1;"><div class="dado-label">📍 Local (quando presencial)</div><div class="dado-valor"><?= htmlspecialchars($reg['local_presencial']) ?></div></div>
                 <?php endif; ?>
                 <?php if ($reg['dias_trabalho']): ?>
                 <div class="dado-item"><div class="dado-label">Dias de trabalho</div><div class="dado-valor"><?= htmlspecialchars($reg['dias_trabalho']) ?></div></div>
@@ -736,16 +766,16 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="aceite-emoji">✅</div>
                 <h3>Tudo certo, <?= htmlspecialchars($primeiroNome) ?>!</h3>
                 <p>Você confirmou a leitura desta página em <strong><?= htmlspecialchars(date('d/m/Y \à\s H:i', strtotime($reg['aceite_em']))) ?></strong>.</p>
-                <p style="margin-top:.5rem;">Estamos prontos pra começar essa jornada juntas/juntos. Qualquer dúvida, fale com a Dra. Amanda. 💜</p>
+                <p style="margin-top:.5rem;">Estamos <?= g('prontas', 'prontos', $genero) ?> pra começar essa jornada <?= g('juntas', 'juntos', $genero) ?>. Qualquer dúvida, fale com a gente. 💜</p>
             </div>
         <?php else: ?>
             <div class="aceite-box">
                 <div class="aceite-emoji">🌟</div>
-                <h3>Pronta(o) pra começar?</h3>
+                <h3><?= g('Pronta', 'Pronto', $genero) ?> pra começar?</h3>
                 <p>Quando você confirmar abaixo, registramos que leu as informações desta página. Pode aceitar com tranquilidade — qualquer dúvida, é só chamar a equipe.</p>
                 <form method="POST" onsubmit="return confirm('Confirmar leitura e aceite das informações desta página?');">
                     <input type="hidden" name="acao_aceitar" value="1">
-                    <button type="submit" class="btn-aceite">✓ Li e estou pronta(o) pra começar!</button>
+                    <button type="submit" class="btn-aceite">✓ Li e estou <?= g('pronta', 'pronto', $genero) ?> pra começar!</button>
                 </form>
             </div>
         <?php endif; ?>
