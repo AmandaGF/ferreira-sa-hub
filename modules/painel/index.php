@@ -415,7 +415,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $cor = $l['cor'] ?? 'amarelo';
                 if (!in_array($cor, array('amarelo','rosa','verde','azul','laranja','roxo'), true)) $cor = 'amarelo';
             ?>
-            <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>">
+            <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>" onclick="clickPostit(event, <?= $l['id'] ?>)" style="cursor:pointer;" title="Clique no fundo pra ver/editar; clique no título pra riscar">
                 <?php if (!empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#dc2626;">⚠ ATRASADO</span><?php endif; ?>
                 <?php if (!empty($l['futuro']) && empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#3b82f6;">📅 <?= date('d/m', strtotime($l['data_evento'])) ?></span><?php endif; ?>
                 <?php if (empty($l['atrasado']) && empty($l['futuro']) && $l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
@@ -560,6 +560,12 @@ function abrirModalLembrete() {
     document.getElementById('btnSalvarLembrete').textContent = 'Criar Lembrete';
     document.getElementById('modalLembrete').style.display = 'flex';
     setTimeout(function(){ document.getElementById('lembreteTitulo').focus(); }, 50);
+}
+// Clique no card do post-it: se nao for no titulo (que riscar)
+// nem nos botoes de acao, abre o modal de edicao para ver/editar.
+function clickPostit(e, id) {
+    if (e.target.closest('.pd-postit-titulo, .pd-postit-acoes, button, input, select, a')) return;
+    editarLembrete(id);
 }
 function editarLembrete(id) {
     fetch(LEMBRETE_API, { method: 'POST', body: _lemFD('obter_lembrete', {id: id}) })
