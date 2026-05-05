@@ -803,6 +803,17 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             <p style="font-size:.82rem;color:#065f46;margin-top:.5rem;">💚 É o nosso jeitinho de te lembrar que cuidar de você também faz parte da jornada.</p>
         </div>
 
+        <!-- SEGURO CONTRA ACIDENTES PESSOAIS -->
+        <div class="card-block" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;">
+            <div class="card-title-row">
+                <div class="card-title-icon" style="background:linear-gradient(135deg,#bfdbfe,#93c5fd);">🛡️</div>
+                <h2 style="color:#1e40af;">Você está protegida(o)</h2>
+            </div>
+            <p>Durante todo o período do seu estágio, você está coberta(o) por um <strong>seguro contra acidentes pessoais</strong>, contratado pelo escritório conforme exige o <strong>art. 9º, IV, da Lei 11.788/2008</strong>.</p>
+            <p style="margin-top:.5rem;">A apólice cobre lesões e demais sinistros decorrentes do exercício das atividades de estágio. Os <strong>dados da apólice</strong> (número e seguradora) aparecem no seu <strong>Termo de Compromisso de Estágio</strong>, e em até 30 dias você recebe uma cópia do comprovante.</p>
+            <p style="font-size:.82rem;color:#1e40af;margin-top:.6rem;">🔵 Se algo acontecer, fale com a gente o quanto antes — a gente cuida de tudo junto.</p>
+        </div>
+
         <!-- CONTRATO PARA ASSINATURA -->
         <?php if (!empty($reg['link_contrato_url'])): ?>
         <div class="card-block">
