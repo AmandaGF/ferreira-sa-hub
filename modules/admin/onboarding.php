@@ -120,6 +120,9 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN telefone_whats
 // Self-heal: local_presencial (endereço onde a colaboradora trabalha quando presencial/híbrido)
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN local_presencial VARCHAR(300) NULL AFTER modalidade"); } catch (Exception $e) {}
 
+// Self-heal: tamanho_camisa (P / M / G / GG) — escolhido pela propria colaboradora
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN tamanho_camisa VARCHAR(4) NULL"); } catch (Exception $e) {}
+
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
 // Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
@@ -321,7 +324,7 @@ if ($editId) {
 // ── Lista todos pendentes/ativos ─────────────────────────
 $lista = array();
 try {
-    $lista = $pdo->query("SELECT id, nome_completo, email_institucional, status, aceite_em, created_at, token
+    $lista = $pdo->query("SELECT id, nome_completo, email_institucional, status, aceite_em, created_at, token, tamanho_camisa
                           FROM colaboradores_onboarding
                           WHERE status != 'arquivado'
                           ORDER BY created_at DESC")->fetchAll();
@@ -620,6 +623,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <th>Nome</th>
                     <th>E-mail institucional</th>
                     <th>Status</th>
+                    <th>👕 Camisa</th>
                     <th>Cadastrado em</th>
                     <th>Aceite</th>
                     <th>Ações</th>
@@ -631,6 +635,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td><strong><?= e($r['nome_completo']) ?></strong></td>
                     <td><?= e($r['email_institucional'] ?: '—') ?></td>
                     <td><span class="ob-status <?= e($r['status']) ?>"><?= e($r['status']) ?></span></td>
+                    <td><?= !empty($r['tamanho_camisa']) ? '<strong style="color:#9f1239;">' . e($r['tamanho_camisa']) . '</strong>' : '<span style="color:#9ca3af;">—</span>' ?></td>
                     <td><?= e(data_hora_br($r['created_at'])) ?></td>
                     <td><?= $r['aceite_em'] ? '✓ ' . e(data_hora_br($r['aceite_em'])) : '—' ?></td>
                     <td style="white-space:nowrap;">

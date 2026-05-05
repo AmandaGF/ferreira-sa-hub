@@ -83,6 +83,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_aceitar']) && !e
     } catch (Exception $e) {}
 }
 
+// Salvar tamanho da camisa (action ajax dentro da propria pagina)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_tamanho_camisa']) && !empty($_SESSION[$sessKey])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $tam = strtoupper(trim($_POST['tamanho'] ?? ''));
+    if (!in_array($tam, array('P','M','G','GG'), true)) {
+        echo json_encode(array('ok' => false, 'erro' => 'Tamanho inválido'));
+        exit;
+    }
+    try {
+        $pdo->prepare("UPDATE colaboradores_onboarding SET tamanho_camisa = ? WHERE id = ?")
+            ->execute(array($tam, $reg['id']));
+        // Notificar admins (Amanda/Luiz) que a colaboradora escolheu o tamanho
+        try {
+            require_once __DIR__ . '/../../core/functions_notify.php';
+            if (function_exists('notify_admins')) {
+                notify_admins(
+                    '👕 Tamanho de camisa escolhido',
+                    htmlspecialchars($reg['nome_completo']) . ' escolheu tamanho ' . $tam . ' para o kit.',
+                    null
+                );
+            }
+        } catch (Exception $e) {}
+        echo json_encode(array('ok' => true, 'tamanho' => $tam));
+    } catch (Exception $e) {
+        echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
+    }
+    exit;
+}
+
 $autenticado = !empty($_SESSION[$sessKey]);
 
 // Carrega documentos vinculados quando ja autenticado
@@ -606,30 +635,70 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <?php endif; ?>
 
         <!-- KIT -->
-        <?php if ($reg['kit_descricao']): ?>
         <div class="card-block">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">🎁</div>
                 <h2>Seu kit de boas-vindas</h2>
             </div>
             <div class="kit-box">
-                <div class="kit-emoji">🎁</div>
-                <p><?= nl2br(htmlspecialchars($reg['kit_descricao'])) ?></p>
-                <p style="margin-top:.8rem;font-size:.85rem;opacity:.85;">Será entregue em breve! 💜</p>
+                <?php if ($reg['kit_descricao']): ?>
+                    <div class="kit-emoji">🎁</div>
+                    <p><?= nl2br(htmlspecialchars($reg['kit_descricao'])) ?></p>
+                    <p style="margin-top:.8rem;font-size:.85rem;opacity:.85;">Será entregue em breve! 💜</p>
+                <?php else: ?>
+                    <div class="kit-emoji">📦</div>
+                    <p>Seu kit está sendo preparado com muito carinho e será entregue em breve! 💜</p>
+                <?php endif; ?>
+
+                <!-- Tamanho da camisa -->
+                <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px dashed #f9a8d4;">
+                    <p style="font-size:.92rem;color:#831843;font-weight:700;margin-bottom:.5rem;">👕 Qual o tamanho da sua camisa?</p>
+                    <?php $tamAtual = isset($reg['tamanho_camisa']) ? $reg['tamanho_camisa'] : ''; ?>
+                    <div id="tamanhoWrap" style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;">
+                        <?php foreach (array('P','M','G','GG') as $t): ?>
+                            <button type="button" class="btn-tam <?= $tamAtual === $t ? 'sel' : '' ?>" data-tam="<?= $t ?>" onclick="escolherTamanho('<?= $t ?>', this)"><?= $t ?></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <p id="tamanhoMsg" style="font-size:.78rem;color:#9f1239;margin-top:.5rem;text-align:center;<?= $tamAtual ? '' : 'display:none;' ?>">
+                        <?= $tamAtual ? '✓ Tamanho ' . htmlspecialchars($tamAtual) . ' registrado!' : '' ?>
+                    </p>
+                </div>
             </div>
         </div>
-        <?php else: ?>
-        <div class="card-block">
-            <div class="card-title-row">
-                <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">🎁</div>
-                <h2>Seu kit de boas-vindas</h2>
-            </div>
-            <div class="kit-box">
-                <div class="kit-emoji">📦</div>
-                <p>Seu kit está sendo preparado com muito carinho e será entregue em breve! 💜</p>
-            </div>
-        </div>
-        <?php endif; ?>
+
+        <style>
+            .btn-tam {
+                background:#fff; border:1.5px solid #f9a8d4; color:#9f1239;
+                padding:.55rem 1.1rem; border-radius:8px; font-size:.95rem;
+                font-weight:700; cursor:pointer; min-width:54px; transition:all .15s;
+                font-family:inherit;
+            }
+            .btn-tam:hover { background:#fdf2f8; transform:translateY(-1px); }
+            .btn-tam.sel { background:linear-gradient(135deg,#db2777,#9f1239); color:#fff; border-color:#db2777; }
+        </style>
+
+        <script>
+            function escolherTamanho(tam, btn) {
+                if (!confirm('Confirmar tamanho ' + tam + ' para a camisa do kit?')) return;
+                var fd = new FormData();
+                fd.append('acao_tamanho_camisa', '1');
+                fd.append('tamanho', tam);
+                fetch(window.location.href, { method:'POST', body: fd })
+                    .then(function(r){ return r.json(); })
+                    .then(function(j){
+                        if (j && j.ok) {
+                            document.querySelectorAll('.btn-tam').forEach(function(b){ b.classList.remove('sel'); });
+                            btn.classList.add('sel');
+                            var msg = document.getElementById('tamanhoMsg');
+                            msg.textContent = '✓ Tamanho ' + tam + ' registrado!';
+                            msg.style.display = 'block';
+                        } else {
+                            alert('❌ ' + (j && j.erro ? j.erro : 'Erro ao salvar tamanho'));
+                        }
+                    })
+                    .catch(function(err){ alert('❌ ' + err.message); });
+            }
+        </script>
 
         <!-- PRINCÍPIOS / POSTURA -->
         <div class="card-block">
@@ -658,7 +727,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="princ-card">
                     <div class="princ-emoji">📱</div>
                     <h4>WhatsApp profissional</h4>
-                    <p>Use sempre os canais oficiais do escritório (não o pessoal). Mensagens claras, sem áudios longos. Assine como <strong>"Equipe Ferreira &amp; Sá Advocacia"</strong>.</p>
+                    <p>Use sempre os canais oficiais do escritório (não o pessoal). Mensagens claras, sem áudios longos.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">⏱️</div>
@@ -679,6 +748,12 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     <div class="princ-emoji">📚</div>
                     <h4>Atualização constante</h4>
                     <p>Direito muda toda hora. Reserve um tempo da semana para estudar, ler julgados e acompanhar as mudanças legislativas da sua área.</p>
+                    <p style="margin-top:.5rem;font-style:italic;color:var(--cobre);">Não se esqueça: a Profª Amanda também está aqui e essa troca agrega para todo mundo, inclusive para ela! 😉</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🤖</div>
+                    <h4>Tecnologia a seu favor</h4>
+                    <p>Use a tecnologia a seu favor! <strong>Inteligência Artificial é muito bem-vinda</strong>, mas não deixe de <strong>conferir as informações</strong>, dar o seu toque pessoal e — especialmente — <strong>conferir os julgados e artigos</strong> que ela mencionar.</p>
                 </div>
             </div>
         </div>

@@ -57,6 +57,7 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN genero VARCHAR
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN foto_path VARCHAR(300) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN telefone_whatsapp VARCHAR(20) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN local_presencial VARCHAR(300) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN tamanho_camisa VARCHAR(4) NULL"); } catch (Exception $e) {}
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS colaboradores_documentos (
         id INT AUTO_INCREMENT PRIMARY KEY,
