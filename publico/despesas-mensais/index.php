@@ -82,6 +82,9 @@ textarea{resize:vertical;min-height:70px}
 .reviewTable td{padding:7px 6px;border-bottom:1px solid var(--border)}
 .reviewTable tr:nth-child(even) td{background:#f9f6f3}
 .totalRow td{font-weight:700;background:rgba(106,60,44,.08)!important;border-top:2px solid var(--cobre)}
+/* Ícone "compartilhado/rateado" — tooltip ao passar o mouse */
+.shareTip{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:#B87333;color:#fff;font-size:.7rem;font-weight:700;margin-left:6px;cursor:help;vertical-align:middle;line-height:1;}
+.shareTip:hover{background:#8b5a26;}
 
 /* ========== TOAST ========== */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:12px 24px;border-radius:10px;font-size:.85rem;font-weight:600;color:#fff;z-index:999;opacity:0;transition:.3s;pointer-events:none}
@@ -146,6 +149,35 @@ textarea{resize:vertical;min-height:70px}
 <div class="header">
   <h1>Levantamento de Despesas Mensais</h1>
   <p>Preencha com calma. Ao final, os dados serão enviados ao escritório Ferreira &amp; Sá Advocacia.</p>
+</div>
+
+<!-- ====== ORIENTAÇÕES (banner colapsável) ====== -->
+<div style="background:linear-gradient(135deg,rgba(184,115,51,.08),rgba(184,115,51,.04));border:1px solid rgba(184,115,51,.3);border-left:5px solid #B87333;border-radius:10px;padding:14px 18px;margin-bottom:18px;">
+  <div onclick="document.getElementById('orientacoesBody').style.display=document.getElementById('orientacoesBody').style.display==='none'?'block':'none';this.querySelector('.orient-chevron').textContent=document.getElementById('orientacoesBody').style.display==='none'?'▸':'▾';" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-weight:700;color:#6a3c2c;font-size:.95rem;">
+    <span>📌 Antes de começar — leia as orientações importantes</span>
+    <span class="orient-chevron" style="font-size:.85rem;">▾</span>
+  </div>
+  <div id="orientacoesBody" style="margin-top:12px;font-size:.88rem;color:#4a2a1f;line-height:1.55;">
+    <div style="margin-bottom:14px;">
+      <strong>1. Tem mais de um filho?</strong> Preencha <u>uma planilha por filho</u>. Em cada uma, cadastre apenas os gastos relacionados àquele filho específico.
+    </div>
+    <div style="margin-bottom:14px;">
+      <strong>2. Como ratear gastos compartilhados</strong> (plano de celular, água, luz, internet, IPTU, condomínio, supermercado, etc.):<br>
+      Divida o valor pelo número de pessoas que usam. Ex.: plano familiar de R$ 200 com 4 linhas (você + 3 filhos) → coloque <strong>R$ 50</strong> em cada planilha de filho.<br>
+      <em>Atenção:</em> em <strong>Moradia</strong>, basta preencher o valor real e informar o número de moradores — o sistema divide automaticamente. Demais categorias você divide manualmente.
+    </div>
+    <div style="margin-bottom:14px;">
+      <strong>3. Filho que não mora com você (só visita)</strong>:<br>
+      Preencha apenas os gastos que efetivamente acontecem com ele. Ex.: alimentação dos dias de visita (4 visitas × R$ 50 = R$ 200/mês), presentes, vestuário que você compra. <strong>NÃO</strong> preencha moradia, escola ou plano de saúde se ele não usa esses recursos com você. Use o campo <em>"Convivência"</em> abaixo pra indicar a frequência.
+    </div>
+    <div style="margin-bottom:14px;">
+      <strong>4. Sua renda mensal</strong>:<br>
+      Coloque sua renda <u>TOTAL real</u> (ex.: R$ 6.000) em <u>todas</u> as planilhas. <strong>Não divida</strong> pelo número de filhos. O campo é a sua receita verdadeira — a advogada precisa dessa informação em cada análise.
+    </div>
+    <div>
+      <strong>5. Pensão recebida (se for o caso)</strong>: marque "Sim" no campo "Recebe pensão" e informe o valor. <u>Não some</u> a pensão à sua renda — são valores separados.
+    </div>
+  </div>
 </div>
 
 <!-- ====== PROGRESS BAR ====== -->
@@ -257,6 +289,22 @@ textarea{resize:vertical;min-height:70px}
   </div>
 
   <div class="row">
+    <div class="col-12">
+      <label>Convivência deste filho com você</label>
+      <select name="convivencia" data-store>
+        <option value="">Selecione</option>
+        <option value="mora_comigo">Mora comigo (convivência integral)</option>
+        <option value="visita_semanal">Visita semanal (fim de semana / dias alternados)</option>
+        <option value="visita_quinzenal">Visita quinzenal</option>
+        <option value="visita_mensal">Visita mensal</option>
+        <option value="visita_esporadica">Visita esporádica / nas férias</option>
+        <option value="nao_convive">Não convive com este filho</option>
+      </select>
+      <small style="color:#6b7280;font-size:.72rem;">Importante: se o filho só visita, preencha apenas os gastos que efetivamente acontecem com ele (alimentação dos dias de visita, presentes, etc.). Não preencha moradia, escola ou plano de saúde se ele não usa esses recursos com você.</small>
+    </div>
+  </div>
+
+  <div class="row">
     <div class="col-6">
       <label>Fonte de renda <span class="requiredMark">*</span></label>
       <select name="fonte_renda" class="requiredField" data-store>
@@ -325,24 +373,24 @@ textarea{resize:vertical;min-height:70px}
     </div>
   </div>
   <div class="row">
-    <div class="col-6"><label>Aluguel</label><input type="text" name="moradia_aluguel" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Condomínio</label><input type="text" name="moradia_condominio" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Aluguel <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores informado acima.">i</span></label><input type="text" name="moradia_aluguel" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Condomínio <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores informado acima.">i</span></label><input type="text" name="moradia_condominio" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
-    <div class="col-6"><label>IPTU (mensal)</label><input type="text" name="moradia_iptu" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Água</label><input type="text" name="moradia_agua" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>IPTU (mensal) <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_iptu" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Água <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_agua" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
-    <div class="col-6"><label>Luz</label><input type="text" name="moradia_luz" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Gás</label><input type="text" name="moradia_gas" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Luz <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_luz" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Gás <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_gas" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
-    <div class="col-6"><label>Internet</label><input type="text" name="moradia_internet" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Telefone fixo</label><input type="text" name="moradia_telefone" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Internet <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_internet" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Telefone fixo <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_telefone" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
-    <div class="col-6"><label>TV por assinatura</label><input type="text" name="moradia_tv" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Manutenção / Reparos</label><input type="text" name="moradia_manutencao" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>TV por assinatura <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_tv" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Manutenção / Reparos <span class="shareTip" title="Despesa de moradia: o sistema divide automaticamente pelo número de moradores.">i</span></label><input type="text" name="moradia_manutencao" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="btnRow">
     <button class="btn btnSecondary" onclick="goStep(0)">&larr; Voltar</button>
@@ -355,12 +403,12 @@ textarea{resize:vertical;min-height:70px}
   <h2>Alimentação</h2>
   <p class="stepSub">Gastos mensais com alimentação</p>
   <div class="row">
-    <div class="col-6"><label>Supermercado</label><input type="text" name="alim_supermercado" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Supermercado <span class="shareTip" title="Geralmente compartilhado: divida o valor proporcionalmente. Ex.: gasta R$ 1.200/mês, família de 4 → R$ 300 por pessoa. Coloque o que cabe a este filho.">i</span></label><input type="text" name="alim_supermercado" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
     <div class="col-6"><label>Feira / Hortifruti</label><input type="text" name="alim_feira" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
     <div class="col-6"><label>Açougue / Carnes</label><input type="text" name="alim_carnes" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Padaria</label><input type="text" name="alim_padaria" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Padaria <span class="shareTip" title="Geralmente compartilhado: divida o valor proporcionalmente entre os filhos.">i</span></label><input type="text" name="alim_padaria" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
     <div class="col-6"><label>Lanche escolar</label><input type="text" name="alim_lanche_escolar" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
@@ -515,7 +563,7 @@ textarea{resize:vertical;min-height:70px}
   </div>
   <div class="row">
     <div class="col-6"><label>Brinquedos / Jogos</label><input type="text" name="lazer_brinquedos" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Streaming (Netflix, Disney+...)</label><input type="text" name="lazer_streaming" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Streaming (Netflix, Disney+...) <span class="shareTip" title="Plano familiar — divida o valor pelo número de pessoas que usam. Ex.: R$ 60 com 4 pessoas → R$ 15 por planilha.">i</span></label><input type="text" name="lazer_streaming" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
     <div class="col-12"><label>Outros (lazer)</label><input type="text" name="lazer_outros" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
@@ -531,12 +579,12 @@ textarea{resize:vertical;min-height:70px}
   <h2>Tecnologia</h2>
   <p class="stepSub">Gastos mensais com tecnologia e comunicação</p>
   <div class="row">
-    <div class="col-6"><label>Plano de celular</label><input type="text" name="tech_celular" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Plano de celular <span class="shareTip" title="Plano familiar — divida o valor pelo número de linhas. Ex.: R$ 200 com 4 linhas → R$ 50 em cada planilha de filho. Se cada um tem plano individual, coloque o valor real do filho.">i</span></label><input type="text" name="tech_celular" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
     <div class="col-6"><label>Aparelho celular (parcela)</label><input type="text" name="tech_aparelho" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
     <div class="col-6"><label>Tablet / Notebook (parcela)</label><input type="text" name="tech_tablet" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
-    <div class="col-6"><label>Apps e assinaturas</label><input type="text" name="tech_apps" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Apps e assinaturas <span class="shareTip" title="Se for assinatura familiar (Spotify Família, iCloud, etc), divida pelo número de usuários.">i</span></label><input type="text" name="tech_apps" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
   <div class="row">
     <div class="col-6"><label>Internet para estudo</label><input type="text" name="tech_internet_estudo" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
