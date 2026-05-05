@@ -196,21 +196,28 @@ try {
     )->fetchAll();
 } catch (Exception $e) {}
 
-// Garante que o caso pré-selecionado (vindo de ?case_id=X da pasta do processo)
-// esteja sempre na lista, mesmo se cair fora dos 200 primeiros alfabético —
-// senão o <option selected> nunca encontra match e o dropdown abre em
-// "Sem vínculo a processo".
-if ($preCaseId > 0 && $preCase) {
+// Garante que o caso pré-selecionado (vindo de ?case_id=X da pasta do processo OU
+// do submit anterior via POST) esteja sempre na lista, mesmo se cair fora dos 200
+// primeiros alfabético — senão o <option selected> nunca encontra match e o
+// dropdown abre em "Sem vínculo a processo".
+$idsParaGarantir = array();
+if ($preCaseId > 0) $idsParaGarantir[] = (int)$preCaseId;
+$postCaseId = (int)(isset($_POST['case_id']) ? $_POST['case_id'] : 0);
+if ($postCaseId > 0) $idsParaGarantir[] = $postCaseId;
+$idsParaGarantir = array_unique($idsParaGarantir);
+
+foreach ($idsParaGarantir as $idGar) {
     $jaNaLista = false;
     foreach ($casesForSelect as $c) {
-        if ((int)$c['id'] === (int)$preCaseId) { $jaNaLista = true; break; }
+        if ((int)$c['id'] === $idGar) { $jaNaLista = true; break; }
     }
     if (!$jaNaLista) {
-        array_unshift($casesForSelect, array(
-            'id'          => $preCase['id'],
-            'title'       => $preCase['title'],
-            'case_number' => $preCase['case_number'],
-        ));
+        try {
+            $stmtG = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE id = ?");
+            $stmtG->execute(array($idGar));
+            $row = $stmtG->fetch();
+            if ($row) array_unshift($casesForSelect, $row);
+        } catch (Exception $e) {}
     }
 }
 
@@ -952,11 +959,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label class="field-label" for="caseSelect">
                             Processo <span class="optional">(opcional)</span>
                         </label>
+                        <?php
+                        // Mantém o caso selecionado: preferência POST (após submit) > GET (deep link).
+                        // Sem isso, ao clicar CALCULAR PRAZO o select resetava pra "sem vinculo"
+                        // e o botao "Salvar no processo" disparava o alert silenciosamente.
+                        $selectedCaseId = (int)(isset($_POST['case_id']) && $_POST['case_id'] !== ''
+                            ? $_POST['case_id']
+                            : $preCaseId);
+                        ?>
                         <select name="case_id" id="caseSelect" class="field-select">
                             <option value="">-- Sem vinculo a processo --</option>
                             <?php foreach ($casesForSelect as $c): ?>
                                 <option value="<?= (int)$c['id'] ?>"
-                                    <?php if ($preCaseId && $preCaseId == $c['id']): ?> selected<?php endif; ?>
+                                    <?php if ($selectedCaseId && $selectedCaseId == $c['id']): ?> selected<?php endif; ?>
                                 >
                                     <?= e($c['title'] ? $c['title'] : ($c['case_number'] ? $c['case_number'] : 'Processo #' . $c['id'])) ?>
                                     <?php if ($c['case_number']): ?> (<?= e($c['case_number']) ?>)<?php endif; ?>
