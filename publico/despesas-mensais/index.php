@@ -569,10 +569,48 @@ textarea{resize:vertical;min-height:70px}
   </div>
 </div>
 
-<!-- ===== STEP 10 — Outros Gastos ===== -->
+<!-- ===== STEP 10 — Gastos Eventuais / Anuais ===== -->
 <div class="card" data-step="10">
+  <h2>📌 Gastos Eventuais / Anuais</h2>
+  <p class="stepSub">Despesas que não são mensais — informe o <strong>valor anual</strong>. O sistema divide automaticamente por 12 ao calcular o gasto mensal real.</p>
+  <div class="row">
+    <div class="col-6"><label>Uniforme escolar (anual)</label><input type="text" name="eventual_uniforme" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Matrícula escolar (anual)</label><input type="text" name="eventual_matricula" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+  </div>
+  <div class="row">
+    <div class="col-6"><label>Material escolar (anual)</label><input type="text" name="eventual_material_escolar" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>IPVA (anual)</label><input type="text" name="eventual_ipva" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+  </div>
+  <div class="row">
+    <div class="col-6"><label>IPTU (anual)</label><input type="text" name="eventual_iptu" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Presentes (Natal, aniversários — anual)</label><input type="text" name="eventual_presentes" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+  </div>
+  <div class="row">
+    <div class="col-6"><label>Viagens / férias (anual)</label><input type="text" name="eventual_viagens" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+    <div class="col-6"><label>Médico / exames esporádicos (anual)</label><input type="text" name="eventual_medico_esporadico" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+  </div>
+  <div class="row">
+    <div class="col-12"><label>Outros gastos eventuais (anual)</label><input type="text" name="eventual_outros" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
+  </div>
+  <div class="row">
+    <div class="col-12">
+      <label>Descreva os outros gastos eventuais</label>
+      <textarea name="eventual_descricao" placeholder="Ex.: óculos novo, conserto carro, festa aniversário..." data-store></textarea>
+    </div>
+  </div>
+  <div style="background:rgba(184,115,51,.08);border-left:4px solid #B87333;padding:10px 14px;border-radius:6px;margin-top:12px;font-size:.82rem;color:#6a3c2c;">
+    💡 <strong>Como funciona:</strong> se você gastou R$ 600 de uniforme num ano, o sistema soma R$ 50/mês (600 ÷ 12) ao gasto mensal total — assim o orçamento real fica visível.
+  </div>
+  <div class="btnRow">
+    <button class="btn btnSecondary" onclick="goStep(9)">&larr; Voltar</button>
+    <button class="btn btnPrimary" onclick="goStep(11)">Próximo &rarr;</button>
+  </div>
+</div>
+
+<!-- ===== STEP 11 — Outros Gastos ===== -->
+<div class="card" data-step="11">
   <h2>Outros Gastos</h2>
-  <p class="stepSub">Despesas que não se encaixam nas categorias anteriores</p>
+  <p class="stepSub">Despesas mensais que não se encaixam nas categorias anteriores</p>
   <div class="row">
     <div class="col-12"><label>Outros gastos mensais</label><input type="text" name="outros_gastos" class="money" placeholder="R$ 0,00" data-cents="0" data-store></div>
   </div>
@@ -589,13 +627,13 @@ textarea{resize:vertical;min-height:70px}
     </div>
   </div>
   <div class="btnRow">
-    <button class="btn btnSecondary" onclick="goStep(9)">&larr; Voltar</button>
-    <button class="btn btnPrimary" onclick="goStep(11)">Revisar &rarr;</button>
+    <button class="btn btnSecondary" onclick="goStep(10)">&larr; Voltar</button>
+    <button class="btn btnPrimary" onclick="goStep(12)">Revisar &rarr;</button>
   </div>
 </div>
 
-<!-- ===== STEP 11 — Revisão ===== -->
-<div class="card" data-step="11">
+<!-- ===== STEP 12 — Revisão ===== -->
+<div class="card" data-step="12">
   <h2>Revisão e Envio</h2>
   <p class="stepSub">Confira os valores antes de enviar</p>
 
@@ -607,7 +645,7 @@ textarea{resize:vertical;min-height:70px}
   <div id="reviewContent"></div>
 
   <div class="btnRow" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <button class="btn btnSecondary" onclick="goStep(10)">&larr; Voltar e corrigir</button>
+    <button class="btn btnSecondary" onclick="goStep(11)">&larr; Voltar e corrigir</button>
     <button class="btn btnSuccess" id="submitBtn" onclick="submitForm()">Enviar ao escritório</button>
   </div>
 </div>
@@ -651,7 +689,7 @@ textarea{resize:vertical;min-height:70px}
    ========================================================== */
 
 const STORE_KEY = 'despesas_mensais_form_v1';
-const TOTAL_STEPS = 12; // 0..11
+const TOTAL_STEPS = 13; // 0..12 (Identificação..Enviar). Step 10 novo: Eventuais.
 let currentStep = 0;
 let chartInstance = null;
 let summaryChartInstance = null;
@@ -668,6 +706,7 @@ const CATEGORIES = [
   {key:'lazer',    label:'Lazer',        prefix:'lazer_'},
   {key:'tech',     label:'Tecnologia',   prefix:'tech_'},
   {key:'cuid',     label:'Cuidados',     prefix:'cuid_'},
+  {key:'eventual', label:'Eventuais (÷12)', prefix:'eventual_', mensalizar:12}, // Anuais → mensal: divide cents por 12
   {key:'outros',   label:'Outros',       prefix:'outros_'}
 ];
 
@@ -892,6 +931,10 @@ function updateSummaryKPIs(){
     document.querySelectorAll(`.money[name^="${cat.prefix}"]`).forEach(m=>{
       total+=+(m.dataset.cents||0);
     });
+    // Categoria com mensalizar:N divide por N (ex: eventuais anuais ÷ 12)
+    if (cat.mensalizar && cat.mensalizar > 1) {
+      total = Math.round(total / cat.mensalizar);
+    }
     const perPerson=(cat.key==='moradia')?Math.round(total/moradores):total;
     grandTotal+=perPerson;
     catTotals.push({label:cat.label,cents:perPerson});
@@ -962,15 +1005,18 @@ function buildReview(){
   const catTotals=[];
 
   CATEGORIES.forEach(cat=>{
-    let total=0;
+    let totalBruto=0;
     document.querySelectorAll(`.money[name^="${cat.prefix}"]`).forEach(m=>{
-      total+=+(m.dataset.cents||0);
+      totalBruto+=+(m.dataset.cents||0);
     });
+    // Eventuais (anuais): mostra total anual mas mensaliza pra somar no TOTAL MENSAL
+    const total = (cat.mensalizar && cat.mensalizar > 1) ? Math.round(totalBruto / cat.mensalizar) : totalBruto;
     const perPerson=(cat.key==='moradia')?Math.round(total/moradores):total;
     grandTotal+=perPerson;
     catTotals.push({label:cat.label,cents:perPerson});
-    if(total>0){
-      html+=`<tr><td>${cat.label}</td><td style="text-align:right">${formatBRL(total)}</td><td style="text-align:right">${formatBRL(perPerson)}</td></tr>`;
+    if(totalBruto>0){
+      const labelExtra = (cat.mensalizar && cat.mensalizar > 1) ? ` <small style="color:#888">(anual ${formatBRL(totalBruto)})</small>` : '';
+      html+=`<tr><td>${cat.label}${labelExtra}</td><td style="text-align:right">${formatBRL(total)}</td><td style="text-align:right">${formatBRL(perPerson)}</td></tr>`;
     }
   });
 
@@ -1054,12 +1100,17 @@ function buildPayload(){
   const moradores=payload.moradores;
   let grandTotal=0;
   CATEGORIES.forEach(cat=>{
-    let total=0;
+    let totalBruto=0;
     document.querySelectorAll(`.money[name^="${cat.prefix}"]`).forEach(m=>{
-      total+=+(m.dataset.cents||0);
+      totalBruto+=+(m.dataset.cents||0);
     });
+    // Eventuais (anuais): mensaliza pra somar no total geral, mas guarda o bruto também
+    const total = (cat.mensalizar && cat.mensalizar > 1) ? Math.round(totalBruto / cat.mensalizar) : totalBruto;
     const perPerson=(cat.key==='moradia')?Math.round(total/moradores):total;
     payload[`total_${cat.key}`]=perPerson;
+    if (cat.mensalizar && cat.mensalizar > 1) {
+      payload[`total_${cat.key}_anual`]=totalBruto; // pra advogada/escritório consultar o anual original
+    }
     grandTotal+=perPerson;
   });
   payload.total_geral=grandTotal;

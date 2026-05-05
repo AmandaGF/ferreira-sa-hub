@@ -4303,7 +4303,11 @@ function toggleVisibilidade(andId, btn) {
         if (x.status !== 200) { reverter('Erro de servidor (HTTP ' + x.status + '). Tente recarregar.'); return; }
         var r;
         try { r = JSON.parse(x.responseText); }
-        catch (e) { reverter('Resposta inválida — recarregue a página (F5).'); return; }
+        catch (e) {
+            console.error('[toggle_visibilidade] resposta nao-JSON:', x.responseText.substring(0, 500));
+            reverter('Resposta inválida — recarregue a página (F5).\n\nDetalhes no console do navegador (F12).');
+            return;
+        }
         if (r.csrf) andCsrf = r.csrf;
         if (r.ok) { aplicarEstado(novo); return; }
         reverter(r.error || 'Erro desconhecido ao salvar visibilidade.');

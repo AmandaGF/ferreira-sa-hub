@@ -1871,19 +1871,25 @@ switch ($action) {
         break;
 
     case 'toggle_visibilidade':
-        $andId = (int)($_POST['andamento_id'] ?? 0);
-        $visivel = (int)($_POST['visivel'] ?? 1);
-        if ($andId) {
-            try {
-                $pdo->prepare("UPDATE case_andamentos SET visivel_cliente = ? WHERE id = ?")
-                    ->execute(array($visivel, $andId));
-                audit_log('ANDAMENTO_VISIBILIDADE', 'andamento', $andId, $visivel ? 'visivel' : 'interno');
-            } catch (Exception $e) {}
+        // Blindagem total: limpa qualquer output (warnings/notices) que possa
+        // ter vazado antes do nosso JSON — assim a resposta é SEMPRE JSON puro.
+        // Frontend é 100% AJAX nessa action, não há fallback de form HTML.
+        while (ob_get_level() > 0) @ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $andId = (int)($_POST['andamento_id'] ?? 0);
+            $visivel = (int)($_POST['visivel'] ?? 1);
+            if (!$andId) { echo json_encode(array('ok' => false, 'error' => 'andamento_id ausente')); exit; }
+            $pdo->prepare("UPDATE case_andamentos SET visivel_cliente = ? WHERE id = ?")
+                ->execute(array($visivel, $andId));
+            try { audit_log('ANDAMENTO_VISIBILIDADE', 'andamento', $andId, $visivel ? 'visivel' : 'interno'); } catch (Exception $e) {}
+            $newCsrf = generate_csrf_token();
+            echo json_encode(array('ok' => true, 'visivel' => $visivel, 'csrf' => $newCsrf));
+        } catch (Throwable $e) {
+            @error_log('[toggle_visibilidade] ' . $e->getMessage());
+            echo json_encode(array('ok' => false, 'error' => 'Erro interno: ' . $e->getMessage()));
         }
-        $newCsrf = generate_csrf_token();
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'csrf' => $newCsrf)); exit; }
-        redirect(module_url('operacional'));
-        break;
+        exit;
 
     case 'edit_andamento':
         $andId = (int)($_POST['andamento_id'] ?? 0);
