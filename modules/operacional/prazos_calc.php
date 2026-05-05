@@ -73,25 +73,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             if (!$caseId) {
                 flash_set('error', 'Selecione um processo para salvar o prazo.');
             } else {
-            try {
-                $pdo->prepare(
-                    "INSERT INTO prazos_calculos (case_id, tipo_prazo, data_disponibilizacao, data_publicacao, data_inicio_contagem, quantidade, unidade, comarca, data_fatal, calculado_por)
-                     VALUES (?,?,?,?,?,?,?,?,?,?)"
-                )->execute(array(
-                    $caseId,
-                    $tipoPrazo ? $tipoPrazo : null,
-                    $resultado['disponibilizacao'],
-                    $resultado['publicacao'],
-                    $resultado['inicio_contagem'],
-                    $qtd,
-                    $unidade,
-                    $comarca ? $comarca : null,
-                    $resultado['data_fatal'],
-                    current_user_id()
-                ));
-            } catch (Exception $e) {}
+                // Coleta erros pra reportar ao usuario (ao inves de silenciar)
+                $errosSalvar = array();
+                $okHistorico = false; $okPrazoProc = false; $okEvento = false;
 
-            if ($caseId) {
+                // Self-heal da tabela prazos_calculos (caso ainda nao exista)
+                try {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS prazos_calculos (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        case_id INT NULL,
+                        tipo_prazo VARCHAR(100) NULL,
+                        data_disponibilizacao DATE NULL,
+                        data_publicacao DATE NULL,
+                        data_inicio_contagem DATE NULL,
+                        quantidade INT NULL,
+                        unidade VARCHAR(20) NULL,
+                        comarca VARCHAR(100) NULL,
+                        data_fatal DATE NULL,
+                        calculado_por INT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        INDEX idx_case (case_id), INDEX idx_fatal (data_fatal)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+                } catch (Exception $e) {}
+
+                try {
+                    $pdo->prepare(
+                        "INSERT INTO prazos_calculos (case_id, tipo_prazo, data_disponibilizacao, data_publicacao, data_inicio_contagem, quantidade, unidade, comarca, data_fatal, calculado_por)
+                         VALUES (?,?,?,?,?,?,?,?,?,?)"
+                    )->execute(array(
+                        $caseId,
+                        $tipoPrazo ? $tipoPrazo : null,
+                        $resultado['disponibilizacao'],
+                        $resultado['publicacao'],
+                        $resultado['inicio_contagem'],
+                        $qtd,
+                        $unidade,
+                        $comarca ? $comarca : null,
+                        $resultado['data_fatal'],
+                        current_user_id()
+                    ));
+                    $okHistorico = true;
+                } catch (Exception $e) {
+                    $errosSalvar[] = 'Histórico: ' . $e->getMessage();
+                    error_log('[prazos_calc] erro salvar historico: ' . $e->getMessage());
+                }
+
                 // Buscar client_id e numero_processo do caso
                 $clientIdPrazo = null;
                 $numProcPrazo = null;
@@ -103,7 +129,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                         $clientIdPrazo = (int)$cpRow['client_id'] ?: null;
                         $numProcPrazo = $cpRow['case_number'] ?: null;
                     }
-                } catch (Exception $e) {}
+                } catch (Exception $e) {
+                    $errosSalvar[] = 'Buscar caso: ' . $e->getMessage();
+                }
 
                 // Salvar em prazos_processuais (módulo de Prazos)
                 try {
@@ -117,7 +145,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                         $resultado['data_fatal'],
                         current_user_id()
                     ));
-                } catch (Exception $e) {}
+                    $okPrazoProc = true;
+                } catch (Exception $e) {
+                    $errosSalvar[] = 'Prazo processual: ' . $e->getMessage();
+                    error_log('[prazos_calc] erro prazos_processuais: ' . $e->getMessage());
+                }
 
                 // Salvar evento na agenda
                 try {
@@ -133,11 +165,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                         current_user_id(),
                         current_user_id()
                     ));
-                } catch (Exception $e) {}
-            }
+                    $okEvento = true;
+                } catch (Exception $e) {
+                    $errosSalvar[] = 'Evento agenda: ' . $e->getMessage();
+                    error_log('[prazos_calc] erro agenda_eventos: ' . $e->getMessage());
+                }
 
-            $salvoComSucesso = true;
-            flash_set('success', 'Prazo salvo no processo! Data fatal: ' . date('d/m/Y', strtotime($resultado['data_fatal'])));
+                if ($okPrazoProc) {
+                    $salvoComSucesso = true;
+                    $msgOk = 'Prazo salvo no processo! Data fatal: ' . date('d/m/Y', strtotime($resultado['data_fatal']));
+                    if (!$okEvento) $msgOk .= ' (atenção: não foi possível criar evento na agenda)';
+                    flash_set('success', $msgOk);
+                } else {
+                    flash_set('error', 'Erro ao salvar prazo: ' . (empty($errosSalvar) ? 'falha desconhecida' : implode(' | ', $errosSalvar)));
+                }
             } // fecha else do if(!$caseId)
         }
     } else {
@@ -1183,7 +1224,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $diasAte = (int)$resultado['dias_ate_prazo'];
                     if ($diasAte < 0) {
                         $diasClass = 'vencido';
-                        $diasTexto = 'PRAZO VENCIDO ha ' . abs($diasAte) . ' dia' . (abs($diasAte) !== 1 ? 's' : '');
+                        $diasTexto = 'PRAZO VENCIDO há ' . abs($diasAte) . ' dia' . (abs($diasAte) !== 1 ? 's' : '');
                         $diasIcon  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
                     } elseif ($diasAte === 0) {
                         $diasClass = 'urgente';
@@ -1191,15 +1232,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         $diasIcon  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
                     } elseif ($diasAte <= 3) {
                         $diasClass = 'urgente';
-                        $diasTexto = $diasAte . ' dia' . ($diasAte !== 1 ? 's' : '') . ' ate o prazo';
+                        $diasTexto = $diasAte . ' dia' . ($diasAte !== 1 ? 's' : '') . ' até o prazo';
                         $diasIcon  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
                     } elseif ($diasAte <= 7) {
                         $diasClass = 'atencao';
-                        $diasTexto = $diasAte . ' dias ate o prazo';
+                        $diasTexto = $diasAte . ' dias até o prazo';
                         $diasIcon  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
                     } else {
                         $diasClass = 'ok';
-                        $diasTexto = $diasAte . ' dias ate o prazo';
+                        $diasTexto = $diasAte . ' dias até o prazo';
                         $diasIcon  = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
                     }
                     ?>
