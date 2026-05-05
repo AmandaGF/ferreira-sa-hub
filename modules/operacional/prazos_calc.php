@@ -335,6 +335,19 @@ $extraCss = '
     transition: opacity var(--transition);
 }
 .preview-badge svg { width: 14px; height: 14px; opacity: .7; }
+.preview-explica {
+    margin-top: .5rem;
+    font-size: .72rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    background: #fef9c3;
+    border-left: 3px solid #f59e0b;
+    padding: .4rem .65rem;
+    border-radius: 0 6px 6px 0;
+    display: none;
+}
+.preview-explica.show { display: block; }
+.preview-explica strong { color: #92400e; }
 
 /* --- Quantity row --- */
 .qtd-row {
@@ -995,6 +1008,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 Início contagem: <strong id="previewInicio">--</strong>
                             </span>
                         </div>
+                        <div class="preview-explica" id="previewExplica"></div>
                     </div>
 
                     <!-- Quantidade + Unidade -->
@@ -1459,56 +1473,114 @@ document.addEventListener('DOMContentLoaded', function() {
     // Inicializar estado visual
     window.toggleModoJuntada(<?= !empty($_POST['modo_juntada']) ? 'true' : 'false' ?>);
 
-    // Feriados nacionais fixos (mes-dia). O calculo final no servidor ja considera
-    // feriados moveis (Carnaval, Sexta Santa, Corpus Christi) + suspensoes locais.
-    // Aqui no preview cobrimos apenas os fixos pra evitar surpresas comuns
-    // (Tiradentes 21/04, 1° Maio, 7 Set, etc.).
-    var _FERIADOS_NACIONAIS_FIXOS = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'];
+    // Feriados nacionais fixos (mes-dia → nome). O calculo final no servidor ja
+    // considera feriados moveis (Carnaval, Sexta Santa, Corpus Christi) + suspensoes
+    // locais. Aqui no preview cobrimos apenas os fixos pra evitar surpresas comuns.
+    var _FERIADOS_NACIONAIS_FIXOS = {
+        '01-01': 'Confraternização Universal',
+        '04-21': 'Tiradentes',
+        '05-01': 'Dia do Trabalho',
+        '09-07': 'Independência',
+        '10-12': 'Nossa Senhora Aparecida',
+        '11-02': 'Finados',
+        '11-15': 'Proclamação da República',
+        '11-20': 'Consciência Negra',
+        '12-25': 'Natal'
+    };
 
-    function _isFeriadoFixo(dt) {
+    function _motivoNaoUtil(dt) {
+        if (dt.getDay() === 0) return 'Domingo';
+        if (dt.getDay() === 6) return 'Sábado';
         var mm = ('0' + (dt.getMonth() + 1)).slice(-2);
         var dd = ('0' + dt.getDate()).slice(-2);
-        return _FERIADOS_NACIONAIS_FIXOS.indexOf(mm + '-' + dd) !== -1;
+        var nome = _FERIADOS_NACIONAIS_FIXOS[mm + '-' + dd];
+        if (nome) return nome + ' (feriado)';
+        return null;
     }
 
-    function _avancaProximoUtil(dt) {
-        // Pula sabado/domingo + feriados nacionais fixos
+    // Avanca a partir de "dt" pulando dias nao uteis e devolvendo a lista
+    // dos saltos (cada salto = {data, motivo}). O ultimo elemento da lista e'
+    // o dia util onde o ponteiro parou. Se ja for dia util, lista tem 1 item.
+    function _proximoUtilComTrilha(dt) {
+        var trilha = [];
         var max = 30;
-        while (max-- > 0 && (dt.getDay() === 0 || dt.getDay() === 6 || _isFeriadoFixo(dt))) {
-            dt.setDate(dt.getDate() + 1);
+        while (max-- > 0) {
+            var motivo = _motivoNaoUtil(dt);
+            if (motivo) {
+                trilha.push({ data: new Date(dt.getTime()), motivo: motivo, util: false });
+                dt.setDate(dt.getDate() + 1);
+            } else {
+                trilha.push({ data: new Date(dt.getTime()), motivo: null, util: true });
+                break;
+            }
         }
+        return trilha;
+    }
+
+    // Coleta os "saltos" (dias nao uteis) intermediarios numa trilha,
+    // ignorando o ultimo item (que e' o dia util onde parou).
+    function _saltosDeTrilha(trilha) {
+        var s = [];
+        for (var i = 0; i < trilha.length; i++) {
+            if (!trilha[i].util) s.push(trilha[i]);
+        }
+        return s;
     }
 
     function previewCalculo() {
         var data = document.getElementById('dataDisp').value;
         var qtd  = document.getElementById('quantidade').value;
+        var explicaEl = document.getElementById('previewExplica');
+        if (explicaEl) { explicaEl.classList.remove('show'); explicaEl.innerHTML = ''; }
         if (!data || !qtd) {
             document.getElementById('previewRow').style.display = 'none';
             return;
         }
         var dt = new Date(data + 'T12:00:00');
+        var saltosTotais = [];
 
         if (_modoJuntada) {
-            // Juntada: D+1 útil = início contagem (sem publicação)
+            // Juntada: D+1 = dia seguinte; se nao for util, salta ate util.
             document.getElementById('previewPubLabel').textContent = 'Juntada';
             document.getElementById('previewPub').textContent = formatDateBR(dt);
             document.getElementById('previewInicioWrap').style.display = '';
 
             dt.setDate(dt.getDate() + 1);
-            _avancaProximoUtil(dt);
-            document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (D+1 útil)';
+            var trilha = _proximoUtilComTrilha(dt);
+            var dtUtil = trilha[trilha.length - 1].data;
+            saltosTotais = _saltosDeTrilha(trilha);
+
+            // Mostra a data util como inicio da contagem
+            var label = (saltosTotais.length === 0) ? ' (D+1 útil)' : ' (próximo dia útil)';
+            document.getElementById('previewInicio').textContent = formatDateBR(dtUtil) + label;
         } else {
-            // DJe: D+1 útil = publicação, D+2 útil = início
+            // DJe: D+1 = publicacao (proximo util); D+2 = inicio (proximo util apos pub)
             document.getElementById('previewPubLabel').textContent = 'Publicação (D+1)';
             document.getElementById('previewInicioWrap').style.display = '';
 
             dt.setDate(dt.getDate() + 1);
-            _avancaProximoUtil(dt);
-            document.getElementById('previewPub').textContent = formatDateBR(dt) + ' (aprox.)';
+            var trilhaPub = _proximoUtilComTrilha(dt);
+            var dtPub = trilhaPub[trilhaPub.length - 1].data;
+            document.getElementById('previewPub').textContent = formatDateBR(dtPub) + ' (aprox.)';
+            saltosTotais = saltosTotais.concat(_saltosDeTrilha(trilhaPub));
 
-            dt.setDate(dt.getDate() + 1);
-            _avancaProximoUtil(dt);
-            document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (aprox.)';
+            var dtIni = new Date(dtPub.getTime());
+            dtIni.setDate(dtIni.getDate() + 1);
+            var trilhaIni = _proximoUtilComTrilha(dtIni);
+            saltosTotais = saltosTotais.concat(_saltosDeTrilha(trilhaIni));
+            document.getElementById('previewInicio').textContent = formatDateBR(trilhaIni[trilhaIni.length - 1].data) + ' (aprox.)';
+        }
+
+        // Se houve saltos, gera explicacao amarela abaixo dos pills
+        if (saltosTotais.length > 0 && explicaEl) {
+            var html = '⚠ Atenção: ';
+            var partes = [];
+            for (var i = 0; i < saltosTotais.length; i++) {
+                partes.push('<strong>' + formatDateBR(saltosTotais[i].data) + '</strong> é ' + saltosTotais[i].motivo);
+            }
+            html += partes.join('; ') + '. Por isso, o início da contagem é o <strong>próximo dia útil</strong>.';
+            explicaEl.innerHTML = html;
+            explicaEl.classList.add('show');
         }
 
         document.getElementById('previewRow').style.display = 'flex';
