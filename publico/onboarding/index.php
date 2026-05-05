@@ -430,7 +430,6 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
                      onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
-            <div class="hero-subtitle">Advocacia Especializada</div>
             <div class="hero-emoji">🔒</div>
             <h1>Acesso ao seu portal de boas-vindas</h1>
             <p>Para abrir a página, confirme seus dados.</p>
@@ -466,7 +465,6 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
                      onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
-            <div class="hero-subtitle">Advocacia Especializada</div>
             <?php if ($fotoColab): ?>
                 <div class="hero-foto-colab">
                     <img src="<?= htmlspecialchars($fotoColab) ?>" alt="<?= htmlspecialchars($primeiroNome) ?>" onerror="this.parentNode.style.display='none';">
