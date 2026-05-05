@@ -129,6 +129,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tipoCobranca = $_POST['tipo_cobranca'] ?? 'fixo';
     $percentualRisco = $_POST['percentual_risco'] ?? '30';
     $baseRisco = $_POST['base_risco'] ?? 'do proveito econômico obtido';
+    // Campos específicos do Salário-Maternidade (personalização)
+    $smModo = $_POST['sm_modo'] ?? 'padrao';
+    $smTipoHonorario = $_POST['sm_tipo_honorario'] ?? 'percentual';
+    $smPercentual = $_POST['sm_percentual'] ?? '30';
+    $smNumParcelasBeneficio = $_POST['sm_num_parcelas_beneficio'] ?? '4';
+    $smValorTotal = $_POST['sm_valor_total'] ?? '';
+    $smNumParcelas = $_POST['sm_num_parcelas'] ?? '';
+    $smValorParcela = $_POST['sm_valor_parcela'] ?? '';
+    $smFormaPagamento = $_POST['sm_forma_pagamento'] ?? 'PIX';
+    $smObservacao = $_POST['sm_observacao'] ?? '';
     if ($acaoTexto === '' && isset($_POST['acao_custom'])) $acaoTexto = strtoupper($_POST['acao_custom']);
 }
 
@@ -504,8 +514,109 @@ if (!$showEditor) {
         <div class="section">
             <?php if ($isSm): ?>
             <div style="background:linear-gradient(135deg,#fdf2f8,#fbcfe8);border:1px solid #f9a8d4;border-radius:10px;padding:12px 16px;margin-bottom:.75rem;font-size:.85rem;color:#9f1239;">
-                🤰 <strong>Modelo Salário-Maternidade (Previdenciário)</strong> — honorários fixos em <strong>30% sobre cada uma das 4 parcelas</strong> do benefício. Não preencha valor/parcelas; só os dados pessoais da CONTRATANTE acima.
+                🤰 <strong>Modelo Salário-Maternidade (Previdenciário)</strong> — honorários no padrão são <strong>30% sobre cada uma das 4 parcelas</strong>. Você pode personalizar abaixo se houver acordo diferente com a cliente.
             </div>
+
+            <!-- Escolha: padrão ou personalizado -->
+            <div style="margin-bottom:1rem;">
+                <label style="font-size:.82rem;font-weight:700;color:#9f1239;">Forma de cobrança</label>
+                <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
+                    <label style="flex:1;min-width:240px;display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.55rem .8rem;border:2px solid #db2777;background:linear-gradient(135deg,#fdf2f8,#fbcfe8);border-radius:10px;font-size:.85rem;color:#9f1239;font-weight:700;" id="sm_modo_padrao_lbl">
+                        <input type="radio" name="sm_modo" value="padrao" checked onchange="toggleSmModo()" style="accent-color:#db2777;">
+                        🤰 Padrão — 30% sobre 4 parcelas
+                    </label>
+                    <label style="flex:1;min-width:240px;display:flex;align-items:center;gap:.4rem;cursor:pointer;padding:.55rem .8rem;border:2px solid #e5e7eb;background:#fff;border-radius:10px;font-size:.85rem;color:#6b7280;" id="sm_modo_custom_lbl">
+                        <input type="radio" name="sm_modo" value="personalizado" onchange="toggleSmModo()" style="accent-color:#db2777;">
+                        ⚙️ Personalizar
+                    </label>
+                </div>
+            </div>
+
+            <!-- Bloco de personalização (oculto por padrão) -->
+            <div id="bloco_sm_custom" style="display:none;background:#fff7ed;border:1.5px dashed #d7ab90;border-radius:10px;padding:14px 16px;margin-bottom:1rem;">
+                <div style="font-size:.82rem;font-weight:700;color:#6a3c2c;margin-bottom:.6rem;">Personalização do contrato Salário-Maternidade</div>
+
+                <!-- Tipo de honorário: percentual ou valor fixo -->
+                <div style="margin-bottom:.75rem;">
+                    <label>Tipo de honorário</label>
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="sm_tipo_pct_lbl">
+                            <input type="radio" name="sm_tipo_honorario" value="percentual" checked onchange="toggleSmTipo()"> 📊 Percentual sobre parcelas
+                        </label>
+                        <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="sm_tipo_fixo_lbl">
+                            <input type="radio" name="sm_tipo_honorario" value="fixo" onchange="toggleSmTipo()"> 💰 Valor fixo
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Campos para percentual -->
+                <div id="sm_campos_pct">
+                    <div class="row">
+                        <div><label>Percentual (%)</label><input name="sm_percentual" type="number" min="1" max="100" step="0.01" placeholder="Ex: 30" value="30"></div>
+                        <div><label>Nº de parcelas do benefício</label><input name="sm_num_parcelas_beneficio" type="number" min="1" max="12" placeholder="Ex: 4" value="4"></div>
+                    </div>
+                </div>
+
+                <!-- Campos para valor fixo -->
+                <div id="sm_campos_fixo" style="display:none;">
+                    <div class="row">
+                        <div><label>Valor total (R$)</label><input name="sm_valor_total" id="smValorTotal" placeholder="Digite o valor..." oninput="mascaraReal(this); calcSmParcela();"></div>
+                        <div><label>Nº de parcelas</label><input name="sm_num_parcelas" id="smNumParcelas" type="number" min="1" placeholder="Ex: 4" oninput="calcSmParcela()"></div>
+                    </div>
+                    <div class="row">
+                        <div><label>Valor da parcela <span style="color:#059669;font-size:.7rem;">(auto)</span></label><input name="sm_valor_parcela" id="smValorParcela" placeholder="Calculado automaticamente..." style="color:#059669;" readonly></div>
+                        <div><label>Forma de pagamento</label>
+                            <select name="sm_forma_pagamento">
+                                <option value="PIX">PIX</option>
+                                <option value="BOLETO BANCÁRIO">Boleto Bancário</option>
+                                <option value="TRANSFERÊNCIA BANCÁRIA">Transferência</option>
+                                <option value="CARTÃO DE CRÉDITO">Cartão de Crédito</option>
+                                <option value="DESCONTO EM PRECATÓRIO/RPV">Desconto em precatório/RPV</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Observação adicional -->
+                <div style="margin-top:.5rem;">
+                    <label>Observação (opcional)</label>
+                    <input name="sm_observacao" placeholder="Ex: 50% no recebimento administrativo + 50% no judicial">
+                </div>
+            </div>
+
+            <script>
+                function toggleSmModo() {
+                    var modo = document.querySelector('input[name="sm_modo"]:checked').value;
+                    var isCustom = (modo === 'personalizado');
+                    document.getElementById('bloco_sm_custom').style.display = isCustom ? 'block' : 'none';
+                    // Visual feedback nos cards
+                    var lblPad = document.getElementById('sm_modo_padrao_lbl');
+                    var lblCus = document.getElementById('sm_modo_custom_lbl');
+                    if (isCustom) {
+                        lblPad.style.borderColor = '#e5e7eb'; lblPad.style.background = '#fff'; lblPad.style.color = '#6b7280';
+                        lblCus.style.borderColor = '#db2777'; lblCus.style.background = 'linear-gradient(135deg,#fdf2f8,#fbcfe8)'; lblCus.style.color = '#9f1239'; lblCus.style.fontWeight = '700';
+                    } else {
+                        lblPad.style.borderColor = '#db2777'; lblPad.style.background = 'linear-gradient(135deg,#fdf2f8,#fbcfe8)'; lblPad.style.color = '#9f1239';
+                        lblCus.style.borderColor = '#e5e7eb'; lblCus.style.background = '#fff'; lblCus.style.color = '#6b7280'; lblCus.style.fontWeight = '500';
+                    }
+                }
+                function toggleSmTipo() {
+                    var tipo = document.querySelector('input[name="sm_tipo_honorario"]:checked').value;
+                    document.getElementById('sm_campos_pct').style.display = (tipo === 'percentual') ? 'block' : 'none';
+                    document.getElementById('sm_campos_fixo').style.display = (tipo === 'fixo') ? 'block' : 'none';
+                }
+                function calcSmParcela() {
+                    var v = document.getElementById('smValorTotal').value.replace(/[^\d,]/g, '').replace(',', '.');
+                    var n = parseInt(document.getElementById('smNumParcelas').value) || 0;
+                    var total = parseFloat(v) || 0;
+                    if (total > 0 && n > 0) {
+                        var parcela = total / n;
+                        document.getElementById('smValorParcela').value = 'R$ ' + parcela.toFixed(2).replace('.', ',');
+                    } else {
+                        document.getElementById('smValorParcela').value = '';
+                    }
+                }
+            </script>
             <?php else: ?>
             <h4>💵 Dados financeiros do contrato</h4>
             <?php endif; ?>
@@ -1172,6 +1283,16 @@ if (!$showEditor) {
         'tipo_cobranca' => $tipoCobranca,
         'percentual_risco' => $percentualRisco,
         'base_risco' => $baseRisco,
+        // Salário-Maternidade — personalização opcional
+        'sm_modo' => $smModo,
+        'sm_tipo_honorario' => $smTipoHonorario,
+        'sm_percentual' => $smPercentual,
+        'sm_num_parcelas_beneficio' => $smNumParcelasBeneficio,
+        'sm_valor_total' => $smValorTotal,
+        'sm_num_parcelas' => $smNumParcelas,
+        'sm_valor_parcela' => $smValorParcela,
+        'sm_forma_pagamento' => $smFormaPagamento,
+        'sm_observacao' => $smObservacao,
         'numero_processo' => $numeroProcesso,
         'vara_juizo' => $varaJuizo,
         'lista_documentos' => $listaDocumentos,
