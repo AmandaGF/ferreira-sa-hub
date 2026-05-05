@@ -86,6 +86,21 @@ echo voltar_ao_processo_html();
 
 .section-box { display:none; margin-bottom:1.5rem; }
 .section-box.visible { display:block; }
+
+/* Sub-tipo de contrato (Padrão / Salário-Maternidade) */
+.subcontr-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:.6rem; margin-top:.5rem; }
+.subcontr-card {
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px;
+    padding:14px 16px; border:2px solid #e5e7eb; border-radius:12px; cursor:pointer;
+    transition:all .15s; background:#fff;
+}
+.subcontr-card:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
+.subcontr-card input { display:none; }
+.subcontr-card.padrao.selected { border-color:#059669; background:linear-gradient(135deg,#ecfdf5,#d1fae5); box-shadow:0 4px 12px rgba(5,150,105,.18); }
+.subcontr-card.sm.selected { border-color:#db2777; background:linear-gradient(135deg,#fdf2f8,#fbcfe8); box-shadow:0 4px 12px rgba(219,39,119,.18); }
+.subcontr-ico { font-size:2rem; line-height:1; }
+.subcontr-titulo { font-size:.95rem; font-weight:800; color:#052228; }
+.subcontr-desc { font-size:.72rem; color:#6b7280; line-height:1.3; }
 </style>
 
 <div class="card">
@@ -105,6 +120,25 @@ echo voltar_ao_processo_html();
                     <div class="doc-desc"><?= $doc['desc'] ?></div>
                 </label>
                 <?php endforeach; ?>
+            </div>
+
+            <!-- Sub-tipo de Contrato (aparece só quando seleciona "Contrato de Honorários") -->
+            <div class="section-box" id="subContratoSection">
+                <p class="form-label" style="font-size:.88rem;margin-bottom:.5rem;">Modelo do contrato</p>
+                <div class="subcontr-grid">
+                    <label class="subcontr-card padrao selected" id="sub-padrao" onclick="selectSubContrato('padrao')">
+                        <input type="radio" name="subtipo_contrato" value="padrao" checked>
+                        <span class="subcontr-ico">📝</span>
+                        <span class="subcontr-titulo">Contrato Padrão</span>
+                        <span class="subcontr-desc">Honorários <strong>fixos</strong> ou <strong>contrato de risco</strong></span>
+                    </label>
+                    <label class="subcontr-card sm" id="sub-salario_maternidade" onclick="selectSubContrato('salario_maternidade')">
+                        <input type="radio" name="subtipo_contrato" value="salario_maternidade">
+                        <span class="subcontr-ico">🤰</span>
+                        <span class="subcontr-titulo">Salário-Maternidade</span>
+                        <span class="subcontr-desc">Previdenciário — <strong>30% sobre 4 parcelas</strong></span>
+                    </label>
+                </div>
             </div>
 
             <!-- 2. Tipo de ação (aparece para procuração e contrato) -->
@@ -224,20 +258,29 @@ function selectDoc(tipo) {
 
     var acaoSection = document.getElementById('acaoSection');
     var outorganteSection = document.getElementById('outorganteSection');
+    var subContratoSection = document.getElementById('subContratoSection');
     var stepNum = document.getElementById('stepNum');
 
     if (tipo === 'procuracao' || tipo === 'contrato' || tipo === 'substabelecimento') {
         acaoSection.classList.add('visible');
         stepNum.textContent = '3';
-        if (tipo === 'procuracao') {
-            outorganteSection.style.display = 'block';
-        } else {
-            outorganteSection.style.display = 'none';
-        }
+        outorganteSection.style.display = (tipo === 'procuracao') ? 'block' : 'none';
+        if (subContratoSection) subContratoSection.classList.toggle('visible', tipo === 'contrato');
     } else {
         acaoSection.classList.remove('visible');
         outorganteSection.style.display = 'none';
+        if (subContratoSection) subContratoSection.classList.remove('visible');
         stepNum.textContent = '2';
+    }
+}
+
+function selectSubContrato(key) {
+    document.querySelectorAll('.subcontr-card').forEach(function(c){ c.classList.remove('selected'); });
+    var card = document.getElementById('sub-' + key);
+    if (card) {
+        card.classList.add('selected');
+        var radio = card.querySelector('input');
+        if (radio) radio.checked = true;
     }
 }
 

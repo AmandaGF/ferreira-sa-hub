@@ -505,17 +505,18 @@ if (!$showEditor) {
                 .contr-card-titulo { font-size:.95rem; font-weight:800; color:#052228; }
                 .contr-card-desc { font-size:.7rem; color:#6b7280; line-height:1.3; }
             </style>
+            <?php $preSubtipo = ($_GET['subtipo_contrato'] ?? '') === 'salario_maternidade' ? 'sm' : 'padrao'; ?>
             <div style="margin-bottom:1rem;">
                 <label>Escolha o modelo</label>
                 <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
-                    <label class="contr-card padrao sel" id="lbl_padrao" onclick="setTimeout(toggleSubtipoContrato,10)">
-                        <input type="radio" name="subtipo_contrato" value="padrao" checked onchange="toggleSubtipoContrato()">
+                    <label class="contr-card padrao<?= $preSubtipo === 'padrao' ? ' sel' : '' ?>" id="lbl_padrao" onclick="setTimeout(toggleSubtipoContrato,10)">
+                        <input type="radio" name="subtipo_contrato" value="padrao" <?= $preSubtipo === 'padrao' ? 'checked' : '' ?> onchange="toggleSubtipoContrato()">
                         <span class="contr-card-ico">📝</span>
                         <span class="contr-card-titulo">Contrato Padrão</span>
                         <span class="contr-card-desc">Honorários <strong>fixos</strong> ou <strong>contrato de risco</strong></span>
                     </label>
-                    <label class="contr-card sm" id="lbl_sm" onclick="setTimeout(toggleSubtipoContrato,10)">
-                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" onchange="toggleSubtipoContrato()">
+                    <label class="contr-card sm<?= $preSubtipo === 'sm' ? ' sel' : '' ?>" id="lbl_sm" onclick="setTimeout(toggleSubtipoContrato,10)">
+                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" <?= $preSubtipo === 'sm' ? 'checked' : '' ?> onchange="toggleSubtipoContrato()">
                         <span class="contr-card-ico">🤰</span>
                         <span class="contr-card-titulo">Salário-Maternidade</span>
                         <span class="contr-card-desc">Previdenciário — <strong>30% sobre 4 parcelas</strong></span>
@@ -734,6 +735,8 @@ if (!$showEditor) {
             if (waEl && waEl.value) mascaraTelefone(waEl);
             var procEls = document.querySelectorAll('input[name="numero_processo"]');
             procEls.forEach(function(el) { if (el.value) mascaraProcesso(el); });
+            // Aplica visual do sub-tipo de contrato vindo via GET (selecionado em index.php)
+            if (typeof toggleSubtipoContrato === 'function') toggleSubtipoContrato();
         });
         </script>
         <?php endif; ?>
