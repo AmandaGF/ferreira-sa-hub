@@ -379,8 +379,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN arquivado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
         $lembretes = array();
         try {
-            $stmtLR = $pdo->prepare("SELECT * FROM eventos_dia WHERE usuario_id = ? AND data_evento = ? AND tipo = 'lembrete' AND IFNULL(arquivado,0) = 0 ORDER BY concluido ASC, hora_inicio ASC, criado_em ASC");
-            $stmtLR->execute(array($viewUserId, $hoje));
+            // Mostra lembretes de HOJE + em aberto atrasados (de dias passados, não concluídos, não arquivados)
+            // Antes: filtro só pegava data_evento = hoje, e lembretes pendentes de ontem sumiam.
+            $stmtLR = $pdo->prepare("SELECT *,
+                                            (data_evento < ? AND concluido = 0) AS atrasado
+                                     FROM eventos_dia
+                                     WHERE usuario_id = ? AND tipo = 'lembrete'
+                                       AND IFNULL(arquivado,0) = 0
+                                       AND (data_evento = ? OR (data_evento < ? AND concluido = 0))
+                                     ORDER BY atrasado DESC, concluido ASC, hora_inicio ASC, criado_em ASC");
+            $stmtLR->execute(array($hoje, $viewUserId, $hoje, $hoje));
             $lembretes = $stmtLR->fetchAll();
         } catch (Exception $e) {}
         if (empty($lembretes)): ?>
@@ -396,9 +404,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 if (!in_array($cor, array('amarelo','rosa','verde','azul','laranja','roxo'), true)) $cor = 'amarelo';
             ?>
             <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>">
-                <?php if ($l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
-                <?php if ($l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
+                <?php if (!empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#dc2626;">⚠ ATRASADO</span><?php endif; ?>
+                <?php if (empty($l['atrasado']) && $l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
+                <?php if (empty($l['atrasado']) && $l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
                 <div class="pd-postit-titulo" onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Clique pra desfazer' : 'Clique pra cumprir (riscar)' ?>"><?= e($l['titulo']) ?></div>
+                <?php if (!empty($l['atrasado'])): ?>
+                    <div class="pd-postit-meta" style="color:#b91c1c;font-weight:600;">📅 de <?= date('d/m', strtotime($l['data_evento'])) ?></div>
+                <?php endif; ?>
                 <?php if ($l['hora_inicio']): ?><div class="pd-postit-meta">⏰ <?= date('H:i', strtotime($l['hora_inicio'])) ?></div><?php endif; ?>
                 <div class="pd-postit-acoes">
                     <button onclick="abrirCorLembrete(<?= $l['id'] ?>, this)" title="Trocar cor">🎨</button>
