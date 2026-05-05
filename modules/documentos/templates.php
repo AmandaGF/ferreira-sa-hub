@@ -59,7 +59,7 @@ function enderecamento($d) {
 
 /**
  * Gera qualificação da parte com legitimidade ativa (próprio ou menor representado)
- * Retorna: "FULANO, já qualificado(a) nos autos" ou "MENOR, representado(a) por FULANO, já qualificados nos autos"
+ * Retorna: "FULANO, parte já qualificada nos autos" ou "MENOR, parte representada por sua genitora FULANO, já qualificada nos autos"
  */
 function qualificacao_legitimidade($d) {
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : 'proprio';
@@ -74,7 +74,7 @@ function qualificacao_legitimidade($d) {
         $parteTexto = $multiplos ? 'partes representadas' : 'parte representada';
         return '<strong>' . f($nomeFilhos) . '</strong>, ' . $parteTexto . ' por sua genitora <strong>' . f($d['nome']) . '</strong>, já qualificada nos autos';
     }
-    return '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+    return '<strong>' . f($d['nome']) . '</strong>, parte já qualificada nos autos';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -595,7 +595,7 @@ function template_ciencia($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' nos autos do processo em epígrafe, vem, respeitosamente, por intermédio de sua advogada que esta subscreve, exarar</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, por intermédio de sua advogada que esta subscreve, exarar</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CIÊNCIA</div>';
 
@@ -847,7 +847,7 @@ function template_audiencia_remota($d) {
         $html .= '<strong style="font-variant:small-caps;">' . f($nomeFilhos) . '</strong>, ' . $parteTexto . ' por sua genitora <strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificada nos autos';
         $verbo = $multiplos ? 'vêm' : 'vem';
     } else {
-        $html .= '<strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, já qualificado(a) nos autos';
+        $html .= '<strong style="font-variant:small-caps;">' . f($d['nome']) . '</strong>, parte já qualificada nos autos';
         $verbo = 'vem';
     }
 
@@ -935,7 +935,7 @@ function template_mandado_pagamento($d) {
 
     // Qualificação
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
-    $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos em epígrafe, vem, por intermédio de sua advogada que esta assina digitalmente, requerer a <strong>expedição de mandado de pagamento eletrônico</strong> do depósito judicial realizado, em benefício ';
+    $html .= '<strong>' . f($d['nome']) . '</strong>, parte já qualificada nos autos em epígrafe, vem, por intermédio de sua advogada que esta assina digitalmente, requerer a <strong>expedição de mandado de pagamento eletrônico</strong> do depósito judicial realizado, em benefício ';
 
     if ($beneficiario === 'escritorio') {
         $html .= 'do Escritório de Advocacia contratado (procuração em p. ' . f($pagProc) . ').</p>';
