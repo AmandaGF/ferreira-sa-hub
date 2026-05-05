@@ -446,7 +446,18 @@ echo voltar_ao_processo_html();
         function atualizarCobUI1(){
             var tipo = document.getElementById('tipoCobranca').value;
             var vl = document.getElementById('valorCob1').value || '';
-            var valor = parseFloat(vl.replace(/[^\d,]/g,'').replace(',','.')) || 0;
+            // Parse robusto: se tem vírgula é BR, senão usa parseFloat puro.
+            // Antes: parseFloat(vl.replace(/[^\d,]/g,'').replace(',','.')) — falhava em
+            // certos casos de formatação intermediária (ex: '442,80' lido como 442.8 quando
+            // o input mostrava '4.428,00' por descompasso entre máscara e leitor).
+            var valor;
+            if (vl.indexOf(',') >= 0) {
+                valor = parseFloat(vl.replace(/\./g, '').replace(',', '.')) || 0;
+            } else {
+                // Sem vírgula: aplicar inverso da máscara formatarReais (digits / 100)
+                var digits = vl.replace(/\D/g, '');
+                valor = digits ? (parseInt(digits, 10) / 100) : 0;
+            }
             var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
             var mostrarParcelas = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('camposParcelas').style.display = mostrarParcelas ? 'block' : 'none';

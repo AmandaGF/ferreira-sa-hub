@@ -143,8 +143,9 @@ if ($action === 'cobranca_dar_baixa') {
     $valorRaw = $_POST['valor'] ?? '';
     if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
     if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataPagto)) { echo json_encode(array('error' => 'Data de pagamento inválida')); exit; }
-    // Aceita "1234,56" ou "1234.56"
-    $valor = (float)str_replace(',', '.', str_replace('.', '', $valorRaw));
+    // Parser robusto que detecta BR (1.234,56) vs US (1234.56) vs raw (1234)
+    $cents2 = parse_valor_reais($valorRaw);
+    $valor = $cents2 !== null ? ($cents2 / 100) : 0.0;
     // Se não informou, tenta usar o valor da cobrança
     $cob = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE id = ?");
     $cob->execute(array($cobId));
@@ -276,9 +277,11 @@ switch ($action) {
     case 'criar_cobranca':
         $clientId = (int)($_POST['client_id'] ?? 0);
         $tipo = $_POST['tipo'] ?? 'unica';
-        // Converter "1.500,00" → 1500.00
+        // Converter "1.500,00" → 1500.00 usando parser robusto (detecta BR vs US)
         $valorRaw = $_POST['valor'] ?? '0';
-        $valor = (float)str_replace(array('.', ','), array('', '.'), preg_replace('/[^\d,.]/', '', $valorRaw));
+        $cents = parse_valor_reais($valorRaw); // centavos ou null
+        $valor = $cents !== null ? ($cents / 100) : 0.0;
+        @error_log('[criar_cobranca] valorRaw="' . $valorRaw . '" cents=' . var_export($cents, true) . ' valor=' . $valor . ' user=' . current_user_id());
         $vencimento = $_POST['vencimento'] ?? '';
         $descricao = clean_str($_POST['descricao'] ?? 'Honorários Advocatícios', 250);
         $formaPag = $_POST['forma_pagamento'] ?? 'PIX';
