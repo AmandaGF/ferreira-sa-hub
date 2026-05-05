@@ -415,12 +415,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $cor = $l['cor'] ?? 'amarelo';
                 if (!in_array($cor, array('amarelo','rosa','verde','azul','laranja','roxo'), true)) $cor = 'amarelo';
             ?>
-            <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>" onclick="clickPostit(event, <?= $l['id'] ?>)" style="cursor:pointer;" title="Clique no fundo pra ver/editar; clique no título pra riscar">
+            <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>" onclick="clickPostit(event, <?= $l['id'] ?>)" style="cursor:pointer;" title="Clique para ver/editar; use o botão ✓ para marcar como cumprido">
                 <?php if (!empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#dc2626;">⚠ ATRASADO</span><?php endif; ?>
                 <?php if (!empty($l['futuro']) && empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#3b82f6;">📅 <?= date('d/m', strtotime($l['data_evento'])) ?></span><?php endif; ?>
                 <?php if (empty($l['atrasado']) && empty($l['futuro']) && $l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
                 <?php if (empty($l['atrasado']) && empty($l['futuro']) && $l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
-                <div class="pd-postit-titulo" onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Clique pra desfazer' : 'Clique pra cumprir (riscar)' ?>"><?= e($l['titulo']) ?></div>
+                <div class="pd-postit-titulo" title="Clique para ver as informações"><?= e($l['titulo']) ?></div>
                 <?php if (!empty($l['atrasado'])): ?>
                     <div class="pd-postit-meta" style="color:#b91c1c;font-weight:600;">📅 de <?= date('d/m', strtotime($l['data_evento'])) ?></div>
                 <?php endif; ?>
@@ -428,10 +428,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php if (!empty($l['client_name'])): ?>
                     <div class="pd-postit-meta">👤 <?= e($l['client_name']) ?></div>
                 <?php endif; ?>
-                <?php if (!empty($l['case_title'])): ?>
-                    <div class="pd-postit-meta">⚖ <?= e(mb_substr($l['case_title'], 0, 40)) ?><?= mb_strlen($l['case_title']) > 40 ? '…' : '' ?></div>
+                <?php
+                // Mostra info do processo: titulo OU numero (o que existir).
+                $caseLabel = '';
+                if (!empty($l['case_title'])) $caseLabel = $l['case_title'];
+                elseif (!empty($l['case_number'])) $caseLabel = $l['case_number'];
+                elseif (!empty($l['case_id'])) $caseLabel = 'Processo #' . $l['case_id'];
+                if ($caseLabel): ?>
+                    <div class="pd-postit-meta">⚖ <?= e(mb_substr($caseLabel, 0, 40)) ?><?= mb_strlen($caseLabel) > 40 ? '…' : '' ?></div>
                 <?php endif; ?>
                 <div class="pd-postit-acoes">
+                    <button onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Desfazer (desmarcar como cumprido)' : 'Marcar como cumprido (riscar)' ?>" style="background:<?= $done ? '#fee2e2' : '#d1fae5' ?>;"><?= $done ? '↩' : '✓' ?></button>
                     <button onclick="editarLembrete(<?= $l['id'] ?>)" title="Editar">✏</button>
                     <button onclick="abrirCorLembrete(<?= $l['id'] ?>, this)" title="Trocar cor">🎨</button>
                     <button onclick="arquivarLembrete(<?= $l['id'] ?>)" title="Arquivar (some daqui sem apagar)">📁</button>
@@ -561,10 +568,10 @@ function abrirModalLembrete() {
     document.getElementById('modalLembrete').style.display = 'flex';
     setTimeout(function(){ document.getElementById('lembreteTitulo').focus(); }, 50);
 }
-// Clique no card do post-it: se nao for no titulo (que riscar)
-// nem nos botoes de acao, abre o modal de edicao para ver/editar.
+// Clique no card do post-it abre o modal com todas as informacoes.
+// So ignora se o clique foi diretamente em um botao (acoes/cor/arquivar/etc).
 function clickPostit(e, id) {
-    if (e.target.closest('.pd-postit-titulo, .pd-postit-acoes, button, input, select, a')) return;
+    if (e.target.closest('.pd-postit-acoes, button, input, select, a')) return;
     editarLembrete(id);
 }
 function editarLembrete(id) {
@@ -581,7 +588,13 @@ function editarLembrete(id) {
         document.getElementById('lembreteClienteId').value = l.client_id || '';
         document.getElementById('lembreteClienteBusca').value = l.client_name || '';
         document.getElementById('lembreteCasoId').value = l.case_id || '';
-        document.getElementById('lembreteCasoBusca').value = l.case_title ? (l.case_title + (l.case_number ? ' — ' + l.case_number : '')) : '';
+        // Mostra titulo + numero do processo. Se um faltar, usa o que houver.
+        // Se nada existir mas houver case_id, mostra "Processo #N" como fallback.
+        var caseDisplay = '';
+        if (l.case_title) caseDisplay = l.case_title;
+        if (l.case_number) caseDisplay += (caseDisplay ? ' — ' : '') + l.case_number;
+        if (!caseDisplay && l.case_id) caseDisplay = 'Processo #' + l.case_id;
+        document.getElementById('lembreteCasoBusca').value = caseDisplay;
         document.getElementById('lembreteAtribuirWrap').style.display = 'none'; // não dá pra reatribuir editando
         var cor = l.cor || 'amarelo';
         var radio = document.querySelector('input[name="lembreteCor"][value="' + cor + '"]');
