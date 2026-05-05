@@ -107,7 +107,7 @@ function template_procuracao($d) {
     }
 
     // OUTORGADA
-    $html .= '<p><strong>OUTORGADA: FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no CNPJ sob o n. ' . $esc['cnpj'] . ', Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por seus advogados sócios-administradores, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . ' e <strong>' . $esc['adv2_nome'] . '</strong>, inscrito na OAB-RJ sob o n. ' . $esc['adv2_oab'] . '.</p>';
+    $html .= '<p><strong>OUTORGADA: FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no CNPJ sob o n. ' . $esc['cnpj'] . ', Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por sua advogada sócia-administradora, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . '.</p>';
 
     // PODERES GERAIS
     $html .= '<p><strong>PODERES GERAIS:</strong> pelo presente documento, a parte outorgante designa e confia à parte outorgada a função de sua procuradora <u>judicial e extrajudicial</u>, concedendo-lhe plenos, gerais e ilimitados poderes para representá-la adequadamente em todas as instâncias judiciais e extrajudiciais, conforme estabelecido na cláusula <em>ad judicia et extra</em> e <em>ad negocia</em>, especialmente para atuar em <strong style="text-decoration:underline;">' . $acaoTexto . '</strong>. Isso inclui a autorização para subestabelecer esses poderes, com ou sem reserva, conforme necessário, possibilitando a realização de todos os atos essenciais para o desenvolvimento e execução eficazes deste mandato, em conformidade com o artigo 105 do Código de Processo Civil.</p>';
@@ -463,7 +463,7 @@ function template_juntada($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve, com escritório profissional indicado no rodapé, requerer a</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">JUNTADA DE DOCUMENTOS</div>';
 
@@ -504,9 +504,8 @@ function template_juntada($d) {
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
     return $html;
@@ -533,7 +532,7 @@ function template_prevjud($d) {
     $html .= '<br>';
 
     // Qualificação com legitimidade ativa
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de seus advogados que esta subscrevem digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de sua advogada que esta subscreve digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
 
     // Destaque visual PREVJUD
     $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);border-radius:8px;overflow:hidden;">';
@@ -575,9 +574,8 @@ function template_prevjud($d) {
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
     // Assinaturas
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
     return $html;
@@ -597,7 +595,7 @@ function template_ciencia($d) {
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' nos autos do processo em epígrafe, vem, respeitosamente, por intermédio de seus advogados que esta subscrevem, exarar</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' nos autos do processo em epígrafe, vem, respeitosamente, por intermédio de sua advogada que esta subscreve, exarar</p>';
 
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CIÊNCIA</div>';
 
@@ -613,9 +611,8 @@ function template_ciencia($d) {
 
     $html .= '<div class="local-data" style="margin-top:2rem;">' . f($d['cidade_data']) . '</div>';
 
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
     return $html;
@@ -635,7 +632,7 @@ function template_citacao_whatsapp($d) {
     $html = '<div class="doc-title">PETIÇÃO INTERCORRENTE</div>';
     $html .= enderecamento($d);
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem, com escritório profissional indicado no rodapé, requerer a</p>';
+    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve, com escritório profissional indicado no rodapé, requerer a</p>';
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">CITAÇÃO DA PARTE RÉ POR MEIO ELETRÔNICO (WHATSAPP)</div>';
     $html .= '<p>da parte ré <strong>' . f($nomeReu) . '</strong>, nos termos a seguir expostos.</p>';
 
@@ -665,9 +662,8 @@ function template_citacao_whatsapp($d) {
 
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
     return $html;
 }
@@ -725,7 +721,7 @@ function template_habilitacao($d) {
     if (isset($d['email']) && $d['email']) $html .= ', e-mail: ' . f($d['email']);
     if (isset($d['phone']) && $d['phone']) $html .= ', telefone: ' . f($d['phone']);
 
-    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de seus advogados que esta subscrevem (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer a</p>';
+    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer a</p>';
 
     // Destaque
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">HABILITAÇÃO NOS AUTOS</div>';
@@ -765,9 +761,9 @@ function template_habilitacao($d) {
 
     if ($isAnalise) {
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente habilitação tem por objetivo <strong>exclusivamente a análise dos autos</strong>, viabilizando o acesso ao processo para estudo e avaliação do caso, <strong>sem que os advogados ora habilitados possam praticar quaisquer atos processuais</strong> em nome da parte, salvo mediante posterior juntada de procuração com poderes específicos para atuação.</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
     } else {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pelos advogados <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . ') e <strong>' . $esc['adv2_nome'] . '</strong> (OAB/RJ ' . $esc['adv2_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
     }
 
     // Pedido
@@ -788,9 +784,8 @@ function template_habilitacao($d) {
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
     return $html;
@@ -897,7 +892,6 @@ function template_audiencia_remota($d) {
         $html .= '<p style="margin:2px 0;"><strong>' . f($emails) . '</strong></p>';
     }
     $html .= '<p style="margin:2px 0;"><strong>amandaguedesferreira@gmail.com</strong></p>';
-    $html .= '<p style="margin:2px 0;"><strong>luizeduardo@ferreiraesa.com.br</strong></p>';
     $html .= '</div>';
 
     // Fechamento — parágrafos explícitos com text-indent:0 e line-height controlado.
@@ -941,7 +935,7 @@ function template_mandado_pagamento($d) {
 
     // Qualificação
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
-    $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos em epígrafe, vem, por intermédio de seus advogados que esta assinam digitalmente, requerer a <strong>expedição de mandado de pagamento eletrônico</strong> do depósito judicial realizado, em benefício ';
+    $html .= '<strong>' . f($d['nome']) . '</strong>, já qualificado(a) nos autos em epígrafe, vem, por intermédio de sua advogada que esta assina digitalmente, requerer a <strong>expedição de mandado de pagamento eletrônico</strong> do depósito judicial realizado, em benefício ';
 
     if ($beneficiario === 'escritorio') {
         $html .= 'do Escritório de Advocacia contratado (procuração em p. ' . f($pagProc) . ').</p>';
@@ -970,9 +964,8 @@ function template_mandado_pagamento($d) {
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
     // Assinatura dupla
-    $html .= '<div style="display:flex;gap:2rem;margin-top:2.5rem;">';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '<div class="assinatura" style="flex:1;"><div class="linha"></div><div class="nome-ass">' . $esc['adv2_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv2_oab'] . '</div></div>';
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
     return $html;
