@@ -97,26 +97,38 @@ function template_procuracao($d) {
     $qualStr = !empty($qualParts) ? implode(', ', $qualParts) . ', ' : '';
     $rgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. <strong>' . f($d['rg']) . '</strong>' : '';
 
+    // Cards lado a lado: OUTORGANTE / OUTORGADA (discreto, igual ao contrato Padrão)
+    $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
+
     // OUTORGANTE
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGANTE</div>';
     if ($isMenor) {
         $filhos = $d['child_names'] ?: f('', '{{NOME DO(A) FILHO(A)}}');
-        $html .= '<p><strong>OUTORGANTE:</strong> <strong>' . $filhos . '</strong>, representado(a)/assistido(a) por <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
+        $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $filhos . '</strong>, representado(a)/assistido(a) por <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
     } elseif ($isDefesa) {
-        $html .= '<p><strong>OUTORGANTE:</strong> <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . '.</p>';
+        $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . '.</p>';
     } else {
-        $html .= '<p><strong>OUTORGANTE:</strong> <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
+        $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
     }
+    $html .= '</div>';
 
     // OUTORGADA
-    $html .= '<p><strong>OUTORGADA:</strong> <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por sua advogada sócia-administradora, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . '.</p>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGADA</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por sua advogada sócia-administradora, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . '.</p>';
+    $html .= '</div>';
+    $html .= '</div>';
 
     // PODERES GERAIS
-    $html .= '<p><strong>PODERES GERAIS:</strong> pelo presente instrumento, a parte <strong>OUTORGANTE</strong> designa e confia à <strong>OUTORGADA</strong> a função de sua procuradora <u>judicial e extrajudicial</u>, concedendo-lhe plenos, gerais e ilimitados poderes para representá-la em todas as instâncias judiciais e extrajudiciais, conforme cláusula <em>ad judicia et extra</em> e <em>ad negocia</em> (art. 105 do CPC), <strong>especialmente para atuar em <u>' . $acaoTexto . '</u></strong>, inclusive com autorização para <strong>subestabelecer</strong> esses poderes, com ou sem reserva.</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;margin-bottom:.5rem;">PODERES GERAIS</p>';
+    $html .= '<p style="font-size:12px;">Pelo presente instrumento, a parte <strong>OUTORGANTE</strong> designa e confia à <strong>OUTORGADA</strong> a função de sua procuradora <u>judicial e extrajudicial</u>, concedendo-lhe plenos, gerais e ilimitados poderes para representá-la em todas as instâncias judiciais e extrajudiciais, conforme cláusula <em>ad judicia et extra</em> e <em>ad negocia</em> (art. 105 do CPC), <strong>especialmente para atuar em <u>' . $acaoTexto . '</u></strong>, inclusive com autorização para <strong>subestabelecer</strong> esses poderes, com ou sem reserva.</p>';
 
-    $html .= '<p>Estão entre os poderes: recorrer, negociar acordos, contestar, receber notificações (<strong>exceto citação</strong>), assinar documentos, promover medidas cautelares, produzir provas, examinar processos, lidar com custas e despesas, efetuar defesas e alegações, organizar documentos, solicitar perícias e demais atos necessários à representação perante o Judiciário, órgãos públicos e entidades da administração direta ou indireta, em todos os níveis governamentais.</p>';
+    $html .= '<p style="font-size:12px;">Estão entre os poderes: recorrer, negociar acordos, contestar, receber notificações (<strong>exceto citação</strong>), assinar documentos, promover medidas cautelares, produzir provas, examinar processos, lidar com custas e despesas, efetuar defesas e alegações, organizar documentos, solicitar perícias e demais atos necessários à representação perante o Judiciário, órgãos públicos e entidades da administração direta ou indireta, em todos os níveis governamentais.</p>';
 
     // PODERES ESPECIAIS
-    $html .= '<p><strong>PODERES ESPECIAIS:</strong> esse instrumento também confere poderes específicos para atos como <strong>confessar, admitir</strong> a procedência de pedidos, <strong>negociar (acordar), desistir, renunciar</strong> a direitos subjacentes à ação, <strong>receber valores, emitir recibos e dar quitação, representar em audiência de conciliação e sessão de mediação, solicitar isenção de custas judiciais (gratuidade de justiça) e renunciar a valores excedentes (JEF)</strong>.</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;margin-bottom:.5rem;">PODERES ESPECIAIS</p>';
+    $html .= '<p style="font-size:12px;">Esse instrumento também confere poderes específicos para atos como <strong>confessar, admitir</strong> a procedência de pedidos, <strong>negociar (acordar), desistir, renunciar</strong> a direitos subjacentes à ação, <strong>receber valores, emitir recibos e dar quitação, representar em audiência de conciliação e sessão de mediação, solicitar isenção de custas judiciais (gratuidade de justiça) e renunciar a valores excedentes (JEF)</strong>.</p>';
 
     // LOCAL E DATA + ASSINATURA
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
@@ -160,17 +172,17 @@ function template_contrato($d) {
 
     // 1. OBJETO e 2. VIGÊNCIA
     $html .= '<div style="display:flex;gap:1.5rem;margin:1.5rem 0;">';
-    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;">1. OBJETO</p>';
+    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;">1. OBJETO</p>';
     $html .= '<p style="font-size:12px;">Prestação de serviços advocatícios especializados, correspondente à consultoria jurídica e representação processual em <strong>' . $acaoTexto . '</strong>, incluindo, em sendo necessária, a propositura e atuação no processo judicial, até decisão judicial final.</p></div>';
 
-    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;">2. VIGÊNCIA</p>';
+    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;">2. VIGÊNCIA</p>';
     $html .= '<p style="font-size:12px;"><strong>INÍCIO:</strong> a contar da assinatura do presente contrato.</p>';
     $html .= '<p style="font-size:12px;"><strong>TÉRMINO:</strong> até decisão final no processo objeto do presente contrato.</p>';
     $html .= '<p style="font-size:12px;">Em caso de descumprimento dos valores devidos a título de honorários, poderá a <strong>CONTRATADA RENUNCIAR</strong> os poderes outorgados, mediante aviso prévio.</p></div>';
     $html .= '</div>';
 
     // 3. VALOR E PAGAMENTO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">3. VALOR E PAGAMENTO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">3. VALOR E PAGAMENTO</p>';
 
     $isRisco = (isset($d['tipo_cobranca']) && $d['tipo_cobranca'] === 'risco');
 
@@ -196,11 +208,11 @@ function template_contrato($d) {
         $html .= '<p style="font-size:12px;">Caso seja necessária a propositura de execução ou cumprimento de sentença para a cobrança da pensão alimentícia em atraso, fica desde já acordado que o escritório de advocacia contratado realizará o procedimento sem custo adicional para a parte <strong>CONTRATANTE</strong>. Em caso de êxito, ou seja, no efetivo recebimento dos valores devidos, o escritório fará jus a um honorário de êxito correspondente a 25% do montante recuperado, caracterizando-se como uma ação de risco.</p>';
     }
 
-    // Aviso PIX (mantido como destaque pontual — anti-golpe é importante)
-    $html .= '<p style="font-size:12px;font-weight:700;text-align:center;margin:1rem 0;">⚠ Chave PIX: ' . $esc['pix'] . ' — NÃO EFETUE TRANSFERÊNCIAS PARA OUTRA CHAVE!</p>';
+    // Aviso PIX em caixa nude (anti-golpe — destaque pontual)
+    $html .= '<div style="background:#fff7ed;border:1px solid #d7ab90;border-radius:8px;padding:.65rem 1rem;margin:1rem 0;text-align:center;font-size:12px;font-weight:700;color:#6a3c2c;">⚠ Chave PIX: ' . $esc['pix'] . ' — NÃO EFETUE TRANSFERÊNCIAS PARA OUTRA CHAVE!</div>';
 
     // 4. RESPONSABILIDADES
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">4. RESPONSABILIDADES</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">4. RESPONSABILIDADES</p>';
     $html .= '<div style="display:flex;gap:1.5rem;">';
     $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
     $html .= '<p style="font-size:11.5px;">4.1 A parte <strong>CONTRATANTE</strong> reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, e fornecerá à <strong>CONTRATADA</strong> os <strong>documentos e meios necessários à comprovação do seu direito</strong>, bem como pagará as despesas judiciais e eventuais honorários advocatícios de sucumbência, caso aplicável.</p></div>';
@@ -209,20 +221,20 @@ function template_contrato($d) {
     $html .= '</div>';
 
     // 5. INADIMPLEMENTO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">5. INADIMPLEMENTO FINANCEIRO — MULTA E JUROS</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">5. INADIMPLEMENTO FINANCEIRO — MULTA E JUROS</p>';
     $html .= '<p style="font-size:12px;">5.1. Na eventual hipótese de inadimplemento financeiro por parte da parte <strong>CONTRATANTE</strong>, a <strong>CONTRATADA</strong> cobrará, além do valor devido, <strong>multa pecuniária de 20%, juros de mora de 1% ao mês e correção monetária.</strong> Em caso de cobrança judicial, devem ser acrescidas custas processuais e 20% de honorários advocatícios.</p>';
     $html .= '<p style="font-size:12px;">5.2 Havendo a ausência do pagamento do valor acordado no presente contrato, poderá a <strong>CONTRATADA,</strong> mediante aviso prévio de 10 dias, <strong>RENUNCIAR</strong> os poderes outorgados, deixando de atuar em prol dos interesses da parte <strong>CONTRATANTE</strong>, sem prejuízo da cobrança judicial ou extrajudicial dos valores devidos, além do direito de pleitear a homologação da <strong>desistência da ação, finalizando o procedimento</strong>.</p>';
 
     // 6. SUCUMBÊNCIA e 7. DESPESAS
     $html .= '<div style="display:flex;gap:1.5rem;margin-top:1.5rem;">';
-    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;">6. SUCUMBÊNCIA</p>';
+    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;">6. SUCUMBÊNCIA</p>';
     $html .= '<p style="font-size:11.5px;">6.1. Os honorários de condenação, se houver, pertencerão ao Escritório de Advocacia, sem exclusão dos ora contratados, em consonância ao art. 23 da Lei n. 8.906/94 e art. 35, §1º, do Código de Ética e Disciplina da OAB.</p></div>';
-    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;">7. DESPESAS EXTRAORDINÁRIAS</p>';
+    $html .= '<div style="flex:1;"><p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;">7. DESPESAS EXTRAORDINÁRIAS</p>';
     $html .= '<p style="font-size:11.5px;">7.1 A parte <strong>CONTRATANTE</strong> arcará com custas e despesas judiciais, viagens, autenticações, certidões e quaisquer outras decorrentes dos serviços contratados, mediante demonstrativos analíticos. <strong>Haverá prévia comunicação quanto a tais gastos.</strong></p></div>';
     $html .= '</div>';
 
     // 8. CLÁUSULAS GERAIS
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">8. CLÁUSULAS GERAIS</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">8. CLÁUSULAS GERAIS</p>';
 
     $html .= '<div style="display:flex;gap:1.5rem;">';
     $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">LIMITES DE ATUAÇÃO</div>';
@@ -243,13 +255,13 @@ function template_contrato($d) {
     $html .= '<p style="font-size:11.5px;"><strong>- Se o processo já estiver em fase final, antes da sentença, com realização de audiência ou etapa equivalente, o valor integral do contrato será devido.</strong></p></div>';
 
     // 9. SEGURANÇA CONTRA GOLPES (texto direto, sem caixa pontilhada exagerada)
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">9. SEGURANÇA CONTRA GOLPES</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">9. SEGURANÇA CONTRA GOLPES</p>';
     $html .= '<p style="font-size:11.5px;">Para sua segurança, qualquer pagamento, depósito, transferência ou PIX deverá ser realizado <strong>exclusivamente para a chave oficial do escritório</strong> (CNPJ ' . $esc['cnpj'] . '). Qualquer solicitação de valores para contas, chaves PIX ou destinatários diferentes <strong>deve ser desconsiderada</strong> e imediatamente comunicada ao escritório pelos contatos oficiais: WhatsApp ' . $esc['whatsapp'] . ' e e-mail ' . $esc['email'] . '.</p>';
 
     // 10. FORO E DATA
     $cidadeForo = $d['cidade_foro'] ?: ($d['cidade'] ?: 'Resende');
     $estadoForo = $d['estado_foro'] ?: ($d['uf'] ?: 'RJ');
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">10. FORO E DATA</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">10. FORO E DATA</p>';
     $html .= '<p style="font-size:12px;">Em caso de conflitos, as partes elegem o Foro da cidade de ' . f($cidadeForo) . ' — ' . f($estadoForo) . '.</p>';
     $html .= '<p style="font-size:12px;">As partes assinam o presente contrato em ' . f($d['data_contrato'] ?: $d['cidade_data']) . '.</p>';
 
@@ -277,27 +289,37 @@ function template_contrato_prevjud_sm($d) {
     $cRgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. ' . f($d['rg']) : '';
 
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
-    $html .= '<div style="flex:1;border:1px solid #d7ab90;border-radius:8px;padding:.85rem 1rem;">';
-    $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.4rem;">CONTRATANTE</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #fbcfe8;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#db2777;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . 'inscrita no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', residente e domiciliada na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.</p></div>';
 
-    $html .= '<div style="flex:1;border:1px solid #d7ab90;border-radius:8px;padding:.85rem 1rem;">';
-    $html .= '<div style="font-size:10px;font-weight:700;color:#6a3c2c;letter-spacing:1px;margin-bottom:.4rem;">CONTRATADA</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, sociedade de advocacia inscrita no CNPJ ' . $esc['cnpj'] . ', Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', com sede na ' . $esc['endereco'] . ', e-mail: ' . $esc['email'] . ', neste ato representada por sua administradora que esta assina digitalmente.</p></div>';
     $html .= '</div>';
 
     // 1. OBJETO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">1. OBJETO</p>';
-    $html .= '<p style="font-size:12px;">A <strong>CONTRATADA</strong> prestará serviços advocatícios especializados em <strong>Direito Previdenciário</strong>, compreendendo:</p>';
-    $html .= '<p style="font-size:12px;"><strong>Fase A — Administrativa:</strong> análise, orientação, protocolo e acompanhamento de pedido de <strong>Salário-Maternidade</strong> perante o INSS, até decisão final administrativa.</p>';
-    $html .= '<p style="font-size:12px;"><strong>Fase B — Judicial:</strong> caso necessário, ajuizamento de ação judicial para obtenção do benefício, com acompanhamento em todas as instâncias cabíveis, inclusive execução.</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #fbcfe8;padding-left:.6rem;margin-top:1.5rem;">1. OBJETO</p>';
+    $html .= '<p style="font-size:12px;">A <strong>CONTRATADA</strong> prestará serviços advocatícios especializados em <strong>Direito Previdenciário</strong>, compreendendo as fases administrativa e judicial, conforme abaixo:</p>';
+
+    // Fases A e B em mini-cards lado a lado (visual sutil)
+    $html .= '<div style="display:flex;gap:.85rem;margin:.6rem 0 .85rem;">';
+    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
+    $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE A — ADMINISTRATIVA</div>';
+    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Análise, orientação, protocolo e acompanhamento de pedido de <strong>Salário-Maternidade</strong> perante o INSS, até decisão final administrativa.</p>';
+    $html .= '</div>';
+    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
+    $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE B — JUDICIAL</div>';
+    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Caso necessário, ajuizamento de ação judicial para obtenção do benefício, com acompanhamento em todas as instâncias cabíveis, inclusive execução.</p>';
+    $html .= '</div>';
+    $html .= '</div>';
 
     // 2. VIGÊNCIA
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">2. VIGÊNCIA</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">2. VIGÊNCIA</p>';
     $html .= '<p style="font-size:12px;">O contrato entra em vigor na <strong>data de assinatura</strong> (digital ou presencial) e perdurará até a <strong>conclusão do serviço</strong> contratado, podendo ser prorrogado ou aditado caso haja alteração no escopo inicial.</p>';
 
     // 3. HONORÁRIOS
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">3. HONORÁRIOS ADVOCATÍCIOS</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">3. HONORÁRIOS ADVOCATÍCIOS</p>';
 
     $smModo = isset($d['sm_modo']) ? $d['sm_modo'] : 'padrao';
     $smTipo = isset($d['sm_tipo_honorario']) ? $d['sm_tipo_honorario'] : 'percentual';
@@ -310,12 +332,28 @@ function template_contrato_prevjud_sm($d) {
     $smObs = isset($d['sm_observacao']) ? $d['sm_observacao'] : '';
 
     if ($smModo === 'personalizado' && $smTipo === 'fixo') {
+        // Banner discreto com valor fixo
+        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS</span> &nbsp; ';
+        $html .= '<span style="font-size:18px;font-weight:800;color:#9f1239;">' . f($smValor ?: '_________') . '</span>';
+        if ($smParcContrato) {
+            $html .= ' <span style="font-size:11px;color:#831843;">em ' . f($smParcContrato) . ' parcela(s) de ' . f($smValorParc ?: '_________') . ' via ' . f($smForma) . '</span>';
+        }
+        $html .= '</div>';
+
         $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o valor total de <strong>' . f($smValor ?: '_________') . '</strong>';
         if ($smParcContrato) {
             $html .= ', em <strong>' . f($smParcContrato) . ' parcela(s)</strong> de <strong>' . f($smValorParc ?: '_________') . '</strong> via <strong>' . f($smForma) . '</strong>';
         }
         $html .= ', pelo serviço advocatício prestado para obtenção do benefício de Salário-Maternidade, independentemente do resultado final.</p>';
     } else {
+        // Banner discreto com o percentual
+        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS DE ÊXITO</span> &nbsp; ';
+        $html .= '<span style="font-size:20px;font-weight:800;color:#9f1239;">' . f($smPct) . '%</span> ';
+        $html .= '<span style="font-size:11px;color:#831843;">de cada uma das ' . f($smNParc) . ' parcela(s) do Salário-Maternidade</span>';
+        $html .= '</div>';
+
         $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o equivalente a <strong>' . f($smPct) . '% (' . f($smPct) . ' por cento) sobre o valor total recebido a título de salário-maternidade</strong>, ou seja, <strong>' . f($smPct) . '% de cada uma das ' . f($smNParc) . ' parcelas que compõem o benefício</strong>, independentemente da forma de recebimento (saque, depósito, RPV, precatório ou acordo judicial ou administrativo).</p>';
 
         $html .= '<p style="font-size:12px;"><strong>O pagamento deverá ocorrer em até 24 (vinte e quatro) horas após:</strong> (a) a implantação do benefício; ou (b) o saque de valores retroativos, quando houver.</p>';
@@ -330,7 +368,7 @@ function template_contrato_prevjud_sm($d) {
     $html .= '<p style="font-size:12px;"><strong>3.2 — Despesas:</strong> não estão inclusas nos honorários as despesas com deslocamentos, perícias, autenticações, certidões, custas judiciais ou outros gastos necessários, os quais serão arcados pela CONTRATANTE mediante comunicação prévia.</p>';
 
     // 4. OBRIGAÇÕES
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">4. OBRIGAÇÕES DAS PARTES</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">4. OBRIGAÇÕES DAS PARTES</p>';
 
     $html .= '<p style="font-size:12px;"><strong>4.1 — CONTRATANTE:</strong></p>';
     $html .= '<p style="font-size:12px;margin-left:1rem;">a) Fornecer documentos e informações verídicas necessárias;<br>';
@@ -345,11 +383,11 @@ function template_contrato_prevjud_sm($d) {
     $html .= 'c) Prestar contas sempre que houver recebimento de valores, com repasses devidos e demonstrativo discriminado.</p>';
 
     // 5. RESPONSABILIDADE
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">5. RESPONSABILIDADE PROFISSIONAL</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">5. RESPONSABILIDADE PROFISSIONAL</p>';
     $html .= '<p style="font-size:12px;">A CONTRATANTE declara estar ciente de que a obrigação da CONTRATADA é de <strong>meio, não garantindo resultado</strong>.</p>';
 
     // 6. RESCISÃO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">6. RESCISÃO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">6. RESCISÃO</p>';
     $html .= '<p style="font-size:12px;">O contrato poderá ser rescindido por qualquer das partes mediante comunicação escrita.</p>';
     $html .= '<p style="font-size:12px;"><strong>§1º — Fase administrativa:</strong> caso já tenha sido protocolado o requerimento, a CONTRATANTE deverá pagar os honorários integrais pactuados, salvo acordo em sentido contrário. Caso o benefício seja indeferido administrativamente e a CONTRATANTE opte por não prosseguir com recurso administrativo ou judicial, será devido o valor correspondente a <strong>1 (um) salário mínimo</strong> pelos serviços prestados até então.</p>';
     $html .= '<p style="font-size:12px;"><strong>§2º — Fase judicial (até a sentença):</strong> em caso de rescisão imotivada por parte da CONTRATANTE, serão devidos honorários no valor de <strong>1 (um) salário mínimo</strong>, sem prejuízo da restituição de eventuais despesas previamente assumidas.</p>';
@@ -357,23 +395,23 @@ function template_contrato_prevjud_sm($d) {
     $html .= '<p style="font-size:12px;"><strong>§4º —</strong> A CONTRATADA poderá renunciar ao mandato caso a CONTRATANTE descumpra suas obrigações contratuais, sendo devidos os honorários conforme o estágio do processo.</p>';
 
     // 7. INADIMPLEMENTO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">7. INADIMPLEMENTO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">7. INADIMPLEMENTO</p>';
     $html .= '<p style="font-size:12px;">O atraso no pagamento sujeitará a CONTRATANTE ao pagamento de multa de 20% (vinte por cento), juros de mora de 1% ao mês e correção monetária. Em caso de cobrança judicial, incidirão custas e honorários advocatícios de 20%.</p>';
 
     // 8. SUCUMBÊNCIA
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">8. HONORÁRIOS DE SUCUMBÊNCIA</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">8. HONORÁRIOS DE SUCUMBÊNCIA</p>';
     $html .= '<p style="font-size:12px;">Os honorários sucumbenciais fixados judicialmente pertencem integralmente à CONTRATADA, nos termos do art. 23 da Lei 8.906/94.</p>';
 
     // 9. LGPD
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">9. LGPD E AUTORIZAÇÃO DE CONTATO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">9. LGPD E AUTORIZAÇÃO DE CONTATO</p>';
     $html .= '<p style="font-size:12px;">A CONTRATANTE autoriza o tratamento de seus dados pessoais pela CONTRATADA, exclusivamente para fins relacionados ao presente contrato, em conformidade com a Lei Geral de Proteção de Dados. Autoriza ainda o recebimento de comunicações eletrônicas referentes ao processo.</p>';
 
     // 10. SEGURANÇA CONTRA GOLPES (texto direto)
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">10. SEGURANÇA CONTRA GOLPES</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">10. SEGURANÇA CONTRA GOLPES</p>';
     $html .= '<p style="font-size:12px;">Qualquer pagamento, depósito, transferência ou PIX deverá ser realizado <strong>exclusivamente para a chave oficial do escritório</strong> (CNPJ ' . $esc['cnpj'] . '). Solicitações de valores para contas, chaves PIX ou destinatários diferentes devem ser desconsideradas e imediatamente comunicadas ao escritório pelos contatos oficiais: WhatsApp ' . $esc['whatsapp'] . ' e e-mail ' . $esc['email'] . '.</p>';
 
     // FORO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;margin-top:1.5rem;">FORO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">FORO</p>';
     $html .= '<p style="font-size:12px;">Fica eleito o foro da Comarca de residência da CONTRATANTE para dirimir quaisquer controvérsias decorrentes deste contrato.</p>';
 
     // Fechamento + assinatura
@@ -469,27 +507,39 @@ function template_substabelecimento($d) {
 
     $html = '<div class="doc-title">SUBSTABELECIMENTO ' . ($comReserva ? 'COM RESERVAS' : 'SEM RESERVA') . ' DE PODERES</div>';
 
-    // ADVOGADO (substabelecente)
+    // Pré-cálculos de gênero
     $artAdv = $advGenero === 'a' ? 'ADVOGADA' : 'ADVOGADO';
     $artSub = $subGenero === 'a' ? 'ADVOGADA SUBSTABELECIDA' : 'ADVOGADO SUBSTABELECIDO';
     $brAdv = $advGenero === 'a' ? 'brasileira' : 'brasileiro';
     $advProf = $advGenero === 'a' ? 'advogada' : 'advogado';
     $subProf = $subGenero === 'a' ? 'advogada' : 'advogado';
-
-    $html .= '<p style="text-indent:0;"><strong>' . $artAdv . ':</strong> <strong>' . $advNome . '</strong>, ' . $brAdv . ', ' . $advProf . ', inscrit' . ($advGenero === 'a' ? 'a' : 'o') . ' na OAB-RJ sob o n. <strong>' . $advOab . '</strong>, com escritório profissional localizado na ' . $endProfFeS . '.</p>';
-
-    // ADVOGADO SUBSTABELECIDO
     $inscPalavra = $subGenero === 'a' ? 'inscrita' : 'inscrito';
     $emailPart = $subEmail ? ', e-mail: ' . f($subEmail) : '';
-    $html .= '<p style="text-indent:0;"><strong>' . $artSub . ':</strong> <strong>' . f($subNome) . '</strong>, ' . f($subNacionalidade) . ', ' . $subProf . ' ' . $inscPalavra . ' na OAB-' . f($subSeccional) . ' sob o n. <strong>' . f($subOab) . '</strong>, com escritório profissional localizado na ' . f($subEndereco) . $emailPart . '.</p>';
 
-    // CORPO
+    // Cards lado a lado: SUBSTABELECENTE / SUBSTABELECIDO (discretos)
+    $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
+
+    // SUBSTABELECENTE
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artAdv . '</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $advNome . '</strong>, ' . $brAdv . ', ' . $advProf . ', inscrit' . ($advGenero === 'a' ? 'a' : 'o') . ' na OAB-RJ sob o n. <strong>' . $advOab . '</strong>, com escritório profissional localizado na ' . $endProfFeS . '.</p>';
+    $html .= '</div>';
+
+    // SUBSTABELECIDO
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artSub . '</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($subNome) . '</strong>, ' . f($subNacionalidade) . ', ' . $subProf . ' ' . $inscPalavra . ' na OAB-' . f($subSeccional) . ' sob o n. <strong>' . f($subOab) . '</strong>, com escritório profissional localizado na ' . f($subEndereco) . $emailPart . '.</p>';
+    $html .= '</div>';
+    $html .= '</div>';
+
+    // CORPO DO SUBSTABELECIMENTO
     $verboSub = $subGenero === 'a' ? 'à advogada' : 'ao advogado';
     $reservaTxt = $comReserva ? 'com reserva de iguais poderes' : 'sem reserva de poderes';
-    $html .= '<p>Pelo presente instrumento particular e pela melhor forma de direito, <strong>' . $advNome . '</strong> substabelece, ' . $reservaTxt . ', ' . $verboSub . ' <strong>' . f($subNome) . '</strong> os poderes que lhe foram conferidos por <strong>' . f($d['nome']) . '</strong>' . ($d['cpf'] ? ', CPF n. <strong>' . f($d['cpf']) . '</strong>' : '') . ($acaoTexto !== '________________________________' ? ', nos autos de <strong>' . $acaoTexto . '</strong>' : '') . '.</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;margin-bottom:.5rem;">DO ATO DO SUBSTABELECIMENTO</p>';
+    $html .= '<p style="font-size:12px;">Pelo presente instrumento particular e pela melhor forma de direito, <strong>' . $advNome . '</strong> substabelece, <strong>' . $reservaTxt . '</strong>, ' . $verboSub . ' <strong>' . f($subNome) . '</strong> os poderes que lhe foram conferidos por <strong>' . f($d['nome']) . '</strong>' . ($d['cpf'] ? ', CPF n. <strong>' . f($d['cpf']) . '</strong>' : '') . ($acaoTexto !== '________________________________' ? ', nos autos de <strong>' . $acaoTexto . '</strong>' : '') . '.</p>';
 
     if (!$comReserva) {
-        $html .= '<p>Ficam os substabelecentes desonerados de qualquer responsabilidade.</p>';
+        $html .= '<p style="font-size:12px;">Ficam os substabelecentes desonerados de qualquer responsabilidade.</p>';
     }
 
     // LOCAL E DATA
@@ -1173,7 +1223,7 @@ function template_renuncia_poderes($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Nos termos do <strong>art. 112, §1º, do CPC</strong>, a advogada subscritora continuará representando o(a) constituinte pelo prazo de <strong>10 (dez) dias úteis</strong> a contar da notificação, salvo se nesse interregno for substituída por outro(a) advogado(a) que se habilite nos autos.</p>';
 
     // Pedidos
-    $html .= '<p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;margin-top:1.2rem;">DOS PEDIDOS</p>';
+    $html .= '<p class="no-indent" style="font-size:13px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.2rem;">DOS PEDIDOS</p>';
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Diante do exposto, requer:</p>';
     $html .= '<p style="margin-left:1.5rem;font-size:12px;line-height:1.8;">';
     $html .= '<strong>a)</strong> O recebimento e homologação da presente renúncia;<br>';
