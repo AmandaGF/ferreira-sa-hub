@@ -494,49 +494,23 @@ if (!$showEditor) {
         <?php endif; ?>
 
         <?php if ($tipo === 'contrato'): ?>
+        <?php
+        // O subtipo do contrato é derivado direto do tipo de ação:
+        // tipo_acao = salario_maternidade  → modelo SM (Previdenciário)
+        // qualquer outro                    → modelo Padrão (fixo / risco)
+        $isSm = ($tipoAcao === 'salario_maternidade');
+        ?>
+        <input type="hidden" name="subtipo_contrato" value="<?= $isSm ? 'salario_maternidade' : 'padrao' ?>">
         <div class="section">
-            <h4>📝 Modelo do contrato</h4>
-            <style>
-                .contr-card { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; padding:14px 16px; border:2px solid #e5e7eb; border-radius:12px; cursor:pointer; transition:all .15s; min-width:180px; flex:1; background:#fff; }
-                .contr-card:hover { border-color:#B87333; transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
-                .contr-card input { display:none; }
-                .contr-card.padrao.sel { border-color:#059669; background:linear-gradient(135deg,#ecfdf5,#d1fae5); box-shadow:0 4px 12px rgba(5,150,105,.18); }
-                .contr-card.sm.sel { border-color:#db2777; background:linear-gradient(135deg,#fdf2f8,#fbcfe8); box-shadow:0 4px 12px rgba(219,39,119,.18); }
-                .contr-card-ico { font-size:2.2rem; line-height:1; }
-                .contr-card-titulo { font-size:.95rem; font-weight:800; color:#052228; }
-                .contr-card-desc { font-size:.7rem; color:#6b7280; line-height:1.3; }
-            </style>
-            <?php
-            // Pré-seleciona modelo: SM se tipo_acao=salario_maternidade OU se vier explícito via GET
-            $preSubtipo = (
-                $tipoAcao === 'salario_maternidade'
-                || ($_GET['subtipo_contrato'] ?? '') === 'salario_maternidade'
-            ) ? 'sm' : 'padrao';
-            ?>
-            <div style="margin-bottom:1rem;">
-                <label>Escolha o modelo</label>
-                <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
-                    <label class="contr-card padrao<?= $preSubtipo === 'padrao' ? ' sel' : '' ?>" id="lbl_padrao" onclick="setTimeout(toggleSubtipoContrato,10)">
-                        <input type="radio" name="subtipo_contrato" value="padrao" <?= $preSubtipo === 'padrao' ? 'checked' : '' ?> onchange="toggleSubtipoContrato()">
-                        <span class="contr-card-ico">📝</span>
-                        <span class="contr-card-titulo">Contrato Padrão</span>
-                        <span class="contr-card-desc">Honorários <strong>fixos</strong> ou <strong>contrato de risco</strong></span>
-                    </label>
-                    <label class="contr-card sm<?= $preSubtipo === 'sm' ? ' sel' : '' ?>" id="lbl_sm" onclick="setTimeout(toggleSubtipoContrato,10)">
-                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" <?= $preSubtipo === 'sm' ? 'checked' : '' ?> onchange="toggleSubtipoContrato()">
-                        <span class="contr-card-ico">🤰</span>
-                        <span class="contr-card-titulo">Salário-Maternidade</span>
-                        <span class="contr-card-desc">Previdenciário — <strong>30% sobre 4 parcelas</strong></span>
-                    </label>
-                </div>
-                <div id="info_sm" style="display:none;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:10px 14px;margin-top:.6rem;font-size:.8rem;color:#9f1239;">
-                    <strong>Modelo Salário-Maternidade:</strong> honorários fixos em <strong>30% sobre cada uma das 4 parcelas</strong> do benefício (sem necessidade de preencher valor/parcelas). Conteúdo do contrato é padrão; só preencha os dados pessoais da CONTRATANTE acima.
-                </div>
+            <?php if ($isSm): ?>
+            <div style="background:linear-gradient(135deg,#fdf2f8,#fbcfe8);border:1px solid #f9a8d4;border-radius:10px;padding:12px 16px;margin-bottom:.75rem;font-size:.85rem;color:#9f1239;">
+                🤰 <strong>Modelo Salário-Maternidade (Previdenciário)</strong> — honorários fixos em <strong>30% sobre cada uma das 4 parcelas</strong> do benefício. Não preencha valor/parcelas; só os dados pessoais da CONTRATANTE acima.
             </div>
-
-            <div id="bloco_financeiro_padrao">
+            <?php else: ?>
             <h4>💵 Dados financeiros do contrato</h4>
+            <?php endif; ?>
 
+            <div id="bloco_financeiro_padrao" <?= $isSm ? 'style="display:none;"' : '' ?>>
             <!-- Tipo: fixo ou risco -->
             <div style="margin-bottom:.75rem;">
                 <label>Tipo de cobrança</label>
@@ -716,22 +690,6 @@ if (!$showEditor) {
             document.getElementById('campos_fixo').style.display = isRisco ? 'none' : 'block';
             document.getElementById('campos_risco').style.display = isRisco ? 'block' : 'none';
         }
-        // Sub-tipo do contrato: padrão ou Salário-Maternidade. Quando SM, esconde
-        // todo o bloco financeiro (porcentagem é fixa em 30% sobre cada parcela).
-        function toggleSubtipoContrato() {
-            var sel = document.querySelector('input[name="subtipo_contrato"]:checked');
-            var isSm = sel && sel.value === 'salario_maternidade';
-            var bloco = document.getElementById('bloco_financeiro_padrao');
-            var info  = document.getElementById('info_sm');
-            if (bloco) bloco.style.display = isSm ? 'none' : 'block';
-            if (info)  info.style.display  = isSm ? 'block' : 'none';
-            // Toggle visual dos cards
-            var padraoCard = document.getElementById('lbl_padrao');
-            var smCard = document.getElementById('lbl_sm');
-            if (padraoCard) padraoCard.classList.toggle('sel', !isSm);
-            if (smCard) smCard.classList.toggle('sel', isSm);
-        }
-
         // Auto-formatar campos ao carregar a página
         document.addEventListener('DOMContentLoaded', function() {
             var cpfEl = document.querySelector('input[name="cpf"]');
@@ -742,8 +700,6 @@ if (!$showEditor) {
             if (waEl && waEl.value) mascaraTelefone(waEl);
             var procEls = document.querySelectorAll('input[name="numero_processo"]');
             procEls.forEach(function(el) { if (el.value) mascaraProcesso(el); });
-            // Aplica visual do sub-tipo de contrato vindo via GET (selecionado em index.php)
-            if (typeof toggleSubtipoContrato === 'function') toggleSubtipoContrato();
         });
         </script>
         <?php endif; ?>
