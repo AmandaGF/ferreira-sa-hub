@@ -33,6 +33,7 @@ $docTypes = array(
     'mandado_pagamento' => array('label' => 'Mandado de Pagamento', 'icon' => '💰', 'color' => '#059669', 'desc' => 'Requer expedição de mandado de pagamento eletrônico do depósito judicial'),
     'averbacao_sentenca' => array('label' => 'Averbação Sentença — Divórcio', 'icon' => '💔', 'color' => '#9333ea', 'desc' => 'Ciência da sentença + renúncia ao prazo recursal + requer expedição da Carta de Sentença via Malote Digital ao RCPN — Aviso CGJ 154/2021'),
     'renuncia_poderes' => array('label' => 'Renúncia aos Poderes', 'icon' => '🚪', 'color' => '#dc2626', 'desc' => 'Petição de renúncia ao mandato — Art. 112 CPC + Art. 5º, §3º Estatuto da OAB'),
+    'desistencia_acao' => array('label' => 'Desistência da Ação', 'icon' => '🛑', 'color' => '#b91c1c', 'desc' => 'Pedido de desistência por foro íntimo — com ou sem prévia anuência da Ré (Art. 485, VIII e §4º CPC)'),
 );
 
 // Histórico de documentos gerados

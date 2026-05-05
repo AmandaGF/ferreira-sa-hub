@@ -1244,3 +1244,73 @@ function template_renuncia_poderes($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════════
+// DESISTÊNCIA DA AÇÃO — por motivo de foro íntimo
+// 2 variantes:
+//   - sem_contestacao: dispensa anuência (a contrario sensu art. 485 §4º)
+//   - com_contestacao: pede intimação da Ré pra anuir (art. 485 §4º CPC)
+// ═══════════════════════════════════════════════════════════
+function template_desistencia_acao($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $tipoAcao = isset($d['acao_texto']) && $d['acao_texto'] ? $d['acao_texto'] : (isset($d['tipo_acao_desistencia']) ? $d['tipo_acao_desistencia'] : '');
+    $reuNome  = isset($d['reu_desistencia']) && $d['reu_desistencia'] ? $d['reu_desistencia'] : '';
+    $cenario  = isset($d['cenario_desistencia']) && $d['cenario_desistencia'] === 'com_contestacao'
+              ? 'com_contestacao' : 'sem_contestacao';
+
+    $html = '';
+    $html .= enderecamento($d);
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+    if ($tipoAcao) {
+        $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11pt;color:#444;">' . f(mb_strtoupper($tipoAcao, 'UTF-8')) . '</p>';
+    }
+
+    // Parágrafo principal — sujeito = AUTOR (parte já qualificada)
+    $reuFrase = $reuNome ? ', em face de <strong>' . f($reuNome) . '</strong>,' : ',';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;"><strong>' . f($d['nome']) . '</strong>, parte já qualificada nos autos' . $reuFrase . ' vem, respeitosamente, à presença de Vossa Excelência, por intermédio de sua advogada que esta subscreve, manifestar o desejo de <strong>DESISTIR DA PRESENTE AÇÃO</strong>, com fundamento no <strong>art. 485, VIII, do Código de Processo Civil</strong>, requerendo a homologação da desistência e a consequente extinção do feito sem resolução do mérito.</p>';
+
+    // Motivo (foro íntimo) em caixa nude discreta
+    $html .= '<div style="background:#fff7ed;border-left:3px solid #d7ab90;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
+    $html .= '<strong style="color:#6a3c2c;">Motivo:</strong> a parte autora informa que a desistência decorre de <strong>motivo de foro íntimo</strong>, não havendo necessidade de exposição de razões adicionais.';
+    $html .= '</div>';
+
+    if ($cenario === 'com_contestacao') {
+        // Variante COM contestação: pede intimação da Ré pra anuir
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Tendo em vista que a parte ré já apresentou contestação nos presentes autos, e nos termos do <strong>art. 485, §4º, do Código de Processo Civil</strong>, requer-se a <strong>intimação da parte ré</strong> para que, no prazo legal, manifeste-se sobre o presente pedido de desistência.</p>';
+
+        $html .= '<div style="background:#fef9c3;border-left:3px solid #f59e0b;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
+        $html .= '<strong style="color:#92400e;">⚠ Anuência da parte ré:</strong> conforme art. 485, §4º, do CPC, oferecida a contestação, a desistência da ação depende do consentimento expresso ou tácito da parte ré.';
+        $html .= '</div>';
+    } else {
+        // Variante SEM contestação: dispensa anuência
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Cumpre destacar que <strong>até o presente momento não foi apresentada contestação</strong> pela parte ré, razão pela qual <strong>dispensa-se a prévia anuência</strong> para a homologação da desistência, em interpretação <em>a contrario sensu</em> do <strong>art. 485, §4º, do Código de Processo Civil</strong>, que somente exige tal consentimento após oferecida a contestação.</p>';
+
+        $html .= '<div style="background:#ecfdf5;border-left:3px solid #10b981;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
+        $html .= '<strong style="color:#065f46;">✓ Dispensa da anuência:</strong> sem contestação ofertada, a desistência pode ser homologada de plano, independentemente de manifestação da parte ré.';
+        $html .= '</div>';
+    }
+
+    // DOS PEDIDOS
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;margin-bottom:.5rem;">DOS PEDIDOS</p>';
+    $html .= '<p style="font-size:12px;">Diante do exposto, requer:</p>';
+    $html .= '<p style="margin-left:1.5rem;font-size:12px;line-height:1.8;">';
+
+    if ($cenario === 'com_contestacao') {
+        $html .= '<strong>a)</strong> A <strong>intimação da parte ré</strong> para, no prazo legal, manifestar-se sobre o presente pedido de desistência, nos termos do art. 485, §4º, do CPC;<br>';
+        $html .= '<strong>b)</strong> Após a manifestação (ou decurso do prazo sem manifestação), o <strong>acolhimento da desistência</strong> e a consequente <strong>extinção do feito sem resolução do mérito</strong>, com fundamento no art. 485, VIII, do CPC;<br>';
+        $html .= '<strong>c)</strong> A <strong>baixa</strong> dos autos após o trânsito em julgado da decisão homologatória.';
+    } else {
+        $html .= '<strong>a)</strong> O <strong>acolhimento da desistência</strong> e a consequente <strong>extinção do feito sem resolução do mérito</strong>, com fundamento no art. 485, VIII, do Código de Processo Civil;<br>';
+        $html .= '<strong>b)</strong> A <strong>dispensa da prévia anuência</strong> da parte ré, considerando a inexistência de contestação até o momento (art. 485, §4º, <em>a contrario sensu</em>, do CPC);<br>';
+        $html .= '<strong>c)</strong> A <strong>baixa</strong> dos autos após o trânsito em julgado da decisão homologatória.';
+    }
+    $html .= '</p>';
+
+    // Fechamento + assinatura
+    $html .= '<p style="text-align:center;margin:24pt 0 8pt;text-indent:0;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+    $html .= '<div class="assinatura"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+
+    return $html;
+}

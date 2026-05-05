@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes', 'desistencia_acao');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -41,6 +41,7 @@ $typeLabels = array(
     'mandado_pagamento' => 'Requerimento de Mandado de Pagamento',
     'averbacao_sentenca' => 'Averbação de Sentença — Divórcio',
     'renuncia_poderes' => 'Renúncia aos Poderes Outorgados',
+    'desistencia_acao' => 'Pedido de Desistência da Ação',
 );
 
 $acaoLabels = array(
@@ -283,6 +284,10 @@ $gratuidadeAvb = $_POST['gratuidade_avb'] ?? 'sim';
 // Renuncia aos poderes outorgados
 $motivoRenuncia = $_POST['motivo_renuncia'] ?? 'razões particulares';
 $reuRenuncia = $_POST['reu_renuncia'] ?? '';
+
+// Desistencia da acao
+$cenarioDesistencia = $_POST['cenario_desistencia'] ?? 'sem_contestacao';
+$reuDesistencia = $_POST['reu_desistencia'] ?? '';
 
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
@@ -1285,6 +1290,44 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'desistencia_acao'): ?>
+        <div class="section">
+            <h4>🛑 Dados da Desistência da Ação</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Volta Redonda"></div>
+            </div>
+            <div class="row">
+                <div><label>Tipo de ação</label><input name="tipo_acao_desistencia" value="<?= e($caseData ? ($caseData['case_type'] ?: '') : '') ?>" placeholder="Ex: Ação de Divórcio"></div>
+                <div><label>Parte Ré (nome)</label><input name="reu_desistencia" value="<?= e($reuDesistencia ?: ($caseData ? ($caseData['parte_re_nome'] ?: '') : '')) ?>" placeholder="Nome da parte ré"></div>
+            </div>
+            <div class="row">
+                <div style="grid-column:1/-1;">
+                    <label>Cenário processual</label>
+                    <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
+                        <label style="flex:1;min-width:280px;display:flex;align-items:flex-start;gap:.4rem;cursor:pointer;padding:.7rem .9rem;border:2px solid <?= $cenarioDesistencia === 'sem_contestacao' ? '#059669' : '#e5e7eb' ?>;background:<?= $cenarioDesistencia === 'sem_contestacao' ? 'linear-gradient(135deg,#ecfdf5,#d1fae5)' : '#fff' ?>;border-radius:10px;font-size:.82rem;">
+                            <input type="radio" name="cenario_desistencia" value="sem_contestacao" <?= $cenarioDesistencia === 'sem_contestacao' ? 'checked' : '' ?> style="margin-top:3px;accent-color:#059669;">
+                            <div>
+                                <strong style="color:#065f46;">✓ Sem contestação ainda</strong><br>
+                                <span style="font-size:.74rem;color:#374151;">Dispensa prévia anuência da Ré (interpretação <em>a contrario sensu</em> do art. 485, §4º, CPC)</span>
+                            </div>
+                        </label>
+                        <label style="flex:1;min-width:280px;display:flex;align-items:flex-start;gap:.4rem;cursor:pointer;padding:.7rem .9rem;border:2px solid <?= $cenarioDesistencia === 'com_contestacao' ? '#dc2626' : '#e5e7eb' ?>;background:<?= $cenarioDesistencia === 'com_contestacao' ? 'linear-gradient(135deg,#fef2f2,#fee2e2)' : '#fff' ?>;border-radius:10px;font-size:.82rem;">
+                            <input type="radio" name="cenario_desistencia" value="com_contestacao" <?= $cenarioDesistencia === 'com_contestacao' ? 'checked' : '' ?> style="margin-top:3px;accent-color:#dc2626;">
+                            <div>
+                                <strong style="color:#991b1b;">⚠ Já houve contestação</strong><br>
+                                <span style="font-size:.74rem;color:#374151;">Pede intimação da Ré para se manifestar sobre o pedido (art. 485, §4º, CPC)</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:.7rem .9rem;margin-top:.6rem;font-size:.78rem;color:#78350f;">
+                ⚖️ <strong>Base legal:</strong> Art. 485, VIII (homologação da desistência) e §4º (necessidade de consentimento da Ré após contestação) do CPC. Motivo padrão: <strong>foro íntimo</strong> (não exige justificativa adicional).
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -1384,6 +1427,8 @@ if (!$showEditor) {
         'gratuidade_avb' => $gratuidadeAvb,
         'motivo_renuncia' => $motivoRenuncia,
         'reu_renuncia' => $reuRenuncia,
+        'cenario_desistencia' => $cenarioDesistencia,
+        'reu_desistencia' => $reuDesistencia,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -1436,6 +1481,7 @@ if (!$showEditor) {
     elseif ($tipo === 'mandado_pagamento') echo template_mandado_pagamento($d);
     elseif ($tipo === 'averbacao_sentenca') echo template_averbacao_sentenca($d);
     elseif ($tipo === 'renuncia_poderes') echo template_renuncia_poderes($d);
+    elseif ($tipo === 'desistencia_acao') echo template_desistencia_acao($d);
     ?>
     </div>
 
