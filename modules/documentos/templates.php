@@ -1286,3 +1286,90 @@ function template_averbacao_sentenca($d) {
 
     return $html;
 }
+
+// ═══════════════════════════════════════════════════════════
+// RENÚNCIA AOS PODERES OUTORGADOS
+// Art. 112 do CPC + Art. 5º, §3º da Lei 8.906/94 (Estatuto da OAB)
+// Comunica ao juízo a renúncia ao mandato e cientifica o constituinte
+// ═══════════════════════════════════════════════════════════
+function template_renuncia_poderes($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    $tipoAcao = isset($d['acao_texto']) && $d['acao_texto'] ? $d['acao_texto'] : (isset($d['tipo_acao_renuncia']) ? $d['tipo_acao_renuncia'] : '');
+    $reuNome = isset($d['reu_renuncia']) && $d['reu_renuncia'] ? $d['reu_renuncia'] : '';
+    $motivo  = isset($d['motivo_renuncia']) && $d['motivo_renuncia'] ? $d['motivo_renuncia'] : 'razões particulares';
+
+    $html = '';
+
+    // ────────────── BANNER TOPO (visual law) ──────────────
+    $html .= '<div style="background:linear-gradient(135deg,#7f1d1d,#dc2626);color:#fff;border-radius:12px;padding:18px 22px;text-align:center;margin-bottom:20px;">';
+    $html .= '<div style="font-size:11px;letter-spacing:5px;font-weight:600;opacity:.85;margin-bottom:4px;">PETIÇÃO DE</div>';
+    $html .= '<div style="font-size:22px;font-weight:800;letter-spacing:2px;">🚪 RENÚNCIA AOS PODERES OUTORGADOS</div>';
+    $html .= '</div>';
+
+    // Endereçamento
+    $html .= enderecamento($d);
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;margin-top:8pt;">Autos n. ' . f($numProcesso) . '</p>';
+    if ($tipoAcao) {
+        $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11pt;color:#444;">' . f(mb_strtoupper($tipoAcao, 'UTF-8')) . '</p>';
+    }
+
+    // ────────────── PARTES (cards lado a lado) ──────────────
+    $html .= '<div style="display:flex;gap:1.5rem;margin:18pt 0;">';
+
+    // CONSTITUINTE
+    $html .= '<div style="flex:1;border:1.5px solid #dc2626;border-radius:12px;padding:1rem;background:#fef2f2;">';
+    $html .= '<div style="background:#dc2626;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">👤 CONSTITUINTE</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>'
+           . (isset($d['cpf']) && $d['cpf'] ? ', CPF n. ' . f($d['cpf']) : '')
+           . (isset($d['endereco']) && $d['endereco'] ? ', residente e domiciliado(a) na ' . f($d['endereco']) : '')
+           . '.</p>';
+    $html .= '</div>';
+
+    // ADVOGADA RENUNCIANTE
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;background:#fff7ed;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">⚖ ADVOGADA RENUNCIANTE</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $esc['adv1_nome'] . '</strong>, brasileira, advogada, inscrita na OAB-RJ sob o n. <strong>' . $esc['adv1_oab'] . '</strong>, no exercício de seus poderes pela sociedade <strong>FERREIRA &amp; SÁ ADVOCACIA</strong> (CNPJ ' . $esc['cnpj'] . ', OAB ' . $esc['oab_sociedade'] . '), com escritório profissional na ' . $esc['endereco'] . '.</p>';
+    $html .= '</div>';
+    $html .= '</div>';
+
+    // ────────────── ATO DA RENÚNCIA ──────────────
+    $html .= '<div style="margin:24px 0 8px;border-left:5px solid #dc2626;padding:6px 14px;font-weight:800;color:#7f1d1d;font-size:14px;">DA RENÚNCIA AO MANDATO</div>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.7;">Vem a advogada subscritora, respeitosamente, à presença de Vossa Excelência, com fundamento no <strong>art. 112 do Código de Processo Civil</strong> e no <strong>art. 5º, §3º, da Lei n. 8.906/94 (Estatuto da OAB)</strong>, comunicar a sua <strong>RENÚNCIA AOS PODERES</strong> que lhe foram outorgados pelo(a) constituinte acima qualificado(a)' . ($reuNome ? ', nos autos da demanda em que figura em face de <strong>' . f($reuNome) . '</strong>' : '') . '.</p>';
+
+    // Box destacando o motivo
+    $html .= '<div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border:2px solid #fca5a5;border-radius:12px;padding:14px 18px;margin:14px 0;">';
+    $html .= '<div style="font-size:10px;color:#991b1b;letter-spacing:2px;font-weight:700;margin-bottom:6px;">📌 MOTIVO DA RENÚNCIA</div>';
+    $html .= '<p style="font-size:13px;color:#7f1d1d;text-indent:0;margin:0;">A renúncia se dá em razão de <strong>' . f($motivo) . '</strong>, restando inviável a continuidade da representação processual.</p>';
+    $html .= '</div>';
+
+    // ────────────── CIENTIFICAÇÃO DO CONSTITUINTE ──────────────
+    $html .= '<div style="margin:24px 0 8px;border-left:5px solid #dc2626;padding:6px 14px;font-weight:800;color:#7f1d1d;font-size:14px;">DA CIENTIFICAÇÃO DO(A) CONSTITUINTE</div>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.7;">Em atenção ao disposto no <strong>art. 112, §1º, do CPC</strong> e no <strong>art. 5º, §3º, do Estatuto da OAB</strong>, comunica-se que o(a) constituinte foi <strong>previamente notificado(a)</strong> da presente renúncia pelos meios oficiais de comunicação utilizados pelo escritório (e-mail e/ou WhatsApp), restando ciente da necessidade de constituir novo(a) advogado(a) para acompanhar a demanda.</p>';
+
+    // ────────────── PRAZO LEGAL ──────────────
+    $html .= '<div style="background:#fef3c7;border-left:4px solid #f59e0b;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:12.5px;">';
+    $html .= '⚠️ <strong>Prazo legal:</strong> nos termos do <strong>art. 112, §1º, do CPC</strong>, a advogada subscritora continuará representando o(a) constituinte pelo prazo de <strong>10 (dez) dias úteis</strong> a contar da notificação, salvo se nesse interregno for substituída por outro(a) advogado(a) que se habilite nos autos.';
+    $html .= '</div>';
+
+    // ────────────── PEDIDOS ──────────────
+    $html .= '<div style="margin:24px 0 8px;border-left:5px solid #dc2626;padding:6px 14px;font-weight:800;color:#7f1d1d;font-size:14px;">DOS PEDIDOS</div>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.7;">Diante do exposto, requer:</p>';
+    $html .= '<div style="margin:8px 0 12px 1.5rem;font-size:12.5px;line-height:1.9;">';
+    $html .= '<div><strong>a)</strong> O <strong>recebimento e homologação</strong> da presente renúncia;</div>';
+    $html .= '<div><strong>b)</strong> A <strong>baixa</strong> da advogada subscritora e da sociedade <strong>FERREIRA &amp; SÁ ADVOCACIA</strong> da representação processual do(a) constituinte;</div>';
+    $html .= '<div><strong>c)</strong> A <strong>intimação pessoal</strong> do(a) constituinte para, querendo, constituir novo(a) advogado(a), nos termos do art. 112, §1º, do CPC;</div>';
+    $html .= '<div><strong>d)</strong> Que as <strong>publicações futuras</strong> deixem de ser realizadas em nome da advogada renunciante e da sociedade.</div>';
+    $html .= '</div>';
+
+    // Fechamento
+    $html .= '<p style="text-align:center;margin:24pt 0 8pt;text-indent:0;line-height:1.4;">Nestes termos, pede deferimento.</p>';
+    $html .= '<p style="text-align:right;margin:8pt 0 0 0;text-indent:0;line-height:1.4;">' . f($d['cidade_data']) . '</p>';
+
+    // Assinatura
+    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}

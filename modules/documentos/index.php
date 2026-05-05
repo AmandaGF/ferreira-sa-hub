@@ -32,6 +32,7 @@ $docTypes = array(
     'audiencia_remota' => array('label' => 'Audiência Remota/Híbrida', 'icon' => '🖥️', 'color' => '#0ea5e9', 'desc' => 'Requer realização de audiência por videoconferência ou de forma híbrida'),
     'mandado_pagamento' => array('label' => 'Mandado de Pagamento', 'icon' => '💰', 'color' => '#059669', 'desc' => 'Requer expedição de mandado de pagamento eletrônico do depósito judicial'),
     'averbacao_sentenca' => array('label' => 'Averbação Sentença — Divórcio', 'icon' => '💔', 'color' => '#9333ea', 'desc' => 'Ciência da sentença + renúncia ao prazo recursal + requer expedição da Carta de Sentença via Malote Digital ao RCPN — Aviso CGJ 154/2021'),
+    'renuncia_poderes' => array('label' => 'Renúncia aos Poderes', 'icon' => '🚪', 'color' => '#dc2626', 'desc' => 'Petição de renúncia ao mandato — Art. 112 CPC + Art. 5º, §3º Estatuto da OAB'),
 );
 
 // Histórico de documentos gerados

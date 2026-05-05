@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -40,6 +40,7 @@ $typeLabels = array(
     'audiencia_remota' => 'Petição de Audiência Remota/Híbrida',
     'mandado_pagamento' => 'Requerimento de Mandado de Pagamento',
     'averbacao_sentenca' => 'Averbação de Sentença — Divórcio',
+    'renuncia_poderes' => 'Renúncia aos Poderes Outorgados',
 );
 
 $acaoLabels = array(
@@ -278,6 +279,10 @@ $paginaProcuracao = $_POST['pagina_procuracao'] ?? '';
 
 // Campo averbação sentença
 $gratuidadeAvb = $_POST['gratuidade_avb'] ?? 'sim';
+
+// Renuncia aos poderes outorgados
+$motivoRenuncia = $_POST['motivo_renuncia'] ?? 'razões particulares';
+$reuRenuncia = $_POST['reu_renuncia'] ?? '';
 
 $listaDocumentos = $_POST['lista_documentos'] ?? '';
 $justificativaJuntada = $_POST['justificativa_juntada'] ?? '';
@@ -1244,6 +1249,42 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
+        <?php if ($tipo === 'renuncia_poderes'): ?>
+        <div class="section">
+            <h4>🚪 Dados da Renúncia aos Poderes</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Volta Redonda"></div>
+            </div>
+            <div class="row">
+                <div><label>Tipo de ação</label><input name="tipo_acao_renuncia" value="<?= e($caseData ? ($caseData['case_type'] ?: '') : '') ?>" placeholder="Ex: Ação de Divórcio"></div>
+                <div><label>Parte contrária / Ré (opcional)</label><input name="reu_renuncia" value="<?= e($reuRenuncia ?: ($caseData ? ($caseData['parte_re_nome'] ?: '') : '')) ?>" placeholder="Nome da parte contrária"></div>
+            </div>
+            <div class="row">
+                <div style="grid-column:1/-1;">
+                    <label>Motivo da renúncia</label>
+                    <select name="motivo_renuncia_select" onchange="document.getElementsByName('motivo_renuncia')[0].value=this.value;">
+                        <option value="razões particulares" <?= $motivoRenuncia === 'razões particulares' ? 'selected' : '' ?>>Razões particulares</option>
+                        <option value="quebra da relação de confiança entre advogada e constituinte" <?= $motivoRenuncia === 'quebra da relação de confiança entre advogada e constituinte' ? 'selected' : '' ?>>Quebra da relação de confiança</option>
+                        <option value="inadimplemento dos honorários advocatícios contratados" <?= $motivoRenuncia === 'inadimplemento dos honorários advocatícios contratados' ? 'selected' : '' ?>>Inadimplemento dos honorários</option>
+                        <option value="ausência de comunicação e cooperação por parte do constituinte" <?= $motivoRenuncia === 'ausência de comunicação e cooperação por parte do constituinte' ? 'selected' : '' ?>>Ausência de comunicação/cooperação</option>
+                        <option value="divergência quanto à condução da causa" <?= $motivoRenuncia === 'divergência quanto à condução da causa' ? 'selected' : '' ?>>Divergência quanto à condução da causa</option>
+                        <option value="outros motivos justificáveis" <?= $motivoRenuncia === 'outros motivos justificáveis' ? 'selected' : '' ?>>Outros (editar abaixo)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row">
+                <div style="grid-column:1/-1;">
+                    <label>Texto do motivo (editável)</label>
+                    <input name="motivo_renuncia" value="<?= e($motivoRenuncia) ?>" placeholder="Texto livre que aparecerá no documento">
+                </div>
+            </div>
+            <div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:.7rem .9rem;margin-top:.6rem;font-size:.78rem;color:#78350f;">
+                ⚖️ <strong>Base legal:</strong> Art. 112 do CPC + Art. 5º, §3º do Estatuto da OAB. A advogada permanecerá representando a parte por <strong>10 (dez) dias úteis</strong> após a notificação, salvo se nesse prazo já houver advogado substituto.
+            </div>
+        </div>
+        <?php endif; ?>
+
         <button type="submit" class="btn-gen">Gerar Documento →</button>
     </form>
 </div>
@@ -1341,6 +1382,8 @@ if (!$showEditor) {
         'pagina_procuracao' => $paginaProcuracao,
         'qtd_menores' => $qtdMenores,
         'gratuidade_avb' => $gratuidadeAvb,
+        'motivo_renuncia' => $motivoRenuncia,
+        'reu_renuncia' => $reuRenuncia,
     );
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
@@ -1392,6 +1435,7 @@ if (!$showEditor) {
     }
     elseif ($tipo === 'mandado_pagamento') echo template_mandado_pagamento($d);
     elseif ($tipo === 'averbacao_sentenca') echo template_averbacao_sentenca($d);
+    elseif ($tipo === 'renuncia_poderes') echo template_renuncia_poderes($d);
     ?>
     </div>
 
