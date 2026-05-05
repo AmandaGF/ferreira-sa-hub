@@ -495,14 +495,30 @@ if (!$showEditor) {
         <?php if ($tipo === 'contrato'): ?>
         <div class="section">
             <h4>📝 Modelo do contrato</h4>
+            <style>
+                .contr-card { display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; padding:14px 16px; border:2px solid #e5e7eb; border-radius:12px; cursor:pointer; transition:all .15s; min-width:180px; flex:1; background:#fff; }
+                .contr-card:hover { border-color:#B87333; transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
+                .contr-card input { display:none; }
+                .contr-card.padrao.sel { border-color:#059669; background:linear-gradient(135deg,#ecfdf5,#d1fae5); box-shadow:0 4px 12px rgba(5,150,105,.18); }
+                .contr-card.sm.sel { border-color:#db2777; background:linear-gradient(135deg,#fdf2f8,#fbcfe8); box-shadow:0 4px 12px rgba(219,39,119,.18); }
+                .contr-card-ico { font-size:2.2rem; line-height:1; }
+                .contr-card-titulo { font-size:.95rem; font-weight:800; color:#052228; }
+                .contr-card-desc { font-size:.7rem; color:#6b7280; line-height:1.3; }
+            </style>
             <div style="margin-bottom:1rem;">
                 <label>Escolha o modelo</label>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;" id="lbl_padrao">
-                        <input type="radio" name="subtipo_contrato" value="padrao" checked onchange="toggleSubtipoContrato()"> 📝 Padrão (fixo / risco)
+                <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem;">
+                    <label class="contr-card padrao sel" id="lbl_padrao" onclick="setTimeout(toggleSubtipoContrato,10)">
+                        <input type="radio" name="subtipo_contrato" value="padrao" checked onchange="toggleSubtipoContrato()">
+                        <span class="contr-card-ico">📝</span>
+                        <span class="contr-card-titulo">Contrato Padrão</span>
+                        <span class="contr-card-desc">Honorários <strong>fixos</strong> ou <strong>contrato de risco</strong></span>
                     </label>
-                    <label style="display:flex;align-items:center;gap:.3rem;font-size:.82rem;cursor:pointer;padding:.4rem .8rem;border:1.5px solid #fbcfe8;border-radius:8px;background:#fdf2f8;" id="lbl_sm">
-                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" onchange="toggleSubtipoContrato()"> 🤰 Previdenciário — Salário-Maternidade
+                    <label class="contr-card sm" id="lbl_sm" onclick="setTimeout(toggleSubtipoContrato,10)">
+                        <input type="radio" name="subtipo_contrato" value="salario_maternidade" onchange="toggleSubtipoContrato()">
+                        <span class="contr-card-ico">🤰</span>
+                        <span class="contr-card-titulo">Salário-Maternidade</span>
+                        <span class="contr-card-desc">Previdenciário — <strong>30% sobre 4 parcelas</strong></span>
                     </label>
                 </div>
                 <div id="info_sm" style="display:none;background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:10px 14px;margin-top:.6rem;font-size:.8rem;color:#9f1239;">
@@ -701,6 +717,11 @@ if (!$showEditor) {
             var info  = document.getElementById('info_sm');
             if (bloco) bloco.style.display = isSm ? 'none' : 'block';
             if (info)  info.style.display  = isSm ? 'block' : 'none';
+            // Toggle visual dos cards
+            var padraoCard = document.getElementById('lbl_padrao');
+            var smCard = document.getElementById('lbl_sm');
+            if (padraoCard) padraoCard.classList.toggle('sel', !isSm);
+            if (smCard) smCard.classList.toggle('sel', isSm);
         }
 
         // Auto-formatar campos ao carregar a página
