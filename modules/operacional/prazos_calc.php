@@ -1431,7 +1431,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var _modoJuntada = false;
 
-    function toggleModoJuntada(isJuntada) {
+    // Exposto em window pra ser chamado pelos onclick do HTML (radios DJe/Juntada).
+    // Estava dentro do IIFE → onclick nao encontrava a funcao → modo Juntada nao
+    // ativava e o calculo caia sempre no modo DJe (D+1 publicacao, D+2 inicio).
+    window.toggleModoJuntada = function(isJuntada) {
         _modoJuntada = isJuntada;
         var labelData = document.getElementById('labelDataDisp');
         var labelDje = document.getElementById('labelDje');
@@ -1451,10 +1454,30 @@ document.addEventListener('DOMContentLoaded', function() {
             labelDje.style.background = '#eff6ff';
         }
         previewCalculo();
-    }
+    };
 
     // Inicializar estado visual
-    toggleModoJuntada(<?= !empty($_POST['modo_juntada']) ? 'true' : 'false' ?>);
+    window.toggleModoJuntada(<?= !empty($_POST['modo_juntada']) ? 'true' : 'false' ?>);
+
+    // Feriados nacionais fixos (mes-dia). O calculo final no servidor ja considera
+    // feriados moveis (Carnaval, Sexta Santa, Corpus Christi) + suspensoes locais.
+    // Aqui no preview cobrimos apenas os fixos pra evitar surpresas comuns
+    // (Tiradentes 21/04, 1° Maio, 7 Set, etc.).
+    var _FERIADOS_NACIONAIS_FIXOS = ['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25'];
+
+    function _isFeriadoFixo(dt) {
+        var mm = ('0' + (dt.getMonth() + 1)).slice(-2);
+        var dd = ('0' + dt.getDate()).slice(-2);
+        return _FERIADOS_NACIONAIS_FIXOS.indexOf(mm + '-' + dd) !== -1;
+    }
+
+    function _avancaProximoUtil(dt) {
+        // Pula sabado/domingo + feriados nacionais fixos
+        var max = 30;
+        while (max-- > 0 && (dt.getDay() === 0 || dt.getDay() === 6 || _isFeriadoFixo(dt))) {
+            dt.setDate(dt.getDate() + 1);
+        }
+    }
 
     function previewCalculo() {
         var data = document.getElementById('dataDisp').value;
@@ -1472,9 +1495,7 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('previewInicioWrap').style.display = '';
 
             dt.setDate(dt.getDate() + 1);
-            while (dt.getDay() === 0 || dt.getDay() === 6) {
-                dt.setDate(dt.getDate() + 1);
-            }
+            _avancaProximoUtil(dt);
             document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (D+1 útil)';
         } else {
             // DJe: D+1 útil = publicação, D+2 útil = início
@@ -1482,15 +1503,11 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('previewInicioWrap').style.display = '';
 
             dt.setDate(dt.getDate() + 1);
-            while (dt.getDay() === 0 || dt.getDay() === 6) {
-                dt.setDate(dt.getDate() + 1);
-            }
+            _avancaProximoUtil(dt);
             document.getElementById('previewPub').textContent = formatDateBR(dt) + ' (aprox.)';
 
             dt.setDate(dt.getDate() + 1);
-            while (dt.getDay() === 0 || dt.getDay() === 6) {
-                dt.setDate(dt.getDate() + 1);
-            }
+            _avancaProximoUtil(dt);
             document.getElementById('previewInicio').textContent = formatDateBR(dt) + ' (aprox.)';
         }
 
