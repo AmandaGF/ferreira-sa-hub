@@ -1209,6 +1209,7 @@ if (!$showEditor) {
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
     elseif ($tipo === 'contrato') echo template_contrato($d);
+    elseif ($tipo === 'contrato_prevjud_sm') echo template_contrato_prevjud_sm($d);
     elseif ($tipo === 'substabelecimento') echo template_substabelecimento($d);
     elseif ($tipo === 'hipossuficiencia') echo template_hipossuficiencia($d);
     elseif ($tipo === 'isencao_ir') echo template_isencao_ir($d);
