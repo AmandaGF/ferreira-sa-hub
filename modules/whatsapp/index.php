@@ -715,9 +715,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             }
         }
         // Mesclar é util em ambos os canais (duplicatas Multi-Device acontecem nos 2)
-        if (PODE_DELEGAR) {
-            actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
-        }
+        // Liberado para todos os usuarios — qualquer atendente pode unir duplicatas.
+        actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
         // Fixar/desfixar conversa no topo da lista
         if (+c.fixada) {
             actions += '<button onclick="waPinConversa()" style="background:#B87333;color:#fff;border-color:#B87333;" title="Desfixar conversa do topo">📌 Fixada</button>';

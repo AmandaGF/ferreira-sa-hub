@@ -259,7 +259,8 @@ if ($action === 'sync_fotos_todas') {
 // - Sem ?q=... : critério automático (nome igual OU últimos 8 dígitos batem)
 // - Com ?q=... : busca livre por nome OU telefone OU ID (#123)
 if ($action === 'listar_duplicatas') {
-    if (!can_delegar_whatsapp()) { echo json_encode(array('error' => 'Apenas Amanda/Luiz podem mesclar conversas.')); exit; }
+    // Mesclar liberado para todos os usuarios (a propria UI exige o botao Mesclar
+    // visivel, e o ato de unir duplicatas e' util pra qualquer atendente).
     $convId = (int)($_GET['conversa_id'] ?? 0);
     if (!$convId) { echo json_encode(array('error' => 'ID inválido')); exit; }
     $base = $pdo->prepare("SELECT id, canal, telefone, nome_contato FROM zapi_conversas WHERE id = ?");
@@ -316,12 +317,11 @@ if ($action === 'listar_duplicatas') {
     exit;
 }
 
-// ── MESCLAR CONVERSAS (Amanda/Luiz) ───────────────────────
+// ── MESCLAR CONVERSAS (todos os usuarios) ─────────────────
 // Migra todas as mensagens e etiquetas da origem pra destino, depois apaga
 // a origem. Usado quando mesmo contato gerou duas conversas (ex: Multi-Device
-// alternando entre @lid e telefone real).
+// alternando entre @lid e telefone real). Liberado para todos os atendentes.
 if ($action === 'mesclar_conversas') {
-    if (!can_delegar_whatsapp()) { echo json_encode(array('error' => 'Apenas Amanda/Luiz podem mesclar conversas.')); exit; }
     $origemId  = (int)($_POST['origem_id'] ?? 0);
     $destinoId = (int)($_POST['destino_id'] ?? 0);
     if (!$origemId || !$destinoId || $origemId === $destinoId) {
