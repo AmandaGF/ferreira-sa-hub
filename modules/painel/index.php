@@ -241,11 +241,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-resumo-item:hover{background:rgba(184,115,51,.06);}
 .pd-resumo-num{font-size:1.2rem;font-weight:800;min-width:28px;text-align:center;}
 .pd-resumo-label{font-size:.78rem;color:var(--text-muted);}
-.pd-lembrete{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-bottom:1px solid var(--border);font-size:.82rem;}
-.pd-lembrete.done{opacity:.5;text-decoration:line-through;}
-.pd-lembrete-check{width:18px;height:18px;border-radius:4px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.65rem;flex-shrink:0;transition:all .15s;}
-.pd-lembrete-check:hover{border-color:#B87333;}
-.pd-lembrete-check.done{background:#059669;border-color:#059669;color:#fff;}
+/* === Lembretes estilo post-it === */
+.pd-lembretes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:.6rem;padding:.4rem;}
+.pd-postit{position:relative;padding:.7rem .65rem .55rem;border-radius:2px 14px 2px 2px;font-size:.82rem;line-height:1.3;box-shadow:2px 3px 8px rgba(0,0,0,.18),inset 0 0 0 1px rgba(0,0,0,.04);min-height:90px;display:flex;flex-direction:column;gap:.35rem;font-family:'Caveat','Comic Sans MS',cursive;transition:transform .15s, box-shadow .15s;}
+.pd-postit:hover{transform:translateY(-2px) rotate(0deg) !important;box-shadow:3px 5px 14px rgba(0,0,0,.25);}
+.pd-postit:nth-child(3n){transform:rotate(-1.2deg);}
+.pd-postit:nth-child(3n+1){transform:rotate(.8deg);}
+.pd-postit:nth-child(3n+2){transform:rotate(-.4deg);}
+.pd-postit.cor-amarelo{background:linear-gradient(135deg,#fff9b1,#ffeaa7);}
+.pd-postit.cor-rosa{background:linear-gradient(135deg,#fbcfe8,#f9a8d4);}
+.pd-postit.cor-verde{background:linear-gradient(135deg,#bbf7d0,#86efac);}
+.pd-postit.cor-azul{background:linear-gradient(135deg,#bfdbfe,#93c5fd);}
+.pd-postit.cor-laranja{background:linear-gradient(135deg,#fed7aa,#fdba74);}
+.pd-postit.cor-roxo{background:linear-gradient(135deg,#e9d5ff,#d8b4fe);}
+.pd-postit.done{opacity:.55;}
+.pd-postit.done .pd-postit-titulo{text-decoration:line-through;text-decoration-thickness:2px;color:#6b7280;}
+.pd-postit-titulo{font-size:.95rem;font-weight:600;color:#1f2937;word-wrap:break-word;cursor:pointer;flex:1;}
+.pd-postit-meta{font-size:.7rem;color:#374151;opacity:.8;font-family:inherit;}
+.pd-postit-acoes{display:flex;gap:.3rem;justify-content:flex-end;margin-top:.2rem;font-family:system-ui;}
+.pd-postit-acoes button{background:rgba(255,255,255,.6);border:none;cursor:pointer;font-size:.75rem;padding:2px 6px;border-radius:4px;transition:background .15s;}
+.pd-postit-acoes button:hover{background:rgba(255,255,255,.95);}
+.pd-postit-pri{position:absolute;top:-6px;right:8px;font-size:.55rem;padding:1px 6px;border-radius:99px;font-weight:700;letter-spacing:.5px;color:#fff;}
+.pd-postit-pri.urgente{background:#dc2626;}
+.pd-postit-pri.fatal{background:#7c2d12;}
+/* Cores opções no modal e popover de troca */
+.pd-cor-opt{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:transform .15s;}
+.pd-cor-opt:hover,.pd-cor-opt.sel{transform:scale(1.2);box-shadow:0 0 0 2px #B87333;}
+.pd-cor-amarelo{background:#fff9b1;}
+.pd-cor-rosa{background:#fbcfe8;}
+.pd-cor-verde{background:#bbf7d0;}
+.pd-cor-azul{background:#bfdbfe;}
+.pd-cor-laranja{background:#fed7aa;}
+.pd-cor-roxo{background:#e9d5ff;}
 .pd-empty{text-align:center;padding:2rem 1rem;color:var(--text-muted);font-size:.85rem;}
 .pd-empty .big{font-size:2rem;margin-bottom:.5rem;}
 </style>
@@ -347,9 +374,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </h3>
         <div id="listaLembretes">
         <?php
+        // Self-heal cor + arquivado
+        try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN cor VARCHAR(20) DEFAULT 'amarelo'"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN arquivado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
         $lembretes = array();
         try {
-            $stmtLR = $pdo->prepare("SELECT * FROM eventos_dia WHERE usuario_id = ? AND data_evento = ? AND tipo = 'lembrete' ORDER BY concluido ASC, hora_inicio ASC, criado_em ASC");
+            $stmtLR = $pdo->prepare("SELECT * FROM eventos_dia WHERE usuario_id = ? AND data_evento = ? AND tipo = 'lembrete' AND IFNULL(arquivado,0) = 0 ORDER BY concluido ASC, hora_inicio ASC, criado_em ASC");
             $stmtLR->execute(array($viewUserId, $hoje));
             $lembretes = $stmtLR->fetchAll();
         } catch (Exception $e) {}
@@ -359,18 +389,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 Nenhum lembrete para hoje.<br>Crie um clicando em "+ Lembrete".
             </div>
         <?php else: ?>
-            <?php foreach ($lembretes as $l): $done = (bool)$l['concluido']; ?>
-            <div class="pd-lembrete <?= $done ? 'done' : '' ?>">
-                <div class="pd-lembrete-check <?= $done ? 'done' : '' ?>" onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Desfazer' : 'Concluir' ?>"><?= $done ? '✓' : '' ?></div>
-                <div style="flex:1;min-width:0;">
-                    <div style="font-weight:600;"><?= e($l['titulo']) ?></div>
-                    <?php if ($l['hora_inicio']): ?><div style="font-size:.65rem;color:var(--text-muted);"><?= date('H:i', strtotime($l['hora_inicio'])) ?></div><?php endif; ?>
+            <div class="pd-lembretes-grid">
+            <?php foreach ($lembretes as $l):
+                $done = (bool)$l['concluido'];
+                $cor = $l['cor'] ?? 'amarelo';
+                if (!in_array($cor, array('amarelo','rosa','verde','azul','laranja','roxo'), true)) $cor = 'amarelo';
+            ?>
+            <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>">
+                <?php if ($l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
+                <?php if ($l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
+                <div class="pd-postit-titulo" onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Clique pra desfazer' : 'Clique pra cumprir (riscar)' ?>"><?= e($l['titulo']) ?></div>
+                <?php if ($l['hora_inicio']): ?><div class="pd-postit-meta">⏰ <?= date('H:i', strtotime($l['hora_inicio'])) ?></div><?php endif; ?>
+                <div class="pd-postit-acoes">
+                    <button onclick="abrirCorLembrete(<?= $l['id'] ?>, this)" title="Trocar cor">🎨</button>
+                    <button onclick="arquivarLembrete(<?= $l['id'] ?>)" title="Arquivar (some daqui sem apagar)">📁</button>
+                    <button onclick="excluirLembrete(<?= $l['id'] ?>)" title="Excluir definitivo" style="color:#dc2626;">🗑</button>
                 </div>
-                <?php if ($l['prioridade'] === 'urgente'): ?><span style="font-size:.55rem;background:#dc2626;color:#fff;padding:1px 4px;border-radius:3px;font-weight:700;">URGENTE</span><?php endif; ?>
-                <?php if ($l['prioridade'] === 'fatal'): ?><span style="font-size:.55rem;background:#7c2d12;color:#fff;padding:1px 4px;border-radius:3px;font-weight:700;">FATAL</span><?php endif; ?>
-                <button onclick="excluirLembrete(<?= $l['id'] ?>)" style="background:none;border:none;cursor:pointer;color:#dc2626;font-size:.8rem;" title="Excluir">🗑️</button>
             </div>
             <?php endforeach; ?>
+            </div>
         <?php endif; ?>
         </div>
     </div>
@@ -401,6 +438,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </select>
             </div>
         </div>
+        <div style="margin-bottom:.6rem;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.3rem;">Cor do post-it</label>
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+                <?php foreach (array('amarelo','rosa','verde','azul','laranja','roxo') as $i => $cor): ?>
+                    <label style="cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;gap:2px;">
+                        <input type="radio" name="cor" value="<?= $cor ?>" <?= $i === 0 ? 'checked' : '' ?> style="display:none;" onchange="document.querySelectorAll('.pd-cor-opt-modal').forEach(function(e){e.classList.remove('sel');});this.nextElementSibling.classList.add('sel');">
+                        <span class="pd-cor-opt pd-cor-opt-modal pd-cor-<?= $cor ?> <?= $i === 0 ? 'sel' : '' ?>"></span>
+                        <span style="font-size:.6rem;color:var(--text-muted);"><?= ucfirst($cor) ?></span>
+                    </label>
+                <?php endforeach; ?>
+            </div>
+        </div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalLembrete').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
             <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Criar Lembrete</button>
@@ -419,7 +468,7 @@ function toggleLembrete(id, el) {
     .then(function(r) { if (r.ok) location.reload(); });
 }
 function excluirLembrete(id) {
-    if (!confirm('Excluir este lembrete?')) return;
+    if (!confirm('Excluir este lembrete? (apaga definitivo — pra esconder sem apagar use 📁 arquivar)')) return;
     var fd = new FormData();
     fd.append('action', 'excluir_lembrete');
     fd.append('id', id);
@@ -427,6 +476,47 @@ function excluirLembrete(id) {
     fetch('<?= module_url('painel', 'api.php') ?>', { method: 'POST', body: fd })
     .then(function(r) { return r.json(); })
     .then(function(r) { if (r.ok) location.reload(); });
+}
+function arquivarLembrete(id) {
+    var fd = new FormData();
+    fd.append('action', 'arquivar_lembrete');
+    fd.append('id', id);
+    fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url('painel', 'api.php') ?>', { method: 'POST', body: fd })
+    .then(function(r) { return r.json(); })
+    .then(function(r) { if (r.ok) {
+        var el = document.querySelector('[data-lembrete-id="' + id + '"]');
+        if (el) { el.style.transition='opacity .3s,transform .3s'; el.style.opacity='0'; el.style.transform='scale(.7) rotate(8deg)'; setTimeout(function(){ el.remove(); }, 320); }
+    }});
+}
+function abrirCorLembrete(id, btn) {
+    var cores = ['amarelo','rosa','verde','azul','laranja','roxo'];
+    var pop = document.createElement('div');
+    pop.style.cssText = 'position:absolute;background:#fff;padding:.5rem;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);display:flex;gap:.4rem;z-index:9999;';
+    cores.forEach(function(c) {
+        var b = document.createElement('span');
+        b.className = 'pd-cor-opt pd-cor-' + c;
+        b.title = c;
+        b.onclick = function() {
+            var fd = new FormData();
+            fd.append('action', 'mudar_cor_lembrete');
+            fd.append('id', id);
+            fd.append('cor', c);
+            fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+            fetch('<?= module_url('painel', 'api.php') ?>', { method: 'POST', body: fd })
+            .then(function(r) { return r.json(); }).then(function(r) { if (r.ok) location.reload(); });
+        };
+        pop.appendChild(b);
+    });
+    var rect = btn.getBoundingClientRect();
+    pop.style.top = (rect.bottom + window.scrollY + 4) + 'px';
+    pop.style.left = (rect.left + window.scrollX - 60) + 'px';
+    document.body.appendChild(pop);
+    setTimeout(function() {
+        document.addEventListener('click', function fechar(e) {
+            if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', fechar); }
+        });
+    }, 100);
 }
 </script>
 
