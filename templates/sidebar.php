@@ -129,6 +129,7 @@ $menuItems = array(
     array('section' => 'Sistema'),
     array('label' => 'Treinamento',     'icon' => '🎓', 'href' => url('modules/treinamento/'),      'id' => 'treinamento',     'roles' => $all, 'badge' => $_treinaPendentes, 'badgeCor' => '#B87333'),
     array('label' => 'Usuários',        'icon' => '🛡️', 'href' => url('modules/usuarios/'),        'id' => 'usuarios',        'roles' => array('admin')),
+    array('label' => 'Onboarding',     'icon' => '👋', 'href' => url('modules/admin/onboarding.php'), 'id' => 'onboarding',   'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
     array('label' => 'Importar DJen',   'icon' => '📥', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin')),
