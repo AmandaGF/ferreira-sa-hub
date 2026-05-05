@@ -531,8 +531,8 @@ function template_prevjud($d) {
     $html .= '<p style="text-align:right;font-style:italic;text-indent:0;font-size:11px;color:#6b7280;">Autos n. ' . f($numProcesso) . '</p>';
     $html .= '<br>';
 
-    // Qualificação com legitimidade ativa
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de sua advogada que esta subscreve digitalmente, vem, respeitosamente à presença de Vossa Excelência,</p>';
+    // Qualificação com legitimidade ativa — termina com "apresentar" puxando o BOX abaixo
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de sua advogada que esta subscreve digitalmente, vem, respeitosamente à presença de Vossa Excelência, apresentar</p>';
 
     // Destaque visual PREVJUD
     $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);border-radius:8px;overflow:hidden;">';
@@ -541,8 +541,8 @@ function template_prevjud($d) {
     $html .= '<div style="font-size:16px;color:#fff;font-weight:800;letter-spacing:5px;">PESQUISA PREVJUD</div>';
     $html .= '</div></div>';
 
-    // Corpo
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Requerer a Vossa Excelência a realização de pesquisa, via <strong>Sistema PREVJUD</strong> (Previdência e Justiça), a fim de que se apure e se obtenha informações detalhadas acerca do(s) <strong>vínculo(s) empregatício(s)</strong>, contribuições previdenciárias, benefícios e demais relações de trabalho do(a) senhor(a):</p>';
+    // Corpo — após o BOX, ligação direta com "da parte Alimentante"
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">a fim de que se apure e se obtenha informações detalhadas acerca do(s) <strong>vínculo(s) empregatício(s)</strong>, contribuições previdenciárias, benefícios e demais relações de trabalho da <strong>parte Alimentante</strong>:</p>';
 
     // Box com dados do pesquisado
     $html .= '<div style="margin:20px 0;border:2px solid #052228;border-radius:10px;overflow:hidden;">';
