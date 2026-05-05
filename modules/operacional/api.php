@@ -935,6 +935,121 @@ switch ($action) {
         exit;
     }
 
+    case 'salvar_prazo_calculado': {
+        // Salva um prazo calculado: cria registro em prazos_calculos (historico),
+        // prazos_processuais (kanban prazos) e agenda_eventos. Retorna JSON.
+        // Usado pelo botao "Salvar no processo" da calculadora — antes via
+        // resubmit do form, sujeito a CSRF expirado e select resetado.
+        header('Content-Type: application/json; charset=utf-8');
+        require_once APP_ROOT . '/core/functions_prazos.php';
+
+        $caseId    = (int)($_POST['case_id'] ?? 0);
+        $tipoPrazo = trim($_POST['tipo_prazo'] ?? '');
+        $disp      = trim($_POST['data_disponibilizacao'] ?? '');
+        $pub       = trim($_POST['data_publicacao'] ?? '');
+        $inicio    = trim($_POST['data_inicio_contagem'] ?? '');
+        $qtd       = max(1, (int)($_POST['quantidade'] ?? 0));
+        $unidade   = ($_POST['unidade'] ?? 'dias') === 'meses' ? 'meses' : 'dias';
+        $comarca   = trim($_POST['comarca'] ?? '');
+        $fatal     = trim($_POST['data_fatal'] ?? '');
+
+        if (!$caseId)  { echo json_encode(array('ok' => false, 'erro' => 'Selecione um processo no campo "Processo".')); exit; }
+        if (!$disp || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $disp))   { echo json_encode(array('ok' => false, 'erro' => 'Data de disponibilização/juntada inválida.')); exit; }
+        if (!$fatal || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fatal)) { echo json_encode(array('ok' => false, 'erro' => 'Data fatal inválida — refaça o cálculo.')); exit; }
+
+        // Self-heal: garante a tabela de historico
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS prazos_calculos (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                case_id INT NULL,
+                tipo_prazo VARCHAR(100) NULL,
+                data_disponibilizacao DATE NULL,
+                data_publicacao DATE NULL,
+                data_inicio_contagem DATE NULL,
+                quantidade INT NULL,
+                unidade VARCHAR(20) NULL,
+                comarca VARCHAR(100) NULL,
+                data_fatal DATE NULL,
+                calculado_por INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_case (case_id), INDEX idx_fatal (data_fatal)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        } catch (Exception $e) {}
+
+        $erros = array();
+        $okHist = false; $okPrazo = false; $okEvento = false;
+
+        // 1) Historico
+        try {
+            $pdo->prepare("INSERT INTO prazos_calculos
+                (case_id, tipo_prazo, data_disponibilizacao, data_publicacao, data_inicio_contagem,
+                 quantidade, unidade, comarca, data_fatal, calculado_por)
+                VALUES (?,?,?,?,?,?,?,?,?,?)")
+                ->execute(array(
+                    $caseId, $tipoPrazo ?: null, $disp, $pub ?: null, $inicio ?: null,
+                    $qtd, $unidade, $comarca ?: null, $fatal, current_user_id()
+                ));
+            $okHist = true;
+        } catch (Exception $e) {
+            $erros[] = 'historico: ' . $e->getMessage();
+            error_log('[salvar_prazo] historico: ' . $e->getMessage());
+        }
+
+        // 2) Buscar dados do caso (client_id + numero) — usado nos 2 inserts seguintes
+        $clientId = null; $numProc = null; $caseTitle = '';
+        try {
+            $st = $pdo->prepare("SELECT client_id, case_number, title FROM cases WHERE id = ?");
+            $st->execute(array($caseId));
+            if ($r = $st->fetch()) {
+                $clientId  = (int)$r['client_id'] ?: null;
+                $numProc   = $r['case_number'] ?: null;
+                $caseTitle = $r['title'] ?: '';
+            }
+        } catch (Exception $e) {}
+
+        // 3) Prazos processuais (kanban prazos)
+        try {
+            $pdo->prepare("INSERT INTO prazos_processuais
+                (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, concluido, usuario_id)
+                VALUES (?,?,?,?,?,0,?)")
+                ->execute(array(
+                    $clientId, $caseId, $numProc,
+                    ($tipoPrazo ?: 'Prazo') . ' — ' . $qtd . ' ' . $unidade,
+                    $fatal, current_user_id()
+                ));
+            $okPrazo = true;
+        } catch (Exception $e) {
+            $erros[] = 'prazo: ' . $e->getMessage();
+            error_log('[salvar_prazo] prazos_processuais: ' . $e->getMessage());
+        }
+
+        // 4) Evento na agenda (dia todo)
+        try {
+            $pdo->prepare("INSERT INTO agenda_eventos
+                (titulo, tipo, data_inicio, data_fim, dia_todo, case_id, client_id, responsavel_id, created_by, created_at)
+                VALUES (?,?,?,?,1,?,?,?,?,NOW())")
+                ->execute(array(
+                    'PRAZO: ' . ($tipoPrazo ?: 'Processual') . ' — ' . $caseTitle,
+                    'prazo', $fatal, $fatal, $caseId, $clientId,
+                    current_user_id(), current_user_id()
+                ));
+            $okEvento = true;
+        } catch (Exception $e) {
+            $erros[] = 'agenda: ' . $e->getMessage();
+            error_log('[salvar_prazo] agenda_eventos: ' . $e->getMessage());
+        }
+
+        echo json_encode(array(
+            'ok'         => $okPrazo,
+            'historico'  => $okHist,
+            'prazo'      => $okPrazo,
+            'evento'     => $okEvento,
+            'data_fatal' => $fatal,
+            'erros'      => $erros,
+        ));
+        exit;
+    }
+
     case 'enviar_aviso_compromisso': {
         // Envia mensagem-padrão via Z-API canal 24 pra todos os clientes
         // vinculados ao caso do compromisso, e ao final marca cliente_avisado_em.

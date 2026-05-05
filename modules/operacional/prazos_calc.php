@@ -32,6 +32,13 @@ if ($preUf === '') $preUf = 'RJ';
 $resultado = null;
 $salvoComSucesso = false;
 
+// DIAGNOSTICO: alerta especifico quando a usuaria clicou em Salvar mas
+// o POST falhou em alguma validacao silenciosamente.
+$_tentouSalvar = ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['salvar']));
+if ($_tentouSalvar && !validate_csrf()) {
+    flash_set('error', 'Sua sessão expirou. Recarregue a página (F5) e tente salvar novamente.');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $dataDisp  = isset($_POST['data_disponibilizacao']) ? $_POST['data_disponibilizacao'] : '';
     $qtd       = (int)(isset($_POST['quantidade']) ? $_POST['quantidade'] : 15);
@@ -1272,7 +1279,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <!-- Action buttons -->
                     <div class="result-actions">
                         <?php if (!$salvoComSucesso): ?>
-                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="salvarPrazo()">
+                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="salvarPrazo()"
+                                data-case-id="<?= e((string)(isset($_POST['case_id']) ? $_POST['case_id'] : '')) ?>"
+                                data-tipo-prazo="<?= e(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '') ?>"
+                                data-disp="<?= e($resultado['disponibilizacao']) ?>"
+                                data-pub="<?= e($resultado['publicacao'] ?: '') ?>"
+                                data-inicio="<?= e($resultado['inicio_contagem']) ?>"
+                                data-qtd="<?= e((string)$resultado['quantidade']) ?>"
+                                data-unidade="<?= e($resultado['unidade']) ?>"
+                                data-comarca="<?= e(isset($resultado['comarca']) ? $resultado['comarca'] : '') ?>"
+                                data-fatal="<?= e($resultado['data_fatal']) ?>">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
                                 Salvar no processo
                             </button>
@@ -1649,23 +1665,73 @@ document.addEventListener('DOMContentLoaded', function() {
         return d + '/' + m + '/' + y;
     }
 
+    // Salva o prazo via AJAX usando os dados do RESULTADO ja calculado
+    // (e nao do form, que sofria com select resetado e CSRF expirado).
+    // Os atributos data-* sao preenchidos pelo PHP no card de resultado.
     window.salvarPrazo = function() {
-        var form = document.getElementById('prazoForm');
-        if (!form) return;
-        var caseSelect = form.querySelector('[name="case_id"]');
-        var caseId = caseSelect ? caseSelect.value : '';
-        if (!caseId || caseId === '0' || caseId === '') {
-            alert('Selecione um processo para salvar o prazo.\n\nO prazo será vinculado ao processo, criará uma tarefa e um evento na agenda.');
-            if (caseSelect) { caseSelect.style.borderColor = '#dc2626'; caseSelect.focus(); }
+        var btn = document.getElementById('btnSalvar');
+        if (!btn) return;
+        var caseId = btn.dataset.caseId || '';
+        if (!caseId || caseId === '0') {
+            alert('Selecione um processo no campo "Processo" e clique em CALCULAR PRAZO antes de salvar.');
+            var sel = document.getElementById('caseSelect');
+            if (sel) { sel.style.borderColor = '#dc2626'; sel.focus(); }
             return;
         }
         if (!confirm('Salvar prazo no processo selecionado?\n\nIsso vai:\n- Registrar o cálculo no histórico\n- Criar um prazo processual\n- Criar um evento na agenda')) return;
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'salvar';
-        input.value = '1';
-        form.appendChild(input);
-        form.submit();
+
+        btn.disabled = true;
+        var labelOriginal = btn.innerHTML;
+        btn.innerHTML = '⏳ Salvando...';
+
+        var fd = new FormData();
+        fd.append('action', 'salvar_prazo_calculado');
+        fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+        fd.append('case_id', caseId);
+        fd.append('tipo_prazo', btn.dataset.tipoPrazo || '');
+        fd.append('data_disponibilizacao', btn.dataset.disp || '');
+        fd.append('data_publicacao', btn.dataset.pub || '');
+        fd.append('data_inicio_contagem', btn.dataset.inicio || '');
+        fd.append('quantidade', btn.dataset.qtd || '');
+        fd.append('unidade', btn.dataset.unidade || 'dias');
+        fd.append('comarca', btn.dataset.comarca || '');
+        fd.append('data_fatal', btn.dataset.fatal || '');
+
+        fetch('<?= module_url('operacional', 'api.php') ?>', {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        })
+        .then(function(r) {
+            if (r.status === 401 && typeof window.fsaMostrarSessaoExpirada === 'function') {
+                window.fsaMostrarSessaoExpirada();
+                throw new Error('sessao expirada');
+            }
+            return r.text().then(function(t) {
+                try { return JSON.parse(t); }
+                catch (e) { throw new Error('Resposta invalida do servidor:\n' + t.substring(0, 300)); }
+            });
+        })
+        .then(function(j) {
+            if (j.ok) {
+                btn.innerHTML = '✓ Salvo com sucesso!';
+                btn.style.background = '#059669';
+                btn.classList.add('saved');
+                var aviso = '✓ Prazo salvo no processo!\n\nData fatal: ' + (j.data_fatal || '');
+                if (!j.evento) aviso += '\n\n⚠ Atenção: não foi possível criar evento na agenda.';
+                alert(aviso);
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = labelOriginal;
+                alert('❌ Erro ao salvar:\n\n' + (j.erro || (j.erros || []).join(' | ') || 'falha desconhecida'));
+            }
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.innerHTML = labelOriginal;
+            alert('❌ Erro: ' + err.message);
+        });
     };
 
     window.copiarResultado = function() {
