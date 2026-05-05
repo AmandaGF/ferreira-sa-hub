@@ -370,25 +370,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="pd-card">
         <h3 style="justify-content:space-between;">
             <span>💬 Lembretes</span>
-            <button onclick="document.getElementById('modalLembrete').style.display='flex';" class="btn btn-primary btn-sm" style="font-size:.68rem;background:#B87333;padding:.2rem .6rem;">+ Lembrete</button>
+            <span style="display:flex;gap:.3rem;">
+                <button onclick="abrirArquivados()" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:.2rem .5rem;" title="Ver lembretes arquivados">📁</button>
+                <button onclick="abrirModalLembrete()" class="btn btn-primary btn-sm" style="font-size:.68rem;background:#B87333;padding:.2rem .6rem;">+ Lembrete</button>
+            </span>
         </h3>
         <div id="listaLembretes">
         <?php
         // Self-heal cor + arquivado
         try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN cor VARCHAR(20) DEFAULT 'amarelo'"); } catch (Exception $e) {}
         try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN arquivado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        // Self-heal de vínculos
+        try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN client_id INT UNSIGNED NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN case_id INT UNSIGNED NULL"); } catch (Exception $e) {}
         $lembretes = array();
         try {
             // Mostra lembretes de HOJE + em aberto atrasados (de dias passados, não concluídos, não arquivados)
-            // Antes: filtro só pegava data_evento = hoje, e lembretes pendentes de ontem sumiam.
-            $stmtLR = $pdo->prepare("SELECT *,
-                                            (data_evento < ? AND concluido = 0) AS atrasado
-                                     FROM eventos_dia
-                                     WHERE usuario_id = ? AND tipo = 'lembrete'
-                                       AND IFNULL(arquivado,0) = 0
-                                       AND (data_evento = ? OR (data_evento < ? AND concluido = 0))
-                                     ORDER BY atrasado DESC, concluido ASC, hora_inicio ASC, criado_em ASC");
-            $stmtLR->execute(array($hoje, $viewUserId, $hoje, $hoje));
+            // + futuros (data > hoje) — pra Amanda ver lembretes que ela mesma agendou pra outras datas
+            $stmtLR = $pdo->prepare("SELECT e.*,
+                                            (e.data_evento < ? AND e.concluido = 0) AS atrasado,
+                                            (e.data_evento > ?) AS futuro,
+                                            c.name AS client_name,
+                                            cs.title AS case_title,
+                                            cs.case_number AS case_number
+                                     FROM eventos_dia e
+                                     LEFT JOIN clients c ON c.id = e.client_id
+                                     LEFT JOIN cases cs ON cs.id = e.case_id
+                                     WHERE e.usuario_id = ? AND e.tipo = 'lembrete'
+                                       AND IFNULL(e.arquivado,0) = 0
+                                       AND (e.data_evento = ? OR (e.data_evento < ? AND e.concluido = 0) OR e.data_evento > ?)
+                                     ORDER BY atrasado DESC, e.data_evento ASC, e.concluido ASC, e.hora_inicio ASC, e.criado_em ASC");
+            $stmtLR->execute(array($hoje, $hoje, $viewUserId, $hoje, $hoje, $hoje));
             $lembretes = $stmtLR->fetchAll();
         } catch (Exception $e) {}
         if (empty($lembretes)): ?>
@@ -405,14 +417,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
             ?>
             <div class="pd-postit cor-<?= e($cor) ?> <?= $done ? 'done' : '' ?>" data-lembrete-id="<?= $l['id'] ?>">
                 <?php if (!empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#dc2626;">⚠ ATRASADO</span><?php endif; ?>
-                <?php if (empty($l['atrasado']) && $l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
-                <?php if (empty($l['atrasado']) && $l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
+                <?php if (!empty($l['futuro']) && empty($l['atrasado'])): ?><span class="pd-postit-pri" style="background:#3b82f6;">📅 <?= date('d/m', strtotime($l['data_evento'])) ?></span><?php endif; ?>
+                <?php if (empty($l['atrasado']) && empty($l['futuro']) && $l['prioridade'] === 'urgente'): ?><span class="pd-postit-pri urgente">URGENTE</span><?php endif; ?>
+                <?php if (empty($l['atrasado']) && empty($l['futuro']) && $l['prioridade'] === 'fatal'): ?><span class="pd-postit-pri fatal">FATAL</span><?php endif; ?>
                 <div class="pd-postit-titulo" onclick="toggleLembrete(<?= $l['id'] ?>, this)" title="<?= $done ? 'Clique pra desfazer' : 'Clique pra cumprir (riscar)' ?>"><?= e($l['titulo']) ?></div>
                 <?php if (!empty($l['atrasado'])): ?>
                     <div class="pd-postit-meta" style="color:#b91c1c;font-weight:600;">📅 de <?= date('d/m', strtotime($l['data_evento'])) ?></div>
                 <?php endif; ?>
                 <?php if ($l['hora_inicio']): ?><div class="pd-postit-meta">⏰ <?= date('H:i', strtotime($l['hora_inicio'])) ?></div><?php endif; ?>
+                <?php if (!empty($l['client_name'])): ?>
+                    <div class="pd-postit-meta">👤 <?= e($l['client_name']) ?></div>
+                <?php endif; ?>
+                <?php if (!empty($l['case_title'])): ?>
+                    <div class="pd-postit-meta">⚖ <?= e(mb_substr($l['case_title'], 0, 40)) ?><?= mb_strlen($l['case_title']) > 40 ? '…' : '' ?></div>
+                <?php endif; ?>
                 <div class="pd-postit-acoes">
+                    <button onclick="editarLembrete(<?= $l['id'] ?>)" title="Editar">✏</button>
                     <button onclick="abrirCorLembrete(<?= $l['id'] ?>, this)" title="Trocar cor">🎨</button>
                     <button onclick="arquivarLembrete(<?= $l['id'] ?>)" title="Arquivar (some daqui sem apagar)">📁</button>
                     <button onclick="excluirLembrete(<?= $l['id'] ?>)" title="Excluir definitivo" style="color:#dc2626;">🗑</button>
@@ -425,37 +445,67 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Modal Novo Lembrete -->
-<div id="modalLembrete" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
-<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:420px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
-    <h3 style="font-size:1rem;margin:0 0 1rem;color:#052228;">💬 Novo Lembrete</h3>
-    <form method="POST" action="<?= module_url('painel', 'api.php') ?>">
-        <?= csrf_input() ?>
-        <input type="hidden" name="action" value="criar_lembrete">
+<!-- Modal Lembrete (criar OU editar — depende de modoLembreteEdit/idLembreteEdit) -->
+<div id="modalLembrete" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:1rem 0;">
+<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:520px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:92vh;overflow-y:auto;">
+    <h3 id="modalLembreteTitulo" style="font-size:1rem;margin:0 0 1rem;color:#052228;">💬 Novo Lembrete</h3>
+    <form id="formLembrete" onsubmit="event.preventDefault();salvarLembrete();">
+        <input type="hidden" id="lembreteId" value="">
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">O que precisa lembrar? *</label>
-            <input type="text" name="titulo" class="form-input" required placeholder="Ex: Ligar para cliente às 14h">
+            <input type="text" id="lembreteTitulo" class="form-input" required placeholder="Ex: Ligar para cliente às 14h">
         </div>
-        <div style="display:flex;gap:.5rem;margin-bottom:.6rem;">
-            <div style="flex:1;">
-                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Horário</label>
-                <input type="time" name="hora_inicio" class="form-input">
+        <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;">
+            <div style="flex:1;min-width:120px;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Data</label>
+                <input type="date" id="lembreteData" class="form-input">
             </div>
-            <div style="flex:1;">
+            <div style="flex:1;min-width:100px;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Horário</label>
+                <input type="time" id="lembreteHora" class="form-input">
+            </div>
+            <div style="flex:1;min-width:100px;">
                 <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Prioridade</label>
-                <select name="prioridade" class="form-select">
+                <select id="lembretePrioridade" class="form-select">
                     <option value="normal">Normal</option>
                     <option value="urgente">Urgente</option>
                     <option value="fatal">Fatal</option>
                 </select>
             </div>
         </div>
+        <!-- Vincular cliente -->
+        <div style="margin-bottom:.6rem;position:relative;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">👤 Vincular cliente (opcional)</label>
+            <input type="text" id="lembreteClienteBusca" class="form-input" placeholder="Digite o nome do cliente..." oninput="buscarClienteLembrete(this.value)" autocomplete="off">
+            <input type="hidden" id="lembreteClienteId" value="">
+            <div id="lembreteClienteResultados" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div>
+        </div>
+        <!-- Vincular caso -->
+        <div style="margin-bottom:.6rem;position:relative;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">⚖ Vincular processo (opcional)</label>
+            <input type="text" id="lembreteCasoBusca" class="form-input" placeholder="Digite título, CNJ ou cliente..." oninput="buscarCasoLembrete(this.value)" autocomplete="off">
+            <input type="hidden" id="lembreteCasoId" value="">
+            <div id="lembreteCasoResultados" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:6px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div>
+        </div>
+        <!-- Atribuir a outro usuário (só na criação) -->
+        <div id="lembreteAtribuirWrap" style="margin-bottom:.6rem;">
+            <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">📌 Atribuir a (opcional — quem recebe o lembrete)</label>
+            <select id="lembreteAtribuidoA" class="form-select">
+                <option value="">Eu mesma</option>
+                <?php
+                $usuariosAtivos = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 AND id <> " . (int)$userId . " ORDER BY name")->fetchAll();
+                foreach ($usuariosAtivos as $u): ?>
+                    <option value="<?= $u['id'] ?>"><?= e($u['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <small style="font-size:.65rem;color:var(--text-muted);">Se atribuir, o usuário recebe push e o lembrete aparece no painel dele.</small>
+        </div>
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.3rem;">Cor do post-it</label>
-            <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+            <div style="display:flex;gap:.6rem;flex-wrap:wrap;" id="lembreteCorWrap">
                 <?php foreach (array('amarelo','rosa','verde','azul','laranja','roxo') as $i => $cor): ?>
                     <label style="cursor:pointer;display:inline-flex;flex-direction:column;align-items:center;gap:2px;">
-                        <input type="radio" name="cor" value="<?= $cor ?>" <?= $i === 0 ? 'checked' : '' ?> style="display:none;" onchange="document.querySelectorAll('.pd-cor-opt-modal').forEach(function(e){e.classList.remove('sel');});this.nextElementSibling.classList.add('sel');">
+                        <input type="radio" name="lembreteCor" value="<?= $cor ?>" <?= $i === 0 ? 'checked' : '' ?> style="display:none;" onchange="document.querySelectorAll('.pd-cor-opt-modal').forEach(function(e){e.classList.remove('sel');});this.parentNode.querySelector('.pd-cor-opt-modal').classList.add('sel');">
                         <span class="pd-cor-opt pd-cor-opt-modal pd-cor-<?= $cor ?> <?= $i === 0 ? 'sel' : '' ?>"></span>
                         <span style="font-size:.6rem;color:var(--text-muted);"><?= ucfirst($cor) ?></span>
                     </label>
@@ -464,18 +514,183 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalLembrete').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
-            <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Criar Lembrete</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="btnSalvarLembrete" style="background:#B87333;">Criar Lembrete</button>
         </div>
     </form>
 </div></div>
 
+<!-- Modal Lembretes Arquivados -->
+<div id="modalLembretesArq" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:1rem 0;">
+<div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:680px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:92vh;overflow-y:auto;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h3 style="font-size:1rem;margin:0;color:#052228;">📁 Lembretes arquivados</h3>
+        <button onclick="document.getElementById('modalLembretesArq').style.display='none';" style="background:none;border:none;font-size:1.2rem;cursor:pointer;">✕</button>
+    </div>
+    <div id="listaArquivados" style="font-size:.85rem;">
+        <div style="text-align:center;color:var(--text-muted);padding:2rem;">Carregando…</div>
+    </div>
+</div></div>
+
 <script>
-function toggleLembrete(id, el) {
+var LEMBRETE_API = '<?= module_url('painel', 'api.php') ?>';
+var LEMBRETE_CSRF = '<?= generate_csrf_token() ?>';
+function _lemFD(action, extra) {
     var fd = new FormData();
-    fd.append('action', 'toggle_lembrete');
-    fd.append('id', id);
-    fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
-    fetch('<?= module_url('painel', 'api.php') ?>', { method: 'POST', body: fd })
+    fd.append('action', action);
+    fd.append('<?= CSRF_TOKEN_NAME ?>', LEMBRETE_CSRF);
+    if (extra) for (var k in extra) fd.append(k, extra[k]);
+    return fd;
+}
+function abrirModalLembrete() {
+    document.getElementById('lembreteId').value = '';
+    document.getElementById('lembreteTitulo').value = '';
+    document.getElementById('lembreteData').value = '<?= date('Y-m-d') ?>';
+    document.getElementById('lembreteHora').value = '';
+    document.getElementById('lembretePrioridade').value = 'normal';
+    document.getElementById('lembreteClienteBusca').value = '';
+    document.getElementById('lembreteClienteId').value = '';
+    document.getElementById('lembreteCasoBusca').value = '';
+    document.getElementById('lembreteCasoId').value = '';
+    document.getElementById('lembreteAtribuidoA').value = '';
+    document.getElementById('lembreteAtribuirWrap').style.display = 'block';
+    document.querySelector('input[name="lembreteCor"][value="amarelo"]').checked = true;
+    document.querySelectorAll('.pd-cor-opt-modal').forEach(function(e){e.classList.remove('sel');});
+    document.querySelector('.pd-cor-opt-modal.pd-cor-amarelo').classList.add('sel');
+    document.getElementById('modalLembreteTitulo').textContent = '💬 Novo Lembrete';
+    document.getElementById('btnSalvarLembrete').textContent = 'Criar Lembrete';
+    document.getElementById('modalLembrete').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('lembreteTitulo').focus(); }, 50);
+}
+function editarLembrete(id) {
+    fetch(LEMBRETE_API, { method: 'POST', body: _lemFD('obter_lembrete', {id: id}) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (!d.ok) { alert(d.error || 'Erro'); return; }
+        var l = d.lembrete;
+        document.getElementById('lembreteId').value = l.id;
+        document.getElementById('lembreteTitulo').value = l.titulo || '';
+        document.getElementById('lembreteData').value = l.data_evento || '';
+        document.getElementById('lembreteHora').value = l.hora_inicio ? l.hora_inicio.substring(0,5) : '';
+        document.getElementById('lembretePrioridade').value = l.prioridade || 'normal';
+        document.getElementById('lembreteClienteId').value = l.client_id || '';
+        document.getElementById('lembreteClienteBusca').value = l.client_name || '';
+        document.getElementById('lembreteCasoId').value = l.case_id || '';
+        document.getElementById('lembreteCasoBusca').value = l.case_title ? (l.case_title + (l.case_number ? ' — ' + l.case_number : '')) : '';
+        document.getElementById('lembreteAtribuirWrap').style.display = 'none'; // não dá pra reatribuir editando
+        var cor = l.cor || 'amarelo';
+        var radio = document.querySelector('input[name="lembreteCor"][value="' + cor + '"]');
+        if (radio) radio.checked = true;
+        document.querySelectorAll('.pd-cor-opt-modal').forEach(function(e){e.classList.remove('sel');});
+        var sel = document.querySelector('.pd-cor-opt-modal.pd-cor-' + cor);
+        if (sel) sel.classList.add('sel');
+        document.getElementById('modalLembreteTitulo').textContent = '✏ Editar Lembrete';
+        document.getElementById('btnSalvarLembrete').textContent = 'Salvar';
+        document.getElementById('modalLembrete').style.display = 'flex';
+    });
+}
+function salvarLembrete() {
+    var id = document.getElementById('lembreteId').value;
+    var dados = {
+        titulo: document.getElementById('lembreteTitulo').value,
+        data_evento: document.getElementById('lembreteData').value,
+        hora_inicio: document.getElementById('lembreteHora').value,
+        prioridade: document.getElementById('lembretePrioridade').value,
+        cor: document.querySelector('input[name="lembreteCor"]:checked').value,
+        client_id: document.getElementById('lembreteClienteId').value,
+        case_id: document.getElementById('lembreteCasoId').value
+    };
+    if (!id) {
+        dados.atribuido_a = document.getElementById('lembreteAtribuidoA').value;
+    } else {
+        dados.id = id;
+    }
+    fetch(LEMBRETE_API, { method: 'POST', body: _lemFD(id ? 'editar_lembrete' : 'criar_lembrete', dados) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (d.error) { alert(d.error); return; }
+        location.reload();
+    });
+}
+var _lemSearchTimer;
+function buscarClienteLembrete(q) {
+    clearTimeout(_lemSearchTimer);
+    var box = document.getElementById('lembreteClienteResultados');
+    document.getElementById('lembreteClienteId').value = ''; // limpa ao digitar
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    _lemSearchTimer = setTimeout(function(){
+        fetch(LEMBRETE_API + '?action=buscar_clientes_lembrete&q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(arr){
+            if (!arr.length) { box.style.display = 'none'; return; }
+            box.innerHTML = arr.map(function(c){
+                return '<div onclick="selecionarClienteLembrete(' + c.id + ',' + JSON.stringify(c.name) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + c.name + (c.cpf ? ' <span style="color:#94a3b8;font-size:.7rem;">' + c.cpf + '</span>' : '') + '</div>';
+            }).join('');
+            box.style.display = 'block';
+        });
+    }, 250);
+}
+function selecionarClienteLembrete(id, nome) {
+    document.getElementById('lembreteClienteId').value = id;
+    document.getElementById('lembreteClienteBusca').value = nome;
+    document.getElementById('lembreteClienteResultados').style.display = 'none';
+}
+function buscarCasoLembrete(q) {
+    clearTimeout(_lemSearchTimer);
+    var box = document.getElementById('lembreteCasoResultados');
+    document.getElementById('lembreteCasoId').value = '';
+    if (q.length < 2) { box.style.display = 'none'; return; }
+    _lemSearchTimer = setTimeout(function(){
+        fetch(LEMBRETE_API + '?action=buscar_casos_lembrete&q=' + encodeURIComponent(q))
+        .then(function(r){ return r.json(); })
+        .then(function(arr){
+            if (!arr.length) { box.style.display = 'none'; return; }
+            box.innerHTML = arr.map(function(c){
+                var label = (c.title || '') + (c.case_number ? ' — ' + c.case_number : '') + (c.client_name ? ' (' + c.client_name + ')' : '');
+                return '<div onclick="selecionarCasoLembrete(' + c.id + ',' + JSON.stringify(label) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + label + '</div>';
+            }).join('');
+            box.style.display = 'block';
+        });
+    }, 250);
+}
+function selecionarCasoLembrete(id, label) {
+    document.getElementById('lembreteCasoId').value = id;
+    document.getElementById('lembreteCasoBusca').value = label;
+    document.getElementById('lembreteCasoResultados').style.display = 'none';
+}
+function abrirArquivados() {
+    document.getElementById('modalLembretesArq').style.display = 'flex';
+    document.getElementById('listaArquivados').innerHTML = '<div style="text-align:center;color:#999;padding:2rem;">Carregando…</div>';
+    fetch(LEMBRETE_API, { method: 'POST', body: _lemFD('listar_arquivados', {}) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+        if (!d.ok) { document.getElementById('listaArquivados').innerHTML = '<div style="color:#dc2626;">' + (d.error || 'Erro') + '</div>'; return; }
+        if (!d.lembretes.length) {
+            document.getElementById('listaArquivados').innerHTML = '<div style="text-align:center;color:#999;padding:2rem;">Nenhum lembrete arquivado.</div>';
+            return;
+        }
+        document.getElementById('listaArquivados').innerHTML = d.lembretes.map(function(l){
+            var meta = [];
+            if (l.data_evento) meta.push('📅 ' + l.data_evento.split('-').reverse().join('/'));
+            if (l.hora_inicio) meta.push('⏰ ' + l.hora_inicio.substring(0,5));
+            if (l.client_name) meta.push('👤 ' + l.client_name);
+            if (l.case_title) meta.push('⚖ ' + l.case_title.substring(0,30));
+            return '<div style="padding:.6rem .8rem;border:1px solid #eee;border-radius:8px;margin-bottom:.5rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:#fafafa;">'
+                 + '<div style="flex:1;"><div style="font-weight:600;font-size:.88rem;">' + l.titulo + '</div>'
+                 + (meta.length ? '<div style="font-size:.7rem;color:#6b7280;margin-top:.2rem;">' + meta.join(' · ') + '</div>' : '')
+                 + '</div>'
+                 + '<button onclick="desarquivarLembrete(' + l.id + ')" style="background:#059669;color:#fff;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:.72rem;">↩ Desarquivar</button>'
+                 + '</div>';
+        }).join('');
+    });
+}
+function desarquivarLembrete(id) {
+    fetch(LEMBRETE_API, { method: 'POST', body: _lemFD('desarquivar_lembrete', {id: id}) })
+    .then(function(r){ return r.json(); })
+    .then(function(d){ if (d.ok) location.reload(); });
+}
+function toggleLembrete(id, el) {
+    var fd = _lemFD('toggle_lembrete', {id: id});
+    fetch(LEMBRETE_API, { method: 'POST', body: fd })
     .then(function(r) { return r.json(); })
     .then(function(r) { if (r.ok) location.reload(); });
 }
