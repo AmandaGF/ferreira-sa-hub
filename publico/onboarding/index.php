@@ -781,6 +781,17 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     <h4>Treinamentos importam</h4>
                     <p>Realize os <strong>treinamentos disponibilizados</strong> com atenção. Tudo aqui é muito cíclico — o que você aprende no treinamento volta repetidamente no dia a dia, e dominar esses fluxos faz toda a diferença na sua entrega.</p>
                 </div>
+                <div class="princ-card" style="border-top-color:#dc2626;background:#fef2f2;">
+                    <div class="princ-emoji">⚠️</div>
+                    <h4 style="color:#7f1d1d;">Atenção com arquivos em nuvem</h4>
+                    <p><strong>Todos os nossos arquivos ficam em nuvem.</strong> Só altere ou apague um documento quando tiver <strong>certeza</strong> de que deve fazê-lo.</p>
+                    <p style="margin-top:.4rem;">Alterar um documento para uma pessoa <strong>altera para todo mundo</strong> e pode causar danos à equipe inteira. Na dúvida, pergunte antes! 🙏</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🖥️</div>
+                    <h4>Precisou de equipamento? Fala!</h4>
+                    <p>Se precisar de algum <strong>equipamento específico</strong> para trabalhar bem (cadeira, monitor extra, headset, suporte de notebook, etc.), <strong>não hesite em nos comunicar</strong>. A gente conversa.</p>
+                </div>
             </div>
         </div>
 
