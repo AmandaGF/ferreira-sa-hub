@@ -623,18 +623,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <label>WhatsApp da colaboradora <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(busca foto de perfil automática)</span></label>
                 <input name="telefone_whatsapp" value="<?= e($reg['telefone_whatsapp'] ?? '') ?>" placeholder="Ex: 24992050096">
-                <div id="fotoWaWrap" style="margin-top:.4rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;flex-wrap:wrap;">
-                    <?php if (!empty($reg['foto_path'])): ?>
-                        <img id="fotoWaPreview" src="<?= e($reg['foto_path']) ?>" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;">
-                        <span id="fotoWaStatus" style="color:#059669;">✓ Foto definida</span>
-                    <?php else: ?>
-                        <span id="fotoWaStatus" style="color:#9ca3af;">Sem foto ainda</span>
-                    <?php endif; ?>
-                    <?php if ($reg && !empty($reg['id'])): ?>
-                        <button type="button" onclick="buscarFotoWA(<?= (int)$reg['id'] ?>)" style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">🔄 Buscar foto WA</button>
-                        <button type="button" onclick="document.getElementById('fotoUploadInput').click()" style="background:#eff6ff;border:1.5px solid #93c5fd;color:#1e40af;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">📤 Subir foto</button>
-                        <input type="file" id="fotoUploadInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadFotoColab(<?= (int)$reg['id'] ?>, this)">
-                    <?php endif; ?>
+                <div id="fotoWaWrap" style="margin-top:.5rem;display:flex;align-items:center;gap:.85rem;font-size:.72rem;flex-wrap:wrap;">
+                    <!-- Preview na moldura do story (igual ao que a colaboradora vê) -->
+                    <div style="position:relative;flex-shrink:0;">
+                        <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#052228,#173d46);padding:5px;box-shadow:0 0 0 2px #d7ab90;">
+                            <?php if (!empty($reg['foto_path'])): ?>
+                                <img id="fotoWaPreview" src="<?= e($reg['foto_path']) ?>" style="width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;">
+                            <?php else: ?>
+                                <div id="fotoWaPreview" style="width:100%;height:100%;border-radius:50%;background:rgba(215,171,144,.2);display:flex;align-items:center;justify-content:center;font-size:2rem;">💜</div>
+                            <?php endif; ?>
+                        </div>
+                        <span style="position:absolute;bottom:-4px;right:-4px;background:#d7ab90;color:#052228;font-size:.6rem;font-weight:700;padding:1px 6px;border-radius:8px;">story</span>
+                    </div>
+
+                    <div style="flex:1;min-width:180px;display:flex;flex-direction:column;gap:.4rem;">
+                        <span id="fotoWaStatus" style="<?= !empty($reg['foto_path']) ? 'color:#059669;' : 'color:#9ca3af;' ?>font-size:.78rem;font-weight:600;">
+                            <?= !empty($reg['foto_path']) ? '✓ Foto definida' : 'Sem foto ainda' ?>
+                        </span>
+                        <?php if ($reg && !empty($reg['id'])): ?>
+                            <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                                <button type="button" onclick="buscarFotoWA(<?= (int)$reg['id'] ?>)" style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">🔄 Buscar do WhatsApp</button>
+                                <button type="button" onclick="document.getElementById('fotoUploadInput').click()" style="background:#eff6ff;border:1.5px solid #93c5fd;color:#1e40af;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;"><?= !empty($reg['foto_path']) ? '🔁 Trocar foto' : '📤 Subir foto' ?></button>
+                                <?php if (!empty($reg['token'])): ?>
+                                <a href="<?= e($urlPublica($reg['token'])) ?>#sec-stories" target="_blank" style="background:#ecfdf5;border:1.5px solid #6ee7b7;color:#065f46;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;text-decoration:none;font-family:inherit;display:inline-block;">👀 Ver no story</a>
+                                <?php endif; ?>
+                            </div>
+                            <input type="file" id="fotoUploadInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadFotoColab(<?= (int)$reg['id'] ?>, this)">
+                        <?php endif; ?>
+                    </div>
                 </div>
             </div>
             <div>
@@ -1397,6 +1413,23 @@ function copiarLink() {
     });
 }
 
+// Substitui o preview por um <img> com a nova foto (se for div com emoji, troca)
+function _atualizarPreviewFoto(fotoPath) {
+    var preview = document.getElementById('fotoWaPreview');
+    if (!preview) return;
+    var url = fotoPath + '?t=' + Date.now();
+    if (preview.tagName.toLowerCase() === 'img') {
+        preview.src = url;
+        return;
+    }
+    // É um div com emoji — substitui por img
+    var img = document.createElement('img');
+    img.id = 'fotoWaPreview';
+    img.src = url;
+    img.style.cssText = 'width:100%;height:100%;border-radius:50%;object-fit:cover;display:block;';
+    preview.parentNode.replaceChild(img, preview);
+}
+
 // Upload manual da foto da colaboradora (quando WhatsApp não tem foto pública)
 function uploadFotoColab(id, input) {
     if (!input.files || !input.files[0]) return;
@@ -1417,15 +1450,7 @@ function uploadFotoColab(id, input) {
         .then(function(j){
             if (j && j.ok) {
                 if (status) { status.textContent = '✓ Foto definida (upload manual)'; status.style.color = '#059669'; }
-                var preview = document.getElementById('fotoWaPreview');
-                if (!preview) {
-                    preview = document.createElement('img');
-                    preview.id = 'fotoWaPreview';
-                    preview.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;';
-                    var wrap = document.getElementById('fotoWaWrap');
-                    if (wrap) wrap.insertBefore(preview, wrap.firstChild);
-                }
-                preview.src = j.foto_path + '?t=' + Date.now();
+                _atualizarPreviewFoto(j.foto_path);
             } else {
                 if (status) { status.textContent = '⚠ ' + (j && j.erro ? j.erro : 'Falha'); status.style.color = '#dc2626'; }
             }
@@ -1449,15 +1474,7 @@ function buscarFotoWA(id) {
         .then(function(j){
             if (j && j.ok) {
                 if (status) { status.textContent = '✓ Foto carregada do WhatsApp'; status.style.color = '#059669'; }
-                var preview = document.getElementById('fotoWaPreview');
-                if (!preview) {
-                    preview = document.createElement('img');
-                    preview.id = 'fotoWaPreview';
-                    preview.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;';
-                    var wrap = document.getElementById('fotoWaWrap');
-                    if (wrap) wrap.insertBefore(preview, wrap.firstChild);
-                }
-                preview.src = j.foto_path + '?t=' + Date.now();
+                _atualizarPreviewFoto(j.foto_path);
             } else {
                 if (status) { status.textContent = '⚠ ' + (j && j.erro ? j.erro : 'Falha'); status.style.color = '#dc2626'; }
             }
