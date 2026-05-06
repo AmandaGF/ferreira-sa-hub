@@ -52,9 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         $stOld = $pdo->prepare("SELECT foto_path FROM colaboradores_onboarding WHERE id = ?");
         $stOld->execute(array($id));
         $oldPath = $stOld->fetchColumn();
-        if ($oldPath && strpos($oldPath, '/files/onboarding_fotos/') === 0) {
-            $abs = APP_ROOT . $oldPath;
-            if (file_exists($abs)) @unlink($abs);
+        // Aceita tanto o formato novo (/conecta/files/...) quanto o legado (/files/...)
+        if ($oldPath) {
+            $rel = preg_replace('#^/conecta#', '', $oldPath);
+            if (strpos($rel, '/files/onboarding_fotos/') === 0) {
+                $abs = APP_ROOT . $rel;
+                if (file_exists($abs)) @unlink($abs);
+            }
         }
     } catch (Exception $e) {}
 
@@ -65,7 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['aj
         echo json_encode(array('ok' => false, 'erro' => 'Falha ao salvar arquivo no servidor (permissão da pasta?)'));
         exit;
     }
-    $fotoPath = '/files/onboarding_fotos/' . $nomeArq;
+    // URL acessível pelo browser — site mora em /conecta/, então prefixar
+    $fotoPath = '/conecta/files/onboarding_fotos/' . $nomeArq;
     $pdo->prepare("UPDATE colaboradores_onboarding SET foto_path = ? WHERE id = ?")->execute(array($fotoPath, $id));
     echo json_encode(array('ok' => true, 'foto_path' => $fotoPath, 'tamanho' => $tam, 'tipo' => $ext));
     exit;
@@ -149,7 +154,7 @@ if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
             echo json_encode(array('ok' => false, 'erro' => 'Falha ao salvar arquivo no servidor'));
             exit;
         }
-        $fotoPath = '/files/onboarding_fotos/' . $nomeArq;
+        $fotoPath = '/conecta/files/onboarding_fotos/' . $nomeArq;
         $pdo->prepare("UPDATE colaboradores_onboarding SET foto_path = ? WHERE id = ?")
             ->execute(array($fotoPath, $id));
         echo json_encode(array('ok' => true, 'foto_path' => $fotoPath, 'tamanho' => strlen($imgRaw), 'tipo' => $ext));
@@ -411,7 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                         $nomeArq = 'wa_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
                         $destino = $uploadDir . '/' . $nomeArq;
                         if (file_put_contents($destino, $imgRaw)) {
-                            $dados['foto_path'] = '/files/onboarding_fotos/' . $nomeArq;
+                            $dados['foto_path'] = '/conecta/files/onboarding_fotos/' . $nomeArq;
                         }
                     }
                 }
@@ -471,9 +476,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             $stF = $pdo->prepare("SELECT foto_path FROM colaboradores_onboarding WHERE id = ?");
             $stF->execute(array($id));
             $fp = $stF->fetchColumn();
-            if ($fp && strpos($fp, '/files/onboarding_fotos/') === 0) {
-                $abs = APP_ROOT . $fp;
-                if (file_exists($abs)) @unlink($abs);
+            if ($fp) {
+                $rel = preg_replace('#^/conecta#', '', $fp);
+                if (strpos($rel, '/files/onboarding_fotos/') === 0) {
+                    $abs = APP_ROOT . $rel;
+                    if (file_exists($abs)) @unlink($abs);
+                }
             }
         } catch (Exception $e) {}
         try { $pdo->prepare("DELETE FROM colaboradores_documentos WHERE colaborador_id = ?")->execute(array($id)); } catch (Exception $e) {}
