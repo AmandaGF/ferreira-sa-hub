@@ -25,7 +25,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'buscar_nome') {
 
     // Onboarding existente (re-cadastro / atualizacao)
     try {
-        $st = $pdo->prepare("SELECT nome_completo, data_nascimento, cpf, email_institucional, cargo, setor
+        $st = $pdo->prepare("SELECT nome_completo, data_nascimento, genero, cpf, email_institucional, telefone_whatsapp, cargo, setor
                              FROM colaboradores_onboarding
                              WHERE nome_completo LIKE ? AND status != 'arquivado'
                              ORDER BY nome_completo LIMIT 5");
@@ -35,17 +35,19 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'buscar_nome') {
                 'fonte' => 'onboarding',
                 'nome'  => $r['nome_completo'],
                 'data_nascimento' => $r['data_nascimento'],
+                'genero' => $r['genero'] ?: '',
                 'cpf'   => $r['cpf'] ?: '',
                 'email' => $r['email_institucional'] ?: '',
+                'whatsapp' => $r['telefone_whatsapp'] ?: '',
                 'cargo' => $r['cargo'] ?: '',
                 'setor' => $r['setor'] ?: '',
             );
         }
     } catch (Exception $e) {}
 
-    // Clients (ex-cliente que virou colaborador)
+    // Clients (ex-cliente que virou colaborador) — puxa whatsapp e demais dados
     try {
-        $st = $pdo->prepare("SELECT name, birth_date, cpf, email
+        $st = $pdo->prepare("SELECT name, birth_date, cpf, email, phone
                              FROM clients
                              WHERE name LIKE ?
                              ORDER BY name LIMIT 5");
@@ -55,8 +57,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === 'buscar_nome') {
                 'fonte' => 'cliente',
                 'nome'  => $r['name'],
                 'data_nascimento' => $r['birth_date'],
+                'genero' => '',
                 'cpf'   => $r['cpf'] ?: '',
                 'email' => $r['email'] ?: '',
+                'whatsapp' => preg_replace('/\D/', '', $r['phone'] ?: ''),
                 'cargo' => '',
                 'setor' => '',
             );
@@ -154,13 +158,13 @@ try {
 } catch (Exception $e) {}
 
 /**
- * Gera senha padrao do escritorio: 9 primeiros digitos do CPF + "@".
- * Ex: CPF 123.456.789-00 → "123456789@"
+ * Gera senha padrao do escritorio: CPF completo (11 digitos sem ponto/traço) + "@".
+ * Ex: CPF 123.456.789-00 → "12345678900@"
  */
 function gerar_senha_padrao_fsa($cpf) {
     $digits = preg_replace('/\D/', '', (string)$cpf);
-    if (strlen($digits) < 9) return '';
-    return substr($digits, 0, 9) . '@';
+    if (strlen($digits) !== 11) return '';
+    return $digits . '@';
 }
 
 /**
@@ -471,12 +475,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">📧 Acesso institucional</h4>
         <div class="ob-grid">
             <div>
-                <label>E-mail institucional</label>
-                <input name="email_institucional" type="email" value="<?= e($reg['email_institucional'] ?? '') ?>" placeholder="nome@ferreiraesa.com.br">
+                <label>E-mail institucional <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(auto: primeiro+último nome)</span></label>
+                <input name="email_institucional" id="emailInstInput" type="email" value="<?= e($reg['email_institucional'] ?? '') ?>" placeholder="nomesobrenome@ferreiraesa.com.br">
             </div>
             <div>
-                <label>Senha inicial <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(auto-preenchida pelo CPF)</span></label>
-                <input name="senha_inicial" id="senhaInicialInput" value="<?= e($reg['senha_inicial'] ?? '') ?>" placeholder="Preenche sozinha pelo CPF (9 dígitos + @)">
+                <label>Senha inicial <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(auto: CPF completo + @)</span></label>
+                <input name="senha_inicial" id="senhaInicialInput" value="<?= e($reg['senha_inicial'] ?? '') ?>" placeholder="Preenche sozinha pelo CPF completo (11 dígitos) + @">
             </div>
         </div>
 
@@ -758,9 +762,20 @@ function aplicarSugestao(idx) {
         var cpf = document.getElementById('cpfInput');
         if (cpf) { cpf.value = p.cpf; onCpfChange(); }
     }
-    if (p.email) {
-        var em = document.querySelector('input[name="email_institucional"]');
+    // E-mail institucional: SOMENTE se for ferreiraesa.com.br; senão gera pelo nome
+    if (p.email && /@ferreiraesa\.com\.br$/i.test(p.email)) {
+        var em = document.getElementById('emailInstInput');
         if (em && !em.value) em.value = p.email;
+    } else {
+        gerarEmailInstitucional(p.nome);
+    }
+    if (p.whatsapp) {
+        var wa = document.querySelector('input[name="telefone_whatsapp"]');
+        if (wa && !wa.value) wa.value = p.whatsapp;
+    }
+    if (p.genero) {
+        var rb = document.querySelector('input[name="genero"][value="' + p.genero + '"]');
+        if (rb) rb.checked = true;
     }
     if (p.cargo) {
         var cg = document.querySelector('input[name="cargo"]');
@@ -771,6 +786,24 @@ function aplicarSugestao(idx) {
         if (st && !st.value) st.value = p.setor;
     }
     box.style.display = 'none';
+}
+
+// Gera e-mail institucional a partir do nome completo:
+// "Maria Eduarda Soares Lima" -> "marialima@ferreiraesa.com.br"
+function gerarEmailInstitucional(nomeCompleto) {
+    var em = document.getElementById('emailInstInput');
+    if (!em || em.value) return; // não sobrescreve se já tem
+    if (!nomeCompleto) return;
+    // Remove acentos + minúsculas
+    var clean = nomeCompleto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    // Tira símbolos/espaços extra, partes simples
+    var partes = clean.replace(/[^a-z\s]/g, '').trim().split(/\s+/).filter(Boolean);
+    if (partes.length < 1) return;
+    var primeiro = partes[0];
+    var ultimo = partes.length > 1 ? partes[partes.length - 1] : '';
+    var login = primeiro + ultimo;
+    if (!login) return;
+    em.value = login + '@ferreiraesa.com.br';
 }
 
 function escapeHtml(s) {
@@ -804,19 +837,68 @@ function onCpfChange() {
     else if (v.length > 6) fmt = v.slice(0,3) + '.' + v.slice(3,6) + '.' + v.slice(6);
     else if (v.length > 3) fmt = v.slice(0,3) + '.' + v.slice(3);
     inp.value = fmt;
-    // Auto-gera senha (9 primeiros digitos + @) se a senha estiver vazia OU
-    // se a senha atual seguir o padrao auto-gerado (entao admin nao mexeu manualmente)
+    // Auto-gera senha (CPF completo 11 digitos + @) se a senha estiver vazia OU
+    // se a senha atual seguir o padrao auto-gerado (9 ou 11 digitos + @)
     var senha = document.getElementById('senhaInicialInput');
-    if (senha && v.length >= 9) {
-        var nova = v.slice(0, 9) + '@';
+    if (senha && v.length === 11) {
+        var nova = v + '@';
         var atual = senha.value.trim();
-        if (atual === '' || /^\d{9}@$/.test(atual)) {
+        if (atual === '' || /^\d{9,11}@$/.test(atual)) {
             senha.value = nova;
         }
     }
 }
 // Roda no load tambem caso CPF ja esteja preenchido
 document.addEventListener('DOMContentLoaded', onCpfChange);
+
+// Mascara telefone WhatsApp: (00) 00000-0000 ou (00) 0000-0000
+function onWhatsappChange(inp) {
+    if (!inp) inp = document.querySelector('input[name="telefone_whatsapp"]');
+    if (!inp) return;
+    var v = inp.value.replace(/\D/g, '').slice(0, 11);
+    var fmt = v;
+    if (v.length > 10)      fmt = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7);
+    else if (v.length > 6)  fmt = '(' + v.slice(0,2) + ') ' + v.slice(2,6) + '-' + v.slice(6);
+    else if (v.length > 2)  fmt = '(' + v.slice(0,2) + ') ' + v.slice(2);
+    else if (v.length > 0)  fmt = '(' + v;
+    inp.value = fmt;
+}
+
+// Mascara valor BR: 1.234,56
+function onValorChange(inp) {
+    if (!inp) return;
+    var v = inp.value.replace(/\D/g, '');
+    if (!v) { inp.value = ''; return; }
+    // Centavos
+    while (v.length < 3) v = '0' + v;
+    var inteiro = v.slice(0, v.length - 2);
+    var cents = v.slice(-2);
+    // Remove zeros à esquerda
+    inteiro = inteiro.replace(/^0+/, '') || '0';
+    // Pontos a cada 3 dígitos
+    inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    inp.value = inteiro + ',' + cents;
+}
+
+// Trigger e-mail auto ao sair do campo de nome
+document.addEventListener('DOMContentLoaded', function() {
+    var nm = document.getElementById('nomeCompletoInput');
+    if (nm) {
+        nm.addEventListener('blur', function() {
+            gerarEmailInstitucional(nm.value);
+        });
+    }
+    var wa = document.querySelector('input[name="telefone_whatsapp"]');
+    if (wa) {
+        wa.addEventListener('input', function() { onWhatsappChange(wa); });
+        onWhatsappChange(wa);
+    }
+    var val = document.querySelector('input[name="valor_remuneracao"]');
+    if (val) {
+        val.addEventListener('input', function() { onValorChange(val); });
+        if (val.value) onValorChange(val);
+    }
+});
 
 function copiarLink() {
     var el = document.getElementById('onboardingLink');
