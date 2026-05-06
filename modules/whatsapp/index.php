@@ -321,11 +321,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }
     /* Mensagem ocupa mais largura na tela pequena */
     .wa-msg { max-width:85%; }
-    /* Campo de digitação maior e font-size 16px (evita zoom auto do iOS) */
-    .wa-chat-input { padding:.6rem .55rem;gap:.3rem; }
-    .wa-chat-input textarea { min-height:64px;max-height:180px;font-size:16px;padding:10px 12px; }
-    .wa-btn-send { padding:10px 14px;font-size:.95rem; }
-    .wa-btn-tpl { padding:8px 9px;font-size:1.1rem; }
+    /* Campo de digitação ocupa linha inteira em mobile, botões abaixo (evita
+       textarea espremido entre 4 botões à esquerda e enviar à direita) */
+    .wa-chat-input { padding:.55rem .5rem;gap:.35rem;flex-wrap:wrap;align-items:center; }
+    .wa-chat-input textarea {
+        flex:1 1 100%;             /* linha inteira */
+        order:-2;                  /* textarea em CIMA dos botões */
+        min-height:60px;max-height:160px;
+        font-size:16px;padding:10px 12px;  /* 16px evita zoom auto iOS */
+        margin-bottom:.25rem;
+    }
+    /* RecBar (durante gravação) também ocupa linha inteira */
+    .wa-chat-input #waRecBar { flex:1 1 100% !important; order:-2; margin-bottom:.25rem; }
+    /* Reply preview também full width */
+    .wa-chat-input + .wa-reply-preview, .wa-reply-preview { flex:1 1 100%; }
+    /* Botões ficam alinhados em uma fileira só, com Enviar empurrado pra direita */
+    .wa-btn-tpl { padding:8px 10px;font-size:1.15rem;flex-shrink:0; }
+    .wa-btn-send { padding:10px 18px;font-size:.95rem;margin-left:auto;flex-shrink:0; }
+    .wa-btn-expand { display:none; } /* não precisa expandir em mobile, já é grande */
 }
 .wa-btn-voltar-lista { display:none; }  /* default: escondido (só aparece em mobile via media query) */
 </style>
