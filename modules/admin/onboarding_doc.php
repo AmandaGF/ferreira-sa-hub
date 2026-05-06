@@ -17,8 +17,11 @@ $pdo = db();
 $docId = (int)($_GET['id'] ?? 0);
 if (!$docId) { redirect(module_url('admin', 'onboarding.php')); }
 
-// Carrega o documento e o colaborador
-$st = $pdo->prepare("SELECT cd.*, co.nome_completo, co.token AS colab_token
+// Carrega o documento e o colaborador (puxando dados extras do cadastro pra pré-preencher)
+$st = $pdo->prepare("SELECT cd.*, co.nome_completo, co.token AS colab_token,
+                            co.valor_remuneracao, co.beneficios, co.cargo, co.setor,
+                            co.modalidade AS colab_modalidade, co.horario_inicio, co.horario_fim,
+                            co.local_presencial
                      FROM colaboradores_documentos cd
                      LEFT JOIN colaboradores_onboarding co ON co.id = cd.colaborador_id
                      WHERE cd.id = ?");
@@ -37,6 +40,30 @@ if (!$schema) {
 
 $dadosAdmin = $doc['dados_admin_json'] ? json_decode($doc['dados_admin_json'], true) : array();
 if (!is_array($dadosAdmin)) $dadosAdmin = array();
+
+/**
+ * Pré-preenchimento dos campos admin a partir do cadastro do colaborador.
+ * Só usado quando o admin AINDA NÃO preencheu o campo no documento (valor vazio).
+ * Evita re-digitação de valores que já estão no cadastro.
+ */
+$autofill = array();
+if (!empty($doc['valor_remuneracao'])) {
+    // Formata 1500.00 → 1500.00 (input number aceita)
+    $autofill['valor_bolsa'] = number_format((float)$doc['valor_remuneracao'], 2, '.', '');
+}
+// Parse benefícios buscando vale-transporte → extrai valor
+if (!empty($doc['beneficios'])) {
+    foreach (preg_split('/\R/', $doc['beneficios']) as $linha) {
+        if (preg_match('/transporte/i', $linha)
+            && preg_match('/R?\$?\s*([\d.]+,\d{2}|\d+)/', $linha, $m)) {
+            $valor = (float)str_replace(',', '.', str_replace('.', '', $m[1]));
+            if ($valor > 0) {
+                $autofill['valor_aux_transporte'] = number_format($valor, 2, '.', '');
+            }
+            break;
+        }
+    }
+}
 
 // Salvar
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
@@ -116,10 +143,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">
             Esses dados serão usados para preencher o documento automaticamente. A colaboradora só visualiza (não pode editar).
         </p>
+        <?php if (!empty($autofill)): ?>
+            <div style="background:#ecfdf5;border:1px solid #34d399;color:#065f46;padding:.65rem .9rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;">
+                ✨ <strong>Pré-preenchimento automático:</strong> alguns campos foram preenchidos a partir do cadastro do colaborador (valor da bolsa, vale-transporte, etc.). Confira e ajuste se necessário antes de salvar.
+            </div>
+        <?php endif; ?>
         <div class="adm-doc-grid">
         <?php foreach ($schema['campos_admin'] as $key => $def):
             if ($def['tipo'] === 'checklist') continue;
             $val = $dadosAdmin[$key] ?? '';
+            // Se admin ainda não preencheu, sugere valor a partir do cadastro do colaborador
+            $sugestao = ($val === '' && isset($autofill[$key])) ? $autofill[$key] : '';
+            if ($sugestao !== '' && $val === '') $val = $sugestao;
         ?>
             <div<?= ($def['tipo'] === 'text' && (strpos($key, 'endereco') !== false)) ? ' style="grid-column:1/-1;"' : '' ?>>
                 <label><?= htmlspecialchars($def['label']) ?><?= !empty($def['obrigatorio']) ? ' *' : '' ?></label>

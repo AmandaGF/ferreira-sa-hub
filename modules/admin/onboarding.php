@@ -566,8 +566,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <textarea name="kit_descricao" rows="2" placeholder="Ex: Caneca + caderno + caneta + camiseta. Será entregue em até 7 dias."><?= e($reg['kit_descricao'] ?? '') ?></textarea>
             </div>
             <div style="grid-column:1/-1;">
-                <label>Benefícios (1 por linha)</label>
-                <textarea name="beneficios" rows="3" placeholder="Vale-transporte&#10;Vale-refeição&#10;Plano de saúde após período de experiência&#10;Day-off no aniversário"><?= e($reg['beneficios'] ?? '') ?></textarea>
+                <label>Benefícios <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(nome + valor opcional — adicione quantos quiser)</span></label>
+                <div id="benefRows" style="display:flex;flex-direction:column;gap:.4rem;"></div>
+                <button type="button" onclick="benefAdd()" style="margin-top:.4rem;background:#fff7ed;border:1.5px dashed #d7ab90;color:#6a3c2c;padding:.45rem .9rem;border-radius:8px;font-weight:700;font-size:.78rem;cursor:pointer;font-family:inherit;">+ Adicionar benefício</button>
+                <textarea name="beneficios" id="benefHidden" style="display:none;"><?= e($reg['beneficios'] ?? '') ?></textarea>
             </div>
         </div>
 
@@ -905,6 +907,97 @@ function onValorChange(inp) {
     inp.value = inteiro + ',' + cents;
 }
 
+// Beneficios estruturados: linhas {nome, valor} sincronizadas com textarea escondido
+// Formato salvo: "Nome: R$ 200,00\nNome2\n..." (uma linha por benefício)
+var BENEF_SUGESTOES = [
+    'Vale-transporte', 'Vale-refeição', 'Vale-alimentação', 'Plano de saúde',
+    'Plano odontológico', 'Day-off no aniversário', 'Auxílio creche', 'Auxílio home office',
+    'Bônus por meta', 'Gympass / Wellhub', 'Auxílio educação', 'Seguro de vida',
+];
+function parseBeneficios(txt) {
+    if (!txt) return [];
+    var linhas = txt.split('\n').map(function(s){ return s.trim(); }).filter(Boolean);
+    return linhas.map(function(l) {
+        var m = l.match(/^(.+?):\s*R?\$?\s*([\d.,]+)\s*$/i);
+        if (m) return { nome: m[1].trim(), valor: m[2].trim() };
+        return { nome: l, valor: '' };
+    });
+}
+function benefRender(items) {
+    var box = document.getElementById('benefRows');
+    if (!box) return;
+    if (!items.length) items = [{nome:'', valor:''}];
+    var html = '';
+    items.forEach(function(b, i) {
+        html += '<div class="benef-row" style="display:flex;gap:.4rem;align-items:center;">'
+              + '<input list="benefList" placeholder="Nome do benefício" value="' + escapeHtml(b.nome) + '" oninput="benefSync()" style="flex:2;padding:.5rem .7rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;">'
+              + '<input placeholder="R$ valor (opcional)" value="' + escapeHtml(b.valor) + '" oninput="benefMoney(this); benefSync();" style="flex:1;padding:.5rem .7rem;border:1.5px solid #e5e7eb;border-radius:8px;font-size:.85rem;">'
+              + '<button type="button" onclick="benefRemove(' + i + ')" title="Remover" style="background:#fee2e2;color:#991b1b;border:0;width:32px;height:32px;border-radius:8px;cursor:pointer;font-weight:700;flex-shrink:0;">×</button>'
+              + '</div>';
+    });
+    box.innerHTML = html;
+    // datalist com sugestões
+    if (!document.getElementById('benefList')) {
+        var dl = document.createElement('datalist');
+        dl.id = 'benefList';
+        BENEF_SUGESTOES.forEach(function(s) {
+            var op = document.createElement('option');
+            op.value = s;
+            dl.appendChild(op);
+        });
+        box.parentNode.appendChild(dl);
+    }
+}
+function benefMoney(inp) {
+    var v = inp.value.replace(/\D/g, '');
+    if (!v) { inp.value = ''; return; }
+    while (v.length < 3) v = '0' + v;
+    var inteiro = v.slice(0, v.length - 2).replace(/^0+/, '') || '0';
+    var cents = v.slice(-2);
+    inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    inp.value = 'R$ ' + inteiro + ',' + cents;
+}
+function benefSync() {
+    var rows = document.querySelectorAll('#benefRows .benef-row');
+    var lines = [];
+    rows.forEach(function(r) {
+        var ins = r.querySelectorAll('input');
+        var nome = (ins[0].value || '').trim();
+        var valor = (ins[1].value || '').trim();
+        if (!nome) return;
+        if (valor) lines.push(nome + ': ' + valor);
+        else lines.push(nome);
+    });
+    document.getElementById('benefHidden').value = lines.join('\n');
+}
+function benefAdd() {
+    var box = document.getElementById('benefRows');
+    var rows = box.querySelectorAll('.benef-row');
+    var atual = [];
+    rows.forEach(function(r) {
+        var ins = r.querySelectorAll('input');
+        atual.push({ nome: ins[0].value, valor: ins[1].value });
+    });
+    atual.push({ nome:'', valor:'' });
+    benefRender(atual);
+    benefSync();
+    // foca no novo
+    var newRow = box.querySelectorAll('.benef-row');
+    if (newRow.length) newRow[newRow.length - 1].querySelector('input').focus();
+}
+function benefRemove(idx) {
+    var box = document.getElementById('benefRows');
+    var rows = box.querySelectorAll('.benef-row');
+    var atual = [];
+    rows.forEach(function(r, i) {
+        if (i === idx) return;
+        var ins = r.querySelectorAll('input');
+        atual.push({ nome: ins[0].value, valor: ins[1].value });
+    });
+    benefRender(atual);
+    benefSync();
+}
+
 // Data de pagamento: sincroniza select com input escondido
 function onDataPagtoChange() {
     var sel = document.getElementById('dataPagtoSelect');
@@ -940,6 +1033,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (val) {
         val.addEventListener('input', function() { onValorChange(val); });
         if (val.value) onValorChange(val);
+    }
+    // Beneficios estruturados: parse texto existente e renderiza linhas
+    var benHidden = document.getElementById('benefHidden');
+    if (benHidden) {
+        var items = parseBeneficios(benHidden.value);
+        benefRender(items);
+        benefSync();
     }
 });
 
