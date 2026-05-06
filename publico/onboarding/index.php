@@ -233,49 +233,68 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 /* ── CONTAINER ──────────────────────────────────────────── */
 .container { max-width: 920px; margin: -3rem auto 3rem; padding: 0 1.2rem; position: relative; z-index: 2; }
 
-/* ── NAV STICKY (atalho entre seções) ───────────────────── */
+/* ── NAV STICKY discreta (dropdown elegante) ───────────── */
 html { scroll-behavior: smooth; }
-.card-block, .aceite-box { scroll-margin-top: 80px; }
+.card-block, .aceite-box { scroll-margin-top: 70px; }
 .onb-nav {
     position: sticky;
-    top: 0;
+    top: 14px;
     z-index: 50;
-    background: rgba(248, 244, 239, .96);
+    margin: 0 0 1.4rem;
+    list-style: none;
+}
+.onb-nav summary {
+    background: #fff;
+    border: 1px solid var(--nude);
+    border-radius: 999px;
+    padding: .5rem 1.1rem;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--cobre);
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(106,60,44,.12);
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    transition: all .15s;
+    list-style: none;
+    user-select: none;
+}
+.onb-nav summary::-webkit-details-marker { display: none; }
+.onb-nav summary::marker { content: ''; }
+.onb-nav summary:hover { background: var(--nude-light); border-color: var(--cobre-light); }
+.onb-nav summary .seta { transition: transform .2s; font-size: .7rem; opacity: .6; }
+.onb-nav[open] summary { background: var(--petrol-900); color: #fff; border-color: var(--petrol-900); }
+.onb-nav[open] summary .seta { transform: rotate(180deg); opacity: 1; }
+.onb-nav-grid {
+    background: rgba(255,255,255,.98);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--nude);
-    margin: 0 -1.2rem 1.5rem;
-    padding: .55rem 1.2rem;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: thin;
+    border: 1px solid var(--nude);
+    border-radius: 14px;
+    padding: .8rem;
+    margin-top: .5rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,.1);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: .35rem;
+    max-width: 560px;
 }
-.onb-nav::-webkit-scrollbar { height: 4px; }
-.onb-nav::-webkit-scrollbar-thumb { background: var(--nude); border-radius: 2px; }
-.onb-nav-inner {
-    display: flex;
-    gap: .4rem;
-    flex-wrap: nowrap;
-    white-space: nowrap;
-    width: max-content;
-}
-.onb-nav a {
-    flex-shrink: 0;
-    background: #fff;
-    border: 1.5px solid var(--nude);
-    color: var(--cobre);
-    padding: .42rem .85rem;
-    border-radius: 20px;
-    font-size: .76rem;
-    font-weight: 700;
+.onb-nav-grid a {
+    background: transparent;
+    color: var(--petrol-900);
+    padding: .5rem .7rem;
+    border-radius: 8px;
+    font-size: .8rem;
+    font-weight: 600;
     text-decoration: none;
-    transition: all .15s;
+    transition: all .12s;
+    border: 0;
+    display: block;
 }
-.onb-nav a:hover {
-    background: var(--cobre);
-    color: #fff;
-    border-color: var(--cobre);
-    transform: translateY(-1px);
+.onb-nav-grid a:hover {
+    background: var(--nude-light);
+    color: var(--cobre);
 }
 
 /* ── CARD BASE ──────────────────────────────────────────── */
@@ -525,9 +544,14 @@ html { scroll-behavior: smooth; }
 
     <div class="container">
 
-        <!-- MENU DE NAVEGAÇÃO RÁPIDA (sticky) -->
-        <nav class="onb-nav" id="onbNav">
-            <div class="onb-nav-inner">
+        <!-- MENU DE NAVEGAÇÃO RÁPIDA (dropdown discreto e sticky) -->
+        <details class="onb-nav" id="onbNav">
+            <summary>
+                <span>📑</span>
+                <span>Ir para uma seção</span>
+                <span class="seta">▾</span>
+            </summary>
+            <div class="onb-nav-grid">
                 <?php if (!empty($reg['mensagem_pessoal'])): ?><a href="#sec-mensagem">💌 Mensagem</a><?php endif; ?>
                 <a href="#sec-quem-somos">🌟 Quem somos</a>
                 <?php if ($reg['email_institucional'] || $reg['senha_inicial']): ?><a href="#sec-acessos">🔐 Acessos</a><?php endif; ?>
@@ -535,13 +559,28 @@ html { scroll-behavior: smooth; }
                 <?php if ($reg['tipo_remuneracao'] || $reg['valor_remuneracao'] || $reg['beneficios']): ?><a href="#sec-remuneracao">💰 Remuneração</a><?php endif; ?>
                 <a href="#sec-kit">🎁 Kit</a>
                 <a href="#sec-principios">💎 Princípios</a>
-                <a href="#sec-fit">💪 FIT</a>
+                <a href="#sec-fit">💪 F&S FIT</a>
                 <a href="#sec-seguro">🛡️ Seguro</a>
                 <?php if (!empty($documentosVinculados)): ?><a href="#sec-documentos">📄 Documentos</a><?php endif; ?>
                 <a href="#sec-story">📸 Story</a>
                 <a href="#sec-aceite">✅ Aceitar</a>
             </div>
-        </nav>
+        </details>
+
+        <script>
+            // Fecha dropdown ao clicar num link (depois de navegar)
+            document.querySelectorAll('.onb-nav-grid a').forEach(function(a){
+                a.addEventListener('click', function(){
+                    var d = document.getElementById('onbNav');
+                    if (d) d.open = false;
+                });
+            });
+            // Fecha tambem ao clicar fora
+            document.addEventListener('click', function(e){
+                var d = document.getElementById('onbNav');
+                if (d && d.open && !d.contains(e.target)) d.open = false;
+            });
+        </script>
 
         <!-- MENSAGEM PESSOAL (se houver) -->
         <?php if (!empty($reg['mensagem_pessoal'])): ?>
