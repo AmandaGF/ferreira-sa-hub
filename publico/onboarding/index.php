@@ -518,9 +518,9 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     <div class="mvv-emoji">🤝</div>
                     <h3>Valores</h3>
                     <ul>
-                        <li><strong>Solução pacífica dos conflitos:</strong> resolver conflitos de maneira pacífica é nossa prioridade — evitamos litígios longos e desgastantes sempre que possível.</li>
+                        <li><strong>Solução pacífica dos conflitos:</strong> resolver conflitos de maneira pacífica é nossa prioridade, evitando litígios longos e desgastantes sempre que possível.</li>
                         <li><strong>Conhecimento técnico atualizado:</strong> a equipe se mantém constantemente atualizada nas mudanças da legislação e jurisprudências, oferecendo as soluções mais eficazes e adequadas.</li>
-                        <li><strong>Lealdade, limites e transparência:</strong> agimos com integridade e ética, respeitando legalidade e imparcialidade. Somos transparentes sobre os limites e riscos de cada caso — nunca fazemos promessas irrealistas.</li>
+                        <li><strong>Lealdade, limites e transparência:</strong> agimos com integridade e ética, respeitando legalidade e imparcialidade. Somos transparentes sobre os limites e riscos de cada caso, e nunca fazemos promessas irrealistas.</li>
                         <li><strong>Respeito mútuo e confiança:</strong> ouvimos as necessidades e preocupações dos clientes, buscando sempre que possível atender suas expectativas, com respeito mútuo.</li>
                     </ul>
                 </div>
@@ -722,18 +722,18 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="card-title-icon">💎</div>
                 <h2>Como atuamos por aqui</h2>
             </div>
-            <p>Algumas premissas que fazem parte do nosso jeito de trabalhar — e do seu também, a partir de agora:</p>
+            <p>Algumas premissas que fazem parte do nosso jeito de trabalhar, e do seu também, a partir de agora:</p>
 
             <div class="princ-grid">
                 <div class="princ-card">
                     <div class="princ-emoji">🤐</div>
                     <h4>Confidencialidade</h4>
-                    <p>Tudo o que envolve as demandas dos clientes é <strong>sigiloso</strong>. Não comente casos, nomes, valores ou estratégias com pessoas de fora do escritório — nem com colegas em locais públicos.</p>
+                    <p>Tudo o que envolve as demandas dos clientes é <strong>sigiloso</strong>. Não comente casos, nomes, valores ou estratégias com pessoas de fora do escritório, nem com colegas em locais públicos.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">💝</div>
                     <h4>Empatia no atendimento</h4>
-                    <p>Quem nos procura está vivendo um momento delicado. Escute com atenção, valide o sentimento da pessoa e responda com <strong>cuidado e gentileza</strong> — sempre.</p>
+                    <p>Quem nos procura está vivendo um momento delicado. Escute com atenção, valide o sentimento da pessoa e responda com <strong>cuidado e gentileza</strong>, sempre.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">👂</div>
@@ -769,12 +769,12 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="princ-card">
                     <div class="princ-emoji">🤖</div>
                     <h4>Tecnologia a seu favor</h4>
-                    <p>Use a tecnologia a seu favor! <strong>Inteligência Artificial é muito bem-vinda</strong>, mas não deixe de <strong>conferir as informações</strong>, dar o seu toque pessoal e — especialmente — <strong>conferir os julgados e artigos</strong> que ela mencionar.</p>
+                    <p>Use a tecnologia a seu favor! <strong>Inteligência Artificial é muito bem-vinda</strong>, mas não deixe de <strong>conferir as informações</strong>, dar o seu toque pessoal e, especialmente, <strong>conferir os julgados e artigos</strong> que ela mencionar.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">🎮</div>
                     <h4>Discord no expediente</h4>
-                    <p>Estar online no <strong>Discord durante o horário de expediente</strong> — e <strong>sem o áudio mutado</strong>, salvo nos momentos em que precisar sair ou não puder ouvir — é muito importante: facilita a comunicação, permite descontração em momentos adequados e diminui as barreiras do home office, aproximando a equipe.</p>
+                    <p>Estar online no <strong>Discord durante o horário de expediente</strong>, e <strong>sem o áudio mutado</strong> (salvo nos momentos em que precisar sair ou não puder ouvir), é muito importante: facilita a comunicação, permite descontração em momentos adequados e diminui as barreiras do home office, aproximando a equipe.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">🥂</div>
@@ -789,13 +789,13 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="princ-card">
                     <div class="princ-emoji">🚀</div>
                     <h4>Vamos crescer juntos</h4>
-                    <p>Estamos aqui para <strong>crescer juntos</strong> e transformar o Ferreira &amp; Sá no <strong>maior escritório de advocacia da região</strong> — e para isso contamos muito com a sua ajuda.</p>
+                    <p>Estamos aqui para <strong>crescer juntos</strong> e transformar o Ferreira &amp; Sá no <strong>maior escritório de advocacia da região</strong>, e para isso contamos muito com a sua ajuda.</p>
                     <p style="margin-top:.4rem;">Qualquer dúvida, dica, sugestão ou reclamação <strong>pode (e deve!)</strong> ser passada para a gente, para que possamos sempre melhorar. 💜</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">🎓</div>
                     <h4>Treinamentos importam</h4>
-                    <p>Realize os <strong>treinamentos disponibilizados</strong> com atenção. Tudo aqui é muito cíclico — o que você aprende no treinamento volta repetidamente no dia a dia, e dominar esses fluxos faz toda a diferença na sua entrega.</p>
+                    <p>Realize os <strong>treinamentos disponibilizados</strong> com atenção. Tudo aqui é muito cíclico: o que você aprende no treinamento volta repetidamente no dia a dia, e dominar esses fluxos faz toda a diferença na sua entrega.</p>
                 </div>
                 <div class="princ-card" style="border-top-color:#dc2626;background:#fef2f2;">
                     <div class="princ-emoji">⚠️</div>
@@ -815,9 +815,9 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <div class="card-block" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #34d399;">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#86efac,#4ade80);">💪</div>
-                <h2 style="color:#065f46;">Plano de Incentivo Ferreira &amp; Sá</h2>
+                <h2 style="color:#065f46;">Ferreira &amp; Sá <span style="font-weight:900;letter-spacing:.05em;">FIT</span> 💪</h2>
             </div>
-            <p>Nós também nos preocupamos com a <strong>saúde da equipe</strong>! Por isso, criamos o <strong>Plano de Incentivo Ferreira &amp; Sá</strong>: um adicional financeiro pra quem cuida do corpo durante o mês.</p>
+            <p>Nós também nos preocupamos com a <strong>saúde da equipe</strong>! Por isso, criamos o <strong>Ferreira &amp; Sá FIT</strong>: um adicional financeiro pra quem cuida do corpo durante o mês.</p>
 
             <div style="background:#fff;border:1.5px dashed #10b981;border-radius:12px;padding:1.2rem 1.4rem;margin-top:1rem;">
                 <div style="text-align:center;font-size:.7rem;letter-spacing:3px;font-weight:700;color:#065f46;margin-bottom:.4rem;">RECEBA POR MÊS</div>
@@ -837,8 +837,8 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <h2 style="color:#1e40af;">Você está protegida(o)</h2>
             </div>
             <p>Durante todo o período do seu estágio, você está coberta(o) por um <strong>seguro contra acidentes pessoais</strong>, contratado pelo escritório conforme exige o <strong>art. 9º, IV, da Lei 11.788/2008</strong>.</p>
-            <p style="margin-top:.5rem;">A apólice cobre lesões e demais sinistros decorrentes do exercício das atividades de estágio. Os <strong>dados da apólice</strong> (número e seguradora) aparecem no seu <strong>Termo de Compromisso de Estágio</strong>, e em até 30 dias você recebe uma cópia do comprovante.</p>
-            <p style="font-size:.82rem;color:#1e40af;margin-top:.6rem;">🔵 Se algo acontecer, fale com a gente o quanto antes — a gente cuida de tudo junto.</p>
+            <p style="margin-top:.5rem;">A apólice cobre lesões e demais sinistros decorrentes do exercício das atividades de estágio. Os <strong>dados da apólice</strong> (número e seguradora) demoram um pouquinho para serem fornecidos pela seguradora; assim que chegarem, em até <strong>2 (duas) semanas</strong>, atualizaremos seu Termo de Compromisso e você receberá uma cópia do comprovante.</p>
+            <p style="font-size:.82rem;color:#1e40af;margin-top:.6rem;">🔵 Se algo acontecer, fale com a gente o quanto antes, a gente cuida de tudo junto.</p>
         </div>
 
         <!-- CONTRATO PARA ASSINATURA -->
@@ -925,7 +925,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <h2 style="color:#831843;">Compartilhe esse momento!</h2>
             </div>
             <p>Que tal contar pra galera que você está começando essa jornada com a gente? 💜<br>
-            Geramos uma imagem linda pra você postar nos seus stories — é só baixar ou compartilhar direto.</p>
+            Geramos uma imagem linda pra você postar nos seus stories: é só baixar ou compartilhar direto.</p>
             <p style="font-size:.82rem;color:#9f1239;margin-top:.4rem;">
                 ✨ <strong>Não esqueça de marcar <a href="https://instagram.com/advocaciaferreiraesa" target="_blank" style="color:#831843;">@advocaciaferreiraesa</a></strong> no seu story!
             </p>
@@ -963,7 +963,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             <div class="aceite-box">
                 <div class="aceite-emoji">🌟</div>
                 <h3><?= g('Pronta', 'Pronto', $genero) ?> pra começar?</h3>
-                <p>Quando você confirmar abaixo, registramos que leu as informações desta página. Pode aceitar com tranquilidade — qualquer dúvida, é só chamar a equipe.</p>
+                <p>Quando você confirmar abaixo, registramos que leu as informações desta página. Pode aceitar com tranquilidade. Qualquer dúvida, é só chamar a equipe.</p>
                 <form method="POST" onsubmit="return confirm('Confirmar leitura e aceite das informações desta página?');">
                     <input type="hidden" name="acao_aceitar" value="1">
                     <button type="submit" class="btn-aceite">✓ Li e estou <?= g('pronta', 'pronto', $genero) ?> pra começar!</button>
