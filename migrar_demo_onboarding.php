@@ -130,6 +130,7 @@ try {
             'Todo dia 5 do mês seguinte ao trabalhado',
             "Vale-transporte\nLanche no escritório\nDay-off no aniversário\nPlano de saúde após período de experiência",
             "Malu, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com muito carinho para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale com a gente no WhatsApp.\n\nDra. Amanda Ferreira e Dr. Luiz Eduardo de Sá",
+            // (mensagem ja sem & — Amanda prefere "e" no lugar do ampersand)
             'pendente'
         ));
     $colabId = (int)$pdo->lastInsertId();

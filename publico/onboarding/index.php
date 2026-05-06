@@ -1,6 +1,6 @@
 <?php
 /**
- * Ferreira & Sá Advocacia — Página pública de Boas-Vindas
+ * Ferreira e Sá Advocacia — Página pública de Boas-Vindas
  * Acesso: público (sem login), via token único + autenticação por
  * nome completo + data de nascimento (conforme cadastro do admin).
  */
@@ -158,7 +158,7 @@ function fmt_moeda($v) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bem-vinda(o) — Ferreira &amp; Sá Advocacia</title>
+<title>Bem-vinda(o) — Ferreira e Sá Advocacia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -427,7 +427,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     <div class="hero">
         <div class="hero-inner">
             <div class="hero-logo">
-                <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                <img src="/conecta/assets/img/logo.png" alt="Ferreira e Sá Advocacia"
                      onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
             <div class="hero-emoji">🔒</div>
@@ -462,7 +462,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     <div class="hero">
         <div class="hero-inner">
             <div class="hero-logo">
-                <img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia"
+                <img src="/conecta/assets/img/logo.png" alt="Ferreira e Sá Advocacia"
                      onerror="this.onerror=null;this.src='../../assets/img/logo.png';">
             </div>
             <?php if ($fotoColab): ?>
@@ -497,7 +497,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="card-title-icon">🌟</div>
                 <h2>Quem somos</h2>
             </div>
-            <p style="font-size:.95rem;color:var(--muted);">Antes de mais nada, queremos que você conheça o que nos move. Esses são os pilares do <strong>Ferreira &amp; Sá</strong>:</p>
+            <p style="font-size:.95rem;color:var(--muted);">Antes de mais nada, queremos que você conheça o que nos move. Esses são os pilares do <strong>Ferreira e Sá</strong>:</p>
 
             <div class="mvv-grid" style="margin-top:1.2rem;">
                 <div class="mvv-card">
@@ -789,7 +789,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="princ-card">
                     <div class="princ-emoji">🚀</div>
                     <h4>Vamos crescer juntos</h4>
-                    <p>Estamos aqui para <strong>crescer juntos</strong> e transformar o Ferreira &amp; Sá no <strong>maior escritório de advocacia da região</strong>, e para isso contamos muito com a sua ajuda.</p>
+                    <p>Estamos aqui para <strong>crescer juntos</strong> e transformar o Ferreira e Sá no <strong>maior escritório de advocacia da região</strong>, e para isso contamos muito com a sua ajuda.</p>
                     <p style="margin-top:.4rem;">Qualquer dúvida, dica, sugestão ou reclamação <strong>pode (e deve!)</strong> ser passada para a gente, para que possamos sempre melhorar. 💜</p>
                 </div>
                 <div class="princ-card">
@@ -815,9 +815,9 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <div class="card-block" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #34d399;">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#86efac,#4ade80);">💪</div>
-                <h2 style="color:#065f46;">Ferreira &amp; Sá <span style="font-weight:900;letter-spacing:.05em;">FIT</span> 💪</h2>
+                <h2 style="color:#065f46;">Ferreira e Sá <span style="font-weight:900;letter-spacing:.05em;">FIT</span> 💪</h2>
             </div>
-            <p>Nós também nos preocupamos com a <strong>saúde da equipe</strong>! Por isso, criamos o <strong>Ferreira &amp; Sá FIT</strong>: um adicional financeiro pra quem cuida do corpo durante o mês.</p>
+            <p>Nós também nos preocupamos com a <strong>saúde da equipe</strong>! Por isso, criamos o <strong>Ferreira e Sá FIT</strong>: um adicional financeiro pra quem cuida do corpo durante o mês.</p>
 
             <div style="background:#fff;border:1.5px dashed #10b981;border-radius:12px;padding:1.2rem 1.4rem;margin-top:1rem;">
                 <div style="text-align:center;font-size:.7rem;letter-spacing:3px;font-weight:700;color:#065f46;margin-bottom:.4rem;">RECEBA POR MÊS</div>
@@ -826,6 +826,9 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             </div>
 
             <p style="margin-top:1rem;font-size:.92rem;"><strong>Como funciona:</strong> dentro de um mês (a contar do <strong>1º dia útil</strong>), quem treinar pelo menos <strong>3 dias na semana</strong>, com no mínimo <strong>30 minutos por treino</strong>, em qualquer modalidade (academia, corrida, pilates, dança, etc.), recebe os <strong>R$ 100,00</strong> como adicional do mês seguinte.</p>
+            <div style="background:#fff;border:1.5px solid #34d399;border-radius:10px;padding:.85rem 1rem;margin-top:.85rem;font-size:.9rem;color:#065f46;">
+                📲 <strong>Para participar:</strong> você precisa estar cadastrada(o) no app <strong>Gymrats</strong> e fazer o <strong>check-in</strong> lá a cada treino. É só pedir no grupo da equipe pra te adicionar! 💚
+            </div>
 
             <p style="font-size:.82rem;color:#065f46;margin-top:.5rem;">💚 É o nosso jeitinho de te lembrar que cuidar de você também faz parte da jornada.</p>
         </div>
@@ -943,7 +946,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div style="font-size:2.4rem;margin-bottom:.4rem;">💜</div>
                 <h2 style="color:#fff;font-size:1.5rem;margin-bottom:.6rem;line-height:1.3;">
                     Queremos que você tenha <span style="color:var(--nude);">orgulho</span><br>
-                    de falar que faz parte da <span style="color:var(--nude);">Família Ferreira &amp; Sá</span>!
+                    de falar que faz parte da <span style="color:var(--nude);">Família Ferreira e Sá</span>!
                 </h2>
                 <p style="font-size:.95rem;opacity:.9;margin-top:.8rem;max-width:520px;margin-left:auto;margin-right:auto;">
                     Vamos, <?= g('juntas', 'juntos', $genero) ?>, ajudar a melhorar a vida de outras famílias e construir uma história que vale a pena ser contada. ✨
@@ -974,7 +977,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
     </div>
 
     <div class="footer-fsa">
-        <strong>FERREIRA &amp; SÁ</strong> — Advocacia Especializada<br>
+        <strong>FERREIRA E SÁ</strong> — Advocacia Especializada<br>
         Estamos felizes por ter você na equipe 💜
     </div>
 
@@ -1211,7 +1214,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         ctx.fillText('Começa hoje uma nova jornada', W/2, 1380);
         ctx.fillStyle = '#d7ab90';
         ctx.font = '700 48px "Open Sans", sans-serif';
-        ctx.fillText('na Família Ferreira & Sá', W/2, 1450);
+        ctx.fillText('na Família Ferreira e Sá', W/2, 1450);
         ctx.fillStyle = '#fff'; ctx.font = '500 42px "Open Sans", sans-serif';
         ctx.fillText('💜', W/2, 1530);
         // mention
@@ -1257,7 +1260,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
         ctx.font = '600 44px "Open Sans", sans-serif';
         ctx.fillText('Bora viver coisas novas', W/2, 1410);
-        ctx.fillText('na Família Ferreira & Sá!', W/2, 1480);
+        ctx.fillText('na Família Ferreira e Sá!', W/2, 1480);
         ctx.font = '500 56px "Open Sans", sans-serif';
         ctx.fillText('🚀✨💜', W/2, 1570);
         // mention
@@ -1306,7 +1309,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         ctx.fillStyle = '#6a3c2c'; ctx.font = '400 36px "Open Sans", sans-serif';
         ctx.fillText('início de uma nova jornada', W/2, 1440);
         ctx.fillStyle = '#052228'; ctx.font = '600 38px "Open Sans", sans-serif';
-        ctx.fillText('na Família Ferreira & Sá', W/2, 1500);
+        ctx.fillText('na Família Ferreira e Sá', W/2, 1500);
         // mention
         ctx.fillStyle = '#6a3c2c'; ctx.font = '600 36px "Open Sans", sans-serif';
         ctx.fillText('@advocaciaferreiraesa', W/2, 1760);
@@ -1354,7 +1357,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         ctx.fillText('✦', W/2, 1440);
         // família
         ctx.fillStyle = '#c9a26b'; ctx.font = '700 italic 50px "Playfair Display", serif';
-        ctx.fillText('na Família Ferreira & Sá', W/2, 1530);
+        ctx.fillText('na Família Ferreira e Sá', W/2, 1530);
         ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '400 italic 32px "Playfair Display", serif';
         ctx.fillText('Advocacia Especializada', W/2, 1590);
         // mention
@@ -1396,7 +1399,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             if (navigator.canShare({files: [file]})) {
                 navigator.share({
                     files: [file],
-                    title: 'Família Ferreira & Sá',
+                    title: 'Família Ferreira e Sá',
                     text: 'Nova jornada começando! 💜 (não esquece de marcar @advocaciaferreiraesa)'
                 }).catch(function(err){
                     if (err && err.name !== 'AbortError') alert('Erro: ' + err.message);
