@@ -582,6 +582,7 @@ html { scroll-behavior: smooth; }
                 <span class="seta">▾</span>
             </summary>
             <div class="onb-nav-grid">
+                <a href="#sec-portal">🎯 Seu Portal</a>
                 <?php if (!empty($avisos)): ?><a href="#sec-mural">📰 Mural</a><?php endif; ?>
                 <?php if (!empty($reg['mensagem_pessoal'])): ?><a href="#sec-mensagem">💌 Mensagem</a><?php endif; ?>
                 <a href="#sec-quem-somos">🌟 Quem somos</a>
@@ -612,6 +613,34 @@ html { scroll-behavior: smooth; }
                 if (d && d.open && !d.contains(e.target)) d.open = false;
             });
         </script>
+
+        <!-- ATALHOS DO PORTAL (4 áreas exclusivas da colaboradora) -->
+        <div class="card-block" id="sec-portal" style="background:linear-gradient(135deg,var(--petrol-900),var(--petrol-700));color:#fff;">
+            <h2 style="color:#fff;margin-bottom:.4rem;">🎯 Seu Portal</h2>
+            <p style="color:rgba(255,255,255,.85);font-size:.92rem;margin-bottom:1rem;">Áreas exclusivas pra você se organizar, pedir o que precisa e acompanhar suas indicações.</p>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.6rem;">
+                <a href="solicitacoes.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;">
+                    <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📩</div>
+                    <div style="font-weight:700;font-size:.92rem;">Solicitações</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Folga, material, doença...</div>
+                </a>
+                <a href="indicacoes.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;opacity:.6;">
+                    <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">💸</div>
+                    <div style="font-weight:700;font-size:.92rem;">Indicações</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Em breve…</div>
+                </a>
+                <a href="daily.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;opacity:.6;">
+                    <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📓</div>
+                    <div style="font-weight:700;font-size:.92rem;">Daily Planner</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Em breve…</div>
+                </a>
+                <a href="reunioes.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;opacity:.6;">
+                    <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📅</div>
+                    <div style="font-weight:700;font-size:.92rem;">Reuniões</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Em breve…</div>
+                </a>
+            </div>
+        </div>
 
         <!-- MURAL DE AVISOS (se houver) -->
         <?php if (!empty($avisos)): ?>
