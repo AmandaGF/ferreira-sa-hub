@@ -3823,9 +3823,11 @@ function renderPartes() {
         var repInfo = '';
         if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representado_por) + ')</span>';
         if (p.papel === 'representante_legal' && p.representa_nome) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representa_nome) + ')</span>';
-        // Badge 'NOSSO CLIENTE' só aparece em partes do nosso lado (autor / litis. ativo).
+        // Badge 'NOSSO CLIENTE' só aparece em partes que podem SER cliente:
+        //   - autor / litisconsorte ativo (parte ativa propriamente)
+        //   - representante legal (mãe representando filho menor que é cliente)
         // Lado adverso (réu, recorrido, etc.) com client_id no banco é dado sujo legado.
-        var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo');
+        var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo' || p.papel === 'representante_legal');
         var clienteBadge = (p.client_id && _ehNossoLado) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
         html += '<tr style="border-bottom:1px solid var(--border);">'
             + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
@@ -3944,7 +3946,8 @@ function mudouPapel() {
     var p = document.getElementById('partePapel').value;
     // Se mudou pra papel adverso após ter marcado "Esta parte é nosso cliente",
     // desmarca automaticamente — evita ficar tag indevida em réu/recorrido/etc.
-    var ehNossoLado = (p === 'autor' || p === 'litisconsorte_ativo');
+    // representante_legal pode ser nosso cliente (mãe representando filho).
+    var ehNossoLado = (p === 'autor' || p === 'litisconsorte_ativo' || p === 'representante_legal');
     if (!ehNossoLado) {
         var chk = document.getElementById('parteEhCliente');
         if (chk && chk.checked) {
