@@ -15,11 +15,26 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
 
+// Busca a colaboradora demo pelo nome (mais flexível que e-mail)
+$st = $pdo->query("SELECT id, nome_completo, email_institucional, foto_path
+                   FROM colaboradores_onboarding
+                   WHERE LOWER(nome_completo) LIKE '%malu%demo%'
+                      OR LOWER(nome_completo) LIKE '%maria%demo%'
+                      OR email_institucional LIKE 'malu.%'
+                      OR email_institucional LIKE 'maria.%'");
+$linhas = $st->fetchAll();
+echo "Encontradas " . count($linhas) . " linha(s) candidata(s):\n";
+foreach ($linhas as $l) {
+    echo "  - id={$l['id']}, nome='{$l['nome_completo']}', email='{$l['email_institucional']}', foto='{$l['foto_path']}'\n";
+}
+
 $n = $pdo->exec(
     "UPDATE colaboradores_onboarding
      SET foto_path = '/conecta/assets/img/onboarding_demo_avatar.svg'
-     WHERE email_institucional = 'malu.demo@ferreiraesa.com.br'"
+     WHERE (LOWER(nome_completo) LIKE '%malu%demo%' OR LOWER(nome_completo) LIKE '%maria%demo%'
+            OR email_institucional LIKE 'malu.%' OR email_institucional LIKE 'maria.%')
+       AND (foto_path IS NULL OR foto_path = '' OR foto_path LIKE '/conecta/assets/img/%')"
 );
 
-echo "OK — $n linha(s) atualizada(s).\n";
-echo "Avatar da Malu: /conecta/assets/img/onboarding_demo_avatar.svg\n";
+echo "\nOK — $n linha(s) atualizada(s).\n";
+echo "Avatar: /conecta/assets/img/onboarding_demo_avatar.svg\n";
