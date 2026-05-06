@@ -106,8 +106,8 @@ try {
         (token, nome_completo, data_nascimento, genero, cpf, email_institucional, senha_inicial,
          kit_descricao, modalidade, local_presencial, dias_trabalho, horario_inicio, horario_fim,
          setor, cargo, perfil_cargo, tipo_remuneracao, valor_remuneracao,
-         data_pagamento, beneficios, mensagem_pessoal, status)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+         data_pagamento, beneficios, mensagem_pessoal, foto_path, status)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         ->execute(array(
             $token,
             'Malu Estagiária Demo',
@@ -131,6 +131,7 @@ try {
             "Vale-transporte\nLanche no escritório\nDay-off no aniversário\nPlano de saúde após período de experiência",
             "Malu, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com muito carinho para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale com a gente no WhatsApp.\n\nDra. Amanda Ferreira e Dr. Luiz Eduardo de Sá",
             // (mensagem ja sem & — Amanda prefere "e" no lugar do ampersand)
+            '/conecta/assets/img/onboarding_demo_avatar.svg',
             'pendente'
         ));
     $colabId = (int)$pdo->lastInsertId();

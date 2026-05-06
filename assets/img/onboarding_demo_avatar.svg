@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#d7ab90"/>
+      <stop offset="50%" stop-color="#B87333"/>
+      <stop offset="100%" stop-color="#6a3c2c"/>
+    </linearGradient>
+    <radialGradient id="rim" cx="35%" cy="30%" r="65%">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>
+      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    </radialGradient>
+  </defs>
+  <rect width="600" height="600" fill="url(#bg)"/>
+  <rect width="600" height="600" fill="url(#rim)"/>
+  <circle cx="300" cy="240" r="100" fill="rgba(255,255,255,0.92)"/>
+  <path d="M 130 600 Q 130 420 300 420 Q 470 420 470 600 Z" fill="rgba(255,255,255,0.92)"/>
+  <text x="300" y="565" text-anchor="middle" font-family="Playfair Display, Georgia, serif" font-size="62" font-weight="700" fill="#6a3c2c">M</text>
+</svg>
