@@ -774,7 +774,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <div class="princ-card">
                     <div class="princ-emoji">🎮</div>
                     <h4>Discord no expediente</h4>
-                    <p>Estar online no <strong>Discord durante o horário de expediente</strong> é muito importante: facilita a comunicação, permite descontração em momentos adequados e diminui as barreiras do home office, aproximando a equipe.</p>
+                    <p>Estar online no <strong>Discord durante o horário de expediente</strong> — e <strong>sem o áudio mutado</strong>, salvo nos momentos em que precisar sair ou não puder ouvir — é muito importante: facilita a comunicação, permite descontração em momentos adequados e diminui as barreiras do home office, aproximando a equipe.</p>
                 </div>
                 <div class="princ-card">
                     <div class="princ-emoji">🥂</div>
