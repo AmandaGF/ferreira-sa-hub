@@ -543,7 +543,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <label>Dias de trabalho</label>
                 <?php
-                $opcoesDias = array('Segunda a sexta','Segunda a sábado','Apenas seg/qua/sex','Apenas ter/qui','Plantão (escala)');
+                $opcoesDias = array('Segunda à sexta','Segunda a sábado','Apenas seg/qua/sex','Apenas ter/qui','Plantão (escala)');
                 $valDias = $reg['dias_trabalho'] ?? '';
                 $isOutroDias = $valDias !== '' && !in_array($valDias, $opcoesDias, true);
                 ?>

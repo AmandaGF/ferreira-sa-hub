@@ -950,7 +950,7 @@ html { scroll-behavior: smooth; }
 
             <!-- 4. Bebida -->
             <div class="pref-bloco">
-                <p class="pref-titulo">🍷 Consome bebida alcoólica, ainda que pontualmente?</p>
+                <p class="pref-titulo">🍷 Consome bebida alcoólica, ainda que socialmente / esporadicamente?</p>
                 <div class="cor-wrap">
                     <button type="button" class="btn-simnao <?= $alcoolAtual === 1 ? 'sel-sim' : '' ?>" data-v="sim" onclick="escolherKit('alcool', 'sim', this)">Sim</button>
                     <button type="button" class="btn-simnao <?= $alcoolAtual === 0 ? 'sel-nao' : '' ?>" data-v="nao" onclick="escolherKit('alcool', 'nao', this)">Não</button>
