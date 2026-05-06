@@ -33,14 +33,55 @@ if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
             echo json_encode(array('ok' => false, 'erro' => 'Z-API não retornou foto. Possíveis causas: número não está no WhatsApp, foto privada, ou instância 24 desconectada.'));
             exit;
         }
-        $imgRaw = @file_get_contents($fotoUrl);
-        if (!$imgRaw || strlen($imgRaw) < 200) {
-            echo json_encode(array('ok' => false, 'erro' => 'Foto recebida está vazia ou corrompida.'));
+        // Download via cURL: segue redirects, user-agent decente, timeout, retorna status real
+        $imgRaw = false; $httpStatus = 0; $curlErr = '';
+        if (function_exists('curl_init')) {
+            $ch = curl_init($fotoUrl);
+            curl_setopt_array($ch, array(
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_MAXREDIRS => 5,
+                CURLOPT_CONNECTTIMEOUT => 10,
+                CURLOPT_TIMEOUT => 25,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; FerreiraSaHub/1.0)',
+                CURLOPT_HTTPHEADER => array('Accept: image/*,*/*;q=0.8'),
+            ));
+            $imgRaw = curl_exec($ch);
+            $httpStatus = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+        } else {
+            $ctx = stream_context_create(array('http' => array('follow_location' => 1, 'timeout' => 25, 'user_agent' => 'Mozilla/5.0')));
+            $imgRaw = @file_get_contents($fotoUrl, false, $ctx);
+        }
+
+        if ($imgRaw === false || $imgRaw === '' || strlen($imgRaw) < 200) {
+            $tam = is_string($imgRaw) ? strlen($imgRaw) : 0;
+            $detalhe = 'HTTP ' . $httpStatus . ' · ' . $tam . ' bytes';
+            if ($curlErr) $detalhe .= ' · cURL: ' . $curlErr;
+            $detalhe .= ' · URL: ' . substr($fotoUrl, 0, 90) . (strlen($fotoUrl) > 90 ? '…' : '');
+            echo json_encode(array('ok' => false, 'erro' => 'Download falhou (' . $detalhe . ')'));
             exit;
         }
+
+        // Verifica magic bytes pra ter certeza que é imagem (JPG/PNG/WebP)
+        $isJpg = (substr($imgRaw, 0, 3) === "\xFF\xD8\xFF");
+        $isPng = (substr($imgRaw, 0, 8) === "\x89PNG\r\n\x1A\n");
+        $isWebp = (substr($imgRaw, 0, 4) === 'RIFF' && substr($imgRaw, 8, 4) === 'WEBP');
+        if (!$isJpg && !$isPng && !$isWebp) {
+            $primeiros = bin2hex(substr($imgRaw, 0, 12));
+            echo json_encode(array(
+                'ok' => false,
+                'erro' => 'Resposta não é imagem válida (HTTP ' . $httpStatus . ', primeiros bytes: ' . $primeiros . '). Provável URL de erro/HTML.'
+            ));
+            exit;
+        }
+        $ext = $isPng ? 'png' : ($isWebp ? 'webp' : 'jpg');
+
         $uploadDir = APP_ROOT . '/files/onboarding_fotos';
         if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
-        $nomeArq = 'wa_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
+        $nomeArq = 'wa_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
         if (!file_put_contents($uploadDir . '/' . $nomeArq, $imgRaw)) {
             echo json_encode(array('ok' => false, 'erro' => 'Falha ao salvar arquivo no servidor'));
             exit;
@@ -48,7 +89,7 @@ if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
         $fotoPath = '/files/onboarding_fotos/' . $nomeArq;
         $pdo->prepare("UPDATE colaboradores_onboarding SET foto_path = ? WHERE id = ?")
             ->execute(array($fotoPath, $id));
-        echo json_encode(array('ok' => true, 'foto_path' => $fotoPath));
+        echo json_encode(array('ok' => true, 'foto_path' => $fotoPath, 'tamanho' => strlen($imgRaw), 'tipo' => $ext));
     } catch (Exception $e) {
         echo json_encode(array('ok' => false, 'erro' => 'Exceção: ' . $e->getMessage()));
     }
