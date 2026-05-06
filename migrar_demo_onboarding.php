@@ -166,7 +166,7 @@ echo "🔗 LINK DA DEMO:\n";
 echo "   $linkDemo\n";
 echo "\n";
 echo "🔐 PARA ENTRAR:\n";
-echo "   Nome completo:        Maria Estagiária Demo\n";
+echo "   Nome completo:        Malu Estagiária Demo\n";
 echo "   Data de nascimento:   15/05/2002\n";
 echo "\n";
 echo "📋 DOCUMENTOS VINCULADOS (todos pendentes):\n";
