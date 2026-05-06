@@ -596,7 +596,7 @@ html { scroll-behavior: smooth; }
                 <div class="hero-emoji">🎉</div>
             <?php endif; ?>
             <h1>Seja muito <?= g('bem-vinda', 'bem-vindo', $genero) ?>, <span class="nome-destaque"><?= htmlspecialchars($primeiroNome) ?></span>!</h1>
-            <p>Estamos super <?= g('felizes', 'felizes', $genero) ?> de você estar começando essa jornada com a gente. Vamos <?= g('juntas', 'juntos', $genero) ?>! 💜</p>
+            <p>Estamos super <?= g('felizes', 'felizes', $genero) ?> de você estar começando essa jornada com a gente. Vamos juntos! 💜</p>
             <div class="hero-emojis">💼 ⚖️ 💖</div>
         </div>
     </div>
@@ -1332,7 +1332,7 @@ html { scroll-behavior: smooth; }
                     de falar que faz parte da <span style="color:var(--nude);">Família Ferreira e Sá</span>!
                 </h2>
                 <p style="font-size:.95rem;opacity:.9;margin-top:.8rem;max-width:520px;margin-left:auto;margin-right:auto;">
-                    Vamos, <?= g('juntas', 'juntos', $genero) ?>, ajudar a melhorar a vida de outras famílias e construir uma história que vale a pena ser contada. ✨
+                    Vamos, juntos, ajudar a melhorar a vida de outras famílias e construir uma história que vale a pena ser contada. ✨
                 </p>
             </div>
         </div>
@@ -1343,7 +1343,7 @@ html { scroll-behavior: smooth; }
                 <div class="aceite-emoji">✅</div>
                 <h3>Tudo certo, <?= htmlspecialchars($primeiroNome) ?>!</h3>
                 <p>Você confirmou a leitura desta página em <strong><?= htmlspecialchars(date('d/m/Y \à\s H:i', strtotime($reg['aceite_em']))) ?></strong>.</p>
-                <p style="margin-top:.5rem;">Estamos <?= g('prontas', 'prontos', $genero) ?> pra começar essa jornada <?= g('juntas', 'juntos', $genero) ?>. Qualquer dúvida, fale com a gente. 💜</p>
+                <p style="margin-top:.5rem;">Estamos prontos pra começar essa jornada juntos. Qualquer dúvida, fale com a gente. 💜</p>
             </div>
         <?php else: ?>
             <div class="aceite-box" id="sec-aceite">
