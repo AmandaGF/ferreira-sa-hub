@@ -3823,7 +3823,10 @@ function renderPartes() {
         var repInfo = '';
         if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representado_por) + ')</span>';
         if (p.papel === 'representante_legal' && p.representa_nome) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representa_nome) + ')</span>';
-        var clienteBadge = p.client_id ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
+        // Badge 'NOSSO CLIENTE' só aparece em partes do nosso lado (autor / litis. ativo).
+        // Lado adverso (réu, recorrido, etc.) com client_id no banco é dado sujo legado.
+        var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo');
+        var clienteBadge = (p.client_id && _ehNossoLado) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
         html += '<tr style="border-bottom:1px solid var(--border);">'
             + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
             + '<td style="font-weight:600;">' + esc(nome) + repInfo + clienteBadge + '</td>'

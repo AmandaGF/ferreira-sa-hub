@@ -221,6 +221,13 @@ if ($action === 'salvar') {
     foreach ($campos as $k => $v) { if ($v === '' || $v === '0') $campos[$k] = null; }
     if ($campos['nascimento'] === '') $campos['nascimento'] = null;
 
+    // SEGURANÇA: client_id só é válido em partes do nosso lado (autor / litisconsorte ativo).
+    // Lado adverso (réu, recorrido, etc.) NUNCA é nosso cliente. Force NULL.
+    $papelDoNossoLado = in_array($papel, array('autor', 'litisconsorte_ativo'), true);
+    if (!$papelDoNossoLado) {
+        $campos['client_id'] = null;
+    }
+
     $nomeExibir = $tipoPessoa === 'juridica' ? ($campos['razao_social'] ?: $campos['nome_fantasia']) : $campos['nome'];
     if (!$nomeExibir) { echo json_encode(array('error' => 'Nome/Razão Social obrigatório', 'csrf' => $newCsrf)); exit; }
 
