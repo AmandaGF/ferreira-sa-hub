@@ -21,6 +21,18 @@ try {
     $_waFilaPendente = (int)db()->query("SELECT COUNT(*) FROM zapi_fila_envio WHERE status='pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
+// Onboarding vinculado ao usuario logado (match por email institucional)
+$_onboardingToken = null;
+if (!empty($user['email'])) {
+    try {
+        $_stmtOb = db()->prepare("SELECT token FROM colaboradores_onboarding
+                                  WHERE email_institucional = ? AND status != 'arquivado'
+                                  ORDER BY created_at DESC LIMIT 1");
+        $_stmtOb->execute(array($user['email']));
+        $_onboardingToken = $_stmtOb->fetchColumn() ?: null;
+    } catch (Exception $e) {}
+}
+
 // Módulos de treinamento pendentes pro perfil do usuário
 $_treinaPendentes = 0;
 try {

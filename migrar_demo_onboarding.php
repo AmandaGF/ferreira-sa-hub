@@ -85,7 +85,7 @@ try {
 // Remove demo anterior (pra garantir token novo limpo) — identifica pelo nome fixo
 try {
     $stmtOld = $pdo->prepare("SELECT id FROM colaboradores_onboarding WHERE nome_completo = ? LIMIT 1");
-    $stmtOld->execute(array('Maria Estagiária Demo'));
+    $stmtOld->execute(array('Malu Estagiária Demo'));
     $oldId = (int)$stmtOld->fetchColumn();
     if ($oldId) {
         $pdo->prepare("DELETE FROM colaboradores_documentos WHERE colaborador_id = ?")->execute(array($oldId));
@@ -110,11 +110,11 @@ try {
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
         ->execute(array(
             $token,
-            'Maria Estagiária Demo',
+            'Malu Estagiária Demo',
             '2002-05-15',
             'F',
             $cpf,
-            'maria.demo@ferreiraesa.com.br',
+            'malu.demo@ferreiraesa.com.br',
             $senha,
             "Caneca personalizada F&S\nCaderno de anotações\nCaneta\nCamiseta tamanho M\nSerá entregue em até 7 dias úteis",
             'Híbrido',
@@ -129,7 +129,7 @@ try {
             1500.00,
             'Todo dia 5 do mês seguinte ao trabalhado',
             "Vale-transporte\nLanche no escritório\nDay-off no aniversário\nPlano de saúde após período de experiência",
-            "Maria, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com muito carinho para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale com a gente no WhatsApp.\n\nDra. Amanda Ferreira e Dr. Luiz Eduardo de Sá",
+            "Malu, é uma alegria ter você na nossa equipe! 💜\n\nPreparamos essa página com muito carinho para você se sentir parte do escritório desde o primeiro dia. Qualquer dúvida, fale com a gente no WhatsApp.\n\nDra. Amanda Ferreira e Dr. Luiz Eduardo de Sá",
             'pendente'
         ));
     $colabId = (int)$pdo->lastInsertId();
