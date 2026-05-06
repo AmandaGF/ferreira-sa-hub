@@ -564,6 +564,40 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </p>
         </div>
 
+        <?php if ($reg && !empty($docsVinculados)): ?>
+        <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.4rem 0 .5rem;">📑 Status dos documentos vinculados</h4>
+        <div style="display:flex;flex-direction:column;gap:.5rem;">
+            <?php foreach ($docsVinculados as $tipoDoc => $docInfo):
+                $sch = onboarding_doc_schema($tipoDoc);
+                if (!$sch) continue;
+                $statusReal = $docInfo['status'] ?? 'pendente';
+                $assinadoEm = $docInfo['assinatura_estagiario_em'] ?? null;
+                $jaAssinou = !empty($assinadoEm);
+                $statusBg = $jaAssinou ? '#d1fae5' : ($statusReal === 'em_preenchimento' ? '#fed7aa' : '#fef3c7');
+                $statusCor = $jaAssinou ? '#065f46' : ($statusReal === 'em_preenchimento' ? '#9a3412' : '#92400e');
+                $statusTxt = $jaAssinou ? '✓ Assinado em ' . date('d/m/Y H:i', strtotime($assinadoEm))
+                    : ($statusReal === 'em_preenchimento' ? '⏳ Em preenchimento' : '📋 Pendente');
+            ?>
+            <div style="background:#fff;border:1.5px solid <?= $jaAssinou ? '#34d399' : '#e5e7eb' ?>;border-radius:10px;padding:.7rem 1rem;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;">
+                <div style="font-size:1.4rem;line-height:1;flex-shrink:0;"><?= e($sch['icon']) ?></div>
+                <div style="flex:1;min-width:200px;">
+                    <strong style="font-size:.92rem;color:#052228;"><?= e($sch['label']) ?></strong>
+                    <div><span style="display:inline-block;background:<?= $statusBg ?>;color:<?= $statusCor ?>;padding:.12rem .55rem;border-radius:10px;font-size:.7rem;font-weight:700;margin-top:.2rem;"><?= e($statusTxt) ?></span></div>
+                </div>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                    <?php if (!empty($sch['campos_admin'])): ?>
+                        <a href="<?= module_url('admin', 'onboarding_doc.php?id=' . (int)$docInfo['id']) ?>" class="btn btn-outline btn-sm">⚙️ Campos admin</a>
+                    <?php endif; ?>
+                    <a href="<?= module_url('admin', 'onboarding_doc_view.php?id=' . (int)$docInfo['id']) ?>" target="_blank" class="btn btn-outline btn-sm">👁 Ver</a>
+                    <?php if ($jaAssinou): ?>
+                        <a href="<?= module_url('admin', 'onboarding_doc_view.php?id=' . (int)$docInfo['id']) ?>" target="_blank" class="btn btn-outline btn-sm" style="background:#d1fae5;border-color:#34d399;color:#065f46;">📥 PDF</a>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
         <script>
         // Schemas dos documentos por perfil — carregados do PHP
         var DOC_SCHEMAS_PHP = <?= json_encode(onboarding_perfis_cargo()) ?>;
