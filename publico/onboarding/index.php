@@ -443,7 +443,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <form method="POST">
             <input type="hidden" name="acao_login" value="1">
             <label>Nome completo</label>
-            <input name="nome_login" required placeholder="Maria Silva Santos" autofocus>
+            <input name="nome_login" required placeholder="Ex: Ana Beatriz Ferreira de Sá" autofocus>
             <label>Data de nascimento</label>
             <input name="data_login" type="date" required>
             <button type="submit">Acessar minha página</button>

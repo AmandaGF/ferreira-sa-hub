@@ -417,7 +417,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="ob-grid">
             <div style="position:relative;">
                 <label>Nome completo *</label>
-                <input name="nome_completo" id="nomeCompletoInput" required value="<?= e($reg['nome_completo'] ?? '') ?>" placeholder="Ex: Maria Silva Santos" autocomplete="off" oninput="onNomeChange(this.value)">
+                <input name="nome_completo" id="nomeCompletoInput" required value="<?= e($reg['nome_completo'] ?? '') ?>" placeholder="Ex: Ana Beatriz Ferreira de Sá" autocomplete="off" oninput="onNomeChange(this.value)">
                 <div id="nomeAutocomplete" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d7ab90;border-radius:8px;max-height:240px;overflow-y:auto;z-index:20;box-shadow:0 6px 16px rgba(0,0,0,.12);margin-top:2px;"></div>
             </div>
             <div>
