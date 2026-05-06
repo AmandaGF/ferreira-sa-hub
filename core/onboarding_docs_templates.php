@@ -167,7 +167,26 @@ function render_termo_compromisso_estagio($colaborador, $dadosAdmin, $dadosColab
     $estadoCivil   = $dadosColab['estado_civil'] ?? '___';
     $rg            = $dadosColab['rg'] ?? '___';
     $rgOrgao       = $dadosColab['rg_orgao_uf'] ?? '___';
-    $endereco      = $dadosColab['endereco_completo'] ?? '___';
+    // Monta endereco a partir dos campos separados (ou usa o legado endereco_completo).
+    if (!empty($dadosColab['endereco_logradouro']) || !empty($dadosColab['cep'])) {
+        $partes = array();
+        if (!empty($dadosColab['endereco_logradouro'])) {
+            $rua = $dadosColab['endereco_logradouro'];
+            if (!empty($dadosColab['endereco_numero'])) $rua .= ', n° ' . $dadosColab['endereco_numero'];
+            $partes[] = $rua;
+        }
+        if (!empty($dadosColab['endereco_complemento'])) $partes[] = $dadosColab['endereco_complemento'];
+        if (!empty($dadosColab['endereco_bairro'])) $partes[] = $dadosColab['endereco_bairro'];
+        if (!empty($dadosColab['endereco_cidade']) && !empty($dadosColab['endereco_uf'])) {
+            $partes[] = $dadosColab['endereco_cidade'] . '/' . $dadosColab['endereco_uf'];
+        } elseif (!empty($dadosColab['endereco_cidade'])) {
+            $partes[] = $dadosColab['endereco_cidade'];
+        }
+        if (!empty($dadosColab['cep'])) $partes[] = 'CEP ' . $dadosColab['cep'];
+        $endereco = implode(', ', $partes);
+    } else {
+        $endereco = $dadosColab['endereco_completo'] ?? '___';
+    }
     $telefone      = $dadosColab['telefone'] ?? '___';
     $instituicao   = $dadosColab['instituicao_ensino'] ?? '___';
     $semestre      = $dadosColab['semestre'] ?? '___';

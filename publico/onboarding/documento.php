@@ -345,46 +345,125 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             ℹ️ Os dados que aparecem aqui já foram preenchidos por nós. Você só preenche <strong>os seus dados pessoais</strong> que faltam.
         </div>
 
-        <form method="POST">
+        <form method="POST" id="formCampos">
             <input type="hidden" name="acao_salvar_campos" value="1">
+
+            <?php
+            // Separa campos em "endereco" (grupo) e demais
+            $camposEndereco = array();
+            $camposOutros = array();
+            foreach ($schema['campos_colaborador'] as $key => $def) {
+                if (!empty($def['grupo']) && $def['grupo'] === 'endereco') $camposEndereco[$key] = $def;
+                else $camposOutros[$key] = $def;
+            }
+            // Helper inline para renderizar campo
+            $renderCampo = function($key, $def, $val) {
+                $req = !empty($def['obrigatorio']) ? 'required' : '';
+                $ph  = !empty($def['placeholder']) ? 'placeholder="' . htmlspecialchars($def['placeholder']) . '"' : '';
+                $autoVia = !empty($def['auto_viacep']) ? 'data-via="' . htmlspecialchars($def['auto_viacep']) . '"' : '';
+                if ($def['tipo'] === 'select') {
+                    echo '<select name="' . htmlspecialchars($key) . '" ' . $req . ' ' . $autoVia . '>';
+                    echo '<option value="">— Selecione —</option>';
+                    foreach ($def['opcoes'] as $optK => $optLbl) {
+                        $sel = $val === $optK ? 'selected' : '';
+                        echo '<option value="' . htmlspecialchars($optK) . '" ' . $sel . '>' . htmlspecialchars($optLbl) . '</option>';
+                    }
+                    echo '</select>';
+                } elseif ($def['tipo'] === 'number') {
+                    $min = isset($def['min']) ? 'min="' . (int)$def['min'] . '"' : '';
+                    $max = isset($def['max']) ? 'max="' . (int)$def['max'] . '"' : '';
+                    echo '<input type="number" name="' . htmlspecialchars($key) . '" value="' . htmlspecialchars($val) . '" ' . $min . ' ' . $max . ' ' . $req . ' ' . $ph . '>';
+                } elseif ($def['tipo'] === 'tel') {
+                    echo '<input type="tel" name="' . htmlspecialchars($key) . '" value="' . htmlspecialchars($val) . '" ' . $ph . ' ' . $req . ' data-mascara="tel" oninput="aplicarMascara(this)">';
+                } elseif ($def['tipo'] === 'cep') {
+                    echo '<input type="text" name="' . htmlspecialchars($key) . '" value="' . htmlspecialchars($val) . '" ' . $ph . ' ' . $req . ' data-mascara="cep" maxlength="9" inputmode="numeric" oninput="aplicarMascara(this)" onblur="buscarCEP(this.value)">';
+                } else {
+                    echo '<input type="text" name="' . htmlspecialchars($key) . '" value="' . htmlspecialchars($val) . '" ' . $ph . ' ' . $req . ' ' . $autoVia . '>';
+                }
+            };
+            ?>
+
+            <h3 style="font-size:.95rem;color:var(--cobre);margin:1rem 0 .6rem;border-bottom:1px solid var(--nude);padding-bottom:.3rem;">👤 Seus dados</h3>
             <div class="form-grid">
-                <?php foreach ($schema['campos_colaborador'] as $key => $def):
+                <?php foreach ($camposOutros as $key => $def):
                     $val = isset($dadosColab[$key]) ? $dadosColab[$key] : (isset($def['default']) ? $def['default'] : '');
-                    $isFull = (strpos($key, 'endereco') !== false);
                 ?>
-                <div<?= $isFull ? ' class="full"' : '' ?>>
+                <div>
                     <label><?= htmlspecialchars($def['label']) ?><?= !empty($def['obrigatorio']) ? ' *' : '' ?></label>
-                    <?php if ($def['tipo'] === 'select'): ?>
-                        <select name="<?= htmlspecialchars($key) ?>" <?= !empty($def['obrigatorio']) ? 'required' : '' ?>>
-                            <option value="">— Selecione —</option>
-                            <?php foreach ($def['opcoes'] as $optK => $optLbl): ?>
-                                <option value="<?= htmlspecialchars($optK) ?>" <?= $val === $optK ? 'selected' : '' ?>><?= htmlspecialchars($optLbl) ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    <?php elseif ($def['tipo'] === 'number'): ?>
-                        <input type="number" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars($val) ?>"
-                            <?= isset($def['min']) ? 'min="' . (int)$def['min'] . '"' : '' ?>
-                            <?= isset($def['max']) ? 'max="' . (int)$def['max'] . '"' : '' ?>
-                            <?= !empty($def['obrigatorio']) ? 'required' : '' ?>
-                            <?= !empty($def['placeholder']) ? 'placeholder="' . htmlspecialchars($def['placeholder']) . '"' : '' ?>>
-                    <?php elseif ($def['tipo'] === 'tel'): ?>
-                        <input type="tel" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars($val) ?>"
-                            placeholder="<?= htmlspecialchars($def['placeholder'] ?? '(00) 00000-0000') ?>"
-                            <?= !empty($def['obrigatorio']) ? 'required' : '' ?>>
-                    <?php else: ?>
-                        <input type="text" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars($val) ?>"
-                            <?= !empty($def['placeholder']) ? 'placeholder="' . htmlspecialchars($def['placeholder']) . '"' : '' ?>
-                            <?= !empty($def['obrigatorio']) ? 'required' : '' ?>>
-                    <?php endif; ?>
+                    <?php $renderCampo($key, $def, $val); ?>
                 </div>
                 <?php endforeach; ?>
             </div>
+
+            <?php if (!empty($camposEndereco)): ?>
+            <h3 style="font-size:.95rem;color:var(--cobre);margin:1.5rem 0 .6rem;border-bottom:1px solid var(--nude);padding-bottom:.3rem;">📍 Endereço</h3>
+            <p style="font-size:.78rem;color:var(--muted);margin-top:-.4rem;margin-bottom:.6rem;">Dica: digite o CEP que a gente busca o resto pra você. ✨</p>
+            <div class="form-grid">
+                <?php foreach ($camposEndereco as $key => $def):
+                    $val = isset($dadosColab[$key]) ? $dadosColab[$key] : (isset($def['default']) ? $def['default'] : '');
+                    // Layout: CEP, logradouro, número, bairro, complemento, cidade, UF
+                    $isFull = ($key === 'endereco_logradouro' || $key === 'endereco_complemento');
+                    $isHalf = ($key === 'endereco_uf');
+                ?>
+                <div<?= $isFull ? ' class="full"' : '' ?> style="<?= $key === 'cep' ? 'max-width:200px;' : '' ?><?= $isHalf ? 'max-width:120px;' : '' ?>">
+                    <label><?= htmlspecialchars($def['label']) ?><?= !empty($def['obrigatorio']) ? ' *' : '' ?></label>
+                    <?php $renderCampo($key, $def, $val); ?>
+                </div>
+                <?php endforeach; ?>
+                <div id="cepStatus" style="grid-column:1/-1;font-size:.78rem;color:var(--cobre);min-height:1rem;"></div>
+            </div>
+            <?php endif; ?>
 
             <div class="acoes-row">
                 <a href="<?= htmlspecialchars($urlVoltar) ?>" class="btn-outline">← Cancelar</a>
                 <button type="submit" class="btn-primary">Continuar para revisar →</button>
             </div>
         </form>
+
+        <script>
+            function aplicarMascara(el) {
+                var t = el.dataset.mascara;
+                var v = el.value.replace(/\D/g, '');
+                if (t === 'cep') {
+                    if (v.length > 5) v = v.slice(0,5) + '-' + v.slice(5,8);
+                    else v = v.slice(0,5);
+                } else if (t === 'tel') {
+                    if (v.length > 10) v = '(' + v.slice(0,2) + ') ' + v.slice(2,7) + '-' + v.slice(7,11);
+                    else if (v.length > 6) v = '(' + v.slice(0,2) + ') ' + v.slice(2,6) + '-' + v.slice(6,10);
+                    else if (v.length > 2) v = '(' + v.slice(0,2) + ') ' + v.slice(2);
+                    else if (v.length > 0) v = '(' + v;
+                }
+                el.value = v;
+            }
+
+            function buscarCEP(cep) {
+                var digits = (cep || '').replace(/\D/g, '');
+                if (digits.length !== 8) return;
+                var status = document.getElementById('cepStatus');
+                if (status) status.textContent = '🔍 Buscando endereço…';
+                fetch('https://viacep.com.br/ws/' + digits + '/json/')
+                    .then(function(r){ return r.json(); })
+                    .then(function(d){
+                        if (d.erro) {
+                            if (status) status.textContent = '⚠ CEP não encontrado. Preencha manualmente.';
+                            return;
+                        }
+                        // Preenche os campos com data-via correspondente
+                        document.querySelectorAll('[data-via]').forEach(function(el){
+                            var k = el.dataset.via;
+                            if (d[k] && !el.value) el.value = d[k];
+                            else if (d[k]) el.value = d[k]; // sobrescreve mesmo se ja tem (admin pode ajustar)
+                        });
+                        if (status) status.textContent = '✓ Endereço preenchido — só ajustar o número e complemento.';
+                        // Foca no campo número se existir
+                        var num = document.querySelector('input[name="endereco_numero"]');
+                        if (num) num.focus();
+                    })
+                    .catch(function(){
+                        if (status) status.textContent = '⚠ Não foi possível buscar o CEP. Preencha manualmente.';
+                    });
+            }
+        </script>
     </div>
 
 <?php elseif ($etapa === 'revisar'): ?>
