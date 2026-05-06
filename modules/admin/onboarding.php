@@ -140,6 +140,9 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_termino_e
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN seguro_num_apolice VARCHAR(60) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN seguro_seguradora VARCHAR(150) NULL"); } catch (Exception $e) {}
 
+// Carga horaria do estagio (5h/6h/7h/8h)
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN carga_horaria_estagio VARCHAR(10) NULL"); } catch (Exception $e) {}
+
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
 // Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
@@ -244,6 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'data_termino_estagio' => trim($_POST['data_termino_estagio'] ?? '') ?: null,
             'seguro_num_apolice'   => trim($_POST['seguro_num_apolice'] ?? '') ?: null,
             'seguro_seguradora'    => trim($_POST['seguro_seguradora'] ?? '') ?: null,
+            'carga_horaria_estagio' => in_array(($_POST['carga_horaria_estagio'] ?? ''), array('4h','5h','6h','7h','8h'), true) ? $_POST['carga_horaria_estagio'] : null,
         );
 
         // Se admin informou WhatsApp da colaboradora, tenta buscar foto de perfil
@@ -516,19 +520,69 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <div>
                 <label>Local presencial <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(quando híbrido/presencial)</span></label>
-                <input name="local_presencial" value="<?= e($reg['local_presencial'] ?? '') ?>" placeholder="Ex: Barra Mansa/RJ — Rua Dr. Aldrovando, 140 — Ano Bom">
+                <?php
+                $opcoesLocal = array(
+                    'Sede — Barra Mansa/RJ — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom',
+                    'Filial — Barra Mansa/RJ — Rua Dr. Aldrovando de Oliveira, 138 — Ano Bom',
+                    'Agendamento — Volta Redonda/RJ — Rua 535, 325 — N. Sra. das Graças',
+                );
+                $valLocal = $reg['local_presencial'] ?? '';
+                $isOutroLoc = $valLocal !== '' && !in_array($valLocal, $opcoesLocal, true);
+                ?>
+                <select id="localSelect" onchange="onLocalChange()">
+                    <option value="">— Selecione —</option>
+                    <?php foreach ($opcoesLocal as $op): ?>
+                        <option value="<?= e($op) ?>" <?= $valLocal === $op ? 'selected' : '' ?>><?= e($op) ?></option>
+                    <?php endforeach; ?>
+                    <option value="__outro__" <?= $isOutroLoc ? 'selected' : '' ?>>Outro (digitar)…</option>
+                </select>
+                <input type="text" name="local_presencial" id="localInput" value="<?= e($valLocal) ?>"
+                       placeholder="Descreva o local"
+                       style="margin-top:.4rem;<?= $isOutroLoc ? '' : 'display:none;' ?>">
             </div>
             <div>
                 <label>Dias de trabalho</label>
-                <input name="dias_trabalho" value="<?= e($reg['dias_trabalho'] ?? '') ?>" placeholder="Ex: Segunda a sexta">
+                <?php
+                $opcoesDias = array('Segunda a sexta','Segunda a sábado','Apenas seg/qua/sex','Apenas ter/qui','Plantão (escala)');
+                $valDias = $reg['dias_trabalho'] ?? '';
+                $isOutroDias = $valDias !== '' && !in_array($valDias, $opcoesDias, true);
+                ?>
+                <select id="diasSelect" onchange="onDiasChange()">
+                    <option value="">— Selecione —</option>
+                    <?php foreach ($opcoesDias as $op): ?>
+                        <option value="<?= e($op) ?>" <?= $valDias === $op ? 'selected' : '' ?>><?= e($op) ?></option>
+                    <?php endforeach; ?>
+                    <option value="__outro__" <?= $isOutroDias ? 'selected' : '' ?>>Outro (digitar)…</option>
+                </select>
+                <input type="text" name="dias_trabalho" id="diasInput" value="<?= e($valDias) ?>"
+                       placeholder="Descreva"
+                       style="margin-top:.4rem;<?= $isOutroDias ? '' : 'display:none;' ?>">
             </div>
             <div>
                 <label>Horário início</label>
-                <input name="horario_inicio" type="time" value="<?= e($reg['horario_inicio'] ?? '') ?>">
+                <?php
+                $opcoesIni = array('07:00','08:00','09:00','09:30','10:00','11:00','12:00','13:00','13:30','14:00');
+                $valIni = $reg['horario_inicio'] ? substr($reg['horario_inicio'], 0, 5) : '';
+                ?>
+                <select name="horario_inicio">
+                    <option value="">— Selecione —</option>
+                    <?php foreach ($opcoesIni as $h): ?>
+                        <option value="<?= e($h) ?>" <?= $valIni === $h ? 'selected' : '' ?>><?= e($h) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
             <div>
                 <label>Horário fim</label>
-                <input name="horario_fim" type="time" value="<?= e($reg['horario_fim'] ?? '') ?>">
+                <?php
+                $opcoesFim = array('11:00','12:00','13:00','14:00','15:00','15:30','16:00','17:00','17:30','18:00','19:00','20:00');
+                $valFim = $reg['horario_fim'] ? substr($reg['horario_fim'], 0, 5) : '';
+                ?>
+                <select name="horario_fim">
+                    <option value="">— Selecione —</option>
+                    <?php foreach ($opcoesFim as $h): ?>
+                        <option value="<?= e($h) ?>" <?= $valFim === $h ? 'selected' : '' ?>><?= e($h) ?></option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
 
@@ -586,6 +640,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <option value="">— Selecione —</option>
                     <option value="I" <?= ($reg['modalidade_estagio'] ?? '') === 'I' ? 'selected' : '' ?>>Modalidade I — OAB-RJ (Provimento 144/2011)</option>
                     <option value="II" <?= ($reg['modalidade_estagio'] ?? '') === 'II' ? 'selected' : '' ?>>Modalidade II — Acadêmico (Lei 11.788/2008)</option>
+                </select>
+            </div>
+            <div>
+                <label>Carga horária</label>
+                <select name="carga_horaria_estagio">
+                    <option value="">— Selecione —</option>
+                    <?php foreach (array('4h','5h','6h','7h','8h') as $ch): ?>
+                        <option value="<?= e($ch) ?>" <?= ($reg['carga_horaria_estagio'] ?? '') === $ch ? 'selected' : '' ?>><?= e($ch) ?> diárias</option>
+                    <?php endforeach; ?>
                 </select>
             </div>
             <div>
@@ -1104,6 +1167,35 @@ function onDataPagtoChange() {
         inp.style.display = 'none';
         inp.value = sel.value;
     }
+}
+
+// Helper genérico: select-com-outro sincronizado a um input texto
+function _selectOuOutro(selId, inpId, conhecidos) {
+    var sel = document.getElementById(selId);
+    var inp = document.getElementById(inpId);
+    if (!sel || !inp) return;
+    if (sel.value === '__outro__') {
+        inp.style.display = '';
+        if (inp.value === '' || (conhecidos && conhecidos.indexOf(inp.value) !== -1)) {
+            inp.value = '';
+        }
+        inp.focus();
+    } else {
+        inp.style.display = 'none';
+        inp.value = sel.value;
+    }
+}
+function onLocalChange() {
+    var sel = document.getElementById('localSelect');
+    var conhecidos = [];
+    if (sel) Array.prototype.forEach.call(sel.options, function(o){ if (o.value && o.value !== '__outro__') conhecidos.push(o.value); });
+    _selectOuOutro('localSelect', 'localInput', conhecidos);
+}
+function onDiasChange() {
+    var sel = document.getElementById('diasSelect');
+    var conhecidos = [];
+    if (sel) Array.prototype.forEach.call(sel.options, function(o){ if (o.value && o.value !== '__outro__') conhecidos.push(o.value); });
+    _selectOuOutro('diasSelect', 'diasInput', conhecidos);
 }
 
 // Trigger e-mail auto ao sair do campo de nome
