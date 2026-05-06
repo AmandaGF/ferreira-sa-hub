@@ -530,7 +530,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
             <div>
                 <label>Data de pagamento</label>
-                <input name="data_pagamento" value="<?= e($reg['data_pagamento'] ?? '') ?>" placeholder="Ex: Todo dia 5 do mês seguinte">
+                <?php
+                $opcoesPagto = array(
+                    'Todo dia 5',
+                    'Todo dia 10',
+                    'Todo dia 15',
+                    'Todo dia 20',
+                    'Todo dia 25',
+                    'Todo dia 30 / último dia útil',
+                    '5º dia útil',
+                    '10º dia útil',
+                    'Quinzenal (dia 15 + último dia)',
+                );
+                $valPagto = $reg['data_pagamento'] ?? '';
+                $isOutro  = $valPagto !== '' && !in_array($valPagto, $opcoesPagto, true);
+                ?>
+                <select id="dataPagtoSelect" onchange="onDataPagtoChange()">
+                    <option value="">— Selecione —</option>
+                    <?php foreach ($opcoesPagto as $op): ?>
+                        <option value="<?= e($op) ?>" <?= $valPagto === $op ? 'selected' : '' ?>><?= e($op) ?></option>
+                    <?php endforeach; ?>
+                    <option value="__outro__" <?= $isOutro ? 'selected' : '' ?>>Outro (digitar)…</option>
+                </select>
+                <input type="text" name="data_pagamento" id="dataPagtoInput"
+                       value="<?= e($valPagto) ?>"
+                       placeholder="Descreva quando o pagamento é feito"
+                       style="margin-top:.4rem;<?= $isOutro ? '' : 'display:none;' ?>">
             </div>
         </div>
 
@@ -878,6 +903,24 @@ function onValorChange(inp) {
     // Pontos a cada 3 dígitos
     inteiro = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
     inp.value = inteiro + ',' + cents;
+}
+
+// Data de pagamento: sincroniza select com input escondido
+function onDataPagtoChange() {
+    var sel = document.getElementById('dataPagtoSelect');
+    var inp = document.getElementById('dataPagtoInput');
+    if (!sel || !inp) return;
+    if (sel.value === '__outro__') {
+        inp.style.display = '';
+        if (inp.value === '' || /^Todo dia /.test(inp.value) || /dia útil$/i.test(inp.value) || /Quinzenal/.test(inp.value)) {
+            // limpa pra digitar livre
+            inp.value = '';
+        }
+        inp.focus();
+    } else {
+        inp.style.display = 'none';
+        inp.value = sel.value;
+    }
 }
 
 // Trigger e-mail auto ao sair do campo de nome
