@@ -206,6 +206,41 @@ function render_termo_compromisso_estagio($colaborador, $dadosAdmin, $dadosColab
     $numApolice    = $dadosAdmin['num_apolice'] ?? '___';
     $seguradora    = $dadosAdmin['seguradora'] ?? '___';
 
+    // Jornada de estagio: carga horaria + dias + horarios — vem do cadastro do colaborador
+    $cargaH = $colaborador['carga_horaria_estagio'] ?? '';  // ex: '6h'
+    $cargaMap = array(
+        '4h' => array('hSem' => '20 (vinte)',     'hDia' => '4 (quatro)'),
+        '5h' => array('hSem' => '25 (vinte e cinco)', 'hDia' => '5 (cinco)'),
+        '6h' => array('hSem' => '30 (trinta)',    'hDia' => '6 (seis)'),
+        '7h' => array('hSem' => '35 (trinta e cinco)', 'hDia' => '7 (sete)'),
+        '8h' => array('hSem' => '40 (quarenta)',  'hDia' => '8 (oito)'),
+    );
+    $cargaTxt = isset($cargaMap[$cargaH])
+        ? $cargaMap[$cargaH]['hSem'] . ' horas semanais, distribuídas em ' . $cargaMap[$cargaH]['hDia'] . ' horas diárias'
+        : '___ horas semanais, distribuídas em ___ horas diárias';
+    $diasTrab = $colaborador['dias_trabalho'] ?? '';
+    $diasTxt = $diasTrab !== '' ? mb_strtolower($diasTrab, 'UTF-8') : 'em dias a serem ajustados pelas partes';
+    $horaIni = $colaborador['horario_inicio'] ? substr($colaborador['horario_inicio'], 0, 5) : '';
+    $horaFim = $colaborador['horario_fim'] ? substr($colaborador['horario_fim'], 0, 5) : '';
+    $horarioTxt = ($horaIni && $horaFim)
+        ? 'no horário das <strong>' . htmlspecialchars($horaIni) . '</strong> às <strong>' . htmlspecialchars($horaFim) . '</strong>'
+        : 'em horário a ser ajustado pelas partes';
+    // Local de prestacao (sede / filial / VR / outro) — vem do cadastro
+    $localPrest = trim((string)($colaborador['local_presencial'] ?? ''));
+    $modalidadeTrab = trim((string)($colaborador['modalidade'] ?? ''));  // Presencial/Remoto/Hibrido
+    $localTxt = '';
+    if ($localPrest !== '') {
+        $localTxt = 'O estágio será prestado, presencialmente, no escritório localizado em <strong>' . htmlspecialchars($localPrest) . '</strong>';
+        if ($modalidadeTrab !== '' && stripos($modalidadeTrab, 'híb') !== false) {
+            $localTxt .= ', em regime <strong>híbrido</strong>, com possibilidade de execução remota mediante prévio ajuste';
+        } elseif ($modalidadeTrab !== '' && stripos($modalidadeTrab, 'remot') !== false) {
+            $localTxt = 'O estágio será prestado em regime <strong>remoto</strong>, com sede de referência em <strong>' . htmlspecialchars($localPrest) . '</strong> para reuniões e atividades presenciais quando necessário';
+        }
+        $localTxt .= '.';
+    } elseif ($modalidadeTrab !== '' && stripos($modalidadeTrab, 'remot') !== false) {
+        $localTxt = 'O estágio será prestado em regime <strong>remoto</strong>.';
+    }
+
     $estadoCivilLabels = array('solteira'=>'solteira(o)','casada'=>'casada(o)','divorciada'=>'divorciada(o)','viuva'=>'viúva(o)','uniao_estavel'=>'em união estável');
     $estadoCivilTxt = isset($estadoCivilLabels[$estadoCivil]) ? $estadoCivilLabels[$estadoCivil] : $estadoCivil;
 
@@ -243,10 +278,16 @@ function render_termo_compromisso_estagio($colaborador, $dadosAdmin, $dadosColab
     $h .= '<div class="doc-clausula"><div class="doc-clausula-num">3.2</div><div class="doc-clausula-corpo">O presente instrumento poderá ser denunciado a qualquer tempo, unilateralmente, por qualquer das partes, mediante comunicação escrita com antecedência mínima de 30 (trinta) dias, sem ônus para a parte denunciante, ressalvada a hipótese de descumprimento contratual, que autoriza rescisão imediata.</div></div>';
 
     // 4. JORNADA
-    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 4ª — DA JORNADA DE ESTÁGIO</div>';
-    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.1</div><div class="doc-clausula-corpo">A jornada de estágio será de <strong>30 (trinta) horas semanais, distribuídas em 6 (seis) horas diárias</strong>, de segunda a sexta-feira, em horário a ser ajustado pelas partes em compatibilidade com a grade acadêmica do(a) ESTAGIÁRIO(A), nos termos do art. 10, II, da Lei 11.788/2008.</div></div>';
-    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.2</div><div class="doc-clausula-corpo">Nos períodos de avaliações periódicas e finais, a jornada poderá ser reduzida, nos termos do art. 10, §2º, da Lei 11.788/2008, mediante apresentação de calendário acadêmico oficial pelo(a) ESTAGIÁRIO(A) com antecedência mínima de 15 (quinze) dias.</div></div>';
-    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">Eventual realização de atividades em horário diverso do contratado, inclusive em finais de semana ou feriados, dependerá de ajuste prévio e expresso entre as partes, sendo facultativa para o(a) ESTAGIÁRIO(A).</div></div>';
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 4ª — DA JORNADA E DO LOCAL DE ESTÁGIO</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.1</div><div class="doc-clausula-corpo">A jornada de estágio será de <strong>' . $cargaTxt . '</strong>, ' . htmlspecialchars($diasTxt) . ', ' . $horarioTxt . ', em compatibilidade com a grade acadêmica do(a) ESTAGIÁRIO(A), nos termos do art. 10, II, da Lei 11.788/2008.</div></div>';
+    if ($localTxt !== '') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.2</div><div class="doc-clausula-corpo">' . $localTxt . '</div></div>';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">Nos períodos de avaliações periódicas e finais, a jornada poderá ser reduzida, nos termos do art. 10, §2º, da Lei 11.788/2008, mediante apresentação de calendário acadêmico oficial pelo(a) ESTAGIÁRIO(A) com antecedência mínima de 15 (quinze) dias.</div></div>';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.4</div><div class="doc-clausula-corpo">Eventual realização de atividades em horário diverso do contratado, inclusive em finais de semana ou feriados, dependerá de ajuste prévio e expresso entre as partes, sendo facultativa para o(a) ESTAGIÁRIO(A).</div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.2</div><div class="doc-clausula-corpo">Nos períodos de avaliações periódicas e finais, a jornada poderá ser reduzida, nos termos do art. 10, §2º, da Lei 11.788/2008, mediante apresentação de calendário acadêmico oficial pelo(a) ESTAGIÁRIO(A) com antecedência mínima de 15 (quinze) dias.</div></div>';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">Eventual realização de atividades em horário diverso do contratado, inclusive em finais de semana ou feriados, dependerá de ajuste prévio e expresso entre as partes, sendo facultativa para o(a) ESTAGIÁRIO(A).</div></div>';
+    }
 
     // 5. BOLSA
     $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 5ª — DA BOLSA-AUXÍLIO E DO AUXÍLIO-TRANSPORTE</div>';

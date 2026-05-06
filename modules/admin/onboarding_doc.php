@@ -150,9 +150,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <p style="font-size:.78rem;color:#6b7280;margin-bottom:1rem;">
             Esses dados serão usados para preencher o documento automaticamente. A colaboradora só visualiza (não pode editar).
         </p>
-        <?php if (!empty($autofill)): ?>
+        <?php if (!empty($autofill) || $doc['tipo'] === 'compromisso_estagio'): ?>
             <div style="background:#ecfdf5;border:1px solid #34d399;color:#065f46;padding:.65rem .9rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;">
-                ✨ <strong>Pré-preenchimento automático:</strong> alguns campos foram preenchidos a partir do cadastro do colaborador (valor da bolsa, vale-transporte, etc.). Confira e ajuste se necessário antes de salvar.
+                ✨ <strong>Pré-preenchimento automático:</strong> os dados abaixo já vêm do cadastro do colaborador. Os <em>demais campos do termo</em> (carga horária, dias de trabalho, horários, local presencial, modalidade Presencial/Remoto/Híbrido) também são puxados direto do cadastro — não precisa preencher aqui.
             </div>
         <?php endif; ?>
         <div class="adm-doc-grid">
