@@ -292,6 +292,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         redirect(module_url('admin', 'onboarding.php'));
     }
 
+    if ($action === 'excluir' && $id) {
+        // Apaga em cascata: documentos vinculados primeiro, depois o cadastro.
+        // Apaga tambem foto local da colaboradora se houver.
+        try {
+            $stF = $pdo->prepare("SELECT foto_path FROM colaboradores_onboarding WHERE id = ?");
+            $stF->execute(array($id));
+            $fp = $stF->fetchColumn();
+            if ($fp && strpos($fp, '/files/onboarding_fotos/') === 0) {
+                $abs = APP_ROOT . $fp;
+                if (file_exists($abs)) @unlink($abs);
+            }
+        } catch (Exception $e) {}
+        try { $pdo->prepare("DELETE FROM colaboradores_documentos WHERE colaborador_id = ?")->execute(array($id)); } catch (Exception $e) {}
+        $pdo->prepare("DELETE FROM colaboradores_onboarding WHERE id = ?")->execute(array($id));
+        flash_set('success', 'Cadastro excluído permanentemente.');
+        redirect(module_url('admin', 'onboarding.php'));
+    }
+
     if ($action === 'regenerar_token' && $id) {
         $token = bin2hex(random_bytes(16));
         $pdo->prepare("UPDATE colaboradores_onboarding SET token = ?, aceite_em = NULL, aceite_ip = NULL WHERE id = ?")
@@ -641,6 +659,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td style="white-space:nowrap;">
                         <a class="btn btn-outline btn-sm" href="<?= module_url('admin', 'onboarding.php?id=' . (int)$r['id']) ?>">✏️ Editar</a>
                         <a class="btn btn-outline btn-sm" target="_blank" href="<?= e($urlPublica($r['token'])) ?>">👁 Ver página</a>
+                        <form method="POST" style="display:inline;" onsubmit="return confirm('⚠ Excluir PERMANENTEMENTE o cadastro de <?= e($r['nome_completo']) ?>?\n\nIsso vai apagar tambem todos os documentos vinculados e a foto.\nA acao nao pode ser desfeita.');">
+                            <?= csrf_input() ?>
+                            <input type="hidden" name="action" value="excluir">
+                            <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                            <button type="submit" class="btn btn-outline btn-sm" style="color:#dc2626;border-color:#fca5a5;">🗑 Excluir</button>
+                        </form>
                     </td>
                 </tr>
                 <?php endforeach; ?>
