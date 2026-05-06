@@ -9,6 +9,16 @@ require_login();
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 
+// Para AJAX: liga buffer de saida pra impedir que warnings/notices/BOM
+// quebrem o JSON. Funcao helper limpa o buffer antes de echo pra garantir
+// que so o JSON saia.
+if ($isAjax) { @ob_start(); }
+function _json_clean_echo($data) {
+    while (@ob_get_level() > 0) { @ob_end_clean(); }
+    if (!headers_sent()) header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($data);
+}
+
 // ── GET: ações de leitura puras (autocomplete) ────────────
 // Antes do bloqueio que rejeita não-POST, atendemos os endpoints GET
 // que servem autocomplete / sugestão. Não exigem CSRF (são GET, não mutate).
@@ -2012,7 +2022,7 @@ switch ($action) {
         $descricao = trim($_POST['descricao'] ?? '');
         if (!$andId || !$descricao) {
             $newCsrf = generate_csrf_token();
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados incompletos', 'csrf' => $newCsrf)); exit; }
+            if ($isAjax) { _json_clean_echo(array('error' => 'Dados incompletos', 'csrf' => $newCsrf)); exit; }
             break;
         }
         $canEdit = has_min_role('gestao');
@@ -2024,7 +2034,7 @@ switch ($action) {
         }
         if (!$canEdit) {
             $newCsrf = generate_csrf_token();
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Sem permissão', 'csrf' => $newCsrf)); exit; }
+            if ($isAjax) { _json_clean_echo(array('error' => 'Sem permissão', 'csrf' => $newCsrf)); exit; }
             break;
         }
         try {
@@ -2059,11 +2069,11 @@ switch ($action) {
             audit_log('ANDAMENTO_EDITADO', 'andamento', $andId, mb_substr($descricao, 0, 80, 'UTF-8'));
         } catch (Exception $e) {
             $newCsrf = generate_csrf_token();
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Erro SQL: ' . $e->getMessage(), 'csrf' => $newCsrf)); exit; }
+            if ($isAjax) { _json_clean_echo(array('error' => 'Erro SQL: ' . $e->getMessage(), 'csrf' => $newCsrf)); exit; }
             break;
         }
         $newCsrf = generate_csrf_token();
-        if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'csrf' => $newCsrf)); exit; }
+        if ($isAjax) { _json_clean_echo(array('ok' => true, 'csrf' => $newCsrf)); exit; }
         flash_set('success', 'Andamento atualizado.');
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;

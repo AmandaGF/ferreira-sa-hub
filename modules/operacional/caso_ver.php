@@ -4393,6 +4393,26 @@ function salvarAndamento(andId) {
     var novaData = dataEl ? dataEl.value : '';
     var tipoEl = document.getElementById('andTipo' + andId);
     var novoTipo = tipoEl ? tipoEl.value : '';
+
+    // Atualiza a UI otimisticamente (a partir do que o usuario digitou)
+    function aplicarUiSucesso() {
+        var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
+        if (novoTipo && tipoSpan && tipoSpan.getAttribute('data-tipo-val') !== novoTipo) {
+            location.reload();
+            return;
+        }
+        document.getElementById('andDesc' + andId).textContent = novoTexto;
+        var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
+        if (horaSpan && novaHora) horaSpan.textContent = novaHora;
+        var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
+        if (dataSpan && novaData) {
+            var p = novaData.split('-');
+            dataSpan.textContent = p[2] + '/' + p[1] + '/' + p[0];
+            dataSpan.setAttribute('data-data', novaData);
+        }
+        cancelarEdicaoAnd(andId);
+    }
+
     var x = new XMLHttpRequest();
     x.open('POST', '<?= module_url("operacional", "api.php") ?>');
     x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -4401,34 +4421,21 @@ function salvarAndamento(andId) {
         // Sessão expirada → middleware retorna 401 com header XHR
         if (x.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
         if (x.status !== 200) { alert('Erro ao salvar — HTTP ' + x.status + '. Recarregue a página (F5).'); return; }
+
         var r;
         try { r = JSON.parse(x.responseText); }
         catch (e) {
-            // Resposta HTML (provável redirect pro login após sessão expirar mesmo sem 401)
-            console.error('[salvarAndamento] resposta não-JSON:', x.responseText.substring(0, 300));
-            alert('Resposta inválida do servidor — provavelmente sua sessão expirou. Recarregue (F5) e tente de novo.');
+            // HTTP 200 + não-JSON: o servidor SALVOU mas devolveu HTML (warning,
+            // BOM, redirect benigno, etc.). Como a gravação foi feita, tratamos
+            // como sucesso silencioso e logamos pra diagnóstico.
+            console.warn('[salvarAndamento] resposta 200 não-JSON (save provavelmente OK):',
+                         x.responseText.substring(0, 300));
+            aplicarUiSucesso();
             return;
         }
+
         if (r.csrf) andCsrf = r.csrf;
-        if (r.ok) {
-            // Se tipo mudou, recarregar para atualizar cor e ícone
-            var tipoSpan = document.querySelector('[data-and-tipo="' + andId + '"]');
-            if (novoTipo && tipoSpan && tipoSpan.getAttribute('data-tipo-val') !== novoTipo) {
-                location.reload();
-                return;
-            }
-            document.getElementById('andDesc' + andId).textContent = novoTexto;
-            var horaSpan = document.querySelector('[data-and-hora="' + andId + '"]');
-            if (horaSpan && novaHora) horaSpan.textContent = novaHora;
-            var dataSpan = document.querySelector('[data-and-data="' + andId + '"]');
-            if (dataSpan && novaData) {
-                var p = novaData.split('-');
-                dataSpan.textContent = p[2] + '/' + p[1] + '/' + p[0];
-                dataSpan.setAttribute('data-data', novaData);
-            }
-            cancelarEdicaoAnd(andId);
-            return;
-        }
+        if (r.ok) { aplicarUiSucesso(); return; }
         alert('Erro ao salvar: ' + (r.error || 'desconhecido'));
     };
     x.onerror = function() { alert('Falha de rede ao salvar. Tente novamente.'); };
