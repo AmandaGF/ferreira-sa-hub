@@ -564,6 +564,24 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                 <p style="opacity:.95;font-size:.92rem;">É no Hub que você acessa processos, agenda, WhatsApp, documentos e tudo mais.</p>
                 <a class="btn-config-email" href="https://ferreiraesa.com.br/conecta/" target="_blank" rel="noopener" style="background:#fff;">🚀 Acessar o Hub</a>
             </div>
+
+            <div class="acesso-destaque" style="background:linear-gradient(135deg, #1a73e8, #4285f4);margin-top:1rem;">
+                <h4>📁 GOOGLE DRIVE — documentos e arquivos do escritório</h4>
+                <p style="opacity:.95;font-size:.92rem;">Todos os arquivos do escritório (processos, modelos, mídias, planilhas) ficam organizados no Drive do Google. Use o <strong>mesmo e-mail e senha</strong> do seu acesso institucional.</p>
+                <?php if ($reg['email_institucional']): ?>
+                <div class="acesso-item" style="margin-top:.6rem;">
+                    <span class="lbl">Login:</span>
+                    <span class="val"><?= htmlspecialchars($reg['email_institucional']) ?></span>
+                </div>
+                <?php endif; ?>
+                <?php if ($reg['senha_inicial']): ?>
+                <div class="acesso-item">
+                    <span class="lbl">Senha:</span>
+                    <span class="val"><?= htmlspecialchars($reg['senha_inicial']) ?></span>
+                </div>
+                <?php endif; ?>
+                <a class="btn-config-email" href="https://drive.google.com/" target="_blank" rel="noopener" style="background:#fff;">📂 Acessar o Drive</a>
+            </div>
         </div>
         <?php endif; ?>
 
@@ -900,6 +918,24 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         </div>
         <?php endif; ?>
 
+        <!-- COMPARTILHAR NO INSTAGRAM -->
+        <div class="card-block" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border:1.5px solid #f9a8d4;">
+            <div class="card-title-row">
+                <div class="card-title-icon" style="background:linear-gradient(135deg,#f9a8d4,#ec4899);">📸</div>
+                <h2 style="color:#831843;">Compartilhe esse momento!</h2>
+            </div>
+            <p>Que tal contar pra galera que você está começando essa jornada com a gente? 💜<br>
+            Geramos uma imagem linda pra você postar nos seus stories — é só baixar ou compartilhar direto.</p>
+            <p style="font-size:.82rem;color:#9f1239;margin-top:.4rem;">
+                ✨ <strong>Não esqueça de marcar <a href="https://instagram.com/advocaciaferreiraesa" target="_blank" style="color:#831843;">@advocaciaferreiraesa</a></strong> no seu story!
+            </p>
+            <div style="text-align:center;margin-top:1.2rem;">
+                <button type="button" onclick="abrirGeradorStory()" style="background:linear-gradient(135deg,#db2777,#9f1239);color:#fff;border:0;padding:.85rem 1.8rem;border-radius:12px;font-size:1rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(219,39,119,.3);font-family:inherit;">
+                    📸 Criar minha imagem pro story
+                </button>
+            </div>
+        </div>
+
         <!-- FECHAMENTO EMOCIONAL -->
         <div style="background:linear-gradient(135deg,var(--petrol-900),var(--petrol-700));color:#fff;border-radius:var(--radius);padding:2.2rem 1.8rem;text-align:center;margin-top:2rem;position:relative;overflow:hidden;">
             <div style="position:absolute;inset:0;background-image:radial-gradient(circle at 30% 30%,rgba(215,171,144,.18) 0%,transparent 50%),radial-gradient(circle at 70% 70%,rgba(184,115,51,.15) 0%,transparent 50%);pointer-events:none;"></div>
@@ -942,6 +978,279 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         Estamos felizes por ter você na equipe 💜
     </div>
 
+<?php endif; ?>
+
+<?php if ($autenticado): ?>
+<!-- ─── MODAL: GERADOR DE STORY ────────────────────────── -->
+<div id="storyOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;align-items:center;justify-content:center;overflow-y:auto;padding:1rem;">
+    <div style="background:#fff;border-radius:16px;max-width:540px;width:100%;padding:1.5rem;max-height:95vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.4);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="margin:0;color:#831843;font-size:1.15rem;">📸 Sua imagem pro story</h3>
+            <button onclick="fecharGeradorStory()" style="background:none;border:0;font-size:1.4rem;cursor:pointer;color:#9f1239;">✕</button>
+        </div>
+
+        <!-- Preview -->
+        <div style="text-align:center;background:#f3f4f6;border-radius:12px;padding:.8rem;margin-bottom:1rem;">
+            <img id="storyPreview" src="" alt="" style="max-width:100%;max-height:60vh;border-radius:8px;display:none;">
+            <div id="storyLoading" style="padding:3rem 1rem;color:#6b7280;font-size:.9rem;">⏳ Gerando sua imagem…</div>
+        </div>
+
+        <!-- Trocar foto -->
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.78rem;font-weight:700;color:#831843;display:block;margin-bottom:.3rem;">📷 Trocar a foto (opcional)</label>
+            <input type="file" accept="image/*" id="storyFotoInput" onchange="trocarFotoStory(this)" style="font-size:.85rem;width:100%;">
+            <p style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">A foto do seu WhatsApp já vem por padrão. Se quiser usar outra, suba aqui.</p>
+        </div>
+
+        <!-- Lembrete da menção -->
+        <div style="background:#fdf2f8;border-left:3px solid #db2777;padding:.6rem .9rem;border-radius:0 6px 6px 0;font-size:.78rem;color:#9f1239;margin-bottom:1rem;">
+            ✨ <strong>Não esqueça:</strong> ao postar o story, marque <strong>@advocaciaferreiraesa</strong>!
+        </div>
+
+        <!-- Botões -->
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;">
+            <button type="button" onclick="baixarStory()" style="flex:1;min-width:140px;background:#fff;border:2px solid #db2777;color:#9f1239;padding:.7rem;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;font-size:.92rem;">
+                📥 Baixar imagem
+            </button>
+            <button type="button" onclick="compartilharStory()" id="btnCompartilharStory" style="flex:1;min-width:140px;background:linear-gradient(135deg,#db2777,#9f1239);color:#fff;border:0;padding:.7rem;border-radius:10px;font-weight:700;cursor:pointer;font-family:inherit;font-size:.92rem;">
+                📲 Compartilhar
+            </button>
+        </div>
+
+        <p style="font-size:.7rem;color:#6b7280;text-align:center;margin-top:.8rem;">
+            No celular, "Compartilhar" abre o seletor com Instagram, WhatsApp e outros apps. No PC, baixa o PNG.
+        </p>
+    </div>
+</div>
+
+<!-- Canvas escondido onde a imagem é gerada -->
+<canvas id="storyCanvas" width="1080" height="1920" style="display:none;"></canvas>
+
+<script>
+(function(){
+    var primeiroNome = <?= json_encode(htmlspecialchars($primeiroNome)) ?>;
+    var generoStr = <?= json_encode($genero) ?>;
+    var fotoUrlServidor = <?= json_encode($fotoColab ? $fotoColab : '') ?>;
+    var logoUrl = '/conecta/assets/img/logo.png';
+
+    var imagensCarregadas = false;
+    var logoImg = new Image();
+    var fotoImg = new Image();
+    fotoImg.crossOrigin = 'anonymous';
+
+    function carregarImagens(callback) {
+        var carregadas = 0, total = fotoUrlServidor ? 2 : 1;
+        var done = function() {
+            carregadas++;
+            if (carregadas === total) callback();
+        };
+        logoImg.onload = done;
+        logoImg.onerror = done;
+        logoImg.src = logoUrl;
+        if (fotoUrlServidor) {
+            fotoImg.onload = done;
+            fotoImg.onerror = function(){ fotoImg = null; done(); };
+            fotoImg.src = fotoUrlServidor;
+        }
+    }
+
+    window.abrirGeradorStory = function() {
+        document.getElementById('storyOverlay').style.display = 'flex';
+        document.getElementById('storyPreview').style.display = 'none';
+        document.getElementById('storyLoading').style.display = 'block';
+        if (!imagensCarregadas) {
+            carregarImagens(function(){
+                imagensCarregadas = true;
+                desenharStory();
+            });
+        } else {
+            desenharStory();
+        }
+    };
+
+    window.fecharGeradorStory = function() {
+        document.getElementById('storyOverlay').style.display = 'none';
+    };
+
+    window.trocarFotoStory = function(input) {
+        if (!input.files || !input.files[0]) return;
+        var fr = new FileReader();
+        fr.onload = function(e) {
+            var nova = new Image();
+            nova.onload = function() {
+                fotoImg = nova;
+                desenharStory();
+            };
+            nova.src = e.target.result;
+        };
+        fr.readAsDataURL(input.files[0]);
+    };
+
+    function desenharStory() {
+        var canvas = document.getElementById('storyCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = 1080, H = 1920;
+
+        // 1. Background gradient petrol
+        var grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#052228');
+        grad.addColorStop(0.6, '#0e3d44');
+        grad.addColorStop(1, '#173d46');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, W, H);
+
+        // 2. Decoração — círculos cobre semi-transparentes
+        ctx.fillStyle = 'rgba(184, 115, 51, 0.18)';
+        ctx.beginPath(); ctx.arc(900, 200, 280, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(150, H - 300, 240, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(215, 171, 144, 0.12)';
+        ctx.beginPath(); ctx.arc(W - 100, H - 600, 180, 0, Math.PI * 2); ctx.fill();
+
+        // 3. Logo no topo (em fundo branco arredondado)
+        var logoBoxW = 700, logoBoxH = 180;
+        var logoBoxX = (W - logoBoxW) / 2, logoBoxY = 110;
+        ctx.fillStyle = 'rgba(255,255,255,0.96)';
+        roundRect(ctx, logoBoxX, logoBoxY, logoBoxW, logoBoxH, 24);
+        ctx.fill();
+        if (logoImg.complete && logoImg.naturalWidth) {
+            // Mantém proporção
+            var iw = logoImg.naturalWidth, ih = logoImg.naturalHeight;
+            var scale = Math.min((logoBoxW - 60) / iw, (logoBoxH - 40) / ih);
+            var dw = iw * scale, dh = ih * scale;
+            var dx = (W - dw) / 2, dy = logoBoxY + (logoBoxH - dh) / 2;
+            ctx.drawImage(logoImg, dx, dy, dw, dh);
+        }
+
+        // 4. Foto da pessoa em moldura circular
+        var cx = W / 2, cy = 720, r = 240;
+        // anel cobre
+        ctx.strokeStyle = '#d7ab90';
+        ctx.lineWidth = 16;
+        ctx.beginPath(); ctx.arc(cx, cy, r + 12, 0, Math.PI * 2); ctx.stroke();
+        // anel interno mais escuro
+        ctx.strokeStyle = '#6a3c2c';
+        ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(cx, cy, r + 22, 0, Math.PI * 2); ctx.stroke();
+
+        if (fotoImg && fotoImg.complete && fotoImg.naturalWidth) {
+            ctx.save();
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
+            // Cobre todo o círculo (cover)
+            var iw = fotoImg.naturalWidth, ih = fotoImg.naturalHeight;
+            var s = Math.max((r * 2) / iw, (r * 2) / ih);
+            var dw = iw * s, dh = ih * s;
+            ctx.drawImage(fotoImg, cx - dw/2, cy - dh/2, dw, dh);
+            ctx.restore();
+        } else {
+            // Sem foto: emoji centralizado
+            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+            ctx.font = '180px serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#d7ab90';
+            ctx.fillText('💜', cx, cy);
+        }
+
+        // 5. SEJA BEM-VINDA(O), [NOME] — em destaque
+        ctx.fillStyle = '#d7ab90';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
+        ctx.font = '700 italic 56px "Playfair Display", serif';
+        var saudacao = generoStr === 'M' ? 'Seja Bem-Vindo,' : 'Seja Bem-Vinda,';
+        ctx.fillText(saudacao, cx, 1140);
+
+        // Nome em destaque — branco e maior
+        ctx.fillStyle = '#fff';
+        ctx.font = '800 110px "Playfair Display", serif';
+        var nomeTxt = primeiroNome + '! ✨';
+        // Reduz fonte se nome for muito grande
+        var maxW = W - 100;
+        var fontSize = 110;
+        do {
+            ctx.font = '800 ' + fontSize + 'px "Playfair Display", serif';
+            if (ctx.measureText(nomeTxt).width <= maxW) break;
+            fontSize -= 6;
+        } while (fontSize > 60);
+        ctx.fillText(nomeTxt, cx, 1260);
+
+        // 6. Frase complementar
+        ctx.fillStyle = '#fff';
+        ctx.font = '500 42px "Open Sans", sans-serif';
+        ctx.fillText('Começa hoje uma nova jornada', cx, 1380);
+        ctx.fillText('na', cx, 1440);
+        ctx.fillStyle = '#d7ab90';
+        ctx.font = '700 48px "Open Sans", sans-serif';
+        ctx.fillText('Família Ferreira & Sá', cx, 1510);
+        ctx.fillStyle = '#fff';
+        ctx.font = '500 42px "Open Sans", sans-serif';
+        ctx.fillText('💜', cx, 1580);
+
+        // 7. Mention rodapé
+        ctx.fillStyle = 'rgba(215, 171, 144, 0.95)';
+        ctx.font = '600 38px "Open Sans", sans-serif';
+        ctx.fillText('@advocaciaferreiraesa', cx, 1780);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '500 28px "Open Sans", sans-serif';
+        ctx.fillText('me marca no story! 💜', cx, 1830);
+
+        // Mostra preview
+        var dataUrl = canvas.toDataURL('image/png');
+        var prev = document.getElementById('storyPreview');
+        prev.src = dataUrl;
+        prev.style.display = 'block';
+        document.getElementById('storyLoading').style.display = 'none';
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    window.baixarStory = function() {
+        var canvas = document.getElementById('storyCanvas');
+        var link = document.createElement('a');
+        link.download = 'story-fs-' + primeiroNome.toLowerCase().replace(/[^a-z0-9]/g, '') + '.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+    };
+
+    window.compartilharStory = function() {
+        var canvas = document.getElementById('storyCanvas');
+        if (!navigator.canShare || !navigator.share) {
+            // Fallback: download
+            window.baixarStory();
+            alert('Imagem baixada! 💜\n\nAgora é só abrir o Instagram, criar um story, escolher essa imagem e marcar @advocaciaferreiraesa');
+            return;
+        }
+        canvas.toBlob(function(blob) {
+            var file = new File([blob], 'story-ferreirasa.png', {type: 'image/png'});
+            if (navigator.canShare({files: [file]})) {
+                navigator.share({
+                    files: [file],
+                    title: 'Família Ferreira & Sá',
+                    text: 'Nova jornada começando! 💜 (não esquece de marcar @advocaciaferreiraesa)'
+                }).catch(function(err){
+                    if (err && err.name !== 'AbortError') alert('Erro: ' + err.message);
+                });
+            } else {
+                window.baixarStory();
+                alert('Imagem baixada! 💜\n\nAgora é só abrir o Instagram, criar um story, escolher essa imagem e marcar @advocaciaferreiraesa');
+            }
+        }, 'image/png');
+    };
+
+    // Fecha modal ao clicar fora
+    document.getElementById('storyOverlay').addEventListener('click', function(e){
+        if (e.target === this) fecharGeradorStory();
+    });
+})();
+</script>
 <?php endif; ?>
 
 </body>
