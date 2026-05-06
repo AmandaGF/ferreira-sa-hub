@@ -30,7 +30,12 @@ if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
         require_once APP_ROOT . '/core/functions_zapi.php';
         $fotoUrl = zapi_fetch_profile_picture('24', $tel);
         if (!$fotoUrl) {
-            echo json_encode(array('ok' => false, 'erro' => 'Z-API não retornou foto. Possíveis causas: número não está no WhatsApp, foto privada, ou instância 24 desconectada.'));
+            echo json_encode(array('ok' => false, 'erro' => 'Esta colaboradora não tem foto pública no WhatsApp (perfil privado ou sem foto). Peça pra ela definir uma foto e liberar a privacidade pra "Todos", depois clica aqui de novo.'));
+            exit;
+        }
+        // Defesa extra: se algum dia chegar URL inválida (ex: "null" literal), evita cURL bizarro
+        if (!preg_match('#^https?://#i', $fotoUrl)) {
+            echo json_encode(array('ok' => false, 'erro' => 'Z-API retornou URL inválida: ' . substr($fotoUrl, 0, 50)));
             exit;
         }
         // Download via cURL: segue redirects, user-agent decente, timeout, retorna status real

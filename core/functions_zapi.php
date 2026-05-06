@@ -1173,9 +1173,16 @@ function zapi_fetch_profile_picture($ddd, $telefone) {
     curl_close($ch);
     if ($code < 200 || $code >= 300) return null;
     $json = json_decode($resp, true);
-    // Z-API retorna em 'link' normalmente; alguns endpoints variam ('url', 'imgUrl')
+    // Z-API retorna em 'link' normalmente; alguns endpoints variam ('url', 'imgUrl').
+    // ATENÇÃO: quando o número não tem foto pública, Z-API às vezes retorna a
+    // STRING "null" (literal) em vez de null real. Filtramos isso aqui pra não
+    // propagar URL inválida pra quem chama.
     foreach (array('link', 'url', 'imgUrl', 'image') as $k) {
-        if (!empty($json[$k]) && is_string($json[$k])) return $json[$k];
+        if (empty($json[$k]) || !is_string($json[$k])) continue;
+        $val = trim($json[$k]);
+        if ($val === '' || strtolower($val) === 'null' || strtolower($val) === 'false') continue;
+        if (!preg_match('#^https?://#i', $val)) continue;
+        return $val;
     }
     return null;
 }
