@@ -967,8 +967,8 @@ html { scroll-behavior: smooth; }
                         <?php elseif ($assinado): ?>
                             <span style="background:#d1fae5;color:#065f46;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;">✓ Concluído</span>
                         <?php else: ?>
-                            <a href="?token=<?= htmlspecialchars($token) ?>&doc=<?= (int)$doc['id'] ?>" style="background:linear-gradient(135deg,var(--cobre),var(--cobre-light));color:#fff;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;">
-                                <?php if ($schema['fluxo'] === 'so_assina'): ?>✍️ Ler e assinar<?php else: ?>📝 Preencher e assinar<?php endif; ?>
+                            <a href="documento.php?token=<?= htmlspecialchars($token) ?>&doc=<?= (int)$doc['id'] ?>" style="background:linear-gradient(135deg,var(--cobre),var(--cobre-light));color:#fff;padding:.55rem 1.1rem;border-radius:8px;font-size:.82rem;font-weight:700;text-decoration:none;">
+                                <?php if ($schema['fluxo'] === 'so_assina'): ?>✍️ Ler e assinar<?php elseif ($schema['fluxo'] === 'admin_marca_e_ambos_assinam'): ?>👁 Acompanhar<?php else: ?>📝 Preencher e assinar<?php endif; ?>
                             </a>
                         <?php endif; ?>
                         </div>
@@ -978,8 +978,7 @@ html { scroll-behavior: smooth; }
             </div>
 
             <p style="font-size:.78rem;color:var(--muted);margin-top:1rem;text-align:center;">
-                ⏳ A funcionalidade de preenchimento e assinatura estará disponível em breve.
-                Por enquanto, fale com a Dra. Amanda para receber os documentos.
+                💡 Após assinar, você pode imprimir ou salvar em PDF a qualquer momento.
             </p>
         </div>
         <?php endif; ?>
