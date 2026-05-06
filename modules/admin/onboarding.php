@@ -1413,43 +1413,50 @@ function copiarLink() {
     });
 }
 
-// ─── CROP DA FOTO (modal pra reposicionar + zoom antes de salvar) ───────
-var cropState = { id:0, img:null, natW:0, natH:0, scale:1, x:0, y:0, dragging:false, dragX:0, dragY:0 };
-var CROP_SIZE = 300; // tamanho da área de crop (px) — saída final é 600x600
-var CROP_OUT  = 600;
+// ─── CROP DA FOTO via canvas (WYSIWYG: renderiza igualzinho ao que será salvo) ───
+var CROP_SIZE = 300; // tamanho da área de crop (preview) em px CSS
+var CROP_OUT  = 600; // tamanho final salvo em px (boa qualidade)
+var cropState = {
+    id:0, img:null, natW:0, natH:0, scale:1, baseScale:1,
+    x:0, y:0,           // offset em coords de CROP_SIZE
+    dragging:false, dragX:0, dragY:0,
+    canvas:null, ctx:null
+};
 
 function abrirCropModal(id, dataUrl) {
     cropState.id = id;
-    var overlay = document.getElementById('cropOverlay');
-    var img = document.getElementById('cropImg');
-    cropState.img = img;
+    document.getElementById('cropOverlay').style.display = 'flex';
+    var img = new Image();
     img.onload = function() {
+        cropState.img = img;
         cropState.natW = img.naturalWidth;
         cropState.natH = img.naturalHeight;
-        // Scale inicial: cobre a área (a menor dimensão preenche)
-        cropState.scale = Math.max(CROP_SIZE / cropState.natW, CROP_SIZE / cropState.natH);
-        // Centralizado
+        // Scale base: a menor cobre os 300px (cover)
+        cropState.baseScale = Math.max(CROP_SIZE / cropState.natW, CROP_SIZE / cropState.natH);
+        cropState.scale = cropState.baseScale;
         cropState.x = (CROP_SIZE - cropState.natW * cropState.scale) / 2;
         cropState.y = (CROP_SIZE - cropState.natH * cropState.scale) / 2;
         document.getElementById('cropZoom').value = 100;
-        cropApplyTransform();
+        cropState.canvas = document.getElementById('cropCanvas');
+        if (cropState.canvas) cropState.ctx = cropState.canvas.getContext('2d');
+        cropRender();
     };
+    img.onerror = function(){ alert('Não foi possível abrir essa imagem.'); cropCancel(); };
     img.src = dataUrl;
-    overlay.style.display = 'flex';
 }
 
-function cropApplyTransform() {
-    var img = cropState.img;
-    if (!img) return;
-    img.style.width = cropState.natW + 'px';
-    img.style.height = cropState.natH + 'px';
-    img.style.transform = 'translate(' + cropState.x + 'px,' + cropState.y + 'px) scale(' + cropState.scale + ')';
+function cropRender() {
+    var ctx = cropState.ctx;
+    if (!ctx || !cropState.img) return;
+    ctx.clearRect(0, 0, CROP_SIZE, CROP_SIZE);
+    var w = cropState.natW * cropState.scale;
+    var h = cropState.natH * cropState.scale;
+    ctx.drawImage(cropState.img, cropState.x, cropState.y, w, h);
 }
 
 function cropClampPosition() {
     var w = cropState.natW * cropState.scale;
     var h = cropState.natH * cropState.scale;
-    // Não deixa aparecer "vazio" — imagem sempre cobre o circle
     if (cropState.x > 0) cropState.x = 0;
     if (cropState.y > 0) cropState.y = 0;
     if (cropState.x + w < CROP_SIZE) cropState.x = CROP_SIZE - w;
@@ -1458,17 +1465,16 @@ function cropClampPosition() {
 
 function cropZoomChange(slider) {
     var pct = parseFloat(slider.value) / 100;
-    var area = document.getElementById('cropArea').getBoundingClientRect();
     var cx = CROP_SIZE / 2, cy = CROP_SIZE / 2;
-    var baseScale = Math.max(CROP_SIZE / cropState.natW, CROP_SIZE / cropState.natH);
+    var newScale = cropState.baseScale * pct;
     var oldScale = cropState.scale;
-    var newScale = baseScale * pct;
-    // Mantém o ponto central no mesmo lugar visual
-    cropState.x = cx - (cx - cropState.x) * (newScale / oldScale);
-    cropState.y = cy - (cy - cropState.y) * (newScale / oldScale);
+    if (oldScale > 0) {
+        cropState.x = cx - (cx - cropState.x) * (newScale / oldScale);
+        cropState.y = cy - (cy - cropState.y) * (newScale / oldScale);
+    }
     cropState.scale = newScale;
     cropClampPosition();
-    cropApplyTransform();
+    cropRender();
 }
 
 function cropDragStart(e) {
@@ -1484,7 +1490,7 @@ function cropDragMove(e) {
     cropState.x = pt.clientX - cropState.dragX;
     cropState.y = pt.clientY - cropState.dragY;
     cropClampPosition();
-    cropApplyTransform();
+    cropRender();
     e.preventDefault();
 }
 function cropDragEnd() { cropState.dragging = false; }
@@ -1496,16 +1502,14 @@ function cropCancel() {
 }
 
 function cropSave() {
-    // Renderiza num canvas 600x600 a parte visível do círculo
+    // Canvas final 600x600: usa o MESMO drawImage com fator de escala
     var canvas = document.createElement('canvas');
     canvas.width = CROP_OUT; canvas.height = CROP_OUT;
     var ctx = canvas.getContext('2d');
     var ratio = CROP_OUT / CROP_SIZE;
-    // Converte coords da área de 300px pra 600px
-    var sx = -cropState.x / cropState.scale;
-    var sy = -cropState.y / cropState.scale;
-    var sSize = CROP_SIZE / cropState.scale;
-    ctx.drawImage(cropState.img, sx, sy, sSize, sSize, 0, 0, CROP_OUT, CROP_OUT);
+    var w = cropState.natW * cropState.scale * ratio;
+    var h = cropState.natH * cropState.scale * ratio;
+    ctx.drawImage(cropState.img, cropState.x * ratio, cropState.y * ratio, w, h);
     canvas.toBlob(function(blob){
         if (!blob) { alert('Falha ao gerar foto cortada'); return; }
         var status = document.getElementById('fotoWaStatus');
@@ -1588,20 +1592,20 @@ function buscarFotoWA(id) {
 }
 </script>
 
-<!-- Modal de crop da foto -->
+<!-- Modal de crop da foto (canvas WYSIWYG) -->
 <div id="cropOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
     <div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:420px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.4);">
         <h3 style="font-size:1.05rem;color:#052228;margin-bottom:.4rem;">Ajuste a foto</h3>
         <p style="color:#6b7280;font-size:.82rem;margin-bottom:1rem;">Arraste pra centralizar o rosto. Use o controle abaixo pra dar zoom.</p>
-        <div id="cropArea"
-             style="width:300px;height:300px;margin:0 auto;position:relative;overflow:hidden;background:#1f2937;border-radius:50%;cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;"
-             onmousedown="cropDragStart(event)" onmousemove="cropDragMove(event)" onmouseup="cropDragEnd()" onmouseleave="cropDragEnd()"
-             ontouchstart="cropDragStart(event)" ontouchmove="cropDragMove(event)" ontouchend="cropDragEnd()">
-            <img id="cropImg" draggable="false" style="position:absolute;top:0;left:0;transform-origin:0 0;pointer-events:none;">
+        <div style="display:flex;justify-content:center;">
+            <canvas id="cropCanvas" width="300" height="300"
+                style="background:#1f2937;border-radius:50%;cursor:move;touch-action:none;user-select:none;-webkit-user-select:none;display:block;"
+                onmousedown="cropDragStart(event)" onmousemove="cropDragMove(event)" onmouseup="cropDragEnd()" onmouseleave="cropDragEnd()"
+                ontouchstart="cropDragStart(event)" ontouchmove="cropDragMove(event)" ontouchend="cropDragEnd()"></canvas>
         </div>
         <div style="margin-top:1rem;display:flex;align-items:center;gap:.6rem;font-size:1.2rem;color:#6a3c2c;">
             <span style="font-weight:700;">−</span>
-            <input type="range" id="cropZoom" min="50" max="300" step="5" value="100" oninput="cropZoomChange(this)" style="flex:1;accent-color:#B87333;">
+            <input type="range" id="cropZoom" min="100" max="300" step="5" value="100" oninput="cropZoomChange(this)" style="flex:1;accent-color:#B87333;">
             <span style="font-weight:700;">+</span>
         </div>
         <div style="display:flex;gap:.5rem;margin-top:1.2rem;justify-content:flex-end;">
