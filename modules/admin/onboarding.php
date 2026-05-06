@@ -13,6 +13,48 @@ require_role('admin');
 $pageTitle = 'Onboarding de Colaboradores';
 $pdo = db();
 
+// ── AJAX: re-buscar foto do WhatsApp pra colaboradora existente ────────
+if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
+    header('Content-Type: application/json; charset=utf-8');
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(array('ok' => false, 'erro' => 'ID inválido')); exit; }
+
+    $st = $pdo->prepare("SELECT id, telefone_whatsapp, foto_path FROM colaboradores_onboarding WHERE id = ?");
+    $st->execute(array($id));
+    $col = $st->fetch();
+    if (!$col) { echo json_encode(array('ok' => false, 'erro' => 'Colaborador não encontrado')); exit; }
+    $tel = preg_replace('/\D/', '', $col['telefone_whatsapp'] ?? '');
+    if (!$tel) { echo json_encode(array('ok' => false, 'erro' => 'WhatsApp não cadastrado')); exit; }
+
+    try {
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $fotoUrl = zapi_fetch_profile_picture('24', $tel);
+        if (!$fotoUrl) {
+            echo json_encode(array('ok' => false, 'erro' => 'Z-API não retornou foto. Possíveis causas: número não está no WhatsApp, foto privada, ou instância 24 desconectada.'));
+            exit;
+        }
+        $imgRaw = @file_get_contents($fotoUrl);
+        if (!$imgRaw || strlen($imgRaw) < 200) {
+            echo json_encode(array('ok' => false, 'erro' => 'Foto recebida está vazia ou corrompida.'));
+            exit;
+        }
+        $uploadDir = APP_ROOT . '/files/onboarding_fotos';
+        if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+        $nomeArq = 'wa_' . time() . '_' . bin2hex(random_bytes(4)) . '.jpg';
+        if (!file_put_contents($uploadDir . '/' . $nomeArq, $imgRaw)) {
+            echo json_encode(array('ok' => false, 'erro' => 'Falha ao salvar arquivo no servidor'));
+            exit;
+        }
+        $fotoPath = '/files/onboarding_fotos/' . $nomeArq;
+        $pdo->prepare("UPDATE colaboradores_onboarding SET foto_path = ? WHERE id = ?")
+            ->execute(array($fotoPath, $id));
+        echo json_encode(array('ok' => true, 'foto_path' => $fotoPath));
+    } catch (Exception $e) {
+        echo json_encode(array('ok' => false, 'erro' => 'Exceção: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 // ── AJAX: autocomplete de nome ────────────────────────────
 // Busca em colaboradores_onboarding (re-cadastro) e em clients
 // (caso a colaboradora ja tenha sido cliente do escritorio).
@@ -469,12 +511,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <label>WhatsApp da colaboradora <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(busca foto de perfil automática)</span></label>
                 <input name="telefone_whatsapp" value="<?= e($reg['telefone_whatsapp'] ?? '') ?>" placeholder="Ex: 24992050096">
-                <?php if (!empty($reg['foto_path'])): ?>
-                    <div style="margin-top:.4rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;color:#059669;">
-                        <img src="<?= e($reg['foto_path']) ?>" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;">
-                        ✓ Foto carregada do WhatsApp
-                    </div>
-                <?php endif; ?>
+                <div id="fotoWaWrap" style="margin-top:.4rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;flex-wrap:wrap;">
+                    <?php if (!empty($reg['foto_path'])): ?>
+                        <img id="fotoWaPreview" src="<?= e($reg['foto_path']) ?>" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;">
+                        <span id="fotoWaStatus" style="color:#059669;">✓ Foto carregada do WhatsApp</span>
+                    <?php else: ?>
+                        <span id="fotoWaStatus" style="color:#9ca3af;">Sem foto ainda</span>
+                    <?php endif; ?>
+                    <?php if ($reg && !empty($reg['id'])): ?>
+                        <button type="button" onclick="buscarFotoWA(<?= (int)$reg['id'] ?>)" style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">🔄 Buscar foto agora</button>
+                    <?php endif; ?>
+                </div>
             </div>
             <div>
                 <label>Cargo / Função</label>
@@ -1234,6 +1281,36 @@ function copiarLink() {
     }, function() {
         prompt('Copie o link manualmente:', t);
     });
+}
+
+// Busca foto do WhatsApp da colaboradora via Z-API (re-tentativa manual)
+function buscarFotoWA(id) {
+    var status = document.getElementById('fotoWaStatus');
+    if (status) status.textContent = '⏳ Buscando foto via Z-API...';
+    var fd = new FormData();
+    fd.append('ajax', 'buscar_foto_wa');
+    fd.append('id', id);
+    fetch(window.location.pathname, { method:'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j && j.ok) {
+                if (status) { status.textContent = '✓ Foto carregada do WhatsApp'; status.style.color = '#059669'; }
+                var preview = document.getElementById('fotoWaPreview');
+                if (!preview) {
+                    preview = document.createElement('img');
+                    preview.id = 'fotoWaPreview';
+                    preview.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;';
+                    var wrap = document.getElementById('fotoWaWrap');
+                    if (wrap) wrap.insertBefore(preview, wrap.firstChild);
+                }
+                preview.src = j.foto_path + '?t=' + Date.now();
+            } else {
+                if (status) { status.textContent = '⚠ ' + (j && j.erro ? j.erro : 'Falha'); status.style.color = '#dc2626'; }
+            }
+        })
+        .catch(function(err){
+            if (status) { status.textContent = '⚠ Erro de rede: ' + err.message; status.style.color = '#dc2626'; }
+        });
 }
 </script>
 

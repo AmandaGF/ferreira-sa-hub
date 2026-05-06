@@ -134,7 +134,8 @@ h1,h2,h3 { font-family:'Playfair Display',serif; color:var(--petrol-900); }
 .card-block h2 { font-size:1.3rem; margin-bottom:.6rem; }
 
 .tipo-grid { display:grid; gap:.5rem; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); margin-bottom:1rem; }
-.tipo-grid label { display:flex; align-items:center; gap:.4rem; padding:.6rem .85rem; border:1.5px solid #e5e7eb; border-radius:10px; cursor:pointer; font-size:.85rem; transition:all .15s; background:#fff; }
+.tipo-grid label { display:flex; align-items:center; gap:.4rem; padding:.6rem .85rem; border:1.5px solid #e5e7eb; border-radius:10px; cursor:pointer; font-size:.85rem; transition:all .15s; background:#fff; user-select:none; -webkit-user-select:none; }
+.tipo-grid label * { cursor:pointer; user-select:none; -webkit-user-select:none; }
 .tipo-grid label:hover { border-color:var(--cobre-light); }
 .tipo-grid input { display:none; }
 .tipo-grid label.sel { border-color:var(--cobre-light); background:var(--nude-light); font-weight:700; }

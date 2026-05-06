@@ -164,13 +164,20 @@ if (!empty($_SESSION[$sessKey]) && $reg) {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Exception $e) {}
     try {
-        $stA = $pdo->prepare("SELECT id, tipo, titulo, mensagem, icone, cor, created_at
+        $stA = $pdo->prepare("SELECT id, tipo, titulo, mensagem, icone, cor, ativo, created_at
                               FROM colaboradores_avisos
-                              WHERE ativo = 1 AND (colaborador_id = ? OR colaborador_id IS NULL)
-                              ORDER BY created_at DESC LIMIT 30");
+                              WHERE (colaborador_id = ? OR colaborador_id IS NULL)
+                              ORDER BY created_at DESC LIMIT 60");
         $stA->execute(array($reg['id']));
-        $avisos = $stA->fetchAll();
-    } catch (Exception $e) { $avisos = array(); }
+        $todosAvisos = $stA->fetchAll();
+    } catch (Exception $e) { $todosAvisos = array(); }
+    // Separa em ativos (mostrados em destaque) e arquivados (em <details>)
+    $avisos = array();
+    $avisosArquivados = array();
+    foreach ($todosAvisos as $a) {
+        if ((int)$a['ativo'] === 1) $avisos[] = $a;
+        else $avisosArquivados[] = $a;
+    }
 }
 
 // Carrega documentos vinculados quando ja autenticado
@@ -701,6 +708,28 @@ html { scroll-behavior: smooth; }
                 </div>
             <?php endforeach; ?>
             </div>
+
+            <?php if (!empty($avisosArquivados)): ?>
+            <details style="margin-top:1rem;border-top:1px dashed #e5e7eb;padding-top:.8rem;">
+                <summary style="cursor:pointer;font-size:.82rem;font-weight:700;color:var(--cobre);user-select:none;list-style:none;display:flex;align-items:center;gap:.4rem;">
+                    📜 Recados anteriores (<?= count($avisosArquivados) ?>) ▾
+                </summary>
+                <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.7rem;">
+                <?php foreach ($avisosArquivados as $av):
+                    $c = isset($coresMural[$av['cor']]) ? $coresMural[$av['cor']] : $coresMural['azul'];
+                ?>
+                    <div style="background:#fafafa;border-left:3px solid #d1d5db;border-radius:0 8px 8px 0;padding:.65rem .9rem;display:flex;gap:.6rem;align-items:flex-start;opacity:.75;">
+                        <div style="font-size:1.3rem;line-height:1;flex-shrink:0;"><?= htmlspecialchars($av['icone'] ?: '📋') ?></div>
+                        <div style="flex:1;">
+                            <h4 style="font-family:'Open Sans',sans-serif;font-size:.88rem;font-weight:700;color:#374151;margin-bottom:.15rem;"><?= htmlspecialchars($av['titulo']) ?></h4>
+                            <p style="font-size:.82rem;color:#6b7280;margin:0;line-height:1.5;"><?= nl2br(htmlspecialchars($av['mensagem'])) ?></p>
+                            <p style="font-size:.68rem;color:#9ca3af;margin-top:.3rem;"><?= htmlspecialchars(date('d/m/Y', strtotime($av['created_at']))) ?> &middot; arquivado</p>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                </div>
+            </details>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
