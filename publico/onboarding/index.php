@@ -114,6 +114,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_tamanho_camisa']
 
 $autenticado = !empty($_SESSION[$sessKey]);
 
+// Carrega avisos do mural (apenas se autenticado)
+$avisos = array();
+if (!empty($_SESSION[$sessKey]) && $reg) {
+    // Self-heal da tabela (admin pode nao ter acessado ainda)
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS colaboradores_avisos (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            colaborador_id INT NULL,
+            tipo VARCHAR(20) NOT NULL DEFAULT 'aviso',
+            titulo VARCHAR(200) NOT NULL,
+            mensagem TEXT NOT NULL,
+            icone VARCHAR(8) NULL,
+            cor VARCHAR(20) NULL,
+            ativo TINYINT(1) NOT NULL DEFAULT 1,
+            criado_por INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_col (colaborador_id),
+            INDEX idx_ativo (ativo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {}
+    try {
+        $stA = $pdo->prepare("SELECT id, tipo, titulo, mensagem, icone, cor, created_at
+                              FROM colaboradores_avisos
+                              WHERE ativo = 1 AND (colaborador_id = ? OR colaborador_id IS NULL)
+                              ORDER BY created_at DESC LIMIT 30");
+        $stA->execute(array($reg['id']));
+        $avisos = $stA->fetchAll();
+    } catch (Exception $e) { $avisos = array(); }
+}
+
 // Carrega documentos vinculados quando ja autenticado
 $documentosVinculados = array();
 if ($autenticado && $reg) {
@@ -552,6 +582,7 @@ html { scroll-behavior: smooth; }
                 <span class="seta">▾</span>
             </summary>
             <div class="onb-nav-grid">
+                <?php if (!empty($avisos)): ?><a href="#sec-mural">📰 Mural</a><?php endif; ?>
                 <?php if (!empty($reg['mensagem_pessoal'])): ?><a href="#sec-mensagem">💌 Mensagem</a><?php endif; ?>
                 <a href="#sec-quem-somos">🌟 Quem somos</a>
                 <?php if ($reg['email_institucional'] || $reg['senha_inicial']): ?><a href="#sec-acessos">🔐 Acessos</a><?php endif; ?>
@@ -581,6 +612,39 @@ html { scroll-behavior: smooth; }
                 if (d && d.open && !d.contains(e.target)) d.open = false;
             });
         </script>
+
+        <!-- MURAL DE AVISOS (se houver) -->
+        <?php if (!empty($avisos)): ?>
+        <div class="card-block" id="sec-mural">
+            <div class="card-title-row">
+                <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">📰</div>
+                <h2>Mural — Recados pra você</h2>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:.7rem;margin-top:.5rem;">
+            <?php
+            $coresMural = array(
+                'verde'   => array('bg'=>'#ecfdf5','border'=>'#34d399','txt'=>'#065f46'),
+                'azul'    => array('bg'=>'#eff6ff','border'=>'#60a5fa','txt'=>'#1e40af'),
+                'cobre'   => array('bg'=>'#fff7ed','border'=>'#d7ab90','txt'=>'#6a3c2c'),
+                'dourado' => array('bg'=>'#fefce8','border'=>'#facc15','txt'=>'#854d0e'),
+                'rosa'    => array('bg'=>'#fdf2f8','border'=>'#f9a8d4','txt'=>'#9f1239'),
+                'roxo'    => array('bg'=>'#faf5ff','border'=>'#c084fc','txt'=>'#6b21a8'),
+            );
+            foreach ($avisos as $av):
+                $c = isset($coresMural[$av['cor']]) ? $coresMural[$av['cor']] : $coresMural['azul'];
+            ?>
+                <div style="background:<?= $c['bg'] ?>;border-left:4px solid <?= $c['border'] ?>;border-radius:0 10px 10px 0;padding:.85rem 1.1rem;display:flex;gap:.7rem;align-items:flex-start;">
+                    <div style="font-size:1.6rem;line-height:1;flex-shrink:0;"><?= htmlspecialchars($av['icone'] ?: '📋') ?></div>
+                    <div style="flex:1;">
+                        <h3 style="font-family:'Open Sans',sans-serif;font-size:.98rem;font-weight:700;color:<?= $c['txt'] ?>;margin-bottom:.2rem;"><?= htmlspecialchars($av['titulo']) ?></h3>
+                        <p style="font-size:.88rem;color:#374151;margin:0;line-height:1.55;"><?= nl2br(htmlspecialchars($av['mensagem'])) ?></p>
+                        <p style="font-size:.7rem;color:#6b7280;margin-top:.4rem;"><?= htmlspecialchars(date('d/m/Y', strtotime($av['created_at']))) ?></p>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <!-- MENSAGEM PESSOAL (se houver) -->
         <?php if (!empty($reg['mensagem_pessoal'])): ?>

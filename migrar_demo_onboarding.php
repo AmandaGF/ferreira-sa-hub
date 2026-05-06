@@ -140,6 +140,34 @@ try {
     exit;
 }
 
+// Self-heal e cria avisos de demo no mural
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS colaboradores_avisos (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        colaborador_id INT NULL,
+        tipo VARCHAR(20) NOT NULL DEFAULT 'aviso',
+        titulo VARCHAR(200) NOT NULL,
+        mensagem TEXT NOT NULL,
+        icone VARCHAR(8) NULL,
+        cor VARCHAR(20) NULL,
+        ativo TINYINT(1) NOT NULL DEFAULT 1,
+        criado_por INT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_col (colaborador_id), INDEX idx_ativo (ativo)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+try {
+    $pdo->prepare("INSERT INTO colaboradores_avisos (colaborador_id, tipo, titulo, mensagem, icone, cor)
+                   VALUES (?, 'parabens', '🎉 Bem-vinda à equipe!', 'Que essa jornada seja cheia de aprendizados e conquistas. Estamos torcendo por você!', '🎉', 'verde')")
+        ->execute(array($colabId));
+    $pdo->prepare("INSERT INTO colaboradores_avisos (colaborador_id, tipo, titulo, mensagem, icone, cor)
+                   VALUES (NULL, 'politica', 'Nova política de uso de IA atualizada', 'Pessoal, atualizamos as diretrizes de uso de Inteligência Artificial generativa pública. Confiram no item Princípios da página. Em caso de dúvida, falem com a gente.', '📜', 'cobre')")
+        ->execute();
+    echo "[OK] 2 avisos de demo criados\n";
+} catch (Exception $e) {
+    echo "[WARN] avisos demo: " . $e->getMessage() . "\n";
+}
+
 // Vincula os 4 documentos do estagiario
 $docsTipos = array('compromisso_estagio', 'confidencialidade_lgpd', 'pop_estagiario', 'checklist_admissional_estagiario');
 foreach ($docsTipos as $tipo) {
