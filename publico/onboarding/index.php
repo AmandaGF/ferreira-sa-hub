@@ -871,6 +871,37 @@ html { scroll-behavior: smooth; }
                     <h4>Precisou de equipamento? Fala!</h4>
                     <p>Se precisar de algum <strong>equipamento específico</strong> para trabalhar bem (cadeira, monitor extra, headset, suporte de notebook, etc.), <strong>não hesite em nos comunicar</strong>. A gente conversa.</p>
                 </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">⏱️</div>
+                    <h4>Regra dos 3 minutos</h4>
+                    <p>Se uma tarefa pode ser feita em <strong>até 3 minutos</strong>, faça <em>na hora</em>. Evita acúmulo, procrastinação e aquela sensação ruim de pendência. Pequenas ações resolvidas no momento poupam horas depois.</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">📝</div>
+                    <h4>Anote tudo (lembretes)</h4>
+                    <p>Use o <strong>campo de lembretes</strong> aqui no Hub — temos um espaço próprio pra isso. São muitos atendimentos por dia: <strong>sem rotina de anotar, com certeza absoluta vamos esquecer</strong> alguma coisa. Anote sempre.</p>
+                </div>
+                <div class="princ-card">
+                    <div class="princ-emoji">🗂️</div>
+                    <h4>Anote nos andamentos</h4>
+                    <p>Quando fizer algo num processo ou conversar com um cliente, <strong>registre nos andamentos</strong> do processo. Isso facilita o trabalho de quem pega o caso depois e evita aquele ping-pong de "o que foi feito aí?" toda hora. <strong>Rotina simples, dia leve.</strong></p>
+                </div>
+                <div class="princ-card" style="border-top-color:#059669;background:#ecfdf5;">
+                    <div class="princ-emoji">💸</div>
+                    <h4 style="color:#065f46;">Indicações rendem!</h4>
+                    <p>Conhece alguém que precisa? <strong>Indique pra gente!</strong> Indicações que viram contrato fechado <strong>rendem percentual</strong> pra quem trouxe. Traga pra casa! 🏠💚</p>
+                </div>
+                <div class="princ-card" style="border-top-color:#dc2626;background:#fef2f2;">
+                    <div class="princ-emoji">🚫</div>
+                    <h4 style="color:#7f1d1d;">Brincadeiras: ok, mas com limite</h4>
+                    <p>Brincadeiras são bem-vindas! Mas, pra evitar problemas (cada um é cada um), <strong>alguns assuntos não podem ser pauta</strong>:</p>
+                    <ul style="margin:.4rem 0 .4rem 1.1rem;padding:0;font-size:.82rem;line-height:1.6;">
+                        <li><strong>Política</strong></li>
+                        <li><strong>Assuntos discriminatórios</strong></li>
+                        <li>Qualquer fala que <strong>desrespeite outras pessoas</strong> — ainda que em tom de "brincadeira"</li>
+                    </ul>
+                    <p style="font-size:.78rem;color:#7f1d1d;margin-top:.4rem;"><strong>Não serão tolerados</strong> e justificarão o término imediato das atividades.</p>
+                </div>
             </div>
         </div>
 
