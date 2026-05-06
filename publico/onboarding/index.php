@@ -83,29 +83,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_aceitar']) && !e
     } catch (Exception $e) {}
 }
 
-// Salvar tamanho da camisa (action ajax dentro da propria pagina)
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_tamanho_camisa']) && !empty($_SESSION[$sessKey])) {
+// Salvar preferências do kit (handler unico — salva 1 campo por vez via AJAX)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['acao_kit_pref']) && !empty($_SESSION[$sessKey])) {
     header('Content-Type: application/json; charset=utf-8');
-    $tam = strtoupper(trim($_POST['tamanho'] ?? ''));
-    if (!in_array($tam, array('P','M','G','GG'), true)) {
-        echo json_encode(array('ok' => false, 'erro' => 'Tamanho inválido'));
+    $campo = trim($_POST['campo'] ?? '');
+    $valor = trim($_POST['valor'] ?? '');
+    $detalhes = trim($_POST['detalhes'] ?? '');
+
+    $coresValidas = array('azul','preta','branca','rosa','vermelha','verde');
+    $tamanhosValidos = array('P','M','G','GG');
+
+    $sql = null;
+    $params = array();
+
+    if ($campo === 'tamanho') {
+        $valor = strtoupper($valor);
+        if (!in_array($valor, $tamanhosValidos, true)) { echo json_encode(array('ok'=>false,'erro'=>'Tamanho inválido')); exit; }
+        $sql = "UPDATE colaboradores_onboarding SET tamanho_camisa = ? WHERE id = ?";
+        $params = array($valor, $reg['id']);
+    } elseif ($campo === 'cor') {
+        $valor = strtolower($valor);
+        if (!in_array($valor, $coresValidas, true)) { echo json_encode(array('ok'=>false,'erro'=>'Cor inválida')); exit; }
+        $sql = "UPDATE colaboradores_onboarding SET kit_cor_favorita = ? WHERE id = ?";
+        $params = array($valor, $reg['id']);
+    } elseif ($campo === 'alergia') {
+        $bool = ($valor === 'sim') ? 1 : 0;
+        $sql = "UPDATE colaboradores_onboarding SET kit_alergia = ?, kit_alergia_detalhes = ? WHERE id = ?";
+        $params = array($bool, $bool ? $detalhes : null, $reg['id']);
+    } elseif ($campo === 'alcool') {
+        $bool = ($valor === 'sim') ? 1 : 0;
+        $sql = "UPDATE colaboradores_onboarding SET kit_consome_alcool = ? WHERE id = ?";
+        $params = array($bool, $reg['id']);
+    } else {
+        echo json_encode(array('ok'=>false,'erro'=>'Campo desconhecido'));
         exit;
     }
+
     try {
-        $pdo->prepare("UPDATE colaboradores_onboarding SET tamanho_camisa = ? WHERE id = ?")
-            ->execute(array($tam, $reg['id']));
-        // Notificar admins (Amanda/Luiz) que a colaboradora escolheu o tamanho
+        $pdo->prepare($sql)->execute($params);
+        // Notificar admins na primeira escolha de cada campo
         try {
             require_once __DIR__ . '/../../core/functions_notify.php';
             if (function_exists('notify_admins')) {
-                notify_admins(
-                    '👕 Tamanho de camisa escolhido',
-                    htmlspecialchars($reg['nome_completo']) . ' escolheu tamanho ' . $tam . ' para o kit.',
-                    null
-                );
+                $titulo = '🎁 Preferência do kit registrada';
+                $msg = htmlspecialchars($reg['nome_completo']) . ' respondeu: ' .
+                       ($campo === 'tamanho' ? 'tamanho ' . $valor :
+                       ($campo === 'cor' ? 'cor favorita ' . $valor :
+                       ($campo === 'alergia' ? 'alergia ' . ($bool ? 'SIM (' . htmlspecialchars($detalhes) . ')' : 'não') :
+                       ($campo === 'alcool' ? 'álcool ' . ($bool ? 'sim' : 'não') : ''))));
+                notify_admins($titulo, $msg, null);
             }
         } catch (Exception $e) {}
-        echo json_encode(array('ok' => true, 'tamanho' => $tam));
+        echo json_encode(array('ok' => true, 'campo' => $campo, 'valor' => $valor));
     } catch (Exception $e) {
         echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
     }
@@ -845,69 +874,198 @@ html { scroll-behavior: smooth; }
         </div>
         <?php endif; ?>
 
-        <!-- KIT -->
+        <!-- KIT — perguntas pra surpresa -->
+        <?php
+        $tamAtual = isset($reg['tamanho_camisa']) ? $reg['tamanho_camisa'] : '';
+        $corAtual = isset($reg['kit_cor_favorita']) ? $reg['kit_cor_favorita'] : '';
+        $alergAtual = $reg['kit_alergia'] ?? null; // null = não respondeu, 0 = não, 1 = sim
+        $alergDet = $reg['kit_alergia_detalhes'] ?? '';
+        $alcoolAtual = $reg['kit_consome_alcool'] ?? null;
+        $cores = array(
+            'azul'     => '#3b82f6',
+            'preta'    => '#1f2937',
+            'branca'   => '#ffffff',
+            'rosa'     => '#ec4899',
+            'vermelha' => '#dc2626',
+            'verde'    => '#10b981',
+        );
+        ?>
         <div class="card-block" id="sec-kit">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">🎁</div>
-                <h2>Seu kit de boas-vindas</h2>
+                <h2>Suas preferências pro kit (vai ser surpresa! ✨)</h2>
             </div>
-            <div class="kit-box">
-                <?php if ($reg['kit_descricao']): ?>
-                    <div class="kit-emoji">🎁</div>
-                    <p><?= nl2br(htmlspecialchars($reg['kit_descricao'])) ?></p>
-                    <p style="margin-top:.8rem;font-size:.85rem;opacity:.85;">Será entregue em breve! 💜</p>
-                <?php else: ?>
-                    <div class="kit-emoji">📦</div>
-                    <p>Seu kit está sendo preparado com muito carinho e será entregue em breve! 💜</p>
-                <?php endif; ?>
+            <p style="color:#6b7280;font-size:.9rem;margin-bottom:1.2rem;">
+                Não vamos contar o que tem no kit pra você ficar com a expectativa do jeito certo 😄
+                Mas precisamos de 4 informações pra garantir que vai ser do seu jeito:
+            </p>
 
-                <!-- Tamanho da camisa -->
-                <div style="margin-top:1.2rem;padding-top:1rem;border-top:1px dashed #f9a8d4;">
-                    <p style="font-size:.92rem;color:#831843;font-weight:700;margin-bottom:.5rem;">👕 Qual o tamanho da sua camisa?</p>
-                    <?php $tamAtual = isset($reg['tamanho_camisa']) ? $reg['tamanho_camisa'] : ''; ?>
-                    <div id="tamanhoWrap" style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap;">
-                        <?php foreach (array('P','M','G','GG') as $t): ?>
-                            <button type="button" class="btn-tam <?= $tamAtual === $t ? 'sel' : '' ?>" data-tam="<?= $t ?>" onclick="escolherTamanho('<?= $t ?>', this)"><?= $t ?></button>
-                        <?php endforeach; ?>
-                    </div>
-                    <p id="tamanhoMsg" style="font-size:.78rem;color:#9f1239;margin-top:.5rem;text-align:center;<?= $tamAtual ? '' : 'display:none;' ?>">
-                        <?= $tamAtual ? '✓ Tamanho ' . htmlspecialchars($tamAtual) . ' registrado!' : '' ?>
-                    </p>
+            <!-- 1. Cor favorita -->
+            <div class="pref-bloco">
+                <p class="pref-titulo">🎨 Qual sua cor favorita?</p>
+                <div class="cor-wrap">
+                    <?php foreach ($cores as $nomeCor => $hex): ?>
+                        <button type="button"
+                                class="btn-cor <?= $corAtual === $nomeCor ? 'sel' : '' ?>"
+                                data-cor="<?= $nomeCor ?>"
+                                onclick="escolherKit('cor', '<?= $nomeCor ?>', this)"
+                                style="background:<?= $hex ?>;<?= $nomeCor === 'branca' ? 'border:2px solid #d1d5db;color:#111;' : 'color:#fff;' ?>">
+                            <?= ucfirst($nomeCor) ?>
+                        </button>
+                    <?php endforeach; ?>
                 </div>
+                <p class="pref-msg" id="msgCor" style="<?= $corAtual ? '' : 'display:none;' ?>">
+                    <?= $corAtual ? '✓ Cor ' . htmlspecialchars($corAtual) . ' registrada!' : '' ?>
+                </p>
             </div>
+
+            <!-- 2. Tamanho da camisa -->
+            <div class="pref-bloco">
+                <p class="pref-titulo">👕 Qual o tamanho da sua camisa?</p>
+                <div class="cor-wrap">
+                    <?php foreach (array('P','M','G','GG') as $t): ?>
+                        <button type="button" class="btn-tam <?= $tamAtual === $t ? 'sel' : '' ?>" data-tam="<?= $t ?>" onclick="escolherKit('tamanho', '<?= $t ?>', this)"><?= $t ?></button>
+                    <?php endforeach; ?>
+                </div>
+                <p class="pref-msg" id="msgTam" style="<?= $tamAtual ? '' : 'display:none;' ?>">
+                    <?= $tamAtual ? '✓ Tamanho ' . htmlspecialchars($tamAtual) . ' registrado!' : '' ?>
+                </p>
+            </div>
+
+            <!-- 3. Alergia -->
+            <div class="pref-bloco">
+                <p class="pref-titulo">🤧 Tem alguma alergia?</p>
+                <div class="cor-wrap">
+                    <button type="button" class="btn-simnao <?= $alergAtual === 1 ? 'sel-sim' : '' ?>" data-v="sim" onclick="abrirAlergia(true)">Sim</button>
+                    <button type="button" class="btn-simnao <?= $alergAtual === 0 ? 'sel-nao' : '' ?>" data-v="nao" onclick="escolherKit('alergia', 'nao', this)">Não</button>
+                </div>
+                <div id="alergiaDetWrap" style="margin-top:.6rem;<?= $alergAtual === 1 ? '' : 'display:none;' ?>">
+                    <input type="text" id="alergiaDet" value="<?= htmlspecialchars($alergDet) ?>" placeholder="Conta pra gente: o que você tem alergia?" style="width:100%;padding:.6rem .9rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;font-size:.9rem;">
+                    <button type="button" class="btn-confirmar" onclick="confirmarAlergia()">✓ Confirmar alergia</button>
+                </div>
+                <p class="pref-msg" id="msgAlergia" style="<?= $alergAtual !== null ? '' : 'display:none;' ?>">
+                    <?= $alergAtual === 1 ? '✓ Anotamos: ' . htmlspecialchars($alergDet) : ($alergAtual === 0 ? '✓ Sem alergias, ótimo!' : '') ?>
+                </p>
+            </div>
+
+            <!-- 4. Bebida -->
+            <div class="pref-bloco">
+                <p class="pref-titulo">🍷 Consome bebida alcoólica, ainda que pontualmente?</p>
+                <div class="cor-wrap">
+                    <button type="button" class="btn-simnao <?= $alcoolAtual === 1 ? 'sel-sim' : '' ?>" data-v="sim" onclick="escolherKit('alcool', 'sim', this)">Sim</button>
+                    <button type="button" class="btn-simnao <?= $alcoolAtual === 0 ? 'sel-nao' : '' ?>" data-v="nao" onclick="escolherKit('alcool', 'nao', this)">Não</button>
+                </div>
+                <p class="pref-msg" id="msgAlcool" style="<?= $alcoolAtual !== null ? '' : 'display:none;' ?>">
+                    <?= $alcoolAtual !== null ? '✓ Resposta registrada!' : '' ?>
+                </p>
+            </div>
+
+            <p style="font-size:.82rem;color:#831843;margin-top:1rem;text-align:center;font-weight:700;">
+                💜 O kit vai ser entregue com muito carinho!
+            </p>
         </div>
 
         <style>
-            .btn-tam {
-                background:#fff; border:1.5px solid #f9a8d4; color:#9f1239;
-                padding:.55rem 1.1rem; border-radius:8px; font-size:.95rem;
-                font-weight:700; cursor:pointer; min-width:54px; transition:all .15s;
-                font-family:inherit;
-            }
+            .pref-bloco { background:#fdf2f8; border:1.5px solid #fbcfe8; border-radius:12px; padding:1rem 1.1rem; margin-bottom:.85rem; }
+            .pref-titulo { font-size:.92rem; color:#831843; font-weight:700; margin-bottom:.6rem; }
+            .pref-msg { font-size:.78rem; color:#9f1239; margin-top:.55rem; text-align:center; font-weight:600; }
+            .cor-wrap { display:flex; gap:.5rem; justify-content:center; flex-wrap:wrap; }
+            .btn-cor { padding:.55rem 1.1rem; border-radius:8px; font-size:.85rem; font-weight:700; cursor:pointer; transition:all .15s; font-family:inherit; border:0; min-width:90px; }
+            .btn-cor:hover { transform:translateY(-2px); box-shadow:0 4px 12px rgba(0,0,0,.18); }
+            .btn-cor.sel { transform:scale(1.06); box-shadow:0 0 0 3px #831843, 0 4px 12px rgba(0,0,0,.2); }
+            .btn-tam { background:#fff; border:1.5px solid #f9a8d4; color:#9f1239; padding:.55rem 1.1rem; border-radius:8px; font-size:.95rem; font-weight:700; cursor:pointer; min-width:54px; transition:all .15s; font-family:inherit; }
             .btn-tam:hover { background:#fdf2f8; transform:translateY(-1px); }
             .btn-tam.sel { background:linear-gradient(135deg,#db2777,#9f1239); color:#fff; border-color:#db2777; }
+            .btn-simnao { background:#fff; border:1.5px solid #f9a8d4; color:#9f1239; padding:.55rem 1.6rem; border-radius:8px; font-size:.9rem; font-weight:700; cursor:pointer; transition:all .15s; font-family:inherit; min-width:90px; }
+            .btn-simnao:hover { background:#fdf2f8; transform:translateY(-1px); }
+            .btn-simnao.sel-sim { background:#dc2626; color:#fff; border-color:#dc2626; }
+            .btn-simnao.sel-nao { background:#059669; color:#fff; border-color:#059669; }
+            .btn-confirmar { margin-top:.5rem; background:#9f1239; color:#fff; border:0; padding:.5rem 1.2rem; border-radius:8px; font-weight:700; cursor:pointer; font-family:inherit; font-size:.82rem; }
         </style>
 
         <script>
-            function escolherTamanho(tam, btn) {
-                if (!confirm('Confirmar tamanho ' + tam + ' para a camisa do kit?')) return;
+            function escolherKit(campo, valor, btn) {
                 var fd = new FormData();
-                fd.append('acao_tamanho_camisa', '1');
-                fd.append('tamanho', tam);
+                fd.append('acao_kit_pref', '1');
+                fd.append('campo', campo);
+                fd.append('valor', valor);
                 fetch(window.location.href, { method:'POST', body: fd })
                     .then(function(r){ return r.json(); })
                     .then(function(j){
                         if (j && j.ok) {
-                            document.querySelectorAll('.btn-tam').forEach(function(b){ b.classList.remove('sel'); });
-                            btn.classList.add('sel');
-                            var msg = document.getElementById('tamanhoMsg');
-                            msg.textContent = '✓ Tamanho ' + tam + ' registrado!';
-                            msg.style.display = 'block';
+                            // Atualiza UI: limpa botões do mesmo grupo e marca o atual
+                            if (campo === 'cor') {
+                                document.querySelectorAll('.btn-cor').forEach(function(b){ b.classList.remove('sel'); });
+                                if (btn) btn.classList.add('sel');
+                                document.getElementById('msgCor').textContent = '✓ Cor ' + valor + ' registrada!';
+                                document.getElementById('msgCor').style.display = 'block';
+                            } else if (campo === 'tamanho') {
+                                document.querySelectorAll('.btn-tam').forEach(function(b){ b.classList.remove('sel'); });
+                                if (btn) btn.classList.add('sel');
+                                document.getElementById('msgTam').textContent = '✓ Tamanho ' + valor + ' registrado!';
+                                document.getElementById('msgTam').style.display = 'block';
+                            } else if (campo === 'alergia') {
+                                document.querySelectorAll('#sec-kit .pref-bloco').forEach(function(blk) {
+                                    if (blk.querySelector('p').textContent.indexOf('alergia') !== -1) {
+                                        blk.querySelectorAll('.btn-simnao').forEach(function(b){ b.classList.remove('sel-sim','sel-nao'); });
+                                    }
+                                });
+                                if (valor === 'sim') { if (btn) btn.classList.add('sel-sim'); }
+                                else { if (btn) btn.classList.add('sel-nao'); }
+                                document.getElementById('alergiaDetWrap').style.display = (valor === 'sim') ? '' : 'none';
+                                document.getElementById('msgAlergia').textContent = (valor === 'sim') ? '✓ Anotamos sua alergia!' : '✓ Sem alergias, ótimo!';
+                                document.getElementById('msgAlergia').style.display = 'block';
+                            } else if (campo === 'alcool') {
+                                document.querySelectorAll('#sec-kit .pref-bloco').forEach(function(blk) {
+                                    if (blk.querySelector('p').textContent.indexOf('alcoólica') !== -1) {
+                                        blk.querySelectorAll('.btn-simnao').forEach(function(b){ b.classList.remove('sel-sim','sel-nao'); });
+                                    }
+                                });
+                                if (valor === 'sim') { if (btn) btn.classList.add('sel-sim'); }
+                                else { if (btn) btn.classList.add('sel-nao'); }
+                                document.getElementById('msgAlcool').textContent = '✓ Resposta registrada!';
+                                document.getElementById('msgAlcool').style.display = 'block';
+                            }
                         } else {
-                            alert('❌ ' + (j && j.erro ? j.erro : 'Erro ao salvar tamanho'));
+                            alert('❌ ' + (j && j.erro ? j.erro : 'Erro ao salvar'));
                         }
                     })
                     .catch(function(err){ alert('❌ ' + err.message); });
+            }
+
+            function abrirAlergia(abrir) {
+                document.getElementById('alergiaDetWrap').style.display = abrir ? '' : 'none';
+                if (abrir) document.getElementById('alergiaDet').focus();
+            }
+
+            function confirmarAlergia() {
+                var det = document.getElementById('alergiaDet').value.trim();
+                if (!det) {
+                    alert('Conta pra gente o que você tem alergia, por favor 😊');
+                    return;
+                }
+                var fd = new FormData();
+                fd.append('acao_kit_pref', '1');
+                fd.append('campo', 'alergia');
+                fd.append('valor', 'sim');
+                fd.append('detalhes', det);
+                fetch(window.location.href, { method:'POST', body: fd })
+                    .then(function(r){ return r.json(); })
+                    .then(function(j){
+                        if (j && j.ok) {
+                            document.querySelectorAll('#sec-kit .pref-bloco').forEach(function(blk) {
+                                if (blk.querySelector('p').textContent.indexOf('alergia') !== -1) {
+                                    blk.querySelectorAll('.btn-simnao').forEach(function(b){ b.classList.remove('sel-sim','sel-nao'); });
+                                    var btnSim = blk.querySelector('.btn-simnao[data-v="sim"]');
+                                    if (btnSim) btnSim.classList.add('sel-sim');
+                                }
+                            });
+                            document.getElementById('msgAlergia').textContent = '✓ Anotamos: ' + det;
+                            document.getElementById('msgAlergia').style.display = 'block';
+                        } else {
+                            alert('❌ ' + (j && j.erro ? j.erro : 'Erro ao salvar'));
+                        }
+                    });
             }
         </script>
 

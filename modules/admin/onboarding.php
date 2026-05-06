@@ -127,6 +127,12 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN local_presenci
 // Self-heal: tamanho_camisa (P / M / G / GG) — escolhido pela propria colaboradora
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN tamanho_camisa VARCHAR(4) NULL"); } catch (Exception $e) {}
 
+// Self-heal: preferencias pro kit surpresa — preenchidas pela colaboradora
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN kit_cor_favorita VARCHAR(20) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN kit_alergia TINYINT(1) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN kit_alergia_detalhes VARCHAR(500) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN kit_consome_alcool TINYINT(1) NULL"); } catch (Exception $e) {}
+
 // Self-heal: dados especificos do estagio — preenchidos pra alimentar o Termo de Compromisso
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN modalidade_estagio VARCHAR(2) NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_inicio_estagio DATE NULL"); } catch (Exception $e) {}
@@ -358,7 +364,8 @@ if ($editId) {
 // ── Lista todos pendentes/ativos ─────────────────────────
 $lista = array();
 try {
-    $lista = $pdo->query("SELECT id, nome_completo, email_institucional, status, aceite_em, created_at, token, tamanho_camisa
+    $lista = $pdo->query("SELECT id, nome_completo, email_institucional, status, aceite_em, created_at, token,
+                                 tamanho_camisa, kit_cor_favorita, kit_alergia, kit_alergia_detalhes, kit_consome_alcool
                           FROM colaboradores_onboarding
                           WHERE status != 'arquivado'
                           ORDER BY created_at DESC")->fetchAll();
@@ -600,10 +607,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
 
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">🎁 Kit + Benefícios</h4>
+
+        <?php if ($reg && ($reg['kit_cor_favorita'] || $reg['tamanho_camisa'] || $reg['kit_alergia'] !== null || $reg['kit_consome_alcool'] !== null)): ?>
+        <div style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border:1.5px solid #fbcfe8;border-radius:12px;padding:1rem 1.2rem;margin-bottom:.8rem;">
+            <p style="font-size:.78rem;font-weight:800;color:#9f1239;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem;">🎁 Preferências da colaboradora (pra montar o kit surpresa)</p>
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
+                <?php if ($reg['kit_cor_favorita']): ?>
+                    <span style="background:#fff;border:1px solid #fbcfe8;border-radius:20px;padding:.3rem .8rem;font-size:.82rem;color:#831843;font-weight:700;">🎨 Cor: <?= e(ucfirst($reg['kit_cor_favorita'])) ?></span>
+                <?php endif; ?>
+                <?php if ($reg['tamanho_camisa']): ?>
+                    <span style="background:#fff;border:1px solid #fbcfe8;border-radius:20px;padding:.3rem .8rem;font-size:.82rem;color:#831843;font-weight:700;">👕 Camisa: <?= e($reg['tamanho_camisa']) ?></span>
+                <?php endif; ?>
+                <?php if ($reg['kit_alergia'] !== null): ?>
+                    <?php if ((int)$reg['kit_alergia'] === 1): ?>
+                        <span style="background:#fef2f2;border:1px solid #fca5a5;border-radius:20px;padding:.3rem .8rem;font-size:.82rem;color:#991b1b;font-weight:700;">🤧 Alergia: SIM<?= $reg['kit_alergia_detalhes'] ? ' — ' . e($reg['kit_alergia_detalhes']) : '' ?></span>
+                    <?php else: ?>
+                        <span style="background:#ecfdf5;border:1px solid #6ee7b7;border-radius:20px;padding:.3rem .8rem;font-size:.82rem;color:#065f46;font-weight:700;">🤧 Sem alergias</span>
+                    <?php endif; ?>
+                <?php endif; ?>
+                <?php if ($reg['kit_consome_alcool'] !== null): ?>
+                    <span style="background:#fff;border:1px solid #fbcfe8;border-radius:20px;padding:.3rem .8rem;font-size:.82rem;color:#831843;font-weight:700;">🍷 Álcool: <?= (int)$reg['kit_consome_alcool'] === 1 ? 'sim' : 'não' ?></span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="ob-grid">
             <div style="grid-column:1/-1;">
-                <label>Kit de boas-vindas (descrição)</label>
-                <textarea name="kit_descricao" rows="2" placeholder="Ex: Caneca + caderno + caneta + camiseta. Será entregue em até 7 dias."><?= e($reg['kit_descricao'] ?? '') ?></textarea>
+                <label>Anotações internas sobre o kit <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(opcional — só admin vê)</span></label>
+                <textarea name="kit_descricao" rows="2" placeholder="Ex: kit verde, sem amendoim, vinho tinto. Entregue dia 15."><?= e($reg['kit_descricao'] ?? '') ?></textarea>
             </div>
             <div style="grid-column:1/-1;">
                 <label>Benefícios <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(nome + valor opcional — adicione quantos quiser)</span></label>
@@ -754,19 +786,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <th>Nome</th>
                     <th>E-mail institucional</th>
                     <th>Status</th>
-                    <th>👕 Camisa</th>
+                    <th>🎁 Preferências do kit</th>
                     <th>Cadastrado em</th>
                     <th>Aceite</th>
                     <th>Ações</th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($lista as $r): ?>
+                <?php foreach ($lista as $r):
+                    $prefs = array();
+                    if (!empty($r['kit_cor_favorita'])) $prefs[] = '🎨 ' . htmlspecialchars(ucfirst($r['kit_cor_favorita']));
+                    if (!empty($r['tamanho_camisa']))   $prefs[] = '👕 ' . htmlspecialchars($r['tamanho_camisa']);
+                    if ($r['kit_alergia'] !== null) {
+                        $prefs[] = (int)$r['kit_alergia'] === 1
+                            ? '🚫 Alergia: ' . htmlspecialchars($r['kit_alergia_detalhes'] ?: 'sim')
+                            : '✓ Sem alergia';
+                    }
+                    if ($r['kit_consome_alcool'] !== null) $prefs[] = '🍷 ' . ((int)$r['kit_consome_alcool'] === 1 ? 'sim' : 'não');
+                ?>
                 <tr>
                     <td><strong><?= e($r['nome_completo']) ?></strong></td>
                     <td><?= e($r['email_institucional'] ?: '—') ?></td>
                     <td><span class="ob-status <?= e($r['status']) ?>"><?= e($r['status']) ?></span></td>
-                    <td><?= !empty($r['tamanho_camisa']) ? '<strong style="color:#9f1239;">' . e($r['tamanho_camisa']) . '</strong>' : '<span style="color:#9ca3af;">—</span>' ?></td>
+                    <td style="font-size:.78rem;"><?= empty($prefs) ? '<span style="color:#9ca3af;">— ainda não respondeu</span>' : implode(' &middot; ', $prefs) ?></td>
                     <td><?= e(data_hora_br($r['created_at'])) ?></td>
                     <td><?= $r['aceite_em'] ? '✓ ' . e(data_hora_br($r['aceite_em'])) : '—' ?></td>
                     <td style="white-space:nowrap;">
