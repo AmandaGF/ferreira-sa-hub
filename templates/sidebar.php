@@ -145,6 +145,7 @@ $menuItems = array(
     array('label' => 'Mural Avisos',   'icon' => '📰', 'href' => url('modules/admin/onboarding_avisos.php'), 'id' => 'onboarding_avisos', 'roles' => array('admin')),
     array('label' => 'Solicitações',   'icon' => '📩', 'href' => url('modules/admin/onboarding_solicitacoes.php'), 'id' => 'onboarding_solicitacoes', 'roles' => array('admin')),
     array('label' => 'Indicações',     'icon' => '💸', 'href' => url('modules/admin/onboarding_indicacoes.php'), 'id' => 'onboarding_indicacoes', 'roles' => array('admin')),
+    array('label' => 'Daily Planner',  'icon' => '📓', 'href' => url('modules/admin/onboarding_daily.php'), 'id' => 'onboarding_daily', 'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
     array('label' => 'Importar DJen',   'icon' => '📥', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin')),
