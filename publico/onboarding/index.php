@@ -945,8 +945,8 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
                     Queremos que você tenha <span style="color:var(--nude);">orgulho</span><br>
                     de falar que faz parte da <span style="color:var(--nude);">Família Ferreira &amp; Sá</span>!
                 </h2>
-                <p style="font-size:.95rem;opacity:.9;margin-top:.8rem;max-width:480px;margin-left:auto;margin-right:auto;">
-                    Vamos construir essa história lindamente, <?= g('juntas', 'juntos', $genero) ?>. ✨
+                <p style="font-size:.95rem;opacity:.9;margin-top:.8rem;max-width:520px;margin-left:auto;margin-right:auto;">
+                    Vamos, <?= g('juntas', 'juntos', $genero) ?>, ajudar a melhorar a vida de outras famílias e construir uma história que vale a pena ser contada. ✨
                 </p>
             </div>
         </div>
@@ -1001,6 +1001,22 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
             <input type="file" accept="image/*" id="storyFotoInput" onchange="trocarFotoStory(this)" style="font-size:.85rem;width:100%;">
             <p style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">A foto do seu WhatsApp já vem por padrão. Se quiser usar outra, suba aqui.</p>
         </div>
+
+        <!-- Seletor de modelo -->
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.78rem;font-weight:700;color:#831843;display:block;margin-bottom:.3rem;">🎨 Escolha o estilo</label>
+            <div id="storyTemplates" style="display:grid;grid-template-columns:repeat(2,1fr);gap:.4rem;">
+                <button type="button" class="story-tpl-btn ativo" data-tpl="1" onclick="trocarTemplateStory(1)">✨ Clássico</button>
+                <button type="button" class="story-tpl-btn" data-tpl="2" onclick="trocarTemplateStory(2)">🎉 Divertido</button>
+                <button type="button" class="story-tpl-btn" data-tpl="3" onclick="trocarTemplateStory(3)">🤍 Minimalista</button>
+                <button type="button" class="story-tpl-btn" data-tpl="4" onclick="trocarTemplateStory(4)">👑 Elegante</button>
+            </div>
+        </div>
+        <style>
+            .story-tpl-btn { background:#fff; border:1.5px solid #f9a8d4; color:#9f1239; padding:.5rem .7rem; border-radius:8px; font-size:.82rem; font-weight:700; cursor:pointer; font-family:inherit; transition:all .15s; }
+            .story-tpl-btn:hover { background:#fdf2f8; }
+            .story-tpl-btn.ativo { background:linear-gradient(135deg,#db2777,#9f1239); color:#fff; border-color:#db2777; }
+        </style>
 
         <!-- Lembrete da menção -->
         <div style="background:#fdf2f8;border-left:3px solid #db2777;padding:.6rem .9rem;border-radius:0 6px 6px 0;font-size:.78rem;color:#9f1239;margin-bottom:1rem;">
@@ -1086,120 +1102,267 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         fr.readAsDataURL(input.files[0]);
     };
 
+    var templateAtivo = 1;
+
+    window.trocarTemplateStory = function(n) {
+        templateAtivo = n;
+        document.querySelectorAll('.story-tpl-btn').forEach(function(b){
+            b.classList.toggle('ativo', parseInt(b.dataset.tpl, 10) === n);
+        });
+        desenharStory();
+    };
+
     function desenharStory() {
-        var canvas = document.getElementById('storyCanvas');
-        var ctx = canvas.getContext('2d');
-        var W = 1080, H = 1920;
+        if (templateAtivo === 2) return desenharDivertido();
+        if (templateAtivo === 3) return desenharMinimalista();
+        if (templateAtivo === 4) return desenharElegante();
+        return desenharClassico();
+    }
 
-        // 1. Background gradient petrol
-        var grad = ctx.createLinearGradient(0, 0, 0, H);
-        grad.addColorStop(0, '#052228');
-        grad.addColorStop(0.6, '#0e3d44');
-        grad.addColorStop(1, '#173d46');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
-
-        // 2. Decoração — círculos cobre semi-transparentes
-        ctx.fillStyle = 'rgba(184, 115, 51, 0.18)';
-        ctx.beginPath(); ctx.arc(900, 200, 280, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(150, H - 300, 240, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(215, 171, 144, 0.12)';
-        ctx.beginPath(); ctx.arc(W - 100, H - 600, 180, 0, Math.PI * 2); ctx.fill();
-
-        // 3. Logo no topo (em fundo branco arredondado)
-        var logoBoxW = 700, logoBoxH = 180;
-        var logoBoxX = (W - logoBoxW) / 2, logoBoxY = 110;
-        ctx.fillStyle = 'rgba(255,255,255,0.96)';
-        roundRect(ctx, logoBoxX, logoBoxY, logoBoxW, logoBoxH, 24);
+    // Helper: desenha logo dentro de um cartão branco arredondado.
+    function drawLogoBox(ctx, W, x, y, w, h, radius, bgColor) {
+        ctx.fillStyle = bgColor || 'rgba(255,255,255,0.96)';
+        roundRect(ctx, x, y, w, h, radius || 24);
         ctx.fill();
         if (logoImg.complete && logoImg.naturalWidth) {
-            // Mantém proporção
             var iw = logoImg.naturalWidth, ih = logoImg.naturalHeight;
-            var scale = Math.min((logoBoxW - 60) / iw, (logoBoxH - 40) / ih);
+            var scale = Math.min((w - 60) / iw, (h - 40) / ih);
             var dw = iw * scale, dh = ih * scale;
-            var dx = (W - dw) / 2, dy = logoBoxY + (logoBoxH - dh) / 2;
+            var dx = x + (w - dw) / 2, dy = y + (h - dh) / 2;
             ctx.drawImage(logoImg, dx, dy, dw, dh);
         }
+    }
 
-        // 4. Foto da pessoa em moldura circular
-        var cx = W / 2, cy = 720, r = 240;
-        // anel cobre
-        ctx.strokeStyle = '#d7ab90';
-        ctx.lineWidth = 16;
-        ctx.beginPath(); ctx.arc(cx, cy, r + 12, 0, Math.PI * 2); ctx.stroke();
-        // anel interno mais escuro
-        ctx.strokeStyle = '#6a3c2c';
-        ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(cx, cy, r + 22, 0, Math.PI * 2); ctx.stroke();
-
+    // Helper: desenha foto circular (com fallback emoji).
+    function drawFotoCircular(ctx, cx, cy, r, anelCor1, anelCor2, fallbackBg, fallbackEmoji, fallbackEmojiCor) {
+        if (anelCor1) {
+            ctx.strokeStyle = anelCor1; ctx.lineWidth = 16;
+            ctx.beginPath(); ctx.arc(cx, cy, r + 12, 0, Math.PI * 2); ctx.stroke();
+        }
+        if (anelCor2) {
+            ctx.strokeStyle = anelCor2; ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.arc(cx, cy, r + 22, 0, Math.PI * 2); ctx.stroke();
+        }
         if (fotoImg && fotoImg.complete && fotoImg.naturalWidth) {
             ctx.save();
             ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.clip();
-            // Cobre todo o círculo (cover)
             var iw = fotoImg.naturalWidth, ih = fotoImg.naturalHeight;
             var s = Math.max((r * 2) / iw, (r * 2) / ih);
             var dw = iw * s, dh = ih * s;
             ctx.drawImage(fotoImg, cx - dw/2, cy - dh/2, dw, dh);
             ctx.restore();
         } else {
-            // Sem foto: emoji centralizado
-            ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            ctx.fillStyle = fallbackBg || 'rgba(255,255,255,0.1)';
             ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
             ctx.font = '180px serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillStyle = '#d7ab90';
-            ctx.fillText('💜', cx, cy);
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillStyle = fallbackEmojiCor || '#d7ab90';
+            ctx.fillText(fallbackEmoji || '💜', cx, cy);
         }
+    }
 
-        // 5. SEJA BEM-VINDA(O), [NOME] — em destaque
-        ctx.fillStyle = '#d7ab90';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.font = '700 italic 56px "Playfair Display", serif';
-        var saudacao = generoStr === 'M' ? 'Seja Bem-Vindo,' : 'Seja Bem-Vinda,';
-        ctx.fillText(saudacao, cx, 1140);
-
-        // Nome em destaque — branco e maior
-        ctx.fillStyle = '#fff';
-        ctx.font = '800 110px "Playfair Display", serif';
-        var nomeTxt = primeiroNome + '! ✨';
-        // Reduz fonte se nome for muito grande
-        var maxW = W - 100;
-        var fontSize = 110;
+    // Helper: ajusta tamanho de fonte pra caber em maxW
+    function fontSizeFit(ctx, texto, maxW, baseFont, sizeIni, sizeMin) {
+        var s = sizeIni;
         do {
-            ctx.font = '800 ' + fontSize + 'px "Playfair Display", serif';
-            if (ctx.measureText(nomeTxt).width <= maxW) break;
-            fontSize -= 6;
-        } while (fontSize > 60);
-        ctx.fillText(nomeTxt, cx, 1260);
+            ctx.font = baseFont.replace('{S}', s);
+            if (ctx.measureText(texto).width <= maxW) break;
+            s -= 6;
+        } while (s > sizeMin);
+        return s;
+    }
 
-        // 6. Frase complementar
-        ctx.fillStyle = '#fff';
-        ctx.font = '500 42px "Open Sans", sans-serif';
-        ctx.fillText('Começa hoje uma nova jornada', cx, 1380);
-        ctx.fillText('na', cx, 1440);
-        ctx.fillStyle = '#d7ab90';
-        ctx.font = '700 48px "Open Sans", sans-serif';
-        ctx.fillText('Família Ferreira & Sá', cx, 1510);
-        ctx.fillStyle = '#fff';
-        ctx.font = '500 42px "Open Sans", sans-serif';
-        ctx.fillText('💜', cx, 1580);
-
-        // 7. Mention rodapé
-        ctx.fillStyle = 'rgba(215, 171, 144, 0.95)';
-        ctx.font = '600 38px "Open Sans", sans-serif';
-        ctx.fillText('@advocaciaferreiraesa', cx, 1780);
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = '500 28px "Open Sans", sans-serif';
-        ctx.fillText('me marca no story! 💜', cx, 1830);
-
-        // Mostra preview
+    function finalizarPreview() {
+        var canvas = document.getElementById('storyCanvas');
         var dataUrl = canvas.toDataURL('image/png');
         var prev = document.getElementById('storyPreview');
         prev.src = dataUrl;
         prev.style.display = 'block';
         document.getElementById('storyLoading').style.display = 'none';
+    }
+
+    // ─── TEMPLATE 1 — CLÁSSICO (petrol + cobre) ────────────
+    function desenharClassico() {
+        var canvas = document.getElementById('storyCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = 1080, H = 1920;
+        var grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#052228'); grad.addColorStop(0.6, '#0e3d44'); grad.addColorStop(1, '#173d46');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+        // círculos decorativos
+        ctx.fillStyle = 'rgba(184, 115, 51, 0.18)';
+        ctx.beginPath(); ctx.arc(900, 200, 280, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(150, H - 300, 240, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(215, 171, 144, 0.12)';
+        ctx.beginPath(); ctx.arc(W - 100, H - 600, 180, 0, Math.PI * 2); ctx.fill();
+        // logo
+        drawLogoBox(ctx, W, (W - 700) / 2, 110, 700, 180);
+        // foto
+        drawFotoCircular(ctx, W / 2, 720, 240, '#d7ab90', '#6a3c2c');
+        // textos
+        ctx.fillStyle = '#d7ab90'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '700 italic 56px "Playfair Display", serif';
+        ctx.fillText(generoStr === 'M' ? 'Seja Bem-Vindo,' : 'Seja Bem-Vinda,', W/2, 1140);
+        ctx.fillStyle = '#fff';
+        var nomeTxt = primeiroNome + '! ✨';
+        fontSizeFit(ctx, nomeTxt, W - 100, '800 {S}px "Playfair Display", serif', 110, 60);
+        ctx.fillText(nomeTxt, W/2, 1260);
+        ctx.font = '500 42px "Open Sans", sans-serif';
+        ctx.fillText('Começa hoje uma nova jornada', W/2, 1380);
+        ctx.fillStyle = '#d7ab90';
+        ctx.font = '700 48px "Open Sans", sans-serif';
+        ctx.fillText('na Família Ferreira & Sá', W/2, 1450);
+        ctx.fillStyle = '#fff'; ctx.font = '500 42px "Open Sans", sans-serif';
+        ctx.fillText('💜', W/2, 1530);
+        // mention
+        ctx.fillStyle = 'rgba(215, 171, 144, 0.95)'; ctx.font = '600 38px "Open Sans", sans-serif';
+        ctx.fillText('@advocaciaferreiraesa', W/2, 1780);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '500 28px "Open Sans", sans-serif';
+        ctx.fillText('me marca no story! 💜', W/2, 1830);
+        finalizarPreview();
+    }
+
+    // ─── TEMPLATE 2 — DIVERTIDO (cores vibrantes) ──────────
+    function desenharDivertido() {
+        var canvas = document.getElementById('storyCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = 1080, H = 1920;
+        // gradient rosa → laranja → cobre
+        var grad = ctx.createLinearGradient(0, 0, W, H);
+        grad.addColorStop(0, '#fb7185'); grad.addColorStop(0.5, '#f59e0b'); grad.addColorStop(1, '#ec4899');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+        // bolhas coloridas espalhadas
+        var bolhas = [
+            {x:100, y:400, r:80, c:'rgba(255,255,255,.25)'},
+            {x:980, y:550, r:120, c:'rgba(255,255,255,.18)'},
+            {x:200, y:1500, r:100, c:'rgba(255,255,255,.22)'},
+            {x:900, y:1700, r:60, c:'rgba(255,255,255,.3)'},
+            {x:540, y:1820, r:50, c:'rgba(255,255,255,.25)'},
+            {x:80, y:900, r:50, c:'rgba(255,255,255,.3)'}
+        ];
+        bolhas.forEach(function(b){ ctx.fillStyle=b.c; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill(); });
+        // logo
+        drawLogoBox(ctx, W, (W - 700) / 2, 110, 700, 180);
+        // foto com anel branco vibrante
+        drawFotoCircular(ctx, W / 2, 720, 240, '#fff', '#fbbf24', 'rgba(255,255,255,.3)', '🎉', '#9f1239');
+        // textos
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '700 italic 60px "Playfair Display", serif';
+        ctx.fillText('Olha quem chegou! 👀', W/2, 1130);
+        var nomeTxt = primeiroNome + '! 🎉';
+        fontSizeFit(ctx, nomeTxt, W - 100, '900 {S}px "Playfair Display", serif', 130, 70);
+        // sombra no nome pra dar destaque
+        ctx.shadowColor = 'rgba(0,0,0,.2)'; ctx.shadowBlur = 12; ctx.shadowOffsetY = 4;
+        ctx.fillText(nomeTxt, W/2, 1280);
+        ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+        ctx.font = '600 44px "Open Sans", sans-serif';
+        ctx.fillText('Bora viver coisas novas', W/2, 1410);
+        ctx.fillText('na Família Ferreira & Sá!', W/2, 1480);
+        ctx.font = '500 56px "Open Sans", sans-serif';
+        ctx.fillText('🚀✨💜', W/2, 1570);
+        // mention
+        ctx.fillStyle = '#fff'; ctx.font = '700 42px "Open Sans", sans-serif';
+        ctx.fillText('@advocaciaferreiraesa', W/2, 1780);
+        ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = '500 30px "Open Sans", sans-serif';
+        ctx.fillText('me marca aí no story! 💛', W/2, 1830);
+        finalizarPreview();
+    }
+
+    // ─── TEMPLATE 3 — MINIMALISTA (clean) ──────────────────
+    function desenharMinimalista() {
+        var canvas = document.getElementById('storyCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = 1080, H = 1920;
+        // fundo nude bem clarinho
+        var grad = ctx.createLinearGradient(0, 0, 0, H);
+        grad.addColorStop(0, '#fff7ed'); grad.addColorStop(1, '#fdf2f8');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
+        // borda fina cobre
+        ctx.strokeStyle = '#d7ab90'; ctx.lineWidth = 4;
+        ctx.strokeRect(60, 60, W - 120, H - 120);
+        // logo (sem cartão de fundo)
+        if (logoImg.complete && logoImg.naturalWidth) {
+            var iw = logoImg.naturalWidth, ih = logoImg.naturalHeight;
+            var maxW = 600; var scale = Math.min(maxW / iw, 160 / ih);
+            var dw = iw * scale, dh = ih * scale;
+            ctx.drawImage(logoImg, (W - dw) / 2, 180, dw, dh);
+        }
+        // linha divisória cobre
+        ctx.strokeStyle = '#d7ab90'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(W/2 - 80, 410); ctx.lineTo(W/2 + 80, 410); ctx.stroke();
+        // foto
+        drawFotoCircular(ctx, W / 2, 760, 240, '#d7ab90', null, '#fff', '🌿', '#6a3c2c');
+        // textos
+        ctx.fillStyle = '#6a3c2c'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '400 italic 52px "Playfair Display", serif';
+        ctx.fillText(generoStr === 'M' ? 'bem-vindo' : 'bem-vinda', W/2, 1170);
+        ctx.fillStyle = '#052228';
+        var nomeTxt = primeiroNome + '.';
+        fontSizeFit(ctx, nomeTxt, W - 200, '800 {S}px "Playfair Display", serif', 130, 70);
+        ctx.fillText(nomeTxt, W/2, 1310);
+        // linha
+        ctx.strokeStyle = '#d7ab90'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(W/2 - 60, 1370); ctx.lineTo(W/2 + 60, 1370); ctx.stroke();
+        ctx.fillStyle = '#6a3c2c'; ctx.font = '400 36px "Open Sans", sans-serif';
+        ctx.fillText('início de uma nova jornada', W/2, 1440);
+        ctx.fillStyle = '#052228'; ctx.font = '600 38px "Open Sans", sans-serif';
+        ctx.fillText('na Família Ferreira & Sá', W/2, 1500);
+        // mention
+        ctx.fillStyle = '#6a3c2c'; ctx.font = '600 36px "Open Sans", sans-serif';
+        ctx.fillText('@advocaciaferreiraesa', W/2, 1760);
+        ctx.fillStyle = 'rgba(106,60,44,.6)'; ctx.font = '400 italic 26px "Playfair Display", serif';
+        ctx.fillText('marque-nos no seu story', W/2, 1810);
+        finalizarPreview();
+    }
+
+    // ─── TEMPLATE 4 — ELEGANTE (formal/profissional) ──────
+    function desenharElegante() {
+        var canvas = document.getElementById('storyCanvas');
+        var ctx = canvas.getContext('2d');
+        var W = 1080, H = 1920;
+        // fundo petrol mais escuro com vinheta
+        ctx.fillStyle = '#021317'; ctx.fillRect(0, 0, W, H);
+        var rgrad = ctx.createRadialGradient(W/2, H/2, 200, W/2, H/2, 1200);
+        rgrad.addColorStop(0, 'rgba(15, 60, 70, .8)'); rgrad.addColorStop(1, 'rgba(2, 19, 23, 1)');
+        ctx.fillStyle = rgrad; ctx.fillRect(0, 0, W, H);
+        // moldura dourada dupla
+        ctx.strokeStyle = '#c9a26b'; ctx.lineWidth = 3;
+        ctx.strokeRect(60, 60, W - 120, H - 120);
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(80, 80, W - 160, H - 160);
+        // linhas decorativas no topo e fundo
+        ctx.strokeStyle = '#c9a26b'; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(W/2 - 200, 130); ctx.lineTo(W/2 + 200, 130); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(W/2 - 200, H - 130); ctx.lineTo(W/2 + 200, H - 130); ctx.stroke();
+        // logo (em cartão branco discreto)
+        drawLogoBox(ctx, W, (W - 620) / 2, 200, 620, 160, 12, '#f8f5f0');
+        // foto com anéis dourados
+        drawFotoCircular(ctx, W / 2, 770, 240, '#c9a26b', '#8a6d3b', 'rgba(201,162,107,.15)', '✦', '#c9a26b');
+        // textos
+        ctx.fillStyle = '#c9a26b'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+        ctx.font = '400 italic 48px "Playfair Display", serif';
+        ctx.fillText('Tenho a honra de iniciar', W/2, 1160);
+        ctx.font = '400 italic 48px "Playfair Display", serif';
+        ctx.fillText('minha jornada profissional', W/2, 1230);
+        // nome
+        ctx.fillStyle = '#fff';
+        var nomeTxt = primeiroNome.toUpperCase();
+        fontSizeFit(ctx, nomeTxt, W - 200, '700 {S}px "Playfair Display", serif', 110, 60);
+        ctx.fillText(nomeTxt, W/2, 1380);
+        // separador ✦
+        ctx.fillStyle = '#c9a26b'; ctx.font = '500 36px "Playfair Display", serif';
+        ctx.fillText('✦', W/2, 1440);
+        // família
+        ctx.fillStyle = '#c9a26b'; ctx.font = '700 italic 50px "Playfair Display", serif';
+        ctx.fillText('na Família Ferreira & Sá', W/2, 1530);
+        ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.font = '400 italic 32px "Playfair Display", serif';
+        ctx.fillText('Advocacia Especializada', W/2, 1590);
+        // mention
+        ctx.fillStyle = '#c9a26b'; ctx.font = '500 italic 36px "Playfair Display", serif';
+        ctx.fillText('@advocaciaferreiraesa', W/2, 1780);
+        ctx.fillStyle = 'rgba(201,162,107,.6)'; ctx.font = '400 italic 24px "Playfair Display", serif';
+        ctx.fillText('Marque o escritório em seu story', W/2, 1820);
+        finalizarPreview();
     }
 
     function roundRect(ctx, x, y, w, h, r) {
