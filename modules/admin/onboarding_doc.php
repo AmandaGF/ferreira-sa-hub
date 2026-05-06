@@ -21,7 +21,9 @@ if (!$docId) { redirect(module_url('admin', 'onboarding.php')); }
 $st = $pdo->prepare("SELECT cd.*, co.nome_completo, co.token AS colab_token,
                             co.valor_remuneracao, co.beneficios, co.cargo, co.setor,
                             co.modalidade AS colab_modalidade, co.horario_inicio, co.horario_fim,
-                            co.local_presencial
+                            co.local_presencial,
+                            co.modalidade_estagio, co.data_inicio_estagio, co.data_termino_estagio,
+                            co.seguro_num_apolice, co.seguro_seguradora
                      FROM colaboradores_documentos cd
                      LEFT JOIN colaboradores_onboarding co ON co.id = cd.colaborador_id
                      WHERE cd.id = ?");
@@ -48,7 +50,6 @@ if (!is_array($dadosAdmin)) $dadosAdmin = array();
  */
 $autofill = array();
 if (!empty($doc['valor_remuneracao'])) {
-    // Formata 1500.00 → 1500.00 (input number aceita)
     $autofill['valor_bolsa'] = number_format((float)$doc['valor_remuneracao'], 2, '.', '');
 }
 // Parse benefícios buscando vale-transporte → extrai valor
@@ -64,6 +65,12 @@ if (!empty($doc['beneficios'])) {
         }
     }
 }
+// Dados especificos do estagio cadastrados na ficha do colaborador
+if (!empty($doc['modalidade_estagio']))   $autofill['modalidade'] = $doc['modalidade_estagio'];
+if (!empty($doc['data_inicio_estagio']))  $autofill['data_inicio'] = $doc['data_inicio_estagio'];
+if (!empty($doc['data_termino_estagio'])) $autofill['data_termino'] = $doc['data_termino_estagio'];
+if (!empty($doc['seguro_num_apolice']))   $autofill['num_apolice'] = $doc['seguro_num_apolice'];
+if (!empty($doc['seguro_seguradora']))    $autofill['seguradora'] = $doc['seguro_seguradora'];
 
 // Salvar
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {

@@ -127,6 +127,13 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN local_presenci
 // Self-heal: tamanho_camisa (P / M / G / GG) — escolhido pela propria colaboradora
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN tamanho_camisa VARCHAR(4) NULL"); } catch (Exception $e) {}
 
+// Self-heal: dados especificos do estagio — preenchidos pra alimentar o Termo de Compromisso
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN modalidade_estagio VARCHAR(2) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_inicio_estagio DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_termino_estagio DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN seguro_num_apolice VARCHAR(60) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN seguro_seguradora VARCHAR(150) NULL"); } catch (Exception $e) {}
+
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
 // Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
@@ -226,6 +233,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'genero'               => in_array(($_POST['genero'] ?? ''), array('F','M'), true) ? $_POST['genero'] : null,
             'telefone_whatsapp'    => preg_replace('/\D/', '', trim($_POST['telefone_whatsapp'] ?? '')) ?: null,
             'local_presencial'     => trim($_POST['local_presencial'] ?? ''),
+            'modalidade_estagio'   => in_array(($_POST['modalidade_estagio'] ?? ''), array('I','II'), true) ? $_POST['modalidade_estagio'] : null,
+            'data_inicio_estagio'  => trim($_POST['data_inicio_estagio'] ?? '') ?: null,
+            'data_termino_estagio' => trim($_POST['data_termino_estagio'] ?? '') ?: null,
+            'seguro_num_apolice'   => trim($_POST['seguro_num_apolice'] ?? '') ?: null,
+            'seguro_seguradora'    => trim($_POST['seguro_seguradora'] ?? '') ?: null,
         );
 
         // Se admin informou WhatsApp da colaboradora, tenta buscar foto de perfil
@@ -559,6 +571,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
 
+        <h4 id="hSecEstagio" style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;<?= ($reg['perfil_cargo'] ?? '') === 'estagiario' ? '' : 'display:none;' ?>">🎓 Dados do estágio <span style="color:#9ca3af;font-size:.7rem;font-weight:400;">(alimentam o Termo de Compromisso)</span></h4>
+        <div id="secEstagio" class="ob-grid" style="<?= ($reg['perfil_cargo'] ?? '') === 'estagiario' ? '' : 'display:none;' ?>">
+            <div>
+                <label>Modalidade do estágio</label>
+                <select name="modalidade_estagio">
+                    <option value="">— Selecione —</option>
+                    <option value="I" <?= ($reg['modalidade_estagio'] ?? '') === 'I' ? 'selected' : '' ?>>Modalidade I — OAB-RJ (Provimento 144/2011)</option>
+                    <option value="II" <?= ($reg['modalidade_estagio'] ?? '') === 'II' ? 'selected' : '' ?>>Modalidade II — Acadêmico (Lei 11.788/2008)</option>
+                </select>
+            </div>
+            <div>
+                <label>Data de início</label>
+                <input type="date" name="data_inicio_estagio" value="<?= e($reg['data_inicio_estagio'] ?? '') ?>">
+            </div>
+            <div>
+                <label>Data de término</label>
+                <input type="date" name="data_termino_estagio" value="<?= e($reg['data_termino_estagio'] ?? '') ?>">
+            </div>
+            <div>
+                <label>Nº da apólice de seguro</label>
+                <input name="seguro_num_apolice" value="<?= e($reg['seguro_num_apolice'] ?? '') ?>" placeholder="Ex: 123456789">
+            </div>
+            <div>
+                <label>Seguradora</label>
+                <input name="seguro_seguradora" value="<?= e($reg['seguro_seguradora'] ?? '') ?>" placeholder="Ex: Porto Seguro">
+            </div>
+        </div>
+
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">🎁 Kit + Benefícios</h4>
         <div class="ob-grid">
             <div style="grid-column:1/-1;">
@@ -653,6 +693,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             var perfil = document.getElementById('perfilCargoSelect').value;
             var lista = document.getElementById('docsVincularLista');
             var empty = document.getElementById('docsVincularEmpty');
+            // Mostra/esconde a secao "Dados do estagio" conforme o perfil
+            var secEst = document.getElementById('secEstagio');
+            var hSecEst = document.getElementById('hSecEstagio');
+            if (secEst && hSecEst) {
+                var ehEstagio = (perfil === 'estagiario');
+                secEst.style.display = ehEstagio ? '' : 'none';
+                hSecEst.style.display = ehEstagio ? '' : 'none';
+            }
             if (!perfil) {
                 lista.innerHTML = '<p id="docsVincularEmpty" style="font-size:.82rem;color:#6b7280;margin:0;">Selecione um <strong>perfil de cargo</strong> acima para ver os documentos disponíveis.</p>';
                 return;
