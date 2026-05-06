@@ -233,6 +233,51 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 /* ── CONTAINER ──────────────────────────────────────────── */
 .container { max-width: 920px; margin: -3rem auto 3rem; padding: 0 1.2rem; position: relative; z-index: 2; }
 
+/* ── NAV STICKY (atalho entre seções) ───────────────────── */
+html { scroll-behavior: smooth; }
+.card-block, .aceite-box { scroll-margin-top: 80px; }
+.onb-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(248, 244, 239, .96);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--nude);
+    margin: 0 -1.2rem 1.5rem;
+    padding: .55rem 1.2rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+.onb-nav::-webkit-scrollbar { height: 4px; }
+.onb-nav::-webkit-scrollbar-thumb { background: var(--nude); border-radius: 2px; }
+.onb-nav-inner {
+    display: flex;
+    gap: .4rem;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+    width: max-content;
+}
+.onb-nav a {
+    flex-shrink: 0;
+    background: #fff;
+    border: 1.5px solid var(--nude);
+    color: var(--cobre);
+    padding: .42rem .85rem;
+    border-radius: 20px;
+    font-size: .76rem;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all .15s;
+}
+.onb-nav a:hover {
+    background: var(--cobre);
+    color: #fff;
+    border-color: var(--cobre);
+    transform: translateY(-1px);
+}
+
 /* ── CARD BASE ──────────────────────────────────────────── */
 .card-block {
     background: var(--card);
@@ -480,9 +525,27 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
     <div class="container">
 
+        <!-- MENU DE NAVEGAÇÃO RÁPIDA (sticky) -->
+        <nav class="onb-nav" id="onbNav">
+            <div class="onb-nav-inner">
+                <?php if (!empty($reg['mensagem_pessoal'])): ?><a href="#sec-mensagem">💌 Mensagem</a><?php endif; ?>
+                <a href="#sec-quem-somos">🌟 Quem somos</a>
+                <?php if ($reg['email_institucional'] || $reg['senha_inicial']): ?><a href="#sec-acessos">🔐 Acessos</a><?php endif; ?>
+                <?php if ($reg['cargo'] || $reg['setor'] || $reg['modalidade']): ?><a href="#sec-jornada">💼 Jornada</a><?php endif; ?>
+                <?php if ($reg['tipo_remuneracao'] || $reg['valor_remuneracao'] || $reg['beneficios']): ?><a href="#sec-remuneracao">💰 Remuneração</a><?php endif; ?>
+                <a href="#sec-kit">🎁 Kit</a>
+                <a href="#sec-principios">💎 Princípios</a>
+                <a href="#sec-fit">💪 FIT</a>
+                <a href="#sec-seguro">🛡️ Seguro</a>
+                <?php if (!empty($documentosVinculados)): ?><a href="#sec-documentos">📄 Documentos</a><?php endif; ?>
+                <a href="#sec-story">📸 Story</a>
+                <a href="#sec-aceite">✅ Aceitar</a>
+            </div>
+        </nav>
+
         <!-- MENSAGEM PESSOAL (se houver) -->
         <?php if (!empty($reg['mensagem_pessoal'])): ?>
-        <div class="card-block" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-left:6px solid var(--rose);">
+        <div class="card-block" id="sec-mensagem" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border-left:6px solid var(--rose);">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">💌</div>
                 <h2>Uma mensagem para você</h2>
@@ -492,7 +555,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <?php endif; ?>
 
         <!-- MISSÃO / VISÃO / VALORES -->
-        <div class="card-block">
+        <div class="card-block" id="sec-quem-somos">
             <div class="card-title-row">
                 <div class="card-title-icon">🌟</div>
                 <h2>Quem somos</h2>
@@ -529,7 +592,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
         <!-- ACESSOS INSTITUCIONAIS -->
         <?php if ($reg['email_institucional'] || $reg['senha_inicial']): ?>
-        <div class="card-block">
+        <div class="card-block" id="sec-acessos">
             <div class="card-title-row">
                 <div class="card-title-icon">🔐</div>
                 <h2>Seu acesso ao Hub Conecta</h2>
@@ -587,7 +650,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
         <!-- DETALHES DA POSIÇÃO -->
         <?php if ($reg['cargo'] || $reg['setor'] || $reg['modalidade'] || $reg['dias_trabalho'] || $reg['horario_inicio']): ?>
-        <div class="card-block">
+        <div class="card-block" id="sec-jornada">
             <div class="card-title-row">
                 <div class="card-title-icon">💼</div>
                 <h2>Sua jornada conosco</h2>
@@ -617,7 +680,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
         <!-- REMUNERAÇÃO + BENEFÍCIOS -->
         <?php if ($reg['tipo_remuneracao'] || $reg['valor_remuneracao'] || $reg['data_pagamento'] || $reg['beneficios']): ?>
-        <div class="card-block">
+        <div class="card-block" id="sec-remuneracao">
             <div class="card-title-row">
                 <div class="card-title-icon">💰</div>
                 <h2>Remuneração e benefícios</h2>
@@ -651,7 +714,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <?php endif; ?>
 
         <!-- KIT -->
-        <div class="card-block">
+        <div class="card-block" id="sec-kit">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">🎁</div>
                 <h2>Seu kit de boas-vindas</h2>
@@ -717,7 +780,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         </script>
 
         <!-- PRINCÍPIOS / POSTURA -->
-        <div class="card-block">
+        <div class="card-block" id="sec-principios">
             <div class="card-title-row">
                 <div class="card-title-icon">💎</div>
                 <h2>Como atuamos por aqui</h2>
@@ -812,7 +875,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         </div>
 
         <!-- PLANO DE INCENTIVO À SAÚDE -->
-        <div class="card-block" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #34d399;">
+        <div class="card-block" id="sec-fit" style="background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1.5px solid #34d399;">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#86efac,#4ade80);">💪</div>
                 <h2 style="color:#065f46;">Ferreira e Sá <span style="font-weight:900;letter-spacing:.05em;">FIT</span> 💪</h2>
@@ -834,7 +897,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         </div>
 
         <!-- SEGURO CONTRA ACIDENTES PESSOAIS -->
-        <div class="card-block" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;">
+        <div class="card-block" id="sec-seguro" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#bfdbfe,#93c5fd);">🛡️</div>
                 <h2 style="color:#1e40af;">Você está protegida(o)</h2>
@@ -862,7 +925,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
         <!-- DOCUMENTOS PARA PREENCHER E ASSINAR -->
         <?php if (!empty($documentosVinculados)): ?>
-        <div class="card-block">
+        <div class="card-block" id="sec-documentos">
             <div class="card-title-row">
                 <div class="card-title-icon">📄</div>
                 <h2>Documentos para preencher e assinar</h2>
@@ -922,7 +985,7 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
         <?php endif; ?>
 
         <!-- COMPARTILHAR NO INSTAGRAM -->
-        <div class="card-block" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border:1.5px solid #f9a8d4;">
+        <div class="card-block" id="sec-story" style="background:linear-gradient(135deg,#fdf2f8,#fce7f3);border:1.5px solid #f9a8d4;">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#f9a8d4,#ec4899);">📸</div>
                 <h2 style="color:#831843;">Compartilhe esse momento!</h2>
@@ -956,14 +1019,14 @@ h1, h2, h3, h4 { font-family: 'Playfair Display', serif; color: var(--petrol-900
 
         <!-- ACEITE -->
         <?php if ($jaAceitou): ?>
-            <div class="aceite-box aceito">
+            <div class="aceite-box aceito" id="sec-aceite">
                 <div class="aceite-emoji">✅</div>
                 <h3>Tudo certo, <?= htmlspecialchars($primeiroNome) ?>!</h3>
                 <p>Você confirmou a leitura desta página em <strong><?= htmlspecialchars(date('d/m/Y \à\s H:i', strtotime($reg['aceite_em']))) ?></strong>.</p>
                 <p style="margin-top:.5rem;">Estamos <?= g('prontas', 'prontos', $genero) ?> pra começar essa jornada <?= g('juntas', 'juntos', $genero) ?>. Qualquer dúvida, fale com a gente. 💜</p>
             </div>
         <?php else: ?>
-            <div class="aceite-box">
+            <div class="aceite-box" id="sec-aceite">
                 <div class="aceite-emoji">🌟</div>
                 <h3><?= g('Pronta', 'Pronto', $genero) ?> pra começar?</h3>
                 <p>Quando você confirmar abaixo, registramos que leu as informações desta página. Pode aceitar com tranquilidade. Qualquer dúvida, é só chamar a equipe.</p>
