@@ -13,6 +13,64 @@ require_role('admin');
 $pageTitle = 'Onboarding de Colaboradores';
 $pdo = db();
 
+// ── AJAX: upload manual da foto da colaboradora (quando WhatsApp não retorna) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax']) && $_POST['ajax'] === 'upload_foto_colab') {
+    header('Content-Type: application/json; charset=utf-8');
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id) { echo json_encode(array('ok' => false, 'erro' => 'ID inválido')); exit; }
+    if (empty($_FILES['foto']) || $_FILES['foto']['error'] !== UPLOAD_ERR_OK) {
+        $errCode = $_FILES['foto']['error'] ?? 99;
+        $errMap = array(
+            UPLOAD_ERR_INI_SIZE => 'Arquivo maior que o permitido pelo servidor',
+            UPLOAD_ERR_FORM_SIZE => 'Arquivo maior que o permitido pelo formulário',
+            UPLOAD_ERR_PARTIAL => 'Upload incompleto',
+            UPLOAD_ERR_NO_FILE => 'Nenhum arquivo enviado',
+            UPLOAD_ERR_NO_TMP_DIR => 'Pasta temp do servidor não disponível',
+            UPLOAD_ERR_CANT_WRITE => 'Falha ao escrever no disco',
+        );
+        echo json_encode(array('ok' => false, 'erro' => $errMap[$errCode] ?? ('Erro upload (' . $errCode . ')')));
+        exit;
+    }
+    $tmp = $_FILES['foto']['tmp_name'];
+    $tam = (int)$_FILES['foto']['size'];
+    if ($tam < 200) { echo json_encode(array('ok' => false, 'erro' => 'Arquivo muito pequeno (' . $tam . ' bytes)')); exit; }
+    if ($tam > 8 * 1024 * 1024) { echo json_encode(array('ok' => false, 'erro' => 'Arquivo grande demais (max 8 MB)')); exit; }
+    $imgRaw = @file_get_contents($tmp);
+    if (!$imgRaw) { echo json_encode(array('ok' => false, 'erro' => 'Falha ao ler arquivo')); exit; }
+    // Magic bytes pra confirmar tipo
+    $isJpg = (substr($imgRaw, 0, 3) === "\xFF\xD8\xFF");
+    $isPng = (substr($imgRaw, 0, 8) === "\x89PNG\r\n\x1A\n");
+    $isWebp = (substr($imgRaw, 0, 4) === 'RIFF' && substr($imgRaw, 8, 4) === 'WEBP');
+    if (!$isJpg && !$isPng && !$isWebp) {
+        echo json_encode(array('ok' => false, 'erro' => 'Arquivo não é JPG/PNG/WebP válido'));
+        exit;
+    }
+    $ext = $isPng ? 'png' : ($isWebp ? 'webp' : 'jpg');
+
+    // Apaga foto anterior se for arquivo local
+    try {
+        $stOld = $pdo->prepare("SELECT foto_path FROM colaboradores_onboarding WHERE id = ?");
+        $stOld->execute(array($id));
+        $oldPath = $stOld->fetchColumn();
+        if ($oldPath && strpos($oldPath, '/files/onboarding_fotos/') === 0) {
+            $abs = APP_ROOT . $oldPath;
+            if (file_exists($abs)) @unlink($abs);
+        }
+    } catch (Exception $e) {}
+
+    $uploadDir = APP_ROOT . '/files/onboarding_fotos';
+    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+    $nomeArq = 'up_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+    if (!file_put_contents($uploadDir . '/' . $nomeArq, $imgRaw)) {
+        echo json_encode(array('ok' => false, 'erro' => 'Falha ao salvar arquivo no servidor (permissão da pasta?)'));
+        exit;
+    }
+    $fotoPath = '/files/onboarding_fotos/' . $nomeArq;
+    $pdo->prepare("UPDATE colaboradores_onboarding SET foto_path = ? WHERE id = ?")->execute(array($fotoPath, $id));
+    echo json_encode(array('ok' => true, 'foto_path' => $fotoPath, 'tamanho' => $tam, 'tipo' => $ext));
+    exit;
+}
+
 // ── AJAX: re-buscar foto do WhatsApp pra colaboradora existente ────────
 if (isset($_POST['ajax']) && $_POST['ajax'] === 'buscar_foto_wa') {
     header('Content-Type: application/json; charset=utf-8');
@@ -560,12 +618,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div id="fotoWaWrap" style="margin-top:.4rem;display:flex;align-items:center;gap:.5rem;font-size:.72rem;flex-wrap:wrap;">
                     <?php if (!empty($reg['foto_path'])): ?>
                         <img id="fotoWaPreview" src="<?= e($reg['foto_path']) ?>" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;">
-                        <span id="fotoWaStatus" style="color:#059669;">✓ Foto carregada do WhatsApp</span>
+                        <span id="fotoWaStatus" style="color:#059669;">✓ Foto definida</span>
                     <?php else: ?>
                         <span id="fotoWaStatus" style="color:#9ca3af;">Sem foto ainda</span>
                     <?php endif; ?>
                     <?php if ($reg && !empty($reg['id'])): ?>
-                        <button type="button" onclick="buscarFotoWA(<?= (int)$reg['id'] ?>)" style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">🔄 Buscar foto agora</button>
+                        <button type="button" onclick="buscarFotoWA(<?= (int)$reg['id'] ?>)" style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">🔄 Buscar foto WA</button>
+                        <button type="button" onclick="document.getElementById('fotoUploadInput').click()" style="background:#eff6ff;border:1.5px solid #93c5fd;color:#1e40af;padding:.3rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;font-family:inherit;">📤 Subir foto</button>
+                        <input type="file" id="fotoUploadInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="uploadFotoColab(<?= (int)$reg['id'] ?>, this)">
                     <?php endif; ?>
                 </div>
             </div>
@@ -1327,6 +1387,46 @@ function copiarLink() {
     }, function() {
         prompt('Copie o link manualmente:', t);
     });
+}
+
+// Upload manual da foto da colaboradora (quando WhatsApp não tem foto pública)
+function uploadFotoColab(id, input) {
+    if (!input.files || !input.files[0]) return;
+    var file = input.files[0];
+    if (file.size > 8 * 1024 * 1024) {
+        alert('⚠ Arquivo grande demais. Máximo 8 MB.');
+        input.value = '';
+        return;
+    }
+    var status = document.getElementById('fotoWaStatus');
+    if (status) { status.textContent = '⏳ Subindo foto...'; status.style.color = '#6a3c2c'; }
+    var fd = new FormData();
+    fd.append('ajax', 'upload_foto_colab');
+    fd.append('id', id);
+    fd.append('foto', file);
+    fetch(window.location.pathname, { method:'POST', body: fd })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j && j.ok) {
+                if (status) { status.textContent = '✓ Foto definida (upload manual)'; status.style.color = '#059669'; }
+                var preview = document.getElementById('fotoWaPreview');
+                if (!preview) {
+                    preview = document.createElement('img');
+                    preview.id = 'fotoWaPreview';
+                    preview.style.cssText = 'width:36px;height:36px;border-radius:50%;object-fit:cover;border:1.5px solid #d7ab90;';
+                    var wrap = document.getElementById('fotoWaWrap');
+                    if (wrap) wrap.insertBefore(preview, wrap.firstChild);
+                }
+                preview.src = j.foto_path + '?t=' + Date.now();
+            } else {
+                if (status) { status.textContent = '⚠ ' + (j && j.erro ? j.erro : 'Falha'); status.style.color = '#dc2626'; }
+            }
+            input.value = '';
+        })
+        .catch(function(err){
+            if (status) { status.textContent = '⚠ Erro de rede: ' + err.message; status.style.color = '#dc2626'; }
+            input.value = '';
+        });
 }
 
 // Busca foto do WhatsApp da colaboradora via Z-API (re-tentativa manual)
