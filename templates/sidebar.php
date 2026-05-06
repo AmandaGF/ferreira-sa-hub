@@ -156,6 +156,27 @@ $menuItems = array(
     array('label' => 'Nvoip (VoIP)',    'icon' => '📞', 'href' => url('modules/admin/nvoip.php'),         'id' => 'nvoip_admin', 'roles' => array('admin')),
     array('label' => 'Health Check',    'icon' => '🩺', 'href' => url('modules/admin/health.php'),  'id' => 'admin',           'roles' => array('admin')),
 );
+
+// Insercao dinamica do item "Boas-Vindas" — aparece para QUALQUER usuario que
+// tenha cadastro ativo de onboarding (vinculado pelo email institucional).
+// Inserido logo apos o item "Treinamento" pra ficar na secao Sistema.
+if (!empty($_onboardingToken)) {
+    $itemOnb = array(
+        'label' => 'Boas-Vindas', 'icon' => '👋',
+        'href' => url('modules/onboarding/'),
+        'id' => 'onboarding_pessoal', 'roles' => $all,
+    );
+    // Acha posicao do "Treinamento" e insere logo depois
+    $insIdx = null;
+    foreach ($menuItems as $i => $it) {
+        if (isset($it['id']) && $it['id'] === 'treinamento') { $insIdx = $i + 1; break; }
+    }
+    if ($insIdx !== null) {
+        array_splice($menuItems, $insIdx, 0, array($itemOnb));
+    } else {
+        $menuItems[] = $itemOnb;
+    }
+}
 ?>
 
 <style>
