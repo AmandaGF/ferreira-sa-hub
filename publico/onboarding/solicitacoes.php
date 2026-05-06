@@ -189,10 +189,14 @@ h1,h2,h3 { font-family:'Playfair Display',serif; color:var(--petrol-900); }
         <input type="hidden" name="acao_criar" value="1">
 
         <label style="font-size:.78rem;font-weight:700;color:var(--petrol-900);display:block;margin-bottom:.4rem;">Tipo *</label>
+        <?php
+        $preTipo = isset($_GET['pre_tipo']) ? trim($_GET['pre_tipo']) : '';
+        if (!isset($tiposSolicitacao[$preTipo])) $preTipo = 'folga';
+        ?>
         <div class="tipo-grid">
             <?php foreach ($tiposSolicitacao as $k => $info): ?>
-            <label class="<?= $k === 'folga' ? 'sel' : '' ?>">
-                <input type="radio" name="tipo" value="<?= htmlspecialchars($k) ?>" <?= $k === 'folga' ? 'checked' : '' ?> onclick="document.querySelectorAll('.tipo-grid label').forEach(function(l){l.classList.remove('sel');});this.parentNode.classList.add('sel');">
+            <label class="<?= $k === $preTipo ? 'sel' : '' ?>">
+                <input type="radio" name="tipo" value="<?= htmlspecialchars($k) ?>" <?= $k === $preTipo ? 'checked' : '' ?> onclick="document.querySelectorAll('.tipo-grid label').forEach(function(l){l.classList.remove('sel');});this.parentNode.classList.add('sel');">
                 <span><?= htmlspecialchars($info['label']) ?></span>
             </label>
             <?php endforeach; ?>

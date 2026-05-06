@@ -670,10 +670,10 @@ html { scroll-behavior: smooth; }
                     <div style="font-weight:700;font-size:.92rem;">Daily Planner</div>
                     <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Foco, tarefas, reflexão</div>
                 </a>
-                <a href="reunioes.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;opacity:.6;">
+                <a href="calendario.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;">
                     <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📅</div>
-                    <div style="font-weight:700;font-size:.92rem;">Reuniões</div>
-                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Em breve…</div>
+                    <div style="font-weight:700;font-size:.92rem;">Calendário</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Reuniões e eventos</div>
                 </a>
             </div>
         </div>
