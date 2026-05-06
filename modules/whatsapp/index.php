@@ -1161,6 +1161,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
             return;
         }
         if (e.key === 'Enter' && !e.shiftKey) {
+            // Em mobile (teclado virtual sem Shift), Enter sempre pula linha.
+            // Pra enviar, usa o botão ➤ Enviar.
+            // matchMedia('(pointer: coarse)') = true em touch (celular/tablet).
+            if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) return;
             e.preventDefault();
             waEnviar();
         }
