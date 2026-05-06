@@ -636,15 +636,22 @@ function buscarClienteLembrete(q) {
     var box = document.getElementById('lembreteClienteResultados');
     document.getElementById('lembreteClienteId').value = ''; // limpa ao digitar
     if (q.length < 2) { box.style.display = 'none'; return; }
+    box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#9ca3af;">⏳ Buscando...</div>';
+    box.style.display = 'block';
     _lemSearchTimer = setTimeout(function(){
         fetch(LEMBRETE_API + '?action=buscar_clientes_lembrete&q=' + encodeURIComponent(q))
         .then(function(r){ return r.json(); })
         .then(function(arr){
-            if (!arr.length) { box.style.display = 'none'; return; }
+            if (!Array.isArray(arr) || !arr.length) {
+                box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#9ca3af;">Nenhum cliente com esse nome.</div>';
+                return;
+            }
             box.innerHTML = arr.map(function(c){
                 return '<div onclick="selecionarClienteLembrete(' + c.id + ',' + JSON.stringify(c.name) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + c.name + (c.cpf ? ' <span style="color:#94a3b8;font-size:.7rem;">' + c.cpf + '</span>' : '') + '</div>';
             }).join('');
-            box.style.display = 'block';
+        })
+        .catch(function(err){
+            box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#dc2626;">Erro ao buscar: ' + err.message + '</div>';
         });
     }, 250);
 }
@@ -658,16 +665,23 @@ function buscarCasoLembrete(q) {
     var box = document.getElementById('lembreteCasoResultados');
     document.getElementById('lembreteCasoId').value = '';
     if (q.length < 2) { box.style.display = 'none'; return; }
+    box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#9ca3af;">⏳ Buscando...</div>';
+    box.style.display = 'block';
     _lemSearchTimer = setTimeout(function(){
         fetch(LEMBRETE_API + '?action=buscar_casos_lembrete&q=' + encodeURIComponent(q))
         .then(function(r){ return r.json(); })
         .then(function(arr){
-            if (!arr.length) { box.style.display = 'none'; return; }
+            if (!Array.isArray(arr) || !arr.length) {
+                box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#9ca3af;">Nenhum processo encontrado.</div>';
+                return;
+            }
             box.innerHTML = arr.map(function(c){
                 var label = (c.title || '') + (c.case_number ? ' — ' + c.case_number : '') + (c.client_name ? ' (' + c.client_name + ')' : '');
                 return '<div onclick="selecionarCasoLembrete(' + c.id + ',' + JSON.stringify(label) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + label + '</div>';
             }).join('');
-            box.style.display = 'block';
+        })
+        .catch(function(err){
+            box.innerHTML = '<div style="padding:.5rem .7rem;font-size:.78rem;color:#dc2626;">Erro ao buscar: ' + err.message + '</div>';
         });
     }, 250);
 }

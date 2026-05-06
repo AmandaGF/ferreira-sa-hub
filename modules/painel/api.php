@@ -1,11 +1,22 @@
 <?php
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!validate_csrf()) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Token inválido')); exit; }
 
 $pdo = db();
 $userId = current_user_id();
-$action = $_POST['action'] ?? '';
+
+// Action pode vir por POST (mutações) ou GET (autocompletes/buscas read-only)
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+
+// Actions de leitura pura — não precisam de CSRF (sem efeito colateral)
+$readOnlyActions = array('buscar_clientes_lembrete', 'buscar_casos_lembrete');
+if (!in_array($action, $readOnlyActions, true)) {
+    if (!validate_csrf()) {
+        header('Content-Type: application/json');
+        echo json_encode(array('error' => 'Token inválido'));
+        exit;
+    }
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
