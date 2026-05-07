@@ -846,19 +846,32 @@ if ($action === 'status') {
         exit;
     }
 
+    // Permissão: gestao+ sempre passa. Caso contrário, permitido se for o
+    // responsável OU quem criou o evento OU se o evento é interno do escritório
+    // (qualquer colaboradora pode dar baixa em onboarding/treinamento/reunião
+    // interna — é tarefa compartilhada da equipe). Eventos com cliente
+    // (audiência, reunião com cliente) ainda exigem responsavel/criador.
     $canEdit = has_min_role('gestao');
     if (!$canEdit) {
-        $stmt = $pdo->prepare("SELECT responsavel_id FROM agenda_eventos WHERE id = ?");
+        $stmt = $pdo->prepare("SELECT responsavel_id, created_by, tipo, client_id FROM agenda_eventos WHERE id = ?");
         $stmt->execute(array($id));
         $ev = $stmt->fetch();
-        if (!$ev || (int)$ev['responsavel_id'] !== current_user_id()) {
-            echo json_encode(array('error' => 'Sem permissão'));
+        if (!$ev) { echo json_encode(array('error' => 'Evento não encontrado')); exit; }
+
+        $uid = current_user_id();
+        $isResp     = (int)$ev['responsavel_id'] === $uid;
+        $isAuthor   = (int)($ev['created_by'] ?? 0) === $uid;
+        $tiposInternos = array('onboarding','treinamento','reuniao_interna','prazo','outro');
+        $isInterno  = in_array($ev['tipo'], $tiposInternos, true) && empty($ev['client_id']);
+
+        if (!$isResp && !$isAuthor && !$isInterno) {
+            echo json_encode(array('error' => 'Sem permissão (você não é responsável nem criou esse evento)'));
             exit;
         }
     }
 
     $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
-    audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status);
+    audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status . ' (uid=' . current_user_id() . ')');
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }

@@ -1710,13 +1710,23 @@ function marcarRealizado(id, btn, tipo, caseId, clientId) {
     xhr.open('POST', API);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.onload = function() {
-        try { var r = JSON.parse(xhr.responseText); if (r.csrf) CSRF = r.csrf; } catch(e) {}
+        // Sess\u00e3o expirada: middleware retorna 401 com header XHR
+        if (xhr.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+        var r = null;
+        try { r = JSON.parse(xhr.responseText); } catch(e) {}
+        if (!r || (!r.ok && r.error)) {
+            // Save falhou \u2014 N\u00c3O atualiza visual otimisticamente, mostra erro real
+            alert('\u26a0 N\u00e3o foi poss\u00edvel marcar como realizado: ' + ((r && r.error) || ('Erro HTTP ' + xhr.status)));
+            return;
+        }
+        if (r.csrf) CSRF = r.csrf;
         btn.textContent = 'Conclu\u00eddo';
         btn.style.background = '#888';
         btn.style.borderColor = '#888';
         btn.disabled = true;
         setTimeout(recarregarEventos, 500);
     };
+    xhr.onerror = function() { alert('Falha de rede ao marcar realizado. Tente novamente.'); };
     xhr.send(fd);
 }
 
