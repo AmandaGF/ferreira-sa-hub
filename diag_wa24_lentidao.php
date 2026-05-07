@@ -68,12 +68,12 @@ if ($resp) {
 }
 echo "\n";
 
-// 2. Últimas 20 mensagens enviadas — analisa timestamps de envio vs ACK
-echo "--- 2. Latência das últimas mensagens enviadas (canal 24) ---\n";
+// 2. Últimas 20 mensagens enviadas — analisa entregues / lidas / status
+echo "--- 2. Estado das últimas mensagens enviadas no canal 24 ---\n";
 try {
     $st = $pdo->prepare(
-        "SELECT m.id, m.zapi_message_id, m.created_at, m.recebido_em, m.lido_em, m.status,
-                LENGTH(m.conteudo) AS tam_msg
+        "SELECT m.id, m.zapi_message_id, m.created_at, m.entregue, m.lida, m.status,
+                m.momment_ms, LENGTH(m.conteudo) AS tam_msg, c.telefone
          FROM zapi_mensagens m
          JOIN zapi_conversas c ON c.id = m.conversa_id
          WHERE c.canal = '24'
@@ -86,41 +86,42 @@ try {
     if (empty($msgs)) {
         echo "Nenhuma mensagem enviada nas últimas 6h.\n";
     } else {
-        echo sprintf("%-5s %-8s %-19s %-19s %-19s %-8s\n", 'id', 'tam', 'enviou', 'recebeu_ack', 'lido', 'status');
-        $maxLatencia = 0;
-        $somaLatencia = 0;
-        $comAck = 0;
+        echo sprintf("%-5s %-19s %-15s %-7s %-5s %-12s %s\n",
+            'id', 'enviou', 'telefone', 'entreg', 'lida', 'status', 'idade');
+        $semEntrega = 0;
+        $maxIdadeSemEntrega = 0;
         foreach ($msgs as $m) {
-            $envio = $m['created_at'];
-            $ack = $m['recebido_em'];
-            $latStr = '—';
-            if ($envio && $ack) {
-                $diff = strtotime($ack) - strtotime($envio);
-                $latStr = $diff . 's';
-                $somaLatencia += $diff;
-                $comAck++;
-                if ($diff > $maxLatencia) $maxLatencia = $diff;
+            $idade = time() - strtotime($m['created_at']);
+            $idadeStr = $idade < 60 ? $idade . 's' : ($idade < 3600 ? round($idade/60) . 'min' : round($idade/3600,1) . 'h');
+            $entregue = (int)$m['entregue'];
+            $lida = (int)$m['lida'];
+            if (!$entregue) {
+                $semEntrega++;
+                if ($idade > $maxIdadeSemEntrega) $maxIdadeSemEntrega = $idade;
             }
-            echo sprintf("%-5d %-8d %-19s %-19s %-19s %-8s · %s\n",
-                $m['id'], $m['tam_msg'],
-                substr($envio, 11, 8),
-                $ack ? substr($ack, 11, 8) : 'sem ack',
-                $m['lido_em'] ? substr($m['lido_em'], 11, 8) : '—',
-                $m['status'],
-                $latStr
+            echo sprintf("%-5d %-19s %-15s %-7s %-5s %-12s %s\n",
+                $m['id'], $m['created_at'],
+                substr($m['telefone'], 0, 15),
+                $entregue ? '✓' : '✗',
+                $lida ? '✓' : '—',
+                $m['status'] ?: '—',
+                $idadeStr
             );
         }
         echo "\n";
-        if ($comAck > 0) {
-            $media = round($somaLatencia / $comAck, 1);
-            echo "Média de latência (envio → ACK):  " . $media . "s · com $comAck/" . count($msgs) . " mensagens com ACK\n";
-            echo "Pior latência:                     " . $maxLatencia . "s\n";
-            $semAck = count($msgs) - $comAck;
-            if ($semAck > 0) echo "ATENÇÃO: $semAck mensagem(ns) sem ACK ainda — sintoma de webhook falhando ou Z-API atrasando\n";
-            if ($maxLatencia > 60) echo "⚠ Latência > 60s detectada — Z-API ou WhatsApp atrasando entrega\n";
+        echo "Total de mensagens nas últimas 6h:    " . count($msgs) . "\n";
+        echo "Sem confirmação de entrega:           " . $semEntrega . "\n";
+        if ($semEntrega > 0) {
+            $idadeStr = $maxIdadeSemEntrega < 60 ? $maxIdadeSemEntrega . 's' : ($maxIdadeSemEntrega < 3600 ? round($maxIdadeSemEntrega/60) . 'min' : round($maxIdadeSemEntrega/3600,1) . 'h');
+            echo "Mais antiga sem entrega:              $idadeStr atrás\n";
+            if ($maxIdadeSemEntrega > 300) {
+                echo "\n⚠⚠⚠ DETECTADO: mensagem com mais de 5 min sem ACK de entrega ⚠⚠⚠\n";
+                echo "Isso confirma o problema reportado pela usuária.\n";
+                echo "Causa provável: sessão WhatsApp da instância está zumbi (Z-API mostra\n";
+                echo "conectada mas o WhatsApp está congestionado ou com sessão velha).\n";
+            }
         } else {
-            echo "ATENÇÃO: Nenhuma das mensagens recentes recebeu ACK do webhook.\n";
-            echo "Provável causa: webhook desconfigurado OU Z-API com problema.\n";
+            echo "✓ Todas as mensagens recentes foram entregues.\n";
         }
     }
 } catch (Exception $e) {
