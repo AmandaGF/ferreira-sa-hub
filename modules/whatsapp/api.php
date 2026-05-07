@@ -97,11 +97,18 @@ if (in_array($action, $mutantes, true)) {
 
 // ── LISTAR CONVERSAS ─────────────────────────────────────
 if ($action === 'listar_conversas') {
-    // Expira delegações cuja trava liberou (8h úteis / 36h) — lazy cleanup
-    zapi_expirar_delegacoes_estale();
-    // Atualiza etiqueta "🔓 AT DESBLOQUEADO" — marca/desmarca conversas onde
-    // a trava liberou (cliente esperando >8h úteis, ou equipe >36h).
-    zapi_atualizar_at_desbloqueado();
+    // OTIMIZAÇÃO (2026-05-07): tarefas de manutenção (expirar delegações + atualizar
+    // etiqueta AT DESBLOQUEADO) varriam todas as conversas em_atendimento a CADA poll
+    // de 5s, deixando o módulo lento. Agora throttled pra 1× por minuto global via
+    // flag-file (compartilhado entre usuários) — granularidade suficiente, já que
+    // a regra é em horas (8h úteis / 36h).
+    $manutFlag = APP_ROOT . '/files/wa_manutencao_polled_at.flag';
+    $deveManter = !file_exists($manutFlag) || ((time() - filemtime($manutFlag)) > 60);
+    if ($deveManter) {
+        @touch($manutFlag);
+        zapi_expirar_delegacoes_estale();
+        zapi_atualizar_at_desbloqueado();
+    }
 
     $canal   = $_GET['canal']   ?? '21';
     $status  = $_GET['status']  ?? '';
@@ -153,11 +160,17 @@ if ($action === 'listar_conversas') {
 
     // ultima_mensagem e ultima_msg_em vêm de subquery (sempre reflete o estado real,
     // ignorando mensagens deletadas — evita depender do campo salvo ficar em sync)
-    // Self-heal: coluna fixada (pra fixar conversa no topo da lista)
-    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
-    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN chat_lid VARCHAR(50) NULL"); } catch (Exception $e) {}
+    // OTIMIZAÇÃO: self-heal das colunas só roda 1× por processo PHP (variável
+    // estática). Antes rodava a cada listar_conversas (ALTER TABLE de coluna
+    // existente é cheap mas ainda paga round-trip MySQL × 4).
+    static $_listarSelfHealFeito = false;
+    if (!$_listarSelfHealFeito) {
+        try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN chat_lid VARCHAR(50) NULL"); } catch (Exception $e) {}
+        $_listarSelfHealFeito = true;
+    }
 
     $sql = "SELECT co.id, co.telefone, co.nome_contato, co.status, co.nao_lidas,
                    co.bot_ativo, co.canal,

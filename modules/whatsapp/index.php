@@ -2935,7 +2935,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         } catch(e) {}
     }, 600);
     <?php endif; ?>
+    // OTIMIZAÇÃO (2026-05-07): polling subiu de 5s pra 8s. Em uso ativo a usuária
+    // raramente percebe — webhook ainda gera notificação push instantânea. Reduz
+    // carga no servidor em ~37% e melhora responsividade da própria página.
     pollTimer = setInterval(function(){
+        // Só recarrega lista/conversa quando a aba está visível — em background fica
+        // parado (economia gigante quando o navegador tem 5+ abas abertas).
+        if (document.hidden) return;
         carregarLista();
         if (convAtiva) {
             // Se tem áudio/vídeo tocando, não atualiza (pra não reiniciar a reprodução)
@@ -2954,7 +2960,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
             });
         }
-    }, 5000);
+    }, 8000);
+    // Quando a aba volta ao foco, recarrega imediatamente (não espera os 8s)
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && convAtiva) carregarLista();
+    });
 
     // Ao abrir manualmente uma conversa, reseta o hash pra forçar render
     var _origAbrir = window.waAbrir;
