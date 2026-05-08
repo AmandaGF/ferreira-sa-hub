@@ -374,7 +374,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <div style="font-size:.6rem;color:var(--rose-dark);font-weight:600;margin-top:.15rem;">👤 <?= e(explode(' ', $lead['assigned_name'])[0]) ?></div>
                     <?php endif; ?>
                     <?php if (!empty($lead['drive_folder_url'])): ?>
-                        <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank" onclick="event.stopPropagation();" style="font-size:.6rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.15rem;">📂 Pasta Drive</a>
+                        <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank"
+                           onclick="if(window._dragging){event.preventDefault();return false;}event.stopPropagation();"
+                           style="font-size:.6rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.15rem;">📂 Pasta Drive</a>
                     <?php endif; ?>
                     <?php if ($stageKey === 'doc_faltante' && $lead['doc_faltante_motivo']): ?>
                         <div class="lead-doc-alert">⚠️ <?= e($lead['doc_faltante_motivo']) ?></div>
@@ -1128,7 +1130,9 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
         });
         card.addEventListener('dragend', function() {
             this.classList.remove('dragging');
-            setTimeout(function() { window._dragging = false; }, 100);
+            // 350ms cobre o click fantasma que alguns browsers disparam após drop
+            // (antes era 100ms, mas a Pasta Drive abria mesmo assim em alguns cliques)
+            setTimeout(function() { window._dragging = false; }, 350);
             document.querySelectorAll('.kanban-body').forEach(function(b) { b.classList.remove('drag-over'); });
         });
     });
