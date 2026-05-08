@@ -2835,7 +2835,7 @@ foreach ($tarefasReais as $_t) {
                     else $classeVence = 'ok';
                 }
             ?>
-            <div class="andamento-item pub-item" data-tipo="publicacao" data-sort-date="<?= e(date('Y-m-d', strtotime($pub['data_disponibilizacao']))) ?> 08:00:00" style="position:relative;margin-bottom:16px;padding-left:20px;">
+            <div class="andamento-item pub-item" id="pub-<?= (int)$pub['id'] ?>" data-tipo="publicacao" data-sort-date="<?= e(date('Y-m-d', strtotime($pub['data_disponibilizacao']))) ?> 08:00:00" style="position:relative;margin-bottom:16px;padding-left:20px;scroll-margin-top:80px;">
                 <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:#dc2626;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;color:#fff;">P</div>
                 <div style="background:#fff8f8;border:1px solid #fca5a5;border-radius:10px;padding:12px 16px;border-left:3px solid #dc2626;">
                     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
@@ -2871,6 +2871,8 @@ foreach ($tarefasReais as $_t) {
                                 <input type="hidden" name="action" value="confirmar_prazo_publicacao">
                                 <input type="hidden" name="pub_id" value="<?= $pub['id'] ?>">
                                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                                <!-- Volta pra essa mesma publicação após cumprir/descartar (sem scroll pro topo) -->
+                                <input type="hidden" name="_back" value="<?= e(module_url('operacional', 'caso_ver.php?id=' . $caseId)) ?>#pub-<?= (int)$pub['id'] ?>">
                                 <input type="hidden" name="novo_status" value="confirmado" id="status<?= $pub['id'] ?>">
                                 <input type="date" name="nova_data_prazo" id="data<?= $pub['id'] ?>" value="<?= e($pub['data_prazo_fim'] ?? '') ?>" style="display:none;font-size:.7rem;padding:1px 4px;border:1px solid #cbd5e1;border-radius:3px;">
                                 <button type="button" onclick="var i=document.getElementById('data<?= $pub['id'] ?>');var b=this;if(i.style.display==='none'){i.style.display='';b.textContent='Cancelar ajuste';}else{i.style.display='none';i.value='<?= e($pub['data_prazo_fim'] ?? '') ?>';b.textContent='✏️ Ajustar data';}" style="font-size:.65rem;background:#fff;color:#475569;border:1px solid #cbd5e1;border-radius:4px;padding:2px 7px;cursor:pointer;" title="Editar data do prazo manualmente">✏️ Ajustar data</button>
