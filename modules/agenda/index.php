@@ -7,7 +7,7 @@ require_login();
 
 $pdo = db();
 $pageTitle = 'Agenda';
-$users = $pdo->query("SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
+$users = $pdo->query("SELECT id, name, email, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 $cxUserIds = array();
 foreach ($users as $u) { if ($u['role'] === 'cx') $cxUserIds[] = (int)$u['id']; }
 
@@ -2215,10 +2215,12 @@ function excluirEventoModal() {
 
 function enviarConvite(id) {
     var usersHtml = '';
-    <?php foreach ($users as $u): ?>
-    usersHtml += '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;cursor:pointer;">'
-        + '<input type="checkbox" value="<?= e($u['email']) ?>" class="convite-cb"> '
-        + '<?= e($u['name']) ?> <span style="color:#94a3b8;font-size:11px;">(<?= e($u['email']) ?>)</span></label>';
+    <?php foreach ($users as $u):
+        $temEmail = !empty($u['email']);
+    ?>
+    usersHtml += '<label style="display:flex;align-items:center;gap:6px;padding:4px 0;font-size:13px;cursor:<?= $temEmail ? 'pointer' : 'not-allowed' ?>;<?= $temEmail ? '' : 'opacity:.55;' ?>" <?= $temEmail ? '' : 'title="Este usuário não tem e-mail cadastrado em users.email"' ?>>'
+        + '<input type="checkbox" value="<?= e($u['email'] ?? '') ?>" class="convite-cb"<?= $temEmail ? '' : ' disabled' ?>> '
+        + '<?= e($u['name']) ?> <span style="color:<?= $temEmail ? '#94a3b8' : '#dc2626' ?>;font-size:11px;"><?= $temEmail ? '(' . e($u['email']) . ')' : '(sem e-mail)' ?></span></label>';
     <?php endforeach; ?>
 
     var div = document.createElement('div');
@@ -2239,12 +2241,15 @@ function enviarConvite(id) {
 function confirmarConvite(evId, btn) {
     var checks = document.querySelectorAll('.convite-cb:checked');
     var emails = [];
-    checks.forEach(function(cb) { emails.push(cb.value); });
+    checks.forEach(function(cb) {
+        var v = (cb.value || '').trim();
+        if (v) emails.push(v); // ignora value vazio (defensivo — usuário sem e-mail cadastrado)
+    });
     var extra = document.getElementById('conviteExtra').value;
     if (extra) {
         extra.split(',').forEach(function(em) { em = em.trim(); if (em) emails.push(em); });
     }
-    if (!emails.length) { alert('Selecione pelo menos um participante.'); return; }
+    if (!emails.length) { alert('Selecione pelo menos um participante COM e-mail cadastrado, ou digite e-mails no campo abaixo.'); return; }
 
     btn.textContent = 'Enviando...';
     btn.disabled = true;
