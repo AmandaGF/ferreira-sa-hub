@@ -1096,6 +1096,23 @@ function abrirModalEditar(id) {
             if (ev.client_id) {
                 atHtml += '<a href="<?= module_url("clientes", "ver.php?id=") ?>' + ev.client_id + '" style="font-size:.75rem;padding:4px 10px;background:#B87333;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">Ver Cliente</a>';
             }
+            // Botões de status (só se ainda agendado — não-realizado/cancelado)
+            if (ev.status === 'agendado' || !ev.status) {
+                var _evId = ev.id;
+                var _tip  = ev.tipo || '';
+                var _cid  = ev.case_id || 0;
+                var _cliid= ev.client_id || 0;
+                var _lbl = _tip === 'audiencia' ? 'Audiência realizada'
+                         : _tip === 'mediacao_cejusc' ? 'Mediação realizada'
+                         : _tip === 'reuniao_cliente' ? 'Reunião realizada'
+                         : 'Marcar como realizado';
+                atHtml += '<button type="button" onclick="marcarRealizadoModal(' + _evId + ',' + JSON.stringify(_tip) + ',' + _cid + ',' + _cliid + ')" style="font-size:.75rem;padding:4px 10px;background:#059669;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">✓ ' + _lbl + '</button>';
+                var _lblR = _tip === 'audiencia' ? 'Remarcar audiência'
+                          : _tip === 'mediacao_cejusc' ? 'Remarcar mediação'
+                          : _tip === 'reuniao_cliente' ? 'Remarcar reunião'
+                          : 'Remarcar';
+                atHtml += '<button type="button" onclick="remarcarEventoModal(' + _evId + ')" style="font-size:.75rem;padding:4px 10px;background:#3b82f6;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">📅 ' + _lblR + '</button>';
+            }
             // Lembretes WhatsApp
             var cPhone = ev.client_phone || '';
             var cName = ev.client_name || '';
@@ -1694,6 +1711,74 @@ function salvarEvento() {
         } catch(ex) { alert('Erro ao salvar: ' + (xhr.responseText || '').substring(0, 200)); }
     };
     xhr.send(fd);
+}
+
+// Marca evento como realizado a partir do modal de edição (sem precisar
+// fechar o modal primeiro). Reusa a lógica de marcarRealizado.
+function marcarRealizadoModal(id, tipo, caseId, clientId) {
+    if (tipo === 'balcao_virtual') {
+        // Balcão exige upload — fecha modal e abre o modal específico
+        fecharModal();
+        abrirModalBalcaoProva(id, null, caseId || 0, clientId || 0);
+        return;
+    }
+    if (!confirm('Marcar este compromisso como realizado?')) return;
+    var fd = new FormData();
+    fd.append('action', 'status');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    fd.append('status', 'realizado');
+    fetch(API, { method:'POST', body: fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json().catch(function(){ return {}; }); })
+        .then(function(j){
+            if (j && j.csrf) CSRF = j.csrf;
+            if (!j || (!j.ok && j.error)) {
+                alert('⚠ ' + (j && j.error ? j.error : 'Erro ao marcar realizado'));
+                return;
+            }
+            fecharModal();
+            recarregarEventos();
+        })
+        .catch(function(err){ alert('Falha de rede: ' + err.message); });
+}
+
+// Remarcar: pede nova data + horário, atualiza via api.
+function remarcarEventoModal(id) {
+    // Pré-preenche com a data/hora atual do form
+    var dtIni = document.getElementById('agDtInicio').value || '';
+    var dataAtual = dtIni.substring(0, 10);
+    var horaAtual = dtIni.substring(11, 16);
+    var novaData = prompt('Nova data (AAAA-MM-DD):', dataAtual);
+    if (!novaData) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(novaData)) {
+        alert('Data inválida. Use o formato AAAA-MM-DD (ex: 2026-05-15)');
+        return;
+    }
+    var novaHora = prompt('Novo horário (HH:MM):', horaAtual || '14:00');
+    if (!novaHora) return;
+    if (!/^\d{2}:\d{2}$/.test(novaHora)) {
+        alert('Horário inválido. Use HH:MM (ex: 14:30)');
+        return;
+    }
+    var fd = new FormData();
+    fd.append('action', 'remarcar');
+    fd.append('csrf_token', CSRF);
+    fd.append('id', id);
+    fd.append('nova_data', novaData);
+    fd.append('nova_hora', novaHora);
+    fetch(API, { method:'POST', body: fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json().catch(function(){ return {}; }); })
+        .then(function(j){
+            if (j && j.csrf) CSRF = j.csrf;
+            if (!j || (!j.ok && j.error)) {
+                alert('⚠ ' + (j && j.error ? j.error : 'Erro ao remarcar'));
+                return;
+            }
+            alert('✓ Compromisso remarcado para ' + novaData.split('-').reverse().join('/') + ' às ' + novaHora);
+            fecharModal();
+            recarregarEventos();
+        })
+        .catch(function(err){ alert('Falha de rede: ' + err.message); });
 }
 
 // ── AÇÕES ───────────────────────────────────────────────────
