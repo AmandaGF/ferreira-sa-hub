@@ -917,8 +917,10 @@ function mudarVis(vis, btn) {
         btns[idx].classList.add('ativo');
     }
     // Botão chama-se "Hoje" — sempre resetar a referência pra hoje ao entrar
-    // na vis 'lista', senão fica preso num dia anterior se o usuário navegou.
-    if (vis === 'lista') {
+    // na vis 'lista', SE o usuário CLICOU NO BOTÃO da toolbar (btn != null).
+    // Quando o callback vem de um click num dia do calendário (ou navegação),
+    // a função é chamada SEM btn pra preservar diaLista que acabou de ser setado.
+    if (vis === 'lista' && btn) {
         diaLista = new Date(hoje);
     }
     recarregarEventos();
