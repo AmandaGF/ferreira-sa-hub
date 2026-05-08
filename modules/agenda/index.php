@@ -384,6 +384,7 @@ if ($voltarCaso > 0): ?>
                     <input type="text" class="ag-fi" id="agMeetLink" placeholder="Gerado automaticamente ou cole aqui" style="margin-top:5px;font-size:12px;">
                 </div>
                 <button type="button" class="ag-btn-meet" id="btnGerarMeet" onclick="gerarMeet()">Gerar Meet</button>
+                <button type="button" id="btnCopiarMeetModal" onclick="copiarLinkMeet(document.getElementById('agMeetLink').value, this)" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;" title="Copiar link da reunião pra colar no WhatsApp/email">📋 Copiar link</button>
             </div>
         </div>
 
