@@ -769,7 +769,10 @@ function renderLista() {
         var isAtrasada = ev.atrasada || false;
         if (isAtrasada) cor = '#dc2626';
         var _isBalcao = (ev.tipo === 'balcao_virtual');
-        var meetHtml = ev.meet_link ? '<button class="ag-btn-acao meet" onclick="window.open(\'' + ev.meet_link + '\',\'_blank\')">Entrar no Meet</button>' : '';
+        var meetHtml = ev.meet_link
+            ? '<button class="ag-btn-acao meet" onclick="window.open(' + JSON.stringify(ev.meet_link) + ',\'_blank\')">Entrar no Meet</button>'
+              + '<button class="ag-btn-acao" onclick="copiarLinkMeet(' + JSON.stringify(ev.meet_link) + ',this)" title="Copia o link da reunião pra colar no WhatsApp">📋 Copiar link</button>'
+            : '';
         var msgHtml = (ev.client_id && !_isBalcao) ? '<button class="ag-btn-acao" onclick="enviarMsgCliente(' + ev.id + ')">Mensagem cliente</button>' : '';
 
         var acoesHtml = '';
@@ -1711,6 +1714,41 @@ function salvarEvento() {
         } catch(ex) { alert('Erro ao salvar: ' + (xhr.responseText || '').substring(0, 200)); }
     };
     xhr.send(fd);
+}
+
+// Copia o link da reunião pra área de transferência (com feedback visual)
+function copiarLinkMeet(url, btn) {
+    if (!url) { alert('Sem link de reunião pra copiar.'); return; }
+    var textoOriginal = btn ? btn.textContent : '';
+    function _ok() {
+        if (!btn) return;
+        btn.textContent = '✓ Copiado!';
+        btn.style.background = '#059669';
+        btn.style.color = '#fff';
+        btn.style.borderColor = '#059669';
+        setTimeout(function(){
+            btn.textContent = textoOriginal;
+            btn.style.background = '';
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }, 1800);
+    }
+    function _fail() {
+        prompt('Copie o link manualmente:', url);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(_ok, _fail);
+    } else {
+        // Fallback (navegador antigo / sem permissão de clipboard)
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = url; ta.style.position='fixed'; ta.style.opacity='0';
+            document.body.appendChild(ta); ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            _ok();
+        } catch(e) { _fail(); }
+    }
 }
 
 // Marca evento como realizado a partir do modal de edição (sem precisar
