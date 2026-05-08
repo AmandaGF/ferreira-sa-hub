@@ -1613,8 +1613,9 @@ switch ($action) {
                 flash_set('error', 'Erro ao fechar prazo: ' . $e->getMessage());
             }
         }
-        // Redireciona de volta: se _back foi passado e é do próprio domínio, usa; senão pasta do caso
-        if ($back && strpos($back, 'ferreiraesa.com.br') !== false) {
+        // Redireciona de volta: aceita _back se for URL local (relativa /...) OU
+        // do próprio domínio. Caso contrário, fallback pra pasta do caso.
+        if ($back && (strpos($back, 'ferreiraesa.com.br') !== false || (isset($back[0]) && $back[0] === '/'))) {
             header('Location: ' . $back);
             exit;
         }

@@ -168,6 +168,23 @@ try {
     $contadores['orfa'] = (int)$pdo->query("SELECT COUNT(*) FROM djen_pending WHERE status = 'pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
+// Contadores avançados pro painel
+$painelStats = array('vencendo_hoje'=>0, 'vencendo_amanha'=>0, 'vencidas'=>0);
+try {
+    $painelStats['vencendo_hoje'] = (int)$pdo->query(
+        "SELECT COUNT(*) FROM case_publicacoes
+         WHERE status_prazo = 'pendente' AND data_prazo_fim = CURDATE()"
+    )->fetchColumn();
+    $painelStats['vencendo_amanha'] = (int)$pdo->query(
+        "SELECT COUNT(*) FROM case_publicacoes
+         WHERE status_prazo = 'pendente' AND data_prazo_fim = DATE_ADD(CURDATE(), INTERVAL 1 DAY)"
+    )->fetchColumn();
+    $painelStats['vencidas'] = (int)$pdo->query(
+        "SELECT COUNT(*) FROM case_publicacoes
+         WHERE status_prazo = 'pendente' AND data_prazo_fim IS NOT NULL AND data_prazo_fim < CURDATE()"
+    )->fetchColumn();
+} catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 <style>
@@ -233,6 +250,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .ci-aba.ativa.todos { color:#052228; border-bottom-color:#052228; background:#f8fafc; }
 .ci-aba-qt { background:rgba(0,0,0,.08); color:inherit; padding:2px 9px; border-radius:10px; font-size:.72rem; font-weight:700; }
 .ci-aba.ativa .ci-aba-qt { background:rgba(0,0,0,.15); }
+
+/* Painel de pendências (cards destacados no topo) */
+.ci-painel { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:.7rem; margin-bottom:1rem; }
+.ci-painel-card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.25rem; padding:1.1rem .9rem; border-radius:12px; text-decoration:none; transition:transform .15s, box-shadow .15s; box-shadow:0 2px 6px rgba(0,0,0,.05); border:1.5px solid transparent; }
+.ci-painel-card:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.1); }
+.ci-painel-card .ci-painel-num { font-size:2.2rem; font-weight:900; line-height:1; }
+.ci-painel-card .ci-painel-lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; text-align:center; }
+.ci-painel-card.destaque { background:linear-gradient(135deg,#fffbeb,#fef3c7); border-color:#fbbf24; color:#92400e; }
+.ci-painel-card.alerta { background:linear-gradient(135deg,#fef2f2,#fee2e2); border-color:#dc2626; color:#991b1b; animation:ciPulse 2s ease-in-out infinite; }
+.ci-painel-card.hoje { background:linear-gradient(135deg,#fff7ed,#ffedd5); border-color:#fb923c; color:#9a3412; }
+.ci-painel-card.amanha { background:linear-gradient(135deg,#fff,#fef3c7); border-color:#facc15; color:#854d0e; }
+.ci-painel-card.orfa { background:linear-gradient(135deg,#eef2ff,#e0e7ff); border-color:#6366f1; color:#3730a3; }
+@keyframes ciPulse { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 8px rgba(220,38,38,0)} }
 </style>
 
 <div class="ci-wrap">
@@ -254,6 +284,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <a href="<?= module_url('admin','claudin_dashboard.php') ?>" class="btn btn-outline btn-sm">🤖 Claudin</a>
             <a href="<?= module_url('admin','djen_importar.php') ?>" class="btn btn-outline btn-sm">📥 Colar DJen</a>
         </div>
+    </div>
+
+    <!-- Painel de pendências (destaque visual) -->
+    <div class="ci-painel">
+        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card destaque">
+            <div class="ci-painel-num"><?= (int)$contadores['pendente'] ?></div>
+            <div class="ci-painel-lbl">Pendentes de cumprimento</div>
+        </a>
+        <?php if ($painelStats['vencidas'] > 0): ?>
+            <a href="?aba=a_tratar&status=pendente" class="ci-painel-card alerta">
+                <div class="ci-painel-num"><?= (int)$painelStats['vencidas'] ?></div>
+                <div class="ci-painel-lbl">⚠ Vencidas (urgente)</div>
+            </a>
+        <?php endif; ?>
+        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card hoje">
+            <div class="ci-painel-num"><?= (int)$painelStats['vencendo_hoje'] ?></div>
+            <div class="ci-painel-lbl">Vencendo hoje</div>
+        </a>
+        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card amanha">
+            <div class="ci-painel-num"><?= (int)$painelStats['vencendo_amanha'] ?></div>
+            <div class="ci-painel-lbl">Vencendo amanhã</div>
+        </a>
+        <a href="?aba=a_tratar&status=orfa" class="ci-painel-card orfa">
+            <div class="ci-painel-num"><?= (int)$contadores['orfa'] ?></div>
+            <div class="ci-painel-lbl">Sem pasta (órfãs)</div>
+        </a>
     </div>
 
     <!-- Abas principais: A Tratar | Resolvidas | Todas -->
