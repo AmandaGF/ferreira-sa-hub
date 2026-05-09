@@ -1990,4 +1990,5 @@ setTimeout(function() {
 </script>
 <?php endif; ?>
 
+<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
