@@ -1085,19 +1085,52 @@ require_once APP_ROOT . '/templates/layout_start.php';
             fd.append('reply_to_message_id', _waReplyTo.zapiMessageId);
         }
 
-        fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
-            btn.disabled = false; btn.textContent = '➤ Enviar';
-            if (d.error) { alert('Erro: ' + d.error); return; }
-            var _inp = document.getElementById('waInput');
-            _inp.value = '';
-            _inp.style.height = '';  // reseta auto-grow
-            waCancelarResposta(); // limpa estado de resposta após enviar
-            window.waAbrir(convAtiva);
-            carregarLista();
-        }).catch(function(e){
-            btn.disabled = false; btn.textContent = '➤ Enviar';
-            alert('Falha: ' + e);
-        });
+        // Guarda o texto pra restaurar caso falhe (Safari/iOS pode dropar fetch)
+        var _txtBackup = txt;
+        var _convQuandoEnviou = convAtiva;
+        fetch(apiUrl, { method: 'POST', body: fd, credentials:'same-origin' })
+            .then(function(r){
+                // Se HTTP não-OK, captura status pra mostrar erro útil em vez de "Load failed"
+                if (!r.ok) {
+                    return r.text().then(function(t){
+                        throw new Error('HTTP ' + r.status + ': ' + (t || 'sem detalhe'));
+                    });
+                }
+                return r.json();
+            })
+            .then(function(d){
+                btn.disabled = false; btn.textContent = '➤ Enviar';
+                if (d.error) {
+                    alert('Erro do servidor: ' + d.error);
+                    // Não limpa o input — usuária pode corrigir e reenviar
+                    return;
+                }
+                var _inp = document.getElementById('waInput');
+                _inp.value = '';
+                _inp.style.height = '';  // reseta auto-grow
+                waCancelarResposta(); // limpa estado de resposta após enviar
+                window.waAbrir(convAtiva);
+                carregarLista();
+            })
+            .catch(function(e){
+                btn.disabled = false; btn.textContent = '➤ Enviar';
+                var msg = (e && e.message) ? e.message : String(e);
+                // "TypeError: Load failed" / "Failed to fetch" / NetworkError = falha ANTES de chegar no servidor
+                // → mensagem NÃO foi enviada → restaura o texto e oferece retry
+                var ehErroDeRede = /load failed|failed to fetch|networkerror|connection|offline|abort/i.test(msg);
+                if (ehErroDeRede) {
+                    // Restaura o texto no input pra usuária reenviar
+                    var _inp = document.getElementById('waInput');
+                    if (_inp && !_inp.value) _inp.value = _txtBackup;
+                    var tentar = confirm('⚠ Falha de rede — a mensagem NÃO foi enviada (' + msg + ').\n\nTexto preservado no campo. Tentar enviar de novo agora?');
+                    if (tentar && convAtiva === _convQuandoEnviou) {
+                        // Re-tenta automaticamente
+                        setTimeout(function(){ window.waEnviar(); }, 200);
+                    }
+                } else {
+                    alert('Erro inesperado: ' + msg + '\n\nA mensagem pode ou não ter sido enviada — verifique o histórico antes de reenviar.');
+                }
+            });
     };
 
     // ── PENDENTE: preview de arquivo antes de enviar ────
