@@ -139,10 +139,19 @@ echo voltar_ao_processo_html();
             <?php if ($preCaseId): ?><input type="hidden" name="case_id" value="<?= $preCaseId ?>"><?php endif; ?>
 
             <!-- 1. Tipo de documento -->
-            <p class="form-label" style="font-size:.88rem;margin-bottom:.75rem;">1. Tipo de documento</p>
-            <div class="doc-grid">
-                <?php foreach ($docTypes as $key => $doc): ?>
-                <label class="doc-card" id="doc-<?= $key ?>" onclick="selectDoc('<?= $key ?>')">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.6rem;">
+                <p class="form-label" style="font-size:.88rem;margin:0;">1. Tipo de documento</p>
+                <div style="position:relative;flex:1;max-width:340px;min-width:200px;">
+                    <span style="position:absolute;left:.7rem;top:50%;transform:translateY(-50%);color:#94a3b8;font-size:.85rem;pointer-events:none;">🔎</span>
+                    <input type="search" id="docSearch" placeholder="Buscar tipo de documento..." autocomplete="off"
+                        style="width:100%;padding:.5rem .75rem .5rem 2rem;font-size:.82rem;border:1.5px solid var(--border);border-radius:var(--radius);background:#fff;">
+                </div>
+            </div>
+            <div class="doc-grid" id="docGrid">
+                <?php foreach ($docTypes as $key => $doc):
+                    $haystack = mb_strtolower($doc['label'] . ' ' . $doc['desc'], 'UTF-8');
+                ?>
+                <label class="doc-card" id="doc-<?= $key ?>" data-search="<?= htmlspecialchars($haystack, ENT_QUOTES, 'UTF-8') ?>" onclick="selectDoc('<?= $key ?>')">
                     <input type="radio" name="tipo" value="<?= $key ?>" required style="display:none;">
                     <div class="doc-icon"><?= $doc['icon'] ?></div>
                     <div class="doc-label"><?= $doc['label'] ?></div>
@@ -150,6 +159,37 @@ echo voltar_ao_processo_html();
                 </label>
                 <?php endforeach; ?>
             </div>
+            <div id="docEmpty" style="display:none;color:#94a3b8;font-size:.85rem;text-align:center;padding:1.25rem 0;margin-bottom:1rem;">
+                Nenhum tipo de documento encontrado.
+            </div>
+            <script>
+            (function(){
+                var input = document.getElementById('docSearch');
+                var grid = document.getElementById('docGrid');
+                var empty = document.getElementById('docEmpty');
+                if (!input || !grid) return;
+                var cards = grid.querySelectorAll('.doc-card');
+                var rxDiacrit = new RegExp('[\\u0300-\\u036f]', 'g');
+                function norm(s){
+                    return (s || '').toString().toLowerCase().normalize('NFD').replace(rxDiacrit, '');
+                }
+                function filtrar(){
+                    var q = norm(input.value.trim());
+                    var visiveis = 0;
+                    cards.forEach(function(c){
+                        var hay = norm(c.getAttribute('data-search') || '');
+                        var hit = !q || hay.indexOf(q) !== -1;
+                        c.style.display = hit ? '' : 'none';
+                        if (hit) visiveis++;
+                    });
+                    empty.style.display = visiveis === 0 ? 'block' : 'none';
+                }
+                input.addEventListener('input', filtrar);
+                input.addEventListener('keydown', function(e){
+                    if (e.key === 'Escape') { input.value = ''; filtrar(); }
+                });
+            })();
+            </script>
 
             <!-- 2. Tipo de ação (aparece para procuração e contrato) -->
             <div class="section-box" id="acaoSection">
