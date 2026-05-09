@@ -101,8 +101,8 @@ function template_procuracao($d) {
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
 
     // OUTORGANTE
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;">';
-    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGANTE</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGANTE</div>';
     if ($isMenor) {
         $filhos = $d['child_names'] ?: f('', '{{NOME DO(A) FILHO(A)}}');
         $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $filhos . '</strong>, representado(a)/assistido(a) por <strong>' . f($d['nome']) . '</strong>, ' . $qualStr . 'inscrito(a) no CPF sob o n. <strong>' . f($d['cpf'], '___.___.___-__') . '</strong>' . $rgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone n. ' . f($d['phone']) . '.</p>';
@@ -114,8 +114,8 @@ function template_procuracao($d) {
     $html .= '</div>';
 
     // OUTORGADA
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;">';
-    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGADA</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGADA</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por sua advogada sócia-administradora, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . '.</p>';
     $html .= '</div>';
     $html .= '</div>';
@@ -159,10 +159,10 @@ function template_contrato($d) {
     $cQualStr = !empty($cQualParts) ? implode(', ', $cQualParts) . ', ' : '';
     $cRgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. ' . f($d['rg']) : '';
 
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
     $html .= '<p style="font-size:12px;text-indent:0;">• <strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . 'inscrito(a) no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', residente e domiciliado(a) na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '</p></div>';
 
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
     $html .= '<p style="font-size:12px;text-indent:0;">◆ <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, sociedade de advocacia inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, <strong>Registro da Sociedade OAB ' . $esc['oab_sociedade'] . '</strong>, com sede na ' . $esc['endereco'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', website: ' . $esc['website'] . ', neste ato representada por seu administrador que esta assina digitalmente.</p></div>';
     $html .= '</div>';
 
@@ -209,14 +209,14 @@ function template_contrato($d) {
     }
 
     // Aviso PIX em caixa nude (anti-golpe — destaque pontual)
-    $html .= '<div style="background:#fff7ed;border:1px solid #d7ab90;padding:.65rem 1rem;margin:1rem 0;text-align:center;font-size:12px;font-weight:700;color:#6a3c2c;">⚠ Chave PIX: ' . $esc['pix'] . ' — NÃO EFETUE TRANSFERÊNCIAS PARA OUTRA CHAVE!</div>';
+    $html .= '<div style="background:#fff7ed;border:1px solid #d7ab90;border-radius:8px;padding:.65rem 1rem;margin:1rem 0;text-align:center;font-size:12px;font-weight:700;color:#6a3c2c;">⚠ Chave PIX: ' . $esc['pix'] . ' — NÃO EFETUE TRANSFERÊNCIAS PARA OUTRA CHAVE!</div>';
 
     // 4. RESPONSABILIDADES
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">4. RESPONSABILIDADES</p>';
     $html .= '<div style="display:flex;gap:1.5rem;">';
-    $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
+    $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
     $html .= '<p style="font-size:11.5px;">4.1 A parte <strong>CONTRATANTE</strong> reconhece já haver recebido a orientação preventiva comportamental e jurídica para a consecução dos serviços, e fornecerá à <strong>CONTRATADA</strong> os <strong>documentos e meios necessários à comprovação do seu direito</strong>, bem como pagará as despesas judiciais e eventuais honorários advocatícios de sucumbência, caso aplicável.</p></div>';
-    $html .= '<div style="flex:1;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
+    $html .= '<div style="flex:1;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
     $html .= '<p style="font-size:11.5px;">4.2 A <strong>CONTRATADA</strong> não assegura à parte <strong>CONTRATANTE</strong> êxito na demanda pois, conforme informado no ato das negociações preliminares, a obrigação na prestação de serviços de advocacia é de meio e não de fim. Todavia, a <strong>CONTRATADA</strong> se compromete a empregar todos os esforços, bem como a boa técnica para que os objetivos da parte <strong>CONTRATANTE</strong> sejam alcançados.</p></div>';
     $html .= '</div>';
 
@@ -237,18 +237,18 @@ function template_contrato($d) {
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">8. CLÁUSULAS GERAIS</p>';
 
     $html .= '<div style="display:flex;gap:1.5rem;">';
-    $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">LIMITES DE ATUAÇÃO</div>';
+    $html .= '<div style="flex:1;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">LIMITES DE ATUAÇÃO</div>';
     $html .= '<p style="font-size:11.5px;">8.1 A atuação profissional ficará restrita ao Juízo da causa, em Primeira Instância (salvo acordo em sentido contrário), não compreendendo manifestações em Recurso Extraordinário e/ou Especial, ou eventual Ação Rescisória.</p></div>';
-    $html .= '<div style="flex:1;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">FORMAS DE CONTATO</div>';
+    $html .= '<div style="flex:1;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">FORMAS DE CONTATO</div>';
     $html .= '<p style="font-size:11.5px;">8.2 A parte <strong>CONTRATANTE</strong> autoriza, desde já, que a <strong>CONTRATADA</strong> envie correspondências, comunicados e atualizações aos endereços e números fornecidos.</p></div>';
     $html .= '</div>';
 
     // LGPD
-    $html .= '<div style="margin-top:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">LEI GERAL DE PROTEÇÃO DE DADOS</div>';
+    $html .= '<div style="margin-top:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">LEI GERAL DE PROTEÇÃO DE DADOS</div>';
     $html .= '<p style="font-size:11.5px;">8.3 A <strong>CONTRATADA</strong> se compromete a respeitar a Lei Geral de Proteção de Dados (LGPD). Os dados pessoais dos clientes serão armazenados por 05 anos, conforme exigido por lei, e serão mantidos em ambiente seguro e protegido contra acessos não autorizados.</p></div>';
 
     // RENÚNCIA / REVOGAÇÃO
-    $html .= '<div style="margin-top:1rem;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:10px;font-weight:700;margin-bottom:.5rem;">RENÚNCIA / REVOGAÇÃO</div>';
+    $html .= '<div style="margin-top:1rem;"><div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">RENÚNCIA / REVOGAÇÃO</div>';
     $html .= '<p style="font-size:11.5px;">8.4 Caso uma das <strong>PARTES</strong> decida pela interrupção, deverá comunicar por escrito. Em caso de revogação pela parte <strong>CONTRATANTE</strong>:</p>';
     $html .= '<p style="font-size:11.5px;"><strong>- Caso não tenha ocorrido a distribuição do processo, a multa será de 30% do valor total contratado;</strong></p>';
     $html .= '<p style="font-size:11.5px;"><strong>- Se o processo já tiver sido iniciado, mas sem decisão deferindo eventual tutela, a multa será de 50% do valor total contratado;</strong></p>';
@@ -289,12 +289,12 @@ function template_contrato_prevjud_sm($d) {
     $cRgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. ' . f($d['rg']) : '';
 
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
-    $html .= '<div style="flex:1;border:1.5px solid #fbcfe8;padding:1rem;">';
-    $html .= '<div style="background:#db2777;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #fbcfe8;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#db2777;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . 'inscrita no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', residente e domiciliada na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.</p></div>';
 
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;">';
-    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, sociedade de advocacia inscrita no CNPJ ' . $esc['cnpj'] . ', Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', com sede na ' . $esc['endereco'] . ', e-mail: ' . $esc['email'] . ', neste ato representada por sua administradora que esta assina digitalmente.</p></div>';
     $html .= '</div>';
 
@@ -304,11 +304,11 @@ function template_contrato_prevjud_sm($d) {
 
     // Fases A e B em mini-cards lado a lado (visual sutil)
     $html .= '<div style="display:flex;gap:.85rem;margin:.6rem 0 .85rem;">';
-    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;">';
+    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
     $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE A — ADMINISTRATIVA</div>';
     $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Análise, orientação, protocolo e acompanhamento de pedido de <strong>Salário-Maternidade</strong> perante o INSS, até decisão final administrativa.</p>';
     $html .= '</div>';
-    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;">';
+    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
     $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE B — JUDICIAL</div>';
     $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Caso necessário, ajuizamento de ação judicial para obtenção do benefício, com acompanhamento em todas as instâncias cabíveis, inclusive execução.</p>';
     $html .= '</div>';
@@ -333,7 +333,7 @@ function template_contrato_prevjud_sm($d) {
 
     if ($smModo === 'personalizado' && $smTipo === 'fixo') {
         // Banner discreto com valor fixo
-        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
         $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS</span> &nbsp; ';
         $html .= '<span style="font-size:18px;font-weight:800;color:#9f1239;">' . f($smValor ?: '_________') . '</span>';
         if ($smParcContrato) {
@@ -348,7 +348,7 @@ function template_contrato_prevjud_sm($d) {
         $html .= ', pelo serviço advocatício prestado para obtenção do benefício de Salário-Maternidade, independentemente do resultado final.</p>';
     } else {
         // Banner discreto com o percentual
-        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
         $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS DE ÊXITO</span> &nbsp; ';
         $html .= '<span style="font-size:20px;font-weight:800;color:#9f1239;">' . f($smPct) . '%</span> ';
         $html .= '<span style="font-size:11px;color:#831843;">de cada uma das ' . f($smNParc) . ' parcela(s) do Salário-Maternidade</span>';
@@ -520,14 +520,14 @@ function template_substabelecimento($d) {
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
 
     // SUBSTABELECENTE
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;">';
-    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artAdv . '</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artAdv . '</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $advNome . '</strong>, ' . $brAdv . ', ' . $advProf . ', inscrit' . ($advGenero === 'a' ? 'a' : 'o') . ' na OAB-RJ sob o n. <strong>' . $advOab . '</strong>, com escritório profissional localizado na ' . $endProfFeS . '.</p>';
     $html .= '</div>';
 
     // SUBSTABELECIDO
-    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;padding:1rem;">';
-    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artSub . '</div>';
+    $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artSub . '</div>';
     $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($subNome) . '</strong>, ' . f($subNacionalidade) . ', ' . $subProf . ' ' . $inscPalavra . ' na OAB-' . f($subSeccional) . ' sob o n. <strong>' . f($subOab) . '</strong>, com escritório profissional localizado na ' . f($subEndereco) . $emailPart . '.</p>';
     $html .= '</div>';
     $html .= '</div>';
@@ -559,7 +559,7 @@ function template_residencia($d) {
 
     $html .= '<p>Eu, <strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d, false) . ', <strong>DECLARO</strong>, para os devidos fins de direito e sob as penas da Lei (artigo 2º da Lei 7.115/83), que <strong>RESIDO</strong> no seguinte endereço:</p>';
 
-    $html .= '<div style="background:#f8f9fa;padding:1.25rem;border-left:4px solid #0d9488;margin:1.5rem 0;font-size:13px;">';
+    $html .= '<div style="background:#f8f9fa;padding:1.25rem;border-radius:10px;border-left:4px solid #0d9488;margin:1.5rem 0;font-size:13px;">';
     $html .= '<strong>' . f($d['endereco']) . '</strong>';
     $html .= '</div>';
 
@@ -584,13 +584,13 @@ function template_acordo($d) {
 
     $html .= '<p>Pelo presente instrumento particular, as partes abaixo qualificadas:</p>';
 
-    $html .= '<div style="background:#f0f9ff;padding:1rem;border-left:4px solid #052228;margin:.75rem 0;">';
-    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.15rem .6rem;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 1</div><br>';
+    $html .= '<div style="background:#f0f9ff;padding:1rem;border-radius:10px;border-left:4px solid #052228;margin:.75rem 0;">';
+    $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.15rem .6rem;border-radius:5px;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 1</div><br>';
     $html .= '<strong>' . f($d['nome']) . '</strong>, ' . qualificacao_completa($d) . '.';
     $html .= '</div>';
 
-    $html .= '<div style="background:#fdf2f8;padding:1rem;border-left:4px solid #d7ab90;margin:.75rem 0;">';
-    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.15rem .6rem;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 2</div><br>';
+    $html .= '<div style="background:#fdf2f8;padding:1rem;border-radius:10px;border-left:4px solid #d7ab90;margin:.75rem 0;">';
+    $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.15rem .6rem;border-radius:5px;font-size:10px;font-weight:700;margin-bottom:.4rem;">PARTE 2</div><br>';
     $html .= '<strong>' . f('', '________________________________') . '</strong>, ________________, ________________, CPF n. ___.___.___-__, residente em ________________________________.';
     $html .= '</div>';
 
@@ -717,7 +717,7 @@ function template_prevjud($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . qualificacao_legitimidade($d) . ' do processo em epígrafe, por intermédio de sua advogada que esta subscreve digitalmente, vem, respeitosamente à presença de Vossa Excelência, apresentar</p>';
 
     // Destaque visual PREVJUD
-    $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);overflow:hidden;">';
+    $html .= '<div style="margin:25px 0;background:linear-gradient(135deg,#052228,#0d3640);border-radius:8px;overflow:hidden;">';
     $html .= '<div style="padding:15px 25px;text-align:center;">';
     $html .= '<div style="font-size:10px;color:#B87333;text-transform:uppercase;letter-spacing:4px;font-weight:600;margin-bottom:4px;">Requerimento de</div>';
     $html .= '<div style="font-size:16px;color:#fff;font-weight:800;letter-spacing:5px;">PESQUISA PREVJUD</div>';
@@ -727,7 +727,7 @@ function template_prevjud($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">a fim de que se apure e se obtenha informações detalhadas acerca do(s) <strong>vínculo(s) empregatício(s)</strong>, contribuições previdenciárias, benefícios e demais relações de trabalho da <strong>parte Alimentante</strong>:</p>';
 
     // Box com dados do pesquisado
-    $html .= '<div style="margin:20px 0;border:2px solid #052228;overflow:hidden;">';
+    $html .= '<div style="margin:20px 0;border:2px solid #052228;border-radius:10px;overflow:hidden;">';
     $html .= '<div style="background:#052228;color:#fff;padding:8px 20px;font-size:10px;text-transform:uppercase;letter-spacing:2px;font-weight:700;">Dados para Pesquisa</div>';
     $html .= '<div style="padding:15px 20px;">';
     $html .= '<table style="width:100%;border-collapse:collapse;">';
@@ -741,7 +741,7 @@ function template_prevjud($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Tal medida é fundamental para garantir a <strong>adequada fixação</strong> ou <strong>revisão dos alimentos</strong>, assegurando que os valores correspondam à real capacidade contributiva do alimentante e às necessidades da pessoa alimentanda, conforme dispõe o <strong>art. 1.694, §1º, do Código Civil</strong>.</p>';
 
     // Pedidos
-    $html .= '<div style="margin:25px 0;background:#f8f9fa;border-left:4px solid #B87333;padding:15px 20px;">';
+    $html .= '<div style="margin:25px 0;background:#f8f9fa;border-left:4px solid #B87333;border-radius:0 8px 8px 0;padding:15px 20px;">';
     $html .= '<div style="font-size:10px;color:#B87333;text-transform:uppercase;letter-spacing:2px;font-weight:700;margin-bottom:8px;">Do Requerimento</div>';
     $html .= '<p style="text-align:justify;line-height:1.8;margin:0;">Ante o exposto, requer a Vossa Excelência que determine a realização de pesquisa via <strong>Sistema PREVJUD</strong> em nome de <strong>' . f($nomeGenitor) . '</strong>, CPF <strong>' . f($cpfGenitor) . '</strong>, para que se obtenha:</p>';
     $html .= '<ul style="margin:10px 0 0 20px;line-height:1.8;">';
@@ -1123,7 +1123,7 @@ function template_mandado_pagamento($d) {
         $html .= 'do Escritório de Advocacia contratado (procuração em p. ' . f($pagProc) . ').</p>';
 
         // Dados bancários do escritório
-        $html .= '<div style="background:#f8f6f2;border:2px solid #B87333;padding:18px 24px;margin:20px 0;font-size:12px;line-height:1.8;">';
+        $html .= '<div style="background:#f8f6f2;border:2px solid #B87333;border-radius:10px;padding:18px 24px;margin:20px 0;font-size:12px;line-height:1.8;">';
         $html .= '<strong style="color:#052228;">Ferreira &amp; Sá Advocacia</strong> — CNPJ: ' . $esc['cnpj'] . '<br>';
         $html .= '<strong>CORA SCD</strong><br>';
         $html .= 'Agência: 0001<br>';
@@ -1215,7 +1215,7 @@ function template_renuncia_poderes($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;"><strong>' . $esc['adv1_nome'] . '</strong>, inscrita na <strong>OAB-RJ ' . $esc['adv1_oab'] . '</strong>, atuando pela sociedade <strong>FERREIRA &amp; SÁ ADVOCACIA</strong> (CNPJ ' . $esc['cnpj'] . ', OAB ' . $esc['oab_sociedade'] . '), <strong>RENUNCIA AOS PODERES</strong> que lhe foram outorgados por ' . $constituinteTxt . ($reuNome ? ', nos autos da demanda em que figura em face de <strong>' . f($reuNome) . '</strong>' : '') . ', com fundamento no <strong>art. 112 do Código de Processo Civil</strong> e no <strong>art. 5º, §3º, da Lei n. 8.906/94 (Estatuto da OAB)</strong>.</p>';
 
     // Motivo da renuncia em caixa nude discreta
-    $html .= '<div style="background:#fff7ed;border-left:3px solid #d7ab90;padding:.7rem 1rem;margin:.85rem 0;font-size:12px;">';
+    $html .= '<div style="background:#fff7ed;border-left:3px solid #d7ab90;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
     $html .= '<strong style="color:#6a3c2c;">Motivo da renúncia:</strong> ' . f($motivo) . ', restando inviável a continuidade da representação processual.';
     $html .= '</div>';
 
@@ -1223,7 +1223,7 @@ function template_renuncia_poderes($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Em atenção ao disposto no <strong>art. 112, §1º, do CPC</strong> e no <strong>art. 5º, §3º, do Estatuto da OAB</strong>, comunica-se que o(a) constituinte foi <strong>previamente notificado(a)</strong> da presente renúncia pelos meios oficiais de comunicação utilizados pelo escritório (WhatsApp e/ou e-mail), restando ciente da necessidade de constituir novo(a) advogado(a) para acompanhar a demanda.</p>';
 
     // Prazo legal em caixa amarela sutil (alerta)
-    $html .= '<div style="background:#fef9c3;border-left:3px solid #f59e0b;padding:.7rem 1rem;margin:.85rem 0;font-size:12px;">';
+    $html .= '<div style="background:#fef9c3;border-left:3px solid #f59e0b;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
     $html .= '<strong style="color:#92400e;">⚠ Prazo legal:</strong> nos termos do <strong>art. 112, §1º, do CPC</strong>, a advogada subscritora continuará representando o(a) constituinte pelo prazo de <strong>10 (dez) dias úteis</strong> a contar da notificação, salvo se nesse interregno for substituída por outro(a) advogado(a) que se habilite nos autos.';
     $html .= '</div>';
 
@@ -1271,7 +1271,7 @@ function template_desistencia_acao($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;"><strong>' . f($d['nome']) . '</strong>, parte já qualificada nos autos' . $reuFrase . ' vem, respeitosamente, à presença de Vossa Excelência, por intermédio de sua advogada que esta subscreve, manifestar o desejo de <strong>DESISTIR DA PRESENTE AÇÃO</strong>, com fundamento no <strong>art. 485, VIII, do Código de Processo Civil</strong>, requerendo a homologação da desistência e a consequente extinção do feito sem resolução do mérito.</p>';
 
     // Motivo (foro íntimo) em caixa nude discreta
-    $html .= '<div style="background:#fff7ed;border-left:3px solid #d7ab90;padding:.7rem 1rem;margin:.85rem 0;font-size:12px;">';
+    $html .= '<div style="background:#fff7ed;border-left:3px solid #d7ab90;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
     $html .= '<strong style="color:#6a3c2c;">Motivo:</strong> a parte autora informa que a desistência decorre de <strong>motivo de foro íntimo</strong>, não havendo necessidade de exposição de razões adicionais.';
     $html .= '</div>';
 
@@ -1279,14 +1279,14 @@ function template_desistencia_acao($d) {
         // Variante COM contestação: pede intimação da Ré pra anuir
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Tendo em vista que a parte ré já apresentou contestação nos presentes autos, e nos termos do <strong>art. 485, §4º, do Código de Processo Civil</strong>, requer-se a <strong>intimação da parte ré</strong> para que, no prazo legal, manifeste-se sobre o presente pedido de desistência.</p>';
 
-        $html .= '<div style="background:#fef9c3;border-left:3px solid #f59e0b;padding:.7rem 1rem;margin:.85rem 0;font-size:12px;">';
+        $html .= '<div style="background:#fef9c3;border-left:3px solid #f59e0b;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
         $html .= '<strong style="color:#92400e;">⚠ Anuência da parte ré:</strong> conforme art. 485, §4º, do CPC, oferecida a contestação, a desistência da ação depende do consentimento expresso ou tácito da parte ré.';
         $html .= '</div>';
     } else {
         // Variante SEM contestação: dispensa anuência
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.8;">Cumpre destacar que <strong>até o presente momento não foi apresentada contestação</strong> pela parte ré, razão pela qual <strong>dispensa-se a prévia anuência</strong> para a homologação da desistência, em interpretação <em>a contrario sensu</em> do <strong>art. 485, §4º, do Código de Processo Civil</strong>, que somente exige tal consentimento após oferecida a contestação.</p>';
 
-        $html .= '<div style="background:#ecfdf5;border-left:3px solid #10b981;padding:.7rem 1rem;margin:.85rem 0;font-size:12px;">';
+        $html .= '<div style="background:#ecfdf5;border-left:3px solid #10b981;padding:.7rem 1rem;border-radius:0 6px 6px 0;margin:.85rem 0;font-size:12px;">';
         $html .= '<strong style="color:#065f46;">✓ Dispensa da anuência:</strong> sem contestação ofertada, a desistência pode ser homologada de plano, independentemente de manifestação da parte ré.';
         $html .= '</div>';
     }
