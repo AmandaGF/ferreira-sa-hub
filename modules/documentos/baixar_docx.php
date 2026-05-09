@@ -29,10 +29,23 @@ function xx($s) {
     return htmlspecialchars($s, ENT_QUOTES | ENT_XML1, 'UTF-8');
 }
 
+// Detecta alinhamento "implícito" pela classe (CSS interno do template).
+// Algumas classes do preview já implicam center, e o gerador docx precisa
+// imitar isso já que não interpreta CSS externo (só style inline).
+function _class_align($cls) {
+    if (!$cls) return '';
+    if (preg_match('/\b(local-data|assinatura|nome-ass|doc-title|titulo)\b/', $cls)) return 'center';
+    return '';
+}
+
 // Detecta alinhamento e indent do style inline do node
-// $opts['inCard']: dentro de card (sem after-spacing, alinhar left, line 1.0)
+// $opts['inCard']:    dentro de card (sem after-spacing, alinhar left)
+// $opts['parentAlign']: text-align herdado do pai (caso filho não declare)
+// $opts['class']:     class do node (pra detectar alinhamento implícito)
 function _ppr_from_style($style, $isTitle = false, $opts = array()) {
     $inCard = !empty($opts['inCard']);
+    $parentAlign = isset($opts['parentAlign']) ? $opts['parentAlign'] : '';
+    $clsHint = isset($opts['class']) ? $opts['class'] : '';
     $jc = '';
     $indent = '';
     $spacing = '';
@@ -53,6 +66,14 @@ function _ppr_from_style($style, $isTitle = false, $opts = array()) {
             elseif ($unit === 'px') $tw = (int)($val * 15);
             if ($tw > 0) $indent = '<w:ind w:firstLine="' . $tw . '"/>';
         }
+    }
+    // Fallback de jc: classe implícita > pai > default
+    if (!$jc) {
+        $impl = _class_align($clsHint);
+        if ($impl) $jc = '<w:jc w:val="' . $impl . '"/>';
+    }
+    if (!$jc && $parentAlign) {
+        $jc = '<w:jc w:val="' . ($parentAlign === 'justify' ? 'both' : $parentAlign) . '"/>';
     }
     if ($inCard) {
         // Dentro do card bege: linhas justas, alinhadas à esquerda, sem indent
@@ -237,9 +258,11 @@ function block_to_xml(DOMNode $node, $opts = array()) {
 
     // ─── Linha horizontal da assinatura: <div class="linha"></div>
     if ($tag === 'div' && preg_match('/\blinha\b/', $cls)) {
-        // Parágrafo vazio com border-top → vira a linha do "_______"
+        // Parágrafo vazio com border-top → linha curta centralizada
+        // (margem left/right de 1500 twips ≈ 2.6cm cada lado, deixando ~10cm de linha)
         return '<w:p><w:pPr>'
              . '<w:pBdr><w:top w:val="single" w:sz="6" w:space="1" w:color="000000"/></w:pBdr>'
+             . '<w:ind w:left="1500" w:right="1500"/>'
              . '<w:jc w:val="center"/>'
              . '<w:spacing w:after="0" w:before="0" w:line="240" w:lineRule="auto"/>'
              . '</w:pPr></w:p>';
@@ -254,12 +277,22 @@ function block_to_xml(DOMNode $node, $opts = array()) {
             }
         }
         if ($hasBlockChildren) {
+            // Detecta text-align do pai (style inline ou classe implícita) pra propagar
+            $childOpts = $opts;
+            $myAlign = '';
+            if ($style && preg_match('/text-align:\s*(left|right|center|justify)/i', $style, $m)) {
+                $myAlign = strtolower($m[1]);
+            } elseif ($impl = _class_align($cls)) {
+                $myAlign = $impl;
+            }
+            if ($myAlign) $childOpts['parentAlign'] = $myAlign;
+
             $out = '';
             foreach ($node->childNodes as $c) {
                 if ($c->nodeType === XML_ELEMENT_NODE) {
-                    $out .= block_to_xml($c, $opts);
+                    $out .= block_to_xml($c, $childOpts);
                 } elseif ($c->nodeType === XML_TEXT_NODE && trim($c->nodeValue) !== '') {
-                    $out .= '<w:p>' . _ppr_from_style($style, false, $opts)
+                    $out .= '<w:p>' . _ppr_from_style($style, false, $childOpts + array('class' => $cls))
                           . '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="24"/></w:rPr>'
                           . '<w:t xml:space="preserve">' . xx($c->nodeValue) . '</w:t></w:r></w:p>';
                 }
@@ -296,13 +329,15 @@ function block_to_xml(DOMNode $node, $opts = array()) {
             }
         }
 
+        $optsCls = $opts + array('class' => $cls);
+
         // Caminho rápido: nenhum split — comportamento original.
         if (count($chunks) === 1) {
             $runs = node_to_runs($node, $herdaBold, false, false, $herdaUpper);
             if (trim(strip_tags($node->textContent)) === '' && strpos($runs, '<w:br') === false) {
-                return '<w:p>' . _ppr_from_style($style, false, $opts) . '</w:p>';
+                return '<w:p>' . _ppr_from_style($style, false, $optsCls) . '</w:p>';
             }
-            return '<w:p>' . _ppr_from_style($style, $isTitle, $opts) . $runs . '</w:p>';
+            return '<w:p>' . _ppr_from_style($style, $isTitle, $optsCls) . $runs . '</w:p>';
         }
 
         // Múltiplos chunks: gera um <w:p> pra cada (sem text-indent do 2º em diante)
@@ -319,9 +354,9 @@ function block_to_xml(DOMNode $node, $opts = array()) {
             $runs = node_to_runs($wrapper, $herdaBold, false, false, $herdaUpper);
             $useStyle = $first ? $style : $styleSemIndent;
             if (trim($textOnly) === '' && $runs === '') {
-                $out .= '<w:p>' . _ppr_from_style($useStyle, false, $opts) . '</w:p>';
+                $out .= '<w:p>' . _ppr_from_style($useStyle, false, $optsCls) . '</w:p>';
             } else {
-                $out .= '<w:p>' . _ppr_from_style($useStyle, $isTitle, $opts) . $runs . '</w:p>';
+                $out .= '<w:p>' . _ppr_from_style($useStyle, $isTitle, $optsCls) . $runs . '</w:p>';
             }
             $first = false;
         }
