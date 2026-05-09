@@ -36,21 +36,38 @@ $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 echo "   HTTP $code · resp: " . substr($resp, 0, 300) . "\n\n";
 
-// 2. Tenta endpoint /restart-session (preserva login)
-echo "2. Chamando /restart-session (preserva login)...\n";
-$ch = curl_init($base . '/restart-session');
-curl_setopt_array($ch, array(
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_TIMEOUT => 30,
-    CURLOPT_HTTPHEADER => $headers,
-    CURLOPT_SSL_VERIFYPEER => false,
-));
-$resp = curl_exec($ch);
-$code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$err = curl_error($ch);
-curl_close($ch);
-echo "   HTTP $code · resp: " . substr($resp, 0, 500) . ($err ? " · cURL: $err" : '') . "\n\n";
+// 2. Tenta múltiplos endpoints que a Z-API usa pra reiniciar
+$endpoints = array(
+    array('GET',  '/restart'),
+    array('POST', '/restart'),
+    array('GET',  '/restart-session'),
+    array('POST', '/restart-session'),
+    array('GET',  '/disconnect'),
+    array('POST', '/disconnect'),
+);
+foreach ($endpoints as list($method, $ep)) {
+    echo "2. $method $ep ...\n";
+    $ch = curl_init($base . $ep);
+    $opts = array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_SSL_VERIFYPEER => false,
+    );
+    if ($method === 'POST') $opts[CURLOPT_POST] = true;
+    curl_setopt_array($ch, $opts);
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    echo "   HTTP $code · resp: " . substr($resp ?: '', 0, 200) . ($err ? " · cURL: $err" : '') . "\n";
+    // Se o endpoint funcionou, parar e aguardar
+    if ($code === 200 && $resp && stripos($resp, 'NOT_FOUND') === false) {
+        echo "   ✓ Endpoint $ep aceitou — parando aqui\n";
+        break;
+    }
+}
+echo "\n";
 
 // 3. Aguarda 8s e verifica status de novo
 echo "3. Aguardando 8s pra reconectar...\n";
