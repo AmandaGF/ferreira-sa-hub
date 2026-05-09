@@ -124,11 +124,53 @@ function block_to_xml(DOMNode $node) {
     if ($tag === 'p' || $tag === 'div') {
         $cls = $node->getAttribute('class');
         $isTitle = strpos($cls, 'doc-title') !== false || strpos($cls, 'titulo') !== false;
-        $runs = node_to_runs($node);
-        if (trim(strip_tags($node->textContent)) === '' && strpos($runs, '<w:br') === false) {
-            return '<w:p>' . _ppr_from_style($style) . '</w:p>'; // p vazio = espaço
+
+        // Quebra os filhos em chunks separados por <br> — cada chunk vira um <w:p>
+        // independente. Sem isso, o Word estica horizontalmente as linhas com <br>
+        // dentro de um parágrafo justify (ex.: dados bancários em mandado_pagamento).
+        $chunks = array(array());
+        $idx = 0;
+        foreach ($node->childNodes as $c) {
+            if ($c->nodeType === XML_ELEMENT_NODE && strtolower($c->nodeName) === 'br') {
+                $idx++;
+                $chunks[$idx] = array();
+            } else {
+                $chunks[$idx][] = $c;
+            }
         }
-        return '<w:p>' . _ppr_from_style($style, $isTitle) . $runs . '</w:p>';
+
+        // Caminho rápido: nenhum <br> filho direto — comportamento original.
+        if (count($chunks) === 1) {
+            $runs = node_to_runs($node);
+            if (trim(strip_tags($node->textContent)) === '' && strpos($runs, '<w:br') === false) {
+                return '<w:p>' . _ppr_from_style($style) . '</w:p>'; // p vazio = espaço
+            }
+            return '<w:p>' . _ppr_from_style($style, $isTitle) . $runs . '</w:p>';
+        }
+
+        // Múltiplos chunks: gera um <w:p> pra cada (dropping o text-indent do 2º
+        // em diante, porque "Ferreira & Sá... CNPJ: ..." e "CORA SCD" são linhas
+        // contínuas do mesmo bloco visual, não parágrafos novos com recuo).
+        $out = '';
+        $first = true;
+        $styleSemIndent = preg_replace('/text-indent:[^;]+;?/i', '', $style);
+        foreach ($chunks as $chunk) {
+            $wrapper = $node->ownerDocument->createElement('span');
+            $textOnly = '';
+            foreach ($chunk as $c) {
+                $wrapper->appendChild($c->cloneNode(true));
+                $textOnly .= $c->textContent;
+            }
+            $runs = node_to_runs($wrapper);
+            $useStyle = $first ? $style : $styleSemIndent;
+            if (trim($textOnly) === '' && $runs === '') {
+                $out .= '<w:p>' . _ppr_from_style($useStyle) . '</w:p>';
+            } else {
+                $out .= '<w:p>' . _ppr_from_style($useStyle, $isTitle) . $runs . '</w:p>';
+            }
+            $first = false;
+        }
+        return $out;
     }
     if ($tag === 'h1' || $tag === 'h2' || $tag === 'h3') {
         $size = $tag === 'h1' ? 32 : ($tag === 'h2' ? 28 : 26);
