@@ -354,23 +354,26 @@ function cdMarcarDoc(docId) {
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') cdFechar(); });
 
-// Interceptar cliques nos cards
+// Interceptar cliques nos cards (debug verbose pra investigar bug de não-abrir)
+console.log('[CardDrawer] interceptor instalado');
 document.addEventListener('click', function(e) {
     var op = e.target.closest('.op-card[data-case-id]');
     if (op && !e.target.closest('select,form,.op-card-move,a')) {
+        console.log('[CardDrawer] click em op-card', op.getAttribute('data-case-id'));
         e.stopImmediatePropagation(); e.preventDefault();
         cdAbrir('case_id=' + op.getAttribute('data-case-id'));
         return;
     }
     var lc = e.target.closest('.lead-card[data-lead-id]');
     if (lc && !e.target.closest('.lead-actions,select,form,a')) {
+        console.log('[CardDrawer] click em lead-card', lc.getAttribute('data-lead-id'));
         e.stopImmediatePropagation(); e.preventDefault();
         cdAbrir('lead_id=' + lc.getAttribute('data-lead-id'));
         return;
     }
-    // PREV Kanban (.pv-card[data-case-id]) — mesmo drawer dos outros kanbans
     var pv = e.target.closest('.pv-card[data-case-id]');
     if (pv && !e.target.closest('select,form,.pv-card-move,a,button')) {
+        console.log('[CardDrawer] click em pv-card', pv.getAttribute('data-case-id'));
         e.stopImmediatePropagation(); e.preventDefault();
         cdAbrir('case_id=' + pv.getAttribute('data-case-id'));
         return;
