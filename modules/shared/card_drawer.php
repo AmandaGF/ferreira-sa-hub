@@ -368,6 +368,13 @@ document.addEventListener('click', function(e) {
         cdAbrir('lead_id=' + lc.getAttribute('data-lead-id'));
         return;
     }
+    // PREV Kanban (.pv-card[data-case-id]) — mesmo drawer dos outros kanbans
+    var pv = e.target.closest('.pv-card[data-case-id]');
+    if (pv && !e.target.closest('select,form,.pv-card-move,a,button')) {
+        e.stopImmediatePropagation(); e.preventDefault();
+        cdAbrir('case_id=' + pv.getAttribute('data-case-id'));
+        return;
+    }
 }, true);
 
 console.log('[CardDrawer] OK');

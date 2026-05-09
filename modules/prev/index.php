@@ -263,30 +263,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $tipoBenColor = isset($tipoBadgeColors[$tipoBen]) ? $tipoBadgeColors[$tipoBen] : '#3B4FA0';
                     $diasUpdate = (int)((time() - strtotime($cs['updated_at'])) / 86400);
                 ?>
-                <?php
-                // Acumula data deste card pra o preview JS (PV_CASES)
-                $_pvJs = isset($_pvJs) ? $_pvJs : array();
-                $_pvJs[$cs['id']] = array(
-                    'id'         => (int)$cs['id'],
-                    'title'      => (string)$cs['title'],
-                    'client_id'  => (int)($cs['client_id'] ?? 0),
-                    'client'     => (string)($cs['client_name'] ?? ''),
-                    'phone'      => (string)preg_replace('/\D/', '', $cs['client_phone'] ?? ''),
-                    'tipo_ben'   => (string)($cs['prev_tipo_beneficio'] ?? ''),
-                    'nb'         => (string)($cs['prev_numero_beneficio'] ?? ''),
-                    'cnj'        => (string)($cs['case_number'] ?? ''),
-                    'resp'       => (string)($cs['responsible_name'] ?? ''),
-                    'drive'      => (string)($cs['drive_folder_url'] ?? ''),
-                    'dias'       => (int)$diasUpdate,
-                    'col'        => (string)$cs['prev_status'],
-                    'tasks'      => array('done' => (int)$cs['done_tasks'], 'total' => (int)$totalTasks),
-                    'docs_pend'  => isset($docsPendentes[$cs['id']]) ? $docsPendentes[$cs['id']] : array(),
-                    'caso_url'   => module_url('operacional', 'caso_ver.php?id=' . $cs['id']),
-                    'cliente_url'=> $cs['client_id'] ? module_url('clientes', 'ver.php?id=' . (int)$cs['client_id']) : '',
-                );
-                ?>
-                <div class="pv-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
-                     onclick="if(!event.target.closest('select,form,.pv-card-move,button,a'))pvAbrirPreview(<?= (int)$cs['id'] ?>)">
+                <div class="pv-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="pv-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
@@ -436,104 +413,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Modal: Quick view do card (resumo + ações) -->
-<div id="pvPreviewModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1100;align-items:center;justify-content:center;padding:1rem;" onclick="if(event.target===this)pvFecharPreview()">
-    <div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.4rem;">
-            <h3 id="pvPrevTitulo" style="font-size:1.05rem;color:#052228;line-height:1.25;flex:1;"></h3>
-            <button onclick="pvFecharPreview()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#9ca3af;line-height:1;padding:0 4px;">×</button>
-        </div>
-        <div id="pvPrevColuna" style="font-size:.7rem;color:#5B2D8E;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:1rem;"></div>
-
-        <div id="pvPrevDados" style="display:grid;grid-template-columns:auto 1fr;gap:.4rem .8rem;font-size:.85rem;line-height:1.5;"></div>
-
-        <div id="pvPrevDocs" style="margin-top:1rem;display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#991b1b;">
-            <div style="font-weight:700;margin-bottom:.3rem;">⚠ Documentos pendentes:</div>
-            <div id="pvPrevDocsList"></div>
-        </div>
-
-        <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;margin-top:1.5rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
-            <a id="pvPrevWaBtn" href="#" target="_blank" style="display:none;padding:.55rem 1rem;background:#25D366;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:.85rem;">💬 WhatsApp</a>
-            <a id="pvPrevDriveBtn" href="#" target="_blank" style="display:none;padding:.55rem 1rem;background:#0ea5e9;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:.85rem;">📁 Pasta Drive</a>
-            <a id="pvPrevClienteBtn" href="#" style="display:none;padding:.55rem 1rem;background:#B87333;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:.85rem;">👤 Ver cliente</a>
-            <a id="pvPrevCasoBtn" href="#" style="padding:.55rem 1.2rem;background:#052228;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:.85rem;">📂 Abrir pasta completa →</a>
-        </div>
-    </div>
-</div>
+<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 
 <script>
 var _pvPendingForm = null;
 var pvCsrf = '<?= generate_csrf_token() ?>';
-var PV_CASES = <?= json_encode($_pvJs ?? array(), JSON_UNESCAPED_UNICODE) ?>;
-
-function pvAbrirPreview(caseId) {
-    var c = PV_CASES[caseId];
-    if (!c) { alert('Dados do caso não encontrados.'); return; }
-
-    document.getElementById('pvPrevTitulo').textContent = c.title || ('Caso #' + c.id);
-    document.getElementById('pvPrevColuna').textContent = (c.col || '').replace(/_/g,' ');
-
-    var dados = '';
-    if (c.client) dados += '<div style="color:#6b7280;">👤 Cliente:</div><div style="font-weight:600;">' + _pvEsc(c.client) + '</div>';
-    if (c.tipo_ben) dados += '<div style="color:#6b7280;">🎯 Tipo:</div><div>' + _pvEsc(c.tipo_ben) + '</div>';
-    if (c.cnj) dados += '<div style="color:#6b7280;">🏛️ Processo:</div><div style="font-family:monospace;font-size:.8rem;">' + _pvEsc(c.cnj) + '</div>';
-    if (c.nb)  dados += '<div style="color:#6b7280;">📋 NB:</div><div style="font-family:monospace;font-size:.8rem;">' + _pvEsc(c.nb) + '</div>';
-    if (c.resp) dados += '<div style="color:#6b7280;">🧑‍💼 Responsável:</div><div>' + _pvEsc(c.resp) + '</div>';
-    if (c.tasks && c.tasks.total > 0) dados += '<div style="color:#6b7280;">✅ Tarefas:</div><div>' + c.tasks.done + '/' + c.tasks.total + ' (' + Math.round(c.tasks.done/c.tasks.total*100) + '%)</div>';
-    var diasCor = c.dias > 30 ? '#dc2626' : (c.dias > 7 ? '#f59e0b' : '#059669');
-    dados += '<div style="color:#6b7280;">⏰ Última atualização:</div><div style="color:' + diasCor + ';font-weight:700;">' + c.dias + ' dia(s) atrás</div>';
-    document.getElementById('pvPrevDados').innerHTML = dados;
-
-    var docsBox = document.getElementById('pvPrevDocs');
-    var docsList = document.getElementById('pvPrevDocsList');
-    if (c.docs_pend && c.docs_pend.length) {
-        var html = '';
-        c.docs_pend.forEach(function(d){
-            var done = d.status === 'recebido';
-            html += '<div style="' + (done ? 'text-decoration:line-through;color:#059669;' : '') + '">'
-                  + (done ? '☑ ' : '☐ ') + _pvEsc(d.descricao) + '</div>';
-        });
-        docsList.innerHTML = html;
-        docsBox.style.display = '';
-    } else {
-        docsBox.style.display = 'none';
-    }
-
-    // Botões
-    var waBtn = document.getElementById('pvPrevWaBtn');
-    if (c.phone && c.phone.length >= 10) {
-        var phForUrl = c.phone.length === 10 || c.phone.length === 11 ? '55' + c.phone : c.phone;
-        waBtn.href = '/conecta/modules/whatsapp/?canal=24&telefone=' + phForUrl;
-        waBtn.style.display = '';
-    } else waBtn.style.display = 'none';
-
-    var driveBtn = document.getElementById('pvPrevDriveBtn');
-    if (c.drive) { driveBtn.href = c.drive; driveBtn.style.display = ''; } else driveBtn.style.display = 'none';
-
-    var cliBtn = document.getElementById('pvPrevClienteBtn');
-    if (c.cliente_url) { cliBtn.href = c.cliente_url; cliBtn.style.display = ''; } else cliBtn.style.display = 'none';
-
-    document.getElementById('pvPrevCasoBtn').href = c.caso_url;
-    document.getElementById('pvPreviewModal').style.display = 'flex';
-}
-
-function pvFecharPreview() {
-    document.getElementById('pvPreviewModal').style.display = 'none';
-}
-
-function _pvEsc(s) {
-    if (s == null) return '';
-    return String(s).replace(/[&<>"']/g, function(c){
-        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
-    });
-}
-
-// ESC fecha
-document.addEventListener('keydown', function(e){
-    if (e.key === 'Escape' && document.getElementById('pvPreviewModal').style.display === 'flex') {
-        pvFecharPreview();
-    }
-});
 
 function handlePrevMove(select) {
     var status = select.value;
