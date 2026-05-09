@@ -11,13 +11,9 @@
  *
  * Uso: curl https://ferreiraesa.com.br/conecta/diag_atividade_simone.php?key=fsa-hub-deploy-2026
  */
-require_once __DIR__ . '/core/config.php';
-require_once __DIR__ . '/core/database.php';
-
-if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
-    http_response_code(403);
-    exit('Forbidden.');
-}
+require_once __DIR__ . '/core/middleware.php';
+require_login();
+require_role('admin'); // Só admin (Amanda / Luiz) — relatório sensível de monitoramento
 
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();

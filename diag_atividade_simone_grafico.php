@@ -8,13 +8,9 @@
  *   https://ferreiraesa.com.br/conecta/diag_atividade_simone_grafico.php?key=fsa-hub-deploy-2026
  *   adiciona &dias=N pra mudar período (default 30)
  */
-require_once __DIR__ . '/core/config.php';
-require_once __DIR__ . '/core/database.php';
-
-if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
-    http_response_code(403);
-    exit('Forbidden.');
-}
+require_once __DIR__ . '/core/middleware.php';
+require_login();
+require_role('admin'); // Só admin (Amanda / Luiz) — relatório sensível de monitoramento
 
 $pdo = db();
 
