@@ -308,7 +308,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- Últimos processos (quadrinho informativo) -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:.75rem;">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;margin-bottom:.75rem;">
     <!-- Últimos cadastrados -->
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #0ea5e9;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
@@ -377,7 +377,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 @media (max-width: 700px) {
-    div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; }
+    div[style*="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"] { grid-template-columns: 1fr !important; }
 }
 </style>
 

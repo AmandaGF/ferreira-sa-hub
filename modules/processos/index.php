@@ -247,7 +247,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <!-- Últimos processos (quadrinho informativo) -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:.75rem;margin-bottom:1rem;">
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;margin-bottom:1rem;">
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
             <strong style="font-size:.78rem;color:var(--petrol-900);">📢 Intimações pendentes</strong>
@@ -350,7 +350,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </div>
 </div>
-<style>@media (max-width: 700px) { div[style*="grid-template-columns:1fr 1fr"] { grid-template-columns: 1fr !important; } }</style>
+<style>@media (max-width: 700px) { div[style*="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"] { grid-template-columns: 1fr !important; } }</style>
 
 <!-- KPIs -->
 <div class="proc-stats">
