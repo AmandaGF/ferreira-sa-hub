@@ -30,7 +30,9 @@ function xx($s) {
 }
 
 // Detecta alinhamento e indent do style inline do node
-function _ppr_from_style($style, $isTitle = false) {
+// $opts['inCard']: dentro de card (sem after-spacing, alinhar left, line 1.0)
+function _ppr_from_style($style, $isTitle = false, $opts = array()) {
+    $inCard = !empty($opts['inCard']);
     $jc = '';
     $indent = '';
     $spacing = '';
@@ -52,14 +54,55 @@ function _ppr_from_style($style, $isTitle = false) {
             if ($tw > 0) $indent = '<w:ind w:firstLine="' . $tw . '"/>';
         }
     }
-    // Default pra parágrafos: justify + line-spacing 1.5
-    if (!$jc) $jc = '<w:jc w:val="both"/>';
-    $spacing = '<w:spacing w:line="360" w:lineRule="auto" w:after="160"/>'; // 1.5 line
+    if ($inCard) {
+        // Dentro do card bege: linhas justas, alinhadas à esquerda, sem indent
+        if (!$jc) $jc = '<w:jc w:val="left"/>';
+        $spacing = '<w:spacing w:line="276" w:lineRule="auto" w:after="0"/>'; // 1.15 line, sem after
+        $indent = ''; // nunca indentar dentro do card
+    } else {
+        // Default pra parágrafos: justify + line-spacing 1.5
+        if (!$jc) $jc = '<w:jc w:val="both"/>';
+        $spacing = '<w:spacing w:line="360" w:lineRule="auto" w:after="160"/>'; // 1.5 line
+    }
 
     if ($isTitle) {
         return '<w:pPr><w:jc w:val="center"/><w:spacing w:before="280" w:after="200"/></w:pPr>';
     }
     return '<w:pPr>' . $spacing . $indent . $jc . '</w:pPr>';
+}
+
+// Detecta se um <div> é um "card" visual (background + border) — vira tabela
+// 1x1 com shading no docx, preservando o destaque visual do preview HTML.
+function _is_card_div(DOMNode $node) {
+    if ($node->nodeType !== XML_ELEMENT_NODE) return false;
+    if (strtolower($node->nodeName) !== 'div') return false;
+    $style = $node->getAttribute('style');
+    if (!$style) return false;
+    $hasBg = preg_match('/background(?:-color)?\s*:\s*#?[A-Za-z0-9]+/i', $style)
+          && !preg_match('/background(?:-color)?\s*:\s*(?:transparent|none|inherit)/i', $style);
+    $hasBorder = preg_match('/border\s*:\s*\d+(?:px|pt|em)\s+\w+/i', $style);
+    return $hasBg && $hasBorder;
+}
+
+function _hex_from_style($style, $prop) {
+    // $prop: 'background' ou 'border'
+    if ($prop === 'background') {
+        if (preg_match('/background(?:-color)?\s*:\s*#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
+            $hex = $m[1];
+            if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            return strtoupper($hex);
+        }
+        return 'F8F6F2'; // bege default
+    }
+    if ($prop === 'border') {
+        if (preg_match('/border\s*:\s*\d+(?:px|pt|em)\s+\w+\s+#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
+            $hex = $m[1];
+            if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            return strtoupper($hex);
+        }
+        return 'B87333'; // cobre default
+    }
+    return '000000';
 }
 
 // Detecta marcações inline do estilo (font-weight, font-style, etc)
@@ -78,12 +121,13 @@ function _rpr_from_style($style, $extra = '') {
 }
 
 // Converte um node (recursivo) gerando uma lista de runs (<w:r>) ou parágrafos
-function node_to_runs(DOMNode $node, $herdadoBold = false, $herdadoItal = false, $herdadoUnder = false) {
+function node_to_runs(DOMNode $node, $herdadoBold = false, $herdadoItal = false, $herdadoUnder = false, $herdadoUpper = false) {
     $runs = '';
     foreach ($node->childNodes as $c) {
         if ($c->nodeType === XML_TEXT_NODE) {
             $txt = $c->nodeValue;
             if ($txt === '' || $txt === null) continue;
+            if ($herdadoUpper) $txt = mb_strtoupper($txt, 'UTF-8');
             $rPrInner = '<w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="24"/>';
             if ($herdadoBold) $rPrInner .= '<w:b/>';
             if ($herdadoItal) $rPrInner .= '<w:i/>';
@@ -95,21 +139,22 @@ function node_to_runs(DOMNode $node, $herdadoBold = false, $herdadoItal = false,
             if ($tag === 'br') {
                 $runs .= '<w:r><w:br/></w:r>';
             } elseif ($tag === 'b' || $tag === 'strong') {
-                $runs .= node_to_runs($c, true, $herdadoItal, $herdadoUnder);
+                $runs .= node_to_runs($c, true, $herdadoItal, $herdadoUnder, $herdadoUpper);
             } elseif ($tag === 'i' || $tag === 'em') {
-                $runs .= node_to_runs($c, $herdadoBold, true, $herdadoUnder);
+                $runs .= node_to_runs($c, $herdadoBold, true, $herdadoUnder, $herdadoUpper);
             } elseif ($tag === 'u') {
-                $runs .= node_to_runs($c, $herdadoBold, $herdadoItal, true);
+                $runs .= node_to_runs($c, $herdadoBold, $herdadoItal, true, $herdadoUpper);
             } elseif ($tag === 'span' || $tag === 'a' || $tag === 'font') {
                 // Inline style pode ter b/i/u embutido via CSS
                 $st = $c->getAttribute('style');
                 $b2 = $herdadoBold || preg_match('/font-weight:\s*(?:bold|700|800|900)/i', $st);
                 $i2 = $herdadoItal || preg_match('/font-style:\s*italic/i', $st);
                 $u2 = $herdadoUnder || preg_match('/text-decoration:.*underline/i', $st);
-                $runs .= node_to_runs($c, $b2, $i2, $u2);
+                $up2 = $herdadoUpper || preg_match('/text-transform:\s*uppercase/i', $st);
+                $runs .= node_to_runs($c, $b2, $i2, $u2, $up2);
             } else {
                 // Tag desconhecida inline — só recursar
-                $runs .= node_to_runs($c, $herdadoBold, $herdadoItal, $herdadoUnder);
+                $runs .= node_to_runs($c, $herdadoBold, $herdadoItal, $herdadoUnder, $herdadoUpper);
             }
         }
     }
@@ -117,40 +162,150 @@ function node_to_runs(DOMNode $node, $herdadoBold = false, $herdadoItal = false,
 }
 
 // Processa nodes de bloco (top-level): <p>, <div>, <h1-3>, <table>, <hr>
-function block_to_xml(DOMNode $node) {
+// $opts['inCard']: estamos dentro de um card → spacing/align ajustado
+function block_to_xml(DOMNode $node, $opts = array()) {
     $tag = strtolower($node->nodeName);
     $style = $node->getAttribute('style');
+    $cls = $node->getAttribute('class');
+    $inCard = !empty($opts['inCard']);
+
+    // ─── Card visual: <div> com background + border → tabela 1x1 com shading
+    if ($tag === 'div' && _is_card_div($node)) {
+        $bgHex = _hex_from_style($style, 'background');
+        $bdHex = _hex_from_style($style, 'border');
+        // Processa o conteúdo do card recursivamente, marcando inCard
+        $inner = '';
+        // Primeiro junta filhos inline em um wrapper "p" virtual (com split por <br>).
+        // Se tem children block, processa cada um como bloco.
+        $hasBlock = false;
+        foreach ($node->childNodes as $c) {
+            if ($c->nodeType === XML_ELEMENT_NODE && in_array(strtolower($c->nodeName), array('p','div','h1','h2','h3','table','hr'))) {
+                $hasBlock = true; break;
+            }
+        }
+        if ($hasBlock) {
+            foreach ($node->childNodes as $c) {
+                if ($c->nodeType === XML_ELEMENT_NODE) {
+                    $inner .= block_to_xml($c, array('inCard' => true));
+                }
+            }
+        } else {
+            // Conteúdo inline com <br> separando linhas — splittar em <w:p>
+            $chunks = array(array());
+            $idx = 0;
+            foreach ($node->childNodes as $c) {
+                if ($c->nodeType === XML_ELEMENT_NODE && strtolower($c->nodeName) === 'br') {
+                    $idx++; $chunks[$idx] = array();
+                } else {
+                    $chunks[$idx][] = $c;
+                }
+            }
+            foreach ($chunks as $chunk) {
+                $wrapper = $node->ownerDocument->createElement('span');
+                $textOnly = '';
+                foreach ($chunk as $c) {
+                    $wrapper->appendChild($c->cloneNode(true));
+                    $textOnly .= $c->textContent;
+                }
+                if (trim($textOnly) === '') continue; // pula chunk vazio
+                $runs = node_to_runs($wrapper);
+                $inner .= '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . $runs . '</w:p>';
+            }
+            if (!$inner) $inner = '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . '</w:p>';
+        }
+        return '<w:tbl>'
+             . '<w:tblPr>'
+             . '<w:tblW w:w="5000" w:type="pct"/>'
+             . '<w:tblBorders>'
+             . '<w:top w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:left w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:bottom w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:right w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '</w:tblBorders>'
+             . '<w:tblCellMar><w:top w:w="180" w:type="dxa"/><w:left w:w="240" w:type="dxa"/><w:bottom w:w="180" w:type="dxa"/><w:right w:w="240" w:type="dxa"/></w:tblCellMar>'
+             . '</w:tblPr>'
+             . '<w:tr>'
+             . '<w:tc>'
+             . '<w:tcPr><w:tcW w:w="0" w:type="auto"/><w:shd w:val="clear" w:color="auto" w:fill="' . $bgHex . '"/></w:tcPr>'
+             . $inner
+             . '</w:tc>'
+             . '</w:tr>'
+             . '</w:tbl>'
+             // parágrafo vazio depois da tabela (espaço respiração)
+             . '<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>';
+    }
+
+    // ─── Linha horizontal da assinatura: <div class="linha"></div>
+    if ($tag === 'div' && preg_match('/\blinha\b/', $cls)) {
+        // Parágrafo vazio com border-top → vira a linha do "_______"
+        return '<w:p><w:pPr>'
+             . '<w:pBdr><w:top w:val="single" w:sz="6" w:space="1" w:color="000000"/></w:pBdr>'
+             . '<w:jc w:val="center"/>'
+             . '<w:spacing w:after="0" w:before="0" w:line="240" w:lineRule="auto"/>'
+             . '</w:pPr></w:p>';
+    }
+
+    // ─── <div> com children block-level → recursar em cada filho
+    if ($tag === 'div') {
+        $hasBlockChildren = false;
+        foreach ($node->childNodes as $c) {
+            if ($c->nodeType === XML_ELEMENT_NODE && in_array(strtolower($c->nodeName), array('div','p','table','h1','h2','h3','hr'))) {
+                $hasBlockChildren = true; break;
+            }
+        }
+        if ($hasBlockChildren) {
+            $out = '';
+            foreach ($node->childNodes as $c) {
+                if ($c->nodeType === XML_ELEMENT_NODE) {
+                    $out .= block_to_xml($c, $opts);
+                } elseif ($c->nodeType === XML_TEXT_NODE && trim($c->nodeValue) !== '') {
+                    $out .= '<w:p>' . _ppr_from_style($style, false, $opts)
+                          . '<w:r><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="24"/></w:rPr>'
+                          . '<w:t xml:space="preserve">' . xx($c->nodeValue) . '</w:t></w:r></w:p>';
+                }
+            }
+            return $out;
+        }
+    }
 
     if ($tag === 'p' || $tag === 'div') {
-        $cls = $node->getAttribute('class');
-        $isTitle = strpos($cls, 'doc-title') !== false || strpos($cls, 'titulo') !== false;
+        $isTitle = strpos($cls, 'doc-title') !== false || strpos($cls, 'titulo') !== false
+                || strpos($cls, 'nome-ass') !== false; // nome da assinatura = título centralizado bold
 
-        // Quebra os filhos em chunks separados por <br> — cada chunk vira um <w:p>
-        // independente. Sem isso, o Word estica horizontalmente as linhas com <br>
-        // dentro de um parágrafo justify (ex.: dados bancários em mandado_pagamento).
+        // Se o style do <p> declara font-weight:bold ou text-transform:uppercase,
+        // herdar isso pros runs filhos (Word não respeita CSS em <p>, precisa
+        // aplicar em cada <w:r>). Classes com bold conhecido também herdam.
+        $herdaBold = ($style && preg_match('/font-weight:\s*(?:bold|700|800|900)/i', $style))
+                  || strpos($cls, 'nome-ass') !== false
+                  || strpos($cls, 'doc-title') !== false;
+        $herdaUpper = $style && preg_match('/text-transform:\s*uppercase/i', $style);
+
+        // Default: split <br> em parágrafos separados quando o alinhamento é
+        // justify (ou herda do default), pra não esticar linhas curtas. Com
+        // text-align:center/right/left, mantém <br> como quebra de linha simples.
+        $isCenterRightLeft = preg_match('/text-align:\s*(center|right|left)/i', $style);
+        $deveSplitBr = !$isCenterRightLeft;
+
         $chunks = array(array());
         $idx = 0;
         foreach ($node->childNodes as $c) {
-            if ($c->nodeType === XML_ELEMENT_NODE && strtolower($c->nodeName) === 'br') {
-                $idx++;
-                $chunks[$idx] = array();
+            if ($deveSplitBr && $c->nodeType === XML_ELEMENT_NODE && strtolower($c->nodeName) === 'br') {
+                $idx++; $chunks[$idx] = array();
             } else {
                 $chunks[$idx][] = $c;
             }
         }
 
-        // Caminho rápido: nenhum <br> filho direto — comportamento original.
+        // Caminho rápido: nenhum split — comportamento original.
         if (count($chunks) === 1) {
-            $runs = node_to_runs($node);
+            $runs = node_to_runs($node, $herdaBold, false, false, $herdaUpper);
             if (trim(strip_tags($node->textContent)) === '' && strpos($runs, '<w:br') === false) {
-                return '<w:p>' . _ppr_from_style($style) . '</w:p>'; // p vazio = espaço
+                return '<w:p>' . _ppr_from_style($style, false, $opts) . '</w:p>';
             }
-            return '<w:p>' . _ppr_from_style($style, $isTitle) . $runs . '</w:p>';
+            return '<w:p>' . _ppr_from_style($style, $isTitle, $opts) . $runs . '</w:p>';
         }
 
-        // Múltiplos chunks: gera um <w:p> pra cada (dropping o text-indent do 2º
-        // em diante, porque "Ferreira & Sá... CNPJ: ..." e "CORA SCD" são linhas
-        // contínuas do mesmo bloco visual, não parágrafos novos com recuo).
+        // Múltiplos chunks: gera um <w:p> pra cada (sem text-indent do 2º em diante)
         $out = '';
         $first = true;
         $styleSemIndent = preg_replace('/text-indent:[^;]+;?/i', '', $style);
@@ -161,12 +316,12 @@ function block_to_xml(DOMNode $node) {
                 $wrapper->appendChild($c->cloneNode(true));
                 $textOnly .= $c->textContent;
             }
-            $runs = node_to_runs($wrapper);
+            $runs = node_to_runs($wrapper, $herdaBold, false, false, $herdaUpper);
             $useStyle = $first ? $style : $styleSemIndent;
             if (trim($textOnly) === '' && $runs === '') {
-                $out .= '<w:p>' . _ppr_from_style($useStyle) . '</w:p>';
+                $out .= '<w:p>' . _ppr_from_style($useStyle, false, $opts) . '</w:p>';
             } else {
-                $out .= '<w:p>' . _ppr_from_style($useStyle, $isTitle) . $runs . '</w:p>';
+                $out .= '<w:p>' . _ppr_from_style($useStyle, $isTitle, $opts) . $runs . '</w:p>';
             }
             $first = false;
         }
