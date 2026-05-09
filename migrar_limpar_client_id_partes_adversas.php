@@ -23,13 +23,19 @@ $pdo = db();
 
 echo "=== Limpando client_id de partes adversas ===\n\n";
 
+// IMPORTANTE: representante_legal NÃO entra na limpeza — mãe/tutor
+// representando filho menor frequentemente É nosso cliente (assinou contrato).
+// Whitelist do "nosso lado": autor / litisconsorte_ativo / representante_legal.
+// Tudo fora dessa whitelist + com client_id é dado sujo legado.
+$papeisQueMantemClientId = "'autor', 'litisconsorte_ativo', 'representante_legal'";
+
 // Lista o que vai ser afetado (pra log)
 $st = $pdo->query("SELECT cp.id, cp.case_id, cp.papel, cp.client_id,
                           COALESCE(cp.razao_social, cp.nome) AS nome_parte,
                           c.name AS cliente_nome
                    FROM case_partes cp
                    LEFT JOIN clients c ON c.id = cp.client_id
-                   WHERE cp.papel NOT IN ('autor', 'litisconsorte_ativo')
+                   WHERE cp.papel NOT IN ($papeisQueMantemClientId)
                      AND cp.client_id IS NOT NULL");
 $linhas = $st->fetchAll();
 
@@ -50,7 +56,7 @@ echo "\nLimpando...\n";
 $afetadas = $pdo->exec(
     "UPDATE case_partes
      SET client_id = NULL
-     WHERE papel NOT IN ('autor', 'litisconsorte_ativo')
+     WHERE papel NOT IN ($papeisQueMantemClientId)
        AND client_id IS NOT NULL"
 );
 
