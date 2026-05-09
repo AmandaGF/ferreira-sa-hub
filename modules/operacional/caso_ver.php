@@ -192,7 +192,17 @@ if ($case['client_id']) {
     $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name'], 'phone' => $case['client_phone'] ?: '');
 }
 try {
-    $stmtCliVinc = $pdo->prepare("SELECT DISTINCT cp.client_id, c.name, c.phone FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?");
+    // Só inclui partes do NOSSO LADO como "clientes vinculados".
+    // Lado adverso (réu, recorrido, terceiro_interessado, litisconsorte_passivo)
+    // NUNCA é nosso cliente — mesmo que tenha client_id setado por dado sujo legado.
+    // representante_legal entra porque mãe/tutor representando filho menor
+    // frequentemente É nosso cliente.
+    $stmtCliVinc = $pdo->prepare(
+        "SELECT DISTINCT cp.client_id, c.name, c.phone, cp.papel
+         FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id
+         WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?
+           AND cp.papel IN ('autor', 'litisconsorte_ativo', 'representante_legal')"
+    );
     $stmtCliVinc->execute(array($caseId, (int)($case['client_id'] ?: 0)));
     foreach ($stmtCliVinc->fetchAll() as $cv) {
         $clientesVinculados[] = array('id' => $cv['client_id'], 'name' => $cv['name'], 'phone' => $cv['phone'] ?: '');
