@@ -236,10 +236,15 @@ function block_to_xml(DOMNode $node, $opts = array()) {
             if (!$inner) $inner = '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . '</w:p>';
         }
 
-        // Tabela 1x1 com shading (cantos quadrados — Word não suporta
-        // border-radius nativo em tabelas; tentativa com VML roundrect não foi
-        // renderizada confiavelmente).
-        return '<w:tbl>'
+        // Estratégia dupla via mc:AlternateContent:
+        // - mc:Choice: DrawingML moderno (wps:wsp + a:prstGeom roundRect) com
+        //   cantos arredondados nativos. Word 2010+ renderiza.
+        // - mc:Fallback: tabela 1x1 com shading (cantos quadrados, mas garante
+        //   que o card aparece em qualquer leitor que não suporte DrawingML).
+        // ID único por chamada pra não conflitar entre múltiplos cards.
+        static $cardId = 1000; $cardId++;
+
+        $tabelaFallback = '<w:tbl>'
              . '<w:tblPr>'
              . '<w:tblW w:w="5000" w:type="pct"/>'
              . '<w:tblBorders>'
@@ -256,9 +261,44 @@ function block_to_xml(DOMNode $node, $opts = array()) {
              . $inner
              . '</w:tc>'
              . '</w:tr>'
-             . '</w:tbl>'
-             // parágrafo curto após a tabela (Word exige <w:p> depois de <w:tbl>
-             // pra não quebrar o documento; spacing zerado pra não criar gap visual)
+             . '</w:tbl>';
+
+        // Drawing roundRect: 5760000 EMU = 16cm largura. Altura inicial 1500000
+        // EMU (~4.2cm), spAutoFit deixa o shape esticar pra acomodar o conteúdo.
+        $drawing = '<w:p>'
+             . '<w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
+             . '<w:r>'
+             . '<w:drawing>'
+             . '<wp:inline distT="0" distB="0" distL="0" distR="0">'
+             . '<wp:extent cx="5760000" cy="1500000"/>'
+             . '<wp:effectExtent l="0" t="0" r="0" b="0"/>'
+             . '<wp:docPr id="' . $cardId . '" name="Card' . $cardId . '"/>'
+             . '<wp:cNvGraphicFramePr/>'
+             . '<a:graphic>'
+             . '<a:graphicData uri="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">'
+             . '<wps:wsp>'
+             . '<wps:cNvSpPr txBox="1"/>'
+             . '<wps:spPr>'
+             . '<a:xfrm><a:off x="0" y="0"/><a:ext cx="5760000" cy="1500000"/></a:xfrm>'
+             . '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 8000"/></a:avLst></a:prstGeom>'
+             . '<a:solidFill><a:srgbClr val="' . $bgHex . '"/></a:solidFill>'
+             . '<a:ln w="25400"><a:solidFill><a:srgbClr val="' . $bdHex . '"/></a:solidFill></a:ln>'
+             . '</wps:spPr>'
+             . '<wps:txbx><w:txbxContent>' . $inner . '</w:txbxContent></wps:txbx>'
+             . '<wps:bodyPr wrap="square" lIns="180000" tIns="120000" rIns="180000" bIns="120000" anchor="t"><a:spAutoFit/></wps:bodyPr>'
+             . '</wps:wsp>'
+             . '</a:graphicData>'
+             . '</a:graphic>'
+             . '</wp:inline>'
+             . '</w:drawing>'
+             . '</w:r>'
+             . '</w:p>';
+
+        return '<mc:AlternateContent>'
+             . '<mc:Choice Requires="wps">' . $drawing . '</mc:Choice>'
+             . '<mc:Fallback>' . $tabelaFallback . '</mc:Fallback>'
+             . '</mc:AlternateContent>'
+             // parágrafo de respiração (Word precisa de <w:p> depois pra fechar o bloco)
              . '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>';
     }
 
@@ -470,7 +510,17 @@ $footerXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 
 // document.xml — corpo principal com referência ao header/footer
 $documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w10="urn:schemas-microsoft-com:office:word">'
+    . '<w:document'
+    . ' xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    . ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+    . ' xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"'
+    . ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'
+    . ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'
+    . ' xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"'
+    . ' xmlns:v="urn:schemas-microsoft-com:vml"'
+    . ' xmlns:o="urn:schemas-microsoft-com:office:office"'
+    . ' xmlns:w10="urn:schemas-microsoft-com:office:word"'
+    . ' mc:Ignorable="wps">'
     . '<w:body>'
     . $bodyXml
     . '<w:sectPr>'
