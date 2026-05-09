@@ -81,9 +81,10 @@ function _ppr_from_style($style, $isTitle = false, $opts = array()) {
         $spacing = '<w:spacing w:line="276" w:lineRule="auto" w:after="0"/>'; // 1.15 line, sem after
         $indent = ''; // nunca indentar dentro do card
     } else {
-        // Default pra parágrafos: justify + line-spacing 1.5
+        // Default pra parágrafos: justify + line-spacing 1.5 + after 4pt
+        // (era 8pt, mas Amanda reclamou de espaçamento grande entre paragrafos)
         if (!$jc) $jc = '<w:jc w:val="both"/>';
-        $spacing = '<w:spacing w:line="360" w:lineRule="auto" w:after="160"/>'; // 1.5 line
+        $spacing = '<w:spacing w:line="360" w:lineRule="auto" w:after="80"/>'; // 1.5 line, 4pt depois
     }
 
     if ($isTitle) {
@@ -190,14 +191,14 @@ function block_to_xml(DOMNode $node, $opts = array()) {
     $cls = $node->getAttribute('class');
     $inCard = !empty($opts['inCard']);
 
-    // ─── Card visual: <div> com background + border → tabela 1x1 com shading
+    // ─── Card visual: <div> com background + border → VML roundrect
+    // (Tabela OOXML não suporta border-radius. v:roundrect é VML legacy mas
+    // funciona em todas as versões do Word desde 2007.)
     if ($tag === 'div' && _is_card_div($node)) {
         $bgHex = _hex_from_style($style, 'background');
         $bdHex = _hex_from_style($style, 'border');
         // Processa o conteúdo do card recursivamente, marcando inCard
         $inner = '';
-        // Primeiro junta filhos inline em um wrapper "p" virtual (com split por <br>).
-        // Se tem children block, processa cada um como bloco.
         $hasBlock = false;
         foreach ($node->childNodes as $c) {
             if ($c->nodeType === XML_ELEMENT_NODE && in_array(strtolower($c->nodeName), array('p','div','h1','h2','h3','table','hr'))) {
@@ -228,32 +229,31 @@ function block_to_xml(DOMNode $node, $opts = array()) {
                     $wrapper->appendChild($c->cloneNode(true));
                     $textOnly .= $c->textContent;
                 }
-                if (trim($textOnly) === '') continue; // pula chunk vazio
+                if (trim($textOnly) === '') continue;
                 $runs = node_to_runs($wrapper);
                 $inner .= '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . $runs . '</w:p>';
             }
             if (!$inner) $inner = '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . '</w:p>';
         }
-        return '<w:tbl>'
-             . '<w:tblPr>'
-             . '<w:tblW w:w="5000" w:type="pct"/>'
-             . '<w:tblBorders>'
-             . '<w:top w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
-             . '<w:left w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
-             . '<w:bottom w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
-             . '<w:right w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
-             . '</w:tblBorders>'
-             . '<w:tblCellMar><w:top w:w="180" w:type="dxa"/><w:left w:w="240" w:type="dxa"/><w:bottom w:w="180" w:type="dxa"/><w:right w:w="240" w:type="dxa"/></w:tblCellMar>'
-             . '</w:tblPr>'
-             . '<w:tr>'
-             . '<w:tc>'
-             . '<w:tcPr><w:tcW w:w="0" w:type="auto"/><w:shd w:val="clear" w:color="auto" w:fill="' . $bgHex . '"/></w:tcPr>'
+
+        // VML roundrect — width 460pt cobre quase a largura útil do A4 (margens
+        // 1701/1134 twips = ~16cm); altura adapta ao conteúdo via mso-fit-shape-to-text.
+        // arcsize 0.06 ≈ border-radius:10px do preview HTML.
+        return '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
+             . '<w:r>'
+             . '<w:pict>'
+             . '<v:roundrect arcsize="0.06"'
+             . ' style="width:460pt;height:1pt;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-fit-shape-to-text:t"'
+             . ' fillcolor="#' . $bgHex . '" strokecolor="#' . $bdHex . '" strokeweight="2pt">'
+             . '<v:textbox inset="14pt,10pt,14pt,10pt">'
+             . '<w:txbxContent>'
              . $inner
-             . '</w:tc>'
-             . '</w:tr>'
-             . '</w:tbl>'
-             // parágrafo vazio depois da tabela (espaço respiração)
-             . '<w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>';
+             . '</w:txbxContent>'
+             . '</v:textbox>'
+             . '</v:roundrect>'
+             . '</w:pict>'
+             . '</w:r>'
+             . '</w:p>';
     }
 
     // ─── Linha horizontal da assinatura: <div class="linha"></div>
@@ -464,7 +464,7 @@ $footerXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
 
 // document.xml — corpo principal com referência ao header/footer
 $documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    . '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w10="urn:schemas-microsoft-com:office:word">'
     . '<w:body>'
     . $bodyXml
     . '<w:sectPr>'
