@@ -494,6 +494,12 @@ if (!$showEditor) {
                     <div><label>Telefone</label><input name="subst_adv_telefone" placeholder="(00) 00000-0000"></div>
                 </div>
             </div>
+
+            <h4 style="margin-top:1rem;">⚖️ Processo de referência</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara Federal da Comarca de Resende/RJ"></div>
+            </div>
         </div>
 
         <script>

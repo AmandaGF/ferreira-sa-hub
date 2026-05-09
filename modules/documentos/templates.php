@@ -16,8 +16,11 @@ function escritorioData() {
         'pix' => '51.294.223/0001-40',
         'adv1_nome' => 'AMANDA GUEDES FERREIRA',
         'adv1_oab' => '163.260',
+        'adv1_email' => 'amandaguedesferreira@gmail.com',
         'adv2_nome' => 'LUIZ EDUARDO DE SÁ SILVA MARCELINO',
         'adv2_oab' => '248.755',
+        'adv2_oab_sp' => '523.473',
+        'adv2_email' => 'luizeduardo@ferreiraesa.com.br',
     );
 }
 
@@ -470,83 +473,113 @@ function template_isencao_ir($d) {
 // ═══════════════════════════════════════════════════════
 function template_substabelecimento($d) {
     $esc = escritorioData();
-    $acaoTexto = $d['acao_texto'] ?: '________________________________';
+    $acaoTexto = $d['acao_texto'] ?: '';
     $comReserva = !isset($d['sem_reserva']) || !$d['sem_reserva'];
     $tipo = isset($d['substabelecente']) ? $d['substabelecente'] : 'amanda_para_luiz';
 
-    // Definir quem substabelece e quem recebe
-    $endProfFeS = 'R. Albino de Almeida, 119 - Campos Elíseos, Resende – RJ, CEP 27542-040';
-    $emailFeS = $esc['email'];
+    // Endereço profissional ATUAL do escritório (Ano Bom — Barra Mansa)
+    $endProfFeS = $esc['endereco'];
+    $emailAmanda = $esc['adv1_email'];
+    $emailLuiz = $esc['adv2_email'];
+
+    // OAB do Luiz: tem RJ + SP. Helper que monta texto com as duas inscrições.
+    $oabLuizTxt = 'OAB-RJ sob o n. <strong>' . $esc['adv2_oab'] . '</strong> e OAB-SP sob o n. <strong>' . $esc['adv2_oab_sp'] . '</strong>';
+    $oabAmandaTxt = 'OAB-RJ sob o n. <strong>' . $esc['adv1_oab'] . '</strong>';
 
     if ($tipo === 'amanda_para_luiz') {
-        $advNome = $esc['adv1_nome']; $advOab = $esc['adv1_oab']; $advGenero = 'a'; // advogada
-        $subNome = $esc['adv2_nome']; $subOab = $esc['adv2_oab']; $subGenero = ''; // advogado
-        $subEndereco = $endProfFeS; $subEmail = $emailFeS; $subNacionalidade = 'brasileiro';
+        $advNome = $esc['adv1_nome']; $advOabTxt = $oabAmandaTxt; $advEmail = $emailAmanda; $advGenero = 'a';
+        $subNome = $esc['adv2_nome']; $subOabTxt = $oabLuizTxt;   $subEmail = $emailLuiz;   $subGenero = '';
+        $subEndereco = $endProfFeS; $subNacionalidade = 'brasileiro';
+        // Linhas curtas pra assinatura (uma OAB por linha — RJ + SP no caso do Luiz)
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv1_oab'];
     } elseif ($tipo === 'luiz_para_amanda') {
-        $advNome = $esc['adv2_nome']; $advOab = $esc['adv2_oab']; $advGenero = ''; // advogado
-        $subNome = $esc['adv1_nome']; $subOab = $esc['adv1_oab']; $subGenero = 'a'; // advogada
-        $subEndereco = $endProfFeS; $subEmail = $emailFeS; $subNacionalidade = 'brasileira';
+        $advNome = $esc['adv2_nome']; $advOabTxt = $oabLuizTxt;   $advEmail = $emailLuiz;   $advGenero = '';
+        $subNome = $esc['adv1_nome']; $subOabTxt = $oabAmandaTxt; $subEmail = $emailAmanda; $subGenero = 'a';
+        $subEndereco = $endProfFeS; $subNacionalidade = 'brasileira';
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv2_oab'] . ' &nbsp;·&nbsp; OAB/SP ' . $esc['adv2_oab_sp'];
     } elseif ($tipo === 'amanda_para_outro') {
-        $advNome = $esc['adv1_nome']; $advOab = $esc['adv1_oab']; $advGenero = 'a';
+        $advNome = $esc['adv1_nome']; $advOabTxt = $oabAmandaTxt; $advEmail = $emailAmanda; $advGenero = 'a';
         $subNome = $d['subst_adv_nome'] ?: '________________________________';
-        $subOab = $d['subst_adv_oab'] ?: '____________';
+        $subSeccional = isset($d['subst_adv_seccional']) && $d['subst_adv_seccional'] ? $d['subst_adv_seccional'] : 'RJ';
+        $subOabTxt = 'OAB-' . htmlspecialchars($subSeccional, ENT_QUOTES, 'UTF-8') . ' sob o n. <strong>' . f($d['subst_adv_oab'], '____________') . '</strong>';
         $subEndereco = $d['subst_adv_endereco'] ?: '________________________________';
         $subEmail = $d['subst_adv_email'] ?: '';
         $subNacionalidade = $d['subst_adv_nacionalidade'] ?: 'brasileiro(a)';
         $subGenero = (stripos($subNacionalidade, 'a)') !== false || stripos($subNacionalidade, 'brasileira') !== false) ? 'a' : '';
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv1_oab'];
     } else { // luiz_para_outro
-        $advNome = $esc['adv2_nome']; $advOab = $esc['adv2_oab']; $advGenero = '';
+        $advNome = $esc['adv2_nome']; $advOabTxt = $oabLuizTxt; $advEmail = $emailLuiz; $advGenero = '';
         $subNome = $d['subst_adv_nome'] ?: '________________________________';
-        $subOab = $d['subst_adv_oab'] ?: '____________';
+        $subSeccional = isset($d['subst_adv_seccional']) && $d['subst_adv_seccional'] ? $d['subst_adv_seccional'] : 'RJ';
+        $subOabTxt = 'OAB-' . htmlspecialchars($subSeccional, ENT_QUOTES, 'UTF-8') . ' sob o n. <strong>' . f($d['subst_adv_oab'], '____________') . '</strong>';
         $subEndereco = $d['subst_adv_endereco'] ?: '________________________________';
         $subEmail = $d['subst_adv_email'] ?: '';
         $subNacionalidade = $d['subst_adv_nacionalidade'] ?: 'brasileiro(a)';
         $subGenero = (stripos($subNacionalidade, 'a)') !== false || stripos($subNacionalidade, 'brasileira') !== false) ? 'a' : '';
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv2_oab'] . ' &nbsp;·&nbsp; OAB/SP ' . $esc['adv2_oab_sp'];
     }
-    $subSeccional = isset($d['subst_adv_seccional']) && $d['subst_adv_seccional'] ? $d['subst_adv_seccional'] : 'RJ';
+
+    // Dados de processo / vara que vêm do caso vinculado (ou preenchidos manualmente)
+    $numProc = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '';
+    $vara = isset($d['vara_juizo']) && $d['vara_juizo'] ? $d['vara_juizo'] : '';
 
     $html = '<div class="doc-title">SUBSTABELECIMENTO ' . ($comReserva ? 'COM RESERVAS' : 'SEM RESERVA') . ' DE PODERES</div>';
 
     // Pré-cálculos de gênero
-    $artAdv = $advGenero === 'a' ? 'ADVOGADA' : 'ADVOGADO';
+    $artAdv = $advGenero === 'a' ? 'ADVOGADA SUBSTABELECENTE' : 'ADVOGADO SUBSTABELECENTE';
     $artSub = $subGenero === 'a' ? 'ADVOGADA SUBSTABELECIDA' : 'ADVOGADO SUBSTABELECIDO';
     $brAdv = $advGenero === 'a' ? 'brasileira' : 'brasileiro';
     $advProf = $advGenero === 'a' ? 'advogada' : 'advogado';
     $subProf = $subGenero === 'a' ? 'advogada' : 'advogado';
-    $inscPalavra = $subGenero === 'a' ? 'inscrita' : 'inscrito';
-    $emailPart = $subEmail ? ', e-mail: ' . f($subEmail) : '';
+    $inscAdv = $advGenero === 'a' ? 'inscrita' : 'inscrito';
+    $inscSub = $subGenero === 'a' ? 'inscrita' : 'inscrito';
+    $advEmailPart = $advEmail ? ', e-mail: ' . f($advEmail) : '';
+    $subEmailPart = $subEmail ? ', e-mail: ' . f($subEmail) : '';
 
-    // Cards lado a lado: SUBSTABELECENTE / SUBSTABELECIDO (discretos)
+    // Cards lado a lado: SUBSTABELECENTE / SUBSTABELECIDO
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
 
     // SUBSTABELECENTE
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
     $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artAdv . '</div>';
-    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $advNome . '</strong>, ' . $brAdv . ', ' . $advProf . ', inscrit' . ($advGenero === 'a' ? 'a' : 'o') . ' na OAB-RJ sob o n. <strong>' . $advOab . '</strong>, com escritório profissional localizado na ' . $endProfFeS . '.</p>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . $advNome . '</strong>, ' . $brAdv . ', ' . $advProf . ', ' . $inscAdv . ' na ' . $advOabTxt . ', com escritório profissional localizado na ' . $endProfFeS . $advEmailPart . '.</p>';
     $html .= '</div>';
 
     // SUBSTABELECIDO
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
     $html .= '<div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">' . $artSub . '</div>';
-    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($subNome) . '</strong>, ' . f($subNacionalidade) . ', ' . $subProf . ' ' . $inscPalavra . ' na OAB-' . f($subSeccional) . ' sob o n. <strong>' . f($subOab) . '</strong>, com escritório profissional localizado na ' . f($subEndereco) . $emailPart . '.</p>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($subNome) . '</strong>, ' . f($subNacionalidade) . ', ' . $subProf . ' ' . $inscSub . ' na ' . $subOabTxt . ', com escritório profissional localizado na ' . f($subEndereco) . $subEmailPart . '.</p>';
     $html .= '</div>';
     $html .= '</div>';
 
-    // CORPO DO SUBSTABELECIMENTO
+    // CORPO DO SUBSTABELECIMENTO — agora com cliente, processo e vara
     $verboSub = $subGenero === 'a' ? 'à advogada' : 'ao advogado';
     $reservaTxt = $comReserva ? 'com reserva de iguais poderes' : 'sem reserva de poderes';
+
+    // Monta a frase de referência: "nos autos de [ação] (processo n. X, em trâmite na Vara Y)"
+    $refProcesso = '';
+    if ($acaoTexto) {
+        $refProcesso = ', nos autos de <strong>' . $acaoTexto . '</strong>';
+    }
+    if ($numProc) {
+        $refProcesso .= ($acaoTexto ? ',' : ',') . ' processo n. <strong>' . f($numProc) . '</strong>';
+    }
+    if ($vara) {
+        $refProcesso .= ', em trâmite perante a <strong>' . f($vara) . '</strong>';
+    }
+
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;margin-bottom:.5rem;">DO ATO DO SUBSTABELECIMENTO</p>';
-    $html .= '<p style="font-size:12px;">Pelo presente instrumento particular e pela melhor forma de direito, <strong>' . $advNome . '</strong> substabelece, <strong>' . $reservaTxt . '</strong>, ' . $verboSub . ' <strong>' . f($subNome) . '</strong> os poderes que lhe foram conferidos por <strong>' . f($d['nome']) . '</strong>' . ($d['cpf'] ? ', CPF n. <strong>' . f($d['cpf']) . '</strong>' : '') . ($acaoTexto !== '________________________________' ? ', nos autos de <strong>' . $acaoTexto . '</strong>' : '') . '.</p>';
+    $html .= '<p style="font-size:12px;text-align:justify;">Pelo presente instrumento particular e pela melhor forma de direito, <strong>' . $advNome . '</strong> substabelece, <strong>' . $reservaTxt . '</strong>, ' . $verboSub . ' <strong>' . f($subNome) . '</strong> os poderes que lhe foram conferidos pelo(a) cliente <strong>' . f($d['nome']) . '</strong>' . ($d['cpf'] ? ', inscrito(a) no CPF sob o n. <strong>' . f($d['cpf']) . '</strong>' : '') . $refProcesso . '.</p>';
 
     if (!$comReserva) {
-        $html .= '<p style="font-size:12px;">Ficam os substabelecentes desonerados de qualquer responsabilidade.</p>';
+        $html .= '<p style="font-size:12px;text-align:justify;">Ficam os substabelecentes desonerados de qualquer responsabilidade.</p>';
     }
 
     // LOCAL E DATA
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
-    // ASSINATURA do substabelecente
-    $html .= '<div class="assinatura" style="margin-top:2.5rem;"><div class="linha"></div><div class="nome-ass">' . $advNome . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $advOab . '</div></div>';
+    // ASSINATURA do substabelecente — com OAB-RJ + OAB-SP quando for o Luiz
+    $html .= '<div class="assinatura" style="margin-top:2.5rem;"><div class="linha"></div><div class="nome-ass">' . $advNome . '</div><div style="font-size:10px;color:#6b7280;">' . $advAssinaOAB . '</div></div>';
 
     return $html;
 }
