@@ -236,24 +236,30 @@ function block_to_xml(DOMNode $node, $opts = array()) {
             if (!$inner) $inner = '<w:p>' . _ppr_from_style('', false, array('inCard' => true)) . '</w:p>';
         }
 
-        // VML roundrect — width 460pt cobre quase a largura útil do A4 (margens
-        // 1701/1134 twips = ~16cm); altura adapta ao conteúdo via mso-fit-shape-to-text.
-        // arcsize 0.06 ≈ border-radius:10px do preview HTML.
-        return '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr>'
-             . '<w:r>'
-             . '<w:pict>'
-             . '<v:roundrect arcsize="0.06"'
-             . ' style="width:460pt;height:1pt;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-fit-shape-to-text:t"'
-             . ' fillcolor="#' . $bgHex . '" strokecolor="#' . $bdHex . '" strokeweight="2pt">'
-             . '<v:textbox inset="14pt,10pt,14pt,10pt">'
-             . '<w:txbxContent>'
+        // Tabela 1x1 com shading (cantos quadrados — Word não suporta
+        // border-radius nativo em tabelas; tentativa com VML roundrect não foi
+        // renderizada confiavelmente).
+        return '<w:tbl>'
+             . '<w:tblPr>'
+             . '<w:tblW w:w="5000" w:type="pct"/>'
+             . '<w:tblBorders>'
+             . '<w:top w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:left w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:bottom w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '<w:right w:val="single" w:sz="16" w:color="' . $bdHex . '"/>'
+             . '</w:tblBorders>'
+             . '<w:tblCellMar><w:top w:w="180" w:type="dxa"/><w:left w:w="240" w:type="dxa"/><w:bottom w:w="180" w:type="dxa"/><w:right w:w="240" w:type="dxa"/></w:tblCellMar>'
+             . '</w:tblPr>'
+             . '<w:tr>'
+             . '<w:tc>'
+             . '<w:tcPr><w:tcW w:w="0" w:type="auto"/><w:shd w:val="clear" w:color="auto" w:fill="' . $bgHex . '"/></w:tcPr>'
              . $inner
-             . '</w:txbxContent>'
-             . '</v:textbox>'
-             . '</v:roundrect>'
-             . '</w:pict>'
-             . '</w:r>'
-             . '</w:p>';
+             . '</w:tc>'
+             . '</w:tr>'
+             . '</w:tbl>'
+             // parágrafo curto após a tabela (Word exige <w:p> depois de <w:tbl>
+             // pra não quebrar o documento; spacing zerado pra não criar gap visual)
+             . '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:p>';
     }
 
     // ─── Linha horizontal da assinatura: <div class="linha"></div>
