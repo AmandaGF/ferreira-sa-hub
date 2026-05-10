@@ -993,102 +993,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                         <small style="color:#94a3b8;font-size:.7rem;display:block;margin-top:.2rem;">Deixe vazio se o prazo não está vinculado a um processo específico.</small>
                     </div>
-                    <script>
-                    (function(){
-                        var input = document.getElementById('caseSearch');
-                        var hidden = document.getElementById('caseId');
-                        var results = document.getElementById('caseSearchResults');
-                        var clearBtn = document.getElementById('caseSearchClear');
-                        var wrap = document.getElementById('caseSearchWrap');
-                        var lastQuery = '';
-                        var debounceTimer = null;
-                        var apiUrl = '<?= module_url("operacional", "api.php") ?>';
-
-                        function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
-
-                        function buscar(q) {
-                            results.innerHTML = '<div style="padding:.6rem .85rem;color:#94a3b8;font-size:.78rem;">Buscando...</div>';
-                            results.style.display = 'block';
-                            var xhr = new XMLHttpRequest();
-                            xhr.open('GET', apiUrl + '?action=buscar_caso_para_vincular&q=' + encodeURIComponent(q));
-                            xhr.onload = function() {
-                                try {
-                                    var r = JSON.parse(xhr.responseText);
-                                    var casos = r.casos || [];
-                                    if (!casos.length) {
-                                        results.innerHTML = '<div style="padding:.6rem .85rem;color:#94a3b8;font-size:.78rem;">Nenhum processo encontrado pra "' + esc(q) + '".</div>';
-                                        return;
-                                    }
-                                    var html = '';
-                                    casos.forEach(function(c) {
-                                        var titulo = c.title || ('Processo #' + c.id);
-                                        var sub = [];
-                                        if (c.client_name) sub.push('👤 ' + c.client_name);
-                                        if (c.case_number) sub.push('⚖ ' + c.case_number);
-                                        html += '<div class="cs-opt" data-id="' + c.id + '" data-label="' + esc(titulo + (c.case_number ? ' (' + c.case_number + ')' : '')) + '" style="padding:.5rem .85rem;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:.82rem;">'
-                                             + '<div style="font-weight:600;color:#052228;">' + esc(titulo) + '</div>'
-                                             + (sub.length ? '<div style="font-size:.7rem;color:#6b7280;margin-top:1px;">' + esc(sub.join(' · ')) + '</div>' : '')
-                                             + '</div>';
-                                    });
-                                    results.innerHTML = html;
-                                    results.querySelectorAll('.cs-opt').forEach(function(el) {
-                                        el.addEventListener('mouseenter', function(){ this.style.background = '#f9fafb'; });
-                                        el.addEventListener('mouseleave', function(){ this.style.background = ''; });
-                                        el.addEventListener('click', function(){
-                                            hidden.value = this.dataset.id;
-                                            input.value = this.dataset.label;
-                                            results.style.display = 'none';
-                                            clearBtn.style.display = '';
-                                        });
-                                    });
-                                } catch(e) {
-                                    results.innerHTML = '<div style="padding:.6rem .85rem;color:#dc2626;font-size:.78rem;">Erro ao buscar: ' + esc(e.message) + '</div>';
-                                }
-                            };
-                            xhr.onerror = function() {
-                                results.innerHTML = '<div style="padding:.6rem .85rem;color:#dc2626;font-size:.78rem;">Erro de rede.</div>';
-                            };
-                            xhr.send();
-                        }
-
-                        input.addEventListener('input', function() {
-                            // Quando user digita, invalida o case_id selecionado anteriormente —
-                            // só vai ter case_id válido quando clicar num resultado.
-                            hidden.value = '';
-                            clearBtn.style.display = input.value ? '' : 'none';
-                            var q = input.value.trim();
-                            if (q.length < 2) { results.style.display = 'none'; return; }
-                            if (q === lastQuery) return;
-                            lastQuery = q;
-                            clearTimeout(debounceTimer);
-                            debounceTimer = setTimeout(function(){ buscar(q); }, 250);
-                        });
-
-                        input.addEventListener('focus', function() {
-                            if (input.value.trim().length >= 2 && !hidden.value) {
-                                buscar(input.value.trim());
-                            }
-                        });
-
-                        clearBtn.addEventListener('click', function() {
-                            hidden.value = '';
-                            input.value = '';
-                            results.style.display = 'none';
-                            clearBtn.style.display = 'none';
-                            input.focus();
-                        });
-
-                        // Fecha dropdown ao clicar fora
-                        document.addEventListener('click', function(e) {
-                            if (!wrap.contains(e.target)) results.style.display = 'none';
-                        });
-
-                        // Esc fecha dropdown
-                        input.addEventListener('keydown', function(e) {
-                            if (e.key === 'Escape') results.style.display = 'none';
-                        });
-                    })();
-                    </script>
 
                     <!-- Tipo de prazo -->
                     <div class="field-group">
@@ -1382,7 +1286,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <!-- Action buttons -->
                     <div class="result-actions">
                         <?php if (!$salvoComSucesso): ?>
-                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="(typeof salvarPrazo === 'function' ? salvarPrazo() : alert('[ERRO] salvarPrazo nao definida — JS quebrou antes. Recarregue (Ctrl+Shift+R) ou veja console.'))"
+                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="salvarPrazo()"
                                 data-case-id="<?= e((string)(isset($_POST['case_id']) ? $_POST['case_id'] : '')) ?>"
                                 data-tipo-prazo="<?= e(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '') ?>"
                                 data-disp="<?= e($resultado['disponibilizacao']) ?>"
@@ -1772,17 +1676,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // (e nao do form, que sofria com select resetado e CSRF expirado).
     // Os atributos data-* sao preenchidos pelo PHP no card de resultado.
     window.salvarPrazo = function() {
-        // [DEBUG] banner visual pra confirmar que a funcao foi chamada
-        var dbg = document.createElement('div');
-        dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;font-family:sans-serif;';
-        dbg.textContent = 'salvarPrazo() CHAMADA';
-        document.body.appendChild(dbg);
-        setTimeout(function(){ dbg.remove(); }, 3500);
-
         var btn = document.getElementById('btnSalvar');
-        if (!btn) { alert('Erro: botao btnSalvar nao encontrado'); return; }
+        if (!btn) return;
         var caseId = btn.dataset.caseId || '';
-        alert('[DEBUG] caseId lido do botao = "' + caseId + '"');
         if (!caseId || caseId === '0') {
             alert('Selecione um processo no campo "Processo" e clique em CALCULAR PRAZO antes de salvar.');
             var sel = document.getElementById('caseSearch');
@@ -1885,6 +1781,111 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 })();
+</script>
+
+<!-- Autocomplete do campo Processo — script separado pra nao afetar o resto do JS se quebrar -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var input = document.getElementById('caseSearch');
+    var hidden = document.getElementById('caseId');
+    var results = document.getElementById('caseSearchResults');
+    var clearBtn = document.getElementById('caseSearchClear');
+    var wrap = document.getElementById('caseSearchWrap');
+    if (!input || !hidden || !results) return;
+
+    var lastQuery = '';
+    var debounceTimer = null;
+    var apiUrl = <?= json_encode(module_url('operacional', 'api.php')) ?>;
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.textContent = (s == null) ? '' : String(s);
+        return d.innerHTML;
+    }
+
+    function buscar(q) {
+        results.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;font-size:12px;">Buscando...</div>';
+        results.style.display = 'block';
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', apiUrl + '?action=buscar_caso_para_vincular&q=' + encodeURIComponent(q));
+        xhr.onload = function() {
+            try {
+                var resp = JSON.parse(xhr.responseText);
+                var casos = resp.casos || [];
+                if (casos.length === 0) {
+                    results.innerHTML = '<div style="padding:8px 12px;color:#94a3b8;font-size:12px;">Nenhum processo encontrado.</div>';
+                    return;
+                }
+                var html = '';
+                for (var i = 0; i < casos.length; i++) {
+                    var c = casos[i];
+                    var titulo = c.title || ('Processo #' + c.id);
+                    var sub = '';
+                    if (c.client_name) sub += '👤 ' + esc(c.client_name);
+                    if (c.case_number) sub += (sub ? ' · ' : '') + '⚖ ' + esc(c.case_number);
+                    var fullLabel = titulo + (c.case_number ? ' (' + c.case_number + ')' : '');
+                    html += '<div class="cs-opt" data-id="' + c.id + '" data-label="' + esc(fullLabel) + '" style="padding:8px 12px;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:13px;">';
+                    html += '<div style="font-weight:600;color:#052228;">' + esc(titulo) + '</div>';
+                    if (sub) html += '<div style="font-size:11px;color:#6b7280;margin-top:1px;">' + sub + '</div>';
+                    html += '</div>';
+                }
+                results.innerHTML = html;
+                var opts = results.querySelectorAll('.cs-opt');
+                for (var j = 0; j < opts.length; j++) {
+                    opts[j].addEventListener('mouseenter', function() { this.style.background = '#f9fafb'; });
+                    opts[j].addEventListener('mouseleave', function() { this.style.background = ''; });
+                    opts[j].addEventListener('click', function() {
+                        hidden.value = this.getAttribute('data-id');
+                        input.value = this.getAttribute('data-label');
+                        results.style.display = 'none';
+                        if (clearBtn) clearBtn.style.display = '';
+                    });
+                }
+            } catch (e) {
+                results.innerHTML = '<div style="padding:8px 12px;color:#dc2626;font-size:12px;">Erro: ' + esc(e.message) + '</div>';
+            }
+        };
+        xhr.onerror = function() {
+            results.innerHTML = '<div style="padding:8px 12px;color:#dc2626;font-size:12px;">Erro de rede.</div>';
+        };
+        xhr.send();
+    }
+
+    input.addEventListener('input', function() {
+        hidden.value = '';
+        if (clearBtn) clearBtn.style.display = input.value ? '' : 'none';
+        var q = input.value.trim();
+        if (q.length < 2) { results.style.display = 'none'; return; }
+        if (q === lastQuery) return;
+        lastQuery = q;
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(function() { buscar(q); }, 250);
+    });
+
+    input.addEventListener('focus', function() {
+        if (input.value.trim().length >= 2 && !hidden.value) {
+            buscar(input.value.trim());
+        }
+    });
+
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function() {
+            hidden.value = '';
+            input.value = '';
+            results.style.display = 'none';
+            clearBtn.style.display = 'none';
+            input.focus();
+        });
+    }
+
+    document.addEventListener('click', function(e) {
+        if (wrap && !wrap.contains(e.target)) results.style.display = 'none';
+    });
+
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') results.style.display = 'none';
+    });
+});
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
