@@ -961,31 +961,134 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <form method="POST" class="prazo-form" id="prazoForm">
                     <?= csrf_input() ?>
 
-                    <!-- Processo (opcional) -->
+                    <!-- Processo (opcional) — autocomplete -->
                     <div class="field-group">
-                        <label class="field-label" for="caseSelect">
+                        <label class="field-label" for="caseSearch">
                             Processo <span class="optional">(opcional)</span>
                         </label>
                         <?php
-                        // Mantém o caso selecionado: preferência POST (após submit) > GET (deep link).
-                        // Sem isso, ao clicar CALCULAR PRAZO o select resetava pra "sem vinculo"
-                        // e o botao "Salvar no processo" disparava o alert silenciosamente.
                         $selectedCaseId = (int)(isset($_POST['case_id']) && $_POST['case_id'] !== ''
                             ? $_POST['case_id']
                             : $preCaseId);
+                        $selectedCaseLabel = '';
+                        if ($selectedCaseId) {
+                            foreach ($casesForSelect as $c) {
+                                if ((int)$c['id'] === $selectedCaseId) {
+                                    $selectedCaseLabel = $c['title'] ? $c['title'] : ($c['case_number'] ?: 'Processo #' . $c['id']);
+                                    if ($c['case_number']) $selectedCaseLabel .= ' (' . $c['case_number'] . ')';
+                                    break;
+                                }
+                            }
+                        }
                         ?>
-                        <select name="case_id" id="caseSelect" class="field-select">
-                            <option value="">-- Sem vinculo a processo --</option>
-                            <?php foreach ($casesForSelect as $c): ?>
-                                <option value="<?= (int)$c['id'] ?>"
-                                    <?php if ($selectedCaseId && $selectedCaseId == $c['id']): ?> selected<?php endif; ?>
-                                >
-                                    <?= e($c['title'] ? $c['title'] : ($c['case_number'] ? $c['case_number'] : 'Processo #' . $c['id'])) ?>
-                                    <?php if ($c['case_number']): ?> (<?= e($c['case_number']) ?>)<?php endif; ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div style="position:relative;" id="caseSearchWrap">
+                            <input type="hidden" name="case_id" id="caseId" value="<?= $selectedCaseId ?: '' ?>">
+                            <input type="text" id="caseSearch" class="field-select" autocomplete="off"
+                                placeholder="Digite nome do cliente, título ou nº do processo..."
+                                value="<?= e($selectedCaseLabel) ?>"
+                                style="padding-right:30px;">
+                            <button type="button" id="caseSearchClear" title="Limpar"
+                                style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:1rem;cursor:pointer;padding:2px 6px;<?= $selectedCaseId ? '' : 'display:none;' ?>">×</button>
+                            <div id="caseSearchResults" style="display:none;position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1.5px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:300px;overflow-y:auto;z-index:100;"></div>
+                        </div>
+                        <small style="color:#94a3b8;font-size:.7rem;display:block;margin-top:.2rem;">Deixe vazio se o prazo não está vinculado a um processo específico.</small>
                     </div>
+                    <script>
+                    (function(){
+                        var input = document.getElementById('caseSearch');
+                        var hidden = document.getElementById('caseId');
+                        var results = document.getElementById('caseSearchResults');
+                        var clearBtn = document.getElementById('caseSearchClear');
+                        var wrap = document.getElementById('caseSearchWrap');
+                        var lastQuery = '';
+                        var debounceTimer = null;
+                        var apiUrl = '<?= module_url("operacional", "api.php") ?>';
+
+                        function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+                        function buscar(q) {
+                            results.innerHTML = '<div style="padding:.6rem .85rem;color:#94a3b8;font-size:.78rem;">Buscando...</div>';
+                            results.style.display = 'block';
+                            var xhr = new XMLHttpRequest();
+                            xhr.open('GET', apiUrl + '?action=buscar_caso_para_vincular&q=' + encodeURIComponent(q));
+                            xhr.onload = function() {
+                                try {
+                                    var r = JSON.parse(xhr.responseText);
+                                    var casos = r.casos || [];
+                                    if (!casos.length) {
+                                        results.innerHTML = '<div style="padding:.6rem .85rem;color:#94a3b8;font-size:.78rem;">Nenhum processo encontrado pra "' + esc(q) + '".</div>';
+                                        return;
+                                    }
+                                    var html = '';
+                                    casos.forEach(function(c) {
+                                        var titulo = c.title || ('Processo #' + c.id);
+                                        var sub = [];
+                                        if (c.client_name) sub.push('👤 ' + c.client_name);
+                                        if (c.case_number) sub.push('⚖ ' + c.case_number);
+                                        html += '<div class="cs-opt" data-id="' + c.id + '" data-label="' + esc(titulo + (c.case_number ? ' (' + c.case_number + ')' : '')) + '" style="padding:.5rem .85rem;cursor:pointer;border-bottom:1px solid #f3f4f6;font-size:.82rem;">'
+                                             + '<div style="font-weight:600;color:#052228;">' + esc(titulo) + '</div>'
+                                             + (sub.length ? '<div style="font-size:.7rem;color:#6b7280;margin-top:1px;">' + esc(sub.join(' · ')) + '</div>' : '')
+                                             + '</div>';
+                                    });
+                                    results.innerHTML = html;
+                                    results.querySelectorAll('.cs-opt').forEach(function(el) {
+                                        el.addEventListener('mouseenter', function(){ this.style.background = '#f9fafb'; });
+                                        el.addEventListener('mouseleave', function(){ this.style.background = ''; });
+                                        el.addEventListener('click', function(){
+                                            hidden.value = this.dataset.id;
+                                            input.value = this.dataset.label;
+                                            results.style.display = 'none';
+                                            clearBtn.style.display = '';
+                                        });
+                                    });
+                                } catch(e) {
+                                    results.innerHTML = '<div style="padding:.6rem .85rem;color:#dc2626;font-size:.78rem;">Erro ao buscar: ' + esc(e.message) + '</div>';
+                                }
+                            };
+                            xhr.onerror = function() {
+                                results.innerHTML = '<div style="padding:.6rem .85rem;color:#dc2626;font-size:.78rem;">Erro de rede.</div>';
+                            };
+                            xhr.send();
+                        }
+
+                        input.addEventListener('input', function() {
+                            // Quando user digita, invalida o case_id selecionado anteriormente —
+                            // só vai ter case_id válido quando clicar num resultado.
+                            hidden.value = '';
+                            clearBtn.style.display = input.value ? '' : 'none';
+                            var q = input.value.trim();
+                            if (q.length < 2) { results.style.display = 'none'; return; }
+                            if (q === lastQuery) return;
+                            lastQuery = q;
+                            clearTimeout(debounceTimer);
+                            debounceTimer = setTimeout(function(){ buscar(q); }, 250);
+                        });
+
+                        input.addEventListener('focus', function() {
+                            if (input.value.trim().length >= 2 && !hidden.value) {
+                                buscar(input.value.trim());
+                            }
+                        });
+
+                        clearBtn.addEventListener('click', function() {
+                            hidden.value = '';
+                            input.value = '';
+                            results.style.display = 'none';
+                            clearBtn.style.display = 'none';
+                            input.focus();
+                        });
+
+                        // Fecha dropdown ao clicar fora
+                        document.addEventListener('click', function(e) {
+                            if (!wrap.contains(e.target)) results.style.display = 'none';
+                        });
+
+                        // Esc fecha dropdown
+                        input.addEventListener('keydown', function(e) {
+                            if (e.key === 'Escape') results.style.display = 'none';
+                        });
+                    })();
+                    </script>
 
                     <!-- Tipo de prazo -->
                     <div class="field-group">
@@ -1674,7 +1777,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var caseId = btn.dataset.caseId || '';
         if (!caseId || caseId === '0') {
             alert('Selecione um processo no campo "Processo" e clique em CALCULAR PRAZO antes de salvar.');
-            var sel = document.getElementById('caseSelect');
+            var sel = document.getElementById('caseSearch');
             if (sel) { sel.style.borderColor = '#dc2626'; sel.focus(); }
             return;
         }
