@@ -1671,6 +1671,49 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'evento_excluir':
+        // Exclui DEFINITIVAMENTE um evento da agenda + tarefa/prazo vinculados.
+        // Diferente do evento_realizado (que so muda status pra 'realizado' e mantem o registro),
+        // o excluir remove a linha. Usado quando o prazo/compromisso foi cadastrado por engano
+        // ou e duplicata. Audit_log preserva o historico do que foi apagado.
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+        $eventoId = (int)($_POST['evento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+        if ($eventoId && $caseId) {
+            try {
+                // 1. Captura snapshot pra audit log antes de apagar
+                $stEv = $pdo->prepare("SELECT id, titulo, tipo, data_inicio, status FROM agenda_eventos WHERE id = ? AND case_id = ?");
+                $stEv->execute(array($eventoId, $caseId));
+                $evRow = $stEv->fetch();
+                if (!$evRow) {
+                    flash_set('error', 'Evento nao encontrado nesta pasta.');
+                } else {
+                    $detalhe = 'evento_id=' . $eventoId . ' titulo="' . $evRow['titulo'] . '" tipo=' . $evRow['tipo'] . ' data=' . $evRow['data_inicio'];
+
+                    // 2. Tarefa de prazo vinculada (case_tasks) — busca por agenda_id ou por descricao similar na mesma data
+                    try { $pdo->prepare("DELETE FROM case_tasks WHERE case_id = ? AND agenda_id = ?")->execute(array($caseId, $eventoId)); } catch (Exception $e) {}
+
+                    // 3. Publicacao vinculada (case_publicacoes) — desvincula sem apagar (a publicacao em si pode ser util manter)
+                    try { $pdo->prepare("UPDATE case_publicacoes SET agenda_id = NULL WHERE agenda_id = ?")->execute(array($eventoId)); } catch (Exception $e) {}
+
+                    // 4. Apaga o evento
+                    $pdo->prepare("DELETE FROM agenda_eventos WHERE id = ? AND case_id = ?")->execute(array($eventoId, $caseId));
+
+                    audit_log('EVENTO_EXCLUIDO', 'case', $caseId, $detalhe);
+                    flash_set('success', 'Compromisso excluido com sucesso.');
+                }
+            } catch (Exception $e) {
+                flash_set('error', 'Erro ao excluir: ' . $e->getMessage());
+            }
+        }
+        if ($back && (strpos($back, 'ferreiraesa.com.br') !== false || strpos($back, '/') === 0)) {
+            header('Location: ' . $back);
+            exit;
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
     case 'duplicate_case':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $clientIdDup = (int)($_POST['client_id'] ?? 0);

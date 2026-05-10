@@ -906,6 +906,14 @@ if (!empty($compFuturos)): ?>
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
                     <button type="submit" title="Marcar como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Excluir DEFINITIVAMENTE este compromisso?\n\nIsso vai remover o evento da agenda e a tarefa de prazo vinculada (se houver).\n\nUse essa opção quando o prazo foi cadastrado por engano ou e duplicata.\n\nTem certeza?');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="evento_excluir">
+                    <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <input type="hidden" name="_back" value="<?= $_backPasta ?>">
+                    <button type="submit" title="Excluir compromisso (cadastrado por engano)" style="font-size:.7rem;background:#fef2f2;color:#b91c1c;padding:3px 8px;border:1px solid #fca5a5;border-radius:5px;cursor:pointer;font-weight:600;">🗑 Excluir</button>
+                </form>
             <?php endif; ?>
             <?php
             // Botões cumprir/descartar — aparecem se há publicação vinculada
