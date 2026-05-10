@@ -667,8 +667,10 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
     function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
     addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
     addH('action', 'merge_cases');
-    addH('principal_id', principalId);
-    addH('absorvido_id', absorvidoId);
+    // Os names tem que bater com o que api.php le ($_POST['case_principal']/['case_absorvido']),
+    // senao backend recebe 0/0 e devolve 'Dados invalidos para unificacao'.
+    addH('case_principal', principalId);
+    addH('case_absorvido', absorvidoId);
     addH('novo_titulo', '');
     document.body.appendChild(form);
     form.submit();
