@@ -419,22 +419,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
 var _pvPendingForm = null;
 var pvCsrf = '<?= generate_csrf_token() ?>';
 
-// Click no card → abre o drawer compartilhado (mesmo padrao do operacional/comercial).
-// Esta funcao e o caminho PRINCIPAL — onclick inline e mais robusto que interceptor
-// global porque nao depende de timing de carregamento do card_drawer.php.
+// === MODO DIAGNÓSTICO ===
+// Mostra um banner vermelho fixo no topo da tela ao clicar — descobrimos
+// se o onclick inline está disparando OU se há cache/script bloqueando tudo.
 function pvCardClick(card, ev) {
+    var caseId = card ? card.getAttribute('data-case-id') : '???';
+    // Banner visual — não precisa abrir DevTools
+    var dbg = document.createElement('div');
+    dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;font-family:sans-serif;';
+    dbg.textContent = 'CLICK CAPTURADO no card #' + caseId + ' — cdAbrir? ' + (typeof cdAbrir);
+    document.body.appendChild(dbg);
+    setTimeout(function(){ dbg.remove(); }, 4000);
+
     if (!card || !ev) return;
-    // Ignora clicks em elementos interativos internos (select de mover, links pra Drive/pasta, botoes)
     if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
-    // Evita disparar duas vezes (capture phase do interceptor global tambem cobre este card)
     ev.stopPropagation();
-    var caseId = card.getAttribute('data-case-id');
-    if (!caseId) return;
+    if (!caseId || caseId === '???') return;
     if (typeof cdAbrir === 'function') {
         cdAbrir('case_id=' + caseId);
     } else {
-        // Fallback se card_drawer.php nao carregou — abre direto a pasta
-        console.error('[PrevKanban] cdAbrir nao definido, redirecionando');
         window.location.href = '<?= module_url("operacional", "caso_ver.php") ?>?id=' + caseId;
     }
 }
