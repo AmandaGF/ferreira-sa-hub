@@ -31,6 +31,30 @@ $anoAtual = date('Y');
 $hoje = date('d/m/Y H:i');
 
 function fmtMoney($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
+
+/**
+ * Limpa observações geradas pelo Claude AI que misturam o endereço pessoal
+ * da Amanda (cadastrado nos PDFs Jusfy como exequente) com dados do escritório.
+ * Remove qualquer trecho que comece com "Escritório:" ou "Endereço:" e injeta
+ * o bloco correto do escritório no final.
+ */
+function sanitizaObservacoes($obs) {
+    if (!$obs) return $obs;
+    // Quebra por " | " (delimitador padrão do Jusfy/Claude)
+    $partes = preg_split('/\s*\|\s*/', $obs);
+    $limpo = array();
+    foreach ($partes as $p) {
+        $p = trim($p);
+        if ($p === '') continue;
+        // Descarta partes referentes a escritório/endereço (Claude inventa)
+        if (preg_match('/^(Escrit[óo]rio|Endere[çc]o)\s*:/i', $p)) continue;
+        if (stripos($p, 'Jorge Gon') !== false) continue; // endereco pessoal
+        $limpo[] = $p;
+    }
+    // Adiciona o bloco correto do escritório (sempre, pra padronizar)
+    $limpo[] = 'Escritório: Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ — Tel: (24) 99205-0096';
+    return implode(' | ', $limpo);
+}
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -186,14 +210,16 @@ function fmtMoney($v) { return 'R$ ' . number_format((float)$v, 2, ',', '.'); }
     </tbody>
 </table>
 
-<?php if (isset($meta['observacoes']) && $meta['observacoes']): ?>
+<?php
+$obsLimpo = sanitizaObservacoes($meta['observacoes'] ?? '');
+if ($obsLimpo): ?>
 <div class="obs-box">
-    <strong>Observações:</strong> <?= e($meta['observacoes']) ?>
+    <strong>Observações:</strong> <?= e($obsLimpo) ?>
 </div>
 <?php endif; ?>
 
 <div class="footer">
-    <div>Ferreira & Sá Advocacia — OAB/RJ 65.532 · OAB/RJ 249.105</div>
+    <div>Ferreira & Sá Advocacia — Amanda Guedes Ferreira (OAB/RJ 163.260) · Luiz Eduardo de Sá Silva Marcelino (OAB/RJ 248.755 · OAB/SP 523.473)</div>
     <div>Portal Ferreira & Sá HUB — <?= $anoAtual ?> · Impresso por <?= e($userName) ?> em <?= $hoje ?></div>
 </div>
 

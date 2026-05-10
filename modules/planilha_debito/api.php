@@ -46,8 +46,9 @@ if ($action === 'processar_pdf') {
     $systemPrompt = 'Você é um assistente especializado em cálculos judiciais e planilhas de débito. '
         . 'Você recebe um PDF de uma planilha de débito (geralmente do sistema Jusfy ou similar) e deve extrair TODOS os dados em formato JSON estruturado. '
         . 'Retorne APENAS o JSON, sem markdown, sem explicações, sem ```json```. '
+        . 'IMPORTANTE: NÃO inclua nas "observacoes" qualquer dado sobre o "Escritório:", "Endereço do exequente", endereço pessoal de partes, telefones de contato ou rodapé do PDF. O sistema adiciona o cabeçalho/rodapé do escritório automaticamente. As observações devem conter APENAS notas sobre o cálculo: período do atraso, base de cálculo, índice usado, fundamentação legal — nada sobre escritório/endereço. '
         . 'O JSON deve ter esta estrutura exata: '
-        . '{"meta":{"titulo":"...","processo":"nº do processo","vara":"...","autor":"...","reu":"...","indice_correcao":"INPC ou IPCA-E etc","juros":"1% ao mês etc","data_calculo":"dd/mm/yyyy","observacoes":"..."},'
+        . '{"meta":{"titulo":"...","processo":"nº do processo","vara":"...","autor":"...","reu":"...","indice_correcao":"INPC ou IPCA-E etc","juros":"1% ao mês etc","data_calculo":"dd/mm/yyyy","observacoes":"APENAS notas do cálculo, sem endereços/telefones"},'
         . '"parcelas":[{"numero":1,"descricao":"Jan/2024","vencimento":"01/01/2024","valor_nominal":1500.00,"correcao_monetaria":150.30,"juros":45.20,"valor_atualizado":1695.50,"pago":0,"observacao":""}],'
         . '"subtotais":{"total_nominal":0,"total_correcao":0,"total_juros":0,"total_atualizado":0,"total_pago":0},'
         . '"debito_total":0,"honorarios_pct":0,"honorarios_valor":0,"total_execucao":0}';
@@ -222,11 +223,22 @@ if ($action === 'processar_pdf') {
         ), $grandTotalStyle);
     }
 
-    // Observações
-    if (isset($meta['observacoes']) && $meta['observacoes']) {
-        $writer->writeSheetRow('Planilha de Débito', array(''));
-        $writer->writeSheetRow('Planilha de Débito', array('Observações: ' . $meta['observacoes']), $metaStyle);
+    // Observações — sanitiza pra remover endereco pessoal/escritorio errado
+    // que o Claude AI extrai do PDF Jusfy original e injeta o bloco correto.
+    $obsRaw = isset($meta['observacoes']) ? $meta['observacoes'] : '';
+    $obsParts = array();
+    if ($obsRaw) {
+        foreach (preg_split('/\s*\|\s*/', $obsRaw) as $p) {
+            $p = trim($p);
+            if ($p === '') continue;
+            if (preg_match('/^(Escrit[óo]rio|Endere[çc]o)\s*:/i', $p)) continue;
+            if (stripos($p, 'Jorge Gon') !== false) continue;
+            $obsParts[] = $p;
+        }
     }
+    $obsParts[] = 'Escritório: Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ — Tel: (24) 99205-0096';
+    $writer->writeSheetRow('Planilha de Débito', array(''));
+    $writer->writeSheetRow('Planilha de Débito', array('Observações: ' . implode(' | ', $obsParts)), $metaStyle);
 
     // Rodapé
     $writer->writeSheetRow('Planilha de Débito', array(''));
