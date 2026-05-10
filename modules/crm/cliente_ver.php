@@ -145,6 +145,28 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
 .info-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; }
 .info-item label { font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); font-weight:700; display:block; margin-bottom:.15rem; }
 .info-item span { font-size:.9rem; color:var(--text); }
+
+/* Bloco de processos do cliente (resumo visível antes das tabs) */
+.proc-summary { background:linear-gradient(135deg, #f8f6f2 0%, #fefcfa 100%); border:1px solid #e8dfd0; border-left:4px solid #B87333; border-radius:12px; padding:1rem 1.25rem; margin-bottom:1.5rem; }
+.proc-summary-head { display:flex; align-items:center; justify-content:space-between; gap:.75rem; flex-wrap:wrap; margin-bottom:.85rem; }
+.proc-summary-title { font-size:.95rem; font-weight:800; color:var(--petrol-900); display:flex; align-items:center; gap:.4rem; }
+.proc-summary-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap:.6rem; }
+.proc-card { background:#fff; border:1.5px solid #e5e7eb; border-radius:10px; padding:.7rem .85rem; transition:all .15s; display:flex; gap:.7rem; align-items:flex-start; text-decoration:none; color:inherit; }
+.proc-card:hover { border-color:#B87333; box-shadow:0 2px 8px rgba(184,115,51,.15); transform:translateY(-1px); }
+.proc-card-icon { font-size:1.1rem; flex-shrink:0; line-height:1.4; }
+.proc-card-body { flex:1; min-width:0; }
+.proc-card-title { font-size:.85rem; font-weight:700; color:var(--petrol-900); margin-bottom:.15rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.proc-card-meta { font-size:.7rem; color:var(--text-muted); display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; }
+.proc-card-meta .num { font-family:monospace; font-weight:600; color:var(--petrol-500); }
+.proc-card-tags { display:flex; gap:.3rem; flex-wrap:wrap; margin-top:.3rem; }
+.proc-tag { font-size:.62rem; padding:1px 7px; border-radius:6px; font-weight:700; letter-spacing:.2px; }
+.proc-tag-status { background:#eef2ff; color:#4338ca; }
+.proc-tag-status.arquivado { background:#f1f5f9; color:#64748b; }
+.proc-tag-status.em_andamento, .proc-tag-status.distribuido, .proc-tag-status.aguardando_docs { background:#dcfce7; color:#15803d; }
+.proc-tag-status.urgente { background:#fee2e2; color:#b91c1c; }
+.proc-tag-tipo { background:#fef3c7; color:#92400e; }
+.proc-card-arrow { font-size:1.1rem; color:#cbd5e1; align-self:center; flex-shrink:0; }
+.proc-card:hover .proc-card-arrow { color:#B87333; }
 </style>
 
 <div class="client-header">
@@ -245,6 +267,61 @@ $statusInfo = isset($clientStatusLabels[$currentStatus]) ? $clientStatusLabels[$
     </div>
 </div>
 <?php endif; ?>
+
+<!-- Bloco visível: Processos do cliente -->
+<div class="proc-summary">
+    <div class="proc-summary-head">
+        <div class="proc-summary-title">⚖️ Processos <?= count($cases) > 0 ? '(' . count($cases) . ')' : '' ?></div>
+        <?php if (!$isReadOnly): ?>
+        <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>"
+           style="font-size:.74rem;font-weight:700;background:#052228;color:#fff;padding:.4rem .85rem;border-radius:8px;text-decoration:none;display:inline-flex;align-items:center;gap:.3rem;">
+           + Novo processo
+        </a>
+        <?php endif; ?>
+    </div>
+    <?php if (empty($cases)): ?>
+        <div style="font-size:.85rem;color:var(--text-muted);padding:.4rem 0;">
+            Este cliente ainda não tem processos cadastrados.
+        </div>
+    <?php else: ?>
+        <div class="proc-summary-grid">
+            <?php foreach ($cases as $cs):
+                $statusKey = $cs['status'] ?: 'em_andamento';
+                $statusLbl = $statusLabels[$statusKey] ?? $statusKey;
+                $isUrgente = ($cs['priority'] ?? '') === 'urgente';
+                $localProc = trim(($cs['comarca'] ?? '') . ($cs['comarca_uf'] ? '/' . $cs['comarca_uf'] : ''));
+            ?>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$cs['id']) ?>" class="proc-card" title="Abrir processo">
+                <span class="proc-card-icon"><?= $statusKey === 'arquivado' ? '📦' : '⚖️' ?></span>
+                <div class="proc-card-body">
+                    <div class="proc-card-title"><?= e($cs['title'] ?: 'Processo #' . $cs['id']) ?></div>
+                    <div class="proc-card-meta">
+                        <?php if ($cs['case_number']): ?>
+                            <span class="num"><?= e($cs['case_number']) ?></span>
+                        <?php endif; ?>
+                        <?php if ($localProc): ?>
+                            <span>📍 <?= e($localProc) ?></span>
+                        <?php endif; ?>
+                        <?php if ($cs['responsible_name']): ?>
+                            <span>👤 <?= e(explode(' ', $cs['responsible_name'])[0]) ?></span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="proc-card-tags">
+                        <span class="proc-tag proc-tag-status <?= e($statusKey) ?>"><?= e($statusLbl) ?></span>
+                        <?php if ($cs['case_type']): ?>
+                            <span class="proc-tag proc-tag-tipo"><?= e($cs['case_type']) ?></span>
+                        <?php endif; ?>
+                        <?php if ($isUrgente): ?>
+                            <span class="proc-tag proc-tag-status urgente">🔴 URGENTE</span>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <span class="proc-card-arrow">→</span>
+            </a>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+</div>
 
 <!-- Tabs -->
 <div class="tabs">
