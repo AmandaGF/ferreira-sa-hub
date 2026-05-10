@@ -108,12 +108,25 @@ function calcular_inicio_contagem($data_publicacao)
 }
 
 /**
- * Calcula prazo em DIAS ÚTEIS
+ * Calcula prazo em DIAS ÚTEIS — CPC 224 §1º
+ *
+ * O $data_inicio recebido é o PRIMEIRO DIA ÚTIL da contagem (D1, incluído):
+ *   - DJe: D+1 publicação, D+2 (primeiro dia útil após pub) = D1 contagem
+ *   - Juntada (Art. 231 CPC): dia útil seguinte à juntada = D1 contagem
+ *
+ * Bug anterior: a função fazia +1 ANTES de contar, fazendo D1 ser pulado.
+ * Ex.: juntada 20/04 (seg), 21/04 (Tiradentes) → D1 = 22/04 (qua). Mas a
+ * contagem começava do 23/04, perdendo um dia. CPC: 22/04 É o dia 1.
  */
 function calcular_prazo_dias($data_inicio, $quantidade, $comarca = null, $idsCondicionaisAceitos = array())
 {
-    $atual = new DateTime($data_inicio);
-    $dias_contados = 0;
+    if ($quantidade < 1) return $data_inicio;
+
+    // Garante que o ponto de partida seja dia útil (defesa em profundidade)
+    $atual = new DateTime(proximo_dia_util($data_inicio, $comarca, $idsCondicionaisAceitos));
+
+    // O próprio $data_inicio (já dia útil) é o D1 — começa contando dele.
+    $dias_contados = 1;
     $max = 500; $i = 0;
 
     while ($dias_contados < $quantidade && $i < $max) {
