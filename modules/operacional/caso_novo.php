@@ -284,9 +284,118 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // ═══ Import automático de djen_pending (intimações DJen órfãs) ═══
+    // Quando uma intimação DJen chega pra um número de processo ainda não
+    // cadastrado, fica em djen_pending status='pendente' (visível na aba
+    // "Sem pasta" da Central de Intimações). Agora que a pasta existe,
+    // varre essas órfãs por número e materializa em case_publicacoes +
+    // case_andamentos + case_tasks (com prazo). O matching ignora
+    // hifens/pontos/barras pra pegar variações de formatação do CNJ.
+    $importadosDjen = 0;
+    if ($case_number !== '') {
+        try {
+            require_once __DIR__ . '/../../core/functions_djen.php';
+            $numLimpoCnj = preg_replace('/\D/', '', $case_number);
+            $stmtPends = $pdo->prepare(
+                "SELECT * FROM djen_pending
+                 WHERE REPLACE(REPLACE(REPLACE(numero_processo,'-',''),'.',''),'/','') = ?
+                   AND status = 'pendente'"
+            );
+            $stmtPends->execute(array($numLimpoCnj));
+            $pendentesDjen = $stmtPends->fetchAll();
+            $userIdDjen = (int)current_user_id();
+
+            $tipoAndLbl = array(
+                'intimacao'=>'Intimação','citacao'=>'Citação','despacho'=>'Despacho',
+                'decisao'=>'Decisão','sentenca'=>'Sentença','acordao'=>'Acórdão',
+                'edital'=>'Edital','outro'=>'Publicação'
+            );
+            $tipoTaskLbl = array(
+                'intimacao'=>'INTIMAÇÃO','citacao'=>'CITAÇÃO','despacho'=>'DESPACHO',
+                'decisao'=>'DECISÃO','sentenca'=>'SENTENÇA','acordao'=>'ACÓRDÃO',
+                'edital'=>'EDITAL','outro'=>'PUBLICAÇÃO'
+            );
+
+            foreach ($pendentesDjen as $pend) {
+                $pendId    = (int)$pend['id'];
+                $tipoPub   = $pend['tipo_comunicacao'] ?: 'intimacao';
+                $dataDisp  = $pend['data_disp'] ?: date('Y-m-d');
+                $conteudoP = $pend['conteudo'];
+                $orgaoP    = $pend['orgao'];
+                $resumoP   = isset($pend['resumo']) ? $pend['resumo'] : '';
+                $orientP   = isset($pend['orientacao']) ? $pend['orientacao'] : '';
+                $prazoDias = function_exists('prazo_sugerido_djen') ? prazo_sugerido_djen($tipoPub) : 0;
+                $dataFimP  = ($prazoDias > 0 && function_exists('calcular_data_fim_djen'))
+                    ? calcular_data_fim_djen($dataDisp, $prazoDias, $pdo) : null;
+
+                try {
+                    $pdo->prepare(
+                        "INSERT INTO case_publicacoes
+                         (case_id, data_disponibilizacao, conteudo, caderno, tribunal,
+                          tipo_publicacao, fonte, prazo_dias, data_prazo_fim,
+                          status_prazo, visivel_cliente, resumo_ia, orientacao_ia, criado_por, created_at)
+                         VALUES (?,?,?,'DJEN',?,?,'auto_cadastro',?,?,'pendente',0,?,?,?,NOW())"
+                    )->execute(array(
+                        $newId, $dataDisp, $conteudoP, $orgaoP, $tipoPub,
+                        $prazoDias ?: null, $dataFimP,
+                        $resumoP ?: null, $orientP ?: null, $userIdDjen
+                    ));
+                    $pubId = (int)$pdo->lastInsertId();
+
+                    // Andamento trancado pro Amanda revisar antes de liberar pro cliente
+                    $lblAnd = isset($tipoAndLbl[$tipoPub]) ? $tipoAndLbl[$tipoPub] : 'Publicação';
+                    $descAnd = '📢 ' . $lblAnd . ' — DJen (' . date('d/m/Y', strtotime($dataDisp)) . ')';
+                    if ($resumoP) $descAnd .= "\n\n📝 Resumo: " . $resumoP;
+                    if ($orientP) $descAnd .= "\n⚖️ Orientação: " . $orientP;
+                    if ($dataFimP) $descAnd .= "\n⏰ Prazo fatal: " . date('d/m/Y', strtotime($dataFimP));
+                    $descAnd .= "\n\n— Conteúdo completo —\n" . mb_substr($conteudoP, 0, 2000, 'UTF-8');
+                    $pdo->prepare(
+                        "INSERT INTO case_andamentos
+                         (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                         VALUES (?,?,'publicacao',?,0,?,NOW())"
+                    )->execute(array($newId, $dataDisp, $descAnd, $userIdDjen));
+
+                    // Cria task de prazo se vier prazo calculado
+                    if ($dataFimP) {
+                        $lblTask = isset($tipoTaskLbl[$tipoPub]) ? $tipoTaskLbl[$tipoPub] : 'PUBLICAÇÃO';
+                        $prazoAlerta = date('Y-m-d', strtotime($dataFimP . ' -3 days'));
+                        $pdo->prepare(
+                            "INSERT INTO case_tasks
+                             (case_id, title, descricao, tipo, subtipo, due_date,
+                              prazo_alerta, status, prioridade, assigned_to, created_at)
+                             VALUES (?,?,?,'prazo','prazo_publicacao',?,?,'a_fazer','alta',?,NOW())"
+                        )->execute(array(
+                            $newId,
+                            'PRAZO - ' . $lblTask . ' | ' . $title,
+                            'Prazo de ' . $prazoDias . 'du a partir de ' . date('d/m/Y', strtotime($dataDisp)) . '. Vence: ' . date('d/m/Y', strtotime($dataFimP)),
+                            $dataFimP, $prazoAlerta, $responsible_user_id ?: $userIdDjen
+                        ));
+                        $taskIdP = (int)$pdo->lastInsertId();
+                        $pdo->prepare("UPDATE case_publicacoes SET task_id = ? WHERE id = ?")->execute(array($taskIdP, $pubId));
+                    }
+
+                    // Marca pendente como importado (sai da fila órfãs)
+                    $pdo->prepare("UPDATE djen_pending SET status='importado', case_id=? WHERE id=?")
+                        ->execute(array($newId, $pendId));
+                    $importadosDjen++;
+                } catch (Exception $eDj) {
+                    @file_put_contents(APP_ROOT . '/files/djen_ia.log', '[' . date('Y-m-d H:i:s') . "] ERRO auto-import pend={$pendId} case={$newId}: " . $eDj->getMessage() . "\n", FILE_APPEND);
+                }
+            }
+            if ($importadosDjen > 0) {
+                audit_log('djen_auto_import', 'case', $newId, "Auto-importadas {$importadosDjen} intimacoes DJen orfas (CNJ {$case_number})");
+            }
+        } catch (Throwable $e) {
+            // Falha no auto-import nunca deve bloquear o cadastro do caso
+        }
+    }
+
     $msgSucesso = 'Processo cadastrado com sucesso!';
     if ($importadosPje > 0) {
         $msgSucesso .= ' ' . $importadosPje . ' andamento(s) importado(s) do email PJe.';
+    }
+    if ($importadosDjen > 0) {
+        $msgSucesso .= ' ' . $importadosDjen . ' intimação(ões) DJen pendente(s) vinculada(s) à pasta.';
     }
     flash_set('success', $msgSucesso);
     redirect(module_url('operacional', 'caso_ver.php?id=' . $newId));
