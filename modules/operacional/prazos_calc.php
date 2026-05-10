@@ -1783,6 +1783,68 @@ document.addEventListener('DOMContentLoaded', function() {
 })();
 </script>
 
+<!-- Listener defensivo no btnSalvar — independe do onclick inline e da window.salvarPrazo
+     ter sido definida (caso o IIFE principal quebre, este script roda separado e
+     ainda salva o prazo via XHR direto). -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var btn = document.getElementById('btnSalvar');
+    if (!btn) return;
+    btn.addEventListener('click', function(ev) {
+        // Se window.salvarPrazo existe, deixa ela cuidar (caminho normal)
+        if (typeof window.salvarPrazo === 'function') return;
+        // Senao, salva direto aqui
+        ev.preventDefault();
+        ev.stopPropagation();
+        var caseId = btn.dataset.caseId || '';
+        if (!caseId || caseId === '0') {
+            alert('Selecione um processo e clique em CALCULAR PRAZO antes de salvar.');
+            return;
+        }
+        if (!confirm('Salvar prazo no processo selecionado?\n\nIsso vai:\n- Registrar o cálculo no histórico\n- Criar um prazo processual\n- Criar um evento na agenda')) return;
+        var labelOriginal = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = 'Salvando...';
+        var fd = new FormData();
+        fd.append('action', 'salvar_prazo_calculado');
+        fd.append('csrf_token', <?= json_encode(generate_csrf_token()) ?>);
+        fd.append('case_id', caseId);
+        fd.append('tipo_prazo', btn.dataset.tipoPrazo || '');
+        fd.append('data_disponibilizacao', btn.dataset.disp || '');
+        fd.append('data_publicacao', btn.dataset.pub || '');
+        fd.append('data_inicio_contagem', btn.dataset.inicio || '');
+        fd.append('quantidade', btn.dataset.qtd || '');
+        fd.append('unidade', btn.dataset.unidade || 'dias');
+        fd.append('comarca', btn.dataset.comarca || '');
+        fd.append('data_fatal', btn.dataset.fatal || '');
+        fetch(<?= json_encode(module_url('operacional', 'api.php')) ?>, {
+            method: 'POST', body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            credentials: 'same-origin'
+        }).then(function(r) {
+            return r.text().then(function(t) {
+                try { return JSON.parse(t); }
+                catch (e) { throw new Error('Resposta invalida do servidor:\n' + t.substring(0, 300)); }
+            });
+        }).then(function(j) {
+            if (j.ok) {
+                btn.innerHTML = '✓ Salvo!';
+                btn.style.background = '#059669';
+                alert('✓ Prazo salvo no processo!\nData fatal: ' + (j.data_fatal || ''));
+            } else {
+                btn.disabled = false;
+                btn.innerHTML = labelOriginal;
+                alert('❌ Erro ao salvar:\n\n' + (j.erro || (j.erros || []).join(' | ') || 'falha desconhecida'));
+            }
+        }).catch(function(err) {
+            btn.disabled = false;
+            btn.innerHTML = labelOriginal;
+            alert('❌ Erro: ' + err.message);
+        });
+    });
+});
+</script>
+
 <!-- Autocomplete do campo Processo — script separado pra nao afetar o resto do JS se quebrar -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
