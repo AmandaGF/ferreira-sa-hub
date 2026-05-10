@@ -702,6 +702,33 @@ function abrirMergeDuplicata(outroId, outroTitulo) {
 <?php
 $compromissosCaso = array();
 $compromissosRealizados = array();
+
+/**
+ * Badge inline indicando modalidade do compromisso (online/presencial/híbrida).
+ * Se 'modalidade' do agenda_eventos está definida, usa direto. Senão infere de
+ * meet_link + local (fallback pra eventos antigos cadastrados antes do campo).
+ */
+function _badgeModalidadeComp($comp) {
+    $mod = isset($comp['modalidade']) ? $comp['modalidade'] : '';
+    if (!$mod || $mod === 'nao_aplicavel') {
+        // Fallback inferido: meet_link → online; local sem meet → presencial; ambos → híbrida
+        $temMeet = !empty($comp['meet_link']);
+        $temLocal = !empty($comp['local']);
+        if ($temMeet && $temLocal) $mod = 'hibrida';
+        elseif ($temMeet) $mod = 'online';
+        elseif ($temLocal) $mod = 'presencial';
+    }
+    if ($mod === 'online') {
+        return '<span style="font-size:.62rem;font-weight:700;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:3px;border:1px solid #93c5fd;" title="Compromisso online (videoconferência)">🌐 ONLINE</span>';
+    }
+    if ($mod === 'presencial') {
+        return '<span style="font-size:.62rem;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px;border:1px solid #fbbf24;" title="Compromisso presencial">📍 PRESENCIAL</span>';
+    }
+    if ($mod === 'hibrida') {
+        return '<span style="font-size:.62rem;font-weight:700;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:3px;border:1px solid #c4b5fd;" title="Compromisso híbrido (pode ser presencial ou online)">🔀 HÍBRIDA</span>';
+    }
+    return '';
+}
 // Self-heal: rastreio de "cliente avisado sobre o compromisso" (preenchido ao clicar no WhatsApp)
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
@@ -779,6 +806,7 @@ if (!empty($compFuturos)): ?>
         <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
                 <span style="font-size:.68rem;font-weight:700;color:#fff;background:<?= $corComp ?>;padding:1px 6px;border-radius:3px;"><?= $labelComp ?></span>
+                <?= _badgeModalidadeComp($comp) ?>
                 <?php if ($isHoje): ?>
                     <span style="font-size:.65rem;font-weight:700;color:#dc2626;background:#fef2f2;padding:1px 6px;border-radius:3px;border:1px solid #fca5a5;">HOJE</span>
                 <?php elseif ($isAmanha): ?>
@@ -944,6 +972,7 @@ if (!empty($compFuturos)): ?>
             <div style="flex:1;min-width:0;">
                 <div style="font-size:.78rem;text-decoration:line-through;color:var(--text-muted);">
                     <span style="background:<?= $corComp ?>;color:#fff;padding:1px 5px;border-radius:3px;font-size:.6rem;font-weight:700;margin-right:4px;"><?= $labelComp ?></span>
+                    <?= _badgeModalidadeComp($comp) ?>
                     <?= e($comp['titulo']) ?>
                 </div>
             </div>
