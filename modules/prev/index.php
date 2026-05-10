@@ -413,76 +413,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Carimbo de versao deployada (debug temporario) -->
-<div style="position:fixed;bottom:8px;right:8px;background:#dc2626;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-family:monospace;font-weight:700;z-index:99998;box-shadow:0 2px 8px rgba(0,0,0,.3);">
-    DEBUG PREV v<?= date('Y-m-d H:i') ?>
-</div>
-
-<!-- BOTAO DE TESTE FORCADO: se Amanda clicar nele e nem isso disparar alert,
-     o JS da pagina inteira esta quebrado. Se disparar mas o card nao, e CSS
-     ou listener interferindo no .pv-card especificamente. -->
-<button onclick="alert('JS funciona! Hora atual: ' + new Date().toLocaleTimeString());" style="position:fixed;bottom:8px;left:8px;background:#059669;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:700;border:none;cursor:pointer;z-index:99998;box-shadow:0 2px 8px rgba(0,0,0,.3);">
-    🧪 Testar JS
-</button>
-
-<!-- Listeners de debug ANTES do card_drawer (caso o card_drawer.php tenha erro
-     PHP e corte o output da pagina) -->
-<script>
-(function(){
-    console.log('[PREV-DEBUG] script de listeners carregado');
-    // Em vez de mostrar banner div (pode falhar por CSS/z-index), usa alert()
-    // que e nativo e impossivel de ser bloqueado.
-    document.addEventListener('pointerdown', function(ev) {
-        var card = ev.target.closest('.pv-card[data-case-id]');
-        if (!card) return;
-        if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
-        card._pvDown = { x: ev.clientX, y: ev.clientY, t: Date.now() };
-    }, true);
-    document.addEventListener('pointerup', function(ev) {
-        var card = ev.target.closest('.pv-card[data-case-id]');
-        if (!card || !card._pvDown) return;
-        var dx = Math.abs(ev.clientX - card._pvDown.x);
-        var dy = Math.abs(ev.clientY - card._pvDown.y);
-        var dt = Date.now() - card._pvDown.t;
-        card._pvDown = null;
-        if (dx > 5 || dy > 5 || dt > 600) return;
-        if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
-
-        var caseId = card.getAttribute('data-case-id');
-        alert('CLICK CAPTURADO no card #' + caseId + ' (cdAbrir=' + (typeof cdAbrir) + ')');
-
-        if (typeof cdAbrir === 'function') {
-            cdAbrir('case_id=' + caseId);
-        }
-    }, true);
-})();
-</script>
-
 <?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 
 <script>
 var _pvPendingForm = null;
 var pvCsrf = '<?= generate_csrf_token() ?>';
 
-// === MODO DIAGNÓSTICO ===
-// Mostra um banner vermelho fixo no topo da tela ao clicar — descobrimos
-// se o onclick inline está disparando OU se há cache/script bloqueando tudo.
+// Click no card → abre o drawer compartilhado (mesmo padrao do operacional/comercial).
 function pvCardClick(card, ev) {
-    var caseId = card ? card.getAttribute('data-case-id') : '???';
-    // Banner visual — não precisa abrir DevTools
-    var dbg = document.createElement('div');
-    dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#dc2626;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;font-family:sans-serif;';
-    dbg.textContent = 'CLICK CAPTURADO no card #' + caseId + ' — cdAbrir? ' + (typeof cdAbrir);
-    document.body.appendChild(dbg);
-    setTimeout(function(){ dbg.remove(); }, 4000);
-
     if (!card || !ev) return;
     if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
     ev.stopPropagation();
-    if (!caseId || caseId === '???') return;
+    var caseId = card.getAttribute('data-case-id');
+    if (!caseId) return;
     if (typeof cdAbrir === 'function') {
         cdAbrir('case_id=' + caseId);
     } else {
+        // Fallback: card_drawer.php nao carregou — abre direto a pasta
         window.location.href = '<?= module_url("operacional", "caso_ver.php") ?>?id=' + caseId;
     }
 }

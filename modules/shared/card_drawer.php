@@ -6,7 +6,11 @@
 $_cdApiUrl = url('modules/shared/card_api.php');
 $_cdActUrl = url('modules/shared/card_actions.php');
 $_cdOpApiUrl = url('modules/operacional/api.php');
-$_cdCsrf = csrf_token();
+// generate_csrf_token() — funcao real do projeto (functions_utils.php).
+// O nome 'csrf_token' nao existe em lugar nenhum e estava causando fatal
+// error 'Call to undefined function' que cortava o output deste arquivo,
+// deixando cdAbrir undefined em qualquer pagina que incluisse o drawer.
+$_cdCsrf = generate_csrf_token();
 $_cdCsrfName = CSRF_TOKEN_NAME;
 ?>
 
