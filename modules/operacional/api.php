@@ -35,6 +35,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_
     exit;
 }
 
+// GET handler pro buscar_casos_cliente (caso_ver chama via GET; o handler
+// 'principal' embaixo só lê de $_POST e ignora GET, fazendo cair em validate_csrf
+// e retornando HTML de redirect — quebrando o JSON.parse do JS).
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_casos_cliente') {
+    header('Content-Type: application/json; charset=utf-8');
+    $pdo = db();
+    $clientId = (int)($_GET['client_id'] ?? 0);
+    $excludeId = (int)($_GET['exclude_id'] ?? 0);
+    $fromCaseId = (int)($_GET['case_id'] ?? 0);
+    if (!$clientId && $fromCaseId) {
+        $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+        $stmtC->execute(array($fromCaseId));
+        $rowC = $stmtC->fetch();
+        if ($rowC) { $clientId = (int)$rowC['client_id']; $excludeId = $fromCaseId; }
+    }
+    if ($clientId) {
+        $stmt = $pdo->prepare("SELECT id, title, case_number, case_type, status, court, comarca, comarca_uf, regional, sistema_tribunal FROM cases WHERE client_id = ? AND id != ? ORDER BY created_at DESC LIMIT 20");
+        $stmt->execute(array($clientId, $excludeId));
+        echo json_encode(array('casos' => $stmt->fetchAll(), 'csrf' => generate_csrf_token()));
+    } else {
+        echo json_encode(array('casos' => array(), 'csrf' => generate_csrf_token()));
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'buscar_caso_para_vincular') {
     header('Content-Type: application/json; charset=utf-8');
     $pdo = db();
