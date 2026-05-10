@@ -767,16 +767,24 @@ try {
     $compromissosRealizados = $stmtCompR->fetchAll();
 } catch (Exception $e) {}
 
+// Reordena: vencidos (passados, ainda não cumpridos) PRIMEIRO — pra dar urgência
+// na visualização — depois futuros em ordem cronológica. Antes a tela escondia
+// silenciosamente os vencidos, fazendo prazos perdidos sumirem da pasta.
+$compVencidos = array();
 $compFuturos = array();
-$compPassados = array();
 foreach ($compromissosCaso as $comp) {
     $dtComp = substr($comp['data_inicio'], 0, 10);
-    if ($dtComp >= date('Y-m-d')) {
-        $compFuturos[] = $comp;
+    if ($dtComp < date('Y-m-d')) {
+        $compVencidos[] = $comp;
     } else {
-        $compPassados[] = $comp;
+        $compFuturos[] = $comp;
     }
 }
+// Vencidos: mais antigos primeiro (urgência crescente do mais recente pra cima)
+usort($compVencidos, function($a, $b){ return strcmp($a['data_inicio'], $b['data_inicio']); });
+// Futuros: mais próximos primeiro
+usort($compFuturos, function($a, $b){ return strcmp($a['data_inicio'], $b['data_inicio']); });
+$compromissosCaso = array_merge($compVencidos, $compFuturos);
 
 $tipoCompCores = array(
     'audiencia'=>'#e67e22','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000',
@@ -789,18 +797,19 @@ $tipoCompLabels = array(
     'balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','publicacao'=>'Publicação',
 );
 
-if (!empty($compFuturos)): ?>
+if (!empty($compromissosCaso)): ?>
 <div style="margin-bottom:1rem;">
-    <?php foreach ($compFuturos as $comp):
+    <?php foreach ($compromissosCaso as $comp):
         $corComp = isset($tipoCompCores[$comp['tipo']]) ? $tipoCompCores[$comp['tipo']] : '#052228';
         $labelComp = isset($tipoCompLabels[$comp['tipo']]) ? $tipoCompLabels[$comp['tipo']] : ucfirst($comp['tipo']);
         $dtInicio = $comp['data_inicio'];
         $diasAte = (int)((strtotime(substr($dtInicio, 0, 10)) - strtotime(date('Y-m-d'))) / 86400);
+        $isVencido = $diasAte < 0;
         $isHoje = $diasAte === 0;
         $isAmanha = $diasAte === 1;
-        $isUrgente = $diasAte <= 1;
+        $isUrgente = $diasAte <= 1; // vencido, hoje ou amanhã
     ?>
-    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;margin-bottom:.4rem;border-radius:10px;border-left:4px solid <?= $corComp ?>;background:<?= $isUrgente ? '#fef2f2' : '#f8fafc' ?>;border:1px solid <?= $isUrgente ? '#fca5a5' : 'var(--border)' ?>;border-left:4px solid <?= $corComp ?>;">
+    <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem 1rem;margin-bottom:.4rem;border-radius:10px;border-left:4px solid <?= $isVencido ? '#dc2626' : $corComp ?>;background:<?= $isUrgente ? '#fef2f2' : '#f8fafc' ?>;border:1px solid <?= $isUrgente ? '#fca5a5' : 'var(--border)' ?>;<?= $isVencido ? 'box-shadow:0 0 0 1px #fca5a5;' : '' ?>">
         <div style="text-align:center;min-width:48px;">
             <div style="font-size:1.2rem;font-weight:800;color:<?= $isUrgente ? '#dc2626' : $corComp ?>;"><?= date('d', strtotime($dtInicio)) ?></div>
             <div style="font-size:.65rem;color:var(--text-muted);text-transform:uppercase;font-weight:600;"><?= date('M', strtotime($dtInicio)) ?></div>
@@ -809,7 +818,9 @@ if (!empty($compFuturos)): ?>
             <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;">
                 <span style="font-size:.68rem;font-weight:700;color:#fff;background:<?= $corComp ?>;padding:1px 6px;border-radius:3px;"><?= $labelComp ?></span>
                 <?= _badgeModalidadeComp($comp) ?>
-                <?php if ($isHoje): ?>
+                <?php if ($isVencido): ?>
+                    <span style="font-size:.65rem;font-weight:700;color:#fff;background:#dc2626;padding:1px 6px;border-radius:3px;animation:pulse 2s ease-in-out infinite;" title="Compromisso vencido — ainda não foi cumprido/realizado">⚠ VENCIDO há <?= abs($diasAte) ?>d</span>
+                <?php elseif ($isHoje): ?>
                     <span style="font-size:.65rem;font-weight:700;color:#dc2626;background:#fef2f2;padding:1px 6px;border-radius:3px;border:1px solid #fca5a5;">HOJE</span>
                 <?php elseif ($isAmanha): ?>
                     <span style="font-size:.65rem;font-weight:700;color:#d97706;background:#fef3c7;padding:1px 6px;border-radius:3px;border:1px solid #fcd34d;">AMANHÃ</span>
