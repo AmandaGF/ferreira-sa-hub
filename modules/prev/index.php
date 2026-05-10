@@ -418,48 +418,47 @@ require_once APP_ROOT . '/templates/layout_start.php';
     DEBUG PREV v<?= date('Y-m-d H:i') ?>
 </div>
 
-<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
+<!-- BOTAO DE TESTE FORCADO: se Amanda clicar nele e nem isso disparar alert,
+     o JS da pagina inteira esta quebrado. Se disparar mas o card nao, e CSS
+     ou listener interferindo no .pv-card especificamente. -->
+<button onclick="alert('JS funciona! Hora atual: ' + new Date().toLocaleTimeString());" style="position:fixed;bottom:8px;left:8px;background:#059669;color:#fff;padding:8px 14px;border-radius:6px;font-size:13px;font-weight:700;border:none;cursor:pointer;z-index:99998;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+    🧪 Testar JS
+</button>
 
-<!-- Diagnostico: se nem o onclick inline disparou, instalar listener manual em
-     mousedown (mais cedo que click) — alguma coisa em capture phase pode estar
-     comendo o click antes do onclick inline rodar. -->
+<!-- Listeners de debug ANTES do card_drawer (caso o card_drawer.php tenha erro
+     PHP e corte o output da pagina) -->
 <script>
 (function(){
-    document.addEventListener('mousedown', function(ev) {
+    console.log('[PREV-DEBUG] script de listeners carregado');
+    // Em vez de mostrar banner div (pode falhar por CSS/z-index), usa alert()
+    // que e nativo e impossivel de ser bloqueado.
+    document.addEventListener('pointerdown', function(ev) {
         var card = ev.target.closest('.pv-card[data-case-id]');
         if (!card) return;
         if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
-        // Marca o card pra processar no mouseup (evita disparar em drag)
-        card._pvMouseDown = { x: ev.clientX, y: ev.clientY, t: Date.now() };
+        card._pvDown = { x: ev.clientX, y: ev.clientY, t: Date.now() };
     }, true);
-    document.addEventListener('mouseup', function(ev) {
+    document.addEventListener('pointerup', function(ev) {
         var card = ev.target.closest('.pv-card[data-case-id]');
-        if (!card || !card._pvMouseDown) return;
-        var dx = Math.abs(ev.clientX - card._pvMouseDown.x);
-        var dy = Math.abs(ev.clientY - card._pvMouseDown.y);
-        var dt = Date.now() - card._pvMouseDown.t;
-        card._pvMouseDown = null;
-        // Se moveu mais de 5px ou demorou mais que 600ms, tratou como drag — ignora
+        if (!card || !card._pvDown) return;
+        var dx = Math.abs(ev.clientX - card._pvDown.x);
+        var dy = Math.abs(ev.clientY - card._pvDown.y);
+        var dt = Date.now() - card._pvDown.t;
+        card._pvDown = null;
         if (dx > 5 || dy > 5 || dt > 600) return;
         if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
 
         var caseId = card.getAttribute('data-case-id');
-        var dbg = document.createElement('div');
-        dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;font-family:sans-serif;';
-        dbg.textContent = 'CLICK via mouseup card #' + caseId + ' — cdAbrir? ' + (typeof cdAbrir);
-        document.body.appendChild(dbg);
-        setTimeout(function(){ dbg.remove(); }, 3500);
+        alert('CLICK CAPTURADO no card #' + caseId + ' (cdAbrir=' + (typeof cdAbrir) + ')');
 
         if (typeof cdAbrir === 'function') {
             cdAbrir('case_id=' + caseId);
-        } else {
-            setTimeout(function(){
-                window.location.href = '<?= module_url("operacional", "caso_ver.php") ?>?id=' + caseId;
-            }, 1500);
         }
     }, true);
 })();
 </script>
+
+<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 
 <script>
 var _pvPendingForm = null;
