@@ -4614,9 +4614,11 @@ function toggleIncTab(tab) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_casos_cliente&client_id=' + clientId + '&exclude_id=<?= $caseId ?>');
     xhr.onload = function() {
+        var sel = document.getElementById('incCasoSelect');
         try {
-            var casos = JSON.parse(xhr.responseText);
-            var sel = document.getElementById('incCasoSelect');
+            var resp = JSON.parse(xhr.responseText);
+            // API retorna {casos:[...], csrf:...}; aceita também array puro (legado)
+            var casos = Array.isArray(resp) ? resp : (resp && resp.casos ? resp.casos : []);
             sel.innerHTML = '<option value="">— Selecione um processo —</option>';
             casos.forEach(function(c) {
                 var opt = document.createElement('option');
@@ -4625,7 +4627,9 @@ function toggleIncTab(tab) {
                 sel.appendChild(opt);
             });
             if (casos.length === 0) sel.innerHTML = '<option value="">Nenhum outro processo deste cliente</option>';
-        } catch(e) {}
+        } catch(e) {
+            sel.innerHTML = '<option value="">Erro ao carregar processos</option>';
+        }
     };
     xhr.send();
 })();
@@ -4682,9 +4686,10 @@ function toggleRecTab(tab) {
     var xhr = new XMLHttpRequest();
     xhr.open('GET', '<?= module_url("operacional", "api.php") ?>?action=buscar_casos_cliente&client_id=' + clientId + '&exclude_id=<?= $caseId ?>');
     xhr.onload = function() {
+        var sel = document.getElementById('recCasoSelect');
         try {
-            var casos = JSON.parse(xhr.responseText);
-            var sel = document.getElementById('recCasoSelect');
+            var resp = JSON.parse(xhr.responseText);
+            var casos = Array.isArray(resp) ? resp : (resp && resp.casos ? resp.casos : []);
             sel.innerHTML = '<option value="">— Selecione um processo —</option>';
             casos.forEach(function(c) {
                 var opt = document.createElement('option');
@@ -4693,7 +4698,9 @@ function toggleRecTab(tab) {
                 sel.appendChild(opt);
             });
             if (casos.length === 0) sel.innerHTML = '<option value="">Nenhum outro processo deste cliente</option>';
-        } catch(e) {}
+        } catch(e) {
+            sel.innerHTML = '<option value="">Erro ao carregar processos</option>';
+        }
     };
     xhr.send();
 })();
