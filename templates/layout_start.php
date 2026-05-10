@@ -156,10 +156,10 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 // ────── Rio de Janeiro (atuação principal) ──────
                 {c:'Rio de Janeiro',n:'TJRJ — PJe 1º Grau',u:'https://tjrj.pje.jus.br/1g/login.seam'},
                 {c:'Rio de Janeiro',n:'TJRJ — PJe 2º Grau',u:'https://tjrj.pje.jus.br/2g/login.seam'},
-                {c:'Rio de Janeiro',n:'TJRJ — eproc / Portal TJ',u:'https://portaltj.tjrj.jus.br/login'},
+                {c:'Rio de Janeiro',n:'TJRJ — eproc 1º Grau',u:'https://eproc1g.tjrj.jus.br/eproc/'},
+                {c:'Rio de Janeiro',n:'TJRJ — Portal TJ',u:'https://portaltj.tjrj.jus.br/login'},
                 {c:'Rio de Janeiro',n:'TJRJ — Portal de Serviços (DCP/legado)',u:'https://www3.tjrj.jus.br/portalservicos/'},
                 {c:'Rio de Janeiro',n:'TJRJ — IdServerJus (autenticação)',u:'https://www3.tjrj.jus.br/idserverjus-front/'},
-                {c:'Rio de Janeiro',n:'TJRJ — EProc 1º Grau (legado)',u:'https://eproc1g.tjrj.jus.br/eproc/'},
                 {c:'Rio de Janeiro',n:'Balcão Virtual TJRJ',u:'https://www.tjrj.jus.br/web/guest/balcao-virtual'},
                 {c:'Rio de Janeiro',n:'Fóruns Regionais RJ',u:'https://www.tjrj.jus.br/web/cgj/foruns-regionais-capital'},
                 {c:'Rio de Janeiro',n:'Regionais Infância TJRJ',u:'https://cgj.tjrj.jus.br/abrangencia-contato-vijis-comissarios'},
