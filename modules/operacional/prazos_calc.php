@@ -1382,7 +1382,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <!-- Action buttons -->
                     <div class="result-actions">
                         <?php if (!$salvoComSucesso): ?>
-                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="salvarPrazo()"
+                            <button type="button" class="btn-action btn-save" id="btnSalvar" onclick="(typeof salvarPrazo === 'function' ? salvarPrazo() : alert('[ERRO] salvarPrazo nao definida — JS quebrou antes. Recarregue (Ctrl+Shift+R) ou veja console.'))"
                                 data-case-id="<?= e((string)(isset($_POST['case_id']) ? $_POST['case_id'] : '')) ?>"
                                 data-tipo-prazo="<?= e(isset($_POST['tipo_prazo']) ? $_POST['tipo_prazo'] : '') ?>"
                                 data-disp="<?= e($resultado['disponibilizacao']) ?>"
@@ -1772,9 +1772,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // (e nao do form, que sofria com select resetado e CSRF expirado).
     // Os atributos data-* sao preenchidos pelo PHP no card de resultado.
     window.salvarPrazo = function() {
+        // [DEBUG] banner visual pra confirmar que a funcao foi chamada
+        var dbg = document.createElement('div');
+        dbg.style.cssText = 'position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:700;box-shadow:0 4px 20px rgba(0,0,0,.3);z-index:99999;font-family:sans-serif;';
+        dbg.textContent = 'salvarPrazo() CHAMADA';
+        document.body.appendChild(dbg);
+        setTimeout(function(){ dbg.remove(); }, 3500);
+
         var btn = document.getElementById('btnSalvar');
-        if (!btn) return;
+        if (!btn) { alert('Erro: botao btnSalvar nao encontrado'); return; }
         var caseId = btn.dataset.caseId || '';
+        alert('[DEBUG] caseId lido do botao = "' + caseId + '"');
         if (!caseId || caseId === '0') {
             alert('Selecione um processo no campo "Processo" e clique em CALCULAR PRAZO antes de salvar.');
             var sel = document.getElementById('caseSearch');
