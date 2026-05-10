@@ -104,9 +104,13 @@ function cdRender() {
     document.getElementById('cdBadges').innerHTML = badges;
 
     var btns = '';
-    if (c.phone) btns += '<a href="https://wa.me/55' + c.phone.replace(/\D/g,'') + '" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none;">WhatsApp</a>';
-    if (cs) btns += '<a href="/conecta/modules/operacional/caso_ver.php?id=' + d.case_id + '" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none;">Pasta</a>';
-    btns += '<a href="/conecta/modules/clientes/ver.php?id=' + d.client_id + '" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none;">Perfil</a>';
+    var btnStyle = 'padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none;border:none;cursor:pointer;color:#fff;';
+    if (c.phone) btns += '<a href="https://wa.me/55' + c.phone.replace(/\D/g,'') + '" target="_blank" style="' + btnStyle + 'background:#25D366;">WhatsApp</a>';
+    if (cs) btns += '<a href="/conecta/modules/operacional/caso_ver.php?id=' + d.case_id + '" style="' + btnStyle + 'background:#B87333;">Pasta</a>';
+    btns += '<a href="/conecta/modules/clientes/ver.php?id=' + d.client_id + '" style="' + btnStyle + 'background:#052228;">Perfil</a>';
+    if (cs) btns += '<button onclick="cdMerge()" style="' + btnStyle + 'background:#5B2D8E;">🔗 Juntar</button>';
+    btns += '<button onclick="cdDuplicate()" style="' + btnStyle + 'background:#6366f1;">📑 Duplicar</button>';
+    if (cs || l) btns += '<button onclick="cdArchive()" style="' + btnStyle + 'background:#6b7280;">📦 Arquivar</button>';
     document.getElementById('cdBtns').innerHTML = btns;
 
     // Tabs
@@ -357,6 +361,129 @@ function cdMarcarDoc(docId) {
 }
 
 document.addEventListener('keydown', function(e) { if (e.key === 'Escape') cdFechar(); });
+
+// ─── Acoes do card: Juntar / Duplicar / Arquivar ───────────────────────
+// Mesma logica do drawer.js antigo, mas usando _cd (variavel deste drawer).
+
+function cdMerge() {
+    if (!_cd || !_cd.case_id) { alert('Este card nao tem processo vinculado pra juntar.'); return; }
+    var caseId = _cd.case_id;
+    var x = new XMLHttpRequest();
+    x.open('GET', _cdOpApi + '?action=buscar_casos_cliente&case_id=' + caseId);
+    x.onload = function() {
+        try {
+            var r = JSON.parse(x.responseText);
+            var casos = r.casos || [];
+            if (!casos.length) { alert('Nenhum outro caso deste cliente para juntar. O cliente precisa ter mais de um processo.'); return; }
+            var opts = '';
+            for (var i = 0; i < casos.length; i++) {
+                var co = casos[i];
+                opts += '<option value="' + co.id + '">' + co.title + (co.case_number ? ' — ' + co.case_number : '') + ' [' + co.status + ']</option>';
+            }
+            var caseTitulo = (_cd.caso && _cd.caso.title) ? _cd.caso.title : 'Caso #' + caseId;
+            var html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center" id="cdMergeOv">'
+                + '<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:460px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+                + '<h3 style="font-size:1rem;font-weight:700;color:#5B2D8E;margin:0 0 .5rem">Juntar com outra pasta</h3>'
+                + '<p style="font-size:.78rem;color:#6b7280;margin:0 0 .5rem">O caso selecionado sera <b>absorvido</b> por: <b>' + caseTitulo + '</b></p>'
+                + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Caso a ser absorvido (vai desaparecer)</label>'
+                + '<select id="cdMergeSel" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"><option value="">— Selecionar —</option>' + opts + '</select></div>'
+                + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Novo titulo (opcional)</label>'
+                + '<input type="text" id="cdMergeTit" value="' + caseTitulo + '" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"></div>'
+                + '<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:.4rem .6rem;margin-bottom:.6rem;font-size:.72rem;color:#dc2626;font-weight:600">Esta acao nao pode ser desfeita.</div>'
+                + '<div style="display:flex;gap:.4rem;justify-content:flex-end">'
+                + '<button onclick="document.getElementById(\'cdMergeOv\').remove()" style="padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem">Cancelar</button>'
+                + '<button onclick="cdMergeConfirm()" style="padding:.4rem 1rem;border:none;border-radius:8px;background:#5B2D8E;color:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:700">Confirmar</button>'
+                + '</div></div></div>';
+            document.body.insertAdjacentHTML('beforeend', html);
+        } catch (e) { alert('Erro ao carregar casos: ' + e.message); }
+    };
+    x.send();
+}
+
+function cdMergeConfirm() {
+    var sel = document.getElementById('cdMergeSel');
+    var tit = document.getElementById('cdMergeTit');
+    if (!sel || !sel.value) { if (sel) sel.style.borderColor = '#ef4444'; return; }
+    if (!confirm('Tem certeza? O caso selecionado sera absorvido. Esta acao NAO pode ser desfeita.')) return;
+    var form = document.createElement('form');
+    form.method = 'POST'; form.action = _cdOpApi;
+    function af(n, v) { var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; form.appendChild(i); }
+    var cp = _cdCsrf.split('=');
+    af(cp[0], cp[1]);
+    af('action', 'merge_cases');
+    af('case_principal', _cd.case_id);
+    af('case_absorvido', sel.value);
+    af('novo_titulo', tit ? tit.value : '');
+    document.body.appendChild(form); form.submit();
+}
+
+function cdDuplicate() {
+    var clientName = (_cd.client && _cd.client.name) ? _cd.client.name : 'Cliente';
+    var tipos = ['Alimentos','Revisional de Alimentos','Execucao de Alimentos','Exoneracao de Alimentos',
+        'Divorcio Consensual','Divorcio Litigioso','Guarda','Guarda Compartilhada',
+        'Regulamentacao de Convivencia','Investigacao de Paternidade','Medida Protetiva',
+        'Inventario Judicial','Indenizacao / Danos Morais','Consumidor','Trabalhista','Outro'];
+    var opts = '';
+    for (var i = 0; i < tipos.length; i++) opts += '<option value="' + tipos[i] + '">' + tipos[i] + '</option>';
+    var html = '<div style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:2000;display:flex;align-items:center;justify-content:center" id="cdDupOv">'
+        + '<div style="background:#fff;border-radius:16px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">'
+        + '<h3 style="font-size:1rem;font-weight:700;color:#6366f1;margin:0 0 .5rem">Duplicar para nova acao</h3>'
+        + '<p style="font-size:.78rem;color:#6b7280;margin:0 0 .75rem">Cliente: <b>' + _e(clientName) + '</b></p>'
+        + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Tipo de acao *</label>'
+        + '<select id="cdDupTipo" style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"><option value="">— Selecione —</option>' + opts + '</select></div>'
+        + '<div style="margin-bottom:.6rem"><label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem">Titulo da pasta</label>'
+        + '<input type="text" id="cdDupTit" value="' + _e(clientName) + ' x " style="width:100%;padding:.5rem .7rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit"></div>'
+        + '<div style="display:flex;gap:.4rem;justify-content:flex-end">'
+        + '<button onclick="document.getElementById(\'cdDupOv\').remove()" style="padding:.4rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.8rem">Cancelar</button>'
+        + '<button onclick="cdDupConfirm()" style="padding:.4rem 1rem;border:none;border-radius:8px;background:#6366f1;color:#fff;cursor:pointer;font-family:inherit;font-size:.8rem;font-weight:700">Criar</button>'
+        + '</div></div></div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    document.getElementById('cdDupTipo').addEventListener('change', function() {
+        var t = this.value;
+        if (t) document.getElementById('cdDupTit').value = clientName + ' x ' + t;
+    });
+}
+
+function cdDupConfirm() {
+    var tipo = document.getElementById('cdDupTipo').value;
+    if (!tipo) { document.getElementById('cdDupTipo').style.borderColor = '#ef4444'; return; }
+    var titulo = document.getElementById('cdDupTit').value.trim();
+    if (!titulo) titulo = ((_cd.client && _cd.client.name) ? _cd.client.name : '') + ' x ' + tipo;
+    document.getElementById('cdDupOv').remove();
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    function af(n, v) { var i = document.createElement('input'); i.type = 'hidden'; i.name = n; i.value = v; form.appendChild(i); }
+    var cp = _cdCsrf.split('=');
+    af(cp[0], cp[1]);
+    if (_cd.lead_id) {
+        form.action = '<?php echo url("modules/pipeline/api.php"); ?>';
+        af('action', 'duplicate'); af('lead_id', _cd.lead_id); af('case_type', tipo); af('titulo', titulo);
+    } else {
+        form.action = _cdOpApi;
+        af('action', 'duplicate_case'); af('case_id', _cd.case_id || '0'); af('client_id', _cd.client_id || '0'); af('lead_id', '0'); af('case_type', tipo); af('titulo', titulo);
+    }
+    document.body.appendChild(form); form.submit();
+}
+
+function cdArchive() {
+    if (!_cd || (!_cd.case_id && !_cd.lead_id)) { alert('Nenhum card para arquivar.'); return; }
+    if (!confirm('Ocultar este card do Kanban?\n\nIsso NAO altera o status real do processo, apenas tira da visualizacao do Kanban.')) return;
+    var x = new XMLHttpRequest();
+    if (_cd.case_id) {
+        x.open('POST', _cdOpApi);
+        x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        x.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        x.onload = function() { cdFechar(); location.reload(); };
+        var cp = _cdCsrf.split('=');
+        x.send('action=ocultar_kanban&case_id=' + _cd.case_id + '&' + encodeURIComponent(cp[0]) + '=' + encodeURIComponent(cp[1]));
+    } else if (_cd.lead_id) {
+        x.open('POST', _cdActUrl);
+        x.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+        x.onload = function() { cdFechar(); location.reload(); };
+        x.send('action=delete_card&lead_id=' + _cd.lead_id + '&case_id=0');
+    }
+}
 
 // Interceptar cliques nos cards (debug verbose pra investigar bug de não-abrir)
 console.log('[CardDrawer] interceptor instalado');
