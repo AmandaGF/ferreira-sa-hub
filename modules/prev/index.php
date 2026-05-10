@@ -263,7 +263,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $tipoBenColor = isset($tipoBadgeColors[$tipoBen]) ? $tipoBadgeColors[$tipoBen] : '#3B4FA0';
                     $diasUpdate = (int)((time() - strtotime($cs['updated_at'])) / 86400);
                 ?>
-                <div class="pv-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;">
+                <div class="pv-card" draggable="true" data-case-id="<?= $cs['id'] ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;" onclick="pvCardClick(this, event)">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="pv-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
@@ -418,6 +418,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <script>
 var _pvPendingForm = null;
 var pvCsrf = '<?= generate_csrf_token() ?>';
+
+// Click no card → abre o drawer compartilhado (mesmo padrao do operacional/comercial).
+// Esta funcao e o caminho PRINCIPAL — onclick inline e mais robusto que interceptor
+// global porque nao depende de timing de carregamento do card_drawer.php.
+function pvCardClick(card, ev) {
+    if (!card || !ev) return;
+    // Ignora clicks em elementos interativos internos (select de mover, links pra Drive/pasta, botoes)
+    if (ev.target.closest('select, form, .pv-card-move, a, button')) return;
+    // Evita disparar duas vezes (capture phase do interceptor global tambem cobre este card)
+    ev.stopPropagation();
+    var caseId = card.getAttribute('data-case-id');
+    if (!caseId) return;
+    if (typeof cdAbrir === 'function') {
+        cdAbrir('case_id=' + caseId);
+    } else {
+        // Fallback se card_drawer.php nao carregou — abre direto a pasta
+        console.error('[PrevKanban] cdAbrir nao definido, redirecionando');
+        window.location.href = '<?= module_url("operacional", "caso_ver.php") ?>?id=' + caseId;
+    }
+}
 
 function handlePrevMove(select) {
     var status = select.value;
