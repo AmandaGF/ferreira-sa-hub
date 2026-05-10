@@ -1199,6 +1199,40 @@ if (caseTypeInput) {
     checkAlimentos(); // Verificar estado inicial
 }
 
+// Regra: processos de família vêm com SEGREDO DE JUSTIÇA marcado por padrão.
+// Lê dinamicamente do <optgroup label="Família"> + Medida Protetiva (envolve
+// violência doméstica). Comportamento: marca automaticamente quando o user
+// seleciona um tipo de família. NÃO desmarca quando muda pra outro tipo —
+// preserva escolha explícita (user pode override desmarcando).
+(function(){
+    var selTipo = document.getElementById('selCaseType');
+    var chkSegredo = document.getElementById('segredoJustica');
+    if (!selTipo || !chkSegredo) return;
+    var familiaTypes = {};
+    Array.prototype.forEach.call(selTipo.querySelectorAll('optgroup'), function(og) {
+        if (og.label === 'Família') {
+            Array.prototype.forEach.call(og.querySelectorAll('option'), function(o) {
+                if (o.value) familiaTypes[o.value] = true;
+            });
+        }
+    });
+    familiaTypes['Medida Protetiva'] = true;
+    function aplicarSegredoFamilia() {
+        if (familiaTypes[selTipo.value] && !chkSegredo.checked) {
+            chkSegredo.checked = true;
+            // Highlight visual rápido pra deixar o auto-check perceptível
+            var box = chkSegredo.closest('.form-col');
+            if (box) {
+                box.style.transition = 'background .4s';
+                box.style.background = '#fef9c3';
+                setTimeout(function(){ box.style.background = ''; }, 1200);
+            }
+        }
+    }
+    selTipo.addEventListener('change', aplicarSegredoFamilia);
+    aplicarSegredoFamilia(); // Estado inicial (caso tipo já venha pré-selecionado)
+})();
+
 // ── Máscara CPF/CNPJ + Busca automática ──
 function formatarCpfCnpj(el) {
     var v = el.value.replace(/\D/g, '');
