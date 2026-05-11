@@ -162,6 +162,8 @@ echo voltar_ao_processo_html();
             <input type="text" class="tk-fi" id="tkCasoBusca" placeholder="Buscar processo..." autocomplete="off">
             <input type="hidden" id="tkCaseId">
             <div style="position:relative;"><div id="tkCasoList" style="display:none;position:absolute;top:0;left:0;right:0;z-index:10;background:#fff;border:1.5px solid var(--border);border-radius:0 0 8px 8px;max-height:180px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,.1);"></div></div>
+            <!-- Bloco de contexto do processo: numero CNJ, comarca, vara, tipo, responsavel + botoes de acao. Preenchido em editarTarefa(). -->
+            <div id="tkProcInfo" style="display:none;background:#f0f9ff;border:1px solid #bae6fd;border-left:3px solid #0ea5e9;border-radius:8px;padding:.65rem .85rem;margin-top:.5rem;font-size:.78rem;line-height:1.55;color:#0c4a6e;"></div>
         </div>
 
         <div class="tk-fg"><label class="tk-fl">Descrição</label>
@@ -478,10 +480,78 @@ function editarTarefa(id) {
             document.getElementById('btnCalcPrazo').style.display = tipoSel==='prazo'?'inline-block':'none';
             document.getElementById('calcPrazoBox').style.display = 'none';
 
+            // Monta bloco de contexto do processo (CNJ + comarca + vara + tipo + responsavel + botoes)
+            renderProcInfo(t);
+
             document.getElementById('tkOverlay').classList.add('aberto');
         } catch(e) { alert('Erro ao carregar tarefa'); }
     };
     x.send();
+}
+
+// Formata um numero CNJ tipo "0801234-12.2024.8.19.0001" se chegou desformatado
+function formatCNJ(num) {
+    if (!num) return '';
+    var d = String(num).replace(/\D/g, '');
+    if (d.length !== 20) return num; // ja formatado ou invalido — devolve como veio
+    return d.substr(0,7)+'-'+d.substr(7,2)+'.'+d.substr(9,4)+'.'+d.substr(13,1)+'.'+d.substr(14,2)+'.'+d.substr(16,4);
+}
+
+function escAttr(s) { return String(s||'').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+// esc() ja existe acima (linha ~355) — escapa <>&amp; via innerHTML. Suficiente pra conteudo de tag.
+
+// Renderiza o bloco de contexto do processo dentro do modal de tarefa.
+// Tudo opcional — se nao tem case_id ou faltam campos, esconde ou exibe placeholders.
+function renderProcInfo(t) {
+    var box = document.getElementById('tkProcInfo');
+    if (!t || !t.case_id) { box.style.display='none'; box.innerHTML=''; return; }
+
+    var partes = [];
+    if (t.case_number) {
+        var cnjFmt = formatCNJ(t.case_number);
+        partes.push('<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+            + '<strong>Nº CNJ:</strong> '
+            + '<span style="font-family:monospace;background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;">' + esc(cnjFmt) + '</span>'
+            + '<button type="button" onclick="copiarTexto(this, \''+escAttr(cnjFmt)+'\')" style="background:none;border:1px solid #bae6fd;border-radius:4px;padding:1px 6px;font-size:.7rem;cursor:pointer;color:#0369a1;" title="Copiar">📋</button>'
+            + '</div>');
+    }
+    if (t.client_name) {
+        partes.push('<div><strong>Cliente:</strong> ' + esc(t.client_name) + '</div>');
+    }
+    var localStr = [];
+    if (t.court)      localStr.push(t.court);
+    if (t.comarca)    localStr.push(t.comarca + (t.comarca_uf ? '/' + t.comarca_uf : ''));
+    if (localStr.length) partes.push('<div><strong>📍</strong> ' + esc(localStr.join(' — ')) + '</div>');
+
+    var meta = [];
+    if (t.case_type) meta.push(esc(t.case_type));
+    if (t.case_responsavel_name) meta.push('👤 ' + esc(t.case_responsavel_name));
+    if (meta.length) partes.push('<div style="color:#0369a1;">' + meta.join(' · ') + '</div>');
+
+    // Botoes de acao
+    var botoes = '<div style="display:flex;gap:.4rem;margin-top:.55rem;flex-wrap:wrap;">';
+    botoes += '<a href="'+BASE+'/modules/operacional/caso_ver.php?id='+(+t.case_id)+'" target="_blank" rel="noopener" style="background:#0ea5e9;color:#fff;text-decoration:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;">⚖️ Abrir pasta do processo</a>';
+    if (t.drive_folder_url) {
+        botoes += '<a href="'+escAttr(t.drive_folder_url)+'" target="_blank" rel="noopener" style="background:#fbbf24;color:#0c4a6e;text-decoration:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:700;">📁 Drive</a>';
+    }
+    if (t.case_client_id) {
+        botoes += '<a href="'+BASE+'/modules/crm/cliente_ver.php?id='+(+t.case_client_id)+'" target="_blank" rel="noopener" style="background:#fff;color:#0369a1;border:1px solid #bae6fd;text-decoration:none;padding:5px 12px;border-radius:6px;font-size:.75rem;font-weight:600;">👤 Ver cliente</a>';
+    }
+    botoes += '</div>';
+
+    box.innerHTML = partes.join('') + botoes;
+    box.style.display = 'block';
+}
+
+function copiarTexto(btn, txt) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(txt);
+    } else {
+        var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta);
+        ta.select(); try { document.execCommand('copy'); } catch(e) {} document.body.removeChild(ta);
+    }
+    var orig = btn.textContent; btn.textContent = '✓'; btn.style.color = '#059669';
+    setTimeout(function(){ btn.textContent = orig; btn.style.color = '#0369a1'; }, 1200);
 }
 
 function fecharModal() { document.getElementById('tkOverlay').classList.remove('aberto'); }

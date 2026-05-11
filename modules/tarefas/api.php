@@ -58,8 +58,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
     if ($action === 'get') {
         $id = (int)($_GET['id'] ?? 0);
-        $stmt = $pdo->prepare("SELECT t.*, cs.title as case_title, c.name as client_name
-            FROM case_tasks t LEFT JOIN cases cs ON cs.id=t.case_id LEFT JOIN clients c ON c.id=cs.client_id WHERE t.id=?");
+        // Trazer info contextual do processo pra exibir no modal de edicao —
+        // numero CNJ, comarca, vara, tipo de acao, responsavel, link Drive.
+        // Pedido pela Amanda 11/05/2026: ao clicar na tarefa nao tinha contexto
+        // pra executar (nem o numero do processo aparecia).
+        $stmt = $pdo->prepare("SELECT t.*,
+                                      cs.title as case_title,
+                                      cs.case_number,
+                                      cs.comarca,
+                                      cs.comarca_uf,
+                                      cs.court,
+                                      cs.case_type,
+                                      cs.drive_folder_url,
+                                      cs.client_id as case_client_id,
+                                      c.name as client_name,
+                                      u.name as case_responsavel_name
+            FROM case_tasks t
+            LEFT JOIN cases cs ON cs.id = t.case_id
+            LEFT JOIN clients c ON c.id = cs.client_id
+            LEFT JOIN users u ON u.id = cs.responsavel_id
+            WHERE t.id = ?");
         $stmt->execute(array($id));
         $task = $stmt->fetch();
         echo json_encode($task ?: array('error' => 'Não encontrada'));
