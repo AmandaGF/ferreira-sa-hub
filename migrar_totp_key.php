@@ -26,9 +26,12 @@ $insertion = "\n// Chave de criptografia AES-256 pras chaves secretas TOTP em si
            . "// Gerada automaticamente em " . date('Y-m-d H:i:s') . ". NÃO TROCAR — chaves cifradas viram lixo.\n"
            . "define('TOTP_ENCRYPTION_KEY', '" . $key . "');\n";
 
-// Se tem `?>` no final, insere antes; senão append
-if (preg_match('/\?>\s*$/', $content)) {
-    $newContent = preg_replace('/\?>\s*$/', $insertion . "?>\n", $content);
+/* Se tem o tag de fechamento PHP no final, insere antes; senão append.
+   ATENCAO: NAO usar comentario // com o tag de fechamento aqui — PHP fecha
+   o tag mesmo dentro de // (quirk historico do parser). */
+$closeTag = '?' . '>'; // monta fora pra nao quebrar o parser
+if (preg_match('/' . preg_quote($closeTag, '/') . '\s*$/', $content)) {
+    $newContent = preg_replace('/' . preg_quote($closeTag, '/') . '\s*$/', $insertion . $closeTag . "\n", $content);
 } else {
     $newContent = rtrim($content) . "\n" . $insertion;
 }
