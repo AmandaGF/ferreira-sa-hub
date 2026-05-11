@@ -73,6 +73,43 @@ foreach ($casos as $cs) {
     }
 }
 
+// Outras fontes de "tarefa aberta" pra cada caso
+foreach ($casos as $cs) {
+    echo '<h2>2b. prazos_processuais do caso #' . $cs['id'] . '</h2>';
+    try {
+        $stP = $pdo->prepare("SELECT id, descricao_acao, prazo_fatal, concluido, created_at FROM prazos_processuais WHERE case_id = ? ORDER BY prazo_fatal DESC LIMIT 30");
+        $stP->execute(array($cs['id']));
+        $prazos = $stP->fetchAll();
+        if (!$prazos) echo '<p class="muted">Nenhum.</p>';
+        else {
+            echo '<table><tr><th>ID</th><th>Descricao</th><th>Prazo fatal</th><th>Concluido</th></tr>';
+            foreach ($prazos as $p) {
+                echo '<tr><td>' . $p['id'] . '</td><td>' . htmlspecialchars($p['descricao_acao']) . '</td>';
+                echo '<td>' . htmlspecialchars($p['prazo_fatal']) . '</td>';
+                echo '<td>' . ($p['concluido'] ? '<span class="muted">sim</span>' : '<span class="warn">NAO (ATIVO)</span>') . '</td></tr>';
+            }
+            echo '</table>';
+        }
+    } catch (Exception $e) {}
+    echo '<h2>2c. agenda_eventos do caso #' . $cs['id'] . '</h2>';
+    try {
+        $stE = $pdo->prepare("SELECT id, titulo, tipo, status, data_inicio FROM agenda_eventos WHERE case_id = ? ORDER BY data_inicio DESC LIMIT 30");
+        $stE->execute(array($cs['id']));
+        $evs = $stE->fetchAll();
+        if (!$evs) echo '<p class="muted">Nenhum.</p>';
+        else {
+            echo '<table><tr><th>ID</th><th>Titulo</th><th>Tipo</th><th>Status</th><th>Data</th></tr>';
+            foreach ($evs as $e2) {
+                $cls = (in_array($e2['status'], array('agendado','remarcado'), true)) ? 'warn' : 'muted';
+                echo '<tr><td>' . $e2['id'] . '</td><td class="' . $cls . '">' . htmlspecialchars($e2['titulo']) . '</td>';
+                echo '<td>' . htmlspecialchars($e2['tipo']) . '</td><td>' . htmlspecialchars($e2['status']) . '</td>';
+                echo '<td>' . htmlspecialchars($e2['data_inicio']) . '</td></tr>';
+            }
+            echo '</table>';
+        }
+    } catch (Exception $e) {}
+}
+
 // Tarefas órfãs que mencionam o termo no título
 echo '<h2>3. Tarefas que mencionam "' . htmlspecialchars($q) . '" no título (potenciais órfãs)</h2>';
 $st3 = $pdo->prepare("SELECT t.id, t.title, t.tipo, t.status, t.case_id, t.assigned_to, t.due_date, t.created_at, u.name AS assigned_name
