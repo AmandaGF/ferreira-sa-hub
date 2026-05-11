@@ -228,6 +228,7 @@ if ($voltarCaso > 0): ?>
             <a href="<?= module_url('agenda', 'importar.php') ?>" class="btn btn-outline btn-sm" style="font-size:13px;">Importar CSV</a>
             <?php endif; ?>
             <a href="https://www.tjrj.jus.br/web/guest/balcao-virtual" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#052228;color:#052228;">Balcão Virtual</a>
+            <a href="<?= module_url('agenda', 'relatorio.php') ?>" target="_blank" class="btn btn-outline btn-sm" style="font-size:13px;border-color:#6366f1;color:#6366f1;" title="Gerar relatório de compromissos por período (imprimível)">📊 Relatório</a>
             <button class="btn btn-primary btn-sm" onclick="abrirModal(getDataSelecionada())" style="font-size:13px;">+ Novo compromisso</button>
         </div>
     </div>
