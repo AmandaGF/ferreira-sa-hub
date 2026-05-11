@@ -62,12 +62,12 @@ try {
 } catch (Exception $e) {}
 
 // Tipos de benefício
-$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
+$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Tempo de Contribuição','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
 
 // Cores dos badges
 $tipoBadgeColors = array(
     'INSS' => '#2980B9', 'BPC' => '#8E44AD', 'LOAS' => '#D35400',
-    'Aposentadoria por Idade' => '#1A5276', 'Aposentadoria por Invalidez' => '#C0392B',
+    'Aposentadoria por Idade' => '#1A5276', 'Aposentadoria por Tempo de Contribuição' => '#0E6655', 'Aposentadoria por Invalidez' => '#C0392B',
     'Auxílio-Doença' => '#E67E22', 'Auxílio-Acidente' => '#F39C12',
     'Pensão por Morte' => '#5B2D8E', 'Salário-Maternidade' => '#148F77',
 );

@@ -22,7 +22,7 @@ if (isset($_GET['ajax_busca_cliente'])) {
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
-$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
+$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Tempo de Contribuição','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
 
 // Pré-carregar cliente se vier via ?client_id=
 $preClient = null;
