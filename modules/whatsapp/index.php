@@ -730,6 +730,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Mesclar é util em ambos os canais (duplicatas Multi-Device acontecem nos 2)
         // Liberado para todos os usuarios — qualquer atendente pode unir duplicatas.
         actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
+        actions += '<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora (sem F5) — caso desconfie que esta atrasado">🔄</button>';
         // Fixar/desfixar conversa no topo da lista
         if (+c.fixada) {
             actions += '<button onclick="waPinConversa()" style="background:#B87333;color:#fff;border-color:#B87333;" title="Desfixar conversa do topo">📌 Fixada</button>';
@@ -3022,32 +3023,49 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // OTIMIZAÇÃO (2026-05-07): polling subiu de 5s pra 8s. Em uso ativo a usuária
     // raramente percebe — webhook ainda gera notificação push instantânea. Reduz
     // carga no servidor em ~37% e melhora responsividade da própria página.
-    pollTimer = setInterval(function(){
-        // Só recarrega lista/conversa quando a aba está visível — em background fica
-        // parado (economia gigante quando o navegador tem 5+ abas abertas).
-        if (document.hidden) return;
-        carregarLista();
-        if (convAtiva) {
-            // Se tem áudio/vídeo tocando, não atualiza (pra não reiniciar a reprodução)
-            if (audioTocando()) return;
-
-            fetch(apiUrl + '?action=abrir_conversa&id=' + convAtiva).then(function(r){ return r.json(); }).then(function(d){
+    // Helper extraido pra reuso (polling + visibilitychange + botao 🔄 Atualizar).
+    // Importante ter .catch() — se um fetch der erro silencioso (rede, sessao
+    // expirada, etc) e nao for tratado, o setInterval CONTINUA chamando mas
+    // a conversa nao atualiza ate F5. Reportado 11/05/2026 (Luiz nao via
+    // msgs da Aline/Jeovana ate recarregar).
+    function recarregarConvAtiva() {
+        if (!convAtiva) return Promise.resolve();
+        if (audioTocando()) return Promise.resolve();
+        return fetch(apiUrl + '?action=abrir_conversa&id=' + convAtiva)
+            .then(function(r){ return r.json(); })
+            .then(function(d){
                 if (d.ok && d.mensagens) {
                     var h = conversaHash(d);
-                    if (h === ultimoHashConv) return; // nada mudou, não rerenderiza
+                    if (h === ultimoHashConv) return;
                     ultimoHashConv = h;
-
                     var body = document.getElementById('waChatBody');
                     var scrollAtBottom = (body.scrollHeight - body.scrollTop - body.clientHeight) < 50;
                     renderConversa(d);
                     if (!scrollAtBottom) body.scrollTop = body.scrollTop;
                 }
+            })
+            .catch(function(err){
+                // Log defensivo — sem catch, o polling silenciosamente nao recarrega
+                // mais ate F5. Log no console pra diagnostico se acontecer de novo.
+                if (window.console && console.warn) console.warn('[wa polling] falha em abrir_conversa:', err && err.message);
             });
-        }
+    }
+    window.waRecarregarAgora = function() {
+        carregarLista();
+        recarregarConvAtiva();
+    };
+
+    pollTimer = setInterval(function(){
+        if (document.hidden) return;
+        carregarLista();
+        recarregarConvAtiva();
     }, 8000);
-    // Quando a aba volta ao foco, recarrega imediatamente (não espera os 8s)
+    // Quando a aba volta ao foco, recarrega TUDO imediatamente (lista + conv ativa).
+    // Antes so chamava carregarLista — a conv aberta so atualizava no proximo tick
+    // do interval (ate 8s), o que dava sensacao de "msg sumiu" quando o usuario
+    // alternava entre abas.
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && convAtiva) carregarLista();
+        if (!document.hidden) waRecarregarAgora();
     });
 
     // Ao abrir manualmente uma conversa, reseta o hash pra forçar render
