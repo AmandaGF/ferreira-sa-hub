@@ -1093,24 +1093,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
 
         if (!txt) return;
-        var btn = document.getElementById('waBtnSend');
-        btn.disabled = true; btn.textContent = 'Enviando...';
+
+        // ── ENVIO OTIMISTA (Amanda 11/05/2026): "Enviando..." travado por 5-20s
+        // era percepcao ruim mesmo a Z-API levando esse tempo. Agora a UI libera
+        // INSTANTANEAMENTE — limpa input, libera botao, mostra pílula discreta no
+        // canto inferior direito ("📤 Enviando..." → "✓ Enviada" / "✗ Falhou").
+        // A usuaria pode ja digitar e enviar a proxima sem esperar.
+        var _txtBackup = txt;
+        var _convQuandoEnviou = convAtiva;
+        var _inp = document.getElementById('waInput');
+        _inp.value = '';
+        _inp.style.height = '';  // reseta auto-grow
+        var _replyToBackup = (_waReplyTo && _waReplyTo.zapiMessageId) ? _waReplyTo.zapiMessageId : null;
+        waCancelarResposta(); // limpa estado de resposta — pode ja preparar a proxima
+
+        var _indId = 'waEnvInd_' + Date.now() + '_' + Math.floor(Math.random()*1000);
+        waMostrarEnvIndicador(_indId, '📤 Enviando...');
 
         var fd = new FormData();
         fd.append('action', 'enviar_mensagem');
         fd.append('conversa_id', convAtiva);
         fd.append('mensagem', txt);
         fd.append('csrf_token', csrf);
-        if (_waReplyTo && _waReplyTo.zapiMessageId) {
-            fd.append('reply_to_message_id', _waReplyTo.zapiMessageId);
-        }
+        if (_replyToBackup) fd.append('reply_to_message_id', _replyToBackup);
 
-        // Guarda o texto pra restaurar caso falhe (Safari/iOS pode dropar fetch)
-        var _txtBackup = txt;
-        var _convQuandoEnviou = convAtiva;
         fetch(apiUrl, { method: 'POST', body: fd, credentials:'same-origin' })
             .then(function(r){
-                // Se HTTP não-OK, captura status pra mostrar erro útil em vez de "Load failed"
                 if (!r.ok) {
                     return r.text().then(function(t){
                         throw new Error('HTTP ' + r.status + ': ' + (t || 'sem detalhe'));
@@ -1119,39 +1127,59 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 return r.json();
             })
             .then(function(d){
-                btn.disabled = false; btn.textContent = '➤ Enviar';
-                if (d.error) {
-                    alert('Erro do servidor: ' + d.error);
-                    // Não limpa o input — usuária pode corrigir e reenviar
+                if (d && d.error) {
+                    waAtualizarEnvIndicador(_indId, '✗ ' + d.error.substring(0, 80), '#dc2626', 5000);
+                    // Restaura texto pra usuaria reeditar
+                    if (_inp && !_inp.value) _inp.value = _txtBackup;
                     return;
                 }
-                var _inp = document.getElementById('waInput');
-                _inp.value = '';
-                _inp.style.height = '';  // reseta auto-grow
-                waCancelarResposta(); // limpa estado de resposta após enviar
-                window.waAbrir(convAtiva);
+                waAtualizarEnvIndicador(_indId, '✓ Enviada', '#059669', 1500);
+                // Re-renderiza chat pra mostrar a msg recem-enviada (so se conv ainda esta aberta)
+                if (convAtiva === _convQuandoEnviou) window.waAbrir(convAtiva);
                 carregarLista();
             })
             .catch(function(e){
-                btn.disabled = false; btn.textContent = '➤ Enviar';
                 var msg = (e && e.message) ? e.message : String(e);
-                // "TypeError: Load failed" / "Failed to fetch" / NetworkError = falha ANTES de chegar no servidor
-                // → mensagem NÃO foi enviada → restaura o texto e oferece retry
                 var ehErroDeRede = /load failed|failed to fetch|networkerror|connection|offline|abort/i.test(msg);
                 if (ehErroDeRede) {
-                    // Restaura o texto no input pra usuária reenviar
-                    var _inp = document.getElementById('waInput');
+                    waAtualizarEnvIndicador(_indId, '⚠ Falha de rede — clique pra tentar de novo', '#dc2626', 8000);
                     if (_inp && !_inp.value) _inp.value = _txtBackup;
-                    var tentar = confirm('⚠ Falha de rede — a mensagem NÃO foi enviada (' + msg + ').\n\nTexto preservado no campo. Tentar enviar de novo agora?');
-                    if (tentar && convAtiva === _convQuandoEnviou) {
-                        // Re-tenta automaticamente
-                        setTimeout(function(){ window.waEnviar(); }, 200);
-                    }
+                    // Auto-retry uma vez apos 1.5s se nao tiver mudado de conv
+                    setTimeout(function(){
+                        if (convAtiva === _convQuandoEnviou && _inp.value === _txtBackup) {
+                            window.waEnviar();
+                        }
+                    }, 1500);
                 } else {
-                    alert('Erro inesperado: ' + msg + '\n\nA mensagem pode ou não ter sido enviada — verifique o histórico antes de reenviar.');
+                    waAtualizarEnvIndicador(_indId, '✗ ' + msg.substring(0, 80), '#dc2626', 6000);
+                    if (_inp && !_inp.value) _inp.value = _txtBackup;
                 }
             });
     };
+
+    // Indicador discreto de envio no canto inferior direito (varias msgs em
+    // paralelo viram uma pilha empilhada).
+    function waMostrarEnvIndicador(id, txt) {
+        var t = document.createElement('div');
+        t.id = id;
+        t.textContent = txt;
+        t.style.cssText = 'position:fixed;right:14px;background:#0f2140;color:#fff;padding:7px 14px;border-radius:18px;font-size:.82rem;font-weight:600;z-index:99999;box-shadow:0 4px 14px rgba(0,0,0,.25);transition:opacity .35s, transform .35s;opacity:0;transform:translateY(8px);';
+        // Empilha verticalmente se houver outros indicadores ativos
+        var existentes = document.querySelectorAll('[id^="waEnvInd_"]').length;
+        t.style.bottom = (14 + (existentes * 44)) + 'px';
+        document.body.appendChild(t);
+        // anima entrada
+        requestAnimationFrame(function(){ t.style.opacity = '1'; t.style.transform = 'translateY(0)'; });
+    }
+    function waAtualizarEnvIndicador(id, txt, cor, sumeApos) {
+        var t = document.getElementById(id);
+        if (!t) return;
+        t.textContent = txt;
+        if (cor) t.style.background = cor;
+        var ms = sumeApos || 1500;
+        setTimeout(function(){ if (t.parentNode) { t.style.opacity = '0'; t.style.transform = 'translateY(8px)'; } }, ms);
+        setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, ms + 400);
+    }
 
     // ── PENDENTE: preview de arquivo antes de enviar ────
     function mostrarPendente(file) {
