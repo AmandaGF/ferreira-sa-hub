@@ -368,7 +368,9 @@ require_once APP_ROOT . '/templates/sidebar.php';
             <?= flash_html() ?>
 
 <?php
-// Banner de prazos urgentes (próximos 3 dias) — visível em todas as páginas
+// Banner de prazos urgentes (próximos 3 dias) — visível em todas as páginas.
+// 11/05/2026 Amanda pediu: linha inteira clicavel + mais informacoes
+// (CNJ formatado, comarca/vara, responsavel).
 try {
     $__userId = current_user_id();
     $__role = current_user_role();
@@ -376,10 +378,13 @@ try {
     if (in_array($__role, array('admin','gestao','operacional'))) {
         $__stmtPz = db()->prepare(
             "SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.case_id,
-                    cs.title as case_title, cl.name as client_name
+                    cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
+                    cl.name AS client_name,
+                    u.name AS responsavel_name
              FROM prazos_processuais p
              LEFT JOIN cases cs ON cs.id = p.case_id
              LEFT JOIN clients cl ON cl.id = p.client_id
+             LEFT JOIN users u ON u.id = cs.responsible_user_id
              WHERE p.concluido = 0 AND p.prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
              ORDER BY p.prazo_fatal ASC LIMIT 10"
         );
@@ -387,10 +392,31 @@ try {
         $__prazosUrgentes = $__stmtPz->fetchAll();
     }
 } catch (Exception $e) { $__prazosUrgentes = array(); }
+// Helper local: formata CNJ se vier desformatado (20 digitos)
+if (!function_exists('_layoutFormatCnj')) {
+    function _layoutFormatCnj($num) {
+        $d = preg_replace('/\D/', '', (string)$num);
+        if (strlen($d) !== 20) return $num;
+        return substr($d,0,7).'-'.substr($d,7,2).'.'.substr($d,9,4).'.'.substr($d,13,1).'.'.substr($d,14,2).'.'.substr($d,16,4);
+    }
+}
 if (!empty($__prazosUrgentes)):
 ?>
-<div class="no-print" style="background:linear-gradient(135deg,#dc2626,#b91c1c);color:#fff;border-radius:10px;padding:.6rem 1rem;margin-bottom:.75rem;font-size:.78rem;">
-    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem;">
+<style>
+.urg-banner { background:linear-gradient(135deg,#dc2626,#b91c1c); color:#fff; border-radius:10px; padding:.6rem 1rem; margin-bottom:.75rem; font-size:.78rem; }
+.urg-banner .urg-hdr { display:flex; align-items:center; gap:.5rem; margin-bottom:.45rem; }
+.urg-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .55rem; border-top:1px solid rgba(255,255,255,.15); text-decoration:none; color:#fff; border-radius:6px; transition:background .15s; }
+.urg-row:hover { background:rgba(255,255,255,.1); color:#fff; }
+.urg-row .urg-label { font-weight:700; min-width:80px; flex-shrink:0; }
+.urg-row .urg-meio { flex:1; min-width:0; }
+.urg-row .urg-titulo { font-weight:600; line-height:1.35; }
+.urg-row .urg-meta { font-size:.7rem; opacity:.85; display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.15rem; }
+.urg-row .urg-meta .urg-cnj { font-family:monospace; }
+.urg-row .urg-data { margin-left:auto; flex-shrink:0; text-align:right; font-family:monospace; font-size:.78rem; font-weight:600; }
+.urg-row .urg-data small { display:block; font-size:.65rem; opacity:.75; font-weight:400; font-family:inherit; }
+</style>
+<div class="no-print urg-banner">
+    <div class="urg-hdr">
         <span style="font-size:1rem;">🚨</span>
         <strong><?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!</strong>
         <a href="<?= url('modules/prazos/') ?>" style="color:#fecaca;margin-left:auto;font-size:.7rem;text-decoration:underline;">Ver todos →</a>
@@ -398,14 +424,33 @@ if (!empty($__prazosUrgentes)):
     <?php foreach ($__prazosUrgentes as $__pz):
         $__diasPz = (int)((strtotime($__pz['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
         $__urgLabel = $__diasPz <= 0 ? '🔴 HOJE' : ($__diasPz === 1 ? '🟡 AMANHÃ' : '⚠️ ' . $__diasPz . 'd');
+        $__caseHref = $__pz['case_id'] ? url('modules/operacional/caso_ver.php?id=' . $__pz['case_id']) : url('modules/prazos/');
+        $__cnjFmt = $__pz['case_cnj'] ? _layoutFormatCnj($__pz['case_cnj']) : ($__pz['numero_processo'] ? _layoutFormatCnj($__pz['numero_processo']) : '');
+        $__localTxt = '';
+        if (!empty($__pz['vara']))    $__localTxt .= $__pz['vara'];
+        if (!empty($__pz['comarca'])) $__localTxt .= ($__localTxt ? ' — ' : '') . $__pz['comarca'] . (!empty($__pz['comarca_uf']) ? '/' . $__pz['comarca_uf'] : '');
     ?>
-    <div style="display:flex;align-items:center;gap:.5rem;padding:.2rem 0;border-top:1px solid rgba(255,255,255,.15);">
-        <span style="font-weight:700;min-width:70px;"><?= $__urgLabel ?></span>
-        <span style="font-weight:600;"><?= e($__pz['descricao_acao']) ?></span>
-        <?php if ($__pz['case_id']): ?><a href="<?= url('modules/operacional/caso_ver.php?id=' . $__pz['case_id']) ?>" style="color:#fecaca;text-decoration:none;">— <?= e($__pz['case_title'] ?: $__pz['numero_processo'] ?: '') ?></a><?php endif; ?>
-        <?php if ($__pz['client_name']): ?><span style="opacity:.7;">(<?= e($__pz['client_name']) ?>)</span><?php endif; ?>
-        <span style="margin-left:auto;font-family:monospace;font-size:.72rem;opacity:.8;"><?= date('d/m', strtotime($__pz['prazo_fatal'])) ?></span>
-    </div>
+    <a class="urg-row" href="<?= e($__caseHref) ?>" title="Abrir pasta do processo">
+        <span class="urg-label"><?= $__urgLabel ?></span>
+        <span class="urg-meio">
+            <div class="urg-titulo">
+                <?= e($__pz['descricao_acao']) ?>
+                <?php if (!empty($__pz['case_title'])): ?>
+                    <span style="opacity:.85;font-weight:500;"> — <?= e($__pz['case_title']) ?></span>
+                <?php endif; ?>
+            </div>
+            <div class="urg-meta">
+                <?php if ($__pz['client_name']): ?><span>👤 <?= e($__pz['client_name']) ?></span><?php endif; ?>
+                <?php if ($__cnjFmt): ?><span class="urg-cnj">📋 <?= e($__cnjFmt) ?></span><?php endif; ?>
+                <?php if ($__localTxt): ?><span>📍 <?= e($__localTxt) ?></span><?php endif; ?>
+                <?php if (!empty($__pz['responsavel_name'])): ?><span>⚖ <?= e(explode(' ', $__pz['responsavel_name'])[0]) ?></span><?php endif; ?>
+            </div>
+        </span>
+        <span class="urg-data">
+            <?= date('d/m', strtotime($__pz['prazo_fatal'])) ?>
+            <small><?= date('D', strtotime($__pz['prazo_fatal'])) ?></small>
+        </span>
+    </a>
     <?php endforeach; ?>
 </div>
 <?php endif; ?>
