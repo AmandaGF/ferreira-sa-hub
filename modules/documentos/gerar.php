@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes', 'desistencia_acao');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes', 'desistencia_acao');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -37,6 +37,7 @@ $typeLabels = array(
     'prevjud' => 'Pesquisa PREVJUD',
     'citacao_whatsapp' => 'Petição de Citação por WhatsApp',
     'habilitacao' => 'Petição de Habilitação nos Autos',
+    'habilitacao_desarquivamento' => 'Petição de Habilitação e Desarquivamento',
     'audiencia_remota' => 'Petição de Audiência Remota/Híbrida',
     'mandado_pagamento' => 'Requerimento de Mandado de Pagamento',
     'averbacao_sentenca' => 'Averbação de Sentença — Divórcio',
@@ -303,7 +304,7 @@ $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -920,9 +921,9 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
-        <?php if ($tipo === 'habilitacao'): ?>
+        <?php if ($tipo === 'habilitacao' || $tipo === 'habilitacao_desarquivamento'): ?>
         <div class="section">
-            <h4>Dados da Habilitação</h4>
+            <h4>Dados da Habilitação<?= $tipo === 'habilitacao_desarquivamento' ? ' + Desarquivamento' : '' ?></h4>
             <div class="row">
                 <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família"></div>
@@ -1206,7 +1207,7 @@ if (!$showEditor) {
         </div>
         <?php endif; ?>
 
-        <?php if ($isIntercorrente && $tipo !== 'habilitacao' && $tipo !== 'audiencia_remota' && $tipo !== 'mandado_pagamento'): ?>
+        <?php if ($isIntercorrente && $tipo !== 'habilitacao' && $tipo !== 'habilitacao_desarquivamento' && $tipo !== 'audiencia_remota' && $tipo !== 'mandado_pagamento'): ?>
         <div class="section">
             <h4>Comarca</h4>
             <div class="row">
@@ -1459,6 +1460,7 @@ if (!$showEditor) {
     elseif ($tipo === 'prevjud') echo template_prevjud($d);
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
+    elseif ($tipo === 'habilitacao_desarquivamento') { $d['incluir_desarquivamento'] = true; echo template_habilitacao($d); }
     elseif ($tipo === 'audiencia_remota') {
         // Salva o(s) menor(es) como parte do processo automaticamente.
         // Roda uma única vez por (case_id + nome). Idempotente.

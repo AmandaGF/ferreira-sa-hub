@@ -894,8 +894,12 @@ function template_habilitacao($d) {
     $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
     $nomeParteContraria = isset($d['nome_parte_contraria']) && $d['nome_parte_contraria'] ? $d['nome_parte_contraria'] : '_______________';
     $papelCliente = isset($d['papel_cliente']) && $d['papel_cliente'] ? $d['papel_cliente'] : 'autor';
+    // Flag setada pelo gerar.php quando o tipo é 'habilitacao_desarquivamento' —
+    // adiciona pedido de desarquivamento + fundamentação + reordena pedidos
+    $incluirDesarq = !empty($d['incluir_desarquivamento']);
 
-    $html = '<div class="doc-title">PETIÇÃO DE HABILITAÇÃO</div>';
+    $tituloDoc = $incluirDesarq ? 'PETIÇÃO DE HABILITAÇÃO E DESARQUIVAMENTO' : 'PETIÇÃO DE HABILITAÇÃO';
+    $html = '<div class="doc-title">' . $tituloDoc . '</div>';
 
     // Endereçamento
     $html .= enderecamento($d);
@@ -939,7 +943,8 @@ function template_habilitacao($d) {
     $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer a</p>';
 
     // Destaque
-    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">HABILITAÇÃO NOS AUTOS</div>';
+    $boxLabel = $incluirDesarq ? 'DESARQUIVAMENTO E HABILITAÇÃO NOS AUTOS' : 'HABILITAÇÃO NOS AUTOS';
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">' . $boxLabel . '</div>';
 
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogado(s) constituído(s) da parte ';
 
@@ -972,6 +977,16 @@ function template_habilitacao($d) {
 
     // Fundamentação
     $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO</p>';
+
+    if ($incluirDesarq) {
+        // Trecho específico de desarquivamento — vem ANTES da fundamentação da habilitação
+        $html .= '<p style="text-indent:0;margin:1rem 0 .5rem;color:#052228;font-weight:600;font-size:.95rem;">I — Do Desarquivamento</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Os autos do presente processo encontram-se arquivados administrativamente, sem extinção do feito, razão pela qual se faz necessário o seu prévio desarquivamento para regular impulso processual.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">É cediço que o arquivamento administrativo não importa em extinção do processo (CPC, art. 485), tampouco em perda do direito de ação, podendo o feito ser desarquivado a qualquer tempo, mediante simples requerimento da parte interessada, conforme entendimento consolidado.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do interesse manifesto da parte ora habilitante em dar continuidade ao feito, requer-se, preliminarmente, o desarquivamento dos autos.</p>';
+        $html .= '<p style="text-indent:0;margin:1rem 0 .5rem;color:#052228;font-weight:600;font-size:.95rem;">II — Da Habilitação</p>';
+    }
+
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Nos termos do art. 105 do Código de Processo Civil, a parte é representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil, devendo juntar instrumento de mandato quando do primeiro ato processual.</p>';
 
     if ($isAnalise) {
@@ -986,14 +1001,23 @@ function template_habilitacao($d) {
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ante o exposto, requer a Vossa Excelência:</p>';
     $html .= '<div style="margin:12px 0;">';
 
-    if ($isAnalise) {
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados ora subscritos, <strong>exclusivamente para fins de análise</strong>, passando a ter acesso ao conteúdo processual;</p>';
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntado aos autos o substabelecimento/documento que acompanha esta petição;</p>';
-    } else {
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+    // Quando inclui desarquivamento, o pedido (a) vira o de desarquivar e os demais
+    // sao re-letrados a partir de (b). Mantem coerencia com a fundamentacao I/II.
+    $letras = array('a', 'b', 'c', 'd', 'e');
+    $i = 0;
+
+    if ($incluirDesarq) {
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja determinado o <strong>desarquivamento dos autos</strong>, viabilizando o regular impulso processual;</p>';
     }
-    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>c)</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
+
+    if ($isAnalise) {
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam habilitados nos autos os advogados ora subscritos, <strong>exclusivamente para fins de análise</strong>, passando a ter acesso ao conteúdo processual;</p>';
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja juntado aos autos o substabelecimento/documento que acompanha esta petição;</p>';
+    } else {
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+    }
+    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
     $html .= '</div>';
 
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';

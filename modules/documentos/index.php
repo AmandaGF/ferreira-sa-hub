@@ -29,6 +29,7 @@ $docTypes = array(
     'prevjud' => array('label' => 'Pesquisa PREVJUD', 'icon' => '🔍', 'color' => '#052228', 'desc' => 'Pesquisa de vínculo empregatício via PREVJUD'),
     'citacao_whatsapp' => array('label' => 'Citação por WhatsApp', 'icon' => '💬', 'color' => '#25D366', 'desc' => 'Petição requerendo citação do réu via WhatsApp — Art. 246, V, CPC'),
     'habilitacao' => array('label' => 'Petição de Habilitação', 'icon' => '📋', 'color' => '#7c3aed', 'desc' => 'Habilitação nos autos para atuação no processo (procuração em anexo)'),
+    'habilitacao_desarquivamento' => array('label' => 'Habilitação + Desarquivamento', 'icon' => '📂', 'color' => '#a855f7', 'desc' => 'Habilitação nos autos + pedido de desarquivamento (processo arquivado administrativamente) — combo CPC 105 + 313, IV'),
     'audiencia_remota' => array('label' => 'Audiência Remota/Híbrida', 'icon' => '🖥️', 'color' => '#0ea5e9', 'desc' => 'Requer realização de audiência por videoconferência ou de forma híbrida'),
     'mandado_pagamento' => array('label' => 'Mandado de Pagamento', 'icon' => '💰', 'color' => '#059669', 'desc' => 'Requer expedição de mandado de pagamento eletrônico do depósito judicial'),
     'averbacao_sentenca' => array('label' => 'Averbação Sentença — Divórcio', 'icon' => '💔', 'color' => '#9333ea', 'desc' => 'Ciência da sentença + renúncia ao prazo recursal + requer expedição da Carta de Sentença via Malote Digital ao RCPN — Aviso CGJ 154/2021'),
