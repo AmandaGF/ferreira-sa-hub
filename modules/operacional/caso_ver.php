@@ -760,7 +760,7 @@ try {
         "SELECT e.*, u.name as responsavel_name
          FROM agenda_eventos e
          LEFT JOIN users u ON u.id = e.responsavel_id
-         WHERE e.case_id = ? AND e.status IN ('realizado','nao_compareceu','remarcado')
+         WHERE e.case_id = ? AND e.status IN ('realizado','nao_compareceu','remarcado','cancelado')
          ORDER BY e.data_inicio DESC"
     );
     $stmtCompR->execute(array($caseId));
@@ -917,6 +917,16 @@ if (!empty($compromissosCaso)): ?>
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
                     <button type="submit" title="Marcar como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
+                <?php if ($comp['tipo'] !== 'prazo'): // 'cancelar' so faz sentido pra compromissos (audiencia/reuniao/balcao); prazo nao se cancela, se cumpre ou nao se cumpre ?>
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Marcar este compromisso como CANCELADO?\n\nUse quando a audiencia/reuniao foi desmarcada pelo juizo, pela parte adversa ou pelo cliente.\n\n(Diferente de Excluir, que apaga o registro. Cancelado preserva o historico.)');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="evento_cancelado">
+                    <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
+                    <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <input type="hidden" name="_back" value="<?= $_backPasta ?>">
+                    <button type="submit" title="Marcar como cancelado (audiência/reunião desmarcada)" style="font-size:.7rem;background:#fef3c7;color:#92400e;padding:3px 8px;border:1px solid #fbbf24;border-radius:5px;cursor:pointer;font-weight:600;">🚫 Cancelada</button>
+                </form>
+                <?php endif; ?>
                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Excluir DEFINITIVAMENTE este compromisso?\n\nIsso vai remover o evento da agenda e a tarefa de prazo vinculada (se houver).\n\nUse essa opção quando o prazo foi cadastrado por engano ou e duplicata.\n\nTem certeza?');">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="evento_excluir">
@@ -983,8 +993,10 @@ if (!empty($compromissosCaso)): ?>
         <?php foreach ($compromissosRealizados as $comp):
             $corComp = isset($tipoCompCores[$comp['tipo']]) ? $tipoCompCores[$comp['tipo']] : '#6b7280';
             $labelComp = isset($tipoCompLabels[$comp['tipo']]) ? $tipoCompLabels[$comp['tipo']] : ucfirst($comp['tipo']);
-            $statusLabel = $comp['status'] === 'realizado' ? 'Realizado' : ($comp['status'] === 'nao_compareceu' ? 'Não compareceu' : 'Remarcado');
-            $statusCor = $comp['status'] === 'realizado' ? '#059669' : ($comp['status'] === 'nao_compareceu' ? '#b45309' : '#7c3aed');
+            if ($comp['status'] === 'realizado')           { $statusLabel = 'Realizado';      $statusCor = '#059669'; }
+            elseif ($comp['status'] === 'nao_compareceu')  { $statusLabel = 'Não compareceu'; $statusCor = '#b45309'; }
+            elseif ($comp['status'] === 'cancelado')       { $statusLabel = '🚫 Cancelado';   $statusCor = '#92400e'; }
+            else                                            { $statusLabel = 'Remarcado';      $statusCor = '#7c3aed'; }
         ?>
         <div style="display:flex;align-items:center;gap:.5rem;padding:.4rem .6rem;border-bottom:1px solid rgba(0,0,0,.04);opacity:.7;">
             <div style="width:30px;text-align:center;font-size:.7rem;font-weight:700;color:<?= $corComp ?>;flex-shrink:0;">

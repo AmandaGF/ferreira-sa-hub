@@ -1671,6 +1671,32 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'evento_cancelado':
+        // Marca um evento como CANCELADO (audiencia/reuniao desmarcada pelo juizo/parte
+        // adversa/cliente). Diferente de 'realizado' (deu certo) e de 'excluir' (foi
+        // cadastrado por engano). Cancelados ficam no historico pra fins de auditoria
+        // e aparecem na secao colapsavel "Compromissos realizados" com badge proprio.
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+        $eventoId = (int)($_POST['evento_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+        if ($eventoId && $caseId) {
+            try {
+                $pdo->prepare("UPDATE agenda_eventos SET status = 'cancelado', updated_at = NOW() WHERE id = ? AND case_id = ?")
+                    ->execute(array($eventoId, $caseId));
+                audit_log('EVENTO_CANCELADO', 'case', $caseId, 'evento_id=' . $eventoId);
+                flash_set('success', 'Compromisso marcado como cancelado.');
+            } catch (Exception $e) {
+                flash_set('error', 'Erro: ' . $e->getMessage());
+            }
+        }
+        if ($back && (strpos($back, 'ferreiraesa.com.br') !== false || strpos($back, '/') === 0)) {
+            header('Location: ' . $back);
+            exit;
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
     case 'evento_excluir':
         // Exclui DEFINITIVAMENTE um evento da agenda + tarefa/prazo vinculados.
         // Diferente do evento_realizado (que so muda status pra 'realizado' e mantem o registro),
