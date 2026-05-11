@@ -736,6 +736,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         } else {
             actions += '<button onclick="waPinConversa()" title="Fixar esta conversa no topo da lista (só aparece pra você e equipe no Hub)">📌 Fixar</button>';
         }
+        actions += '<button onclick="waMarcarNaoLida()" title="Marcar como nao lida pra revisar depois (volta com badge vermelho na lista e aparece no filtro Nao lidas)" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;">📩 Não lida</button>';
         if (c.status !== 'resolvido') {
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
@@ -2128,6 +2129,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
+    // Marca como nao lida (mesmo apos aberta). Fecha a conversa logo apos —
+    // se mantivesse aberta, o polling de 8s chamaria abrir_conversa e zeraria
+    // de novo o contador. Refresh da lista pra badge aparecer.
+    window.waMarcarNaoLida = function() {
+        if (!convAtiva) return;
+        acaoConversa('marcar_nao_lida').then(function(r){
+            if (r && r.error) { alert('Erro: ' + r.error); return; }
+            convAtiva = null;
+            ultimoHashConv = null;
+            document.getElementById('waChatHeadContainer').innerHTML = '';
+            document.getElementById('waChatInput').style.display = 'none';
+            document.getElementById('waChatBody').innerHTML =
+                '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📩</div>'+
+                '<div>Conversa marcada como <strong>nao lida</strong>.</div>'+
+                '<div style="font-size:.8rem;margin-top:.5rem;color:#6b7280;">Ela volta destacada na lista — clique pra reabrir quando quiser revisar.</div></div>';
+            carregarLista();
+        });
+    };
 
     window.waEnviarLinkPortal = function() {
         if (!convAtiva) return;

@@ -77,7 +77,7 @@ try {
 
 // CSRF só para ações que mutam
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
-                  'ativar_bot', 'desativar_bot', 'marcar_lida', 'arquivar',
+                  'ativar_bot', 'desativar_bot', 'marcar_lida', 'marcar_nao_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
@@ -683,6 +683,16 @@ if ($action === 'resolver') {
 if ($action === 'arquivar') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
     $pdo->prepare("UPDATE zapi_conversas SET status = 'arquivado' WHERE id = ?")->execute(array($convId));
+    echo json_encode(array('ok' => true));
+    exit;
+}
+// Marca conversa como NAO LIDA mesmo depois de ter sido aberta — pra
+// usuária revisar/responder depois. GREATEST preserva contador se ja tinha
+// msgs nao-lidas (caso raro), senao seta 1 (basta pra aparecer o badge vermelho
+// e aparecer no filtro "Nao lidas").
+if ($action === 'marcar_nao_lida') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $pdo->prepare("UPDATE zapi_conversas SET nao_lidas = GREATEST(nao_lidas, 1) WHERE id = ?")->execute(array($convId));
     echo json_encode(array('ok' => true));
     exit;
 }
