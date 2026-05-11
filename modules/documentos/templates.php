@@ -940,85 +940,81 @@ function template_habilitacao($d) {
     if (isset($d['email']) && $d['email']) $html .= ', e-mail: ' . f($d['email']);
     if (isset($d['phone']) && $d['phone']) $html .= ', telefone: ' . f($d['phone']);
 
-    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer a</p>';
+    // Transicao pro box — quando inclui desarquivamento, "requerer O" (DESARQUIVAMENTO,
+    // masculino) em vez de "requerer A" (HABILITAÇÃO, feminino), porque "DESARQUIVAMENTO"
+    // vem primeiro no box.
+    $palavraTransicao = $incluirDesarq ? 'o' : 'a';
+    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer ' . $palavraTransicao . '</p>';
 
     // Destaque
-    $boxLabel = $incluirDesarq ? 'DESARQUIVAMENTO E HABILITAÇÃO NOS AUTOS' : 'HABILITAÇÃO NOS AUTOS';
+    $boxLabel = $incluirDesarq ? 'DESARQUIVAMENTO E A HABILITAÇÃO NOS AUTOS' : 'HABILITAÇÃO NOS AUTOS';
     $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">' . $boxLabel . '</div>';
 
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogado(s) constituído(s) da parte ';
-
-    // Polo do cliente
-    if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
-        $html .= '<strong>AUTORA/REQUERENTE</strong>';
-    } elseif ($papelCliente === 'reu' || $papelCliente === 'requerido') {
-        $html .= '<strong>RÉ/REQUERIDA</strong>';
-    } else {
-        $html .= '<strong>' . strtoupper(f($papelCliente)) . '</strong>';
-    }
-
-    $html .= ' nos autos da <strong>' . f($tipoAcaoHab) . '</strong>';
-
-    // Parte contrária
-    $html .= ', movida ';
-    if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
-        $html .= 'em face de <strong>' . f($nomeParteContraria) . '</strong>';
-    } else {
-        $html .= 'por <strong>' . f($nomeParteContraria) . '</strong>';
-    }
     $tipoHabProc = isset($d['tipo_hab_proc']) ? $d['tipo_hab_proc'] : 'plena';
     $isAnalise = ($tipoHabProc === 'analise');
 
-    if ($isAnalise) {
-        $html .= ', conforme substabelecimento/procuração em anexo, <strong>exclusivamente para fins de análise dos autos</strong>, sem poderes para atuação efetiva, nos termos do art. 107, I, do Código de Processo Civil.</p>';
-    } else {
-        $html .= ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
-    }
-
-    // Fundamentação
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO</p>';
-
     if ($incluirDesarq) {
-        // Trecho específico de desarquivamento — vem ANTES da fundamentação da habilitação
-        $html .= '<p style="text-indent:0;margin:1rem 0 .5rem;color:#052228;font-weight:600;font-size:.95rem;">I — Do Desarquivamento</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Os autos do presente processo encontram-se arquivados administrativamente, sem extinção do feito, razão pela qual se faz necessário o seu prévio desarquivamento para regular impulso processual.</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">É cediço que o arquivamento administrativo não importa em extinção do processo (CPC, art. 485), tampouco em perda do direito de ação, podendo o feito ser desarquivado a qualquer tempo, mediante simples requerimento da parte interessada, conforme entendimento consolidado.</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do interesse manifesto da parte ora habilitante em dar continuidade ao feito, requer-se, preliminarmente, o desarquivamento dos autos.</p>';
-        $html .= '<p style="text-indent:0;margin:1rem 0 .5rem;color:#052228;font-weight:600;font-size:.95rem;">II — Da Habilitação</p>';
-    }
-
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Nos termos do art. 105 do Código de Processo Civil, a parte é representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil, devendo juntar instrumento de mandato quando do primeiro ato processual.</p>';
-
-    if ($isAnalise) {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente habilitação tem por objetivo <strong>exclusivamente a análise dos autos</strong>, viabilizando o acesso ao processo para estudo e avaliação do caso, <strong>sem que os advogados ora habilitados possam praticar quaisquer atos processuais</strong> em nome da parte, salvo mediante posterior juntada de procuração com poderes específicos para atuação.</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
+        // Versao ENXUTA pedida pela Amanda 11/05/2026: parágrafo curto pós-box
+        // + "Em tempo..." + fecha. Sem polo da parte / nome da parte contrária /
+        // tipo de ação no corpo (já constam no "Autos n." do cabeçalho), sem
+        // seção DA FUNDAMENTAÇÃO extensa, sem pedidos numerados.
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogada constituída da parte, conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Em tempo, considerando que o feito encontra-se arquivado, pleiteia-se também seu desarquivamento, para requerer e/ou extrair as competentes cópias.</p>';
     } else {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+        // Versao completa original: polo do cliente, parte contrária, fundamentação,
+        // pedidos numerados — usada pela habilitacao "pura" (sem desarquivamento).
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogado(s) constituído(s) da parte ';
+
+        // Polo do cliente
+        if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
+            $html .= '<strong>AUTORA/REQUERENTE</strong>';
+        } elseif ($papelCliente === 'reu' || $papelCliente === 'requerido') {
+            $html .= '<strong>RÉ/REQUERIDA</strong>';
+        } else {
+            $html .= '<strong>' . strtoupper(f($papelCliente)) . '</strong>';
+        }
+
+        $html .= ' nos autos da <strong>' . f($tipoAcaoHab) . '</strong>';
+
+        // Parte contrária
+        $html .= ', movida ';
+        if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
+            $html .= 'em face de <strong>' . f($nomeParteContraria) . '</strong>';
+        } else {
+            $html .= 'por <strong>' . f($nomeParteContraria) . '</strong>';
+        }
+
+        if ($isAnalise) {
+            $html .= ', conforme substabelecimento/procuração em anexo, <strong>exclusivamente para fins de análise dos autos</strong>, sem poderes para atuação efetiva, nos termos do art. 107, I, do Código de Processo Civil.</p>';
+        } else {
+            $html .= ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+        }
+
+        // Fundamentação
+        $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA FUNDAMENTAÇÃO</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Nos termos do art. 105 do Código de Processo Civil, a parte é representada em juízo por advogado regularmente inscrito na Ordem dos Advogados do Brasil, devendo juntar instrumento de mandato quando do primeiro ato processual.</p>';
+
+        if ($isAnalise) {
+            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente habilitação tem por objetivo <strong>exclusivamente a análise dos autos</strong>, viabilizando o acesso ao processo para estudo e avaliação do caso, <strong>sem que os advogados ora habilitados possam praticar quaisquer atos processuais</strong> em nome da parte, salvo mediante posterior juntada de procuração com poderes específicos para atuação.</p>';
+            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
+        } else {
+            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+        }
+
+        // Pedidos
+        $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS PEDIDOS</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ante o exposto, requer a Vossa Excelência:</p>';
+        $html .= '<div style="margin:12px 0;">';
+        if ($isAnalise) {
+            $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados ora subscritos, <strong>exclusivamente para fins de análise</strong>, passando a ter acesso ao conteúdo processual;</p>';
+            $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntado aos autos o substabelecimento/documento que acompanha esta petição;</p>';
+        } else {
+            $html .= '<p style="text-indent:0;margin:6px 0;"><strong>a)</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
+            $html .= '<p style="text-indent:0;margin:6px 0;"><strong>b)</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
+        }
+        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>c)</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
+        $html .= '</div>';
     }
-
-    // Pedido
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS PEDIDOS</p>';
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ante o exposto, requer a Vossa Excelência:</p>';
-    $html .= '<div style="margin:12px 0;">';
-
-    // Quando inclui desarquivamento, o pedido (a) vira o de desarquivar e os demais
-    // sao re-letrados a partir de (b). Mantem coerencia com a fundamentacao I/II.
-    $letras = array('a', 'b', 'c', 'd', 'e');
-    $i = 0;
-
-    if ($incluirDesarq) {
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja determinado o <strong>desarquivamento dos autos</strong>, viabilizando o regular impulso processual;</p>';
-    }
-
-    if ($isAnalise) {
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam habilitados nos autos os advogados ora subscritos, <strong>exclusivamente para fins de análise</strong>, passando a ter acesso ao conteúdo processual;</p>';
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja juntado aos autos o substabelecimento/documento que acompanha esta petição;</p>';
-    } else {
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam habilitados nos autos os advogados constituídos, passando a receber todas as intimações e notificações;</p>';
-        $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Seja juntada aos autos a procuração <em>ad judicia et extra</em> que acompanha esta petição;</p>';
-    }
-    $html .= '<p style="text-indent:0;margin:6px 0;"><strong>' . $letras[$i++] . ')</strong> Sejam abertas vistas dos autos para ciência e eventual manifestação.</p>';
-    $html .= '</div>';
 
     $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
