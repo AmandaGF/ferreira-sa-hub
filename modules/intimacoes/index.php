@@ -29,6 +29,10 @@ $fTipo      = trim($_GET['tipo'] ?? '');
 $fAba       = trim($_GET['aba'] ?? 'a_tratar');
 if (!in_array($fAba, array('a_tratar','resolvidas','todos'), true)) $fAba = 'a_tratar';
 $fStatus    = trim($_GET['status'] ?? '');
+// Filtro de urgencia (vencidas/hoje/amanha) acionado pelos cards do painel.
+// So aplicavel quando status=pendente.
+$fFiltro    = trim($_GET['filtro'] ?? '');
+if (!in_array($fFiltro, array('','vencidas','hoje','amanha'), true)) $fFiltro = '';
 $fBusca     = trim($_GET['q'] ?? '');
 $pageNum    = max(1, (int)($_GET['page'] ?? 1));
 $perPage    = 25;
@@ -127,6 +131,17 @@ if ($fStatus && $fStatus !== 'todos') {
     if ($fStatus === 'orfa')       $where[] = "x.origem = 'pend'";
     else                            $where[] = "x.origem = 'pub' AND x.status_prazo = ?";
     if ($fStatus !== 'orfa')        $params[] = $fStatus;
+}
+
+// Filtro de urgencia (vencidas / vencendo hoje / vencendo amanha). So aplica
+// em itens com data_prazo_fim definida (origem='pub'). Orfas/pend sem prazo
+// nao tem o campo, entao sao naturalmente excluidas.
+if ($fFiltro === 'vencidas') {
+    $where[] = "x.data_prazo_fim IS NOT NULL AND x.data_prazo_fim < CURDATE()";
+} elseif ($fFiltro === 'hoje') {
+    $where[] = "x.data_prazo_fim = CURDATE()";
+} elseif ($fFiltro === 'amanha') {
+    $where[] = "x.data_prazo_fim = DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
 }
 if ($likeB) {
     $where[] = '(x.cnj LIKE ? OR x.conteudo_full LIKE ? OR x.resumo LIKE ? OR x.cliente_nome LIKE ? OR x.case_title LIKE ? OR x.partes_raw LIKE ?)';
@@ -253,8 +268,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 /* Painel de pendências (cards destacados no topo) */
 .ci-painel { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:.7rem; margin-bottom:1rem; }
-.ci-painel-card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.25rem; padding:1.1rem .9rem; border-radius:12px; text-decoration:none; transition:transform .15s, box-shadow .15s; box-shadow:0 2px 6px rgba(0,0,0,.05); border:1.5px solid transparent; }
+.ci-painel-card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.25rem; padding:1.1rem .9rem; border-radius:12px; text-decoration:none; transition:transform .15s, box-shadow .15s; box-shadow:0 2px 6px rgba(0,0,0,.05); border:1.5px solid transparent; cursor:pointer; }
 .ci-painel-card:hover { transform:translateY(-2px); box-shadow:0 4px 14px rgba(0,0,0,.1); }
+.ci-painel-card.ativo { border-width:3px; box-shadow:0 0 0 3px rgba(15,33,64,.15), 0 4px 14px rgba(0,0,0,.12); transform:translateY(-1px); }
 .ci-painel-card .ci-painel-num { font-size:2.2rem; font-weight:900; line-height:1; }
 .ci-painel-card .ci-painel-lbl { font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; text-align:center; }
 .ci-painel-card.destaque { background:linear-gradient(135deg,#fffbeb,#fef3c7); border-color:#fbbf24; color:#92400e; }
@@ -286,27 +302,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
 
-    <!-- Painel de pendências (destaque visual) -->
+    <!-- Painel de pendências (destaque visual). Cada card aplica um filtro
+         especifico via ?filtro=. O card ATIVO ganha contorno destacado. -->
+    <?php
+    // Helper pra detectar card ativo (status + filtro)
+    $_cardAtivo = function($status, $filtro = '') use ($fStatus, $fFiltro) {
+        return ($fStatus === $status && $fFiltro === $filtro) ? ' ativo' : '';
+    };
+    ?>
     <div class="ci-painel">
-        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card destaque">
+        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card destaque<?= $_cardAtivo('pendente', '') ?>">
             <div class="ci-painel-num"><?= (int)$contadores['pendente'] ?></div>
             <div class="ci-painel-lbl">Pendentes de cumprimento</div>
         </a>
         <?php if ($painelStats['vencidas'] > 0): ?>
-            <a href="?aba=a_tratar&status=pendente" class="ci-painel-card alerta">
+            <a href="?aba=a_tratar&status=pendente&filtro=vencidas" class="ci-painel-card alerta<?= $_cardAtivo('pendente', 'vencidas') ?>">
                 <div class="ci-painel-num"><?= (int)$painelStats['vencidas'] ?></div>
                 <div class="ci-painel-lbl">⚠ Vencidas (urgente)</div>
             </a>
         <?php endif; ?>
-        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card hoje">
+        <a href="?aba=a_tratar&status=pendente&filtro=hoje" class="ci-painel-card hoje<?= $_cardAtivo('pendente', 'hoje') ?>">
             <div class="ci-painel-num"><?= (int)$painelStats['vencendo_hoje'] ?></div>
             <div class="ci-painel-lbl">Vencendo hoje</div>
         </a>
-        <a href="?aba=a_tratar&status=pendente" class="ci-painel-card amanha">
+        <a href="?aba=a_tratar&status=pendente&filtro=amanha" class="ci-painel-card amanha<?= $_cardAtivo('pendente', 'amanha') ?>">
             <div class="ci-painel-num"><?= (int)$painelStats['vencendo_amanha'] ?></div>
             <div class="ci-painel-lbl">Vencendo amanhã</div>
         </a>
-        <a href="?aba=a_tratar&status=orfa" class="ci-painel-card orfa">
+        <a href="?aba=a_tratar&status=orfa" class="ci-painel-card orfa<?= $_cardAtivo('orfa', '') ?>">
             <div class="ci-painel-num"><?= (int)$contadores['orfa'] ?></div>
             <div class="ci-painel-lbl">Sem pasta (órfãs)</div>
         </a>
