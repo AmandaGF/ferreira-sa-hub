@@ -183,3 +183,93 @@ function notificar_cliente(string $tipo, int $clientId, array $vars = array(), $
         // Silenciar erros para não quebrar fluxo principal
     }
 }
+
+/**
+ * Dispara notificacao IMEDIATA pro sino quando o prazo recem-cadastrado ja
+ * vence em <= 7 dias. Pedido pela Amanda 11/05/2026 — antes a notificacao so
+ * disparava no cron agenda_lembretes.php (que roda periodicamente), entao um
+ * prazo cadastrado pra daqui 3 dias podia ficar ate horas sem aparecer no sino.
+ *
+ * Idempotente vs o cron: marca as colunas alertado_7d/3d/1d/hoje em
+ * prazos_processuais conforme o nivel, impedindo o cron de duplicar.
+ *
+ * @param string   $prazoFatal Data fatal (Y-m-d)
+ * @param string   $descricao  Texto curto pro titulo (ex: 'Contestacao')
+ * @param int      $caseId     ID do case pra puxar contexto (titulo, cliente, responsavel)
+ * @param int|null $prazoId    ID em prazos_processuais (pra marcar alertado_*)
+ * @return int                 Quantos usuarios foram notificados
+ */
+function notify_prazo_recem_cadastrado($prazoFatal, $descricao, $caseId, $prazoId = null)
+{
+    try {
+        $pdo = db();
+        $hoje = date('Y-m-d');
+        if (!$prazoFatal || $prazoFatal < $hoje) return 0; // passado ou vazio
+        $diasRestantes = (int) ((strtotime($prazoFatal) - strtotime($hoje)) / 86400);
+        if ($diasRestantes > 7) return 0; // > 1 semana — espera cron
+
+        if ($diasRestantes <= 0)      { $tag = 'HOJE';   $icon = '🚨'; $type = 'urgencia'; $colMarca = 'alertado_hoje'; }
+        elseif ($diasRestantes <= 1)  { $tag = 'AMANHÃ'; $icon = '🔴'; $type = 'urgencia'; $colMarca = 'alertado_1d'; }
+        elseif ($diasRestantes <= 3)  { $tag = $diasRestantes . 'd'; $icon = '⚠️'; $type = 'alerta'; $colMarca = 'alertado_3d'; }
+        else                          { $tag = $diasRestantes . 'd'; $icon = '📅'; $type = 'alerta'; $colMarca = 'alertado_7d'; }
+
+        // Contexto do caso
+        $caseTitle = ''; $clientName = ''; $responsavelId = 0;
+        try {
+            $st = $pdo->prepare("SELECT cs.title, cs.responsible_user_id, cl.name AS client_name
+                                 FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id
+                                 WHERE cs.id = ?");
+            $st->execute(array((int)$caseId));
+            $row = $st->fetch();
+            if ($row) {
+                $caseTitle = $row['title'] ?? '';
+                $clientName = $row['client_name'] ?? '';
+                $responsavelId = (int)($row['responsible_user_id'] ?? 0);
+            }
+        } catch (Exception $e) {}
+
+        $titulo = $icon . ' Prazo ' . $tag . ': ' . $descricao;
+        $msgFull = 'Prazo fatal ' . date('d/m/Y', strtotime($prazoFatal))
+                 . ' — ' . ($caseTitle ?: ('Processo #' . $caseId))
+                 . ($clientName ? ' (' . $clientName . ')' : '');
+        $link = '/conecta/modules/operacional/caso_ver.php?id=' . (int)$caseId;
+
+        // Notificar: responsavel do caso + admin/gestao/operacional
+        $alvos = array();
+        if ($responsavelId) $alvos[$responsavelId] = true;
+        try {
+            $us = $pdo->query("SELECT id FROM users WHERE role IN ('admin','gestao','operacional') AND is_active = 1")->fetchAll();
+            foreach ($us as $u) $alvos[(int)$u['id']] = true;
+        } catch (Exception $e) {}
+
+        $count = 0;
+        foreach (array_keys($alvos) as $uid) {
+            try { notify((int)$uid, $titulo, $msgFull, $type, $link, $icon); $count++; } catch (Exception $e) {}
+        }
+
+        // Push tambem se for urgente (hoje/amanha)
+        if ($diasRestantes <= 1 && function_exists('push_notify')) {
+            foreach (array_keys($alvos) as $uid) {
+                try { push_notify((int)$uid, $titulo, $msgFull, $link, ($diasRestantes <= 0)); } catch (Exception $e) {}
+            }
+        }
+
+        // Marca alertado_* na prazos_processuais pra impedir cron duplicar.
+        // Marca todos os niveis <= que o atual (escalonado).
+        if ($prazoId) {
+            $cols = array();
+            if     ($colMarca === 'alertado_7d')   $cols = array('alertado_7d');
+            elseif ($colMarca === 'alertado_3d')   $cols = array('alertado_7d','alertado_3d');
+            elseif ($colMarca === 'alertado_1d')   $cols = array('alertado_7d','alertado_3d','alertado_1d');
+            elseif ($colMarca === 'alertado_hoje') $cols = array('alertado_7d','alertado_3d','alertado_1d','alertado_hoje');
+            $sets = implode(', ', array_map(function ($c) { return $c . ' = NOW()'; }, $cols));
+            try {
+                $pdo->prepare("UPDATE prazos_processuais SET $sets WHERE id = ?")->execute(array((int)$prazoId));
+            } catch (Exception $e) { /* colunas podem nao existir ainda — silenciar */ }
+        }
+
+        return $count;
+    } catch (Exception $e) {
+        return 0;
+    }
+}

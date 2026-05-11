@@ -237,6 +237,10 @@ if ($action === 'salvar') {
                      VALUES (?,?,?,?,0,NOW())"
                 )->execute(array($caseId, $subtipo, $dueDate, $prazoAlerta));
                 $prazoId = (int)$pdo->lastInsertId();
+                // Notifica IMEDIATAMENTE se vence em <= 7 dias (Amanda 11/05/2026)
+                if (function_exists('notify_prazo_recem_cadastrado')) {
+                    try { notify_prazo_recem_cadastrado($dueDate, ($subtipo ?: $title), $caseId, $prazoId); } catch (Exception $e) {}
+                }
             } catch (Exception $e) {
                 // Tabela pode não existir — criar
                 try {

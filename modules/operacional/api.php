@@ -1052,7 +1052,10 @@ switch ($action) {
                     ($tipoPrazo ?: 'Prazo') . ' — ' . $qtd . ' ' . $unidade,
                     $fatal, current_user_id()
                 ));
+            $novoPrazoId = (int)$pdo->lastInsertId();
             $okPrazo = true;
+            // Notifica IMEDIATAMENTE se vence em <= 7 dias (em vez de esperar cron)
+            try { notify_prazo_recem_cadastrado($fatal, ($tipoPrazo ?: 'Prazo'), $caseId, $novoPrazoId); } catch (Exception $e) {}
         } catch (Exception $e) {
             $erros[] = 'prazo: ' . $e->getMessage();
             error_log('[salvar_prazo] prazos_processuais: ' . $e->getMessage());
@@ -1941,6 +1944,9 @@ switch ($action) {
                 $pdo->prepare(
                     "INSERT INTO prazos_processuais (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, concluido, usuario_id) VALUES (?,?,?,?,?,0,?)"
                 )->execute(array($clientIdPrazo, $caseId, $numProcPrazo, $descAcao, $prazoFatal, current_user_id()));
+                $novoPrazoId2 = (int)$pdo->lastInsertId();
+                // Notifica IMEDIATAMENTE se vence em <= 7 dias
+                try { notify_prazo_recem_cadastrado($prazoFatal, $descAcao, $caseId, $novoPrazoId2); } catch (Exception $e) {}
 
                 // Gerar tarefa automática 3 dias antes do prazo fatal
                 $prazoSeg = date('Y-m-d', strtotime($prazoFatal . ' -3 days'));

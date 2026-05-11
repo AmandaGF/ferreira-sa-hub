@@ -152,7 +152,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                         $resultado['data_fatal'],
                         current_user_id()
                     ));
+                    $novoPrazoIdCalc = (int)$pdo->lastInsertId();
                     $okPrazoProc = true;
+                    // Notifica IMEDIATAMENTE se vence em <= 7 dias
+                    try { notify_prazo_recem_cadastrado($resultado['data_fatal'], ($tipoPrazo ? $tipoPrazo : 'Prazo'), $caseId, $novoPrazoIdCalc); } catch (Exception $e) {}
                 } catch (Exception $e) {
                     $errosSalvar[] = 'Prazo processual: ' . $e->getMessage();
                     error_log('[prazos_calc] erro prazos_processuais: ' . $e->getMessage());
