@@ -83,7 +83,7 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'deletar_mensagem', 'editar_mensagem',
                   'salvar_drive',
                   'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
-                  'gerar_link_salavip',
+                  'gerar_link_salavip', 'gerar_link_salavip_por_cliente',
                   'delegar_conversa', 'remover_delegacao',
                   'enviar_sticker', 'enviar_reacao',
                   'sticker_biblioteca_add', 'sticker_biblioteca_enviar',
@@ -1555,6 +1555,56 @@ if ($action === 'gerar_link_salavip') {
         'client_id' => $clientId,
         'client_name' => $conv['cli_name'],
     ));
+    exit;
+}
+
+// Variante do gerar_link_salavip que aceita client_id direto (sem precisar
+// de conversa). Usado pelo chip "Link Central VIP" do waSenderOpen (assets/js/
+// wa_sender.js), chamado a partir de telas onde NAO ha conversa WhatsApp aberta
+// — cliente_ver, crm, cobranca_honorarios, etc.
+if ($action === 'gerar_link_salavip_por_cliente') {
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if (!$clientId) { echo json_encode(array('error' => 'Cliente nao vinculado a esta tela. Use o botao da Central VIP no cadastro do cliente.')); exit; }
+
+    $stmt = $pdo->prepare("SELECT id, name, cpf FROM clients WHERE id = ?");
+    $stmt->execute(array($clientId));
+    $cli = $stmt->fetch();
+    if (!$cli) { echo json_encode(array('error' => 'Cliente nao encontrado.')); exit; }
+
+    $cpf = preg_replace('/\D/', '', $cli['cpf'] ?? '');
+    if (!$cpf) { echo json_encode(array('error' => 'Cliente sem CPF cadastrado. Edite o cadastro primeiro.')); exit; }
+
+    $svStmt = $pdo->prepare("SELECT id FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+    $svStmt->execute(array($clientId));
+    $sv = $svStmt->fetch();
+
+    $token = bin2hex(random_bytes(32));
+    $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
+
+    if ($sv) {
+        $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
+            ->execute(array($token, $expira, $sv['id']));
+        audit_log('sv_renovar_via_wa_sender', 'client', $clientId, 'Token renovado via waSenderOpen chip');
+    } else {
+        $pdo->prepare("INSERT INTO salavip_usuarios (cliente_id, cpf, token_ativacao, token_expira, ativo) VALUES (?, ?, ?, ?, 0)")
+            ->execute(array($clientId, $cpf, $token, $expira));
+        audit_log('sv_criar_via_wa_sender', 'client', $clientId, 'Acesso criado via waSenderOpen chip');
+    }
+
+    $linkAtivacao = 'https://www.ferreiraesa.com.br/salavip/ativar_conta.php?token=' . $token;
+    $primeiroNome = explode(' ', $cli['name'])[0];
+    $cpfFmt = preg_replace('/(\d{3})(\d{3})(\d{3})(\d{2})/', '$1.$2.$3-$4', $cpf);
+    $msg = "Olá {$primeiroNome}! 🔑\n\n"
+         . "Aqui está seu acesso à *Central VIP Ferreira & Sá* — o portal exclusivo onde você acompanha seu processo, envia documentos e conversa com a equipe:\n\n"
+         . "🔗 *Link de ativação (válido por 72h):*\n{$linkAtivacao}\n\n"
+         . "📋 *Como acessar:*\n"
+         . "1. Clique no link acima e crie sua senha\n"
+         . "2. Depois, entre em https://www.ferreiraesa.com.br/salavip/ usando:\n"
+         . "   • CPF: *{$cpfFmt}*\n"
+         . "   • Senha: a que você acabou de criar\n\n"
+         . "Qualquer dúvida, é só responder aqui. 😊\n\n_Equipe Ferreira & Sá Advocacia_";
+
+    echo json_encode(array('ok' => true, 'mensagem' => $msg, 'link' => $linkAtivacao));
     exit;
 }
 

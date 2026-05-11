@@ -51,6 +51,8 @@
           +       '<option value="24" '+(canal==='24'?'selected':'')+'>📞 DDD 24 (CX / Operacional)</option>'
           +       '<option value="21" '+(canal==='21'?'selected':'')+'>💼 DDD 21 (Comercial)</option>'
           +     '</select>'
+          +     '<label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Modelos rápidos (clique pra preencher)</label>'
+          +     '<div data-field="tpls" style="display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.75rem;"></div>'
           +     '<label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Mensagem (edite antes de enviar)</label>'
           +     '<textarea data-field="msg" rows="14" style="width:100%;padding:8px 10px;border:1px solid #e5e7eb;border-radius:6px;font-size:.88rem;font-family:inherit;resize:vertical;min-height:240px;max-height:60vh;line-height:1.45;">'+esc(mensagem)+'</textarea>'
           +     '<div style="font-size:.68rem;color:#9ca3af;margin-top:.3rem;">A mensagem fica registrada no histórico do WhatsApp do Hub e o cliente pode responder por lá.</div>'
@@ -70,6 +72,86 @@
 
         modal.querySelectorAll('[data-act="close"]').forEach(function(b){ b.addEventListener('click', close); });
         modal.addEventListener('click', function(e){ if (e.target === modal) close(); });
+
+        // ── Modelos rápidos (chips) ───────────────────────────────────────
+        // Primeira palavra do nome cabe nos templates pra personalização leve.
+        // Se nome veio vazio, omitimos a saudação inicial (não fica "Olá ! ").
+        var primeiroNome = ((nome||'').trim().split(/\s+/)[0] || '');
+        var ola = primeiroNome ? ('Olá ' + primeiroNome + '!') : 'Olá!';
+        var assin = '\n\n_Equipe Ferreira & Sá Advocacia_';
+
+        var templates = [];
+        if (clientId > 0) {
+            templates.push({
+                key:'vip', label:'🔑 Link Central VIP',
+                bg:'#6366f1', color:'#fff',
+                async:true,
+                title:'Gera link de ativação de 72h e preenche a mensagem pronta. Cliente precisa ter CPF cadastrado.'
+            });
+        }
+        templates.push({
+            key:'saudacao', label:'👋 Saudação',
+            bg:'#f3f4f6', color:'#374151',
+            text: ola + ' Tudo bem com você?\n\nAqui é da Ferreira & Sá Advocacia.' + assin
+        });
+        templates.push({
+            key:'docs', label:'📋 Pedir documentos',
+            bg:'#fef3c7', color:'#92400e',
+            text: ola + '\n\nPara darmos seguimento ao seu processo, precisamos dos seguintes documentos:\n\n• [listar aqui]\n\nPode nos enviar por aqui mesmo, em PDF ou foto. Qualquer dúvida, estamos à disposição!' + assin
+        });
+        templates.push({
+            key:'compromisso', label:'📅 Confirmar compromisso',
+            bg:'#dbeafe', color:'#1e40af',
+            text: ola + '\n\nConfirmando seu compromisso:\n\n📅 Data: [data]\n🕐 Horário: [hora]\n📍 Local/Modo: [local]\n\nPor favor, confirme se está tudo certo. Em caso de imprevisto, nos avise com antecedência.' + assin
+        });
+        templates.push({
+            key:'acompanhamento', label:'📞 Acompanhamento',
+            bg:'#dcfce7', color:'#166534',
+            text: ola + '\n\nTudo bem com você e sua família?\n\nEstamos passando para avisar que continuamos acompanhando seu(s) processo(s) com atenção. Até o momento não temos novidades relevantes a comunicar, mas seguimos monitorando todos os andamentos de perto.\n\nAssim que houver qualquer atualização importante, entraremos em contato imediatamente.\n\nQualquer dúvida, estamos à disposição.' + assin
+        });
+
+        var tplsBox = modal.querySelector('[data-field="tpls"]');
+        var msgEl = modal.querySelector('[data-field="msg"]');
+        templates.forEach(function(t){
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = t.label;
+            if (t.title) b.title = t.title;
+            b.style.cssText = 'background:'+t.bg+';color:'+t.color+';border:1px solid '+t.bg+';padding:5px 10px;border-radius:14px;cursor:pointer;font-size:.75rem;font-weight:600;font-family:inherit;';
+            b.addEventListener('click', function(){
+                // Se já tem texto, confirma substituição
+                if (msgEl.value.trim() && !confirm('Substituir o texto atual pelo modelo "'+t.label+'"?')) return;
+
+                if (t.async && t.key === 'vip') {
+                    var orig = b.textContent;
+                    b.textContent = '⏳ Gerando link...';
+                    b.disabled = true;
+                    var fd = new FormData();
+                    fd.append('action', 'gerar_link_salavip_por_cliente');
+                    fd.append('client_id', clientId);
+                    fd.append('csrf_token', WA_CSRF);
+                    fetch(WA_API_URL, { method:'POST', body:fd, credentials:'same-origin' })
+                        .then(function(r){ return r.json(); })
+                        .then(function(d){
+                            b.textContent = orig; b.disabled = false;
+                            if (d && d.ok && d.mensagem) {
+                                msgEl.value = d.mensagem;
+                                msgEl.focus();
+                            } else {
+                                alert('Falha ao gerar link: ' + ((d && d.error) || 'erro desconhecido'));
+                            }
+                        })
+                        .catch(function(err){
+                            b.textContent = orig; b.disabled = false;
+                            alert('Erro: ' + err);
+                        });
+                    return;
+                }
+                msgEl.value = t.text;
+                msgEl.focus();
+            });
+            tplsBox.appendChild(b);
+        });
 
         modal.querySelector('[data-act="send"]').addEventListener('click', function(e){
             var btn = e.currentTarget;
