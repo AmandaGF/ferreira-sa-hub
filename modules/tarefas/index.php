@@ -280,6 +280,10 @@ function renderBoard() {
 
     tarefas.forEach(function(t) {
         var st = t.status || 'a_fazer';
+        // Compat: legado tinha 2 status terminais ('feito' e 'concluido'). Padronizado pra
+        // 'concluido' em 11/05/2026, mas mantemos alias defensivo pra evitar tarefas antigas
+        // (feitas em fluxos antigos) aparecerem erroneamente em 'A fazer'.
+        if (st === 'feito') st = 'concluido';
         if (!cols[st]) st = 'a_fazer';
         // Concluído: só mostrar no mês da conclusão (ou histórico)
         if (st === 'concluido' && !showHistorico) {

@@ -1602,8 +1602,11 @@ switch ($action) {
                 $pubRow = $pub->fetch();
                 if ($pubRow && $pubRow['task_id']) {
                     if ($novoStatus === 'descartado') {
-                        // Se descartou, marca tarefa como feita (não precisa cumprir)
-                        $pdo->prepare("UPDATE case_tasks SET status = 'feito', subtipo = 'prazo_descartado' WHERE id = ?")
+                        // Se descartou, marca tarefa como concluida (sem precisar cumprir).
+                        // 11/05/2026: padronizado 'feito' -> 'concluido' porque o kanban de
+                        // tarefas (modules/tarefas/) so reconhece 'concluido' como terminal.
+                        // Tarefas com status 'feito' apareciam erroneamente em 'A fazer' la.
+                        $pdo->prepare("UPDATE case_tasks SET status = 'concluido', completed_at = NOW(), subtipo = 'prazo_descartado' WHERE id = ?")
                             ->execute(array($pubRow['task_id']));
                     } else {
                         $pdo->prepare("UPDATE case_tasks SET subtipo = 'prazo_confirmado' WHERE id = ?")
