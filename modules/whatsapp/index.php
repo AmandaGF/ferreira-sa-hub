@@ -1927,22 +1927,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
 
         document.getElementById('waBtnConfirmarMesclar').onclick = function() {
+            var btn = this;
             var sel = document.querySelector('input[name="waMesclarCand"]:checked');
             if (!sel) { alert('Selecione uma conversa.'); return; }
             if (!confirm('Confirma? Esta ação é irreversível.')) return;
             var fd = new FormData();
             fd.append('action', 'mesclar_conversas');
             fd.append('csrf_token', csrf);
-            fd.append('origem_id', sel.value); // a selecionada será absorvida
-            fd.append('destino_id', convAtiva); // esta conversa aberta = destino
-            this.disabled = true; this.textContent = 'Mesclando...';
-            fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(r){
-                if (r && r.error) { alert(r.error); return; }
-                overlay.remove();
-                window.waAbrir(convAtiva);
-                carregarLista();
-                alert('✓ Conversas mescladas.');
-            });
+            fd.append('origem_id', sel.value);
+            fd.append('destino_id', convAtiva);
+            btn.disabled = true; btn.textContent = 'Mesclando...';
+            function restaurar() { btn.disabled = false; btn.textContent = 'Mesclar selecionada'; btn.style.opacity = '1'; }
+            fetch(apiUrl, { method: 'POST', body: fd })
+                .then(function(r){
+                    // Sessao expirada — backend devolve 401 (JSON via middleware AJAX)
+                    if (r.status === 401) { restaurar(); if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada(); else alert('Sessao expirada. Recarregue a pagina.'); throw new Error('401'); }
+                    return r.text().then(function(t){
+                        try { return JSON.parse(t); }
+                        catch(e) { throw new Error('Resposta nao-JSON do servidor: ' + t.substring(0,120)); }
+                    });
+                })
+                .then(function(r){
+                    if (r && r.error) { restaurar(); alert(r.error); return; }
+                    overlay.remove();
+                    window.waAbrir(convAtiva);
+                    carregarLista();
+                    alert('✓ Conversas mescladas.');
+                })
+                .catch(function(err){
+                    if (String(err.message) !== '401') { restaurar(); alert('Erro ao mesclar: ' + err.message); }
+                });
         };
     };
     window.waToggleBot = function(ativar) {

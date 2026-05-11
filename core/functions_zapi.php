@@ -737,6 +737,13 @@ function zapi_auto_merge_por_client_id($pdo, $conversaIdDestino, $clientId, $can
                 ->execute(array($conversaIdDestino, $origemId));
             $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ?")
                 ->execute(array($origemId));
+            // Registra alias antes de apagar — impede o webhook de recriar conv com
+            // o telefone antigo (ver coment em mesclar_conversas / api.php).
+            try {
+                $pdo->prepare("INSERT IGNORE INTO zapi_conversa_alias (alias_telefone, conversa_id)
+                               SELECT telefone, ? FROM zapi_conversas WHERE id = ? AND telefone IS NOT NULL AND telefone != ''")
+                    ->execute(array($conversaIdDestino, $origemId));
+            } catch (Exception $e) { /* tabela pode nao existir ainda no primeiro request */ }
             $pdo->prepare("DELETE FROM zapi_conversas WHERE id = ?")->execute(array($origemId));
             $pdo->commit();
             $merged++;
@@ -774,6 +781,20 @@ function zapi_buscar_ou_criar_conversa($telefone, $ddd_instancia, $nome_contato 
     $stmt->execute(array($telefone_norm, $inst['id']));
     $conv = $stmt->fetch();
     if ($conv) return $conv;
+
+    // 1.5) Match por alias — este telefone JA foi visto numa conversa que dps
+    //      foi mesclada em outra (manualmente via "Mesclar" ou via auto-merge).
+    //      Sem isso, o webhook recriaria a conversa apagada e a Amanda/Naiara
+    //      veria a duplicata reaparecer apos qualquer msg nova.
+    try {
+        $qAlias = $pdo->prepare("SELECT co.* FROM zapi_conversa_alias a
+                                 JOIN zapi_conversas co ON co.id = a.conversa_id
+                                 WHERE a.alias_telefone = ? AND co.instancia_id = ?
+                                 LIMIT 1");
+        $qAlias->execute(array($telefone_norm, $inst['id']));
+        $conv = $qAlias->fetch();
+        if ($conv) return $conv;
+    } catch (Exception $e) { /* tabela ainda nao criada (1o request apos deploy) */ }
 
     // 2) Se NÃO é grupo, tenta achar conversa existente do mesmo contato que
     //    tenha sido gravada com outro formato (telefone real vs @lid do Multi-Device).

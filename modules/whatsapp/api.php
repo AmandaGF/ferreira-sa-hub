@@ -59,6 +59,23 @@ try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reacao_cliente VARCHAR(2
 try { $pdo->exec("ALTER TABLE zapi_mensagens ADD COLUMN reply_to_message_id VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
 // Self-heal: wa_display_name em users (nome curto exibido nas mensagens WhatsApp)
 try { $pdo->exec("ALTER TABLE users ADD COLUMN wa_display_name VARCHAR(100) DEFAULT NULL"); } catch (Exception $e) {}
+// Self-heal: alias de telefone -> conversa (apos mesclar, registra os telefones
+// antigos da origem apontando pro destino, pra impedir que o webhook RECRIE a
+// conversa apagada quando o cliente manda msg pelo @lid (ou pelo telefone real,
+// dependendo de qual conversa foi a origem da mesclagem).
+// Bug reportado pela Amanda em 11/05/2026 — Naiara tentou mesclar conv da Lili
+// 3x: visualmente funcionava, mas no proximo refresh as 2 convs reapareciam
+// porque o webhook nao tinha como saber que aquele telefone ja tinha sido
+// resolvido manualmente.
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_conversa_alias (
+        alias_telefone VARCHAR(60) NOT NULL PRIMARY KEY,
+        conversa_id INT NOT NULL,
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_conv (conversa_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
 // Self-heal: biblioteca de stickers compartilhada pela equipe
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_stickers (
@@ -357,6 +374,12 @@ if ($action === 'mesclar_conversas') {
             ->execute(array($destinoId, $origemId));
         $pdo->prepare("DELETE FROM zapi_conversa_etiquetas WHERE conversa_id = ?")
             ->execute(array($origemId));
+        // Antes de apagar a origem, registra o telefone dela como alias do destino —
+        // assim o webhook nao recria a conversa quando chegar msg nova pelo telefone
+        // antigo (ex: @lid do Multi-Device apos mesclar com numero real).
+        $pdo->prepare("INSERT IGNORE INTO zapi_conversa_alias (alias_telefone, conversa_id)
+                       SELECT telefone, ? FROM zapi_conversas WHERE id = ? AND telefone IS NOT NULL AND telefone != ''")
+            ->execute(array($destinoId, $origemId));
         // Apaga a origem
         $pdo->prepare("DELETE FROM zapi_conversas WHERE id = ?")->execute(array($origemId));
         // Atualiza resumo do destino (última msg + contagem)
