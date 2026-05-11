@@ -25,7 +25,7 @@ if ($cnt === 0) { echo "Nada a migrar.\n"; exit; }
 try {
     $stmt = $pdo->prepare("UPDATE case_tasks
                            SET status = 'concluido',
-                               completed_at = COALESCE(completed_at, updated_at, NOW())
+                               completed_at = COALESCE(completed_at, created_at, NOW())
                            WHERE status = 'feito'");
     $stmt->execute();
     $afetadas = $stmt->rowCount();
