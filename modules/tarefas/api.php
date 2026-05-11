@@ -76,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
             FROM case_tasks t
             LEFT JOIN cases cs ON cs.id = t.case_id
             LEFT JOIN clients c ON c.id = cs.client_id
-            LEFT JOIN users u ON u.id = cs.responsavel_id
+            LEFT JOIN users u ON u.id = cs.responsible_user_id
             WHERE t.id = ?");
         $stmt->execute(array($id));
         $task = $stmt->fetch();
