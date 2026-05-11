@@ -18,14 +18,18 @@ $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
 $search = isset($_GET['q']) ? trim($_GET['q']) : '';
 
 $statusLabels = array(
-    'ativo' => 'Ativo', 'aguardando_docs' => 'Aguardando Docs', 'em_elaboracao' => 'Em Elaboração',
-    'em_andamento' => 'Em Andamento', 'aguardando_prazo' => 'Aguardando Prazo',
-    'distribuido' => 'Distribuído', 'concluido' => 'Concluído', 'arquivado' => 'Arquivado', 'suspenso' => 'Suspenso',
+    'ativo' => 'Ativo', 'aguardando_docs' => 'Aguard. Docs', 'doc_faltante' => 'Doc Faltante', 'em_elaboracao' => 'Em Elaboração',
+    'em_andamento' => 'Em Andamento', 'aguardando_prazo' => 'Aguard. Prazo',
+    'distribuido' => 'Distribuído', 'concluido' => 'Concluído', 'arquivado' => 'Arquivado',
+    'cancelado' => 'Cancelado', 'renunciamos' => 'Renunciamos', 'suspenso' => 'Suspenso',
+    'parceria_previdenciario' => 'Parceria PREV',
 );
 $statusBadge = array(
-    'ativo' => 'info', 'aguardando_docs' => 'warning', 'em_elaboracao' => 'info',
+    'ativo' => 'info', 'aguardando_docs' => 'warning', 'doc_faltante' => 'warning', 'em_elaboracao' => 'info',
     'em_andamento' => 'info', 'aguardando_prazo' => 'warning', 'distribuido' => 'success',
-    'concluido' => 'success', 'arquivado' => 'gestao', 'suspenso' => 'danger',
+    'concluido' => 'success', 'arquivado' => 'gestao',
+    'cancelado' => 'danger', 'renunciamos' => 'danger', 'suspenso' => 'danger',
+    'parceria_previdenciario' => 'info',
 );
 $priorityBadge = array('urgente' => 'danger', 'alta' => 'warning', 'normal' => 'gestao', 'baixa' => 'colaborador');
 
@@ -227,6 +231,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .proc-filter-sel { font-size:.75rem; padding:.35rem .5rem; border:1.5px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
 
 .proc-table { width:100%; border-collapse:collapse; font-size:.82rem; table-layout:fixed; }
+/* Permite que badges (status) quebrem linha dentro da celula em vez de transbordar pra coluna ao lado */
+.proc-table td .badge { white-space:normal; line-height:1.2; max-width:100%; padding:.18rem .55rem; font-size:.66rem; text-align:center; }
 .proc-table th { background:var(--petrol-900); color:#fff; padding:.55rem .35rem; text-align:center; font-size:.7rem; text-transform:uppercase; letter-spacing:.5px; cursor:pointer; }
 .proc-table th a { color:#fff; }
 .proc-table th a:hover { color:#fbbf24; }
@@ -505,7 +511,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </td>
                     <td style="font-size:.78rem;"><?= e($p['case_type'] && $p['case_type'] !== 'outro' ? $p['case_type'] : '—') ?></td>
                     <td style="font-size:.78rem;"><?= e($p['court'] ? $p['court'] : '—') ?></td>
-                    <td><span class="badge badge-<?= isset($statusBadge[$p['status']]) ? $statusBadge[$p['status']] : 'gestao' ?>"><?= isset($statusLabels[$p['status']]) ? $statusLabels[$p['status']] : $p['status'] ?></span></td>
+                    <td><span class="badge badge-<?= isset($statusBadge[$p['status']]) ? $statusBadge[$p['status']] : 'gestao' ?>" title="<?= e(isset($statusLabels[$p['status']]) ? $statusLabels[$p['status']] : $p['status']) ?>"><?= isset($statusLabels[$p['status']]) ? $statusLabels[$p['status']] : ucwords(str_replace('_', ' ', $p['status'])) ?></span></td>
                     <td>
                         <select onchange="mudarPrioridade(<?= $p['id'] ?>, this.value, this)" style="font-size:.72rem;padding:2px 4px;border:1px solid #e5e7eb;border-radius:4px;font-weight:600;
                             <?php
