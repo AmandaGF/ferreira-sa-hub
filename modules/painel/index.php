@@ -647,7 +647,12 @@ function buscarClienteLembrete(q) {
                 return;
             }
             box.innerHTML = arr.map(function(c){
-                return '<div onclick="selecionarClienteLembrete(' + c.id + ',' + JSON.stringify(c.name) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + c.name + (c.cpf ? ' <span style="color:#94a3b8;font-size:.7rem;">' + c.cpf + '</span>' : '') + '</div>';
+                // Escapa aspas duplas pra nao quebrar o atributo onclick (bug 11/05/2026
+                // reportado pela Amanda: cliente nao vinculava ao lembrete porque o
+                // JSON.stringify produz "Nome" com aspas duplas que conflitam com
+                // onclick="..." e cortam o atributo na primeira aspas interna).
+                var nomeEsc = JSON.stringify(c.name).replace(/"/g, '&quot;');
+                return '<div onclick="selecionarClienteLembrete(' + c.id + ',' + nomeEsc + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + c.name + (c.cpf ? ' <span style="color:#94a3b8;font-size:.7rem;">' + c.cpf + '</span>' : '') + '</div>';
             }).join('');
         })
         .catch(function(err){
@@ -677,7 +682,8 @@ function buscarCasoLembrete(q) {
             }
             box.innerHTML = arr.map(function(c){
                 var label = (c.title || '') + (c.case_number ? ' — ' + c.case_number : '') + (c.client_name ? ' (' + c.client_name + ')' : '');
-                return '<div onclick="selecionarCasoLembrete(' + c.id + ',' + JSON.stringify(label) + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + label + '</div>';
+                var labelEsc = JSON.stringify(label).replace(/"/g, '&quot;');
+                return '<div onclick="selecionarCasoLembrete(' + c.id + ',' + labelEsc + ')" style="padding:.4rem .6rem;cursor:pointer;border-bottom:1px solid #eee;font-size:.8rem;" onmouseover="this.style.background=\'#f3f4f6\'" onmouseout="this.style.background=\'\'">' + label + '</div>';
             }).join('');
         })
         .catch(function(err){

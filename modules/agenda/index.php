@@ -324,13 +324,23 @@ if ($voltarCaso > 0): ?>
             <input type="text" class="ag-fi" id="agTitulo" placeholder="Ex: Audiência — Wendel Magno x Alimentos">
         </div>
 
+        <!-- Toggle 'O dia inteiro' — pra prazo (contestacao, replica, etc) que nao tem
+             horario especifico. Quando marcado, os inputs viram type="date" e o backend
+             grava dia_todo=1. Auto-marca quando tipo=prazo. -->
+        <div class="ag-fr" id="agDiaTodoRow" style="margin-bottom:.4rem;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--text);user-select:none;">
+                <input type="checkbox" id="agDiaTodo" style="width:18px;height:18px;cursor:pointer;">
+                <span>📅 <strong>O dia inteiro</strong> <small style="color:var(--text-muted);">(sem horário específico — ex: contestação, réplica, ofício)</small></span>
+            </label>
+        </div>
+
         <div class="ag-fr" id="agDtFields">
             <div class="ag-fg">
-                <label class="ag-fl">Data/hora início</label>
+                <label class="ag-fl" id="agDtInicioLbl">Data/hora início</label>
                 <input type="datetime-local" class="ag-fi" id="agDtInicio">
             </div>
-            <div class="ag-fg">
-                <label class="ag-fl">Data/hora término</label>
+            <div class="ag-fg" id="agDtFimWrap">
+                <label class="ag-fl" id="agDtFimLbl">Data/hora término</label>
                 <input type="datetime-local" class="ag-fi" id="agDtFim">
             </div>
         </div>
@@ -1065,8 +1075,21 @@ function abrirModalEditar(id) {
                 document.getElementById('btnGerarMeet').disabled = false;
             }
             toggleMeet();
-            document.getElementById('agDtInicio').value = (ev.data_inicio || '').replace(' ', 'T').substring(0,16);
-            document.getElementById('agDtFim').value = (ev.data_fim || '').replace(' ', 'T').substring(0,16);
+            // Popula checkbox "Dia inteiro" conforme o evento + dispara handler pra ajustar
+            // os tipos dos inputs (date vs datetime-local) ANTES de setar os values, senao
+            // o value seria perdido na troca de type.
+            var cbDt = document.getElementById('agDiaTodo');
+            if (cbDt) {
+                cbDt.checked = (+ev.dia_todo === 1);
+                cbDt.dispatchEvent(new Event('change'));
+            }
+            if (+ev.dia_todo === 1) {
+                document.getElementById('agDtInicio').value = (ev.data_inicio || '').substring(0, 10);
+                document.getElementById('agDtFim').value = (ev.data_fim || ev.data_inicio || '').substring(0, 10);
+            } else {
+                document.getElementById('agDtInicio').value = (ev.data_inicio || '').replace(' ', 'T').substring(0,16);
+                document.getElementById('agDtFim').value = (ev.data_fim || '').replace(' ', 'T').substring(0,16);
+            }
             document.getElementById('agClienteBusca').value = ev.client_name || '';
             document.getElementById('agClienteId').value = ev.client_id || '';
             document.getElementById('agCasoBusca').value = (ev.case_title || '') + (ev.case_number ? ' — ' + ev.case_number : '');
@@ -1197,6 +1220,17 @@ function selTipo(tipo, btn) {
     var corFundo = CORES[tipo] || '#888';
     btn.style.background = corFundo;
     btn.style.color = '#fff';
+
+    // Auto-marca "Dia inteiro" pra prazo (contestacao, replica, oficio nao tem hora especifica).
+    // Idempotente — so marca se ja nao estava marcado, e so dispara se nao for edicao (em
+    // edicao, dia_todo vem populado do banco em abrirModalEditar).
+    var cbDiaTodo = document.getElementById('agDiaTodo');
+    if (cbDiaTodo && !document.getElementById('agEvId').value) { // so em criacao
+        if (tipo === 'prazo' && !cbDiaTodo.checked) {
+            cbDiaTodo.checked = true;
+            cbDiaTodo.dispatchEvent(new Event('change'));
+        }
+    }
 
     // Mostra/esconde seletor de sub-tipo conforme tipo escolhido
     var subAudWrap = document.getElementById('agSubTipoAudWrap');
@@ -1472,6 +1506,35 @@ function atualizarPreview() {
     prev.innerHTML = '📱 <strong>Preview:</strong> ' + esc(txt);
     prev.style.display = 'block';
 }
+// Handler do checkbox "Dia inteiro": converte os campos datetime-local em date e
+// vice-versa. Quando vira 'date', o valor antigo perde a parte da hora — guardamos
+// o valor anterior pra restaurar ao desmarcar.
+document.getElementById('agDiaTodo').addEventListener('change', function() {
+    var ini = document.getElementById('agDtInicio');
+    var fim = document.getElementById('agDtFim');
+    var labelIni = document.getElementById('agDtInicioLbl');
+    var labelFim = document.getElementById('agDtFimLbl');
+    var wrapFim = document.getElementById('agDtFimWrap');
+    if (this.checked) {
+        // Salva os valores datetime atuais pra restaurar dps
+        ini.dataset.prevDt = ini.value;
+        fim.dataset.prevDt = fim.value;
+        ini.type = 'date'; fim.type = 'date';
+        ini.value = (ini.dataset.prevDt || '').substring(0, 10);
+        fim.value = (fim.dataset.prevDt || ini.value).substring(0, 10);
+        if (labelIni) labelIni.textContent = 'Data';
+        if (labelFim) labelFim.textContent = 'Data fim (opcional)';
+        if (wrapFim) wrapFim.style.display = 'none'; // pra prazo nao precisa de data fim
+    } else {
+        ini.type = 'datetime-local'; fim.type = 'datetime-local';
+        ini.value = ini.dataset.prevDt || (ini.value ? ini.value + 'T09:00' : '');
+        fim.value = fim.dataset.prevDt || (ini.value ? ini.value.substring(0,10) + 'T10:00' : '');
+        if (labelIni) labelIni.textContent = 'Data/hora início';
+        if (labelFim) labelFim.textContent = 'Data/hora término';
+        if (wrapFim) wrapFim.style.display = '';
+    }
+});
+
 document.getElementById('agMsgCliente').addEventListener('input', atualizarPreview);
 document.getElementById('agDtInicio').addEventListener('change', function() {
     atualizarPreview();
@@ -1673,8 +1736,19 @@ function salvarEvento() {
     fd.append('titulo', titulo);
     fd.append('tipo', tipoSelecionado);
     fd.append('modalidade', document.getElementById('agModalidade').value);
-    fd.append('data_inicio', dtInicio.replace('T', ' '));
-    fd.append('data_fim', (document.getElementById('agDtFim').value || dtInicio).replace('T', ' '));
+    // Dia inteiro: data vem sem T (e.g. '2026-06-13') — backend adiciona hora padrao
+    // pra manter o formato datetime ('2026-06-13 00:00:00' inicio / 23:59:00 fim).
+    var ehDiaTodo = !!(document.getElementById('agDiaTodo') && document.getElementById('agDiaTodo').checked);
+    fd.append('dia_todo', ehDiaTodo ? '1' : '0');
+    var dtFimVal = document.getElementById('agDtFim').value || dtInicio;
+    if (ehDiaTodo) {
+        // dtInicio e dtFimVal estao no formato 'YYYY-MM-DD' (sem T)
+        fd.append('data_inicio', dtInicio + ' 00:00:00');
+        fd.append('data_fim', dtFimVal + ' 23:59:00');
+    } else {
+        fd.append('data_inicio', dtInicio.replace('T', ' '));
+        fd.append('data_fim', dtFimVal.replace('T', ' '));
+    }
     fd.append('local', document.getElementById('agLocal').value);
     fd.append('meet_link', document.getElementById('agMeetLink').value);
     fd.append('descricao', document.getElementById('agDescricao').value);
