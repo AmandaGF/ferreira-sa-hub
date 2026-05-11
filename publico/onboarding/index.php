@@ -629,7 +629,7 @@ html { scroll-behavior: smooth; }
                 <a href="#sec-principios">💎 Princípios</a>
                 <a href="#sec-fit">💪 F&S FIT</a>
                 <a href="#sec-seguro">🛡️ Seguro</a>
-                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>">📋 Cotação Seguro de Vida</a>
+                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>">📋 Dados do Seguro de Vida</a>
                 <?php if (!empty($documentosVinculados)): ?><a href="#sec-documentos">📄 Documentos</a><?php endif; ?>
                 <a href="#sec-story">📸 Story</a>
                 <a href="#sec-aceite">✅ Aceitar</a>
@@ -1257,11 +1257,13 @@ html { scroll-behavior: smooth; }
             <p style="margin-top:.5rem;">A apólice cobre lesões e demais sinistros decorrentes do exercício das atividades de estágio. Os <strong>dados da apólice</strong> (número e seguradora) demoram um pouquinho para serem fornecidos pela seguradora; assim que chegarem, em até <strong>2 (duas) semanas</strong>, atualizaremos seu Termo de Compromisso e você receberá uma cópia do comprovante.</p>
             <p style="font-size:.82rem;color:#1e40af;margin-top:.6rem;">🔵 Se algo acontecer, fale com a gente o quanto antes, a gente cuida de tudo junto.</p>
 
-            <!-- Bloco extra: cotação de seguro de vida (opcional, beneficio adicional) -->
+            <!-- Bloco: dados necessários pro escritório CONTRATAR o seguro de vida pra ela
+                 (beneficio incluso no contrato — Amanda confirmou em 11/05/2026 que NAO e'
+                 'adicional/opcional', e' parte do pacote de beneficios da colaboradora). -->
             <div style="margin-top:1.25rem;padding:1rem 1.1rem;background:rgba(255,255,255,.7);border-left:4px solid #1e40af;border-radius:8px;">
-                <div style="font-weight:700;color:#1e40af;margin-bottom:.35rem;font-size:.95rem;">📋 Quer cotar um Seguro de Vida adicional?</div>
-                <p style="font-size:.86rem;color:#1e3a8a;margin:0 0 .75rem;">Oferecemos a possibilidade de simular um <strong>Seguro de Vida personalizado</strong> através da nossa corretora parceira — proteção financeira pra você e sua família, com cobertura definida pelas suas necessidades. Sem compromisso, é só uma simulação.</p>
-                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>" style="display:inline-block;background:#1e40af;color:#fff;text-decoration:none;padding:.55rem 1.25rem;border-radius:8px;font-weight:600;font-size:.88rem;">🛡️ Preencher dados para cotação →</a>
+                <div style="font-weight:700;color:#1e40af;margin-bottom:.35rem;font-size:.95rem;">📋 Dados para contratação do seu Seguro de Vida</div>
+                <p style="font-size:.86rem;color:#1e3a8a;margin:0 0 .75rem;">Além do seguro contra acidentes pessoais acima, o escritório oferece <strong>Seguro de Vida</strong> como benefício incluso no seu contrato. Pra contratá-lo em seu nome, precisamos de algumas informações suas (peso, altura, etc). Leva 2 minutos.</p>
+                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>" style="display:inline-block;background:#1e40af;color:#fff;text-decoration:none;padding:.55rem 1.25rem;border-radius:8px;font-weight:600;font-size:.88rem;">🛡️ Preencher dados do meu seguro →</a>
             </div>
         </div>
 

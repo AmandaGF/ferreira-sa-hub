@@ -110,8 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_seguro'])) {
             try {
                 if (function_exists('notify_admins')) {
                     notify_admins(
-                        'Seguro de vida — dados enviados',
-                        $reg['nome_completo'] . ' preencheu o formulário de seguro de vida.',
+                        'Seguro de Vida — dados pra contratação',
+                        $reg['nome_completo'] . ' enviou os dados para a contratação do Seguro de Vida (benefício do contrato).',
                         'success',
                         url('modules/admin/onboarding.php?busca=' . urlencode($reg['nome_completo'])),
                         '🛡️'
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['enviar_seguro'])) {
                 }
             } catch (Exception $e) { /* não bloqueia */ }
 
-            $msg = '✓ Suas informações foram enviadas! Já avisamos a equipe.';
+            $msg = '✓ Suas informações foram enviadas! Já encaminhamos pra contratação do seu Seguro de Vida.';
 
             // Recarrega resposta atualizada
             $stR = $pdo->prepare("SELECT * FROM colaboradores_seguro_vida WHERE colaborador_id = ?");
@@ -198,7 +198,7 @@ body { margin:0; font-family:'Inter','Segoe UI',sans-serif; background:linear-gr
 
     <div class="sv-hdr">
         <h1>🛡️ Seguro de Vida</h1>
-        <div class="sub">Olá <?= htmlspecialchars($primeiroNome) ?>! Preencha os campos abaixo pra cotação do seu seguro.</div>
+        <div class="sub">Olá <?= htmlspecialchars($primeiroNome) ?>! O Seguro de Vida é um benefício incluso no seu contrato com o escritório. Pra fazer a contratação em seu nome, precisamos de algumas informações suas.</div>
     </div>
 
     <?php if ($msg): ?>
@@ -209,11 +209,12 @@ body { margin:0; font-family:'Inter','Segoe UI',sans-serif; background:linear-gr
     <?php endif; ?>
 
     <div class="sv-disclaimer">
-        <strong>📋 Informações importantes:</strong> os dados serão usados exclusivamente para
-        simulação e envio da proposta personalizada, garantindo total sigilo e segurança.
-        O preenchimento <strong>não garante aceitação do risco</strong> pela Seguradora —
-        a veracidade das informações implica aceite ou recusa do risco e pagamento (ou não)
-        da indenização por sinistro (Lei 15.040). Em caso de dúvidas, fale com a equipe.
+        <strong>📋 Informações importantes:</strong> esses dados serão enviados à seguradora
+        exclusivamente para a <strong>contratação do seu Seguro de Vida</strong> (benefício
+        incluso no seu contrato com o escritório), garantindo total sigilo e segurança.
+        A veracidade das informações é fundamental — ela implica aceite ou recusa do risco
+        pela seguradora e pagamento (ou não) da indenização em caso de sinistro
+        (Lei 15.040). Em caso de dúvidas, fale com a equipe.
     </div>
 
     <!-- Bloco 1: dados já cadastrados (read-only) -->
@@ -237,7 +238,7 @@ body { margin:0; font-family:'Inter','Segoe UI',sans-serif; background:linear-gr
         <input type="hidden" name="enviar_seguro" value="1">
 
         <div class="sv-card">
-            <h2>📝 Informações para a cotação</h2>
+            <h2>📝 Informações para a contratação</h2>
             <div class="sub-h">Campos com <strong style="color:#dc2626;">*</strong> são obrigatórios.</div>
 
             <div class="sv-row">
@@ -286,7 +287,7 @@ body { margin:0; font-family:'Inter','Segoe UI',sans-serif; background:linear-gr
         </div>
 
         <button type="submit" class="sv-btn">
-            <?= $resp ? '✓ Atualizar minhas informações' : '🛡️ Enviar para cotação' ?>
+            <?= $resp ? '✓ Atualizar minhas informações' : '🛡️ Enviar dados do meu seguro' ?>
         </button>
     </form>
 
