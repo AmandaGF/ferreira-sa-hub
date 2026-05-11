@@ -381,11 +381,23 @@ if ($voltarCaso > 0): ?>
 
         <div class="ag-fg">
             <label class="ag-fl">Modalidade</label>
-            <select class="ag-fi" id="agModalidade" onchange="toggleMeet()">
+            <select class="ag-fi" id="agModalidade" onchange="toggleMeet();toggleClientePresencial();">
                 <option value="presencial">Presencial</option>
                 <option value="online">Online (Google Meet)</option>
+                <option value="hibrida">🔀 Híbrida (parte remota, parte presencial)</option>
                 <option value="nao_aplicavel">Não se aplica</option>
             </select>
+        </div>
+
+        <!-- Checkbox 'Cliente comparece presencialmente' — aparece quando modalidade
+             e' online ou hibrida. Caso classico: advogada participa por Meet mas o
+             juizo exige cliente fisicamente presente (audiencia de instrucao,
+             interrogatorio, etc). Pedido pela Amanda 11/05/2026. -->
+        <div class="ag-fg" id="agClientePresencialBox" style="display:none;margin-top:-4px;margin-bottom:8px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.85rem;color:var(--text);user-select:none;padding:8px 10px;background:#fff7ed;border:1px solid #fdba74;border-radius:6px;">
+                <input type="checkbox" id="agClientePresencial" style="width:16px;height:16px;cursor:pointer;">
+                <span>📍 <strong>Cliente comparece presencialmente</strong> <small style="color:var(--text-muted);">(advogada participa remotamente)</small></span>
+            </label>
         </div>
 
         <div class="ag-fg" id="agMeetBox" style="display:none;">
@@ -1066,6 +1078,10 @@ function abrirModalEditar(id) {
             document.getElementById('agLocal').value = ev.local || '';
             document.getElementById('agDescricao').value = ev.descricao || '';
             document.getElementById('agModalidade').value = ev.modalidade || 'presencial';
+            // Popula checkbox 'Cliente presencial' + dispara toggle pra exibir/esconder conforme modalidade
+            var cbCp = document.getElementById('agClientePresencial');
+            if (cbCp) cbCp.checked = (+ev.cliente_presencial === 1);
+            if (typeof toggleClientePresencial === 'function') toggleClientePresencial();
             document.getElementById('agMeetLink').value = ev.meet_link || '';
             if (ev.meet_link) {
                 document.getElementById('btnGerarMeet').textContent = 'Gerado';
@@ -1535,6 +1551,23 @@ document.getElementById('agDiaTodo').addEventListener('change', function() {
     }
 });
 
+// Mostra/esconde o checkbox 'Cliente comparece presencialmente' conforme modalidade.
+// So faz sentido em online/hibrida — em modalidade presencial e' redundante (todos
+// estao presencialmente), em 'nao_aplicavel' nao se aplica.
+function toggleClientePresencial() {
+    var mod = document.getElementById('agModalidade').value;
+    var box = document.getElementById('agClientePresencialBox');
+    if (!box) return;
+    if (mod === 'online' || mod === 'hibrida') {
+        box.style.display = '';
+    } else {
+        box.style.display = 'none';
+        // Limpa quando esconde pra nao ficar marcado fantasma
+        var cb = document.getElementById('agClientePresencial');
+        if (cb && mod === 'presencial') cb.checked = false;
+    }
+}
+
 document.getElementById('agMsgCliente').addEventListener('input', atualizarPreview);
 document.getElementById('agDtInicio').addEventListener('change', function() {
     atualizarPreview();
@@ -1736,6 +1769,9 @@ function salvarEvento() {
     fd.append('titulo', titulo);
     fd.append('tipo', tipoSelecionado);
     fd.append('modalidade', document.getElementById('agModalidade').value);
+    // Cliente comparece presencialmente (so faz sentido em online/hibrida — backend valida)
+    var _cbCp = document.getElementById('agClientePresencial');
+    fd.append('cliente_presencial', (_cbCp && _cbCp.checked) ? '1' : '0');
     // Dia inteiro: data vem sem T (e.g. '2026-06-13') — backend adiciona hora padrao
     // pra manter o formato datetime ('2026-06-13 00:00:00' inicio / 23:59:00 fim).
     var ehDiaTodo = !!(document.getElementById('agDiaTodo') && document.getElementById('agDiaTodo').checked);

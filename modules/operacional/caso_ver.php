@@ -761,19 +761,27 @@ function _badgeModalidadeComp($comp) {
         elseif ($temMeet) $mod = 'online';
         elseif ($temLocal) $mod = 'presencial';
     }
+    $out = '';
     if ($mod === 'online') {
-        return '<span style="font-size:.62rem;font-weight:700;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:3px;border:1px solid #93c5fd;" title="Compromisso online (videoconferência)">🌐 ONLINE</span>';
+        $out = '<span style="font-size:.62rem;font-weight:700;background:#dbeafe;color:#1e40af;padding:1px 6px;border-radius:3px;border:1px solid #93c5fd;" title="Compromisso online (videoconferência)">🌐 ONLINE</span>';
+    } elseif ($mod === 'presencial') {
+        $out = '<span style="font-size:.62rem;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px;border:1px solid #fbbf24;" title="Compromisso presencial">📍 PRESENCIAL</span>';
+    } elseif ($mod === 'hibrida') {
+        $out = '<span style="font-size:.62rem;font-weight:700;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:3px;border:1px solid #c4b5fd;" title="Compromisso híbrido (parte das pessoas remoto, parte presencial)">🔀 HÍBRIDA</span>';
     }
-    if ($mod === 'presencial') {
-        return '<span style="font-size:.62rem;font-weight:700;background:#fef3c7;color:#92400e;padding:1px 6px;border-radius:3px;border:1px solid #fbbf24;" title="Compromisso presencial">📍 PRESENCIAL</span>';
+    // Badge extra: cliente comparece presencialmente (advogada remota). So aparece
+    // quando modalidade e' online ou hibrida — sinaliza pro time que o cliente
+    // PRECISA estar fisicamente no local apesar da advogada participar por Meet.
+    if (!empty($comp['cliente_presencial']) && (int)$comp['cliente_presencial'] === 1) {
+        $out .= ' <span style="font-size:.62rem;font-weight:700;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:3px;border:1px solid #fca5a5;" title="Cliente deve comparecer FISICAMENTE ao local — advogada participa remotamente">⚠️ CLIENTE PRESENCIAL</span>';
     }
-    if ($mod === 'hibrida') {
-        return '<span style="font-size:.62rem;font-weight:700;background:#ede9fe;color:#6d28d9;padding:1px 6px;border-radius:3px;border:1px solid #c4b5fd;" title="Compromisso híbrido (pode ser presencial ou online)">🔀 HÍBRIDA</span>';
-    }
-    return '';
+    return $out;
 }
 // Self-heal: rastreio de "cliente avisado sobre o compromisso" (preenchido ao clicar no WhatsApp)
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_em DATETIME NULL"); } catch (Exception $e) {}
+// Self-heal: cliente_presencial — marca compromissos online/hibrida onde o cliente
+// PRECISA comparecer fisicamente apesar da advogada participar remotamente (Amanda 11/05/2026)
+try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_presencial TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_avisado_por INT NULL"); } catch (Exception $e) {}
 try {
     // Traz pub vinculada ao evento (qualquer status) via agenda_id ou por data_disp batendo

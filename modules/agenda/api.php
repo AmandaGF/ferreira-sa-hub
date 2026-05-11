@@ -482,6 +482,10 @@ $action = $_POST['action'] ?? '';
 if ($action === 'salvar') {
     // Self-heal: coluna participantes_ids (JSON array de user ids)
     try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN participantes_ids TEXT NULL"); } catch (Exception $e) {}
+    // Self-heal: coluna cliente_presencial — marca quando advogada participa
+    // remotamente (online/hibrida) mas o cliente deve comparecer fisicamente.
+    // Pedido pela Amanda 11/05/2026.
+    try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN cliente_presencial TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
     $id            = (int)($_POST['id'] ?? 0);
     $titulo        = trim($_POST['titulo'] ?? '');
@@ -490,6 +494,10 @@ if ($action === 'salvar') {
     $dataInicio    = $_POST['data_inicio'] ?? '';
     $dataFim       = $_POST['data_fim'] ?? '';
     $diaTodo       = isset($_POST['dia_todo']) ? 1 : 0;
+    // Cliente presencial so faz sentido em online/hibrida. Backend filtra
+    // (presencial = redundante, nao_aplicavel = sem significado).
+    $clientePresencial = (isset($_POST['cliente_presencial']) && $_POST['cliente_presencial'] === '1'
+                          && in_array($modalidade, array('online','hibrida'), true)) ? 1 : 0;
     $local         = trim($_POST['local'] ?? '');
     $meetLink      = trim($_POST['meet_link'] ?? '');
     $descricao     = trim($_POST['descricao'] ?? '');
@@ -511,7 +519,7 @@ if ($action === 'salvar') {
     $participantesJson = !empty($participantesIds) ? json_encode(array_values($participantesIds)) : null;
 
     $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao');
-    $modalidadesValidas = array('presencial','online','nao_aplicavel');
+    $modalidadesValidas = array('presencial','online','hibrida','nao_aplicavel');
     $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 
     // Subtipo de audiência (opcional, default NULL — não quebra chamadas que não enviem)
@@ -569,13 +577,13 @@ if ($action === 'salvar') {
     if ($id) {
         // Editar — todos os usuários logados podem editar compromissos
         $stmt = $pdo->prepare(
-            "UPDATE agenda_eventos SET titulo=?, tipo=?, subtipo=?, modalidade=?, data_inicio=?, data_fim=?, dia_todo=?,
+            "UPDATE agenda_eventos SET titulo=?, tipo=?, subtipo=?, modalidade=?, cliente_presencial=?, data_inicio=?, data_fim=?, dia_todo=?,
              local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
              msg_cliente=?, lembrete_email=?, lembrete_whatsapp=?, lembrete_portal=?, lembrete_cliente=?,
              participantes_ids=?, updated_at=NOW() WHERE id=?"
         );
         $stmt->execute(array(
-            $titulo, $tipo, $subtipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+            $titulo, $tipo, $subtipo, $modalidade, $clientePresencial, $dataInicio, $dataFim, $diaTodo,
             $local, $meetLink, $descricao, $clientId, $caseId, $responsavelId,
             $msgCliente, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
             $participantesJson, $id
@@ -594,14 +602,14 @@ if ($action === 'salvar') {
             $visivelCliente = in_array($tipo, $tiposVisiveis) ? 1 : 0;
 
             $stmt = $pdo->prepare(
-                "INSERT INTO agenda_eventos (titulo, tipo, subtipo, modalidade, data_inicio, data_fim, dia_todo,
+                "INSERT INTO agenda_eventos (titulo, tipo, subtipo, modalidade, cliente_presencial, data_inicio, data_fim, dia_todo,
                  local, meet_link, descricao, client_id, case_id, responsavel_id,
                  msg_cliente, lembrete_email, lembrete_whatsapp, lembrete_portal, lembrete_cliente,
                  participantes_ids, visivel_cliente, status, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
             );
             $stmt->execute(array(
-                $titulo, $tipo, $subtipo, $modalidade, $dataInicio, $dataFim, $diaTodo,
+                $titulo, $tipo, $subtipo, $modalidade, $clientePresencial, $dataInicio, $dataFim, $diaTodo,
                 $local ?: null, $meetLink ?: null, $descricao ?: null, $clientId, $caseId, $responsavelId,
                 $msgCliente ?: null, $lembreteEmail, $lembreteWa, $lembretePortal, $lembreteCliente,
                 $participantesJson, $visivelCliente, current_user_id()
