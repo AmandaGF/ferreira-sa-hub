@@ -758,6 +758,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_name) subTxt += ' · 🎯 Cliente';
         else if (c.lead_name) subTxt += ' · 📈 Lead';
 
+        // Aviso de telefone suspeito (nao-BR / @lid): msgs podem ser aceitas
+        // pela Z-API mas nunca chegar no celular do cliente. Caso classico
+        // visto na Ailanda 11/05/2026 (telefone 25301820162246 — ID Multi-Device).
+        // Nao bloqueia o envio (decisao da Amanda) — so avisa.
+        var telDigits = String(c.telefone||'').replace(/\D/g, '');
+        var telEhLid = String(c.telefone||'').indexOf('@lid') !== -1;
+        var telEhGrupo = String(c.telefone||'').indexOf('@g.us') !== -1 || String(c.telefone||'').indexOf('@broadcast') !== -1;
+        var telBRvalido = /^55\d{10,11}$/.test(telDigits);
+        var telSuspeito = !telEhGrupo && (telEhLid || !telBRvalido);
+        var avisoTelHtml = '';
+        if (telSuspeito) {
+            avisoTelHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:.72rem;color:#92400e;display:flex;align-items:center;gap:6px;">'
+                + '<span style="font-size:1rem;">⚠️</span>'
+                + '<span><strong>Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — mensagens podem ser aceitas mas nao chegar no celular. ' + (PODE_DELEGAR ? 'Use <strong>✏️ N°</strong> no menu pra corrigir.' : 'Avise Amanda/Luiz pra corrigir o numero.') + '</span>'
+                + '</div>';
+        }
+
         // Etiquetas aplicadas
         var etqHtml = '';
         if (c.etiquetas && c.etiquetas.length) {
@@ -776,6 +793,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 '</div>' +
                 '<span class="wa-head-sub" style="margin-left:0;">' + escapeHtml(subTxt) + '</span>' +
                 etqHtml +
+                avisoTelHtml +
             '</div>' +
             actions +
             '<div class="wa-etq-popover" id="waEtqPopover"></div>';

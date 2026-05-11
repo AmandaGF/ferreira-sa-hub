@@ -35,6 +35,18 @@
         // Garante DDI 55 se faltar (BR)
         if (tel.length < 12 && !tel.startsWith('55')) tel = '55' + tel;
 
+        // Aviso: telefone com formato anomalo (nao BR padrao 55 + 10/11 digitos).
+        // Caso classico — Ailanda 11/05: ID Multi-Device 25301820162246 passava
+        // pela validacao de tamanho (14 digitos) mas msgs nao chegavam no celular.
+        // Decisao da Amanda: avisar sem bloquear (alguns clientes podem ter num
+        // estrangeiro legitimo).
+        var telSuspeitoHtml = '';
+        if (!/^55\d{10,11}$/.test(tel)) {
+            telSuspeitoHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:8px 12px;margin-bottom:.75rem;font-size:.78rem;color:#92400e;">'
+                + '<strong>⚠ Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — Z-API aceita mas a mensagem pode nao chegar no celular. Confira o numero antes de enviar.'
+                + '</div>';
+        }
+
         var id = 'waSenderModal_' + Date.now();
         var html = ''
           + '<div id="'+id+'" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;">'
@@ -46,6 +58,7 @@
           +     '<div style="font-size:.8rem;color:#6b7280;margin-bottom:.75rem;">'
           +       'Para: <strong style="color:#0f2140;">'+esc(nome || 'Contato')+'</strong> &middot; '+esc(formatTelBr(tel))
           +     '</div>'
+          +     telSuspeitoHtml
           +     '<label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Canal do WhatsApp</label>'
           +     '<select data-field="canal" style="width:100%;padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:.75rem;font-size:.88rem;">'
           +       '<option value="24" '+(canal==='24'?'selected':'')+'>📞 DDD 24 (CX / Operacional)</option>'
