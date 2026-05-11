@@ -1676,25 +1676,79 @@ switch ($action) {
         // adversa/cliente). Diferente de 'realizado' (deu certo) e de 'excluir' (foi
         // cadastrado por engano). Cancelados ficam no historico pra fins de auditoria
         // e aparecem na secao colapsavel "Compromissos realizados" com badge proprio.
+        // 11/05/2026 — Amanda: ao cancelar, gerar andamento automatico na timeline +
+        // redirecionar com flag pra abrir modal de aviso pro cliente via WhatsApp.
         if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
         $eventoId = (int)($_POST['evento_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
         $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+        $abrirAvisoCliente = false;
         if ($eventoId && $caseId) {
             try {
+                // 1) Snapshot do evento ANTES de marcar como cancelado, pra montar
+                //    a descricao do andamento + mensagem pra cliente
+                $stEv = $pdo->prepare("SELECT id, titulo, tipo, data_inicio, modalidade, local, meet_link FROM agenda_eventos WHERE id = ? AND case_id = ?");
+                $stEv->execute(array($eventoId, $caseId));
+                $evRow = $stEv->fetch();
+
                 $pdo->prepare("UPDATE agenda_eventos SET status = 'cancelado', updated_at = NOW() WHERE id = ? AND case_id = ?")
                     ->execute(array($eventoId, $caseId));
+
+                // 2) Gera andamento na timeline (espelha o padrao do agendamento original)
+                if ($evRow) {
+                    try {
+                        $rotulos = array(
+                            'audiencia'       => 'Audiência',
+                            'reuniao_cliente' => 'Reunião com cliente',
+                            'onboarding'      => 'Onboarding',
+                            'mediacao_cejusc' => 'Mediação/CEJUSC',
+                            'balcao_virtual'  => 'Balcão Virtual',
+                            'ligacao'         => 'Ligação/Retorno',
+                            'prazo'           => 'Prazo',
+                        );
+                        $rotulo = $rotulos[$evRow['tipo']] ?? 'Compromisso';
+                        $dtEv = strtotime($evRow['data_inicio']);
+                        $dataHumana = date('d/m/Y \à\s H:i', $dtEv);
+                        $descAnd  = "🚫 {$rotulo} CANCELADA: {$evRow['titulo']}\n";
+                        $descAnd .= "🗓 Data original: {$dataHumana}\n";
+                        if (($evRow['modalidade'] ?? '') === 'online') {
+                            $descAnd .= "🎥 Modalidade: Online" . (!empty($evRow['meet_link']) ? " — {$evRow['meet_link']}" : '') . "\n";
+                        } elseif (($evRow['modalidade'] ?? '') === 'presencial') {
+                            $descAnd .= "🏛 Modalidade: Presencial" . (!empty($evRow['local']) ? " — {$evRow['local']}" : '') . "\n";
+                        } elseif (!empty($evRow['local'])) {
+                            $descAnd .= "📍 Local: {$evRow['local']}\n";
+                        }
+                        $descAnd .= "\nAssim que houver nova data, o cliente sera comunicado.";
+
+                        $tipoAnd = ($evRow['tipo'] === 'audiencia') ? 'audiencia' : 'observacao';
+                        $pdo->prepare(
+                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                             VALUES (?, ?, ?, ?, 0, ?, NOW())"
+                        )->execute(array(
+                            $caseId,
+                            date('Y-m-d'),
+                            $tipoAnd,
+                            trim($descAnd),
+                            current_user_id()
+                        ));
+                        $abrirAvisoCliente = true;
+                    } catch (Exception $e) { /* nao bloqueia o cancelamento */ }
+                }
+
                 audit_log('EVENTO_CANCELADO', 'case', $caseId, 'evento_id=' . $eventoId);
                 flash_set('success', 'Compromisso marcado como cancelado.');
             } catch (Exception $e) {
                 flash_set('error', 'Erro: ' . $e->getMessage());
             }
         }
+        // Redireciona com flag pro caso_ver abrir o modal de aviso pelo WhatsApp
+        $sep = (strpos($back ?? '', '?') !== false) ? '&' : '?';
+        $avisoParam = $abrirAvisoCliente ? ($sep . 'aviso_cancel=' . $eventoId) : '';
         if ($back && (strpos($back, 'ferreiraesa.com.br') !== false || strpos($back, '/') === 0)) {
-            header('Location: ' . $back);
+            header('Location: ' . $back . $avisoParam);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId) . ($abrirAvisoCliente ? '&aviso_cancel=' . $eventoId : ''));
         exit;
 
     case 'evento_excluir':

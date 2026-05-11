@@ -39,6 +39,47 @@ if ($isColaborador && (int)$case['responsible_user_id'] !== $userId) {
 
 $pageTitle = $case['title'];
 
+// Aviso de CANCELAMENTO de compromisso — dispara modal waSenderOpen com msg pronta
+// pro cliente quando vem do handler evento_cancelado (?aviso_cancel=EVENTO_ID).
+// 11/05/2026 — Amanda: ao cancelar audiencia, oferecer envio rapido pelo WhatsApp.
+$avisoCancelData = null;
+$avisoCancelId = (int)($_GET['aviso_cancel'] ?? 0);
+if ($avisoCancelId > 0 && !empty($case['client_phone'])) {
+    try {
+        $stAv = $pdo->prepare("SELECT titulo, tipo, data_inicio, modalidade, local FROM agenda_eventos WHERE id = ? AND case_id = ?");
+        $stAv->execute(array($avisoCancelId, $caseId));
+        $avRow = $stAv->fetch();
+        if ($avRow) {
+            $rotulosAv = array(
+                'audiencia'       => 'audiência',
+                'reuniao_cliente' => 'reunião',
+                'onboarding'      => 'reunião de onboarding',
+                'mediacao_cejusc' => 'mediação',
+                'balcao_virtual'  => 'balcão virtual',
+                'ligacao'         => 'ligação agendada',
+            );
+            $rotuloAv = $rotulosAv[$avRow['tipo']] ?? 'compromisso';
+            $dtAv = strtotime($avRow['data_inicio']);
+            $primeiroNome = explode(' ', $case['client_name'])[0];
+            $dataHumanaAv = date('d/m/Y \à\s H:i', $dtAv);
+            $localTxt = '';
+            if (($avRow['modalidade'] ?? '') === 'online') $localTxt = ' (online)';
+            elseif (!empty($avRow['local'])) $localTxt = " no(a) " . $avRow['local'];
+            $msgAv = "Olá {$primeiroNome}!\n\n"
+                   . "Estamos passando para avisar que a {$rotuloAv} que estava agendada para *{$dataHumanaAv}*{$localTxt} foi *cancelada*.\n\n"
+                   . "Assim que tivermos uma nova data, entraremos em contato.\n\n"
+                   . "Qualquer dúvida, estamos à disposição.\n\n"
+                   . "_Equipe Ferreira & Sá Advocacia_";
+            $avisoCancelData = array(
+                'telefone' => preg_replace('/\D/', '', $case['client_phone']),
+                'nome'     => $case['client_name'],
+                'clientId' => (int)$case['client_id'],
+                'mensagem' => $msgAv,
+            );
+        }
+    } catch (Exception $e) { /* falha silenciosa nao quebra a pagina */ }
+}
+
 // Tarefas
 // Self-heal: coluna pra responsáveis adicionais (CSV de user_ids — primário continua em assigned_to)
 try { $pdo->exec("ALTER TABLE case_tasks ADD COLUMN assigned_extra_ids VARCHAR(500) NULL"); } catch (Exception $e) {}
@@ -5073,5 +5114,18 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
     };
 })();
 </script>
+
+<?php if ($avisoCancelData): ?>
+<!-- Auto-abre modal de aviso WhatsApp ao cliente apos cancelar compromisso. -->
+<script>
+(function(){
+    function tryOpen() {
+        if (typeof window.waSenderOpen !== 'function') { setTimeout(tryOpen, 200); return; }
+        window.waSenderOpen(<?= json_encode($avisoCancelData, JSON_UNESCAPED_UNICODE) ?>);
+    }
+    setTimeout(tryOpen, 400);
+})();
+</script>
+<?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
