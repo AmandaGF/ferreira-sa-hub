@@ -144,6 +144,43 @@ function can_access_dashboard()
     return in_array((int)$uid, $autorizados, true);
 }
 
+/**
+ * Códigos 2FA centralizados (tribunais com duplo fator).
+ * Whitelist por NOME (não user_id) pra ser robusta a remanejamentos —
+ * Amanda + Luiz Eduardo (administradores: criam/editam sistemas) +
+ * Naiara + Carina (só leem os códigos).
+ * Admin do sistema (current_user_id() === 1) sempre passa.
+ */
+function can_access_codigos_2fa()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    if ((int)$uid === 1) return true; // Amanda
+    try {
+        $pdo = db();
+        $stmt = $pdo->prepare("SELECT name FROM users WHERE id = ? AND is_active = 1");
+        $stmt->execute(array((int)$uid));
+        $nome = (string)$stmt->fetchColumn();
+        if (!$nome) return false;
+        $nomeLow = mb_strtolower($nome, 'UTF-8');
+        foreach (array('amanda', 'luiz eduardo', 'naiara', 'carina') as $aut) {
+            if (mb_strpos($nomeLow, $aut) !== false) return true;
+        }
+    } catch (Exception $e) {}
+    return false;
+}
+
+/**
+ * Admin dos códigos 2FA — só Amanda + Luiz podem ADICIONAR/EDITAR/EXCLUIR
+ * sistemas (cadastrar nova chave secreta). Naiara e Carina só visualizam.
+ */
+function can_admin_codigos_2fa()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    return in_array((int)$uid, array(1, 6), true); // Amanda, Luiz Eduardo
+}
+
 function can_access($module)
 {
     static $overrides = null;

@@ -47,6 +47,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = authenticate($email, $password);
 
             if ($user) {
+                // Verifica se user tem 2FA ativo — se sim, NAO loga ainda, redireciona
+                // pra tela do codigo. Senha OK e' so a primeira etapa nesse caso.
+                $tem2fa = false;
+                try {
+                    $st2 = db()->prepare("SELECT 1 FROM users_2fa WHERE user_id = ?");
+                    $st2->execute(array((int)$user['id']));
+                    $tem2fa = (bool)$st2->fetchColumn();
+                } catch (Exception $e) { /* tabela pode nao existir ainda — sem 2FA */ }
+
+                if ($tem2fa) {
+                    // Etapa 1 OK: salva pending_2fa na sessao com expiracao de 5 min
+                    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+                    $_SESSION['pending_2fa'] = array(
+                        'user_id' => (int)$user['id'],
+                        'expira_em' => time() + 300, // 5 min pra completar
+                        'remember' => !empty($_POST['remember']),
+                    );
+                    unset($_SESSION['flash']['error'], $_SESSION['flash']['warning']);
+                    redirect(url('auth/login_2fa.php'));
+                }
+
                 login_user($user);
                 // Limpa flashes de erro antigos (ex: "Faça login..." que ficou da tentativa anterior)
                 unset($_SESSION['flash']['error'], $_SESSION['flash']['warning']);

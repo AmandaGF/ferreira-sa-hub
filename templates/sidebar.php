@@ -112,6 +112,7 @@ $menuItems = array(
     array('label' => 'Ofícios',         'icon' => '📬', 'href' => url('modules/oficios/'),          'id' => 'oficios',         'roles' => $_rolesEquipe),
     array('label' => 'Alvarás',         'icon' => '💰', 'href' => url('modules/alvaras/'),          'id' => 'alvaras',         'roles' => $_rolesEquipe),
     array('label' => 'Parceiros',       'icon' => '🤝', 'href' => url('modules/parceiros/'),        'id' => 'parceiros',       'roles' => array('admin','gestao')),
+    array('label' => 'Códigos 2FA',     'icon' => '🔐', 'href' => url('modules/codigos_2fa/'),      'id' => 'codigos_2fa',     'roles' => array('admin','gestao'), 'check' => 'can_access_codigos_2fa'),
 
     array('section' => 'Dados'),
     array('label' => 'Documentos',      'icon' => '📜', 'href' => url('modules/documentos/'),      'id' => 'documentos',      'roles' => $_rolesEquipe),
@@ -290,7 +291,11 @@ body.dark-mode thead tr[style*="background:#f9fafb"] { background:var(--bg-secon
                 if ($sectionIdx < 0) { $sectionIdx = 0; $sectionGroups[0] = array('name' => 'Menu', 'items' => array()); }
                 // Verificar permissão
                 $showItem = false;
-                if (function_exists('can_access') && isset($item['id'])) {
+                // Suporte a função custom de check (precede roles) — usado por features com
+                // whitelist específica (ex.: Códigos 2FA permite Naiara/Carina mesmo sem ser admin/gestao)
+                if (isset($item['check']) && function_exists($item['check'])) {
+                    $showItem = call_user_func($item['check']);
+                } elseif (function_exists('can_access') && isset($item['id'])) {
                     $defaults = _permission_defaults();
                     $showItem = isset($defaults[$item['id']]) ? can_access($item['id']) : in_array($userRole, $item['roles'], true);
                 } else {
@@ -365,6 +370,7 @@ body.dark-mode thead tr[style*="background:#f9fafb"] { background:var(--bg-secon
             <div class="user-name"><?= e($user['name'] ?? '') ?></div>
             <div class="user-role"><?= role_label($userRole) ?></div>
         </div>
+        <a href="<?= url('modules/admin/meu_2fa.php') ?>" class="btn-logout" title="Meu 2FA — autenticação em 2 etapas" style="margin-right:.25rem;">🔐</a>
         <a href="<?= url('auth/logout.php') ?>" class="btn-logout" title="Sair">⏻</a>
     </div>
 </aside>
