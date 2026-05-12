@@ -38,7 +38,7 @@ if (!$rows) {
     echo "\nCorrigindo (concluido=0, cumprido_em=NULL)...\n";
     $ids = array_column($rows, 'prazo_id');
     $ph = implode(',', array_fill(0, count($ids), '?'));
-    $st = $pdo->prepare("UPDATE prazos_processuais SET concluido = 0, cumprido_em = NULL WHERE id IN ($ph)");
+    $st = $pdo->prepare("UPDATE prazos_processuais SET concluido = 0 WHERE id IN ($ph)");
     $st->execute($ids);
     echo "✓ " . $st->rowCount() . " prazo(s) corrigido(s).\n\n";
 }
@@ -52,7 +52,7 @@ if ($row12) {
     echo "=== Prazo #12 (Leonardo Braga) ===\n";
     echo "  descricao={$row12['descricao_acao']} fatal={$row12['prazo_fatal']} concluido={$row12['concluido']}\n";
     if ((int)$row12['concluido'] === 1) {
-        $pdo->prepare("UPDATE prazos_processuais SET concluido = 0, cumprido_em = NULL WHERE id = 12")->execute();
+        $pdo->prepare("UPDATE prazos_processuais SET concluido = 0 WHERE id = 12")->execute();
         echo "  -> Corrigido pra concluido=0.\n";
     } else {
         echo "  -> Ja esta concluido=0, nada a fazer.\n";
@@ -63,7 +63,7 @@ if ($row12) {
     foreach ($rows886 as $r) {
         echo "  Prazo #{$r['id']}: {$r['descricao_acao']} fatal={$r['prazo_fatal']} concluido={$r['concluido']}\n";
         if ((int)$r['concluido'] === 1) {
-            $pdo->prepare("UPDATE prazos_processuais SET concluido = 0, cumprido_em = NULL WHERE id = ?")->execute(array($r['id']));
+            $pdo->prepare("UPDATE prazos_processuais SET concluido = 0 WHERE id = ?")->execute(array($r['id']));
             echo "    -> Corrigido pra concluido=0.\n";
         }
     }
