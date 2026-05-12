@@ -175,17 +175,23 @@ if ($action === 'listar_conversas') {
         array_unshift($params, $etiquetaId);
     }
 
-    // ultima_mensagem e ultima_msg_em vêm de subquery (sempre reflete o estado real,
-    // ignorando mensagens deletadas — evita depender do campo salvo ficar em sync)
-    // OTIMIZAÇÃO: self-heal das colunas só roda 1× por processo PHP (variável
-    // estática). Antes rodava a cada listar_conversas (ALTER TABLE de coluna
-    // existente é cheap mas ainda paga round-trip MySQL × 4).
+    // OTIMIZAÇÃO 12/05/2026: a query antiga tinha 4 subqueries correlacionadas
+    // por linha (2 pra ultima_mensagem/data, 1 pra etiquetas, 1 NO ORDER BY) —
+    // rodada a cada poll de 8s por cada atendente, com centenas de conversas e
+    // dezenas de milhares de linhas em zapi_mensagens, isso deixava o modulo
+    // BEM lento. Agora usa as colunas SALVAS co.ultima_mensagem / co.ultima_msg_em
+    // (atualizadas ao enviar/receber/mesclar/deletar) — sem subquery no SELECT
+    // nem no ORDER BY. So a de etiquetas ficou (GROUP_CONCAT em tabela pequena).
+    // Self-heal das colunas só roda 1× por processo PHP (variável estática).
     static $_listarSelfHealFeito = false;
     if (!$_listarSelfHealFeito) {
         try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
         try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN fixada_em DATETIME NULL"); } catch (Exception $e) {}
         try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN foto_perfil_local VARCHAR(255) NULL"); } catch (Exception $e) {}
         try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN chat_lid VARCHAR(50) NULL"); } catch (Exception $e) {}
+        // Índice composto pra acelerar a subquery de "última msg" onde ela ainda é usada
+        // (abrir_conversa, deletar_mensagem recalc, etc).
+        try { $pdo->exec("ALTER TABLE zapi_mensagens ADD INDEX idx_conv_id (conversa_id, id)"); } catch (Exception $e) {}
         $_listarSelfHealFeito = true;
     }
 
@@ -200,12 +206,8 @@ if ($action === 'listar_conversas') {
                    u.wa_display_name AS atendente_display_name,
                    pl.name AS lead_name,
                    u.name AS atendente_name,
-                   (SELECT m.conteudo FROM zapi_mensagens m
-                    WHERE m.conversa_id = co.id AND m.status != 'deletada' AND m.conteudo IS NOT NULL AND m.conteudo != ''
-                    ORDER BY m.id DESC LIMIT 1) AS ultima_mensagem,
-                   (SELECT m.created_at FROM zapi_mensagens m
-                    WHERE m.conversa_id = co.id AND m.status != 'deletada' AND m.conteudo IS NOT NULL AND m.conteudo != ''
-                    ORDER BY m.id DESC LIMIT 1) AS ultima_msg_em,
+                   co.ultima_mensagem AS ultima_mensagem,
+                   co.ultima_msg_em AS ultima_msg_em,
                    (SELECT GROUP_CONCAT(CONCAT_WS('|', e.id, e.nome, e.cor) SEPARATOR '§')
                     FROM zapi_conversa_etiquetas ce JOIN zapi_etiquetas e ON e.id = ce.etiqueta_id
                     WHERE ce.conversa_id = co.id) AS etiquetas_raw
@@ -215,7 +217,7 @@ if ($action === 'listar_conversas') {
             LEFT JOIN users u ON u.id = co.atendente_id
             {$joinEtq}
             WHERE " . implode(' AND ', $where) . "
-            ORDER BY COALESCE(co.fixada, 0) DESC, COALESCE((SELECT m.created_at FROM zapi_mensagens m WHERE m.conversa_id = co.id AND m.status != 'deletada' ORDER BY m.id DESC LIMIT 1), co.created_at) DESC
+            ORDER BY COALESCE(co.fixada, 0) DESC, COALESCE(co.ultima_msg_em, co.created_at) DESC
             LIMIT 200";
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
