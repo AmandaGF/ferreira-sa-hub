@@ -64,11 +64,15 @@ $validSorts = array(
     'data' => 't.created_at',
     'atualizado' => 't.updated_at',
 );
-// Pinned SEMPRE vem primeiro (prefixo do orderBy), independente da ordenação escolhida
+// Pinned SEMPRE vem primeiro (prefixo do orderBy), independente da ordenação escolhida.
+// 11/05/2026: ordem default mudou de "agrupado por status" pra "mais recente primeiro".
+// Motivo (Amanda): chamado novo que virava 'em_andamento' descia pro fim da lista
+// (depois de TODOS os 40+ abertos antigos), parecendo que "nao aparecia". Agora qualquer
+// chamado novo aparece logo abaixo dos pinned, independente de status.
 if ($sortParam && isset($validSorts[$sortParam])) {
     $orderBy = "COALESCE(t.pinned, 0) DESC, " . $validSorts[$sortParam] . ' ' . $sortDir;
 } else {
-    $orderBy = "COALESCE(t.pinned, 0) DESC, FIELD(t.status, 'aberto','em_andamento','aguardando','resolvido','cancelado'), t.created_at DESC";
+    $orderBy = "COALESCE(t.pinned, 0) DESC, t.created_at DESC";
 }
 
 if ($filterOrigem === 'clientes') {
@@ -339,11 +343,15 @@ function filtrarHelpdesk(param, value) {
                 <?php if (empty($tickets)): ?>
                     <tr><td colspan="10" class="text-center text-muted" style="padding:2rem;">Nenhum chamado encontrado.</td></tr>
                 <?php else: ?>
-                    <?php foreach ($tickets as $t): ?>
-                    <tr>
+                    <?php foreach ($tickets as $t):
+                        // Badge "NOVO" pra chamados criados nas ultimas 24h — chama atencao
+                        $_ehNovo = !empty($t['created_at']) && (time() - strtotime($t['created_at'])) < 86400;
+                    ?>
+                    <tr<?= $_ehNovo ? ' style="background:rgba(251,191,36,.08);"' : '' ?>>
                         <td class="text-sm text-muted"><?= $t['id'] ?></td>
                         <td>
                             <?php if (!empty($t['pinned'])): ?><span title="Fixado no topo" style="margin-right:3px;">📌</span><?php endif; ?>
+                            <?php if ($_ehNovo): ?><span style="background:#fbbf24;color:#78350f;font-size:.6rem;font-weight:800;padding:1px 5px;border-radius:3px;margin-right:5px;letter-spacing:.5px;">🆕 NOVO</span><?php endif; ?>
                             <a href="<?= ($t['origem'] ?? '') === 'salavip' ? url('modules/salavip/ver_mensagem.php?thread_id=' . $t['id']) : module_url('helpdesk', 'ver.php?id=' . $t['id']) ?>" class="font-bold" style="color:var(--petrol-900);"><?= e($t['title']) ?></a>
                         </td>
                         <td class="text-sm"><?= e($t['category'] ?: '—') ?></td>
