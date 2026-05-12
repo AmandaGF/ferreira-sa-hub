@@ -14,6 +14,9 @@ $pdo = db();
 // vara_mista: 1 se a vara julga múltiplas competências (ex: "2ª Vara Cível e Criminal").
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN competencia TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN vara_mista TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+// Self-heal: flag "esta parte é nosso cliente" — permite marcar réu como cliente
+// (ex: réu que contratou o escritório pra acordo). Ver partes_api.php.
+try { $pdo->exec("ALTER TABLE case_partes ADD COLUMN eh_nosso_cliente TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
 $caseId = (int)($_GET['id'] ?? 0);
 $userId = current_user_id();
@@ -233,16 +236,15 @@ if ($case['client_id']) {
     $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name'], 'phone' => $case['client_phone'] ?: '');
 }
 try {
-    // Só inclui partes do NOSSO LADO como "clientes vinculados".
-    // Lado adverso (réu, recorrido, terceiro_interessado, litisconsorte_passivo)
-    // NUNCA é nosso cliente — mesmo que tenha client_id setado por dado sujo legado.
-    // representante_legal entra porque mãe/tutor representando filho menor
-    // frequentemente É nosso cliente.
+    // Inclui partes do NOSSO LADO (autor/litisconsorte ativo/representante legal)
+    // OU partes marcadas EXPLICITAMENTE como nosso cliente (eh_nosso_cliente=1) —
+    // este último cobre o réu que contratou o escritório (acordo). Dado sujo legado
+    // (client_id em réu sem a flag) continua sendo ignorado.
     $stmtCliVinc = $pdo->prepare(
         "SELECT DISTINCT cp.client_id, c.name, c.phone, cp.papel
          FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id
          WHERE cp.case_id = ? AND cp.client_id IS NOT NULL AND cp.client_id != ?
-           AND cp.papel IN ('autor', 'litisconsorte_ativo', 'representante_legal')"
+           AND (cp.papel IN ('autor', 'litisconsorte_ativo', 'representante_legal') OR cp.eh_nosso_cliente = 1)"
     );
     $stmtCliVinc->execute(array($caseId, (int)($case['client_id'] ?: 0)));
     foreach ($stmtCliVinc->fetchAll() as $cv) {
@@ -3946,12 +3948,12 @@ function renderPartes() {
         var repInfo = '';
         if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representado_por) + ')</span>';
         if (p.papel === 'representante_legal' && p.representa_nome) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representa_nome) + ')</span>';
-        // Badge 'NOSSO CLIENTE' só aparece em partes que podem SER cliente:
-        //   - autor / litisconsorte ativo (parte ativa propriamente)
-        //   - representante legal (mãe representando filho menor que é cliente)
-        // Lado adverso (réu, recorrido, etc.) com client_id no banco é dado sujo legado.
+        // Badge 'NOSSO CLIENTE': papel do nosso lado COM client_id, OU parte marcada
+        // explicitamente como nosso cliente (eh_nosso_cliente=1 — ex: réu que contratou).
+        // client_id em réu SEM a flag é dado sujo legado — não mostra badge.
         var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo' || p.papel === 'representante_legal');
-        var clienteBadge = (p.client_id && _ehNossoLado) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
+        var _ehClienteExplicito = (+p.eh_nosso_cliente === 1);
+        var clienteBadge = (p.client_id && (_ehNossoLado || _ehClienteExplicito)) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
         html += '<tr style="border-bottom:1px solid var(--border);">'
             + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
             + '<td style="font-weight:600;">' + esc(nome) + repInfo + clienteBadge + '</td>'
@@ -4040,13 +4042,18 @@ function editarParte(id) {
             document.getElementById('parteUf').value = p.uf || '';
             document.getElementById('parteObs').value = p.observacoes || '';
             document.getElementById('parteRepId').value = p.representa_parte_id || '';
-            // Vincular cliente
+            // Vincular cliente — checkbox marcado se: parte explicitamente é nosso
+            // cliente (eh_nosso_cliente=1) OU tem client_id E papel do nosso lado.
+            // client_id em réu SEM a flag = dado sujo legado → checkbox desmarcado
+            // (se a usuária salvar assim, o backend limpa o client_id sujo).
             var cliId = p.client_id || 0;
+            var _papelNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo' || p.papel === 'representante_legal');
+            var _ehCliMarcado = (+p.eh_nosso_cliente === 1) || (cliId && _papelNossoLado);
             document.getElementById('parteClientId').value = cliId;
-            document.getElementById('parteEhCliente').checked = !!cliId;
-            document.getElementById('parteClienteBusca').style.display = cliId ? 'block' : 'none';
+            document.getElementById('parteEhCliente').checked = !!_ehCliMarcado;
+            document.getElementById('parteClienteBusca').style.display = _ehCliMarcado ? 'block' : 'none';
             document.getElementById('parteClienteBuscaInput').value = '';
-            document.getElementById('parteClienteNome').textContent = cliId ? '✓ Cliente vinculado (ID ' + cliId + ')' : '';
+            document.getElementById('parteClienteNome').textContent = (_ehCliMarcado && cliId) ? '✓ Cliente vinculado (ID ' + cliId + ')' : '';
             document.getElementById('parteBtnDel').style.display = 'inline-block';
             mudouTipoPessoa();
             mudouPapel();
@@ -4067,20 +4074,12 @@ function mudouTipoPessoa() {
 
 function mudouPapel() {
     var p = document.getElementById('partePapel').value;
-    // Se mudou pra papel adverso após ter marcado "Esta parte é nosso cliente",
-    // desmarca automaticamente — evita ficar tag indevida em réu/recorrido/etc.
-    // representante_legal pode ser nosso cliente (mãe representando filho).
-    var ehNossoLado = (p === 'autor' || p === 'litisconsorte_ativo' || p === 'representante_legal');
-    if (!ehNossoLado) {
-        var chk = document.getElementById('parteEhCliente');
-        if (chk && chk.checked) {
-            chk.checked = false;
-            document.getElementById('parteClientId').value = 0;
-            document.getElementById('parteClienteBusca').style.display = 'none';
-            document.getElementById('parteClienteNome').textContent = '';
-            document.getElementById('parteClienteBuscaInput').value = '';
-        }
-    }
+    // Antes desmarcava "Esta parte é nosso cliente" automaticamente ao escolher
+    // papel adverso (réu/recorrido/etc). REMOVIDO em 12/05/2026 — cenário real:
+    // réu que contratou o escritório (acordo). Se a usuária marcou o checkbox,
+    // respeitamos a decisão dela independente do papel. Dado sujo legado fica
+    // protegido pela flag eh_nosso_cliente (só é setada se o checkbox estiver
+    // marcado).
     var box = document.getElementById('parteRepBox');
     if (p === 'representante_legal') {
         box.style.display = 'block';
@@ -4138,6 +4137,10 @@ function salvarParte() {
     fd.append('observacoes', document.getElementById('parteObs').value);
     var cliId = document.getElementById('parteClientId').value;
     if (cliId && cliId !== '0') fd.append('client_id', cliId);
+    // Flag "esta parte é nosso cliente" — quando marcada, o backend aceita o
+    // vinculo mesmo se o papel for adverso (ex: réu que contratou o escritorio).
+    var _ehCliChk = document.getElementById('parteEhCliente');
+    if (_ehCliChk && _ehCliChk.checked && cliId && cliId !== '0') fd.append('eh_cliente', '1');
 
     var x = new XMLHttpRequest(); x.open('POST', PARTES_API);
     x.onload = function() {

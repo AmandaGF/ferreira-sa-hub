@@ -8,6 +8,14 @@ require_login();
 header('Content-Type: application/json; charset=utf-8');
 $pdo = db();
 
+// Self-heal: flag pra marcar EXPLICITAMENTE que uma parte e' nosso cliente,
+// independente do papel. Resolve o caso (Amanda 12/05) de um REU que contratou
+// o escritorio pra atuar no processo dele (ex: fazer acordo) — antes o sistema
+// forcava client_id=NULL em qualquer papel adverso, tratando como dado sujo
+// legado. Agora: dado sujo legado nao tem essa flag; quem marca o checkbox
+// "Esta parte e' nosso cliente" recebe eh_nosso_cliente=1.
+try { $pdo->exec("ALTER TABLE case_partes ADD COLUMN eh_nosso_cliente TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
 // ── GET ──
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     $action = $_GET['action'] ?? 'listar';
@@ -221,26 +229,31 @@ if ($action === 'salvar') {
     foreach ($campos as $k => $v) { if ($v === '' || $v === '0') $campos[$k] = null; }
     if ($campos['nascimento'] === '') $campos['nascimento'] = null;
 
-    // SEGURANÇA: client_id só é válido em partes que PODEM ser cliente:
-    //   autor / litisconsorte ativo (parte ativa direta)
-    //   representante legal (mãe que representa filho menor — frequentemente é cliente)
-    // Lado adverso (réu, recorrido, etc.) NUNCA é nosso cliente. Force NULL.
+    // client_id em partes adversas (réu, recorrido, etc.) historicamente era dado
+    // sujo legado e forçado pra NULL. AGORA: se a usuária marcou EXPLICITAMENTE o
+    // checkbox "Esta parte é nosso cliente" (eh_cliente=1), aceita o vínculo mesmo
+    // em papel adverso — cenário real: réu que contratou o escritório (acordo).
+    // Sem o checkbox marcado, mantém o comportamento de limpar (réu sem flag).
+    $ehClienteMarcado = isset($_POST['eh_cliente']) && $_POST['eh_cliente'] === '1';
     $papelDoNossoLado = in_array($papel, array('autor', 'litisconsorte_ativo', 'representante_legal'), true);
-    if (!$papelDoNossoLado) {
+    if (!$papelDoNossoLado && !$ehClienteMarcado) {
         $campos['client_id'] = null;
     }
+    // Flag: 1 quando ha client_id E (papel do nosso lado OU checkbox marcado).
+    // E' a fonte da verdade pra "esta parte é nosso cliente" — independente do papel.
+    $ehNossoClienteFlag = ($campos['client_id'] && ($papelDoNossoLado || $ehClienteMarcado)) ? 1 : 0;
 
     $nomeExibir = $tipoPessoa === 'juridica' ? ($campos['razao_social'] ?: $campos['nome_fantasia']) : $campos['nome'];
     if (!$nomeExibir) { echo json_encode(array('error' => 'Nome/Razão Social obrigatório', 'csrf' => $newCsrf)); exit; }
 
     if ($id) {
-        $sql = "UPDATE case_partes SET case_id=?, papel=?, tipo_pessoa=?, nome=?, cpf=?, rg=?, nascimento=?, profissao=?, estado_civil=?, razao_social=?, cnpj=?, nome_fantasia=?, representante_nome=?, representante_cpf=?, email=?, telefone=?, endereco=?, cidade=?, uf=?, cep=?, client_id=?, representa_parte_id=?, observacoes=? WHERE id=?";
-        $params = array($caseId, $papel, $tipoPessoa, $campos['nome'], $campos['cpf'], $campos['rg'], $campos['nascimento'], $campos['profissao'], $campos['estado_civil'], $campos['razao_social'], $campos['cnpj'], $campos['nome_fantasia'], $campos['representante_nome'], $campos['representante_cpf'], $campos['email'], $campos['telefone'], $campos['endereco'], $campos['cidade'], $campos['uf'], $campos['cep'], $campos['client_id'], $campos['representa_parte_id'], $campos['observacoes'], $id);
+        $sql = "UPDATE case_partes SET case_id=?, papel=?, tipo_pessoa=?, nome=?, cpf=?, rg=?, nascimento=?, profissao=?, estado_civil=?, razao_social=?, cnpj=?, nome_fantasia=?, representante_nome=?, representante_cpf=?, email=?, telefone=?, endereco=?, cidade=?, uf=?, cep=?, client_id=?, eh_nosso_cliente=?, representa_parte_id=?, observacoes=? WHERE id=?";
+        $params = array($caseId, $papel, $tipoPessoa, $campos['nome'], $campos['cpf'], $campos['rg'], $campos['nascimento'], $campos['profissao'], $campos['estado_civil'], $campos['razao_social'], $campos['cnpj'], $campos['nome_fantasia'], $campos['representante_nome'], $campos['representante_cpf'], $campos['email'], $campos['telefone'], $campos['endereco'], $campos['cidade'], $campos['uf'], $campos['cep'], $campos['client_id'], $ehNossoClienteFlag, $campos['representa_parte_id'], $campos['observacoes'], $id);
         $pdo->prepare($sql)->execute($params);
         audit_log('PARTE_EDITADA', 'case_parte', $id, $papel . ': ' . $nomeExibir);
     } else {
-        $sql = "INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, razao_social, cnpj, nome_fantasia, representante_nome, representante_cpf, email, telefone, endereco, cidade, uf, cep, client_id, representa_parte_id, observacoes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
-        $params = array($caseId, $papel, $tipoPessoa, $campos['nome'], $campos['cpf'], $campos['rg'], $campos['nascimento'], $campos['profissao'], $campos['estado_civil'], $campos['razao_social'], $campos['cnpj'], $campos['nome_fantasia'], $campos['representante_nome'], $campos['representante_cpf'], $campos['email'], $campos['telefone'], $campos['endereco'], $campos['cidade'], $campos['uf'], $campos['cep'], $campos['client_id'], $campos['representa_parte_id'], $campos['observacoes']);
+        $sql = "INSERT INTO case_partes (case_id, papel, tipo_pessoa, nome, cpf, rg, nascimento, profissao, estado_civil, razao_social, cnpj, nome_fantasia, representante_nome, representante_cpf, email, telefone, endereco, cidade, uf, cep, client_id, eh_nosso_cliente, representa_parte_id, observacoes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        $params = array($caseId, $papel, $tipoPessoa, $campos['nome'], $campos['cpf'], $campos['rg'], $campos['nascimento'], $campos['profissao'], $campos['estado_civil'], $campos['razao_social'], $campos['cnpj'], $campos['nome_fantasia'], $campos['representante_nome'], $campos['representante_cpf'], $campos['email'], $campos['telefone'], $campos['endereco'], $campos['cidade'], $campos['uf'], $campos['cep'], $campos['client_id'], $ehNossoClienteFlag, $campos['representa_parte_id'], $campos['observacoes']);
         $pdo->prepare($sql)->execute($params);
         $id = (int)$pdo->lastInsertId();
         audit_log('PARTE_CRIADA', 'case_parte', $id, $papel . ': ' . $nomeExibir);
