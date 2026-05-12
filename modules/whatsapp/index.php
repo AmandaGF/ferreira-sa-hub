@@ -669,6 +669,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fetch(apiUrl + '?action=abrir_conversa&id=' + id).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
             renderConversa(d);
+            // abrir_conversa ja zerou nao_lidas no backend — recarrega a lista pra
+            // a conv sair de "Nao lidas" e o badge sumir imediatamente (sem esperar
+            // o polling de 8s nem F5). Bug reportado pela Amanda 12/05: msg ficava
+            // presa no filtro "Nao lidas" mesmo depois de aberta.
+            carregarLista();
         });
     };
 
