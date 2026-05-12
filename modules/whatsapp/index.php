@@ -358,10 +358,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= url('modules/whatsapp/?canal=' . ($isComercial ? '24' : '21')) ?>" class="btn btn-outline btn-sm">
             Ir para <?= $isComercial ? 'DDD 24 (CX)' : 'DDD 21 (Comercial)' ?> →
         </a>
+        <!-- "Meu nome" e' config PESSOAL — cada atendente edita o proprio wa_display_name.
+             Fica FORA do bloco de gestao (Amanda 12/05: nao aparecia pros demais usuarios). -->
+        <button onclick="waAbrirMeuNome()" class="btn btn-outline btn-sm" title="Editar o nome que aparece acima das suas mensagens / na assinatura enviada ao cliente">✍️ Meu nome</button>
         <?php if (has_min_role('gestao')): ?>
             <button onclick="waImportarTodas()" class="btn btn-outline btn-sm" title="Importar lista de contatos (Multi Device não permite baixar mensagens antigas)">👥 Importar contatos</button>
             <button onclick="waAtualizarFotos(this)" class="btn btn-outline btn-sm" title="Busca foto de perfil do WhatsApp de cada contato. Se for cliente sem foto, salva no cadastro dele.">🖼️ Atualizar fotos</button>
-            <button onclick="waAbrirMeuNome()" class="btn btn-outline btn-sm" title="Editar o nome que aparece acima das suas mensagens / na assinatura enviada ao cliente">✍️ Meu nome</button>
             <?php if (has_min_role('gestao')): ?>
             <button onclick="waToggleNomes(this)" id="btnToggleNomes"
                     class="btn btn-outline btn-sm"
