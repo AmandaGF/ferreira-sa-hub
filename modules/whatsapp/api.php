@@ -550,7 +550,7 @@ if ($action === 'abrir_conversa') {
                  INNER JOIN cases cs ON cs.id = e.case_id
                  WHERE e.tipo = 'audiencia'
                    AND e.status NOT IN ('cancelado','realizado','nao_compareceu')
-                   AND e.data_inicio >= NOW()
+                   AND e.data_inicio >= DATE_SUB(NOW(), INTERVAL 6 HOUR)
                    AND (
                        cs.client_id = ?
                        OR e.case_id IN (SELECT case_id FROM case_partes WHERE client_id = ?)
