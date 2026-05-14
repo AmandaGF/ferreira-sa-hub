@@ -103,6 +103,15 @@ if ($step === 'reset' && !empty($token)) {
                 db()->prepare("DELETE FROM audit_log WHERE action = 'password_reset_token' AND user_id = ?")
                     ->execute(array($tokenUser['user_id']));
 
+                // Limpa o rate limit de login DESTE usuario — se ele tentou logar
+                // varias vezes antes do reset, o lockout de 15min ainda estaria ativo
+                // e ele veria 'Muitas tentativas' mesmo com a nova senha correta.
+                // Bug reportado em 14/05/2026 (caso Luiz Eduardo).
+                if (!empty($tokenUser['email'])) {
+                    db()->prepare("DELETE FROM audit_log WHERE action = 'login_failed' AND details = ?")
+                        ->execute(array('email: ' . $tokenUser['email']));
+                }
+
                 audit_log('password_reset_self', 'user', (int)$tokenUser['user_id']);
                 $success = true;
             }
