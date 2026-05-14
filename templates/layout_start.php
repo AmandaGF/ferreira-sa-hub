@@ -432,7 +432,7 @@ if (!empty($__prazosUrgentes)):
     ?>
     <a class="urg-row" href="<?= e($__caseHref) ?>" title="Abrir pasta do processo">
         <span class="urg-label"><?= $__urgLabel ?></span>
-        <span class="urg-meio">
+        <div class="urg-meio">
             <div class="urg-titulo">
                 <?= e($__pz['descricao_acao']) ?>
                 <?php if (!empty($__pz['case_title'])): ?>
@@ -445,7 +445,7 @@ if (!empty($__prazosUrgentes)):
                 <?php if ($__localTxt): ?><span>📍 <?= e($__localTxt) ?></span><?php endif; ?>
                 <?php if (!empty($__pz['responsavel_name'])): ?><span>⚖ <?= e(explode(' ', $__pz['responsavel_name'])[0]) ?></span><?php endif; ?>
             </div>
-        </span>
+        </div>
         <span class="urg-data">
             <?= date('d/m', strtotime($__pz['prazo_fatal'])) ?>
             <small><?= date('D', strtotime($__pz['prazo_fatal'])) ?></small>
