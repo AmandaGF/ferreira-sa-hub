@@ -1169,6 +1169,23 @@ function buildPayload(){
 /* ========== SUBMIT ========== */
 async function submitForm(){
   const btn=document.getElementById('submitBtn');
+
+  // Validação anti-zerado (Amanda 14/05/2026): vários envios chegavam com TODOS
+  // os valores em 0 porque o cliente reabria o form em outro dispositivo (sem
+  // localStorage) e clicava Enviar sem repreencher. Antes de submeter, somar
+  // TODOS os campos .money — se total=0, confirmar com o usuario.
+  let _somaMoney = 0;
+  document.querySelectorAll('.money').forEach(m => { _somaMoney += +(m.dataset.cents || 0); });
+  if (_somaMoney === 0) {
+    const ok = confirm(
+      '⚠ ATENÇÃO: você não preencheu nenhum valor de despesa.\n\n' +
+      'Todos os campos monetários estão em R$ 0,00. Se você já enviou este formulário antes em outro dispositivo, ' +
+      'os valores não são carregados automaticamente — você precisa preencher tudo de novo.\n\n' +
+      'Quer enviar mesmo assim (com tudo zerado)?'
+    );
+    if (!ok) { btn.disabled=false; return; }
+  }
+
   btn.disabled=true;
   btn.textContent='Enviando...';
 
