@@ -794,6 +794,51 @@ require_once APP_ROOT . '/templates/layout_start.php';
             etqHtml += '</div>';
         }
 
+        // Banner da PROXIMA AUDIENCIA do cliente (Amanda 14/05/2026) — so aparece
+        // se houver audiencia agendada futura vinculada ao cliente desta conversa.
+        // Conteudo: data/dia-da-semana/hora + modalidade (PRESENCIAL/ONLINE/HIBRIDA)
+        // + local (se presencial/hibrida) ou Meet (se online) + marcador especial
+        // se cliente_presencial=1 (advogada remota mas cliente comparece).
+        var audHtml = '';
+        var pa = d.conversa && d.conversa.proxima_audiencia;
+        if (pa && pa.data_inicio) {
+            // 2026-06-24 14:00:00 -> "24/06 (qua) às 14:00"
+            var diasSem = ['dom','seg','ter','qua','qui','sex','sáb'];
+            var ts = new Date(pa.data_inicio.replace(' ', 'T'));
+            var dataFmt = ('0'+ts.getDate()).slice(-2) + '/' + ('0'+(ts.getMonth()+1)).slice(-2);
+            var horaFmt = ('0'+ts.getHours()).slice(-2) + ':' + ('0'+ts.getMinutes()).slice(-2);
+            var diaSemFmt = diasSem[ts.getDay()];
+            // Modalidade — usa explicita ou infere
+            var mod = pa.modalidade || 'nao_aplicavel';
+            if (mod === 'nao_aplicavel') {
+                if (pa.meet_link && pa.local) mod = 'hibrida';
+                else if (pa.meet_link) mod = 'online';
+                else if (pa.local) mod = 'presencial';
+            }
+            var modIco = mod === 'online' ? '🌐' : (mod === 'hibrida' ? '🔀' : (mod === 'presencial' ? '📍' : '📅'));
+            var modLbl = mod === 'online' ? 'ONLINE' : (mod === 'hibrida' ? 'HÍBRIDA' : (mod === 'presencial' ? 'PRESENCIAL' : ''));
+            var local = pa.local || pa.case_vara || pa.case_comarca || '';
+            var detalhe = '';
+            if (mod === 'online' && pa.meet_link) {
+                detalhe = ' · 🎥 <a href="' + escapeHtml(pa.meet_link) + '" target="_blank" rel="noopener" style="color:#fff;text-decoration:underline;">Meet</a>';
+            } else if (local) {
+                detalhe = ' · ' + escapeHtml(local);
+            }
+            var clientePresAlert = (+pa.cliente_presencial === 1)
+                ? ' <span style="background:#dc2626;color:#fff;padding:1px 6px;border-radius:3px;font-size:.62rem;font-weight:700;margin-left:4px;">⚠️ CLIENTE COMPARECE</span>'
+                : '';
+            // Cor de fundo conforme modalidade
+            var bgCor = mod === 'online' ? '#1e3a8a' : (mod === 'hibrida' ? '#6d28d9' : (mod === 'presencial' ? '#92400e' : '#0f2140'));
+            audHtml = '<a href="' + (pa.case_id ? '<?= module_url("operacional") ?>/caso_ver.php?id=' + pa.case_id : '#') + '" '
+                    + 'style="display:flex;align-items:center;gap:6px;margin-top:5px;padding:5px 9px;background:' + bgCor + ';color:#fff;border-radius:5px;font-size:.74rem;text-decoration:none;line-height:1.3;flex-wrap:wrap;" '
+                    + 'title="Próxima audiência — clique pra abrir a pasta do processo">'
+                    + '<span>⚖️</span><span><strong>' + dataFmt + ' (' + diaSemFmt + ') às ' + horaFmt + '</strong></span>'
+                    + '<span style="opacity:.85;">' + modIco + ' ' + modLbl + '</span>'
+                    + (detalhe ? '<span style="opacity:.85;">' + detalhe + '</span>' : '')
+                    + clientePresAlert
+                    + '</a>';
+        }
+
         head.innerHTML =
             '<div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">' +
                 '<div style="display:flex;align-items:center;gap:6px;">' +
@@ -802,6 +847,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 '<span class="wa-head-sub" style="margin-left:0;">' + escapeHtml(subTxt) + '</span>' +
                 etqHtml +
                 avisoTelHtml +
+                audHtml +
             '</div>' +
             actions +
             '<div class="wa-etq-popover" id="waEtqPopover"></div>';

@@ -533,6 +533,36 @@ if ($action === 'abrir_conversa') {
     $etqStmt->execute(array($id));
     $conv['etiquetas'] = $etqStmt->fetchAll();
 
+    // Proxima audiencia vinculada ao cliente desta conversa (Amanda 14/05/2026):
+    // mostrar no header do WhatsApp pra a usuaria nao precisar abrir a pasta pra
+    // saber data/hora/local da audiencia ao conversar com o cliente.
+    // Busca em cases.client_id OU case_partes.client_id (cobre clientes vinculados
+    // como parte autora, representante legal, ou reu-que-virou-cliente via eh_nosso_cliente).
+    $conv['proxima_audiencia'] = null;
+    $cliId = (int)($conv['client_id'] ?? 0);
+    if ($cliId > 0) {
+        try {
+            $stAud = $pdo->prepare(
+                "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.data_fim, e.modalidade, e.local, e.meet_link,
+                        COALESCE(e.cliente_presencial, 0) AS cliente_presencial,
+                        cs.title AS case_title, cs.id AS case_id, cs.court AS case_vara, cs.comarca AS case_comarca
+                 FROM agenda_eventos e
+                 INNER JOIN cases cs ON cs.id = e.case_id
+                 WHERE e.tipo = 'audiencia'
+                   AND e.status NOT IN ('cancelado','realizado','nao_compareceu')
+                   AND e.data_inicio >= NOW()
+                   AND (
+                       cs.client_id = ?
+                       OR e.case_id IN (SELECT case_id FROM case_partes WHERE client_id = ?)
+                   )
+                 ORDER BY e.data_inicio ASC LIMIT 1"
+            );
+            $stAud->execute(array($cliId, $cliId));
+            $aud = $stAud->fetch();
+            if ($aud) $conv['proxima_audiencia'] = $aud;
+        } catch (Exception $e) { /* falha silenciosa — header sem audiencia */ }
+    }
+
     echo json_encode(array('ok' => true, 'conversa' => $conv, 'mensagens' => $mensagens, 'fixadas' => $fixadas));
     exit;
 }
