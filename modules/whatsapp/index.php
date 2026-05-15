@@ -752,9 +752,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
-        if (PODE_DELEGAR) {
-            actions += '<button onclick="waEditarTelefone()" title="Corrigir o número desta conversa (caso esteja malformado, ex: aparece como +60 ou +1 quando é BR)" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">✏️ Nº</button>';
-        }
+        // ✏️ Nº disponível pra todo atendente — Naiara/CX/Operacional precisam
+        // corrigir números malformados sem depender de Amanda/Luiz.
+        actions += '<button onclick="waEditarTelefone()" title="Corrigir o número desta conversa (caso esteja malformado, ex: aparece como +60 ou +1 quando é BR)" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">✏️ Nº</button>';
         actions += '</div>';
 
         var subTxt = formatTel(c.telefone);
@@ -779,7 +779,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (telSuspeito) {
             avisoTelHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:.72rem;color:#92400e;display:flex;align-items:center;gap:6px;">'
                 + '<span style="font-size:1rem;">⚠️</span>'
-                + '<span><strong>Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — mensagens podem ser aceitas mas nao chegar no celular. ' + (PODE_DELEGAR ? 'Use <strong>✏️ N°</strong> no menu pra corrigir.' : 'Avise Amanda/Luiz pra corrigir o numero.') + '</span>'
+                + '<span><strong>Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — mensagens podem ser aceitas mas nao chegar no celular. Use <strong>✏️ N°</strong> no menu pra corrigir.</span>'
                 + '</div>';
         }
 
