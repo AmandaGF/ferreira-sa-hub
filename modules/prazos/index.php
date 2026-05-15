@@ -141,11 +141,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.prazo-card { padding:.75rem 1rem; margin-bottom:.4rem; border-radius:var(--radius); border-left:4px solid #ccc; background:var(--bg-card); display:flex; align-items:center; gap:.75rem; }
+.prazo-card { padding:.75rem 1rem; margin-bottom:.4rem; border-radius:var(--radius); border-left:4px solid #ccc; background:var(--bg-card); display:flex; align-items:center; gap:.75rem; transition:transform .12s, box-shadow .12s; }
 .prazo-card.urgente { border-left-color:#ef4444; background:#fef2f2; }
 .prazo-card.alerta { border-left-color:#f59e0b; background:#fffbeb; }
 .prazo-card.normal { border-left-color:#6366f1; }
 .prazo-card.concluido { border-left-color:#059669; opacity:.5; }
+.prazo-card.clicavel { cursor:pointer; }
+.prazo-card.clicavel:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .prazo-info { flex:1; }
 .prazo-desc { font-size:.85rem; font-weight:700; color:var(--petrol-900); }
 .prazo-meta { font-size:.7rem; color:var(--text-muted); margin-top:.1rem; }
@@ -182,13 +184,15 @@ if ($voltarCaso > 0): ?>
         $cardClass = $p['concluido'] ? 'concluido' : ($isUrgente || $isVencido ? 'urgente' : ($isAlerta ? 'alerta' : 'normal'));
         $dataClass = $isUrgente || $isVencido ? 'urgente' : ($isAlerta ? 'alerta' : '');
     ?>
-    <div class="prazo-card <?= $cardClass ?>">
+    <?php $_caseHref = $p['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) : ''; ?>
+    <div class="prazo-card <?= $cardClass ?><?= $_caseHref ? ' clicavel' : '' ?>"
+         <?= $_caseHref ? 'onclick="window.location.href=\'' . e($_caseHref) . '\'" title="Abrir pasta do processo"' : '' ?>>
         <div class="prazo-info">
-            <div class="prazo-desc"><?php if ($p['case_id']): ?><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) ?>" style="color:inherit;text-decoration:none;"><?php endif; ?><?= $p['concluido'] ? '<s>' : '' ?><?= e($p['descricao_acao']) ?><?= $p['concluido'] ? '</s>' : '' ?><?php if ($p['case_id']): ?></a><?php endif; ?></div>
+            <div class="prazo-desc"><?= $p['concluido'] ? '<s>' : '' ?><?= e($p['descricao_acao']) ?><?= $p['concluido'] ? '</s>' : '' ?></div>
             <div class="prazo-meta">
                 <?php if ($p['client_name']): ?>👤 <?= e($p['client_name']) ?> · <?php endif; ?>
                 <?php if ($p['numero_processo']): ?>🏛️ <?= e($p['numero_processo']) ?> · <?php endif; ?>
-                <?php if ($p['case_title'] && $p['case_id']): ?>📂 <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) ?>" style="color:var(--petrol-900);font-weight:600;text-decoration:none;"><?= e($p['case_title']) ?></a><?php elseif ($p['case_title']): ?>📂 <?= e($p['case_title']) ?><?php endif; ?>
+                <?php if ($p['case_title']): ?>📂 <span style="color:var(--petrol-900);font-weight:600;"><?= e($p['case_title']) ?></span><?php endif; ?>
             </div>
         </div>
         <div class="prazo-data <?= $dataClass ?>">
@@ -199,7 +203,7 @@ if ($voltarCaso > 0): ?>
             <div style="font-size:.65rem;font-weight:400;color:var(--text-muted);"><?= date('d/m/Y', strtotime($p['prazo_fatal'])) ?></div>
         </div>
         <?php if (!$p['concluido']): ?>
-        <form method="POST" style="display:flex;gap:.2rem;">
+        <form method="POST" style="display:flex;gap:.2rem;" onclick="event.stopPropagation()">
             <?= csrf_input() ?>
             <input type="hidden" name="id" value="<?= $p['id'] ?>">
             <button type="submit" name="action" value="concluir" class="btn btn-success btn-sm" style="font-size:.65rem;padding:.2rem .4rem;" title="Concluir">✓</button>
