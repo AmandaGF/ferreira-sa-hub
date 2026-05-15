@@ -81,20 +81,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 // Filtro
 $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
 
+// JOIN secundario `cs2` casa pelo numero_processo (CNJ desformatado) pra prazos
+// criados sem case_id mas com numero do processo textual — aparecia so o CNJ no
+// card sem o nome da pasta. Amanda 14/05/2026.
+$_joinCases = "LEFT JOIN cases cs ON cs.id = p.case_id
+               LEFT JOIN cases cs2 ON cs.id IS NULL
+                   AND p.numero_processo IS NOT NULL AND p.numero_processo != ''
+                   AND REPLACE(REPLACE(REPLACE(cs2.case_number,'-',''),'.',''),'/','')
+                       = REPLACE(REPLACE(REPLACE(p.numero_processo,'-',''),'.',''),'/','')";
+$_selectCols = "p.*, c.name as client_name,
+                COALESCE(cs.title, cs2.title) AS case_title,
+                COALESCE(p.case_id, cs2.id) AS case_id";
 if ($filtro === 'todos') {
     $prazos = $pdo->query(
-        "SELECT p.*, c.name as client_name, cs.title as case_title
+        "SELECT $_selectCols
          FROM prazos_processuais p
          LEFT JOIN clients c ON c.id = p.client_id
-         LEFT JOIN cases cs ON cs.id = p.case_id
+         $_joinCases
          ORDER BY p.concluido ASC, p.prazo_fatal ASC"
     )->fetchAll();
 } else {
     $prazos = $pdo->query(
-        "SELECT p.*, c.name as client_name, cs.title as case_title
+        "SELECT $_selectCols
          FROM prazos_processuais p
          LEFT JOIN clients c ON c.id = p.client_id
-         LEFT JOIN cases cs ON cs.id = p.case_id
+         $_joinCases
          WHERE p.concluido = 0
          ORDER BY p.prazo_fatal ASC"
     )->fetchAll();
