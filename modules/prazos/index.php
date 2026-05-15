@@ -81,34 +81,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 // Filtro
 $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
 
-// JOIN secundario `cs2` casa pelo numero_processo (CNJ desformatado) pra prazos
-// criados sem case_id mas com numero do processo textual — aparecia so o CNJ no
-// card sem o nome da pasta. Amanda 14/05/2026.
-$_joinCases = "LEFT JOIN cases cs ON cs.id = p.case_id
-               LEFT JOIN cases cs2 ON cs.id IS NULL
-                   AND p.numero_processo IS NOT NULL AND p.numero_processo != ''
-                   AND REPLACE(REPLACE(REPLACE(cs2.case_number,'-',''),'.',''),'/','')
-                       = REPLACE(REPLACE(REPLACE(p.numero_processo,'-',''),'.',''),'/','')";
-$_selectCols = "p.*, c.name as client_name,
-                COALESCE(cs.title, cs2.title) AS case_title,
-                COALESCE(p.case_id, cs2.id) AS case_id";
 if ($filtro === 'todos') {
     $prazos = $pdo->query(
-        "SELECT $_selectCols
+        "SELECT p.*, c.name as client_name, cs.title as case_title
          FROM prazos_processuais p
          LEFT JOIN clients c ON c.id = p.client_id
-         $_joinCases
+         LEFT JOIN cases cs ON cs.id = p.case_id
          ORDER BY p.concluido ASC, p.prazo_fatal ASC"
     )->fetchAll();
 } else {
     $prazos = $pdo->query(
-        "SELECT $_selectCols
+        "SELECT p.*, c.name as client_name, cs.title as case_title
          FROM prazos_processuais p
          LEFT JOIN clients c ON c.id = p.client_id
-         $_joinCases
+         LEFT JOIN cases cs ON cs.id = p.case_id
          WHERE p.concluido = 0
          ORDER BY p.prazo_fatal ASC"
     )->fetchAll();
+}
+
+// Post-process: pra prazos sem case_id mas com numero_processo textual, tenta
+// achar a pasta pelo CNJ desformatado. Vinculacao em tempo de leitura — sem
+// migrar dados. Amanda 14/05/2026.
+$_prazosSemCaseId = array();
+foreach ($prazos as $_idx => $_p) {
+    if (empty($_p['case_id']) && !empty($_p['numero_processo'])) {
+        $_dig = preg_replace('/\D/', '', $_p['numero_processo']);
+        if (strlen($_dig) === 20) $_prazosSemCaseId[$_idx] = $_dig;
+    }
+}
+if (!empty($_prazosSemCaseId)) {
+    $_unicos = array_values(array_unique($_prazosSemCaseId));
+    $_ph = implode(',', array_fill(0, count($_unicos), '?'));
+    try {
+        $_st = $pdo->prepare(
+            "SELECT id, title, REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') AS cnj_digits
+             FROM cases
+             WHERE REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') IN ($_ph)"
+        );
+        $_st->execute($_unicos);
+        $_mapaCnjCaso = array();
+        foreach ($_st->fetchAll() as $_row) {
+            if (!isset($_mapaCnjCaso[$_row['cnj_digits']])) {
+                $_mapaCnjCaso[$_row['cnj_digits']] = array('id' => $_row['id'], 'title' => $_row['title']);
+            }
+        }
+        foreach ($_prazosSemCaseId as $_idx => $_dig) {
+            if (isset($_mapaCnjCaso[$_dig])) {
+                $prazos[$_idx]['case_id'] = $_mapaCnjCaso[$_dig]['id'];
+                $prazos[$_idx]['case_title'] = $_mapaCnjCaso[$_dig]['title'];
+            }
+        }
+    } catch (Exception $_e) { /* falha silenciosa — sem match, mostra so CNJ como antes */ }
 }
 
 $clients = $pdo->query("SELECT id, name FROM clients ORDER BY name")->fetchAll();
