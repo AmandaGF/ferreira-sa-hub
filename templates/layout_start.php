@@ -392,6 +392,58 @@ try {
         $__prazosUrgentes = $__stmtPz->fetchAll();
     }
 } catch (Exception $e) { $__prazosUrgentes = array(); }
+
+// Post-process: pra prazos sem case_id mas com numero_processo textual, casa
+// pelo CNJ desformatado. Sem isso, click no card vai pra /prazos (e nao pra
+// pasta do processo). Amanda 14/05/2026.
+$__prazoSemCase = array();
+foreach ($__prazosUrgentes as $__i => $__pz) {
+    if (empty($__pz['case_id']) && !empty($__pz['numero_processo'])) {
+        $__dg = preg_replace('/\D/', '', $__pz['numero_processo']);
+        if (strlen($__dg) === 20) $__prazoSemCase[$__i] = $__dg;
+    }
+}
+if (!empty($__prazoSemCase)) {
+    try {
+        $__unic = array_values(array_unique($__prazoSemCase));
+        $__phPz = implode(',', array_fill(0, count($__unic), '?'));
+        $__stPz = db()->prepare(
+            "SELECT id, title, case_number, comarca, comarca_uf, court, responsible_user_id,
+                    REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') AS cnj_dg
+             FROM cases
+             WHERE REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') IN ($__phPz)"
+        );
+        $__stPz->execute($__unic);
+        $__mapPz = array();
+        foreach ($__stPz->fetchAll() as $__row) {
+            if (!isset($__mapPz[$__row['cnj_dg']])) $__mapPz[$__row['cnj_dg']] = $__row;
+        }
+        // Busca nomes dos responsaveis num batch
+        $__respIds = array_filter(array_map(function($r){ return (int)$r['responsible_user_id']; }, $__mapPz));
+        $__respNomes = array();
+        if (!empty($__respIds)) {
+            $__phR = implode(',', array_fill(0, count($__respIds), '?'));
+            $__stR = db()->prepare("SELECT id, name FROM users WHERE id IN ($__phR)");
+            $__stR->execute(array_values($__respIds));
+            foreach ($__stR->fetchAll() as $__r) $__respNomes[(int)$__r['id']] = $__r['name'];
+        }
+        foreach ($__prazoSemCase as $__i => $__dg) {
+            if (isset($__mapPz[$__dg])) {
+                $__c = $__mapPz[$__dg];
+                $__prazosUrgentes[$__i]['case_id']    = $__c['id'];
+                $__prazosUrgentes[$__i]['case_title'] = $__c['title'];
+                $__prazosUrgentes[$__i]['case_cnj']   = $__c['case_number'];
+                $__prazosUrgentes[$__i]['comarca']    = $__c['comarca'];
+                $__prazosUrgentes[$__i]['comarca_uf'] = $__c['comarca_uf'];
+                $__prazosUrgentes[$__i]['vara']       = $__c['court'];
+                if (!empty($__c['responsible_user_id']) && isset($__respNomes[(int)$__c['responsible_user_id']])) {
+                    $__prazosUrgentes[$__i]['responsavel_name'] = $__respNomes[(int)$__c['responsible_user_id']];
+                }
+            }
+        }
+    } catch (Exception $__e) { /* falha silenciosa — card vai pra /prazos como antes */ }
+}
+
 // Helper local: formata CNJ se vier desformatado (20 digitos)
 if (!function_exists('_layoutFormatCnj')) {
     function _layoutFormatCnj($num) {
