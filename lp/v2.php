@@ -191,6 +191,30 @@ section{position:relative}
 .ph-tag{display:inline-block;margin-top:.5rem;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
   color:var(--rose-2);border:1px dashed var(--rose);padding:.15rem .5rem;border-radius:2px}
 
+/* AVALIAÇÕES GOOGLE */
+.grev-head{display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;margin-bottom:2.6rem}
+.grev-badge{display:flex;align-items:center;gap:.8rem;background:var(--paper);border:1px solid var(--line);
+  border-radius:100px;padding:.7rem 1.4rem;box-shadow:0 6px 20px rgba(0,0,0,.05)}
+.grev-badge .gscore{font-family:var(--serif);font-size:1.7rem;font-weight:700;color:var(--petrol);line-height:1}
+.grev-badge .gstars{color:#fbbc04;font-size:1rem;letter-spacing:1px}
+.grev-badge .gmeta{font-size:.74rem;color:var(--muted)}
+.grev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem}
+.grev{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:1.8rem;text-align:left;
+  display:flex;flex-direction:column}
+.grev-top{display:flex;align-items:center;gap:.8rem;margin-bottom:.5rem}
+.grev-av{width:42px;height:42px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:1.05rem;background:linear-gradient(135deg,var(--petrol),var(--petrol-3))}
+.grev-id b{display:block;font-size:.9rem;color:var(--petrol);font-weight:600}
+.grev-id .gstars{color:#fbbc04;font-size:.82rem;letter-spacing:1px}
+.grev-g{margin-left:auto;width:20px;height:20px;flex-shrink:0}
+.grev p{font-size:.9rem;color:var(--ink);line-height:1.6;margin:.4rem 0 0}
+.grev .gdate{margin-top:.9rem;font-size:.72rem;color:var(--muted)}
+.grev-cta{display:inline-flex;align-items:center;gap:.6rem;margin:2.6rem auto 0;padding:.9rem 1.8rem;
+  border:1px solid var(--line);border-radius:100px;background:var(--paper);font-weight:600;font-size:.88rem;
+  color:var(--petrol);transition:all .25s}
+.grev-cta:hover{box-shadow:0 10px 26px rgba(0,0,0,.1);transform:translateY(-2px)}
+.grev-cta svg{width:18px;height:18px}
+
 /* FAQ */
 .faq{max-width:780px;margin:0 auto}
 .fitem{border-bottom:1px solid var(--line)}
@@ -229,6 +253,7 @@ section{position:relative}
   .areas-grid{grid-template-columns:repeat(2,1fr)}
   .dif-grid{grid-template-columns:repeat(2,1fr);gap:2.5rem 1.5rem}
   .quotes-grid{grid-template-columns:1fr}
+  .grev-grid{grid-template-columns:1fr}
   .about-grid{grid-template-columns:1fr;gap:2.5rem}
   .map-grid{grid-template-columns:1fr;gap:2.8rem}
   .map-vis{max-width:440px;margin:0 auto}
@@ -401,10 +426,10 @@ section{position:relative}
     <div class="map-txt reveal">
       <div class="eyebrow">Onde Atuamos</div>
       <h2>Para nós, não existe<br><em>distância física.</em></h2>
-      <p class="sub">Sede em Resende–RJ, presença consolidada no Sul Fluminense e atendimento 100% digital para clientes em todo o Brasil. Vamos até você, onde quer que esteja.</p>
+      <p class="sub">Sede em Barra Mansa–RJ, presença consolidada no Sul Fluminense e atendimento 100% digital para clientes em todo o Brasil. Vamos até você, onde quer que esteja.</p>
       <div class="cov">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21s-7-4.3-7-10a7 7 0 1114 0c0 5.7-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
-        <div><b>Sede física — Resende / RJ</b><span>Atendimento presencial em ambiente dedicado.</span></div>
+        <div><b>Sede física — Barra Mansa / RJ</b><span>Atendimento presencial em ambiente dedicado.</span></div>
       </div>
       <div class="cov">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a14 14 0 000 18M12 3a14 14 0 010 18"/></svg>
@@ -446,30 +471,64 @@ section{position:relative}
   </div>
 </section>
 
-<!-- DEPOIMENTOS -->
+<!-- AVALIAÇÕES GOOGLE -->
+<?php
+// Link pro perfil no Google (abre a ficha/avaliações). Substituir pela URL
+// curta do perfil quando tiver (ex.: g.page/...).
+$googleUrl = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode('Ferreira e Sá Advocacia Especializada Barra Mansa');
+$gLogo = '<svg class="grev-g" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 002.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>';
+?>
 <section class="sec">
   <div class="wrap">
     <div class="sec-head center reveal">
-      <div class="eyebrow">Quem confiou</div>
-      <h2>Histórias que terminaram bem</h2>
-      <p>Depoimentos reais de clientes <span class="ph-tag">substituir por depoimentos verdadeiros</span></p>
+      <div class="eyebrow">Avaliações no Google</div>
+      <h2>Quem confiou, recomenda</h2>
+      <p>Avaliações reais de clientes na ficha do Google do escritório.</p>
     </div>
-    <div class="quotes-grid reveal">
-      <div class="q">
-        <div class="mark">&ldquo;</div>
-        <p>Cheguei perdida e com medo. Saí com meu divórcio resolvido e a sensação de que alguém realmente cuidou de mim do início ao fim.</p>
-        <div class="who">M. C. <small>Divórcio — Volta Redonda</small></div>
+    <div class="grev-head reveal">
+      <div class="grev-badge">
+        <?= $gLogo ?>
+        <span class="gscore">5,0</span>
+        <span>
+          <span class="gstars">★★★★★</span><br>
+          <span class="gmeta">Avaliações verificadas no Google</span>
+        </span>
       </div>
-      <div class="q">
-        <div class="mark">&ldquo;</div>
-        <p>Explicaram tudo numa linguagem que eu entendia. Nunca fiquei sem resposta. Recomendo de olhos fechados.</p>
-        <div class="who">R. S. <small>Guarda — Resende</small></div>
+      <span class="ph-tag">confirmar nota e nº de avaliações reais</span>
+    </div>
+    <div class="grev-grid reveal">
+      <div class="grev">
+        <div class="grev-top">
+          <div class="grev-av">M</div>
+          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
+          <?= $gLogo ?>
+        </div>
+        <p>[ Cole aqui uma avaliação real do Google ]</p>
+        <div class="gdate">há 2 meses</div>
       </div>
-      <div class="q">
-        <div class="mark">&ldquo;</div>
-        <p>Profissionalismo do começo ao fim. Resolveram o inventário da minha família sem brigas e sem dor de cabeça.</p>
-        <div class="who">J. P. <small>Inventário — Barra Mansa</small></div>
+      <div class="grev">
+        <div class="grev-top">
+          <div class="grev-av">R</div>
+          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
+          <?= $gLogo ?>
+        </div>
+        <p>[ Cole aqui uma avaliação real do Google ]</p>
+        <div class="gdate">há 3 meses</div>
       </div>
+      <div class="grev">
+        <div class="grev-top">
+          <div class="grev-av">J</div>
+          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
+          <?= $gLogo ?>
+        </div>
+        <p>[ Cole aqui uma avaliação real do Google ]</p>
+        <div class="gdate">há 5 meses</div>
+      </div>
+    </div>
+    <div style="text-align:center;">
+      <a href="<?= $googleUrl ?>" target="_blank" rel="noopener" class="grev-cta reveal">
+        <?= $gLogo ?> Ver todas as avaliações no Google →
+      </a>
     </div>
   </div>
 </section>
@@ -525,11 +584,12 @@ section{position:relative}
         <p><a href="https://wa.me/<?= $wpp ?>">WhatsApp · (24) 99205-0096</a></p>
         <p><a href="https://wa.me/551121105438">WhatsApp · (11) 2110-5438</a></p>
         <p><a href="mailto:contato@ferreiraesa.com.br">contato@ferreiraesa.com.br</a></p>
+        <p style="margin-top:.4rem;">Rua Dr. Aldrovando de Oliveira, 140<br>Ano Bom — Barra Mansa / RJ</p>
       </div>
       <div>
         <h5>Atuação</h5>
-        <p>Resende · Volta Redonda</p>
-        <p>Barra Mansa · Rio de Janeiro</p>
+        <p>Barra Mansa · Volta Redonda</p>
+        <p>Resende · Rio de Janeiro</p>
         <p>São Paulo · Todo o Brasil (online)</p>
       </div>
     </div>
