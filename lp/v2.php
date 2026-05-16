@@ -111,7 +111,7 @@ section{position:relative}
 .about-vis{position:relative;aspect-ratio:4/5;border-radius:3px;overflow:hidden;
   background:linear-gradient(150deg,var(--petrol),var(--petrol-3));display:flex;align-items:flex-end;
   box-shadow:0 30px 70px rgba(5,34,40,.22)}
-.about-vis img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+.about-vis img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:38% center}
 .about-vis::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(5,34,40,.55),transparent 45%)}
 .about-vis .badge{position:absolute;left:1.6rem;bottom:1.6rem;z-index:2;background:rgba(255,255,255,.94);color:var(--petrol);
   padding:1rem 1.4rem;border-radius:2px;font-size:.78rem;font-weight:600;letter-spacing:.05em}
@@ -266,7 +266,7 @@ section{position:relative}
 <section class="sec about" id="sobre">
   <div class="wrap about-grid">
     <div class="about-vis reveal">
-      <img src="../assets/img/site/amanda.jpg" alt="Dra. Amanda Guedes Ferreira" loading="lazy">
+      <img src="../assets/img/site/escritorio.jpg" alt="Escritório Ferreira &amp; Sá Advocacia" loading="lazy">
       <div class="badge">Sociedade de advogados<br><span>OAB/RJ 5.987</span></div>
     </div>
     <div class="about-txt reveal">
