@@ -617,12 +617,14 @@ if ($action === 'enviar_mensagem') {
         ->execute(array($convId, $zapiId, $replyTo ?: null, $textoEnviar, $userId));
 
     // Reabre conversas resolvidas quando volta a haver troca de mensagens —
-    // aguardando/resolvido viram em_atendimento; também vincula atendente se vazio.
+    // aguardando/resolvido viram em_atendimento. Atendente: quem responde
+    // conversa já liberada (canal 21) assume — ver zapi_sql_set_atendente_pos_envio.
+    $setAtend = zapi_sql_set_atendente_pos_envio($conv['canal'], $conv['atendente_id'], $userId);
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                    status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
-                   atendente_id = COALESCE(atendente_id, ?)
+                   {$setAtend}
                    WHERE id = ?")
-        ->execute(array(mb_substr($textoEnviar, 0, 500), $userId, $convId));
+        ->execute(array(mb_substr($textoEnviar, 0, 500), $convId));
 
     // Atendente acabou de mandar msg — etiqueta "AT DESBLOQUEADO" perde o sentido
     $etqAt = _zapi_etiqueta_at_desbloqueado_id();
@@ -1265,11 +1267,12 @@ if ($action === 'enviar_arquivo') {
     )->execute(array($convId, $zapiId, $tipo, $caption ?: '[' . $tipo . ']', $publicUrl, $nome, $mime, $tam, $userId));
 
     $preview = $caption ?: ('[' . $tipo . '] ' . $nome);
+    $setAtend = zapi_sql_set_atendente_pos_envio($conv['canal'], $conv['atendente_id'], $userId);
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                    status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
-                   atendente_id = COALESCE(atendente_id, ?)
+                   {$setAtend}
                    WHERE id = ?")
-        ->execute(array(mb_substr($preview, 0, 500), $userId, $convId));
+        ->execute(array(mb_substr($preview, 0, 500), $convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
@@ -1347,11 +1350,12 @@ if ($action === 'enviar_audio') {
         try { groq_transcribe_mensagem($newMsgId); } catch (Exception $e) {}
     }
 
+    $setAtend = zapi_sql_set_atendente_pos_envio($conv['canal'], $conv['atendente_id'], $userId);
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[áudio]', ultima_msg_em = NOW(),
                    status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
-                   atendente_id = COALESCE(atendente_id, ?)
+                   {$setAtend}
                    WHERE id = ?")
-        ->execute(array($userId, $convId));
+        ->execute(array($convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
@@ -1417,11 +1421,12 @@ if ($action === 'enviar_sticker') {
          VALUES (?, ?, 'enviada', 'sticker', '[figurinha]', ?, ?, ?, ?, ?, 'enviada')"
     )->execute(array($convId, $zapiId, $publicUrl, $storedName, $mime, $tam, $userId));
 
+    $setAtend = zapi_sql_set_atendente_pos_envio($conv['canal'], $conv['atendente_id'], $userId);
     $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = '[figurinha]', ultima_msg_em = NOW(),
                    status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
-                   atendente_id = COALESCE(atendente_id, ?)
+                   {$setAtend}
                    WHERE id = ?")
-        ->execute(array($userId, $convId));
+        ->execute(array($convId));
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
@@ -1537,11 +1542,12 @@ if ($action === 'enviar_rapido') {
              VALUES (?, ?, 'enviada', 'texto', ?, ?, 'enviada')"
         )->execute(array($conv['id'], $zapiId, $mensagem, $userId));
 
+        $setAtend = zapi_sql_set_atendente_pos_envio($canal, isset($conv['atendente_id']) ? $conv['atendente_id'] : 0, $userId);
         $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                        status = CASE WHEN status IN ('aguardando','resolvido') THEN 'em_atendimento' ELSE status END,
-                       atendente_id = COALESCE(atendente_id, ?)
+                       {$setAtend}
                        WHERE id = ?")
-            ->execute(array(mb_substr($mensagem, 0, 500), $userId, $conv['id']));
+            ->execute(array(mb_substr($mensagem, 0, 500), $conv['id']));
     }
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");

@@ -1680,6 +1680,31 @@ function zapi_pode_enviar_conversa($convId, $userId, $minutos = null) {
 }
 
 /**
+ * Fragmento SQL pro atendente_id no UPDATE de zapi_conversas após um envio.
+ *
+ * Canal 24 (CX/Operacional, colaborativo): só preenche se estiver vazio
+ *   (COALESCE) — ninguém "dona" a conversa.
+ * Canal 21 (Comercial, com trava): quem responde uma conversa que JÁ liberou
+ *   (chegou no envio sem ser admin nem o atendente atual — logo a trava
+ *   deixou passar) ASSUME a conversa. Admin (Amanda/Luiz) intervém sem roubar.
+ *   Sem isto, a msg de quem respondeu reiniciava as 36h em nome do atendente
+ *   antigo e re-trancava a conversa indefinidamente (bug Sandra #1205,
+ *   16/05/2026 — Naiara respondia e era re-bloqueada por ~36h em nome do Luiz).
+ *
+ * @return string ex.: "atendente_id = 8" ou "atendente_id = COALESCE(atendente_id, 8)"
+ */
+function zapi_sql_set_atendente_pos_envio($canal, $atendenteAtual, $userId) {
+    $userId = (int)$userId;
+    if ((string)$canal !== '24') {
+        $ehAdmin = function_exists('can_delegar_whatsapp') && can_delegar_whatsapp();
+        if (!$ehAdmin && (int)$atendenteAtual !== $userId) {
+            return 'atendente_id = ' . $userId; // assumiu ao responder conversa liberada
+        }
+    }
+    return 'atendente_id = COALESCE(atendente_id, ' . $userId . ')';
+}
+
+/**
  * Expira automaticamente delegações sem interação há mais de X minutos.
  *
  * Uma delegação expira quando:
