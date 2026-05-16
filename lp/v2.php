@@ -13,11 +13,11 @@ $wppMsg = rawurlencode('Olá! Vim pelo site e gostaria de conversar com um advog
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ferreira &amp; Sá Advocacia — Direito de Família com estratégia e acolhimento</title>
-<meta name="description" content="Escritório especializado em Direito de Família: divórcio, guarda, pensão, inventário e medidas protetivas. Atendimento humanizado e técnico em todo o Brasil.">
+<title>Ferreira &amp; Sá Advocacia — Família, Sucessões, Imobiliário e Consumidor</title>
+<meta name="description" content="Advocacia full service: Direito de Família, Sucessões, Imobiliário, Consumidor, Responsabilidade Civil e Cível. Atendimento humanizado e técnico em todo o Brasil.">
 <meta name="theme-color" content="#052228">
 <meta property="og:title" content="Ferreira &amp; Sá Advocacia">
-<meta property="og:description" content="Direito de Família com estratégia, técnica e acolhimento. Atendimento em todo o Brasil.">
+<meta property="og:description" content="Advocacia com estratégia, técnica e acolhimento — Família, Sucessões, Imobiliário e Consumidor. Atendimento em todo o Brasil.">
 <meta property="og:type" content="website">
 <link rel="icon" type="image/png" href="../assets/img/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,8 +65,18 @@ section{position:relative}
 .hero::before{content:"";position:absolute;inset:0;
   background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='60' height='60'%3E%3Cpath d='M0 0h60v60H0z' fill='none'/%3E%3Cpath d='M30 0v60M0 30h60' stroke='%23ffffff' stroke-opacity='.025'/%3E%3C/svg%3E");
   pointer-events:none}
-.hero::after{content:"";position:absolute;right:-12%;top:-10%;width:620px;height:620px;border-radius:50%;
-  background:radial-gradient(circle,rgba(215,171,144,.16),transparent 62%);filter:blur(8px)}
+.hero-orbs{position:absolute;inset:0;z-index:1;overflow:hidden;pointer-events:none}
+.hero-orbs span{position:absolute;border-radius:50%;filter:blur(60px);opacity:.55;
+  background:radial-gradient(circle,rgba(215,171,144,.5),transparent 65%);will-change:transform}
+.hero-orbs span:nth-child(1){width:560px;height:560px;top:-160px;right:-120px;animation:drift1 22s ease-in-out infinite alternate}
+.hero-orbs span:nth-child(2){width:460px;height:460px;bottom:-180px;left:-120px;
+  background:radial-gradient(circle,rgba(21,80,92,.6),transparent 65%);animation:drift2 28s ease-in-out infinite alternate}
+.hero-orbs span:nth-child(3){width:340px;height:340px;top:38%;left:46%;opacity:.35;
+  background:radial-gradient(circle,rgba(202,164,106,.45),transparent 65%);animation:drift3 19s ease-in-out infinite alternate}
+@keyframes drift1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-90px,70px) scale(1.18)}}
+@keyframes drift2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(110px,-60px) scale(1.12)}}
+@keyframes drift3{0%{transform:translate(0,0) scale(1)}50%{transform:translate(-60px,-40px) scale(1.1)}100%{transform:translate(50px,50px) scale(.95)}}
+@media(prefers-reduced-motion:reduce){.hero-orbs span{animation:none}}
 .hero-inner{position:relative;z-index:2;max-width:760px}
 .hero .eyebrow{margin-bottom:1.4rem;display:inline-flex;align-items:center;gap:.7rem}
 .hero .eyebrow::before{content:"";width:38px;height:1px;background:var(--rose)}
@@ -236,10 +246,11 @@ section{position:relative}
 
 <!-- HERO -->
 <header class="hero" id="topo">
+  <div class="hero-orbs"><span></span><span></span><span></span></div>
   <div class="wrap hero-inner">
-    <div class="eyebrow">Advocacia de Família · OAB/RJ 5.987/2023</div>
+    <div class="eyebrow">Advocacia Full Service · OAB/RJ 5.987/2023</div>
     <h1>Decisões difíceis<br>merecem advocacia<br><em>de verdade.</em></h1>
-    <p class="lead">Conduzimos divórcios, guarda, pensão e inventários com estratégia técnica e o acolhimento que um momento delicado exige. Você não enfrenta isso sozinho.</p>
+    <p class="lead">Família, Sucessões, Imobiliário, Consumidor e mais — conduzidos com estratégia técnica e o acolhimento que cada caso exige. Você não enfrenta isso sozinho.</p>
     <div class="hero-btns">
       <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener" class="btn btn-gold">Falar com um advogado</a>
       <a href="#areas" class="btn btn-ghost">Conheça nossas áreas</a>
@@ -262,8 +273,8 @@ section{position:relative}
     </div>
     <div class="about-txt reveal">
       <div class="eyebrow">O Escritório</div>
-      <h2>Técnica jurídica com o cuidado que a sua família precisa.</h2>
-      <p>O Ferreira &amp; Sá Advocacia nasceu da convicção de que questões de família não se resolvem só com peças processuais — se resolvem com escuta, estratégia e presença. Cada caso é conduzido por quem entende que ali existe uma história, não um número.</p>
+      <h2>Técnica jurídica com o cuidado que o seu caso precisa.</h2>
+      <p>O Ferreira &amp; Sá Advocacia nasceu da convicção de que um bom resultado jurídico não se constrói só com peças processuais — se constrói com escuta, estratégia e presença. Da causa de família ao contrato imobiliário, cada caso é conduzido por quem entende que ali existe uma história, não um número.</p>
       <p>Unimos rigor técnico, transparência total sobre o andamento do seu processo e um atendimento que não te deixa no escuro. Você acompanha cada passo, fala direto com quem cuida da sua causa e recebe retorno em até 24 horas.</p>
       <div class="about-sign">Amanda Guedes Ferreira &amp; Luiz Eduardo de Sá<small>Sócios-administradores</small></div>
     </div>
@@ -275,44 +286,44 @@ section{position:relative}
   <div class="wrap">
     <div class="sec-head center reveal">
       <div class="eyebrow">Áreas de Atuação</div>
-      <h2>Especialistas no que mais importa</h2>
-      <p>Atuação dedicada em Direito de Família e Sucessões — do acordo extrajudicial à disputa mais sensível.</p>
+      <h2>Soluções jurídicas para cada momento</h2>
+      <p>Atuação full service com a profundidade de quem é especialista — do acordo extrajudicial à disputa mais sensível.</p>
     </div>
     <div class="areas-grid reveal">
       <div class="area">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3v18M5 7h14M7 7l-3 7a4 4 0 008 0L9 7M17 7l-3 7a4 4 0 008 0l-3-7"/></svg>
-        <h3>Divórcio &amp; Partilha</h3>
-        <p>Consensual ou litigioso, judicial ou em cartório. Partilha de bens conduzida para proteger o seu patrimônio.</p>
-        <span class="more">Saiba mais →</span>
-      </div>
-      <div class="area">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 11l2 2 4-4"/></svg>
-        <h3>Guarda &amp; Convivência</h3>
-        <p>Guarda, regulamentação de visitas e defesa intransigente do melhor interesse da criança.</p>
-        <span class="more">Saiba mais →</span>
-      </div>
-      <div class="area">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.8 1.8 0 010 3.5h-3a1.8 1.8 0 000 3.5h4"/></svg>
-        <h3>Pensão Alimentícia</h3>
-        <p>Fixação, revisão e execução de alimentos — tanto para quem precisa receber quanto para quem paga.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 21s-7-4.3-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.7-7 10-7 10z"/></svg>
+        <h3>Direito de Família</h3>
+        <p>Divórcio, guarda, pensão alimentícia, união estável e medidas protetivas — conduzidos com técnica e acolhimento.</p>
         <span class="more">Saiba mais →</span>
       </div>
       <div class="area">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6"/></svg>
-        <h3>Inventário &amp; Sucessões</h3>
-        <p>Inventário judicial e extrajudicial, testamento e planejamento sucessório sem desgaste familiar.</p>
+        <h3>Sucessões &amp; Inventário</h3>
+        <p>Inventário judicial e extrajudicial, testamento, partilha e planejamento sucessório sem desgaste familiar.</p>
         <span class="more">Saiba mais →</span>
       </div>
       <div class="area">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>
-        <h3>Medidas Protetivas</h3>
-        <p>Atuação de urgência em violência doméstica. Segurança e amparo jurídico imediato.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 21h18M5 21V8l7-5 7 5v13M10 21v-6h4v6"/></svg>
+        <h3>Direito Imobiliário</h3>
+        <p>Compra e venda, contratos, regularização, distrato, usucapião e disputas sobre imóveis.</p>
         <span class="more">Saiba mais →</span>
       </div>
       <div class="area">
-        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 21s-7-4.3-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.7-7 10-7 10z"/></svg>
-        <h3>União Estável &amp; Adoção</h3>
-        <p>Reconhecimento e dissolução de união estável, conversão em casamento e processos de adoção.</p>
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 2h9l4 4v16H6z"/><path d="M9 9h7M9 13h7M9 17h5"/></svg>
+        <h3>Direito do Consumidor</h3>
+        <p>Cobranças indevidas, negativação, produtos e serviços defeituosos e indenização por danos.</p>
+        <span class="more">Saiba mais →</span>
+      </div>
+      <div class="area">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3v18M5 7h14M7 7l-3 7a4 4 0 008 0L9 7M17 7l-3 7a4 4 0 008 0l-3-7"/></svg>
+        <h3>Responsabilidade Civil</h3>
+        <p>Reparação por danos morais e materiais, acidentes e indenizações com estratégia voltada ao resultado.</p>
+        <span class="more">Saiba mais →</span>
+      </div>
+      <div class="area">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3h8l3 3v15H5V6z"/><path d="M8 11h8M8 15h8"/><circle cx="12" cy="7.5" r="1.2"/></svg>
+        <h3>Contratos &amp; Cível</h3>
+        <p>Elaboração e revisão de contratos, cobranças, ações cíveis e prevenção de litígios.</p>
         <span class="more">Saiba mais →</span>
       </div>
     </div>
@@ -463,7 +474,7 @@ section{position:relative}
     <div class="foot-grid">
       <div>
         <div class="foot-logo">FERREIRA &amp; SÁ</div>
-        <p style="color:rgba(255,255,255,.5);max-width:300px">Advocacia especializada em Direito de Família e Sucessões. Técnica, transparência e acolhimento em cada causa.</p>
+        <p style="color:rgba(255,255,255,.5);max-width:300px">Advocacia full service — Família, Sucessões, Imobiliário e Consumidor. Técnica, transparência e acolhimento em cada causa.</p>
       </div>
       <div>
         <h5>Contato</h5>
