@@ -29,7 +29,43 @@ $grevOk = !empty($grev['ok']) && !empty($grev['reviews']);
 <meta property="og:title" content="Ferreira &amp; Sá Advocacia">
 <meta property="og:description" content="Advocacia com estratégia, técnica e acolhimento — Família, Sucessões, Imobiliário e Consumidor. Atendimento em todo o Brasil.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://ferreiraesa.com.br/conecta/assets/img/site/escritorio.jpg">
+<meta property="og:url" content="https://ferreiraesa.com.br/conecta/lp/v2.php">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://ferreiraesa.com.br/conecta/lp/v2.php">
 <link rel="icon" type="image/png" href="../assets/img/logo.png">
+<?php
+$ld = array(
+  '@context' => 'https://schema.org',
+  '@type'    => 'LegalService',
+  'name'     => 'Ferreira & Sá Advocacia',
+  'description' => 'Advocacia full service: Família, Sucessões, Imobiliário, Consumidor, Responsabilidade Civil e Cível.',
+  'url'      => 'https://ferreiraesa.com.br',
+  'telephone'=> '+55-24-99205-0096',
+  'email'    => 'contato@ferreiraesa.com.br',
+  'image'    => 'https://ferreiraesa.com.br/conecta/assets/img/site/escritorio.jpg',
+  'priceRange' => '$$',
+  'address'  => array(
+    '@type' => 'PostalAddress',
+    'streetAddress' => 'Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom',
+    'addressLocality' => 'Barra Mansa',
+    'addressRegion' => 'RJ',
+    'addressCountry' => 'BR',
+  ),
+  'areaServed' => array('Barra Mansa','Volta Redonda','Resende','Rio de Janeiro','São Paulo','Brasil'),
+  'knowsAbout' => array('Direito de Família','Sucessões e Inventário','Direito Imobiliário','Direito do Consumidor','Responsabilidade Civil','Contratos'),
+);
+if (!empty($grev['url'])) $ld['sameAs'] = array($grev['url']);
+if ($grevOk && !empty($grev['rating']) && !empty($grev['total'])) {
+  $ld['aggregateRating'] = array(
+    '@type' => 'AggregateRating',
+    'ratingValue' => number_format((float)$grev['rating'], 1, '.', ''),
+    'reviewCount' => (int)$grev['total'],
+    'bestRating' => '5', 'worstRating' => '1',
+  );
+}
+echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . '</script>' . "\n";
+?>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -235,11 +271,35 @@ section{position:relative}
 .fa{max-height:0;overflow:hidden;transition:max-height .35s ease}
 .fa p{padding:0 0 1.5rem;color:var(--muted);font-size:.94rem}
 
-/* CTA FINAL */
-.cta{background:radial-gradient(120% 130% at 20% 0%,var(--petrol-3),var(--petrol) 60%);color:#fff;text-align:center}
-.cta h2{font-family:var(--serif);font-size:clamp(2rem,4vw,3.2rem);font-weight:600;line-height:1.12;margin-bottom:1.1rem}
-.cta h2 em{font-style:italic;color:var(--rose)}
-.cta p{color:rgba(255,255,255,.7);max-width:520px;margin:0 auto 2.4rem}
+/* CTA FINAL + FORM */
+.cta{background:radial-gradient(120% 130% at 20% 0%,var(--petrol-3),var(--petrol) 60%);color:#fff}
+.cta-grid{display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center}
+.cta-txt .eyebrow{color:var(--rose);display:inline-flex;align-items:center;gap:.7rem;margin-bottom:1rem}
+.cta-txt .eyebrow::before{content:"";width:34px;height:1px;background:var(--rose)}
+.cta-txt h2{font-family:var(--serif);font-size:clamp(2rem,3.6vw,2.9rem);font-weight:600;line-height:1.14;margin-bottom:1rem}
+.cta-txt h2 em{font-style:italic;color:var(--rose)}
+.cta-txt p{color:rgba(255,255,255,.7);margin-bottom:1.6rem}
+.cta-wpp{display:inline-flex;align-items:center;gap:.6rem;color:#fff;font-weight:600;border:1px solid rgba(255,255,255,.25);
+  padding:.8rem 1.5rem;border-radius:100px;transition:all .25s}
+.cta-wpp:hover{border-color:var(--rose);color:var(--rose)}
+.lead-form{background:var(--paper);border-radius:6px;padding:2.2rem;box-shadow:0 30px 70px rgba(0,0,0,.3)}
+.lead-form h3{font-family:var(--serif);font-size:1.4rem;color:var(--petrol);font-weight:600;margin-bottom:.3rem}
+.lead-form .sub{font-size:.84rem;color:var(--muted);margin-bottom:1.4rem}
+.lead-form label{display:block;font-size:.74rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--petrol);margin:0 0 .35rem}
+.lead-form input,.lead-form select,.lead-form textarea{width:100%;padding:.8rem .9rem;margin-bottom:1rem;border:1px solid var(--line);
+  border-radius:4px;font-family:var(--sans);font-size:.92rem;color:var(--ink);background:#fff;transition:border-color .2s}
+.lead-form input:focus,.lead-form select:focus,.lead-form textarea:focus{outline:none;border-color:var(--rose-2)}
+.lead-form textarea{resize:vertical;min-height:84px}
+.lead-form .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.lead-form button{width:100%;padding:1rem;border:0;border-radius:4px;background:var(--petrol);color:#fff;
+  font-family:var(--sans);font-weight:600;font-size:.95rem;cursor:pointer;transition:background .25s}
+.lead-form button:hover{background:var(--petrol-3)}
+.lead-form button:disabled{opacity:.6;cursor:default}
+.lead-form .lf-msg{font-size:.86rem;margin-top:.6rem;text-align:center;display:none}
+.lead-form .lf-msg.ok{display:block;color:#0a7b56}
+.lead-form .lf-msg.err{display:block;color:#c0392b}
+.lead-form .lf-priv{font-size:.7rem;color:var(--muted);text-align:center;margin-top:.8rem;line-height:1.5}
 
 /* FOOTER */
 .foot{background:#031417;color:rgba(255,255,255,.55);padding:4.5rem 0 2.5rem;font-size:.86rem}
@@ -267,6 +327,7 @@ section{position:relative}
   .about-grid{grid-template-columns:1fr;gap:2.5rem}
   .map-grid{grid-template-columns:1fr;gap:2.8rem}
   .map-vis{max-width:440px;margin:0 auto}
+  .cta-grid{grid-template-columns:1fr;gap:2.5rem}
   .steps{grid-template-columns:1fr;gap:2rem}
   .team-grid{grid-template-columns:1fr}
   .foot-grid{grid-template-columns:1fr;gap:2rem}
@@ -292,6 +353,7 @@ section{position:relative}
     <a href="#processo">Como Atuamos</a>
     <a href="#equipe">Equipe</a>
     <a href="#contato">Contato</a>
+    <a href="/salavip/" target="_blank" rel="noopener" title="Acompanhe seu processo na Central do Cliente">🔒 Área do Cliente</a>
     <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener" class="nav-cta">Agendar Consulta</a>
   </div>
   <button class="burger" onclick="document.querySelector('.nav-links').style.cssText='display:flex;position:absolute;top:100%;right:0;left:0;flex-direction:column;background:var(--petrol);padding:1.5rem 2rem;gap:1.2rem'">☰</button>
@@ -573,15 +635,82 @@ $grevRating = $grevOk && $grev['rating'] ? number_format($grev['rating'], 1, ','
   </div>
 </section>
 
-<!-- CTA FINAL -->
+<!-- CTA FINAL + FORM -->
 <section class="sec cta" id="contato">
-  <div class="wrap reveal">
-    <div class="eyebrow" style="color:var(--rose);justify-content:center;display:inline-flex;gap:.7rem">Vamos conversar</div>
-    <h2>O primeiro passo é<br>uma <em>conversa</em>.</h2>
-    <p>Conte sua situação. Sem compromisso, sem juridiquês. A gente te diz com clareza o que dá pra fazer.</p>
-    <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener" class="btn btn-gold" style="font-size:1rem">Falar agora pelo WhatsApp</a>
+  <div class="wrap cta-grid">
+    <div class="cta-txt reveal">
+      <div class="eyebrow">Vamos conversar</div>
+      <h2>O primeiro passo é<br>uma <em>conversa</em>.</h2>
+      <p>Conte sua situação. Sem compromisso, sem juridiquês. Recebemos sua mensagem e retornamos em até 24 horas úteis — ou fale agora mesmo pelo WhatsApp.</p>
+      <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener" class="cta-wpp">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M.057 24l1.687-6.163a11.867 11.867 0 01-1.587-5.945C.16 5.335 5.495 0 12.05 0a11.82 11.82 0 018.413 3.488 11.82 11.82 0 013.48 8.414c-.003 6.557-5.338 11.892-11.893 11.892a11.9 11.9 0 01-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884a9.86 9.86 0 001.51 5.26l-.999 3.648 3.978-1.207z"/></svg>
+        Falar agora pelo WhatsApp
+      </a>
+    </div>
+    <div class="lead-form reveal">
+      <h3>Solicite seu atendimento</h3>
+      <div class="sub">Preencha e nossa equipe entra em contato.</div>
+      <form id="leadForm" autocomplete="on">
+        <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <input type="hidden" name="ts" value="">
+        <input type="hidden" name="origem" value="site-home">
+        <input type="hidden" name="pagina" value="">
+        <label for="lfNome">Nome completo *</label>
+        <input id="lfNome" type="text" name="nome" required maxlength="120" placeholder="Seu nome">
+        <label for="lfFone">WhatsApp (com DDD) *</label>
+        <input id="lfFone" type="tel" name="telefone" required maxlength="20" placeholder="(24) 99999-9999">
+        <label for="lfEmail">E-mail</label>
+        <input id="lfEmail" type="email" name="email" maxlength="120" placeholder="seu@email.com (opcional)">
+        <label for="lfArea">Como podemos ajudar?</label>
+        <select id="lfArea" name="area">
+          <option value="">Selecione a área</option>
+          <option value="familia">Direito de Família</option>
+          <option value="sucessoes">Sucessões e Inventário</option>
+          <option value="imobiliario">Direito Imobiliário</option>
+          <option value="consumidor">Direito do Consumidor</option>
+          <option value="civel">Responsabilidade Civil</option>
+          <option value="contratos">Contratos e Cível</option>
+        </select>
+        <label for="lfMsg">Conte resumidamente seu caso</label>
+        <textarea id="lfMsg" name="mensagem" maxlength="1200" placeholder="Opcional — quanto mais detalhes, melhor podemos te orientar."></textarea>
+        <button type="submit" id="lfBtn">Enviar e ser contatado</button>
+        <div class="lf-msg" id="lfFeedback"></div>
+        <div class="lf-priv">Seus dados são tratados com sigilo e usados apenas para o seu atendimento.</div>
+      </form>
+    </div>
   </div>
 </section>
+<script>
+(function(){
+  var f=document.getElementById('leadForm'); if(!f) return;
+  f.ts.value=Date.now(); f.pagina.value=location.href.slice(0,300);
+  f.addEventListener('submit',function(e){
+    e.preventDefault();
+    var btn=document.getElementById('lfBtn'), fb=document.getElementById('lfFeedback');
+    fb.className='lf-msg'; fb.textContent='';
+    btn.disabled=true; var label=btn.textContent; btn.textContent='Enviando…';
+    fetch('/conecta/publico/lead_site.php',{method:'POST',body:new FormData(f)})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j&&j.ok){
+          f.reset();
+          fb.className='lf-msg ok';
+          fb.textContent='✓ Recebemos! Em breve nossa equipe entra em contato. Protocolo: '+(j.protocol||'OK');
+          btn.textContent='Enviado ✓';
+        }else{
+          fb.className='lf-msg err';
+          fb.textContent=(j&&j.error)?j.error:'Não foi possível enviar. Tente pelo WhatsApp.';
+          btn.disabled=false; btn.textContent=label;
+        }
+      })
+      .catch(function(){
+        fb.className='lf-msg err';
+        fb.textContent='Falha de conexão. Fale com a gente pelo WhatsApp.';
+        btn.disabled=false; btn.textContent=label;
+      });
+  });
+})();
+</script>
 
 <!-- FOOTER -->
 <footer class="foot">
@@ -590,6 +719,7 @@ $grevRating = $grevOk && $grev['rating'] ? number_format($grev['rating'], 1, ','
       <div>
         <div class="foot-logo">FERREIRA &amp; SÁ</div>
         <p style="color:rgba(255,255,255,.5);max-width:300px">Advocacia full service — Família, Sucessões, Imobiliário e Consumidor. Técnica, transparência e acolhimento em cada causa.</p>
+        <a href="/salavip/" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:.5rem;margin-top:1.2rem;border:1px solid rgba(215,171,144,.45);color:var(--rose);padding:.6rem 1.2rem;border-radius:100px;font-weight:600;font-size:.82rem;">🔒 Área do Cliente · acompanhe seu processo</a>
       </div>
       <div>
         <h5>Contato</h5>

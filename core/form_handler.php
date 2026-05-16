@@ -44,6 +44,11 @@ function process_form_submission($formType, $clientData, $payloadJson)
     $childrenNames = isset($clientData['children_names']) ? clean_str($clientData['children_names'], 500) : null;
     $gender = isset($clientData['gender']) ? clean_str($clientData['gender'], 20) : null;
 
+    // Para leads do site: área de interesse vira case_type e a mensagem vai
+    // pras observações do lead (Comercial vê direto no card do pipeline).
+    $caseType  = isset($clientData['case_type']) ? clean_str($clientData['case_type'], 60) : null;
+    $leadNotes = isset($clientData['lead_notes']) ? clean_str($clientData['lead_notes'], 2000) : null;
+
     // 1. Salvar em form_submissions
     $stmt = $pdo->prepare(
         "INSERT INTO form_submissions (form_type, protocol, client_name, client_email, client_phone, status, payload_json, ip_address, user_agent, created_at)
@@ -61,7 +66,9 @@ function process_form_submission($formType, $clientData, $payloadJson)
     //    CRM + Pipeline: SOMENTE para cadastro_cliente
     $clientId = null;
     $leadId = null;
-    $entersCrm = ($formType === 'cadastro_cliente');
+    // cadastro_cliente E leads vindos do site (site_lead, site_divorcio, etc.)
+    // entram no CRM + Pipeline.
+    $entersCrm = ($formType === 'cadastro_cliente') || (strpos($formType, 'site_') === 0);
 
     if ($name) {
         // Buscar cliente existente usando find_or_create_client se disponível
@@ -172,8 +179,8 @@ function process_form_submission($formType, $clientData, $payloadJson)
 
             if (!$existingLead) {
                 $pdo->prepare(
-                    "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, created_at) VALUES (?, ?, ?, 'landing', 'cadastro_preenchido', ?, NOW())"
-                )->execute(array($name, $phone, $email, $clientId));
+                    "INSERT INTO pipeline_leads (name, phone, email, source, stage, client_id, case_type, notes, created_at) VALUES (?, ?, ?, 'landing', 'cadastro_preenchido', ?, ?, ?, NOW())"
+                )->execute(array($name, $phone, $email, $clientId, $caseType, $leadNotes));
                 $leadId = (int)$pdo->lastInsertId();
 
                 $pdo->prepare("INSERT INTO pipeline_history (lead_id, to_stage, created_at) VALUES (?, 'cadastro_preenchido', NOW())")
@@ -191,6 +198,13 @@ function process_form_submission($formType, $clientData, $payloadJson)
         'calculadora' => 'Calculadora',
         'divorcio' => 'Divórcio',
         'alimentos' => 'Alimentos',
+        'site_lead' => 'Site — Contato',
+        'site_familia' => 'Site — Direito de Família',
+        'site_sucessoes' => 'Site — Sucessões/Inventário',
+        'site_imobiliario' => 'Site — Direito Imobiliário',
+        'site_consumidor' => 'Site — Direito do Consumidor',
+        'site_civel' => 'Site — Responsabilidade Civil/Cível',
+        'site_contratos' => 'Site — Contratos',
     );
     if (isset($tipoLabels[$formType])) $tipoLabel = $tipoLabels[$formType];
     notify_gestao(
