@@ -44,6 +44,22 @@ foreach ($convs as $c) {
 
 $conv = $convs[0];
 $cid = (int)$conv['id'];
+
+// Ação pontual: reatribui o atendente da conversa (destrava casos presos ao
+// atendente antigo enquanto o fix forward-looking não pega). Ex.: &aplicar_atendente=8
+$novoAt = (int)($_GET['aplicar_atendente'] ?? 0);
+if ($novoAt > 0) {
+    $pdo->prepare("UPDATE zapi_conversas SET atendente_id = ?, delegada = 0 WHERE id = ?")
+        ->execute(array($novoAt, $cid));
+    $nm = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+    $nm->execute(array($novoAt));
+    if (function_exists('audit_log')) {
+        @audit_log('zapi_diag_reatribui', 'zapi_conversas', $cid, "atendente_id=>{$novoAt}");
+    }
+    echo ">> CONVERSA #{$cid} reatribuída pra #{$novoAt} (" . ($nm->fetchColumn() ?: '?') . "). delegada=0.\n\n";
+    $conv['atendente_id'] = $novoAt;
+}
+
 echo "\n=== ANÁLISE DA CONVERSA #{$cid} ({$conv['nome_contato']}) ===\n";
 
 $an = $pdo->prepare("SELECT u.name FROM users u WHERE u.id = ?");
