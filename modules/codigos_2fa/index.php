@@ -100,7 +100,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if ($isAdmin): ?>
                     <div class="c2-card-actions">
                         <button onclick="c2Editar(<?= (int)$s['id'] ?>)" title="Editar">✏</button>
-                        <button onclick="c2Excluir(<?= (int)$s['id'] ?>, <?= json_encode($s['nome'], JSON_UNESCAPED_UNICODE) ?>)" title="Excluir">🗑</button>
+                        <button onclick="c2Excluir(<?= (int)$s['id'] ?>, <?= htmlspecialchars(json_encode($s['nome'], JSON_UNESCAPED_UNICODE), ENT_QUOTES) ?>)" title="Excluir">🗑</button>
                     </div>
                     <?php endif; ?>
                 </div>
