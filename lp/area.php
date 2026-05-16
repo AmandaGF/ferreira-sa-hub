@@ -211,7 +211,8 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
     </div>
     <div class="foot-bottom">
       &copy; <?= $ano ?> Ferreira &amp; Sá Sociedade de Advogados — CNPJ 51.294.223/0001-40 — OAB/RJ 5.987/2023<br>
-      Este site tem caráter meramente informativo, em conformidade com o Código de Ética e Disciplina da OAB.
+      Este site tem caráter meramente informativo, em conformidade com o Código de Ética e Disciplina da OAB.<br>
+      <a href="privacidade.php">Política de Privacidade &amp; LGPD</a>
     </div>
   </div>
 </footer>
