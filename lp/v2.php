@@ -30,10 +30,10 @@ $grevOk = !empty($grev['ok']) && !empty($grev['reviews']);
 <meta property="og:description" content="Advocacia com estratégia, técnica e acolhimento — Família, Sucessões, Imobiliário e Consumidor. Atendimento em todo o Brasil.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://ferreiraesa.com.br/conecta/assets/img/site/escritorio.jpg">
-<meta property="og:url" content="https://ferreiraesa.com.br/conecta/lp/v2.php">
+<meta property="og:url" content="https://ferreiraesa.com.br/">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="canonical" href="https://ferreiraesa.com.br/conecta/lp/v2.php">
-<link rel="icon" type="image/png" href="../assets/img/logo.png">
+<link rel="canonical" href="https://ferreiraesa.com.br/">
+<link rel="icon" type="image/png" href="/conecta/assets/img/logo.png">
 <?php
 $ld = array(
   '@context' => 'https://schema.org',
@@ -69,12 +69,12 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=2026051602">
+<link rel="stylesheet" href="/conecta/lp/site.css?v=2026051605">
 </head>
 <body>
 
 <nav class="nav" id="nav">
-  <a href="#topo" class="nav-logo" aria-label="Ferreira &amp; Sá Advocacia"><img src="../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia" onerror="this.parentNode.textContent='FERREIRA &amp; SÁ'"></a>
+  <a href="#topo" class="nav-logo" aria-label="Ferreira &amp; Sá Advocacia"><img src="/conecta/assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia" onerror="this.parentNode.textContent='FERREIRA &amp; SÁ'"></a>
   <div class="nav-links">
     <a href="#sobre">O Escritório</a>
     <a href="#areas">Áreas</a>
@@ -121,7 +121,7 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
 <section class="sec about" id="sobre">
   <div class="wrap about-grid">
     <div class="about-vis reveal">
-      <img src="../assets/img/site/escritorio.jpg" alt="Escritório Ferreira &amp; Sá Advocacia" loading="lazy">
+      <img src="/conecta/assets/img/site/escritorio.jpg" alt="Escritório Ferreira &amp; Sá Advocacia" loading="lazy">
       <div class="badge">Sociedade de advogados<br><span>OAB/RJ 5.987</span></div>
     </div>
     <div class="about-txt reveal">
@@ -143,37 +143,37 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
       <p>Atuação full service com a profundidade de quem é especialista — do acordo extrajudicial à disputa mais sensível.</p>
     </div>
     <div class="areas-grid reveal">
-      <a class="area" href="area.php?a=familia">
+      <a class="area" href="/conecta/lp/area.php?a=familia">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 21s-7-4.3-7-10a4 4 0 017-2.6A4 4 0 0119 11c0 5.7-7 10-7 10z"/></svg>
         <h3>Direito de Família</h3>
         <p>Divórcio, guarda, pensão alimentícia, união estável e medidas protetivas — conduzidos com técnica e acolhimento.</p>
         <span class="more">Saiba mais →</span>
       </a>
-      <a class="area" href="area.php?a=sucessoes">
+      <a class="area" href="/conecta/lp/area.php?a=sucessoes">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 20V9l8-5 8 5v11M9 20v-6h6v6"/></svg>
         <h3>Sucessões &amp; Inventário</h3>
         <p>Inventário judicial e extrajudicial, testamento, partilha e planejamento sucessório sem desgaste familiar.</p>
         <span class="more">Saiba mais →</span>
       </a>
-      <a class="area" href="area.php?a=imobiliario">
+      <a class="area" href="/conecta/lp/area.php?a=imobiliario">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M3 21h18M5 21V8l7-5 7 5v13M10 21v-6h4v6"/></svg>
         <h3>Direito Imobiliário</h3>
         <p>Compra e venda, contratos, regularização, distrato, usucapião e disputas sobre imóveis.</p>
         <span class="more">Saiba mais →</span>
       </a>
-      <a class="area" href="area.php?a=consumidor">
+      <a class="area" href="/conecta/lp/area.php?a=consumidor">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M6 2h9l4 4v16H6z"/><path d="M9 9h7M9 13h7M9 17h5"/></svg>
         <h3>Direito do Consumidor</h3>
         <p>Cobranças indevidas, negativação, produtos e serviços defeituosos e indenização por danos.</p>
         <span class="more">Saiba mais →</span>
       </a>
-      <a class="area" href="area.php?a=civel">
+      <a class="area" href="/conecta/lp/area.php?a=civel">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 3v18M5 7h14M7 7l-3 7a4 4 0 008 0L9 7M17 7l-3 7a4 4 0 008 0l-3-7"/></svg>
         <h3>Responsabilidade Civil</h3>
         <p>Reparação por danos morais e materiais, acidentes e indenizações com estratégia voltada ao resultado.</p>
         <span class="more">Saiba mais →</span>
       </a>
-      <a class="area" href="area.php?a=contratos">
+      <a class="area" href="/conecta/lp/area.php?a=contratos">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M8 3h8l3 3v15H5V6z"/><path d="M8 11h8M8 15h8"/><circle cx="12" cy="7.5" r="1.2"/></svg>
         <h3>Contratos &amp; Cível</h3>
         <p>Elaboração e revisão de contratos, cobranças, ações cíveis e prevenção de litígios.</p>
@@ -231,7 +231,7 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
 <section class="sec map-sec" id="atuacao">
   <div class="wrap map-grid">
     <div class="map-vis reveal">
-      <img src="../assets/img/site/mapa-brasil.png" alt="Mapa do Brasil — atuação Ferreira &amp; Sá Advocacia" loading="lazy">
+      <img src="/conecta/assets/img/site/mapa-brasil.png" alt="Mapa do Brasil — atuação Ferreira &amp; Sá Advocacia" loading="lazy">
     </div>
     <div class="map-txt reveal">
       <div class="eyebrow">Onde Atuamos</div>
@@ -262,7 +262,7 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
     </div>
     <div class="team-grid reveal">
       <div class="tc">
-        <div class="av"><img src="../assets/img/site/amanda.jpg" alt="Amanda Guedes Ferreira"></div>
+        <div class="av"><img src="/conecta/assets/img/site/amanda.jpg" alt="Amanda Guedes Ferreira"></div>
         <div>
           <h3>Amanda Guedes Ferreira</h3>
           <div class="oab">OAB/RJ 163.260 · Sócia-administradora</div>
@@ -270,7 +270,7 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
         </div>
       </div>
       <div class="tc">
-        <div class="av"><img src="../assets/img/site/luiz.png" alt="Luiz Eduardo de Sá Silva Marcelino"></div>
+        <div class="av"><img src="/conecta/assets/img/site/luiz.png" alt="Luiz Eduardo de Sá Silva Marcelino"></div>
         <div>
           <h3>Luiz Eduardo de Sá Silva Marcelino</h3>
           <div class="oab">OAB/RJ 248.755 · Sócio-administrador</div>
@@ -476,7 +476,7 @@ $grevRating = $grevOk && $grev['rating'] ? number_format($grev['rating'], 1, ','
     <div class="foot-bottom">
       &copy; <?= $ano ?> Ferreira &amp; Sá Sociedade de Advogados — CNPJ 51.294.223/0001-40 — OAB/RJ 5.987/2023<br>
       Este site tem caráter meramente informativo, em conformidade com o Código de Ética e Disciplina da OAB.<br>
-      <a href="privacidade.php">Política de Privacidade &amp; LGPD</a>
+      <a href="/conecta/lp/privacidade.php">Política de Privacidade &amp; LGPD</a>
     </div>
   </div>
 </footer>
