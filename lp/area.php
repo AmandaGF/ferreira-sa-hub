@@ -1,7 +1,7 @@
 <?php
 /**
  * LP por área de atuação — captura lead. /conecta/lp/area.php?a=<slug>
- * Compartilha lp/site.css. Form → /publico/lead_site.php (pipeline).
+ * Usa lp/area.css (estética quente, independente da home). Form → /publico/lead_site.php.
  */
 $wpp = '5524992050096';
 $wppMsg = rawurlencode('Olá! Vim pelo site e gostaria de conversar com um advogado.');
@@ -108,7 +108,7 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=2026051602">
+<link rel="stylesheet" href="area.css?v=2026051603">
 <script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 </head>
 <body>
@@ -154,6 +154,7 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
       <ul class="svc-list">
         <?php foreach ($A['itens'] as $it): ?><li><?= $e($it) ?></li><?php endforeach; ?>
       </ul>
+      <div class="afoto reveal"><img src="../assets/img/site/aperto-maos.jpg" alt="Atendimento próximo e de confiança — Ferreira &amp; Sá Advocacia" loading="lazy"></div>
       <h3>Como conduzimos</h3>
       <p>Primeiro a gente ouve. Depois apresenta um plano claro, com prazos realistas e honorários transparentes — você decide com toda a informação na mão. Durante o processo, acompanha cada andamento por um portal exclusivo e fala direto com quem cuida da sua causa, com retorno em até 24 horas úteis.</p>
       <?php if ($grevRating && $grevTotal): ?>
@@ -185,6 +186,14 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
         </form>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="aband">
+  <div class="wrap reveal">
+    <h2>Histórias que <em>terminaram bem</em> começam com uma conversa.</h2>
+    <p>Conte sua situação sem compromisso. A gente te diz com clareza o que dá pra fazer — e cuida do resto.</p>
+    <a href="#form" class="bcta">Falar com um advogado</a>
   </div>
 </section>
 

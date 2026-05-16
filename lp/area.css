@@ -1,0 +1,150 @@
+/* Ferreira & Sá — LPs por área (area.php). Estética QUENTE/ACOLHEDORA.
+   Independente do site.css da home (que continua azul). */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --petrol:#3a2f26; --rose:#c08552; --rose-2:#a96b3d; --gold:#c79a5b;
+  --cream:#faf5ee; --cream-2:#f3eadd; --paper:#fffdf9; --ink:#3b322b; --muted:#8a7d6e;
+  --line:rgba(58,47,38,.12); --hair:rgba(58,47,38,.18);
+  --serif:'Cormorant Garamond',Georgia,serif;
+  --sans:'Inter',system-ui,sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-height:1.85;-webkit-font-smoothing:antialiased}
+a{text-decoration:none;color:inherit}
+img{max-width:100%;display:block}
+section{position:relative}
+.wrap{max-width:1140px;margin:0 auto;padding:0 1.6rem}
+.eyebrow{font-size:.7rem;letter-spacing:.26em;text-transform:uppercase;font-weight:600;color:var(--rose-2)}
+.reveal{opacity:0;transform:translateY(22px);transition:opacity 1s ease,transform 1s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* NAV — quente, translúcida */
+.nav{position:fixed;inset:0 0 auto 0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:1.3rem 2.2rem;transition:background .35s,padding .35s,box-shadow .35s;
+  background:rgba(58,47,38,.28);backdrop-filter:blur(6px)}
+.nav.solid{background:rgba(255,253,249,.96);box-shadow:0 6px 26px rgba(58,47,38,.10);padding:.85rem 2.2rem}
+.nav-logo{display:flex;align-items:center}
+.nav-logo img{height:40px;width:auto;filter:brightness(0) invert(1);transition:filter .35s}
+.nav.solid .nav-logo img{filter:none}
+.nav-links{display:flex;align-items:center;gap:2rem}
+.nav-links a{color:rgba(255,255,255,.9);font-size:.74rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;transition:color .25s}
+.nav.solid .nav-links a{color:var(--petrol)}
+.nav-links a:hover{color:var(--rose)}
+.nav.solid .nav-links a:hover{color:var(--rose-2)}
+.nav-cta{border:1px solid rgba(255,255,255,.5);border-radius:100px;padding:.5rem 1.3rem}
+.nav.solid .nav-cta{border-color:var(--rose);color:var(--rose-2)!important}
+.nav-cta:hover{background:var(--rose);border-color:var(--rose);color:#fff!important}
+.burger{display:none;background:none;border:0;color:#fff;font-size:1.5rem;cursor:pointer}
+.nav.solid .burger{color:var(--petrol)}
+.mnav{position:fixed;inset:0;z-index:150;background:rgba(58,47,38,.98);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.7rem}
+.mnav.open{display:flex}
+.mnav a{color:#fff;font-size:1rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase}
+.mnav a:hover{color:var(--rose)}
+.mnav .mclose{position:absolute;top:1.5rem;right:1.8rem;background:none;border:0;color:#fff;font-size:2rem;cursor:pointer}
+
+/* HERO com foto (biblioteca) + zoom suave (ken-burns) + entradas animadas */
+.ahero{position:relative;color:#fff;padding:13rem 0 7rem;text-align:center;overflow:hidden;background:#2a1d12}
+.ahero::before{content:"";position:absolute;inset:-2%;z-index:0;
+  background:url("../assets/img/site/hero-biblioteca.jpg") center/cover no-repeat;
+  animation:kenburns 28s ease-in-out infinite alternate;will-change:transform}
+.ahero::after{content:"";position:absolute;inset:0;z-index:1;
+  background:linear-gradient(180deg,rgba(42,29,18,.74),rgba(42,29,18,.60) 45%,rgba(42,29,18,.80))}
+@keyframes kenburns{from{transform:scale(1.03)}to{transform:scale(1.16) translateY(-1.5%)}}
+@media(prefers-reduced-motion:reduce){.ahero::before{animation:none}}
+.hero-orbs{display:none}
+.ahero .wrap{position:relative;z-index:2}
+.ahero .crumbs{font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.65);
+  margin-bottom:1.6rem;animation:fadeup .8s ease both}
+.ahero .crumbs a{color:rgba(255,255,255,.85)}
+.ahero .crumbs a:hover{color:var(--gold)}
+.ahero .eyebrow{display:inline-block;color:var(--gold);margin-bottom:1.3rem;animation:fadeup .8s ease .1s both}
+.ahero h1{font-family:var(--serif);font-size:clamp(2.3rem,5vw,4rem);font-weight:600;line-height:1.14;
+  max-width:880px;margin:0 auto 1.3rem;letter-spacing:.01em;animation:fadeup .9s ease .2s both}
+.ahero h1 em{font-style:italic;color:var(--gold)}
+.ahero p{font-size:1.08rem;color:rgba(255,255,255,.85);max-width:620px;margin:0 auto;line-height:1.9;
+  animation:fadeup .9s ease .35s both}
+@keyframes fadeup{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
+
+/* CONTEÚDO */
+.sec{padding:6rem 0}
+.acontent{display:grid;grid-template-columns:1.25fr 1fr;gap:4.5rem;align-items:start}
+.aprose h2{font-family:var(--serif);font-size:clamp(1.8rem,3vw,2.4rem);color:var(--petrol);font-weight:600;margin:0 0 1rem}
+.aprose h3{font-family:var(--serif);font-size:1.4rem;color:var(--petrol);font-weight:600;margin:2.4rem 0 .8rem}
+.aprose p{color:var(--muted);margin-bottom:1.1rem;font-size:.98rem;line-height:1.9}
+.aprose strong{color:var(--petrol)}
+.svc-list{list-style:none;margin:1.2rem 0 0;display:grid;gap:.8rem}
+.svc-list li{position:relative;padding-left:1.9rem;color:var(--ink);font-size:.95rem}
+.svc-list li::before{content:"";position:absolute;left:0;top:.55em;width:10px;height:10px;border-radius:50%;
+  background:var(--rose);box-shadow:0 0 0 4px rgba(192,133,82,.18)}
+.afoto{margin:2.4rem 0 0;border-radius:16px;overflow:hidden;box-shadow:0 24px 50px rgba(58,47,38,.18)}
+.afoto img{width:100%;height:240px;object-fit:cover;display:block}
+
+/* FORM acolhedor */
+.aside-form{position:sticky;top:96px}
+.lead-form{background:var(--paper);border-radius:18px;padding:2.6rem;box-shadow:0 26px 60px rgba(58,47,38,.16);
+  border:1px solid var(--line)}
+.lead-form h3{font-family:var(--serif);font-size:1.6rem;color:var(--petrol);font-weight:600;margin-bottom:.35rem}
+.lead-form .sub{font-size:.86rem;color:var(--muted);margin-bottom:1.7rem;line-height:1.6}
+.lead-form label{display:block;font-size:.66rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 .4rem}
+.lead-form input,.lead-form select,.lead-form textarea{width:100%;padding:.85rem 1rem;margin-bottom:1.2rem;
+  border:1px solid var(--hair);border-radius:10px;font-family:var(--sans);font-size:.94rem;color:var(--ink);
+  background:var(--cream);transition:border-color .2s,background .2s}
+.lead-form input:focus,.lead-form select:focus,.lead-form textarea:focus{outline:none;border-color:var(--rose);background:#fff}
+.lead-form textarea{resize:vertical;min-height:78px}
+.lead-form .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.lead-form button{width:100%;padding:1.05rem;border:0;border-radius:100px;
+  background:linear-gradient(135deg,var(--rose),var(--rose-2));color:#fff;
+  font-family:var(--sans);font-weight:700;font-size:.84rem;letter-spacing:.1em;text-transform:uppercase;
+  cursor:pointer;transition:transform .25s,box-shadow .25s}
+.lead-form button:hover{transform:translateY(-2px);box-shadow:0 14px 30px rgba(169,107,61,.34)}
+.lead-form button:disabled{opacity:.55;cursor:default;transform:none;box-shadow:none}
+.lead-form .lf-msg{font-size:.86rem;margin-top:.7rem;text-align:center;display:none}
+.lead-form .lf-msg.ok{display:block;color:#0a7b56}
+.lead-form .lf-msg.err{display:block;color:#c0392b}
+.lead-form .lf-priv{font-size:.7rem;color:var(--muted);text-align:center;margin-top:1rem;line-height:1.6}
+
+/* FAIXA quente (foto resultado) */
+.aband{position:relative;color:#fff;text-align:center;padding:6rem 0;
+  background:linear-gradient(rgba(58,38,22,.74),rgba(58,38,22,.74)),
+    url("../assets/img/site/resultado.jpg") center/cover no-repeat}
+.aband h2{font-family:var(--serif);font-size:clamp(1.8rem,3.4vw,2.6rem);font-weight:600;max-width:720px;margin:0 auto 1rem}
+.aband h2 em{font-style:italic;color:var(--gold)}
+.aband p{color:rgba(255,255,255,.85);max-width:560px;margin:0 auto 2rem}
+.aband .bcta{display:inline-flex;align-items:center;gap:.6rem;background:var(--rose);color:#fff;
+  padding:.95rem 2rem;border-radius:100px;font-weight:700;font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;
+  transition:transform .25s,background .25s}
+.aband .bcta:hover{transform:translateY(-2px);background:var(--rose-2)}
+
+/* FOOTER quente */
+.foot{background:var(--petrol);color:rgba(255,255,255,.62);padding:5rem 0 2.5rem;font-size:.86rem}
+.foot-grid{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:3.5rem;margin-bottom:3.5rem}
+.foot h5{color:#fff;font-family:var(--serif);font-size:1.05rem;font-weight:600;margin-bottom:1.1rem;letter-spacing:.04em}
+.foot a{color:rgba(255,255,255,.62);transition:color .25s}
+.foot a:hover{color:var(--gold)}
+.foot p{margin-bottom:.6rem;line-height:1.7}
+.foot-logo{font-family:var(--serif);font-size:1.5rem;color:#fff;font-weight:700;letter-spacing:.06em;margin-bottom:1rem}
+.foot-bottom{border-top:1px solid rgba(255,255,255,.12);padding-top:2.2rem;text-align:center;
+  font-size:.72rem;color:rgba(255,255,255,.45);line-height:1.9}
+.foot-bottom a{color:var(--gold)}
+
+/* WhatsApp float */
+.wpp{position:fixed;right:1.7rem;bottom:1.7rem;z-index:200;width:56px;height:56px;border-radius:50%;
+  background:#25D366;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 12px 30px rgba(37,211,102,.42);transition:transform .3s}
+.wpp svg{width:28px;height:28px}
+.wpp:hover{transform:scale(1.08)}
+
+@media(max-width:960px){
+  .acontent{grid-template-columns:1fr;gap:3rem}
+  .aside-form{position:static}
+  .foot-grid{grid-template-columns:1fr;gap:2.5rem}
+  .ahero{background-attachment:scroll}
+}
+@media(max-width:680px){
+  .nav-links{display:none}
+  .burger{display:block}
+  .ahero{padding:10rem 0 5rem}
+  .sec{padding:4rem 0}
+}
