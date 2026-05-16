@@ -97,23 +97,27 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
   <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener">Agendar Consulta</a>
 </div>
 
-<!-- HERO -->
+<!-- HERO minimalista -->
 <header class="hero" id="topo">
-  <div class="hero-orbs"><span></span><span></span><span></span></div>
   <div class="wrap hero-inner">
-    <div class="eyebrow">Advocacia Full Service · OAB/RJ 5.987/2023</div>
-    <h1>Decisões difíceis<br>merecem advocacia<br><em>de verdade.</em></h1>
-    <p class="lead">Família, Sucessões, Imobiliário, Consumidor e mais — conduzidos com estratégia técnica e o acolhimento que cada caso exige. Você não enfrenta isso sozinho.</p>
+    <div class="hero-mono"><span>F&amp;S</span></div>
+    <span class="kicker">Advocacia Especializada · OAB/RJ 5.987</span>
+    <h1>Decisões difíceis merecem<br>advocacia <em>de verdade</em></h1>
+    <p class="lead">Conduzimos cada causa com estratégia técnica e o acolhimento que o momento exige. Você não enfrenta isso sozinho.</p>
+    <div class="hero-areas">
+      <span>Família</span><span>Sucessões</span><span>Imobiliário</span><span>Consumidor</span><span>Responsabilidade Civil</span><span>Contratos</span>
+    </div>
     <div class="hero-btns">
       <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener" class="btn btn-gold">Falar com um advogado</a>
-      <a href="#areas" class="btn btn-ghost">Conheça nossas áreas</a>
+      <a href="#areas" class="btn btn-ghost">Nossas áreas</a>
     </div>
     <div class="hero-trust">
       <div><div class="t-num">+1.000</div><div class="t-lbl">Famílias atendidas</div></div>
-      <div><div class="t-num">100%</div><div class="t-lbl">Atendimento digital</div></div>
+      <div><div class="t-num">5,0★</div><div class="t-lbl">no Google</div></div>
       <div><div class="t-num">24h</div><div class="t-lbl">Retorno garantido</div></div>
       <div><div class="t-num">Brasil</div><div class="t-lbl">Atuação nacional</div></div>
     </div>
+    <div class="hero-rule"></div>
   </div>
 </header>
 
