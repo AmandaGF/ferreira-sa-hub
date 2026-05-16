@@ -7,6 +7,16 @@
 $ano = date('Y');
 $wpp = '5524992050096';
 $wppMsg = rawurlencode('Olá! Vim pelo site e gostaria de conversar com um advogado.');
+
+// Avaliações reais do Google (Places API + cache). Falha silenciosa: sem
+// chave/sem rede mantém o placeholder. Nunca derruba a página.
+$grev = array('ok' => false);
+try {
+    require_once __DIR__ . '/../core/database.php';
+    require_once __DIR__ . '/../core/google_reviews.php';
+    $grev = google_reviews_get();
+} catch (Throwable $e) { $grev = array('ok' => false); }
+$grevOk = !empty($grev['ok']) && !empty($grev['reviews']);
 ?>
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -477,6 +487,9 @@ section{position:relative}
 // curta do perfil quando tiver (ex.: g.page/...).
 $googleUrl = 'https://www.google.com/maps/search/?api=1&query=' . rawurlencode('Ferreira e Sá Advocacia Especializada Barra Mansa');
 $gLogo = '<svg class="grev-g" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.27-4.74 3.27-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0012 23z"/><path fill="#FBBC05" d="M5.84 14.1a6.6 6.6 0 010-4.2V7.06H2.18a11 11 0 000 9.88l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A11 11 0 002.18 7.06l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38z"/></svg>';
+$googleUrl = $grevOk && !empty($grev['url']) ? $grev['url'] : $googleUrl;
+function _grev_estrelas($n) { $n = max(0, min(5, (int)round($n))); return str_repeat('★', $n) . str_repeat('☆', 5 - $n); }
+$grevRating = $grevOk && $grev['rating'] ? number_format($grev['rating'], 1, ',', '') : '5,0';
 ?>
 <section class="sec">
   <div class="wrap">
@@ -488,45 +501,44 @@ $gLogo = '<svg class="grev-g" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56
     <div class="grev-head reveal">
       <div class="grev-badge">
         <?= $gLogo ?>
-        <span class="gscore">5,0</span>
+        <span class="gscore"><?= $grevRating ?></span>
         <span>
-          <span class="gstars">★★★★★</span><br>
-          <span class="gmeta">Avaliações verificadas no Google</span>
+          <span class="gstars"><?= _grev_estrelas($grevOk && $grev['rating'] ? $grev['rating'] : 5) ?></span><br>
+          <span class="gmeta"><?= $grevOk && $grev['total'] ? ((int)$grev['total'] . ' avaliações no Google') : 'Avaliações verificadas no Google' ?></span>
         </span>
       </div>
-      <span class="ph-tag">confirmar nota e nº de avaliações reais</span>
+      <?php if (!$grevOk): ?><span class="ph-tag">conecte a chave da Places API (set_google_reviews.php) pra puxar as reais</span><?php endif; ?>
     </div>
     <div class="grev-grid reveal">
-      <div class="grev">
-        <div class="grev-top">
-          <div class="grev-av">M</div>
-          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
-          <?= $gLogo ?>
+      <?php if ($grevOk): ?>
+        <?php foreach (array_slice($grev['reviews'], 0, 6) as $rv):
+          $ini = mb_strtoupper(mb_substr(trim($rv['author']), 0, 1)); ?>
+        <div class="grev">
+          <div class="grev-top">
+            <div class="grev-av"><?= htmlspecialchars($ini ?: 'C', ENT_QUOTES) ?></div>
+            <div class="grev-id"><b><?= htmlspecialchars($rv['author'], ENT_QUOTES) ?></b><span class="gstars"><?= _grev_estrelas($rv['rating']) ?></span></div>
+            <?= $gLogo ?>
+          </div>
+          <p><?= nl2br(htmlspecialchars(mb_strimwidth($rv['text'], 0, 320, '…'), ENT_QUOTES)) ?></p>
+          <?php if (!empty($rv['relative'])): ?><div class="gdate"><?= htmlspecialchars($rv['relative'], ENT_QUOTES) ?></div><?php endif; ?>
         </div>
-        <p>[ Cole aqui uma avaliação real do Google ]</p>
-        <div class="gdate">há 2 meses</div>
-      </div>
-      <div class="grev">
-        <div class="grev-top">
-          <div class="grev-av">R</div>
-          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
-          <?= $gLogo ?>
+        <?php endforeach; ?>
+      <?php else: ?>
+        <?php foreach (array('M','R','J') as $ini): ?>
+        <div class="grev">
+          <div class="grev-top">
+            <div class="grev-av"><?= $ini ?></div>
+            <div class="grev-id"><b>Cliente Google</b><span class="gstars">★★★★★</span></div>
+            <?= $gLogo ?>
+          </div>
+          <p>As avaliações reais aparecem aqui automaticamente assim que a chave da Places API for cadastrada.</p>
+          <div class="gdate">—</div>
         </div>
-        <p>[ Cole aqui uma avaliação real do Google ]</p>
-        <div class="gdate">há 3 meses</div>
-      </div>
-      <div class="grev">
-        <div class="grev-top">
-          <div class="grev-av">J</div>
-          <div class="grev-id"><b>Nome do cliente</b><span class="gstars">★★★★★</span></div>
-          <?= $gLogo ?>
-        </div>
-        <p>[ Cole aqui uma avaliação real do Google ]</p>
-        <div class="gdate">há 5 meses</div>
-      </div>
+        <?php endforeach; ?>
+      <?php endif; ?>
     </div>
     <div style="text-align:center;">
-      <a href="<?= $googleUrl ?>" target="_blank" rel="noopener" class="grev-cta reveal">
+      <a href="<?= htmlspecialchars($googleUrl, ENT_QUOTES) ?>" target="_blank" rel="noopener" class="grev-cta reveal">
         <?= $gLogo ?> Ver todas as avaliações no Google →
       </a>
     </div>
