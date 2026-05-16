@@ -230,7 +230,7 @@ section{position:relative}
 <body>
 
 <nav class="nav" id="nav">
-  <a href="#topo" class="nav-logo"><img src="../assets/img/logo.png" alt="Ferreira &amp; Sá" onerror="this.style.display='none'">FERREIRA &amp; SÁ</a>
+  <a href="#topo" class="nav-logo" aria-label="Ferreira &amp; Sá Advocacia"><img src="../assets/img/logo.png" alt="Ferreira &amp; Sá Advocacia" onerror="this.parentNode.textContent='FERREIRA &amp; SÁ'"></a>
   <div class="nav-links">
     <a href="#sobre">O Escritório</a>
     <a href="#areas">Áreas</a>
