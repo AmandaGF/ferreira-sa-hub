@@ -111,9 +111,9 @@ section{position:relative}
 .about-vis{position:relative;aspect-ratio:4/5;border-radius:3px;overflow:hidden;
   background:linear-gradient(150deg,var(--petrol),var(--petrol-3));display:flex;align-items:flex-end;
   box-shadow:0 30px 70px rgba(5,34,40,.22)}
-.about-vis .ph-note{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-  color:rgba(255,255,255,.4);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;text-align:center;padding:2rem}
-.about-vis .badge{position:absolute;left:1.6rem;bottom:1.6rem;background:rgba(255,255,255,.94);color:var(--petrol);
+.about-vis img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center top}
+.about-vis::after{content:"";position:absolute;inset:0;background:linear-gradient(to top,rgba(5,34,40,.55),transparent 45%)}
+.about-vis .badge{position:absolute;left:1.6rem;bottom:1.6rem;z-index:2;background:rgba(255,255,255,.94);color:var(--petrol);
   padding:1rem 1.4rem;border-radius:2px;font-size:.78rem;font-weight:600;letter-spacing:.05em}
 .about-vis .badge span{display:block;font-family:var(--serif);font-size:1.5rem;font-weight:700;color:var(--rose-2)}
 .about-txt h2{font-family:var(--serif);font-size:clamp(1.9rem,3.4vw,2.7rem);font-weight:600;color:var(--petrol);
@@ -156,11 +156,9 @@ section{position:relative}
 .team{background:var(--cream)}
 .team-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem;max-width:880px;margin:0 auto}
 .tc{background:var(--paper);border:1px solid var(--line);border-radius:3px;padding:2.6rem;display:flex;gap:1.6rem;align-items:flex-start}
-.tc .av{flex-shrink:0;width:96px;height:96px;border-radius:50%;background:linear-gradient(150deg,var(--petrol),var(--petrol-3));
-  display:flex;align-items:center;justify-content:center;color:var(--rose);font-family:var(--serif);font-size:1.7rem;font-weight:700;
-  border:2px solid var(--rose);position:relative}
-.tc .av::after{content:"foto";position:absolute;bottom:-1.4rem;left:50%;transform:translateX(-50%);
-  font-family:var(--sans);font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);opacity:.6}
+.tc .av{flex-shrink:0;width:108px;height:108px;border-radius:50%;overflow:hidden;
+  background:linear-gradient(150deg,var(--petrol),var(--petrol-3));border:2px solid var(--rose);position:relative}
+.tc .av img{width:100%;height:100%;object-fit:cover;object-position:center top}
 .tc h3{font-family:var(--serif);font-size:1.35rem;font-weight:600;color:var(--petrol)}
 .tc .oab{font-size:.76rem;font-weight:600;letter-spacing:.06em;color:var(--rose-2);text-transform:uppercase;margin:.2rem 0 .7rem}
 .tc p{font-size:.88rem;color:var(--muted);line-height:1.6}
@@ -268,7 +266,7 @@ section{position:relative}
 <section class="sec about" id="sobre">
   <div class="wrap about-grid">
     <div class="about-vis reveal">
-      <div class="ph-note">[ Foto da equipe / escritório<br>entra aqui ]</div>
+      <img src="../assets/img/site/amanda.jpg" alt="Dra. Amanda Guedes Ferreira" loading="lazy">
       <div class="badge">Sociedade de advogados<br><span>OAB/RJ 5.987</span></div>
     </div>
     <div class="about-txt reveal">
@@ -383,7 +381,7 @@ section{position:relative}
     </div>
     <div class="team-grid reveal">
       <div class="tc">
-        <div class="av">AF</div>
+        <div class="av"><img src="../assets/img/site/amanda.jpg" alt="Amanda Guedes Ferreira"></div>
         <div>
           <h3>Amanda Guedes Ferreira</h3>
           <div class="oab">OAB/RJ 163.260 · Sócia-administradora</div>
@@ -391,7 +389,7 @@ section{position:relative}
         </div>
       </div>
       <div class="tc">
-        <div class="av">LE</div>
+        <div class="av"><img src="../assets/img/site/luiz.png" alt="Luiz Eduardo de Sá Silva Marcelino"></div>
         <div>
           <h3>Luiz Eduardo de Sá Silva Marcelino</h3>
           <div class="oab">OAB/RJ 248.755 · Sócio-administrador</div>
