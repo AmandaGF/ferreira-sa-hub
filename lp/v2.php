@@ -152,6 +152,24 @@ section{position:relative}
 .dif h4{font-size:.92rem;font-weight:700;color:var(--petrol);margin:.7rem 0 .4rem;letter-spacing:.02em}
 .dif p{font-size:.82rem;color:var(--muted)}
 
+/* ONDE ATUAMOS */
+.map-sec{background:var(--petrol);color:#fff;overflow:hidden}
+.map-sec::after{content:"";position:absolute;left:-10%;top:20%;width:480px;height:480px;border-radius:50%;
+  background:radial-gradient(circle,rgba(215,171,144,.12),transparent 65%);pointer-events:none}
+.map-grid{display:grid;grid-template-columns:1.05fr 1fr;gap:4.5rem;align-items:center;position:relative;z-index:2}
+.map-vis{background:var(--cream);border-radius:4px;padding:2.4rem;box-shadow:0 34px 80px rgba(0,0,0,.34)}
+.map-vis img{width:100%;height:auto;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.12))}
+.map-txt .eyebrow{display:inline-flex;align-items:center;gap:.7rem;color:var(--rose);margin-bottom:1.1rem}
+.map-txt .eyebrow::before{content:"";width:34px;height:1px;background:var(--rose)}
+.map-txt h2{font-family:var(--serif);font-size:clamp(1.9rem,3.4vw,2.7rem);font-weight:600;line-height:1.16;margin-bottom:1.1rem}
+.map-txt h2 em{font-style:italic;color:var(--rose)}
+.map-txt .sub{color:rgba(255,255,255,.66);margin-bottom:1.8rem}
+.cov{display:flex;gap:1.1rem;padding:1.15rem 0;border-bottom:1px solid rgba(255,255,255,.1)}
+.cov:last-child{border-bottom:0}
+.cov svg{width:26px;height:26px;color:var(--rose);flex-shrink:0;margin-top:2px}
+.cov b{display:block;font-size:.98rem;color:#fff;font-weight:600}
+.cov span{font-size:.86rem;color:rgba(255,255,255,.6)}
+
 /* EQUIPE */
 .team{background:var(--cream)}
 .team-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2rem;max-width:880px;margin:0 auto}
@@ -212,6 +230,8 @@ section{position:relative}
   .dif-grid{grid-template-columns:repeat(2,1fr);gap:2.5rem 1.5rem}
   .quotes-grid{grid-template-columns:1fr}
   .about-grid{grid-template-columns:1fr;gap:2.5rem}
+  .map-grid{grid-template-columns:1fr;gap:2.8rem}
+  .map-vis{max-width:440px;margin:0 auto}
   .steps{grid-template-columns:1fr;gap:2rem}
   .team-grid{grid-template-columns:1fr}
   .foot-grid{grid-template-columns:1fr;gap:2rem}
@@ -254,7 +274,7 @@ section{position:relative}
       <a href="#areas" class="btn btn-ghost">Conheça nossas áreas</a>
     </div>
     <div class="hero-trust">
-      <div><div class="t-num">+1.000</div><div class="t-lbl">Famílias atendidas*</div></div>
+      <div><div class="t-num">+1.000</div><div class="t-lbl">Famílias atendidas</div></div>
       <div><div class="t-num">100%</div><div class="t-lbl">Atendimento digital</div></div>
       <div><div class="t-num">24h</div><div class="t-lbl">Retorno garantido</div></div>
       <div><div class="t-num">Brasil</div><div class="t-lbl">Atuação nacional</div></div>
@@ -364,10 +384,36 @@ section{position:relative}
       <h2>Confiança que se constrói no detalhe</h2>
     </div>
     <div class="dif-grid reveal">
-      <div class="dif"><div class="num">+10<small>anos</small></div><h4>Experiência consolidada*</h4><p>Atuação dedicada em Direito de Família e Sucessões.</p></div>
+      <div class="dif"><div class="num">+10<small>anos</small></div><h4>Experiência consolidada</h4><p>Atuação dedicada em Direito de Família e Sucessões.</p></div>
       <div class="dif"><div class="num">5<small>cidades</small></div><h4>Presença regional</h4><p>Resende, Volta Redonda, Barra Mansa, Rio de Janeiro e São Paulo.</p></div>
       <div class="dif"><div class="num">24<small>h</small></div><h4>Retorno garantido</h4><p>Toda consulta respondida em até 24 horas úteis.</p></div>
       <div class="dif"><div class="num">100<small>%</small></div><h4>Transparência</h4><p>Portal próprio para acompanhar seu processo em tempo real.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ONDE ATUAMOS -->
+<section class="sec map-sec" id="atuacao">
+  <div class="wrap map-grid">
+    <div class="map-vis reveal">
+      <img src="../assets/img/site/mapa-brasil.png" alt="Mapa do Brasil — atuação Ferreira &amp; Sá Advocacia" loading="lazy">
+    </div>
+    <div class="map-txt reveal">
+      <div class="eyebrow">Onde Atuamos</div>
+      <h2>Para nós, não existe<br><em>distância física.</em></h2>
+      <p class="sub">Sede em Resende–RJ, presença consolidada no Sul Fluminense e atendimento 100% digital para clientes em todo o Brasil. Vamos até você, onde quer que esteja.</p>
+      <div class="cov">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 21s-7-4.3-7-10a7 7 0 1114 0c0 5.7-7 10-7 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
+        <div><b>Sede física — Resende / RJ</b><span>Atendimento presencial em ambiente dedicado.</span></div>
+      </div>
+      <div class="cov">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M3.5 9h17M3.5 15h17M12 3a14 14 0 000 18M12 3a14 14 0 010 18"/></svg>
+        <div><b>Região Sul Fluminense &amp; RJ</b><span>Resende, Volta Redonda, Barra Mansa, Rio de Janeiro e região.</span></div>
+      </div>
+      <div class="cov">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="10" cy="17" r="1.4" fill="currentColor"/></svg>
+        <div><b>Todo o Brasil — 100% online</b><span>Consulta, assinatura e acompanhamento digitais, de qualquer cidade.</span></div>
+      </div>
     </div>
   </div>
 </section>
@@ -489,7 +535,7 @@ section{position:relative}
     </div>
     <div class="foot-bottom">
       &copy; <?= $ano ?> Ferreira &amp; Sá Sociedade de Advogados — CNPJ 51.294.223/0001-40 — OAB/RJ 5.987/2023<br>
-      Este site tem caráter meramente informativo, em conformidade com o Código de Ética e Disciplina da OAB. * Números a confirmar.
+      Este site tem caráter meramente informativo, em conformidade com o Código de Ética e Disciplina da OAB.
     </div>
   </div>
 </footer>
