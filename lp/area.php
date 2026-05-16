@@ -108,7 +108,7 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="area.css?v=2026051603">
+<link rel="stylesheet" href="area.css?v=2026051604">
 <script type="application/ld+json"><?= json_encode($ld, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) ?></script>
 </head>
 <body>
@@ -135,7 +135,7 @@ if ($grevRating && $grevTotal) $ld['aggregateRating'] = array('@type'=>'Aggregat
   <a href="https://wa.me/<?= $wpp ?>?text=<?= $wppMsg ?>" target="_blank" rel="noopener">Agendar Consulta</a>
 </div>
 
-<header class="ahero">
+<header class="ahero" data-area="<?= $e($slug) ?>">
   <div class="hero-orbs"><span></span><span></span><span></span></div>
   <div class="wrap" style="position:relative;z-index:2;">
     <div class="crumbs"><a href="v2.php">Início</a> · <a href="v2.php#areas">Áreas</a> · <?= $e($A['nome']) ?></div>

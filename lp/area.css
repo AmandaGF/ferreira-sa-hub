@@ -48,6 +48,13 @@ section{position:relative}
 .ahero::before{content:"";position:absolute;inset:-2%;z-index:0;
   background:url("../assets/img/site/hero-biblioteca.jpg") center/cover no-repeat;
   animation:kenburns 28s ease-in-out infinite alternate;will-change:transform}
+/* imagem temática por área */
+.ahero[data-area="familia"]::before{background-image:url("../assets/img/site/hero-familia.jpg")}
+.ahero[data-area="sucessoes"]::before{background-image:url("../assets/img/site/hero-sucessoes.jpg")}
+.ahero[data-area="imobiliario"]::before{background-image:url("../assets/img/site/hero-imobiliario.jpg")}
+.ahero[data-area="consumidor"]::before{background-image:url("../assets/img/site/hero-consumidor.jpg")}
+.ahero[data-area="civel"]::before{background-image:url("../assets/img/site/hero-civel.jpg")}
+.ahero[data-area="contratos"]::before{background-image:url("../assets/img/site/hero-contratos.jpg")}
 .ahero::after{content:"";position:absolute;inset:0;z-index:1;
   background:linear-gradient(180deg,rgba(42,29,18,.74),rgba(42,29,18,.60) 45%,rgba(42,29,18,.80))}
 @keyframes kenburns{from{transform:scale(1.03)}to{transform:scale(1.16) translateY(-1.5%)}}
