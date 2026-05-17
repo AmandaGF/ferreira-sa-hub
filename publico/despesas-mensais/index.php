@@ -108,10 +108,19 @@ textarea{resize:vertical;min-height:70px}
   .row{grid-template-columns:1fr}
   .header h1{font-size:1.15rem}
   .card{padding:20px 16px}
-  .pill{width:24px;height:24px;font-size:10px}
+  /* pills maiores e tocáveis (antes 24px sem rótulo = ilegível no cel) */
+  .pill{min-width:40px;height:40px;padding:0 10px;font-size:.72rem;gap:4px}
+  .pill .pillIcon{font-size:1.05rem}
+  .progressWrap{padding:10px}
   .progLine{width:8px}
   .btnRow{flex-direction:column}
-  .btn{width:100%;text-align:center}
+  .btn{width:100%;text-align:center;padding:14px 20px;font-size:1rem}
+  /* 16px evita o zoom automático do iOS a cada campo + alvo de toque maior */
+  input[type="text"],input[type="tel"],input[type="email"],input[type="number"],select,textarea{
+    font-size:16px;padding:13px 14px
+  }
+  label{font-size:.9rem}
+  .card h2{font-size:1.2rem}
 }
 /* divider helper */
 .divider{border:none;border-top:1px solid var(--border);margin:18px 0}
