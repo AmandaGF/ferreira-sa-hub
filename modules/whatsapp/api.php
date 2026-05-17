@@ -1281,6 +1281,9 @@ if ($action === 'exportar_conversa') {
 
     if ($destinoFolder !== '') {
         $up = upload_file_to_drive($destinoFolder, $nomeArq, $publicUrl, 'text/plain');
+        @file_put_contents(APP_ROOT . '/files/wa_export_debug.log',
+            date('Y-m-d H:i:s') . " conv={$convId} url={$publicUrl} folder=" . substr($destinoFolder, 0, 80)
+            . " => " . json_encode($up, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND);
         if (empty($up['success'])) {
             echo json_encode(array('error' => 'Falha ao salvar no Drive: ' . ($up['error'] ?? '?'), 'download_url' => $publicUrl));
             exit;

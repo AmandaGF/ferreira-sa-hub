@@ -1,0 +1,20 @@
+# Permite acesso público aos .txt de conversa exportada.
+# O Google Apps Script baixa o arquivo via HTTPS (anônimo) pra subir no
+# Drive — sem este "Require all granted" o /files/ fica bloqueado e o
+# upload falha (o arquivo só abria no navegador da atendente logada).
+
+<IfModule mod_mime.c>
+    AddType text/plain .txt
+</IfModule>
+
+<IfModule mod_authz_core.c>
+    Require all granted
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Allow from all
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=3600"
+</IfModule>
