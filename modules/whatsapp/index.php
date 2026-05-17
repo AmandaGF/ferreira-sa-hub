@@ -751,6 +751,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
+        actions += '<button onclick="waExportarConversa()" title="Exportar a conversa em .txt e salvar no Drive do processo da cliente" style="background:#0f766e;color:#fff;border-color:#0f766e;">📄 Exportar</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         // ✏️ Nº disponível pra todo atendente — Naiara/CX/Operacional precisam
         // corrigir números malformados sem depender de Amanda/Luiz.
@@ -2411,6 +2412,64 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
             })
             .catch(function(err){ alert('❌ Erro: ' + err.message); });
+    };
+
+    // ── EXPORTAR CONVERSA (.txt → Drive do processo) ────────
+    window._waExpUpload = function(folder, downloadUrl) {
+        var fd = new FormData();
+        fd.append('action', 'exportar_conversa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('destino_folder', folder);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd }).then(function(r){ return r.json(); }).then(function(j){
+            if (j && j.ok && j.salvou_drive) {
+                alert('✓ Conversa salva no Drive do processo!');
+                if (j.drive_url) window.open(j.drive_url, '_blank');
+            } else {
+                alert('❌ ' + ((j && j.error) || 'Falha ao salvar no Drive.') + '\n\nO arquivo será baixado pra você salvar manualmente.');
+                if (downloadUrl) window.open(downloadUrl, '_blank');
+            }
+        }).catch(function(e){ alert('❌ Erro: ' + e.message); });
+    };
+    window._waExpSemPasta = function(downloadUrl) {
+        var op = confirm('Nenhum processo da cliente tem pasta no Drive.\n\nOK = colar o link de uma pasta do Drive pra salvar lá\nCancelar = baixar o arquivo .txt no computador');
+        if (op) {
+            var link = prompt('Cole o link da pasta do Google Drive:\n(ex: https://drive.google.com/drive/folders/XXXXXXXX)');
+            if (link === null || link.trim() === '') return;
+            window._waExpUpload(link.trim(), downloadUrl);
+        } else if (downloadUrl) {
+            window.open(downloadUrl, '_blank');
+        }
+    };
+    window.waExportarConversa = function() {
+        if (!convAtiva) return;
+        if (!confirm('Exportar esta conversa em .txt e salvar no Drive do processo da cliente?')) return;
+        var fd = new FormData();
+        fd.append('action', 'exportar_conversa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd }).then(function(r){ return r.json(); }).then(function(j){
+            if (!j || (!j.ok && !j.download_url)) { alert('❌ ' + ((j && j.error) || 'Falha ao exportar.')); return; }
+            var casos = j.casos || [];
+            if (casos.length === 1) {
+                if (confirm('Salvar no Drive do processo:\n\n"' + casos[0].title + '"?\n\n(Cancelar = escolher outro destino)')) {
+                    window._waExpUpload(casos[0].folder, j.download_url);
+                } else {
+                    window._waExpSemPasta(j.download_url);
+                }
+            } else if (casos.length > 1) {
+                var msg = 'Em qual processo salvar a conversa? Digite o número:\n\n';
+                casos.forEach(function(cs, i){ msg += (i + 1) + ') ' + cs.title + '\n'; });
+                msg += '\n0) Outro destino (colar link do Drive ou baixar)';
+                var esc = prompt(msg, '1');
+                if (esc === null) return;
+                esc = parseInt(esc, 10);
+                if (esc >= 1 && esc <= casos.length) window._waExpUpload(casos[esc - 1].folder, j.download_url);
+                else window._waExpSemPasta(j.download_url);
+            } else {
+                window._waExpSemPasta(j.download_url);
+            }
+        }).catch(function(e){ alert('❌ Erro: ' + e.message); });
     };
 
     window.waEditarNome = function() {

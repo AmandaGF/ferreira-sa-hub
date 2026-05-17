@@ -107,6 +107,7 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'sticker_biblioteca_remover', 'sticker_biblioteca_favoritar',
                   'sticker_biblioteca_add_from_msg',
                   'salvar_display_name',
+                  'exportar_conversa',
                   'mesclar_conversas');
 if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
@@ -1186,6 +1187,95 @@ if ($action === 'salvar_drive') {
         ->execute(array($r['fileId'] ?? '', $msgId));
     audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']}");
     echo json_encode(array('ok' => true, 'fileUrl' => $r['fileUrl'] ?? null));
+    exit;
+}
+
+// ── EXPORTAR CONVERSA EM .TXT → DRIVE DO PROCESSO ────────
+if ($action === 'exportar_conversa') {
+    require_once APP_ROOT . '/core/google_drive.php';
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $destinoFolder = trim($_POST['destino_folder'] ?? ''); // processo escolhido OU link colado
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    $c = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+    $c->execute(array($convId));
+    $conv = $c->fetch();
+    if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $nomeCli = $conv['nome_contato'] ?: ($conv['telefone'] ?: ('Conversa #' . $convId));
+    $ms = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.enviado_por_id, m.enviado_por_bot,
+                                m.created_at, m.arquivo_nome, u.name AS atendente
+                         FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
+                         WHERE m.conversa_id = ? ORDER BY m.id ASC");
+    $ms->execute(array($convId));
+    $rows = $ms->fetchAll();
+
+    $L = array();
+    $L[] = 'Conversa WhatsApp — Ferreira & Sá Advocacia';
+    $L[] = 'Contato: ' . $nomeCli;
+    $L[] = 'Telefone: ' . ($conv['telefone'] ?: '-');
+    $L[] = 'Canal: ' . ($conv['canal'] ?: '-');
+    $L[] = 'Total de mensagens: ' . count($rows);
+    $L[] = 'Exportado em: ' . date('d/m/Y H:i') . ' por ' . (function_exists('user_display_name') ? (user_display_name() ?: ('user#' . $userId)) : ('user#' . $userId));
+    $L[] = str_repeat('-', 60);
+    $L[] = '';
+    $mark = array('imagem' => '[imagem]', 'audio' => '[áudio]', 'documento' => '[documento]',
+                  'video' => '[vídeo]', 'sticker' => '[figurinha]', 'contato' => '[contato]',
+                  'localizacao' => '[localização]', 'ptt' => '[áudio]');
+    foreach ($rows as $r) {
+        $ts = $r['created_at'] ? date('d/m/Y H:i', strtotime($r['created_at'])) : '';
+        if ($r['direcao'] === 'recebida') $quem = $nomeCli;
+        elseif (!empty($r['enviado_por_bot'])) $quem = 'Assistente';
+        elseif (!empty($r['atendente'])) $quem = $r['atendente'];
+        else $quem = 'Equipe';
+        $tipo = strtolower((string)($r['tipo'] ?? 'texto'));
+        $txt = trim((string)$r['conteudo']);
+        if ($tipo !== 'texto' && isset($mark[$tipo])) {
+            $corpo = $mark[$tipo];
+            if (!empty($r['arquivo_nome'])) $corpo .= ' ' . $r['arquivo_nome'];
+            if ($txt !== '' && $txt !== '[' . $tipo . ']') $corpo .= ' — ' . $txt;
+        } else {
+            $corpo = $txt !== '' ? $txt : '[mensagem vazia]';
+        }
+        $L[] = "[{$ts}] {$quem}: {$corpo}";
+    }
+    $conteudoTxt = implode("\r\n", $L) . "\r\n";
+
+    $dir = APP_ROOT . '/files/wa_export';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    foreach (glob($dir . '/*.txt') as $old) { if (@filemtime($old) < time() - 172800) @unlink($old); }
+    $token = 'conv' . $convId . '_' . date('Ymd_His') . '_' . substr(md5(uniqid('', true)), 0, 8);
+    $nomeArq = 'Conversa WhatsApp - ' . trim(preg_replace('/[^\p{L}\p{N} _-]/u', '', $nomeCli)) . ' - ' . date('Y-m-d') . '.txt';
+    $localPath = $dir . '/' . $token . '.txt';
+    if (@file_put_contents($localPath, $conteudoTxt) === false) {
+        echo json_encode(array('error' => 'Falha ao gerar o arquivo')); exit;
+    }
+    $host = $_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br';
+    $publicUrl = 'https://' . $host . '/conecta/files/wa_export/' . rawurlencode($token) . '.txt';
+
+    if ($destinoFolder !== '') {
+        $up = upload_file_to_drive($destinoFolder, $nomeArq, $publicUrl, 'text/plain');
+        if (empty($up['success'])) {
+            echo json_encode(array('error' => 'Falha ao salvar no Drive: ' . ($up['error'] ?? '?'), 'download_url' => $publicUrl));
+            exit;
+        }
+        audit_log('zapi_exportar_conversa', 'zapi_conversas', $convId, 'drive=' . ($up['fileId'] ?? ''));
+        echo json_encode(array('ok' => true, 'salvou_drive' => true, 'drive_url' => $up['fileUrl'] ?? null, 'download_url' => $publicUrl));
+        exit;
+    }
+
+    $casos = array();
+    if (!empty($conv['client_id'])) {
+        $cs = $pdo->prepare("SELECT id, title, drive_folder_url FROM cases
+                             WHERE client_id = ? AND drive_folder_url IS NOT NULL AND drive_folder_url <> ''
+                             ORDER BY status = 'arquivado' ASC, created_at DESC");
+        $cs->execute(array($conv['client_id']));
+        foreach ($cs->fetchAll() as $row) {
+            $casos[] = array('id' => (int)$row['id'], 'title' => $row['title'] ?: ('Processo #' . $row['id']), 'folder' => $row['drive_folder_url']);
+        }
+    }
+    audit_log('zapi_exportar_conversa', 'zapi_conversas', $convId, 'gerado token=' . $token . ' casos=' . count($casos));
+    echo json_encode(array('ok' => true, 'download_url' => $publicUrl, 'file_name' => $nomeArq, 'casos' => $casos));
     exit;
 }
 
