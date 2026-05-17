@@ -259,6 +259,12 @@ switch ($action) {
         // Qualquer usuário logado pode mover cards no operacional
         $caseId = (int)($_POST['case_id'] ?? 0);
         $status = isset($_POST['new_status']) && $_POST['new_status'] ? $_POST['new_status'] : (isset($_POST['status']) ? $_POST['status'] : '');
+        // DEBUG temporário (mover card volta) — remover depois
+        @file_put_contents(APP_ROOT . '/files/op_move_debug.log',
+            date('Y-m-d H:i:s') . " uid=" . current_user_id() . " case={$caseId} new_status='" . $status . "'"
+            . " method=" . ($_SERVER['REQUEST_METHOD'] ?? '?')
+            . " ajax=" . ($isAjax ? '1' : '0')
+            . " ref=" . substr($_SERVER['HTTP_REFERER'] ?? '', 0, 120) . "\n", FILE_APPEND);
         $validStatuses = array('em_andamento','suspenso','arquivado','renunciamos','para_arquivar',
             // Legados (processos antigos que ainda têm esses status)
             'aguardando_docs','em_elaboracao','doc_faltante','aguardando_prazo','distribuido','kanban_prev','parceria_previdenciario','cancelado','concluido','finalizado');
@@ -621,8 +627,10 @@ switch ($action) {
 
             // ── MOVIMENTAÇÕES NORMAIS ──
             $closedAt = in_array($status, array('concluido','arquivado','cancelado')) ? date('Y-m-d') : null;
-            $pdo->prepare('UPDATE cases SET status=?, closed_at=?, updated_at=NOW() WHERE id=?')
-                ->execute(array($status, $closedAt, $caseId));
+            $_uSt = $pdo->prepare('UPDATE cases SET status=?, closed_at=?, updated_at=NOW() WHERE id=?');
+            $_uSt->execute(array($status, $closedAt, $caseId));
+            @file_put_contents(APP_ROOT . '/files/op_move_debug.log',
+                date('Y-m-d H:i:s') . " -> GENERIC UPDATE case={$caseId} status='{$status}' rows=" . $_uSt->rowCount() . "\n", FILE_APPEND);
             audit_log('case_status', 'case', $caseId, $status);
 
             // ── ARQUIVADO/CANCELADO: propagar para Pipeline ──
