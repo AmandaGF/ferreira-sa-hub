@@ -1203,12 +1203,22 @@ if ($action === 'exportar_conversa') {
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
     $nomeCli = $conv['nome_contato'] ?: ($conv['telefone'] ?: ('Conversa #' . $convId));
-    $ms = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.enviado_por_id, m.enviado_por_bot,
-                                m.created_at, m.arquivo_nome, u.name AS atendente
+    $ms = $pdo->prepare("SELECT m.id, m.direcao, m.tipo, m.conteudo, m.enviado_por_id, m.enviado_por_bot,
+                                m.created_at, m.arquivo_nome, m.transcricao, u.name AS atendente
                          FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
                          WHERE m.conversa_id = ? ORDER BY m.id ASC");
     $ms->execute(array($convId));
     $rows = $ms->fetchAll();
+
+    // Transcrição de áudios: usa a salva; se faltar e o Groq estiver ligado,
+    // transcreve na hora (cacheia no banco). Limite pra não estourar timeout.
+    @set_time_limit(300);
+    $_groqOn = false;
+    try {
+        require_once APP_ROOT . '/core/functions_groq.php';
+        $_groqOn = function_exists('groq_transcribe_enabled') && groq_transcribe_enabled();
+    } catch (Exception $e) { $_groqOn = false; }
+    $_transcRestantes = 25; // teto de transcrições novas por exportação
 
     $L = array();
     $L[] = 'Conversa WhatsApp — Ferreira & Sá Advocacia';
@@ -1238,6 +1248,22 @@ if ($action === 'exportar_conversa') {
             $corpo = $txt !== '' ? $txt : '[mensagem vazia]';
         }
         $L[] = "[{$ts}] {$quem}: {$corpo}";
+        // Áudio → anexa transcrição (existente ou transcreve agora)
+        if ($tipo === 'audio' || $tipo === 'ptt') {
+            $tr = trim((string)($r['transcricao'] ?? ''));
+            if ($tr === '' && $_groqOn && $_transcRestantes > 0 && function_exists('groq_transcribe_mensagem')) {
+                $_transcRestantes--;
+                try {
+                    $gr = groq_transcribe_mensagem((int)$r['id']);
+                    if (!empty($gr['ok']) && !empty($gr['text'])) $tr = trim($gr['text']);
+                } catch (Exception $e) { /* segue sem transcrição */ }
+            }
+            if ($tr !== '') {
+                $L[] = '      ↳ transcrição do áudio: "' . $tr . '"';
+            } else {
+                $L[] = '      ↳ (áudio sem transcrição disponível)';
+            }
+        }
     }
     $conteudoTxt = implode("\r\n", $L) . "\r\n";
 
