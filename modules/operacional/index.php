@@ -1991,4 +1991,36 @@ setTimeout(function() {
 <?php endif; ?>
 
 <?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
+<script>
+/* Preserva a rolagem ao mover card (POST -> redirect -> reload).
+   Antes era full reload que voltava pro topo da página toda vez. */
+(function () {
+  var KEY = 'opScroll:' + location.pathname;
+  function board() { return document.getElementById('viewOpKanban'); }
+  function restaurar() {
+    try {
+      var s = sessionStorage.getItem(KEY);
+      if (!s) return;
+      s = JSON.parse(s);
+      sessionStorage.removeItem(KEY);
+      window.scrollTo(s.x || 0, s.y || 0);
+      var b = board();
+      if (b && s.b != null) b.scrollLeft = s.b;
+    } catch (e) {}
+  }
+  function salvar() {
+    try {
+      var b = board();
+      sessionStorage.setItem(KEY, JSON.stringify({
+        x: window.scrollX, y: window.scrollY, b: b ? b.scrollLeft : null
+      }));
+    } catch (e) {}
+  }
+  // salva ao sair (mover card dispara submit/redirect)
+  window.addEventListener('beforeunload', salvar);
+  // restaura assim que possível e de novo no load (caso layout mude)
+  restaurar();
+  window.addEventListener('load', restaurar);
+})();
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
