@@ -1247,15 +1247,15 @@ function arquivarCard(caseId) {
 function arquivarTodosParaArquivar() {
     var qtd = parseInt(document.querySelectorAll('[data-status="para_arquivar"] .op-card').length, 10) || 0;
     if (qtd === 0) { alert('Não há cards na coluna "Para Arquivar".'); return; }
-    if (!confirm('Arquivar TODOS os ' + qtd + ' processo(s) que estão na coluna "Para Arquivar"?\n\nOs processos vão pra status "arquivado" e somem do Kanban.\n\nEsta ação NÃO pode ser desfeita em massa.')) return;
-    if (!confirm('Confirma de novo? Vai arquivar ' + qtd + ' processo(s).')) return;
+    if (!confirm('Ocultar do Kanban os ' + qtd + ' processo(s) da coluna "Para Arquivar"?\n\n✔ Eles apenas SOMEM desta visualização do Kanban.\n✔ O status real e as PASTAS dos processos NÃO mudam — nada é alterado nos processos.\n✔ Continuam aparecendo normalmente em Processos / pasta do cliente.\n\n(Reversível processo a processo; não há desfazer em massa.)')) return;
+    if (!confirm('Confirma? Vai ocultar ' + qtd + ' processo(s) do Kanban (sem alterar os processos).')) return;
     var fd = new FormData();
     fd.append('csrf_token', csrfToken);
     fd.append('action', 'arquivar_todos_para_arquivar');
     fetch('<?= module_url("operacional", "api.php") ?>', {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
         .then(function(r){ return r.json(); })
         .then(function(d){
-            if (d && d.ok) { alert('✓ ' + d.arquivados + ' processo(s) arquivado(s).'); location.reload(); }
+            if (d && d.ok) { alert('✓ ' + d.arquivados + ' processo(s) ocultado(s) do Kanban (status e pastas inalterados).'); location.reload(); }
             else alert('Falha: ' + ((d && d.error) || 'erro'));
         })
         .catch(function(e){ alert('Erro de rede: ' + e); });
