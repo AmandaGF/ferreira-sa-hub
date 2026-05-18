@@ -4,6 +4,18 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 require_once __DIR__ . '/core/database.php';
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
+$vid = (int)($_GET['id'] ?? 0);
+if ($vid) {
+    $s = $pdo->prepare("SELECT * FROM form_submissions WHERE id = ?"); $s->execute(array($vid));
+    $r = $s->fetch();
+    if (!$r) exit("id $vid nao encontrado\n");
+    echo "#{$r['id']} {$r['form_type']} {$r['protocol']} {$r['client_name']} {$r['client_phone']} {$r['created_at']} status={$r['status']}\n" . str_repeat('-',60) . "\n";
+    $p = json_decode($r['payload_json'], true);
+    if (!is_array($p)) { echo "payload_json invalido. Cru:\n".substr($r['payload_json'],0,3000); exit; }
+    echo "CHAVES (".count($p)."):\n";
+    foreach ($p as $k=>$v){ echo "  {$k} = ".(is_scalar($v)?(is_string($v)?'"'.mb_substr($v,0,90).'"':$v):'['.gettype($v).']')."\n"; }
+    exit;
+}
 echo "=== CONTAGEM POR TIPO ===\n";
 foreach ($pdo->query("SELECT form_type, COUNT(*) c, MAX(created_at) ult FROM form_submissions GROUP BY form_type ORDER BY ult DESC")->fetchAll() as $t)
     echo sprintf("  %-22s %4d  último: %s\n", $t['form_type'], $t['c'], $t['ult']);
