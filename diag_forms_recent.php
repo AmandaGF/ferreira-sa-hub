@@ -24,8 +24,14 @@ foreach ($pdo->query("SELECT id, form_type, protocol, client_name, created_at FR
     echo "  #{$r['id']} | {$r['created_at']} | {$r['form_type']} | {$r['protocol']} | {$r['client_name']}\n";
 $q = trim($_GET['q'] ?? '');
 if ($q !== '') {
-    echo "\n=== BUSCA '{$q}' ===\n";
-    $s = $pdo->prepare("SELECT id, form_type, protocol, client_name, created_at FROM form_submissions WHERE client_name LIKE ? ORDER BY id DESC LIMIT 20");
-    $s->execute(array('%' . $q . '%'));
-    foreach ($s->fetchAll() as $r) echo "  #{$r['id']} | {$r['created_at']} | {$r['form_type']} | {$r['protocol']} | {$r['client_name']}\n";
+    echo "\n=== BUSCA '{$q}' (nome/telefone/payload) ===\n";
+    $like = '%' . $q . '%';
+    $s = $pdo->prepare("SELECT id, form_type, protocol, client_name, client_phone, created_at
+                        FROM form_submissions
+                        WHERE client_name LIKE ? OR client_phone LIKE ? OR payload_json LIKE ?
+                        ORDER BY id DESC LIMIT 25");
+    $s->execute(array($like, $like, $like));
+    $rs = $s->fetchAll();
+    if (!$rs) echo "  (nada)\n";
+    foreach ($rs as $r) echo "  #{$r['id']} | {$r['created_at']} | {$r['form_type']} | {$r['protocol']} | {$r['client_name']} | {$r['client_phone']}\n";
 }
