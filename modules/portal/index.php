@@ -13,14 +13,20 @@ $isAdmin = has_role('admin');
 // Buscar links do banco
 $links = $pdo->query('SELECT * FROM portal_links ORDER BY category ASC, sort_order ASC, title ASC')->fetchAll();
 
-// Agrupar por categoria
+// Agrupar por categoria — favoritos viram a 1ª "categoria" (atalho no topo).
+// Cada link aparece 1x só (em Favoritos OU na categoria) pra não duplicar IDs.
+$favoritos = [];
 $categories = [];
 foreach ($links as $link) {
+    if (!empty($link['is_favorite'])) { $favoritos[] = $link; continue; }
     $cat = $link['category'] ?: 'Sem categoria';
     if (!isset($categories[$cat])) {
         $categories[$cat] = [];
     }
     $categories[$cat][] = $link;
+}
+if (!empty($favoritos)) {
+    $categories = ['⭐ Favoritos' => $favoritos] + $categories;
 }
 
 $allCategories = array_keys($categories);
@@ -257,6 +263,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="portal-filters" id="filterChips">
         <button class="filter-chip active" data-cat="all">Todas</button>
         <?php foreach ($allCategories as $cat): ?>
+            <?php if ($cat === '⭐ Favoritos') continue; // seção fixa no topo, não vira chip ?>
             <button class="filter-chip" data-cat="<?= e($cat) ?>"><?= e($cat) ?></button>
         <?php endforeach; ?>
     </div>
@@ -290,6 +297,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                         <?php if ($isAdmin): ?>
                             <div class="flex gap-1">
+                                <form method="POST" action="<?= module_url('portal', 'links_api.php') ?>" style="display:inline;">
+                                    <?= csrf_input() ?>
+                                    <input type="hidden" name="action" value="toggle_favorite">
+                                    <input type="hidden" name="link_id" value="<?= $link['id'] ?>">
+                                    <button type="submit" class="btn btn-outline btn-sm" style="padding:.25rem .45rem;font-size:.85rem;<?= !empty($link['is_favorite']) ? 'color:#caa46a;border-color:#caa46a;' : '' ?>"
+                                            title="<?= !empty($link['is_favorite']) ? 'Remover dos Favoritos' : 'Fixar nos Favoritos (aparece no topo)' ?>"><?= !empty($link['is_favorite']) ? '★' : '☆' ?></button>
+                                </form>
                                 <button class="btn btn-outline btn-sm" style="padding:.25rem .4rem;font-size:.75rem;"
                                         onclick="editLink(<?= $link['id'] ?>)" title="Editar">✏️</button>
                                 <form method="POST" action="<?= module_url('portal', 'links_api.php') ?>" style="display:inline;">

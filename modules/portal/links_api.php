@@ -94,6 +94,16 @@ switch ($action) {
         }
         break;
 
+    case 'toggle_favorite':
+        $linkId = (int)($_POST['link_id'] ?? 0);
+        if ($linkId > 0) {
+            $pdo->prepare('UPDATE portal_links SET is_favorite = IF(is_favorite = 1, 0, 1), updated_at = NOW() WHERE id = ?')
+                ->execute([$linkId]);
+            audit_log('link_favorite_toggle', 'portal_link', $linkId);
+            flash_set('success', 'Favoritos atualizados.');
+        }
+        break;
+
     case 'delete':
         $linkId = (int)($_POST['link_id'] ?? 0);
         if ($linkId > 0) {
