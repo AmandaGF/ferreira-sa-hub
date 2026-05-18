@@ -36,9 +36,12 @@ $tratamento = isset($payload['faz_tratamento_especifico']) ? $payload['faz_trata
 $detalheTrat = isset($payload['detalhe_tratamento']) ? $payload['detalhe_tratamento'] : '';
 $qtdFilhos = isset($payload['qtd_filhos']) ? $payload['qtd_filhos'] : '—';
 $fonteRenda = isset($payload['fonte_renda']) ? $payload['fonte_renda'] : '—';
-$rendaMensal = isset($payload['renda_mensal_cents']) ? (int)$payload['renda_mensal_cents'] : 0;
+// despesas_mensais (form novo) manda 'renda_mensal' em centavos; form antigo 'renda_mensal_cents'
+$rendaMensal = isset($payload['renda_mensal_cents']) ? (int)$payload['renda_mensal_cents']
+             : (isset($payload['renda_mensal']) ? (int)$payload['renda_mensal'] : 0);
 $quemPaga = isset($payload['quem_paga']) ? $payload['quem_paga'] : '—';
-$rendaObrigado = isset($payload['renda_obrigado_cents']) ? (int)$payload['renda_obrigado_cents'] : 0;
+$rendaObrigado = isset($payload['renda_obrigado_cents']) ? (int)$payload['renda_obrigado_cents']
+               : (isset($payload['renda_obrigado']) ? (int)$payload['renda_obrigado'] : 0);
 $moradores = isset($payload['moradores']) ? $payload['moradores'] : '—';
 $protocolo = $form['protocol'];
 $dataForm = date('d/m/Y', strtotime($form['created_at']));
@@ -64,11 +67,14 @@ if ($isDespesasMensais) {
         'total_alim' => 'alimentacao_cents',
         'total_saude' => 'saude_cents',
         'total_edu' => 'educacao_cents',
+        'total_educ' => 'educacao_cents',   // form novo usa cat.key 'educ'
         'total_transp' => 'transporte_cents',
         'total_vest' => 'vestuario_cents',
         'total_lazer' => 'lazer_cents',
         'total_tech' => 'tecnologia_cents',
         'total_care' => 'cuidados_cents',
+        'total_cuid' => 'cuidados_cents',   // form novo usa cat.key 'cuid'
+        'total_eventual' => 'eventuais_cents', // anuais mensalizados (÷12)
         'total_outros' => 'outros_cents',
     );
     foreach ($mapTotais as $novo => $antigo) {
