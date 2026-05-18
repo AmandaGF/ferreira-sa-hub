@@ -1629,6 +1629,12 @@ function zapi_pode_enviar_conversa($convId, $userId, $minutos = null) {
     $row = $stmt->fetch();
     if (!$row) return array('pode' => true);
 
+    // 17/05/2026 — Amanda pediu pra TIRAR a trava de atendimento do
+    // WhatsApp Comercial (canal 21): sem janela de horário, sem 8h úteis,
+    // sem 36h de follow-up. Qualquer atendente envia a qualquer momento
+    // (igual canal 24). Pra reativar: remover este return.
+    return array('pode' => true);
+
     if ((string)$row['canal'] === '24') return array('pode' => true);
 
     $atendente = (int)$row['atendente_id'];
