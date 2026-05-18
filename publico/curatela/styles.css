@@ -109,6 +109,8 @@ details[open] summary::after{content:"–"}
 .cta-band-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
 
 .guide-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.guide-title{display:flex;align-items:center;gap:14px}
+.guide-logo{width:48px;height:48px;border-radius:50%;object-fit:cover;background:var(--petrol);border:1px solid var(--rose);box-shadow:0 6px 14px rgba(5,34,40,.2);flex-shrink:0}
 .carousel-wrap{position:relative;margin-top:22px}
 .carousel-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:5;width:44px;height:44px;border-radius:50%;border:1px solid var(--border);background:var(--paper);box-shadow:var(--shadow);cursor:pointer;font-size:22px;line-height:1;display:grid;place-items:center;color:var(--petrol)}
 .carousel-arrow.prev{left:-8px}.carousel-arrow.next{right:-8px}
@@ -116,7 +118,10 @@ details[open] summary::after{content:"–"}
 .carousel{display:flex;gap:14px;overflow-x:auto;padding:6px 2px 12px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;scroll-behavior:smooth}
 .carousel::-webkit-scrollbar{height:9px}
 .carousel::-webkit-scrollbar-thumb{background:rgba(5,34,40,.16);border-radius:999px}
-.thumb{flex:0 0 auto;width:168px;scroll-snap-align:start;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#fff;box-shadow:0 10px 24px rgba(5,34,40,.07);cursor:pointer;padding:0;transition:transform .12s ease,box-shadow .12s ease}
+.thumb{position:relative;flex:0 0 auto;width:168px;scroll-snap-align:start;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#fff;box-shadow:0 10px 24px rgba(5,34,40,.07);cursor:pointer;padding:0;transition:transform .12s ease,box-shadow .12s ease}
+.thumb::after{content:"";position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;
+  background:var(--petrol) url("https://ferreiraesa.com.br/conecta/assets/img/site/monograma.png") center/cover;
+  border:1.5px solid #fff;box-shadow:0 2px 6px rgba(5,34,40,.35);pointer-events:none}
 .thumb:hover{transform:translateY(-3px);box-shadow:0 16px 32px rgba(5,34,40,.12)}
 .thumb img{width:100%;height:220px;object-fit:cover;display:block}
 .thumb .cap{padding:9px 12px;font-size:12px;color:var(--muted);letter-spacing:.04em}
@@ -159,7 +164,10 @@ details[open] summary::after{content:"–"}
 .modal-backdrop{position:absolute;inset:0;background:rgba(5,34,40,.62)}
 .modal-content{position:relative;margin:20px auto;width:min(960px,calc(100% - 22px));background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 30px 70px rgba(5,34,40,.4);border:1px solid var(--border)}
 .modal-close{position:absolute;top:10px;right:10px;border:1px solid var(--border);background:rgba(255,255,255,.94);width:44px;height:44px;border-radius:10px;cursor:pointer;color:var(--petrol)}
-.modal-body{display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--cream),#fff);padding:28px 10px;gap:10px}
+.modal-body{position:relative;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,var(--cream),#fff);padding:28px 10px;gap:10px}
+.modal-body::after{content:"";position:absolute;top:14px;right:16px;width:40px;height:40px;border-radius:50%;
+  background:var(--petrol) url("https://ferreiraesa.com.br/conecta/assets/img/site/monograma.png") center/cover;
+  border:2px solid #fff;box-shadow:0 3px 10px rgba(5,34,40,.4);pointer-events:none;z-index:3}
 .modal-body img{max-width:calc(100% - 120px);max-height:72vh;border-radius:10px;border:1px solid var(--border);background:#fff}
 .modal-nav{width:46px;height:46px;border-radius:12px;border:1px solid var(--border);background:rgba(255,255,255,.94);cursor:pointer;font-size:26px;line-height:1;color:var(--petrol)}
 .modal-footer{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-top:1px solid var(--border);gap:10px;flex-wrap:wrap}
