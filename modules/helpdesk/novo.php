@@ -113,6 +113,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         audit_log('ticket_created', 'ticket', $ticketId);
+
+        // Se o chamado foi aberto de dentro de uma pasta de processo,
+        // volta pra pasta (a Amanda quer continuar no processo, não ir
+        // parar na agenda/helpdesk). O andamento "CHAMADO INTERNO ABERTO
+        // #N" já fica na timeline do caso com link pro chamado.
+        $voltarCaso = $caseId ?: (int)($_POST['from_case'] ?? $_GET['from_case'] ?? 0);
+        if ($voltarCaso > 0) {
+            flash_set('success', 'Chamado #' . $ticketId . ' criado e vinculado a este processo!');
+            redirect(module_url('operacional', 'caso_ver.php?id=' . $voltarCaso));
+        }
         flash_set('success', 'Chamado #' . $ticketId . ' criado!');
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
     }
