@@ -127,6 +127,12 @@ details[open] summary::after{content:"–"}
 .footer{padding:30px 0 96px;border-top:1px solid var(--border);background:rgba(255,253,251,.7)}
 .footer-inner{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
 .footer strong{font-family:var(--serif);color:var(--petrol);font-size:17px}
+.footer a{color:var(--rose-2);font-weight:600}
+.footer a:hover{color:var(--petrol);text-decoration:underline}
+.foot-contacts{display:flex;flex-wrap:wrap;gap:10px 20px;margin-top:12px;font-size:13px}
+.foot-contacts a{display:inline-flex;align-items:center;gap:6px;color:var(--petrol);font-weight:600;
+  padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--paper)}
+.foot-contacts a:hover{border-color:var(--rose);background:rgba(215,171,144,.12);text-decoration:none}
 .small{font-size:12px}
 
 /* BOTÕES */
