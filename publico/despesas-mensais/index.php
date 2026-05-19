@@ -41,8 +41,13 @@ a:hover{text-decoration:underline}
 .container{max-width:680px;margin:0 auto;padding:16px}
 
 /* ========== CARD ========== */
-.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px;margin-bottom:20px;display:none}
-.card.visible{display:block;animation:fadeUp .35s ease}
+/* Página única (rolando): todos os cards visíveis empilhados.
+   O card de sucesso tem style inline display:none e só aparece via JS. */
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:28px 24px;margin-bottom:20px;display:block;scroll-margin-top:84px}
+.card.visible{animation:none}
+/* Esconde a navegação por etapas (Voltar/Próximo/Revisar) — só sobra o Enviar */
+button[onclick^="goStep"]{display:none !important}
+.card h2{scroll-margin-top:84px}
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 .card h2{font-size:1.1rem;color:var(--g1);margin-bottom:4px}
 .card .stepSub{font-size:.8rem;color:var(--muted);margin-bottom:18px}
@@ -774,8 +779,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initTextMasks();
   initSemFilhos();
   loadFromStorage();
-  goStep(0);
   updateSummaryKPIs();
+  try{ buildReview(); }catch(e){}   // não pode derrubar o init se falhar
   autoSaveLoop();
 });
 
@@ -832,27 +837,14 @@ function isStepDone(idx){
 }
 
 /* ========== NAVIGATION ========== */
+// Página única: goStep agora só ROLA até a seção (índice clicável das pills).
+// Não esconde nada — tudo fica visível pro cliente só rolar e preencher.
 function goStep(n){
-  // validate required on current step before moving forward
-  if(n>currentStep){
-    const card=document.querySelector(`.card[data-step="${currentStep}"]`);
-    const reqs=[...card.querySelectorAll('.requiredField')];
-    for(const f of reqs){
-      if(f.value.trim()===''){
-        toast('Preencha os campos obrigatórios (*)','err');
-        f.focus();
-        return;
-      }
-    }
-  }
   currentStep=n;
-  document.querySelectorAll('.card').forEach(c=>{c.classList.remove('visible');c.style.display=''});
   const target=document.querySelector(`.card[data-step="${n}"]`);
-  if(target) target.classList.add('visible');
+  if(target) target.scrollIntoView({behavior:'smooth',block:'start'});
   updatePills();
-  window.scrollTo({top:0,behavior:'smooth'});
   saveToStorage();
-  if(n===11) buildReview();
 }
 
 /* ========== MONEY MASK ========== */
@@ -1180,6 +1172,18 @@ function buildPayload(){
 async function submitForm(){
   const btn=document.getElementById('submitBtn');
 
+  // Página única: a validação dos obrigatórios (que antes era por etapa)
+  // acontece aqui no envio. Rola até o 1º campo vazio e avisa.
+  for(const f of document.querySelectorAll('.requiredField')){
+    if(f.offsetParent===null) continue; // ignora campos escondidos (ex.: filho c/ "sem filhos")
+    if(f.value.trim()===''){
+      toast('Preencha os campos obrigatórios (marcados com *)','err');
+      f.scrollIntoView({behavior:'smooth',block:'center'});
+      setTimeout(()=>f.focus(),300);
+      return;
+    }
+  }
+
   // Validação anti-zerado (Amanda 14/05/2026): vários envios chegavam com TODOS
   // os valores em 0 porque o cliente reabria o form em outro dispositivo (sem
   // localStorage) e clicava Enviar sem repreencher. Antes de submeter, somar
@@ -1200,6 +1204,7 @@ async function submitForm(){
   btn.textContent='Enviando...';
 
   try{
+    try{ buildReview(); }catch(e){}
     const payload=buildPayload();
     // Se já tem protocolo salvo, enviar para UPDATE
     if(_protocoloSalvo) payload._protocolo = _protocoloSalvo;
