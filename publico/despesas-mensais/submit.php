@@ -10,9 +10,6 @@ require_once __DIR__ . '/../../core/database.php';
 header('Content-Type: application/json; charset=utf-8');
 
 function responder($ok, $msg, $extra = array()) {
-    @file_put_contents(__DIR__ . '/_submit_debug.log',
-        date('Y-m-d H:i:s') . '   -> RESP ok=' . ($ok ? '1' : '0') . ' msg="' . $msg . '"'
-        . (isset($extra['protocolo']) ? ' proto=' . $extra['protocolo'] : '') . "\n", FILE_APPEND);
     echo json_encode(array_merge(array('ok' => $ok, 'message' => $msg), $extra), JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -24,19 +21,6 @@ try {
 
     $conteudo = file_get_contents('php://input');
     $dados = json_decode($conteudo, true);
-
-    // DEBUG temporário (envios sumindo) — registra TODA tentativa
-    @file_put_contents(__DIR__ . '/_submit_debug.log',
-        date('Y-m-d H:i:s') . ' ip=' . ($_SERVER['REMOTE_ADDR'] ?? '?')
-        . ' bytes=' . strlen((string)$conteudo)
-        . ' json=' . (is_array($dados) ? 'ok' : 'FALHOU')
-        . ' nome="' . substr(trim(($dados['nome_responsavel'] ?? $dados['nome_completo'] ?? '')), 0, 40) . '"'
-        . ' wpp="' . substr(trim($dados['whatsapp'] ?? ''), 0, 20) . '"'
-        . ' fonte="' . substr(trim($dados['fonte_renda'] ?? ''), 0, 20) . '"'
-        . ' semfilho=' . (($dados['sem_filhos'] ?? '') ?: '-')
-        . ' tot_geral=' . ($dados['total_geral'] ?? '-')
-        . ' ref=' . substr($_SERVER['HTTP_REFERER'] ?? '-', 0, 90) . "\n",
-        FILE_APPEND);
 
     if (!is_array($dados)) {
         responder(false, 'Dados invalidos.');
