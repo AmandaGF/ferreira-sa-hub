@@ -793,6 +793,7 @@ function buildProgressBar(){
     {icon:'🎮',label:'Lazer'},
     {icon:'💻',label:'Tecnologia'},
     {icon:'🧸',label:'Cuidados'},
+    {icon:'📅',label:'Eventuais'},
     {icon:'📦',label:'Outros'},
     {icon:'✅',label:'Enviar'}
   ];
