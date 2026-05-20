@@ -53,13 +53,17 @@ try {
     $compromissos = $stmtAg->fetchAll();
 } catch (Exception $e) { /* tabela pode não existir */ }
 
-// Processos do cliente
+// Processos do cliente — inclui também os em que ele aparece como PARTE do
+// nosso lado (mesma regra de caso_ver.php). Antes perdia vínculos (bug Elias).
 $cases = $pdo->prepare(
-    'SELECT cs.*, u.name as responsible_name FROM cases cs
+    "SELECT DISTINCT cs.*, u.name as responsible_name FROM cases cs
      LEFT JOIN users u ON u.id = cs.responsible_user_id
-     WHERE cs.client_id = ? ORDER BY cs.created_at DESC'
+     LEFT JOIN case_partes cp ON cp.case_id = cs.id
+     WHERE cs.client_id = ?
+        OR (cp.client_id = ? AND (cp.papel IN ('autor','litisconsorte_ativo','representante_legal') OR cp.eh_nosso_cliente = 1))
+     ORDER BY cs.created_at DESC"
 );
-$cases->execute(array($clientId));
+$cases->execute(array($clientId, $clientId));
 $cases = $cases->fetchAll();
 
 // ─── Resumo financeiro (só carrega se usuário tem acesso) ───

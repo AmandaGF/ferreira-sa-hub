@@ -21,13 +21,20 @@ if (!$client) {
 
 $pageTitle = $client['name'];
 
-// Casos do cliente
+// Casos do cliente — inclui também os em que ele aparece como PARTE do
+// nosso lado (autor/litisconsorte_ativo/representante_legal) ou réu marcado
+// explicitamente como nosso cliente (eh_nosso_cliente=1). Mesma regra do
+// caso_ver.php — antes só pegava cases.client_id e perdia esses vínculos
+// (bug Elias Soares Oliva, 19/05).
 $cases = $pdo->prepare(
-    'SELECT cs.*, u.name as responsible_name FROM cases cs
+    "SELECT DISTINCT cs.*, u.name as responsible_name FROM cases cs
      LEFT JOIN users u ON u.id = cs.responsible_user_id
-     WHERE cs.client_id = ? ORDER BY cs.created_at DESC'
+     LEFT JOIN case_partes cp ON cp.case_id = cs.id
+     WHERE cs.client_id = ?
+        OR (cp.client_id = ? AND (cp.papel IN ('autor','litisconsorte_ativo','representante_legal') OR cp.eh_nosso_cliente = 1))
+     ORDER BY cs.created_at DESC"
 );
-$cases->execute([$clientId]);
+$cases->execute([$clientId, $clientId]);
 $cases = $cases->fetchAll();
 
 // Timeline de contatos
