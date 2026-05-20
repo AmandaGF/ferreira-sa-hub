@@ -576,6 +576,14 @@ if ($action === 'salvar') {
 
     if ($id) {
         // Editar — todos os usuários logados podem editar compromissos
+        // Snapshot ANTES do UPDATE pra detectar alteração material e gerar andamento.
+        $oldEv = null;
+        try {
+            $stmtOld = $pdo->prepare("SELECT titulo, tipo, modalidade, data_inicio, data_fim, local, meet_link, case_id FROM agenda_eventos WHERE id = ?");
+            $stmtOld->execute(array($id));
+            $oldEv = $stmtOld->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Exception $e) { $oldEv = null; }
+
         $stmt = $pdo->prepare(
             "UPDATE agenda_eventos SET titulo=?, tipo=?, subtipo=?, modalidade=?, cliente_presencial=?, data_inicio=?, data_fim=?, dia_todo=?,
              local=?, meet_link=?, descricao=?, client_id=?, case_id=?, responsavel_id=?,
@@ -590,6 +598,72 @@ if ($action === 'salvar') {
         ));
         audit_log('AGENDA_EDITADO', 'agenda', $id, $titulo);
         if (!empty($conflitos)) _agenda_notificar_conflitos($id, $titulo, $tipo, $dataInicio, $responsavelId, $conflitos);
+
+        // Andamento de ALTERAÇÃO: quando data/hora/local/modalidade/link mudam
+        // num evento vinculado a caso, registra no timeline pra ficar trilha
+        // pro cliente. Sem isso, alteração de audiência some do processo.
+        $tiposAndamentoEdit = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao');
+        if ($caseId && $oldEv && in_array($tipo, $tiposAndamentoEdit, true)) {
+            $mudancas = array();
+            $oldIni = (string)($oldEv['data_inicio'] ?? '');
+            $oldFim = (string)($oldEv['data_fim'] ?? '');
+            $oldLocal = trim((string)($oldEv['local'] ?? ''));
+            $oldMeet = trim((string)($oldEv['meet_link'] ?? ''));
+            $oldMod = (string)($oldEv['modalidade'] ?? '');
+            $oldTitulo = (string)($oldEv['titulo'] ?? '');
+
+            // Comparações de data/hora: compara timestamps pra ignorar formato
+            $tsOldIni = $oldIni ? strtotime($oldIni) : 0;
+            $tsNewIni = $dataInicio ? strtotime($dataInicio) : 0;
+            $tsOldFim = $oldFim ? strtotime($oldFim) : 0;
+            $tsNewFim = $dataFim ? strtotime($dataFim) : 0;
+
+            if ($tsOldIni && $tsNewIni && $tsOldIni !== $tsNewIni) {
+                $mudancas[] = '🗓 Data/Hora: ' . date('d/m/Y H:i', $tsOldIni) . ' → ' . date('d/m/Y H:i', $tsNewIni);
+            }
+            if ($tsOldFim && $tsNewFim && $tsOldFim !== $tsNewFim && $tsOldFim !== $tsOldIni) {
+                // Só mostra fim quando difere do início (evento com duração explícita)
+                $mudancas[] = '⏱ Término: ' . date('d/m/Y H:i', $tsOldFim) . ' → ' . date('d/m/Y H:i', $tsNewFim);
+            }
+            if ($oldMod !== $modalidade) {
+                $rotMod = array('presencial'=>'Presencial','online'=>'Online','hibrida'=>'Híbrida','nao_aplicavel'=>'—');
+                $mudancas[] = '🎥 Modalidade: ' . ($rotMod[$oldMod] ?? $oldMod) . ' → ' . ($rotMod[$modalidade] ?? $modalidade);
+            }
+            if ($oldLocal !== trim((string)$local)) {
+                $mudancas[] = '📍 Local: ' . ($oldLocal ?: '(vazio)') . ' → ' . (trim((string)$local) ?: '(vazio)');
+            }
+            if ($oldMeet !== trim((string)$meetLink)) {
+                $mudancas[] = '🔗 Link: ' . ($oldMeet ?: '(vazio)') . ' → ' . (trim((string)$meetLink) ?: '(vazio)');
+            }
+            if ($oldTitulo !== $titulo) {
+                $mudancas[] = '📝 Título: ' . $oldTitulo . ' → ' . $titulo;
+            }
+
+            if (!empty($mudancas)) {
+                try {
+                    $rotulosEv = array(
+                        'audiencia'       => 'Audiência',
+                        'reuniao_cliente' => 'Reunião com cliente',
+                        'onboarding'      => 'Onboarding',
+                        'mediacao_cejusc' => 'Mediação/CEJUSC',
+                        'balcao_virtual'  => 'Balcão Virtual',
+                        'ligacao'         => 'Ligação/Retorno',
+                    );
+                    $rotuloEv = $rotulosEv[$tipo] ?? 'Compromisso';
+                    $descAndEdit = "✏️ {$rotuloEv} ALTERADA: {$titulo}\n";
+                    $descAndEdit .= implode("\n", $mudancas);
+                    $tipoAndEdit = ($tipo === 'audiencia') ? 'audiencia' : 'observacao';
+                    // Visível ao cliente apenas em tipos que ele já vê normalmente
+                    $visAndEdit = in_array($tipo, array('audiencia','reuniao_cliente','onboarding'), true) ? 1 : 0;
+                    $dataAndEdit = $tsNewIni ? date('Y-m-d', $tsNewIni) : date('Y-m-d');
+                    $pdo->prepare(
+                        "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, NOW())"
+                    )->execute(array($caseId, $dataAndEdit, $tipoAndEdit, $descAndEdit, $visAndEdit, current_user_id()));
+                } catch (Exception $e) { /* não bloqueia a edição */ }
+            }
+        }
+
         echo json_encode(array(
             'ok' => true, 'id' => $id, 'msg' => 'Evento atualizado', 'csrf' => $newCsrf,
             'conflitos' => _agenda_conflitos_resumo($conflitos),
