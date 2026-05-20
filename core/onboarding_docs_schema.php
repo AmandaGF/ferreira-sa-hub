@@ -198,6 +198,76 @@ $ONBOARDING_DOC_SCHEMAS = array(
     // 'pop_advogado_associado'   => array( ... ),
     // 'checklist_admissional_adv' => array( ... ),
 
+    // ─────────────────────────────────────────────────────────
+    // PRESTADOR DE SERVIÇOS DE MARKETING (PJ / MEI / Autônomo)
+    // ─────────────────────────────────────────────────────────
+
+    'contrato_prestacao_marketing' => array(
+        'label' => 'Contrato de Prestação de Serviços de Marketing',
+        'icon' => '📈',
+        'descricao' => 'Contrato civil de prestação de serviços de marketing — escopo, prazo, valor, NDA e propriedade intelectual sobre entregas.',
+        'perfis' => array('prestador_pj','prestador_mei','prestador_autonomo'),
+        'fluxo' => 'admin_preenche_e_ambos_assinam',
+        // Boa parte dos dados já está no cadastro do prestador (cnpj,
+        // razao_social, escopo_servicos, dados_bancarios, datas, remuneração).
+        // Aqui só pedimos o que NÃO está no cadastro: dia de pagamento e
+        // forma de remuneração.
+        'campos_admin' => array(
+            'dia_pagamento' => array(
+                'label' => 'Dia do mês para pagamento (1 a 28)',
+                'tipo' => 'number',
+                'min' => 1, 'max' => 28,
+                'obrigatorio' => true,
+                'default' => 5,
+                'placeholder' => 'Ex: 5',
+            ),
+            'forma_pagamento' => array(
+                'label' => 'Forma de remuneração',
+                'tipo' => 'select',
+                'opcoes' => array(
+                    'mensal_fixo'  => 'Mensal fixo (valor cheio todo mês)',
+                    'por_entrega'  => 'Por entrega (paga apenas o que for entregue)',
+                    'misto'        => 'Misto (parte fixa + variável por entregas extras)',
+                ),
+                'obrigatorio' => true,
+                'default' => 'mensal_fixo',
+            ),
+            'multa_rescisoria_meses' => array(
+                'label' => 'Multa rescisória (em meses do valor mensal)',
+                'tipo' => 'number',
+                'min' => 0, 'max' => 6,
+                'obrigatorio' => false,
+                'default' => 1,
+                'placeholder' => 'Padrão: 1 mês',
+            ),
+        ),
+        'campos_colaborador' => array(
+            'representante_legal_nome' => array(
+                'label' => 'Nome do representante legal (apenas se PJ)',
+                'tipo' => 'text',
+                'obrigatorio' => false,
+                'placeholder' => 'Quem assina pela PJ',
+            ),
+            'rg' => array('label' => 'RG (representante legal, se PJ; do próprio, se MEI/autônomo)', 'tipo' => 'text', 'obrigatorio' => true, 'placeholder' => 'Ex: 12.345.678-9'),
+            'rg_orgao_uf' => array('label' => 'Órgão emissor / UF', 'tipo' => 'text', 'obrigatorio' => true, 'placeholder' => 'Ex: SSP/RJ'),
+            'cep' => array('label' => 'CEP', 'tipo' => 'cep', 'obrigatorio' => true, 'placeholder' => '00000-000', 'grupo' => 'endereco'),
+            'endereco_logradouro' => array('label' => 'Rua / Avenida', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'logradouro'),
+            'endereco_numero' => array('label' => 'Número', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco'),
+            'endereco_bairro' => array('label' => 'Bairro', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'bairro'),
+            'endereco_complemento' => array('label' => 'Complemento (opcional)', 'tipo' => 'text', 'obrigatorio' => false, 'grupo' => 'endereco'),
+            'endereco_cidade' => array('label' => 'Cidade', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'localidade'),
+            'endereco_uf' => array(
+                'label' => 'UF', 'tipo' => 'select', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'uf',
+                'opcoes' => array('AC'=>'AC','AL'=>'AL','AM'=>'AM','AP'=>'AP','BA'=>'BA','CE'=>'CE','DF'=>'DF','ES'=>'ES','GO'=>'GO','MA'=>'MA','MG'=>'MG','MS'=>'MS','MT'=>'MT','PA'=>'PA','PB'=>'PB','PE'=>'PE','PI'=>'PI','PR'=>'PR','RJ'=>'RJ','RN'=>'RN','RO'=>'RO','RR'=>'RR','RS'=>'RS','SC'=>'SC','SE'=>'SE','SP'=>'SP','TO'=>'TO'),
+            ),
+            'telefone' => array('label' => 'Telefone (com DDD)', 'tipo' => 'tel', 'obrigatorio' => true, 'placeholder' => '(00) 00000-0000'),
+        ),
+        'assinaturas' => array('colaborador', 'escritorio_amanda'),
+        'render_function' => 'render_contrato_prestacao_marketing',
+        'pasta_drive' => '/Onboarding/{nome_colaborador}/',
+        'nome_arquivo' => 'Contrato_de_Prestacao_de_Servicos_de_Marketing.pdf',
+    ),
+
 );
 
 /**
