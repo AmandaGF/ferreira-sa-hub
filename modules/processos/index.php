@@ -161,8 +161,18 @@ $processos = $stmt->fetchAll();
 // Intimações vêm da tabela case_publicacoes (alimentada pelo Claudin/DJEN)
 $ultimasIntimacoes = array();
 $ultimosDistribuidos = array();
+// Paginação + ordenação das intimações pendentes (controles no card)
+$intimPerPage = 7;                                                  // entre 5 e 10
+$intimOrdem   = ($_GET['intim_ordem'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
+$intimPagina  = max(1, (int)($_GET['intim_p'] ?? 1));
+$intimTotal   = 0;
+$intimTotPag  = 1;
 try {
-    // Só intimações pendentes (não confirmadas/descartadas) — feed de "o que precisa de atenção"
+    // Busca TODAS as pendentes (sem LIMIT) — fatia em PHP pra ter total de
+    // paginas e permitir ordenação por mais recentes/mais antigas.
+    $orderSqlInt = $intimOrdem === 'asc'
+        ? 'cp.data_disponibilizacao ASC, cp.id ASC'
+        : 'cp.data_disponibilizacao DESC, cp.id DESC';
     $stmtInt = $pdo->query(
         "SELECT cp.id AS pub_id, cp.case_id, cp.data_disponibilizacao, cp.tipo_publicacao, cp.resumo_ia,
                 cp.status_prazo, cs.title, cs.case_number, c.name AS client_name
@@ -170,10 +180,14 @@ try {
          INNER JOIN cases cs ON cs.id = cp.case_id
          LEFT JOIN clients c ON c.id = cs.client_id
          WHERE cp.status_prazo = 'pendente'
-         ORDER BY cp.data_disponibilizacao DESC, cp.id DESC
-         LIMIT 5"
+         ORDER BY $orderSqlInt"
     );
-    $ultimasIntimacoes = $stmtInt->fetchAll();
+    $intimacoesAll = $stmtInt->fetchAll();
+    $intimTotal    = count($intimacoesAll);
+    $intimTotPag   = max(1, (int)ceil($intimTotal / $intimPerPage));
+    if ($intimPagina > $intimTotPag) $intimPagina = $intimTotPag;
+    $intimOffset   = ($intimPagina - 1) * $intimPerPage;
+    $ultimasIntimacoes = array_slice($intimacoesAll, $intimOffset, $intimPerPage);
 
     $stmtDist = $pdo->query(
         "SELECT cs.id, cs.title, cs.updated_at, cs.case_number, c.name AS client_name, u.name AS responsible_name
@@ -255,9 +269,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Últimos processos (quadrinho informativo) -->
 <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;margin-bottom:1rem;">
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:var(--radius-md);padding:.6rem .85rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;gap:.5rem;flex-wrap:wrap;">
             <strong style="font-size:.78rem;color:var(--petrol-900);">📢 Intimações pendentes</strong>
-            <span style="font-size:.65rem;color:#64748b;"><?= count($ultimasIntimacoes) ?> a revisar</span>
+            <div style="display:flex;align-items:center;gap:.5rem;">
+                <?php
+                // Toggle Recentes/Antigas — preserva eventuais filtros da página
+                $intim_q_base = $_GET;
+                unset($intim_q_base['intim_p'], $intim_q_base['intim_ordem']);
+                $intim_q_desc = http_build_query(array_merge($intim_q_base, array('intim_ordem' => 'desc', 'intim_p' => 1))) . '#intimacoes';
+                $intim_q_asc  = http_build_query(array_merge($intim_q_base, array('intim_ordem' => 'asc',  'intim_p' => 1))) . '#intimacoes';
+                $btnStyleOn   = 'background:#6366f1;color:#fff;border:1px solid #6366f1;';
+                $btnStyleOff  = 'background:#fff;color:#6366f1;border:1px solid #c7d2fe;';
+                ?>
+                <div style="display:inline-flex;border-radius:6px;overflow:hidden;font-size:.6rem;font-weight:700;">
+                    <a href="?<?= $intim_q_desc ?>" style="padding:2px 7px;text-decoration:none;<?= $intimOrdem==='desc' ? $btnStyleOn : $btnStyleOff ?>border-right:none;border-radius:6px 0 0 6px;" title="Mais recentes primeiro">🕒 Recentes</a>
+                    <a href="?<?= $intim_q_asc ?>"  style="padding:2px 7px;text-decoration:none;<?= $intimOrdem==='asc'  ? $btnStyleOn : $btnStyleOff ?>border-radius:0 6px 6px 0;" title="Mais antigas primeiro">📅 Antigas</a>
+                </div>
+                <span id="intimacoes" style="font-size:.65rem;color:#64748b;"><?= (int)$intimTotal ?> a revisar</span>
+            </div>
         </div>
         <?php if (empty($ultimasIntimacoes)): ?>
             <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">✅ Nenhuma intimação pendente.</div>
@@ -270,7 +299,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 'edital' => 'Edital', 'outro' => 'Publicação',
             );
             $_csrfIntim = generate_csrf_token();
-            $_backUrl = module_url('processos');
+            // _back preserva pagina e ordem pra voltar pra MESMA fatia depois
+            // de cumprir/descartar (caso contrario sempre cai na pag 1).
+            $_backQs  = http_build_query(array('intim_p' => $intimPagina, 'intim_ordem' => $intimOrdem));
+            $_backUrl = module_url('processos') . ($_backQs ? '?' . $_backQs . '#intimacoes' : '');
             foreach ($ultimasIntimacoes as $ui):
                 $dataDisp = $ui['data_disponibilizacao'];
                 $agoInt = time() - strtotime($dataDisp);
@@ -320,6 +352,45 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 </div>
             <?php endforeach; ?>
+            <?php if ($intimTotPag > 1): ?>
+                <?php
+                // Paginação compacta — janela de até 5 páginas em volta da atual
+                $pgFrom = max(1, $intimPagina - 2);
+                $pgTo   = min($intimTotPag, $pgFrom + 4);
+                $pgFrom = max(1, $pgTo - 4);
+                $pgUrl = function($p) use ($intim_q_base, $intimOrdem) {
+                    return '?' . http_build_query(array_merge($intim_q_base, array('intim_ordem' => $intimOrdem, 'intim_p' => $p))) . '#intimacoes';
+                };
+                $pgActive = 'background:#6366f1;color:#fff;border-color:#6366f1;';
+                $pgIdle   = 'background:#fff;color:#6366f1;border-color:#c7d2fe;';
+                ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:.4rem;padding-top:.45rem;margin-top:.25rem;border-top:1px solid #f1f5f9;font-size:.62rem;">
+                    <span style="color:#94a3b8;">Página <?= (int)$intimPagina ?> de <?= (int)$intimTotPag ?> · <?= (int)$intimTotal ?> total</span>
+                    <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
+                        <?php if ($intimPagina > 1): ?>
+                            <a href="<?= $pgUrl($intimPagina - 1) ?>" style="text-decoration:none;border:1px solid #c7d2fe;color:#6366f1;background:#fff;padding:2px 7px;border-radius:5px;font-weight:700;" title="Anterior">‹</a>
+                        <?php endif; ?>
+                        <?php if ($pgFrom > 1): ?>
+                            <a href="<?= $pgUrl(1) ?>" style="text-decoration:none;<?= $pgIdle ?>border-style:solid;border-width:1px;padding:2px 7px;border-radius:5px;font-weight:700;">1</a>
+                            <?php if ($pgFrom > 2): ?><span style="color:#94a3b8;">…</span><?php endif; ?>
+                        <?php endif; ?>
+                        <?php for ($p = $pgFrom; $p <= $pgTo; $p++): ?>
+                            <?php if ($p === $intimPagina): ?>
+                                <span style="<?= $pgActive ?>border-style:solid;border-width:1px;padding:2px 7px;border-radius:5px;font-weight:700;"><?= $p ?></span>
+                            <?php else: ?>
+                                <a href="<?= $pgUrl($p) ?>" style="text-decoration:none;<?= $pgIdle ?>border-style:solid;border-width:1px;padding:2px 7px;border-radius:5px;font-weight:700;"><?= $p ?></a>
+                            <?php endif; ?>
+                        <?php endfor; ?>
+                        <?php if ($pgTo < $intimTotPag): ?>
+                            <?php if ($pgTo < $intimTotPag - 1): ?><span style="color:#94a3b8;">…</span><?php endif; ?>
+                            <a href="<?= $pgUrl($intimTotPag) ?>" style="text-decoration:none;<?= $pgIdle ?>border-style:solid;border-width:1px;padding:2px 7px;border-radius:5px;font-weight:700;"><?= (int)$intimTotPag ?></a>
+                        <?php endif; ?>
+                        <?php if ($intimPagina < $intimTotPag): ?>
+                            <a href="<?= $pgUrl($intimPagina + 1) ?>" style="text-decoration:none;border:1px solid #c7d2fe;color:#6366f1;background:#fff;padding:2px 7px;border-radius:5px;font-weight:700;" title="Próxima">›</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 
