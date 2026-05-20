@@ -294,6 +294,17 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN seguro_segurad
 // Carga horaria do estagio (5h/6h/7h/8h)
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN carga_horaria_estagio VARCHAR(10) NULL"); } catch (Exception $e) {}
 
+// === Prestador de Servicos (PJ / MEI / Autonomo) — usado quando perfil_cargo='prestador_*'
+//  perfil_cargo passou a aceitar: prestador_pj, prestador_mei, prestador_autonomo
+//  alem dos valores existentes (estagiario/advogado_associado/clt/sociedade/outro).
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN cnpj VARCHAR(20) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN razao_social VARCHAR(200) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN dados_bancarios TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN emite_nf TINYINT(1) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN escopo_servicos TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_inicio_contrato DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_termino_contrato DATE NULL"); } catch (Exception $e) {}
+
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
 // Checklist, POP, Contrato de Associacao, etc) via campo `tipo` + JSONs com
@@ -399,6 +410,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'seguro_num_apolice'   => trim($_POST['seguro_num_apolice'] ?? '') ?: null,
             'seguro_seguradora'    => trim($_POST['seguro_seguradora'] ?? '') ?: null,
             'carga_horaria_estagio' => in_array(($_POST['carga_horaria_estagio'] ?? ''), array('4h','5h','6h','7h','8h'), true) ? $_POST['carga_horaria_estagio'] : null,
+            // Prestador de Serviços (PJ / MEI / Autônomo) — só preenchido quando perfil_cargo='prestador_*'
+            'cnpj'                  => preg_replace('/\D/', '', trim($_POST['cnpj'] ?? '')) ?: null,
+            'razao_social'          => trim($_POST['razao_social'] ?? '') ?: null,
+            'dados_bancarios'       => trim($_POST['dados_bancarios'] ?? '') ?: null,
+            'emite_nf'              => isset($_POST['emite_nf']) ? 1 : 0,
+            'escopo_servicos'       => trim($_POST['escopo_servicos'] ?? '') ?: null,
+            'data_inicio_contrato'  => trim($_POST['data_inicio_contrato'] ?? '') ?: null,
+            'data_termino_contrato' => trim($_POST['data_termino_contrato'] ?? '') ?: null,
         );
 
         // Se admin informou WhatsApp da colaboradora, tenta buscar foto de perfil
@@ -671,6 +690,51 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </select>
             </div>
         </div>
+
+        <!-- Dados do Prestador (PJ/MEI/Autônomo) — só aparece quando o perfil de cargo é prestador_* -->
+        <div id="prestadorBlock" style="display:<?= onboarding_eh_prestador($reg['perfil_cargo'] ?? '') ? 'block' : 'none' ?>;background:rgba(184,115,51,.06);border:1px solid rgba(184,115,51,.2);border-radius:8px;padding:14px;margin-top:14px;">
+            <h4 style="font-size:.85rem;color:#6a3c2c;margin:0 0 .6rem;">💼 Dados do Prestador de Serviços</h4>
+            <div class="ob-grid">
+                <div>
+                    <label>CNPJ <span style="color:#888;font-size:.7rem;font-weight:400;">(PJ/MEI)</span></label>
+                    <input name="cnpj" value="<?= e($reg['cnpj'] ?? '') ?>" placeholder="00.000.000/0000-00">
+                </div>
+                <div>
+                    <label>Razão social / Nome empresarial</label>
+                    <input name="razao_social" value="<?= e($reg['razao_social'] ?? '') ?>" placeholder="Ex.: João Silva Marketing ME">
+                </div>
+                <div>
+                    <label>Início do contrato</label>
+                    <input type="date" name="data_inicio_contrato" value="<?= e($reg['data_inicio_contrato'] ?? '') ?>">
+                </div>
+                <div>
+                    <label>Término do contrato <span style="color:#888;font-size:.7rem;font-weight:400;">(vazio = indeterminado)</span></label>
+                    <input type="date" name="data_termino_contrato" value="<?= e($reg['data_termino_contrato'] ?? '') ?>">
+                </div>
+            </div>
+            <div style="margin-top:.7rem;display:flex;align-items:center;gap:.4rem;">
+                <input type="checkbox" name="emite_nf" id="emiteNfChk" value="1" <?= !empty($reg['emite_nf']) ? 'checked' : '' ?>>
+                <label for="emiteNfChk" style="margin:0;">Emite Nota Fiscal de serviço</label>
+            </div>
+            <div style="margin-top:.8rem;">
+                <label>Dados bancários <span style="color:#888;font-size:.7rem;font-weight:400;">(Banco / Agência / Conta / Chave PIX)</span></label>
+                <textarea name="dados_bancarios" rows="2" placeholder="Ex.: Itaú · Ag 0123 · CC 56789-0 · PIX CNPJ 12.345.678/0001-00"><?= e($reg['dados_bancarios'] ?? '') ?></textarea>
+            </div>
+            <div style="margin-top:.8rem;">
+                <label>Escopo dos serviços <span style="color:#888;font-size:.7rem;font-weight:400;">(vai pro contrato — objeto, entregas mensais esperadas)</span></label>
+                <textarea name="escopo_servicos" rows="4" placeholder="Ex.: Gestão de redes sociais (Instagram + LinkedIn), 12 posts/mês, 4 reels/mês, gestão de tráfego pago Meta Ads (orçamento separado), relatório mensal de métricas, atendimento via WhatsApp em horário comercial..."><?= e($reg['escopo_servicos'] ?? '') ?></textarea>
+            </div>
+        </div>
+        <script>
+        (function(){
+            var sel=document.getElementById('perfilCargoSelect'); if(!sel) return;
+            var prest=['prestador_pj','prestador_mei','prestador_autonomo'];
+            sel.addEventListener('change', function(){
+                var b=document.getElementById('prestadorBlock');
+                if (b) b.style.display = (prest.indexOf(sel.value)>=0) ? 'block' : 'none';
+            });
+        })();
+        </script>
 
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">📧 Acesso institucional</h4>
         <div class="ob-grid">

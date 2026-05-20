@@ -231,10 +231,18 @@ function onboarding_doc_schema($tipo) {
  */
 function onboarding_perfis_cargo() {
     return array(
-        'estagiario'         => 'Estagiária(o)',
-        'advogado_associado' => 'Advogada(o) Associada(o)',
-        'clt'                => 'CLT',
-        'sociedade'          => 'Sociedade',
-        'outro'              => 'Outro',
+        'estagiario'           => 'Estagiária(o)',
+        'advogado_associado'   => 'Advogada(o) Associada(o)',
+        'clt'                  => 'CLT',
+        'sociedade'            => 'Sociedade',
+        'prestador_pj'         => 'Prestador de Serviços — PJ',
+        'prestador_mei'        => 'Prestador de Serviços — MEI',
+        'prestador_autonomo'   => 'Prestador de Serviços — Autônomo',
+        'outro'                => 'Outro',
     );
+}
+
+/** True quando o perfil_cargo é qualquer um dos prestadores (PJ/MEI/Autônomo). */
+function onboarding_eh_prestador($perfilCargo) {
+    return in_array((string)$perfilCargo, array('prestador_pj','prestador_mei','prestador_autonomo'), true);
 }
