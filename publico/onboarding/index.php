@@ -617,6 +617,7 @@ html { scroll-behavior: smooth; }
                 <span>Ir para uma seção</span>
                 <span class="seta">▾</span>
             </summary>
+            <?php $ehPrestador = onboarding_eh_prestador($reg['perfil_cargo'] ?? ''); ?>
             <div class="onb-nav-grid">
                 <a href="#sec-portal">🎯 Seu Portal</a>
                 <?php if (!empty($avisos)): ?><a href="#sec-mural">📰 Mural</a><?php endif; ?>
@@ -625,11 +626,11 @@ html { scroll-behavior: smooth; }
                 <?php if ($reg['email_institucional'] || $reg['senha_inicial']): ?><a href="#sec-acessos">🔐 Acessos</a><?php endif; ?>
                 <?php if ($reg['cargo'] || $reg['setor'] || $reg['modalidade']): ?><a href="#sec-jornada">💼 Jornada</a><?php endif; ?>
                 <?php if ($reg['tipo_remuneracao'] || $reg['valor_remuneracao'] || $reg['beneficios']): ?><a href="#sec-remuneracao">💰 Remuneração</a><?php endif; ?>
-                <a href="#sec-kit">🎁 Kit</a>
+                <?php if (!$ehPrestador): ?><a href="#sec-kit">🎁 Kit</a><?php endif; ?>
                 <a href="#sec-principios">💎 Princípios</a>
                 <a href="#sec-fit">💪 F&S FIT</a>
-                <a href="#sec-seguro">🛡️ Seguro</a>
-                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>">📋 Dados do Seguro de Vida</a>
+                <?php if (!$ehPrestador): ?><a href="#sec-seguro">🛡️ Seguro</a>
+                <a href="seguro_vida.php?token=<?= htmlspecialchars($token) ?>">📋 Dados do Seguro de Vida</a><?php endif; ?>
                 <?php if (!empty($documentosVinculados)): ?><a href="#sec-documentos">📄 Documentos</a><?php endif; ?>
                 <a href="#sec-story">📸 Story</a>
                 <a href="#sec-aceite">✅ Aceitar</a>
@@ -661,11 +662,19 @@ html { scroll-behavior: smooth; }
                     <div style="font-weight:700;font-size:.92rem;">Solicitações</div>
                     <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Folga, material, doença...</div>
                 </a>
+                <?php if ($ehPrestador): ?>
+                <a href="entregas.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;">
+                    <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📈</div>
+                    <div style="font-weight:700;font-size:.92rem;">Entregas Mensais</div>
+                    <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Posts, campanhas, relatórios</div>
+                </a>
+                <?php else: ?>
                 <a href="indicacoes.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;">
                     <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">💸</div>
                     <div style="font-weight:700;font-size:.92rem;">Indicações</div>
                     <div style="font-size:.72rem;opacity:.75;margin-top:.2rem;">Indique e ganhe %</div>
                 </a>
+                <?php endif; ?>
                 <a href="daily.php?token=<?= htmlspecialchars($token) ?>" style="background:rgba(255,255,255,.12);border:1px solid rgba(215,171,144,.4);border-radius:12px;padding:1rem .85rem;text-decoration:none;color:#fff;text-align:center;transition:all .15s;display:block;">
                     <div style="font-size:2rem;line-height:1;margin-bottom:.3rem;">📓</div>
                     <div style="font-weight:700;font-size:.92rem;">Daily Planner</div>
@@ -920,7 +929,7 @@ html { scroll-behavior: smooth; }
             'verde'    => '#10b981',
         );
         ?>
-        <div class="card-block" id="sec-kit">
+        <div class="card-block" id="sec-kit"<?= $ehPrestador ? ' style="display:none"' : '' ?>>
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#fbcfe8,#f9a8d4);">🎁</div>
                 <h2>Suas preferências pro kit (vai ser surpresa! ✨)</h2>
@@ -1248,7 +1257,7 @@ html { scroll-behavior: smooth; }
         </div>
 
         <!-- SEGURO CONTRA ACIDENTES PESSOAIS -->
-        <div class="card-block" id="sec-seguro" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;">
+        <div class="card-block" id="sec-seguro" style="background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1.5px solid #60a5fa;<?= $ehPrestador ? 'display:none;' : '' ?>">
             <div class="card-title-row">
                 <div class="card-title-icon" style="background:linear-gradient(135deg,#bfdbfe,#93c5fd);">🛡️</div>
                 <h2 style="color:#1e40af;">Você está protegida(o)</h2>
