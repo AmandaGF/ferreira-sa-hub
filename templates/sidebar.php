@@ -85,7 +85,6 @@ $menuItems = array(
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $_rolesEquipe),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $_rolesEquipe),
-    array('label' => 'Ligações',        'icon' => '📞', 'href' => url('modules/ligacoes/'),        'id' => 'ligacoes',        'roles' => $_rolesEquipe),
     array('label' => 'Formulários',     'icon' => '📋', 'href' => url('modules/formularios/'),      'id' => 'formularios',     'roles' => array('admin','gestao')),
 
     array('section' => '⚙️ Operacional'),
@@ -159,7 +158,6 @@ $menuItems = array(
     array('label' => 'WhatsApp dedup',  'icon' => '🔀', 'href' => url('modules/admin/whatsapp_dedup.php'), 'id' => 'whatsapp_dedup', 'roles' => array('admin')),
     array('label' => 'WhatsApp Saúde',  'icon' => '🩺', 'href' => url('modules/admin/diag_wa.php'),       'id' => 'diag_wa',        'roles' => array('admin')),
     array('label' => 'WhatsApp Config',  'icon' => '🔍', 'href' => url('modules/admin/diag_wa_config.php'), 'id' => 'diag_wa_config', 'roles' => array('admin')),
-    array('label' => 'Nvoip (VoIP)',    'icon' => '📞', 'href' => url('modules/admin/nvoip.php'),         'id' => 'nvoip_admin', 'roles' => array('admin')),
     array('label' => 'Health Check',    'icon' => '🩺', 'href' => url('modules/admin/health.php'),  'id' => 'admin',           'roles' => array('admin')),
 );
 

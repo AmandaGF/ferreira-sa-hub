@@ -82,27 +82,11 @@ return array(
         'Cronômetro no topo mostra **quanto falta pra liberar** — atualiza ao vivo.',
         '**Etiqueta 🔓 AT DESBLOQUEADO** aplicada AUTOMATICAMENTE quando a trava libera — botão atalho filtra.',
         'Envia: texto, imagem, documento, áudio (com preview antes de enviar), figurinha, reação.',
-        'Botões: 📞 Ligar (Nvoip) · 📋 Chamado · 🔑 Portal · 🎯 Delegar (só Amanda/Luiz) · 🔀 Mesclar duplicatas.',
+        'Botões: 📋 Chamado · 🔑 Portal · 🎯 Delegar (só Amanda/Luiz) · 🔀 Mesclar duplicatas.',
     ),
     'atencao' => '**NUNCA mesclar conversas entre canais 21 e 24** — são números físicos diferentes do escritório, juntar quebra o fluxo de resposta. Mesclar só vale DENTRO do mesmo canal (duplicatas @lid).',
     'dica' => 'Clicou **⏹** no áudio? Ele PARA (não envia). Você escuta o preview e clica **➤ Enviar** pra mandar. Pra fluxo rápido tipo WhatsApp normal, clica **➤ Enviar durante a gravação** que ele para+envia direto.',
     'missao' => 'Abra uma conversa travada (🔒 no topo), observe o cronômetro de liberação e filtre por **🔓 AT Desbloq.** pra ver leads que perderam atendimento.',
-),
-
-'ligacoes-nvoip' => array(
-    'por_que' => 'Ligações telefônicas direto pelo Hub via Nvoip — com 1 clique em "📞 Ligar" em qualquer tela de cliente/processo/conversa. Cada chamada é **gravada automaticamente**, **transcrita** por IA e **resumida em 3 linhas** — tudo vinculado ao cliente/processo. Nada manual, nada perdido.',
-    'passos' => array(
-        'Sidebar Comercial → **📞 Ligações** pra ver histórico geral, passo a passo e credenciais.',
-        '**Antes de ligar:** abra o painel Nvoip em outra aba e ative o **WebPhone** (botão ⋮⋮⋮ laranja). Deixe a aba minimizada — ela precisa ficar aberta.',
-        'No Hub, clica **📞 Ligar** no: drawer do cliente, perfil, pasta do processo OU cabeçalho da conversa WhatsApp (pra ligar pra quem mandou msg mas não é cliente ainda).',
-        'Seu WebPhone toca na aba Nvoip → atende ali → Nvoip disca pro cliente e conecta vocês.',
-        'Widget flutuante no canto inferior direito mostra: nome, telefone, status (⏳/🟢/✓) e timer. Botão 📵 encerra manualmente. Limite 5min por segurança.',
-        'Ao desligar: gravação baixada pra `/files/ligacoes/`, transcrita via Groq Whisper, resumida por Claude Haiku em 3 linhas (assunto · próximos passos · observações).',
-        'Histórico aparece em 3 lugares: **Comercial → Ligações** (geral), **aba 📞 Ligações do drawer** (por cliente), **Admin → Nvoip** (todas + filtros + CSV).',
-    ),
-    'atencao' => 'Se o WebPhone da Nvoip **não estiver aberto e registrado**, a ligação falha com `RECOVERY_ON_TIMER_EXPIRE` — a chamada é pro SEU ramal primeiro, você atende, aí liga pro cliente. Sem ramal atendendo, não acontece.',
-    'dica' => '**Z-API NÃO faz ligações** (só WhatsApp permite msg pela API, não chamadas). Por isso a Nvoip é separada — linha telefônica independente. Custo: cada chamada consome saldo Nvoip (ver saldo no painel admin).',
-    'missao' => 'Acesse **Comercial → Ligações**, leia o passo a passo, abra o webphone em outra aba e faça uma ligação teste pro próprio celular. Depois confira o histórico com gravação + resumo IA.',
 ),
 
 'procuracao-regras' => array(

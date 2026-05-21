@@ -159,7 +159,6 @@ if(D.cobranca_honorarios)bg+='<span class="cb" style="background:#dc2626">💰 I
 hd+='<div style="margin-top:.4rem">'+bg+'</div>';
 var bt='';
 if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">WhatsApp</a> ';
-if(c.phone&&window.NvoipWidget)bt+='<button onclick="window.nvoipIniciar(\''+c.phone.replace(/\D/g,'')+'\','+(D.client_id||0)+',0,'+(D.case_id||0)+',\''+(c.name||'').replace(/\x27/g,"\\x27")+'\')" style="background:#059669;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer" title="Ligar via Nvoip">📞 Ligar</button> ';
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';
 bt+='<a href="'+base+'/modules/clientes/ver.php?id='+D.client_id+'" style="background:#052228;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Perfil</a> ';
 if(s)bt+='<button onclick="window._cdArchive()" style="background:#6b7280;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Arquivar</button> ';
@@ -168,9 +167,9 @@ bt+='<button onclick="window._cdDuplicate()" style="background:#6366f1;color:#ff
 bt+='<button onclick="window._cdDelete()" style="background:#dc2626;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;border:none;cursor:pointer">Excluir</button>';
 hd+='<div style="margin-top:.4rem;display:flex;gap:.3rem;flex-wrap:wrap">'+bt+'</div>';
 document.getElementById('cdHd').innerHTML=hd;
-var tabs=['geral','comercial','operacional','docs','agenda','ligacoes','historico'];
-var tl={geral:'Geral',comercial:'Comercial',operacional:'Operacional',docs:'Doc. Faltantes',agenda:'Agenda',ligacoes:'📞 Ligações',historico:'Hist.'};
-var th='';tabs.forEach(function(t){if(t==='comercial'&&!D.can_comercial)return;if(t==='ligacoes'&&!window.NvoipWidget)return;th+='<button class="ct'+(t===T?' on':'')+'" onclick="window._cdST(\''+t+'\')">'+tl[t]+'</button>'});
+var tabs=['geral','comercial','operacional','docs','agenda','historico'];
+var tl={geral:'Geral',comercial:'Comercial',operacional:'Operacional',docs:'Doc. Faltantes',agenda:'Agenda',historico:'Hist.'};
+var th='';tabs.forEach(function(t){if(t==='comercial'&&!D.can_comercial)return;th+='<button class="ct'+(t===T?' on':'')+'" onclick="window._cdST(\''+t+'\')">'+tl[t]+'</button>'});
 document.getElementById('cdTb').innerHTML=th;
 rtab()
 }
@@ -216,26 +215,6 @@ if(recv.length){h+='<div class="cs"><h5 style="color:#059669">Recebidos ('+recv.
 h+='<div class="cs"><h5>Pecas ('+(D.pecas||[]).length+')</h5>';(D.pecas||[]).forEach(function(p){h+='<div style="padding:2px 0;border-bottom:1px solid #f3f4f6;font-size:.77rem">'+E(p.titulo||'Peca')+'</div>'});if(!(D.pecas||[]).length)h+='<div style="color:#94a3b8;font-size:.77rem">Nenhuma</div>';h+='</div>'
 }else if(T==='agenda'){
 h+='<div class="cs"><h5>Compromissos</h5>';(D.compromissos||[]).forEach(function(ev){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6"><div style="font-weight:600;font-size:.77rem">'+E(ev.titulo)+'</div><div style="font-size:.67rem;color:#6b7280">'+FD(ev.data_inicio)+' - '+E(ev.tipo)+'</div></div>'});if(!(D.compromissos||[]).length)h+='<div style="color:#94a3b8;font-size:.77rem">Nenhum</div>';h+='</div>'
-}else if(T==='ligacoes'){
-h+='<div class="cs"><h5>Ligações</h5><div id="cdLigLista">Carregando...</div></div>';
-// Lazy-load via API
-var qs=D.client_id?'client_id='+D.client_id:(D.case_id?'case_id='+D.case_id:'');
-if(qs){
- fetch((window.FSA_URL_BASE||'/conecta')+'/api/nvoip_api.php?action=historico&'+qs,{credentials:'same-origin'}).then(function(r){return r.json()}).then(function(d){
-   var box=document.getElementById('cdLigLista');if(!box)return;
-   var lig=(d&&d.ligacoes)||[];if(!lig.length){box.innerHTML='<div style="color:#94a3b8">Nenhuma ligação registrada</div>';return}
-   var oh='';lig.forEach(function(l){
-     var durS=parseInt(l.duracao_segundos||0,10);var dur=Math.floor(durS/60)+':'+(durS%60<10?'0':'')+(durS%60);
-     var cls=l.status==='finished'?'':(l.status==='noanswer'||l.status==='busy'||l.status==='failed'?' nao-atendeu':' descartada');
-     oh+='<div class="nvoip-hist-item'+cls+'">';
-     oh+='<div><strong>'+E(l.atendente_nome||'—')+'</strong> <span style="opacity:.7">'+FD(l.iniciada_em)+'</span></div>';
-     oh+='<div class="nvoip-hist-meta">'+E(l.telefone_destino)+' · '+(durS?dur:'sem duração')+' · '+E(l.status)+'</div>';
-     if(l.resumo_ia)oh+='<div class="nvoip-hist-resumo">'+E(l.resumo_ia)+'</div>';
-     if(l.gravacao_local)oh+='<audio controls class="nvoip-hist-audio" src="'+(window.FSA_URL_BASE||'/conecta')+'/api/nvoip_api.php?action=audio&id='+l.id+'"></audio>';
-     oh+='</div>';
-   });box.innerHTML=oh;
- }).catch(function(){var box=document.getElementById('cdLigLista');if(box)box.innerHTML='<div style="color:#b91c1c">Erro ao carregar</div>'});
-}
 }else if(T==='historico'){
 (D.historico||[]).forEach(function(hi){h+='<div style="padding:3px 0;border-bottom:1px solid #f3f4f6;font-size:.75rem"><strong>'+FD(hi.date)+'</strong> '+hi.icon+' '+E(hi.text)+'</div>'});if(!(D.historico||[]).length)h+='<div style="color:#94a3b8;text-align:center;padding:1rem">Nenhum</div>'
 }else{h='<div style="color:#94a3b8;padding:2rem;text-align:center">Sem dados</div>'}

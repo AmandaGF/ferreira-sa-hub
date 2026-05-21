@@ -55,7 +55,6 @@ window.fsaNotifClickWa = function(el) {
 };
 </script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>?v=<?= date('YmdHi') ?>"></script>
-<script src="<?= url('assets/js/nvoip.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <!-- PWA: service worker + install prompt + update banner -->
 <script>
 (function() {

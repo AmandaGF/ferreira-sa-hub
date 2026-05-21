@@ -60,7 +60,6 @@ $catMap = array(
     // 📞 Comunicação
     'whatsapp-crm'                 => 'comunicacao',
     'newsletter'                   => 'comunicacao',
-    'ligacoes-nvoip'               => 'comunicacao',
     // 🛠️ Ferramentas Internas
     'helpdesk'                     => 'internas',
     'wiki'                         => 'internas',
