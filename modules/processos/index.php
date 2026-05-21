@@ -162,7 +162,7 @@ $processos = $stmt->fetchAll();
 $ultimasIntimacoes = array();
 $ultimosDistribuidos = array();
 // Paginação + ordenação das intimações pendentes (controles no card)
-$intimPerPage = 7;                                                  // entre 5 e 10
+$intimPerPage = 5;                                                  // ajustado a pedido da Amanda
 $intimOrdem   = ($_GET['intim_ordem'] ?? 'desc') === 'asc' ? 'asc' : 'desc';
 $intimPagina  = max(1, (int)($_GET['intim_p'] ?? 1));
 $intimTotal   = 0;
