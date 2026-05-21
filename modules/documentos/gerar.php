@@ -397,7 +397,11 @@ if (!$showEditor) {
 
 <?php if ($showEditor): ?>
 <div class="toolbar">
-    <a href="<?= module_url('documentos') ?>">← Voltar</a>
+    <?php if ($caseIdDoc > 0): ?>
+        <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $caseIdDoc) ?>">← Voltar à pasta</a>
+    <?php else: ?>
+        <a href="<?= module_url('documentos') ?>">← Voltar</a>
+    <?php endif; ?>
     <span style="font-size:.78rem;opacity:.7;"><?= e($pageTitle) ?></span>
 </div>
 
@@ -1343,8 +1347,12 @@ if (!$showEditor) {
 <!-- DOCUMENTO FINAL -->
 <div class="toolbar">
     <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
-        <a href="<?= module_url('documentos') ?>">← Voltar</a>
-        <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante)) ?>">✏️ Editar</a>
+        <?php if ($caseIdDoc > 0): ?>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $caseIdDoc) ?>">← Voltar à pasta</a>
+        <?php else: ?>
+            <a href="<?= module_url('documentos') ?>">← Voltar</a>
+        <?php endif; ?>
+        <a href="<?= module_url('documentos', 'gerar.php?tipo=' . urlencode($tipo) . '&client_id=' . $clientId . '&tipo_acao=' . urlencode($tipoAcao) . '&outorgante=' . urlencode($outorgante) . ($caseIdDoc > 0 ? '&case_id=' . $caseIdDoc : '')) ?>">✏️ Editar</a>
         <button onclick="imprimirLimpo()">🖨️ Imprimir / PDF</button>
         <button onclick="baixarWord()" style="background:#2563eb;">📥 Word (.docx)</button>
         <button onclick="copiarConteudo()" style="background:#059669;">📋 Copiar conteúdo</button>
