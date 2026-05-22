@@ -192,6 +192,23 @@ $pdo->exec(
 );
 
 // ────────────────────────────────────────────────────────────
+// Tabela de UIDs já processados (self-heal — idempotente)
+// CONTROLE PRÓPRIO de "já processei este e-mail" — substitui a dependência
+// da flag \Seen do IMAP. Antes o filtro era UNSEEN: se alguém abrisse o
+// e-mail no Gmail, ele virava "lido" e o cron NUNCA mais o pegava — andamento
+// se perdia (bug reportado pela Amanda em 22/05/2026). Agora a busca traz
+// todos os e-mails da janela (lidos ou não) e este registro decide o que
+// já foi processado.
+// ────────────────────────────────────────────────────────────
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS email_monitor_uids (
+        uid bigint unsigned NOT NULL,
+        processado_em datetime NOT NULL,
+        PRIMARY KEY (uid)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+);
+
+// ────────────────────────────────────────────────────────────
 // IMAP
 // ────────────────────────────────────────────────────────────
 if (!function_exists('imap_open')) {
@@ -218,12 +235,37 @@ if (!$mbox) {
     exit;
 }
 
-// Busca emails NÃO vistos do remetente desejado (UID retornado).
-// Filtro SINCE: ignora emails anteriores a 15/abril/2026 — esses já foram
-// processados manualmente / vieram pelo DataJud. Impede que backlog antigo
-// segure o processamento dos andamentos recentes (Amanda 03/05/2026).
-$emails = imap_search($mbox, 'UNSEEN FROM "' . IMAP_FROM_FILTER . '" SINCE "15-Apr-2026"', SE_UID);
+// Busca emails do remetente desejado (UID retornado).
+// IMPORTANTE: NÃO usamos mais "UNSEEN". O filtro UNSEEN dependia da flag de
+// leitura do Gmail — se alguém abrisse o e-mail na caixa, ele virava "lido" e
+// o cron nunca mais o pegava (andamento perdido). Agora trazemos TODOS os
+// e-mails da janela e a tabela email_monitor_uids decide o que já foi feito.
+//
+// Janela SINCE: padrão = últimos 20 dias (cobre folga de 60 execuções do cron).
+// Override ?desde=DD-Mon-YYYY (ex: 15-Apr-2026) pra recuperação de backlog.
+if (!empty($_GET['desde']) && preg_match('/^\d{1,2}-[A-Za-z]{3}-\d{4}$/', (string)$_GET['desde'])) {
+    $sinceStr = (string)$_GET['desde'];
+} else {
+    $sinceStr = date('d-M-Y', strtotime('-20 days'));
+}
+$emails = imap_search($mbox, 'FROM "' . IMAP_FROM_FILTER . '" SINCE "' . $sinceStr . '"', SE_UID);
 if (!is_array($emails)) $emails = array();
+
+// Carrega os UIDs já processados (controle próprio — independe da flag \Seen).
+$uidsJaProcessados = array();
+try {
+    foreach ($pdo->query("SELECT uid FROM email_monitor_uids")->fetchAll(PDO::FETCH_COLUMN) as $u) {
+        $uidsJaProcessados[(string)$u] = true;
+    }
+} catch (Exception $e) { /* tabela recém-criada / vazia */ }
+
+// Mantém só os e-mails ainda não processados por este sistema.
+$emailsNovos = array();
+foreach ($emails as $u) {
+    if (!isset($uidsJaProcessados[(string)$u])) $emailsNovos[] = $u;
+}
+$jaProcessadosNaJanela = count($emails) - count($emailsNovos);
+$emails = $emailsNovos;
 
 // Limite por execução (evita estourar timeout + permite várias rodadas).
 // Default DINÂMICO: 100 em CLI, 20 em HTTP. Override via ?limite=N (1..500).
@@ -231,10 +273,10 @@ $defaultLimite   = $isCli ? 100 : 20;
 $limitePorExec   = isset($_GET['limite']) ? max(1, min(500, (int)$_GET['limite'])) : $defaultLimite;
 $totalEncontrado = count($emails);
 if ($totalEncontrado > $limitePorExec) {
-    echo "[imap] {$totalEncontrado} email(s) não lidos correspondentes — processando os primeiros {$limitePorExec} desta execução.\n";
+    echo "[imap] desde {$sinceStr}: {$totalEncontrado} novo(s), {$jaProcessadosNaJanela} já processado(s) — processando {$limitePorExec} nesta execução.\n";
     $emails = array_slice($emails, 0, $limitePorExec);
 } else {
-    echo "[imap] {$totalEncontrado} email(s) não lidos correspondentes a busca.\n";
+    echo "[imap] desde {$sinceStr}: {$totalEncontrado} novo(s), {$jaProcessadosNaJanela} já processado(s).\n";
 }
 
 // Prepares reutilizáveis
@@ -264,6 +306,9 @@ $stmtUpsertPend  = $pdo->prepare(
         ultima_vez            = NOW()"
 );
 
+// Marca um UID como processado (controle próprio — ver tabela email_monitor_uids)
+$stmtMarcaUid = $pdo->prepare("INSERT IGNORE INTO email_monitor_uids (uid, processado_em) VALUES (?, NOW())");
+
 foreach ($emails as $uid) {
     $emailsLidos++;
     $uidStr = (string)$uid;
@@ -281,7 +326,7 @@ foreach ($emails as $uid) {
         if ($fromAddr && stripos($fromAddr, IMAP_BLOCK_DOMAIN) !== false) {
             $emailsIgnorados++;
             $detalhes[] = "Ignorado (domínio bloqueado): UID {$uidStr} from {$fromAddr}";
-            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
             continue;
         }
 
@@ -290,7 +335,7 @@ foreach ($emails as $uid) {
         if (!$body) {
             $emailsIgnorados++;
             $detalhes[] = "Corpo vazio (UID {$uidStr})";
-            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
             continue;
         }
 
@@ -299,7 +344,7 @@ foreach ($emails as $uid) {
         if (!$parsed['cnj']) {
             $emailsIgnorados++;
             $detalhes[] = "CNJ não encontrado no email UID {$uidStr}";
-            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
             continue;
         }
 
@@ -341,7 +386,7 @@ foreach ($emails as $uid) {
             }
             $emailsIgnorados++;
             $detalhes[] = "Processo {$parsed['cnj']} não cadastrado — registrado em pendentes (UID {$uidStr})";
-            @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+            email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
             continue;
         }
         $case = $caseRows[0];
@@ -387,13 +432,13 @@ foreach ($emails as $uid) {
         }
 
         // Marca como lido (sucesso ou não — pra não reprocessar infinitamente)
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+        email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
 
     } catch (Throwable $e) {
         // Falha por email não derruba o batch inteiro — captura, registra e segue
         $erros++;
         $detalhes[] = "Falha inesperada UID {$uidStr}: " . $e->getMessage();
-        @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+        email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid);
         continue;
     }
 }
@@ -415,6 +460,18 @@ echo "[done] lidos={$emailsLidos} inseridos={$andamentosInsert} ignorados={$emai
 // includes/email_monitor_functions.php — incluídas no topo deste arquivo).
 // Aqui ficam apenas funções específicas do cron (gravação de log).
 // ────────────────────────────────────────────────────────────
+
+// Marca o e-mail como concluído: registra o UID na tabela de controle (pra não
+// reprocessar) e, por organização visual da caixa, também marca como lido no
+// Gmail. O controle real de "já processei" é a tabela email_monitor_uids — a
+// flag \Seen é só cosmética agora.
+function email_monitor_uid_done($mbox, $uidStr, $uid, $stmtMarcaUid) {
+    try {
+        $stmtMarcaUid->execute(array((int)$uid));
+        $stmtMarcaUid->closeCursor();
+    } catch (Exception $e) { /* não bloqueia o batch */ }
+    @imap_setflag_full($mbox, $uidStr, "\\Seen", ST_UID);
+}
 
 function email_monitor_log_save($pdo, $lidos, $insert, $ignor, $dup, $erros, $detalhes, $modo) {
     $detText = implode("\n", array_slice($detalhes, 0, 80));
