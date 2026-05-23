@@ -33,6 +33,7 @@ require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions_ia.php';
 
 @set_time_limit(180);
+ini_set('display_errors', '1'); error_reporting(E_ALL);
 header('Content-Type: text/plain; charset=utf-8');
 echo "=== Detector de cliente esfriando ===\n";
 echo date('d/m/Y H:i:s') . "\n\n";
