@@ -32,11 +32,31 @@ echo "6) ia_cambio_brl()\n";
 $x = ia_cambio_brl();
 echo "   resultado: $x\n";
 
-echo "7) SELECT ia_usage_log (mes corrente, por feature)\n";
-$r = $pdo->query("SELECT feature, COUNT(*) n, COALESCE(SUM(custo_brl),0) brl, COALESCE(SUM(input_tokens),0) inT, COALESCE(SUM(output_tokens),0) outT
-                  FROM ia_usage_log WHERE YEAR(created_at)=YEAR(NOW()) AND MONTH(created_at)=MONTH(NOW())
-                  GROUP BY feature ORDER BY brl DESC")->fetchAll(PDO::FETCH_ASSOC);
-echo "   rows: " . count($r) . "\n";
+echo "7a) COUNT(*) base\n";
+try {
+    $r = $pdo->query("SELECT COUNT(*) FROM ia_usage_log")->fetchColumn();
+    echo "   total: $r\n";
+} catch (Throwable $e) { echo "   ERRO: " . $e->getMessage() . "\n"; }
+
+echo "7b) Query feature simples\n";
+try {
+    $r = $pdo->query("SELECT feature FROM ia_usage_log LIMIT 1")->fetchAll();
+    echo "   ok: " . count($r) . "\n";
+} catch (Throwable $e) { echo "   ERRO: " . $e->getMessage() . "\n"; }
+
+echo "7c) Query SUM(input_tokens)\n";
+try {
+    $r = $pdo->query("SELECT SUM(input_tokens) FROM ia_usage_log")->fetchColumn();
+    echo "   total: $r\n";
+} catch (Throwable $e) { echo "   ERRO: " . $e->getMessage() . "\n"; }
+
+echo "7d) Query completa com TRY/CATCH\n";
+try {
+    $r = $pdo->query("SELECT feature, COUNT(*) n, COALESCE(SUM(custo_brl),0) brl, COALESCE(SUM(input_tokens),0) inT, COALESCE(SUM(output_tokens),0) outT
+                      FROM ia_usage_log WHERE YEAR(created_at)=YEAR(NOW()) AND MONTH(created_at)=MONTH(NOW())
+                      GROUP BY feature ORDER BY brl DESC")->fetchAll(PDO::FETCH_ASSOC);
+    echo "   rows: " . count($r) . "\n";
+} catch (Throwable $e) { echo "   ERRO: " . $e->getMessage() . "\n   File: " . $e->getFile() . ':' . $e->getLine() . "\n"; }
 
 echo "8) SELECT ia_usage_log por user (com JOIN users)\n";
 $r = $pdo->query("SELECT u.name, l.user_id, COUNT(*) n, COALESCE(SUM(l.custo_brl),0) brl
