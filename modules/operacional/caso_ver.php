@@ -3075,10 +3075,23 @@ foreach ($tarefasReais as $_t) {
                     <!-- Bolinha da timeline -->
                     <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:<?= $cor ?>;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;"><?= $icon ?></div>
 
-                    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-left:3px solid <?= $cor ?>;">
+                    <?php
+                    // Badge de urgência classificada por IA (Fase 1 do módulo de IA).
+                    // Aparece só quando o cron de classificação já rodou pra este andamento.
+                    $urgIa = isset($and['urgencia_ia']) ? (string)$and['urgencia_ia'] : '';
+                    $urgIaCfg = array(
+                        'urgente' => array('🔴', 'Urgente', '#fee2e2', '#b91c1c'),
+                        'normal'  => array('🟢', 'Normal',  '#dcfce7', '#15803d'),
+                        'info'    => array('⚪', 'Info',    '#f3f4f6', '#6b7280'),
+                    );
+                    ?>
+                    <div style="background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 16px;border-left:<?= $urgIa==='urgente' ? '4px solid #dc2626' : '3px solid '.$cor ?>;">
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;">
-                            <div style="display:flex;align-items:center;gap:6px;">
+                            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                                 <span style="font-size:.72rem;font-weight:700;color:<?= $cor ?>;text-transform:uppercase;letter-spacing:.5px;" data-and-tipo="<?= $and['id'] ?>" data-tipo-val="<?= e($and['tipo']) ?>"><?= $lbl ?></span>
+                                <?php if (isset($urgIaCfg[$urgIa])): list($_ui,$_ul,$_ub,$_uc) = $urgIaCfg[$urgIa]; ?>
+                                    <span title="Classificação automática por IA" style="display:inline-flex;align-items:center;gap:2px;font-size:.58rem;background:<?= $_ub ?>;color:<?= $_uc ?>;padding:1px 5px;border-radius:3px;font-weight:700;"><?= $_ui ?> <?= $_ul ?></span>
+                                <?php endif; ?>
                                 <?php
                                 $tipoOrigem = isset($and['tipo_origem']) ? $and['tipo_origem'] : 'manual';
                                 if ($tipoOrigem === 'datajud'): ?>
