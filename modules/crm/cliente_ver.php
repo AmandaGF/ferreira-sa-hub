@@ -6,6 +6,13 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
+// Anti-cache no cliente_ver: depois de editar e voltar pra cá, garante que
+// puxa a versão fresca do banco (não a versão cacheada pelo PWA/browser).
+// Bug "salvar não persiste" reportado pela Amanda em 09/05/2026 — o save
+// funcionava (rows=1 no log), mas a tela mostrava cache antigo.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 $pdo = db();
 $clientId = (int)($_GET['id'] ?? 0);
 $isReadOnly = has_role('colaborador');

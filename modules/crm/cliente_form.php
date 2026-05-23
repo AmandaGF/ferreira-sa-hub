@@ -90,6 +90,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         if ($editId) {
+            // Captura estado ANTES do save pro log de evidência
+            $stBefore = $pdo->prepare("SELECT name, phone, email, updated_at FROM clients WHERE id = ?");
+            $stBefore->execute(array($editId));
+            $before = $stBefore->fetch(PDO::FETCH_ASSOC) ?: array();
+            $stBefore->closeCursor();
+
             $stmtUpd = $pdo->prepare(
                 'UPDATE clients SET name=?, cpf=?, rg=?, birth_date=?, email=?, phone=?, phone2=?,
                  address_street=?, address_city=?, address_state=?, address_zip=?,
@@ -106,15 +112,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
                 $f['source'], $f['notes'] ?: null, $editId
             ]);
+            $rows = $stmtUpd->rowCount();
+
+            // Estado APÓS o save — confirma que persistiu mesmo
+            $stAfter = $pdo->prepare("SELECT name, phone, email, updated_at FROM clients WHERE id = ?");
+            $stAfter->execute(array($editId));
+            $after = $stAfter->fetch(PDO::FETCH_ASSOC) ?: array();
+            $stAfter->closeCursor();
+
             @file_put_contents(APP_ROOT . '/files/cliente_save_debug.log',
-                date('Y-m-d H:i:s') . " uid=" . current_user_id() . " editId={$editId}" .
-                " rows=" . $stmtUpd->rowCount() .
-                " name=" . substr($f['name'], 0, 60) .
-                " phone=" . $f['phone'] .
-                " email=" . $f['email'] . "\n",
+                date('Y-m-d H:i:s') . " uid=" . current_user_id() . " editId={$editId} rows={$rows}"
+                . " | ANTES name='" . substr((string)($before['name'] ?? ''),0,40) . "' phone='" . ($before['phone'] ?? '') . "' upd='" . ($before['updated_at'] ?? '') . "'"
+                . " | DEPOIS name='" . substr((string)($after['name'] ?? ''),0,40) . "' phone='" . ($after['phone'] ?? '') . "' upd='" . ($after['updated_at'] ?? '') . "'"
+                . " | FORM name='" . substr((string)$f['name'],0,40) . "' phone='" . $f['phone'] . "'\n",
                 FILE_APPEND);
             audit_log('client_updated', 'client', $editId);
-            flash_set('success', 'Cliente atualizado.');
+            flash_set('success', 'Cliente atualizado em ' . date('H:i:s') . '.');
         } else {
             $pdo->prepare(
                 'INSERT INTO clients (name, cpf, rg, birth_date, email, phone, phone2,

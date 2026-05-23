@@ -229,18 +229,41 @@ if ($action === 'salvar') {
     foreach ($campos as $k => $v) { if ($v === '' || $v === '0') $campos[$k] = null; }
     if ($campos['nascimento'] === '') $campos['nascimento'] = null;
 
-    // client_id em partes adversas (réu, recorrido, etc.) historicamente era dado
+    // client_id em partes adversas (réu, etc.) historicamente era dado
     // sujo legado e forçado pra NULL. AGORA: se a usuária marcou EXPLICITAMENTE o
     // checkbox "Esta parte é nosso cliente" (eh_cliente=1), aceita o vínculo mesmo
     // em papel adverso — cenário real: réu que contratou o escritório (acordo).
     // Sem o checkbox marcado, mantém o comportamento de limpar (réu sem flag).
+    //
+    // 23/05/2026 — Amanda relatou bug "não consigo marcar cliente em pasta de
+    // Recurso" (caso Mariella). Causa: em recurso/agravo/apelação, os papéis
+    // disponíveis são recorrente/recorrido/apelante/apelado/agravante/agravado —
+    // que NÃO estavam no whitelist, então client_id ia pra NULL automaticamente.
+    // Fix: incluir esses papéis na lista — assim quando a Mariella é recorrida
+    // (porque o adversário recorreu da sentença que ela ganhou), o vínculo
+    // persiste sem precisar marcar o checkbox. O checkbox continua valendo como
+    // override universal pra qualquer papel.
     $ehClienteMarcado = isset($_POST['eh_cliente']) && $_POST['eh_cliente'] === '1';
+
+    // Papéis INEQUIVOCAMENTE do nosso lado em ação principal — vínculo automático.
     $papelDoNossoLado = in_array($papel, array('autor', 'litisconsorte_ativo', 'representante_legal'), true);
-    if (!$papelDoNossoLado && !$ehClienteMarcado) {
+
+    // Papéis AMBÍGUOS em pasta de recurso/incidente (qualquer lado pode ser
+    // nosso cliente conforme quem recorreu). Não force client_id=NULL nesses
+    // casos — deixa o checkbox decidir se é "nosso cliente". Bug Mariella 10/05.
+    $papelAmbiguoRecurso = in_array($papel, array(
+        'recorrente','recorrido','apelante','apelado',
+        'agravante','agravado','embargante','embargado',
+        'requerente','requerido',
+    ), true);
+
+    // Só força client_id=NULL pra papéis CLARAMENTE adversos (réu, executado, etc.)
+    // e SEM o checkbox marcado. Em recurso/incidente preserva o vínculo.
+    if (!$papelDoNossoLado && !$papelAmbiguoRecurso && !$ehClienteMarcado) {
         $campos['client_id'] = null;
     }
-    // Flag: 1 quando ha client_id E (papel do nosso lado OU checkbox marcado).
-    // E' a fonte da verdade pra "esta parte é nosso cliente" — independente do papel.
+    // Flag eh_nosso_cliente: papel inequivocamente nosso OU checkbox marcado.
+    // Em recurso/incidente exige checkbox pra ligar a flag (papel sozinho não basta).
     $ehNossoClienteFlag = ($campos['client_id'] && ($papelDoNossoLado || $ehClienteMarcado)) ? 1 : 0;
 
     $nomeExibir = $tipoPessoa === 'juridica' ? ($campos['razao_social'] ?: $campos['nome_fantasia']) : $campos['nome'];
