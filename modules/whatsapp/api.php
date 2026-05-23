@@ -5,6 +5,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 require_once APP_ROOT . '/core/functions_zapi.php';
+require_once APP_ROOT . '/core/functions_ia.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -634,6 +635,9 @@ if ($action === 'enviar_mensagem') {
             ->execute(array($convId, $etqAt));
     }
 
+    // Recalcula score de esfriando do cliente (sem IA, custo zero)
+    if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
+
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId));
     exit;
 }
@@ -1044,6 +1048,9 @@ if ($action === 'nova_conversa') {
         )->execute(array($conv['id'], $mensagem, current_user_id(), $zapiId));
         $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
             ->execute(array(mb_substr($mensagem, 0, 500), $conv['id']));
+        // Recalcula score de esfriando do cliente (sem IA, custo zero)
+        $_cidConv = !empty($conv['client_id']) ? (int)$conv['client_id'] : (int)$clientId;
+        if ($_cidConv) ia_disparar_recalc_esfriando($pdo, $_cidConv);
     }
 
     audit_log('zapi_nova_conversa', 'zapi_conversas', $conv ? $conv['id'] : 0, 'tel=' . $telefone . ' canal=' . $canal);
@@ -1393,6 +1400,8 @@ if ($action === 'enviar_arquivo') {
                    WHERE id = ?")
         ->execute(array(mb_substr($preview, 0, 500), $convId));
 
+    if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
+
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
 }
@@ -1475,6 +1484,8 @@ if ($action === 'enviar_audio') {
                    {$setAtend}
                    WHERE id = ?")
         ->execute(array($convId));
+
+    if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
 
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;

@@ -2173,6 +2173,18 @@ switch ($action) {
                 $andamentoIdNovo = (int)$pdo->lastInsertId();
                 audit_log('ANDAMENTO_CRIADO', 'case', $caseId, $tipoAnd . ': ' . mb_substr($descAnd, 0, 80, 'UTF-8'));
 
+                // Recalcula score de esfriando do cliente do caso (sem IA, custo zero).
+                // Útil quando Amanda registra "liguei pelo celular pessoal" ou outra
+                // ação que aconteceu fora do WhatsApp do Hub.
+                require_once APP_ROOT . '/core/functions_ia.php';
+                try {
+                    $stCli = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+                    $stCli->execute(array($caseId));
+                    $_cidCaso = (int)$stCli->fetchColumn();
+                    $stCli->closeCursor();
+                    if ($_cidCaso) ia_disparar_recalc_esfriando($pdo, $_cidCaso);
+                } catch (Exception $eIa) { /* nao bloqueia */ }
+
                 // Se visível ao cliente → sugere mensagem de WhatsApp na fila pra revisão
                 if ($visivelCliente) {
                     require_once APP_ROOT . '/core/functions_zapi.php';

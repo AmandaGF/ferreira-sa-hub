@@ -309,6 +309,20 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
     );
 }
 
+/**
+ * Dispara recálculo do score de esfriando pra UM cliente após algum evento
+ * que muda os sinais (msg enviada, andamento, tarefa concluída, cobrança paga).
+ * Silencioso, fire-and-forget — NÃO bloqueia o fluxo principal se falhar.
+ * Custo: ZERO (regras SQL puras, sem IA).
+ */
+function ia_disparar_recalc_esfriando(PDO $pdo, $clientId) {
+    $clientId = (int)$clientId;
+    if ($clientId <= 0) return;
+    if (!ia_feature_ativa('cliente_esfriando')) return;
+    try { ia_recalcular_esfriando_clientes($pdo, $clientId); }
+    catch (Throwable $e) { /* nao bloqueia */ }
+}
+
 /** Orçamento mensal configurado (R$). */
 function ia_orcamento_mes() {
     try {

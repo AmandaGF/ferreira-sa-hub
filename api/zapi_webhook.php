@@ -10,6 +10,7 @@ require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/functions_zapi.php';
+require_once __DIR__ . '/../core/functions_ia.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -527,12 +528,17 @@ try {
                 $pdo->prepare("UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW() WHERE id = ?")
                     ->execute(array(mb_substr($ultMsg, 0, 500), $conv['id']));
 
+                // Recalcula score de esfriando do cliente (sem IA, custo zero)
+                if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
+
                 $log("[{$numero}] fromMe salvo msg_id={$msgId} conv_id={$conv['id']} tipo={$tipo}");
                 echo json_encode(array('status' => 'ok_fromMe', 'msg_id' => $msgId, 'conv_id' => $conv['id']));
                 break; // não disparar automações quando nós que mandamos
             }
 
             $msgId = zapi_salvar_mensagem_recebida($conv['id'], $payload, $tipo, $conteudo, $arquivo, $zapiMsgId);
+            // Recalcula score de esfriando do cliente (cliente respondeu — sinal positivo)
+            if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
 
             // ── TRANSCRIÇÃO DE ÁUDIO via Groq ──
             if ($tipo === 'audio' && $msgId) {
