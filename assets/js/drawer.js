@@ -156,7 +156,17 @@ hd+='<button onclick="cdClose()" style="background:none;border:none;color:#fff;f
 var bg='';if(l)bg+='<span class="cb" style="background:#6366f1">'+(sl[l.stage]||l.stage)+'</span> ';
 if(s)bg+='<span class="cb" style="background:#059669">'+(stl[s.status]||s.status)+'</span> ';
 if(D.cobranca_honorarios)bg+='<span class="cb" style="background:#dc2626">💰 Inadimplente — R$ '+(D.cobranca_honorarios.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</span>';
+// Badge "esfriando" — alimentado pelo cron diário (clients.esfriando_score)
+var esfri=parseInt(c.esfriando_score||0,10);
+if(esfri>=60)      bg+='<span class="cb" style="background:#dc2626" title="'+E(c.esfriando_motivos||'')+'">🔴 Esfriando · '+esfri+'</span>';
+else if(esfri>=30) bg+='<span class="cb" style="background:#f59e0b" title="'+E(c.esfriando_motivos||'')+'">🟡 Atenção · '+esfri+'</span>';
 hd+='<div style="margin-top:.4rem">'+bg+'</div>';
+// Linha amarela com os motivos do esfriamento — só quando ≥30 e há motivos cadastrados
+if(esfri>=30 && c.esfriando_motivos){
+    hd+='<div style="margin-top:.4rem;background:rgba(245,158,11,.15);border-left:3px solid #f59e0b;padding:.35rem .6rem;border-radius:4px;font-size:.7rem;color:#fff;line-height:1.4">'
+      + '<strong>❄️ Por que está esfriando:</strong> '+E(c.esfriando_motivos)
+      + '</div>';
+}
 var bt='';
 if(c.phone)bt+='<a href="https://wa.me/55'+c.phone.replace(/\D/g,'')+'" target="_blank" style="background:#25D366;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">WhatsApp</a> ';
 if(s)bt+='<a href="'+base+'/modules/operacional/caso_ver.php?id='+D.case_id+'" style="background:#B87333;color:#fff;padding:3px 10px;border-radius:5px;font-size:.7rem;font-weight:600;text-decoration:none">Pasta</a> ';

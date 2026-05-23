@@ -452,6 +452,65 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
+<?php
+// ══════════════════════════════════════════════════════════════════════
+// 🌡️ Clientes precisam de atenção (alimentado por cron/cliente_esfriando)
+// Aparece só pra admin/gestão — equipe não precisa ver a lista global.
+// ══════════════════════════════════════════════════════════════════════
+$_painelMostraEsfriando = in_array(current_user_role(), array('admin','gestao'), true);
+$_esfriClientes = array();
+if ($_painelMostraEsfriando) {
+    try {
+        $stmtPE = $pdo->query(
+            "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.esfriando_em,
+                    (SELECT cs.id FROM cases cs WHERE cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado') ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
+             FROM clients c
+             WHERE COALESCE(c.esfriando_score, 0) >= 30
+             ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
+             LIMIT 12"
+        );
+        $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+if ($_painelMostraEsfriando && !empty($_esfriClientes)):
+    $_esfriCritico  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 60; });
+    $_esfriAtencao  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 30 && (int)$x['esfriando_score'] < 60; });
+?>
+<div class="pd-card" style="margin-top:1rem;border-left:4px solid #f59e0b;">
+    <h3 style="justify-content:space-between;">
+        <span>🌡️ Clientes precisam de atenção</span>
+        <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
+            <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> esfriando</span><?php endif; ?>
+            <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> em atenção</span><?php endif; ?>
+            <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Ver Kanban filtrado →</a>
+        </span>
+    </h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
+        <?php foreach ($_esfriClientes as $_eClient):
+            $_score = (int)$_eClient['esfriando_score'];
+            $_isCrit = $_score >= 60;
+            $_bg     = $_isCrit ? '#fef2f2' : '#fffbeb';
+            $_border = $_isCrit ? '#fca5a5' : '#fcd34d';
+            $_corNum = $_isCrit ? '#b91c1c' : '#92400e';
+            $_motivos = trim((string)$_eClient['esfriando_motivos']);
+            $_href = !empty($_eClient['principal_case_id'])
+                ? module_url('operacional', 'caso_ver.php?id=' . (int)$_eClient['principal_case_id'])
+                : module_url('clientes', 'ver.php?id=' . (int)$_eClient['id']);
+        ?>
+        <a href="<?= e($_href) ?>" style="display:block;background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;text-decoration:none;color:#1f2937;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;">
+                <div style="font-weight:700;font-size:.85rem;color:#052228;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"><?= e($_eClient['name']) ?></div>
+                <div style="background:<?= $_corNum ?>;color:#fff;border-radius:6px;padding:.1rem .45rem;font-weight:700;font-size:.7rem;flex-shrink:0;"><?= $_isCrit ? '🔴' : '🟡' ?> <?= $_score ?></div>
+            </div>
+            <?php if ($_motivos): ?>
+                <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
+            <?php endif; ?>
+        </a>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Modal Lembrete (criar OU editar — depende de modoLembreteEdit/idLembreteEdit) -->
 <div id="modalLembrete" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;overflow-y:auto;padding:1rem 0;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:520px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:92vh;overflow-y:auto;">

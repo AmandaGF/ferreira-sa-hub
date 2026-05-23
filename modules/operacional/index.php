@@ -23,6 +23,8 @@ $filterPriority = isset($_GET['priority']) ? $_GET['priority'] : '';
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
 $filterSearch = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
+// Filtro "❄️ Esfriando" — mostra só casos cujo cliente tem score >= 30 (atenção / esfriando)
+$filterEsfriando = !empty($_GET['esfriando']) ? 1 : 0;
 
 // Colunas do board (conforme doc técnico v2)
 $columns = array(
@@ -64,10 +66,14 @@ if ($filterMonth) {
     $where[] = "DATE_FORMAT(cs.created_at, '%Y-%m') = ?";
     $params[] = $filterMonth;
 }
+if ($filterEsfriando) {
+    $where[] = "COALESCE(c.esfriando_score, 0) >= 30";
+}
 
 $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
+        c.esfriando_score AS cli_esfriando_score, c.esfriando_motivos AS cli_esfriando_motivos,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
         (SELECT MAX(a.data_andamento) FROM case_andamentos a
@@ -296,7 +302,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endforeach; ?>
             </select>
             <?php endif; ?>
-            <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth): ?>
+            <?php
+            // Toggle "❄️ Esfriando" — preserva os outros filtros, alterna ?esfriando=1
+            $_qsEsfri = $_GET; $_qsEsfri['esfriando'] = $filterEsfriando ? 0 : 1;
+            $_hrefEsfri = module_url('operacional') . '?' . http_build_query(array_filter($_qsEsfri, function($v){ return $v !== '' && $v !== 0; }));
+            ?>
+            <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Mostrar só clientes em atenção/risco (score ≥ 30)">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
+            <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth || $filterEsfriando): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">✕ Limpar</a>
             <?php endif; ?>
         </form>
@@ -424,6 +436,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php endif; ?>
                         <?php if (!empty($cs['is_incidental']) && $cs['processo_principal_id']): ?>
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['processo_principal_id']) ?>" onclick="event.stopPropagation();" class="op-card-badge" style="background:#6366f1;text-decoration:none;cursor:pointer;" title="Ver processo principal">📎 Incidental</a>
+                        <?php endif; ?>
+                        <?php
+                        // Badge de "cliente esfriando" — score >= 30 alerta atenção, >= 60 risco real.
+                        // Calculado pelo cron/cliente_esfriando.php (1x/dia). Hover mostra motivos.
+                        $_esfri = (int)($cs['cli_esfriando_score'] ?? 0);
+                        if ($_esfri >= 30):
+                            $_esfriBg = $_esfri >= 60 ? '#dc2626' : '#f59e0b';
+                            $_esfriIco = $_esfri >= 60 ? '🔴' : '🟡';
+                            $_esfriLbl = $_esfri >= 60 ? 'Esfriando' : 'Atenção';
+                            $_esfriTip = trim((string)($cs['cli_esfriando_motivos'] ?? ''));
+                        ?>
+                            <span class="op-card-badge" style="background:<?= $_esfriBg ?>;" title="<?= e($_esfriTip ?: ('Score ' . $_esfri)) ?>"><?= $_esfriIco ?> <?= $_esfriLbl ?> · <?= $_esfri ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="op-card-footer">
