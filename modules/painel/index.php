@@ -295,6 +295,88 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 </div>
 
+<?php
+// ══════════════════════════════════════════════════════════════════════
+// 🌅 Briefing matinal por IA — visível apenas pra usuários autorizados.
+// Mostra cached se já existe pra hoje; senão exibe botão pra gerar.
+// ══════════════════════════════════════════════════════════════════════
+require_once __DIR__ . '/../../core/functions_ia.php';
+$_briefMostrar = ia_user_autorizado(current_user_id()) && ia_feature_ativa('briefing');
+$_briefHoje = null;
+if ($_briefMostrar) {
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS ia_briefings (id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, data DATE NOT NULL, conteudo MEDIUMTEXT NOT NULL, custo_brl DECIMAL(10,4) DEFAULT 0, gerado_em DATETIME NOT NULL, UNIQUE KEY uk_user_data (user_id, data), INDEX idx_user (user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+    try {
+        $stB = $pdo->prepare("SELECT conteudo, gerado_em FROM ia_briefings WHERE user_id = ? AND data = CURDATE() LIMIT 1");
+        $stB->execute(array((int)current_user_id()));
+        $_briefHoje = $stB->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+if ($_briefMostrar):
+?>
+<div id="briefingCard" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #d97706;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;color:#1f2937;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.55rem;gap:.5rem;flex-wrap:wrap;">
+        <strong style="font-size:.95rem;color:#92400e;">🌅 Briefing matinal por IA</strong>
+        <div style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;">
+            <?php if ($_briefHoje): ?>
+                <span style="color:#6b7280;">gerado em <?= date('H:i', strtotime($_briefHoje['gerado_em'])) ?></span>
+                <button type="button" onclick="gerarBriefing(true)" id="btnRegenBrief" style="background:#fff;border:1px solid #d97706;color:#92400e;padding:.18rem .55rem;border-radius:5px;cursor:pointer;font-weight:700;font-size:.7rem;">🔄 Atualizar</button>
+            <?php else: ?>
+                <button type="button" onclick="gerarBriefing(false)" id="btnGerarBrief" style="background:#d97706;border:none;color:#fff;padding:.3rem .8rem;border-radius:6px;cursor:pointer;font-weight:700;font-size:.78rem;">✨ Gerar agora</button>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div id="briefingConteudo" style="font-size:.88rem;line-height:1.55;">
+        <?php if ($_briefHoje): ?>
+            <?= nl2br(preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', e($_briefHoje['conteudo']))) ?>
+        <?php else: ?>
+            <span style="color:#92400e;">Toque em <strong>✨ Gerar agora</strong> pra ver as 5 coisas mais importantes do seu dia. <span style="font-size:.7rem;opacity:.7;">(custa cerca de R$ 0,05 · sem IA esse painel mostra dados crus, sem priorização)</span></span>
+        <?php endif; ?>
+    </div>
+</div>
+<script>
+window.gerarBriefing = function(forcar) {
+    var btnG = document.getElementById('btnGerarBrief');
+    var btnR = document.getElementById('btnRegenBrief');
+    var alvo = document.getElementById('briefingConteudo');
+    if (btnG) { btnG.disabled = true; btnG.textContent = '⏳ Gerando…'; }
+    if (btnR) { btnR.disabled = true; btnR.textContent = '⏳…'; }
+    if (alvo) alvo.style.opacity = '.5';
+
+    var fd = new FormData();
+    fd.append('action', 'gerar_briefing_ia');
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    if (forcar) fd.append('forcar', '1');
+
+    fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) {
+                if (btnG) { btnG.disabled = false; btnG.textContent = '✨ Gerar agora'; }
+                if (btnR) { btnR.disabled = false; btnR.textContent = '🔄 Atualizar'; }
+                if (alvo) alvo.style.opacity = '1';
+                alert(d.error); return;
+            }
+            if (alvo) {
+                var html = String(d.conteudo || '')
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+                alvo.innerHTML = html;
+                alvo.style.opacity = '1';
+            }
+            // Recarrega só pra atualizar o "gerado em XX:XX" e trocar botão de "Gerar" pra "Atualizar"
+            setTimeout(function(){ location.reload(); }, 600);
+        })
+        .catch(function(e){
+            if (btnG) { btnG.disabled = false; btnG.textContent = '✨ Gerar agora'; }
+            if (btnR) { btnR.disabled = false; btnR.textContent = '🔄 Atualizar'; }
+            if (alvo) alvo.style.opacity = '1';
+            alert('Erro: ' + e.message);
+        });
+};
+</script>
+<?php endif; ?>
+
 <div class="pd-grid">
     <!-- COLUNA 1: Agenda -->
     <div class="pd-card">

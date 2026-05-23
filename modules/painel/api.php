@@ -84,6 +84,32 @@ if ($action === 'recalcular_esfriando') {
     exit;
 }
 
+// ── Briefing diário IA (gera novo OU regenera o de hoje) ──
+if ($action === 'gerar_briefing_ia') {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+    if (!ia_user_autorizado(current_user_id())) {
+        echo json_encode(array('error' => 'Você não está autorizado a usar a IA.')); exit;
+    }
+    if (!ia_feature_ativa('briefing')) {
+        echo json_encode(array('error' => 'Feature desligada no admin.')); exit;
+    }
+    $forcar = !empty($_POST['forcar']);
+    try {
+        $r = ia_gerar_briefing_usuario($pdo, (int)current_user_id(), (bool)$forcar);
+        if (empty($r['ok'])) { echo json_encode(array('error' => $r['erro'] ?: 'Falha')); exit; }
+        echo json_encode(array(
+            'ok'        => true,
+            'conteudo'  => $r['conteudo'],
+            'em'        => $r['em'],
+            'cached'    => $r['cached'],
+            'custo_brl' => $r['cached'] ? 0 : ($r['custo_brl'] ?? 0),
+        ));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 // ── Adiar cliente do painel de esfriando (snooze) ──
 // Tira o cliente do painel por N dias mesmo quando os sinais ainda apontam
 // alerta. Útil quando Amanda sabe que vai cuidar do caso depois (já abriu

@@ -310,6 +310,224 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
 }
 
 /**
+ * Gera (ou recupera do cache) o briefing diário personalizado de um usuário.
+ * Cache em ia_briefings (1 por user_id + data). $forcar regenera.
+ * Custo: ~R$ 0,05-0,10 por briefing. Modelo: Haiku.
+ *
+ * @return array{ok:bool, conteudo:?string, em:?string, cached:bool, erro:?string}
+ */
+function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
+    $userId = (int)$userId;
+    if ($userId <= 0) return array('ok' => false, 'erro' => 'user_id obrigatório', 'conteudo' => null, 'em' => null, 'cached' => false);
+
+    // Self-heal
+    try { $pdo->exec("CREATE TABLE IF NOT EXISTS ia_briefings (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        data DATE NOT NULL,
+        conteudo MEDIUMTEXT NOT NULL,
+        custo_brl DECIMAL(10,4) DEFAULT 0,
+        gerado_em DATETIME NOT NULL,
+        UNIQUE KEY uk_user_data (user_id, data),
+        INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
+    if (!$forcar) {
+        $st = $pdo->prepare("SELECT conteudo, gerado_em FROM ia_briefings WHERE user_id = ? AND data = CURDATE() LIMIT 1");
+        $st->execute(array($userId));
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+        if ($row) return array('ok' => true, 'conteudo' => $row['conteudo'], 'em' => $row['gerado_em'], 'cached' => true, 'erro' => null);
+    }
+
+    // Pega nome + role do usuário
+    $stU = $pdo->prepare("SELECT name, role FROM users WHERE id = ?");
+    $stU->execute(array($userId));
+    $usr = $stU->fetch(PDO::FETCH_ASSOC);
+    if (!$usr) return array('ok' => false, 'erro' => 'usuário não encontrado', 'conteudo' => null, 'em' => null, 'cached' => false);
+
+    // === Coleta de dados para o briefing ===
+    $ctx = "Usuário: " . $usr['name'] . " (perfil " . $usr['role'] . ")\n";
+    $ctx .= "Hoje: " . date('d/m/Y (l)') . " · " . date('H:i') . "\n\n";
+
+    // Agenda de hoje
+    try {
+        $stAg = $pdo->prepare(
+            "SELECT titulo, tipo, data_inicio, modalidade, local, cliente_presencial
+             FROM agenda_eventos
+             WHERE (responsavel_id = ? OR participantes_ids LIKE ?)
+               AND DATE(data_inicio) = CURDATE() AND status NOT IN ('cancelado','realizado')
+             ORDER BY data_inicio ASC LIMIT 10"
+        );
+        $stAg->execute(array($userId, '%"' . $userId . '"%'));
+        $agenda = $stAg->fetchAll(PDO::FETCH_ASSOC);
+        if ($agenda) {
+            $ctx .= "📅 AGENDA DE HOJE:\n";
+            foreach ($agenda as $e) {
+                $hr = date('H:i', strtotime($e['data_inicio']));
+                $cp = !empty($e['cliente_presencial']) ? ' [cliente comparece presencialmente]' : '';
+                $ctx .= "  • {$hr} [{$e['tipo']}] {$e['titulo']}" . ($e['local'] ? " — {$e['local']}" : '') . $cp . "\n";
+            }
+            $ctx .= "\n";
+        }
+    } catch (Exception $e) {}
+
+    // Prazos críticos (próximos 5 dias)
+    try {
+        $stPz = $pdo->prepare(
+            "SELECT p.descricao_acao, p.prazo_fatal, cs.title, cs.id AS case_id
+             FROM prazos_processuais p
+             LEFT JOIN cases cs ON cs.id = p.case_id
+             WHERE p.concluido = 0
+               AND p.prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 5 DAY)
+               AND (cs.responsible_user_id = ? OR cs.responsible_user_id IS NULL)
+             ORDER BY p.prazo_fatal ASC LIMIT 8"
+        );
+        $stPz->execute(array($userId));
+        $prazos = $stPz->fetchAll(PDO::FETCH_ASSOC);
+        if ($prazos) {
+            $ctx .= "🚨 PRAZOS NOS PRÓXIMOS 5 DIAS:\n";
+            foreach ($prazos as $p) {
+                $dias = (int)((strtotime($p['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
+                $when = $dias === 0 ? 'HOJE' : ($dias === 1 ? 'AMANHÃ' : 'em ' . $dias . 'd');
+                $ctx .= "  • {$when} ({$p['prazo_fatal']}): {$p['descricao_acao']} — " . ($p['title'] ?? '?') . "\n";
+            }
+            $ctx .= "\n";
+        }
+    } catch (Exception $e) {}
+
+    // Intimações pendentes (novidades pra revisar)
+    try {
+        $stI = $pdo->query(
+            "SELECT cp.tipo_publicacao, cp.resumo_ia, cs.title, cp.data_disponibilizacao
+             FROM case_publicacoes cp
+             INNER JOIN cases cs ON cs.id = cp.case_id
+             WHERE cp.status_prazo = 'pendente'
+             ORDER BY cp.data_disponibilizacao DESC LIMIT 6"
+        );
+        $intim = $stI->fetchAll(PDO::FETCH_ASSOC);
+        if ($intim) {
+            $ctx .= "📢 INTIMAÇÕES PENDENTES NO ESCRITÓRIO:\n";
+            foreach ($intim as $i) {
+                $tx = mb_substr(trim(preg_replace('/\s+/', ' ', (string)$i['resumo_ia'])), 0, 130);
+                $ctx .= "  • {$i['data_disponibilizacao']} [{$i['tipo_publicacao']}] {$i['title']}: {$tx}\n";
+            }
+            $ctx .= "\n";
+        }
+    } catch (Exception $e) {}
+
+    // Andamentos URGENTES (classificados pela IA na última varredura)
+    try {
+        $stU2 = $pdo->prepare(
+            "SELECT ca.data_andamento, ca.descricao, cs.title
+             FROM case_andamentos ca
+             INNER JOIN cases cs ON cs.id = ca.case_id
+             WHERE ca.urgencia_ia = 'urgente'
+               AND ca.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
+               AND (cs.responsible_user_id = ? OR cs.responsible_user_id IS NULL)
+             ORDER BY ca.created_at DESC LIMIT 6"
+        );
+        $stU2->execute(array($userId));
+        $urgs = $stU2->fetchAll(PDO::FETCH_ASSOC);
+        if ($urgs) {
+            $ctx .= "🔴 ANDAMENTOS URGENTES (últimas 48h):\n";
+            foreach ($urgs as $u) {
+                $tx = mb_substr(trim(preg_replace('/\s+/', ' ', (string)$u['descricao'])), 0, 130);
+                $ctx .= "  • {$u['data_andamento']} {$u['title']}: {$tx}\n";
+            }
+            $ctx .= "\n";
+        }
+    } catch (Exception $e) {}
+
+    // Clientes esfriando (só pra admin/gestão)
+    if (in_array($usr['role'], array('admin','gestao'), true)) {
+        try {
+            $stE = $pdo->query(
+                "SELECT name, esfriando_score, esfriando_motivos FROM clients
+                 WHERE COALESCE(esfriando_score,0) >= 60
+                   AND (esfriando_snooze_ate IS NULL OR esfriando_snooze_ate < CURDATE())
+                 ORDER BY esfriando_score DESC LIMIT 5"
+            );
+            $esfri = $stE->fetchAll(PDO::FETCH_ASSOC);
+            if ($esfri) {
+                $ctx .= "❄️ CLIENTES EM RISCO DE PERDA (score >=60):\n";
+                foreach ($esfri as $c) {
+                    $ctx .= "  • {$c['name']} ({$c['esfriando_score']}pts): {$c['esfriando_motivos']}\n";
+                }
+                $ctx .= "\n";
+            }
+        } catch (Exception $e) {}
+    }
+
+    // Tarefas atrasadas
+    try {
+        $stT = $pdo->prepare(
+            "SELECT t.title, t.due_date, cs.title AS case_title
+             FROM case_tasks t
+             INNER JOIN cases cs ON cs.id = t.case_id
+             WHERE t.tipo IS NOT NULL AND t.status != 'concluido'
+               AND t.due_date IS NOT NULL AND t.due_date < CURDATE()
+               AND (t.assigned_to = ? OR FIND_IN_SET(?, t.assigned_extra_ids))
+             ORDER BY t.due_date ASC LIMIT 8"
+        );
+        $stT->execute(array($userId, $userId));
+        $tar = $stT->fetchAll(PDO::FETCH_ASSOC);
+        if ($tar) {
+            $ctx .= "📋 SUAS TAREFAS ATRASADAS:\n";
+            foreach ($tar as $t) {
+                $dias = (int)((time() - strtotime($t['due_date'])) / 86400);
+                $ctx .= "  • atrasada {$dias}d: {$t['title']} ({$t['case_title']})\n";
+            }
+            $ctx .= "\n";
+        }
+    } catch (Exception $e) {}
+
+    if (mb_strlen($ctx) < 200) {
+        $ctx .= "(Sem eventos críticos detectados pra você hoje.)\n";
+    }
+
+    // === Prompt ===
+    $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
+            . "Sua missão é dar um BRIEFING MATINAL PERSONALIZADO em até 5 bullets pra essa pessoa começar o dia já sabendo o que importa. "
+            . "Receba o estado da agenda+prazos+intimações+andamentos urgentes+clientes em risco+tarefas atrasadas e produza:\n\n"
+            . "FORMATO:\n"
+            . "**Bom dia, {primeiroNome}!** Aqui está o que você precisa olhar hoje:\n\n"
+            . "- 🔴/🟡/🟢/📅/📋 [bullet com ação direta + contexto curto. Use o emoji que melhor classifica a prioridade]\n"
+            . "- ...\n\n"
+            . "REGRAS:\n"
+            . "- Máximo 5 bullets, priorize por urgência (prazos vencendo > intimações > andamentos urgentes > tarefas atrasadas > esfriando).\n"
+            . "- Cada bullet em 1 frase de até 25 palavras.\n"
+            . "- Use o nome do cliente quando ajudar a identificar.\n"
+            . "- Tom direto, profissional, sem floreio.\n"
+            . "- Não invente. Se contexto está vazio, diga 'Sua manhã está tranquila — sem prazos críticos nem intimações pendentes.'\n"
+            . "- NÃO repita 'urgente' em todo bullet — use só onde realmente é urgente.\n"
+            . "- Use markdown leve (**negrito** em nomes de cliente e prazos).";
+
+    $r = ia_chamar(
+        'briefing',
+        'claude-haiku-4-5',
+        $system,
+        array(array('role' => 'user', 'content' => $ctx)),
+        array(
+            'user_id'      => $userId,
+            'max_tokens'   => 600,
+            'temperature'  => 0.3,
+            'contexto'     => 'briefing user#' . $userId,
+            'cache_system' => true,
+        )
+    );
+
+    if (!$r['ok']) return array('ok' => false, 'erro' => $r['erro'], 'conteudo' => null, 'em' => null, 'cached' => false);
+
+    // Salva no cache
+    try {
+        $st = $pdo->prepare("INSERT INTO ia_briefings (user_id, data, conteudo, custo_brl, gerado_em) VALUES (?, CURDATE(), ?, ?, NOW()) ON DUPLICATE KEY UPDATE conteudo=VALUES(conteudo), custo_brl=VALUES(custo_brl), gerado_em=VALUES(gerado_em)");
+        $st->execute(array($userId, $r['texto'], $r['custo_brl']));
+    } catch (Exception $e) {}
+
+    return array('ok' => true, 'conteudo' => $r['texto'], 'em' => date('Y-m-d H:i:s'), 'cached' => false, 'custo_brl' => $r['custo_brl'], 'erro' => null);
+}
+
+/**
  * Dispara recálculo do score de esfriando pra UM cliente após algum evento
  * que muda os sinais (msg enviada, andamento, tarefa concluída, cobrança paga).
  * Silencioso, fire-and-forget — NÃO bloqueia o fluxo principal se falhar.

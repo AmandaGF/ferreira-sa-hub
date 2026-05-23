@@ -57,6 +57,20 @@ try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN urgencia_ia VARCHAR(10)
 try { $pdo->exec("ALTER TABLE case_andamentos ADD INDEX idx_urgencia (urgencia_ia)"); echo "   add idx_urgencia\n"; } catch (Exception $e) { echo "   ja existe\n"; }
 echo "\n";
 
+// 4b) Briefing diário por usuário (Fase 2 — cache do briefing do dia)
+echo "4b. ia_briefings...\n";
+$pdo->exec("CREATE TABLE IF NOT EXISTS ia_briefings (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    data DATE NOT NULL,
+    conteudo MEDIUMTEXT NOT NULL,
+    custo_brl DECIMAL(10,4) DEFAULT 0,
+    gerado_em DATETIME NOT NULL,
+    UNIQUE KEY uk_user_data (user_id, data),
+    INDEX idx_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+echo "   ok\n\n";
+
 // 4) detector de cliente esfriando (sem IA — score numérico via cron)
 echo "4. clients.esfriando_*...\n";
 try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_score INT DEFAULT 0"); echo "   add esfriando_score\n"; } catch (Exception $e) { echo "   ja existe\n"; }
