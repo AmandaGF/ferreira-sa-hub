@@ -485,6 +485,14 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
             <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Ver Kanban filtrado →</a>
         </span>
     </h3>
+    <!-- Legenda compacta — explica as duas cores -->
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.7rem;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:.4rem .7rem;margin-bottom:.7rem;line-height:1.45;">
+        <span><strong style="color:#b91c1c;">🔴 Esfriando (≥60)</strong> — risco real de perder o cliente. Aja logo: ligue ou mande mensagem hoje.</span>
+        <span style="opacity:.6;">|</span>
+        <span><strong style="color:#92400e;">🟡 Atenção (30–59)</strong> — sinais iniciais de desengajamento. Vale um follow-up esta semana.</span>
+        <span style="opacity:.6;">|</span>
+        <span style="color:#64748b;">Score soma: WhatsApp parado · processo parado · cobrança vencida · tarefa atrasada. Atualizado 1×/dia.</span>
+    </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
         <?php foreach ($_esfriClientes as $_eClient):
             $_score = (int)$_eClient['esfriando_score'];

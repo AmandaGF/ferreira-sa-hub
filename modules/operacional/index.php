@@ -307,7 +307,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $_qsEsfri = $_GET; $_qsEsfri['esfriando'] = $filterEsfriando ? 0 : 1;
             $_hrefEsfri = module_url('operacional') . '?' . http_build_query(array_filter($_qsEsfri, function($v){ return $v !== '' && $v !== 0; }));
             ?>
-            <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Mostrar só clientes em atenção/risco (score ≥ 30)">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
+            <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Filtrar só clientes em risco. Badges no card: 🟡 Atenção 30-59 (desengajamento inicial) · 🔴 Esfriando ≥60 (risco real)">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
             <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth || $filterEsfriando): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">✕ Limpar</a>
             <?php endif; ?>
