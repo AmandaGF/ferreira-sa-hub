@@ -7,7 +7,6 @@
  * últimas chamadas (debug), e permite alterar killswitches e whitelist
  * de usuários autorizados.
  */
-ini_set('display_errors', '1'); error_reporting(E_ALL);  // DIAG temp
 require_once __DIR__ . '/../../core/config.php';
 require_once __DIR__ . '/../../core/database.php';
 require_once __DIR__ . '/../../core/auth.php';
@@ -70,7 +69,7 @@ $gastoOntem = (float)$pdo->query("SELECT COALESCE(SUM(custo_brl),0) FROM ia_usag
 $gastoHoje  = (float)$pdo->query("SELECT COALESCE(SUM(custo_brl),0) FROM ia_usage_log WHERE DATE(created_at)=CURDATE()")->fetchColumn();
 
 // Por feature
-$porFeat = $pdo->query("SELECT feature, COUNT(*) n, COALESCE(SUM(custo_brl),0) brl, COALESCE(SUM(input_tokens),0) inT, COALESCE(SUM(output_tokens),0) outT
+$porFeat = $pdo->query("SELECT feature, COUNT(*) n, COALESCE(SUM(custo_brl),0) brl, COALESCE(SUM(input_tokens),0) tok_in, COALESCE(SUM(output_tokens),0) tok_out
                         FROM ia_usage_log WHERE YEAR(created_at)=YEAR(NOW()) AND MONTH(created_at)=MONTH(NOW())
                         GROUP BY feature ORDER BY brl DESC")->fetchAll(PDO::FETCH_ASSOC);
 // Por usuário
@@ -206,7 +205,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                 <tr style="border-bottom:1px solid #f3f4f6;">
                     <td style="padding:.3rem;"><?= e($f['feature']) ?></td>
                     <td style="text-align:right;"><?= (int)$f['n'] ?></td>
-                    <td style="text-align:right;"><?= number_format((int)$f['inT']+(int)$f['outT'], 0, ',', '.') ?></td>
+                    <td style="text-align:right;"><?= number_format((int)$f['tok_in']+(int)$f['tok_out'], 0, ',', '.') ?></td>
                     <td style="text-align:right;font-weight:600;">R$ <?= number_format((float)$f['brl'], 2, ',', '.') ?></td>
                 </tr>
                 <?php endforeach; ?>
