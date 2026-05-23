@@ -94,6 +94,95 @@ try {
 } catch (Exception $e) {}
 
 // CSRF só para ações que mutam
+// ── Resumo da conversa WhatsApp por IA (pra abrir chamado com descrição pronta) ──
+if (($_GET['action'] ?? $_POST['action'] ?? '') === 'resumir_conv_ia') {
+    $action = 'resumir_conv_ia'; // pra log
+    if (!ia_user_autorizado(current_user_id())) { echo json_encode(array('error' => 'Não autorizado a usar IA')); exit; }
+    if (!ia_feature_ativa('resumo_wa_chamado')) { echo json_encode(array('error' => 'Feature desligada')); exit; }
+    $convId = (int)($_POST['conversa_id'] ?? $_GET['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+
+    try {
+        $stC = db()->prepare("SELECT co.id, co.canal, co.telefone, co.nome_contato, co.client_id, c.name AS client_name
+                              FROM zapi_conversas co LEFT JOIN clients c ON c.id = co.client_id WHERE co.id = ? LIMIT 1");
+        $stC->execute(array($convId));
+        $conv = $stC->fetch(PDO::FETCH_ASSOC);
+        if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+        $stM = db()->prepare(
+            "SELECT direcao, tipo, conteudo, created_at, u.name AS quem
+             FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
+             WHERE m.conversa_id = ? AND m.conteudo IS NOT NULL AND m.conteudo != ''
+             ORDER BY m.created_at DESC LIMIT 30"
+        );
+        $stM->execute(array($convId));
+        $msgs = array_reverse($stM->fetchAll(PDO::FETCH_ASSOC));
+
+        if (!$msgs) { echo json_encode(array('error' => 'Conversa sem mensagens')); exit; }
+
+        $nomeCli = $conv['nome_contato'] ?: ($conv['client_name'] ?: 'Cliente');
+        $ctx = "Cliente: " . $nomeCli . "\n";
+        $ctx .= "Canal: WhatsApp " . ($conv['canal'] === '21' ? 'Comercial (21)' : 'CX (24)') . "\n";
+        $ctx .= "Telefone: " . ($conv['telefone'] ?: '?') . "\n\n";
+        $ctx .= "CONVERSA (cronológica):\n";
+        foreach ($msgs as $m) {
+            $autor = $m['direcao'] === 'enviada' ? ($m['quem'] ?: 'Atendente') : $nomeCli;
+            $tx = trim(preg_replace('/\s+/', ' ', (string)$m['conteudo']));
+            if (mb_strlen($tx) > 350) $tx = mb_substr($tx, 0, 350) . '…';
+            $ctx .= "[" . date('d/m H:i', strtotime($m['created_at'])) . "] {$autor}: {$tx}\n";
+        }
+
+        $system = "Você é uma assistente do escritório Ferreira & Sá Advocacia. Vai receber a conversa WhatsApp "
+                . "entre um atendente e um cliente, e deve produzir uma DESCRIÇÃO DE CHAMADO em texto corrido, "
+                . "no formato exato abaixo, pra ser colada num sistema interno de helpdesk:\n\n"
+                . "**Assunto:** [1 frase resumindo o que o cliente quer/relata]\n\n"
+                . "**Resumo da conversa:**\n[2-4 frases corridas explicando o que aconteceu, sem listar cada msg. Quem disse o quê de relevante, decisões tomadas, prazos prometidos.]\n\n"
+                . "**Pendência / próxima ação:** [o que precisa ser feito agora pelo escritório — 1 frase clara]\n\n"
+                . "**Citação relevante:** [só se houver — uma fala IPSIS LITTERIS do cliente que importa, entre aspas]\n\n"
+                . "REGRAS:\n"
+                . "- Tom profissional, direto, em português brasileiro.\n"
+                . "- Foco na ÚLTIMA situação não resolvida da conversa.\n"
+                . "- Se o cliente está estressado/agressivo, sinalize com cuidado no Assunto.\n"
+                . "- Se a conversa não tem pendência clara, escreva 'Sem ação pendente — registrar pra histórico'.\n"
+                . "- Máximo 200 palavras no total.";
+
+        $r = ia_chamar(
+            'resumo_wa_chamado',
+            'claude-haiku-4-5',
+            $system,
+            array(array('role' => 'user', 'content' => $ctx)),
+            array(
+                'user_id'      => current_user_id(),
+                'max_tokens'   => 500,
+                'temperature'  => 0.3,
+                'contexto'     => 'conv#' . $convId,
+                'cache_system' => true,
+            )
+        );
+
+        if (!$r['ok']) { echo json_encode(array('error' => $r['erro'] ?: 'Falha IA')); exit; }
+
+        // Acrescenta no fim o link da conversa pro contexto humano completo
+        $base = function_exists('url') ? url('') : '';
+        $rodape = "\n\n— — —\n💬 Link do chat: " . rtrim($base, '/') . "/modules/whatsapp/?canal=" . $conv['canal'] . "&abrir=" . $convId;
+
+        @audit_log('IA_RESUMO_CONV_WA', 'zapi_conversas', $convId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens']);
+        echo json_encode(array(
+            'ok'         => true,
+            'texto'      => $r['texto'] . $rodape,
+            'custo_brl'  => $r['custo_brl'],
+            'tokens'     => $r['input_tokens'] + $r['output_tokens'],
+            'cliente'    => $nomeCli,
+            'client_id'  => (int)($conv['client_id'] ?? 0),
+            'telefone'   => $conv['telefone'],
+            'canal'      => $conv['canal'],
+        ));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'marcar_nao_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',

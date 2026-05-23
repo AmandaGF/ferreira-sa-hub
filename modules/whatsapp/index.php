@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_access('whatsapp');
 require_once APP_ROOT . '/core/functions_zapi.php';
+require_once APP_ROOT . '/core/functions_ia.php';
 
 $pdo = db();
 $user = current_user();
@@ -739,6 +740,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             actions += '<button onclick="waResolver()">✅ Resolver</button>';
         }
         actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
+        <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
+        actions += '<button onclick="waCriarChamadoComResumoIA()" title="IA resume a conversa e abre o chamado com descrição pronta (R$ ~0,05)" style="background:#6d28d9;color:#fff;border-color:#6d28d9;">✨ Chamado IA</button>';
+        <?php endif; ?>
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         actions += '<button onclick="waExportarConversa()" title="Exportar a conversa em .txt e salvar no Drive do processo da cliente" style="background:#0f766e;color:#fff;border-color:#0f766e;">📄 Exportar</button>';
@@ -2336,6 +2340,64 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 document.body.appendChild(overlay);
             })
             .catch(function(e){ alert('Erro ao buscar processos: ' + e.message); });
+    };
+
+    // Versão IA: pede um resumo da conversa pro Haiku, mostra preview num
+    // modal pra Amanda revisar/editar, e ao confirmar abre helpdesk/novo
+    // com a descrição já preenchida.
+    window.waCriarChamadoComResumoIA = function() {
+        if (!convAtiva) return;
+        var btn = event && event.currentTarget;
+        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Resumindo…'; }
+        var fd = new FormData();
+        fd.append('action', 'resumir_conv_ia');
+        fd.append('conversa_id', String(convAtiva));
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (btn) { btn.disabled = false; btn.innerHTML = '✨ Chamado IA'; }
+                if (d.error) { alert('Falha IA: ' + d.error); return; }
+                _waMostrarModalChamadoIA(d);
+            })
+            .catch(function(e){
+                if (btn) { btn.disabled = false; btn.innerHTML = '✨ Chamado IA'; }
+                alert('Erro: ' + e.message);
+            });
+    };
+
+    function _waMostrarModalChamadoIA(d) {
+        var modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        var html = '<div style="background:#fff;max-width:680px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
+            +   '<h3 style="margin:0;color:#5b21b6;">✨ Descrição do chamado (revise antes de abrir)</h3>'
+            +   '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+            + '</div>'
+            + '<div style="font-size:.75rem;color:#6b7280;margin-bottom:.5rem;">Cliente: <strong>' + (d.cliente||'?') + '</strong> · custo IA: R$ ' + (Number(d.custo_brl||0)).toFixed(4) + '</div>'
+            + '<textarea id="iaResumoChamado" style="width:100%;min-height:280px;font-family:ui-monospace,monospace;font-size:.82rem;line-height:1.5;padding:.7rem;border:1px solid #ddd6fe;border-radius:8px;resize:vertical;">' + (d.texto || '').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</textarea>'
+            + '<div style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">💡 Você pode editar o texto acima antes de prosseguir. Ao clicar em "Abrir chamado", o helpdesk/novo abre em nova aba com este texto já na descrição.</div>'
+            + '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.9rem;">'
+            +   '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>'
+            +   '<button onclick="_waAbrirHelpdeskComResumo(' + JSON.stringify({client_id: d.client_id, telefone: d.telefone, cliente: d.cliente, canal: d.canal}).replace(/"/g,'&quot;') + ')" style="background:#6d28d9;border:none;color:#fff;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;">📋 Abrir chamado →</button>'
+            + '</div>'
+            + '</div>';
+        modal.innerHTML = html;
+        modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+        document.body.appendChild(modal);
+    }
+
+    window._waAbrirHelpdeskComResumo = function(meta) {
+        var texto = document.getElementById('iaResumoChamado').value;
+        var params = new URLSearchParams();
+        if (meta.client_id) params.set('client_id', meta.client_id);
+        params.set('title', 'Atendimento WhatsApp — ' + (meta.cliente || ''));
+        params.set('client_name', meta.cliente || '');
+        if (meta.telefone) params.set('client_contact', meta.telefone);
+        params.set('description', texto);
+        window.open('<?= module_url('helpdesk', 'novo.php') ?>?' + params.toString(), '_blank');
+        var modal = document.querySelector('div[style*=fixed]');
+        if (modal) modal.remove();
     };
 
     window.waCriarChamado = function() {
