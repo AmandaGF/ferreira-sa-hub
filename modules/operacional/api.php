@@ -273,8 +273,8 @@ if ($action === 'resumir_caso_ia') {
     $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
 
     $stTar = $pdo->prepare(
-        "SELECT titulo, tipo, status, data_limite FROM case_tasks
-         WHERE case_id = ? AND tipo IS NOT NULL AND status != 'concluido' ORDER BY data_limite ASC LIMIT 20"
+        "SELECT title, tipo, status, due_date FROM case_tasks
+         WHERE case_id = ? AND tipo IS NOT NULL AND status != 'concluido' ORDER BY due_date ASC LIMIT 20"
     );
     $stTar->execute(array($caseId));
     $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
@@ -305,8 +305,8 @@ if ($action === 'resumir_caso_ia') {
     $ctx .= "\nTAREFAS PENDENTES:\n";
     if (!$tarefas) $ctx .= "  (nenhuma)\n";
     foreach ($tarefas as $t) {
-        $dl = $t['data_limite'] ? ' (até ' . date('d/m', strtotime($t['data_limite'])) . ')' : '';
-        $ctx .= "  • {$t['titulo']}{$dl}\n";
+        $dl = $t['due_date'] ? ' (até ' . date('d/m', strtotime($t['due_date'])) . ')' : '';
+        $ctx .= "  • {$t['title']}{$dl}\n";
     }
     $ctx .= "\nDOCUMENTOS FALTANTES:\n";
     if (!$docsP) $ctx .= "  (nenhum)\n";

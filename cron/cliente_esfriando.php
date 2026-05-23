@@ -60,8 +60,8 @@ $stUpd  = $pdo->prepare("UPDATE clients SET esfriando_score = ?, esfriando_motiv
 // Prepared statements reutilizados
 $stMsg  = $pdo->prepare("SELECT MAX(m.created_at) FROM zapi_mensagens m INNER JOIN zapi_conversas co ON co.id = m.conversa_id WHERE co.client_id = ?");
 $stAnd  = $pdo->prepare("SELECT MAX(ca.created_at) FROM case_andamentos ca INNER JOIN cases cs ON cs.id = ca.case_id WHERE cs.client_id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado')");
-$stCob  = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobrancas h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.data_vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
-$stTar  = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs ON cs.id = t.case_id WHERE cs.client_id = ? AND t.tipo IS NOT NULL AND t.status != 'concluido' AND t.data_limite < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
+$stCob  = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobranca h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
+$stTar  = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs ON cs.id = t.case_id WHERE cs.client_id = ? AND t.tipo IS NOT NULL AND t.status != 'concluido' AND t.due_date IS NOT NULL AND t.due_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
 
 $contagem = array('esfriando' => 0, 'atencao' => 0, 'ok' => 0);
 $topAlerta = array();
