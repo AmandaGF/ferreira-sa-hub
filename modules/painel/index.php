@@ -460,12 +460,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 $_painelMostraEsfriando = in_array(current_user_role(), array('admin','gestao'), true);
 $_esfriClientes = array();
 if ($_painelMostraEsfriando) {
+    // Self-heal das colunas de snooze (caso o migrar_ia não tenha rodado ainda)
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_ate DATE NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_por INT NULL"); } catch (Exception $e) {}
     try {
+        // Filtra clientes adiados (snooze ativo até CURDATE — só voltam após a data)
         $stmtPE = $pdo->query(
             "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.esfriando_em,
                     (SELECT cs.id FROM cases cs WHERE cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado') ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
              FROM clients c
              WHERE COALESCE(c.esfriando_score, 0) >= 30
+               AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
              LIMIT 12"
         );
@@ -516,8 +521,9 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
                     <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
                 <?php endif; ?>
             </a>
-            <div style="display:flex;justify-content:flex-end;margin-top:.4rem;padding-top:.35rem;border-top:1px dashed rgba(0,0,0,.08);">
-                <button type="button" onclick="recalcularEsfriando(<?= (int)$_eClient['id'] ?>, this)" title="Já falei/atendi este cliente — recalcular score e mostrar o que mudou" style="background:#fff;border:1px solid #94a3b8;color:#334155;padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700;cursor:pointer;">✓ Já tratei — recalcular</button>
+            <div style="display:flex;justify-content:flex-end;gap:.35rem;margin-top:.4rem;padding-top:.35rem;border-top:1px dashed rgba(0,0,0,.08);">
+                <button type="button" onclick="adiarEsfriando(<?= (int)$_eClient['id'] ?>, 7, this)" title="Tirar este cliente do painel por 7 dias — útil quando você já abriu chamado / vai cuidar depois" style="background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700;cursor:pointer;">💤 Adiar 7d</button>
+                <button type="button" onclick="recalcularEsfriando(<?= (int)$_eClient['id'] ?>, this)" title="Já falei/atendi este cliente — recalcular score e mostrar o que mudou" style="background:#fff;border:1px solid #94a3b8;color:#334155;padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700;cursor:pointer;">✓ Já tratei</button>
             </div>
         </div>
         <?php endforeach; ?>
@@ -554,6 +560,28 @@ window.recalcularEsfriando = function(clientId, btn) {
             if (btn) { btn.disabled = false; btn.textContent = btnOrigText; }
             if (!clientId && headerBtn) { headerBtn.disabled = false; headerBtn.textContent = '🔄 Recalcular agora'; }
             alert('Erro de rede: ' + e.message);
+        });
+};
+
+// Adia cliente do painel (snooze N dias). Custo zero — só UPDATE no banco.
+window.adiarEsfriando = function(clientId, dias, btn) {
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    var fd = new FormData();
+    fd.append('action', 'adiar_esfriando');
+    fd.append('client_id', String(clientId));
+    fd.append('dias', String(dias || 7));
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) { if (btn) { btn.disabled = false; btn.textContent = '💤 Adiar ' + (dias||7) + 'd'; } alert(d.error); return; }
+            var card = document.querySelector('[data-esfri-card="' + clientId + '"]');
+            if (card) { card.style.transition = 'opacity .35s'; card.style.opacity = '0'; }
+            setTimeout(function(){ location.reload(); }, 400);
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.textContent = '💤 Adiar ' + (dias||7) + 'd'; }
+            alert('Erro: ' + e.message);
         });
 };
 
@@ -610,7 +638,10 @@ function _esfriMostrarDiff(diff) {
         + '<div style="background:' + (queda > 0 ? '#ecfdf5' : (queda === 0 ? '#fef3c7' : '#fef2f2')) + ';border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#1f2937;line-height:1.5;">'
         + conclusao + ulm
         + '</div>'
-        + '<div style="display:flex;justify-content:flex-end;margin-top:.9rem;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;margin-top:.9rem;flex-wrap:wrap;">'
+        + (queda === 0
+            ? '<button onclick="window._esfriAdiarDoModal(' + (diff.client_id || 0) + ', this)" style="background:#fff;border:1px solid #94a3b8;color:#334155;padding:.4rem .8rem;border-radius:6px;cursor:pointer;font-weight:600;">💤 Tirar do painel por 7 dias</button>'
+            : '<span></span>')
         + '<button onclick="location.reload()" style="background:#6366f1;color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;">Fechar e atualizar painel</button>'
         + '</div>';
 
@@ -621,6 +652,13 @@ function _esfriMostrarDiff(diff) {
     modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
     document.body.appendChild(modal);
 }
+
+// Atalho usado dentro do modal de antes/depois pra adiar sem fechar modal antes
+window._esfriAdiarDoModal = function(clientId, btn) {
+    if (!clientId) { alert('client_id ausente.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ adiando…'; }
+    window.adiarEsfriando(clientId, 7, btn);
+};
 </script>
 <?php endif; ?>
 

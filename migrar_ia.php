@@ -62,6 +62,8 @@ echo "4. clients.esfriando_*...\n";
 try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_score INT DEFAULT 0"); echo "   add esfriando_score\n"; } catch (Exception $e) { echo "   ja existe\n"; }
 try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_motivos TEXT NULL"); echo "   add esfriando_motivos\n"; } catch (Exception $e) { echo "   ja existe\n"; }
 try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_em DATETIME NULL"); echo "   add esfriando_em\n"; } catch (Exception $e) { echo "   ja existe\n"; }
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_ate DATE NULL"); echo "   add esfriando_snooze_ate\n"; } catch (Exception $e) { echo "   ja existe\n"; }
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_por INT NULL"); echo "   add esfriando_snooze_por\n"; } catch (Exception $e) { echo "   ja existe\n"; }
 echo "\n";
 
 // 5) Configurações

@@ -67,13 +67,16 @@ if ($filterMonth) {
     $params[] = $filterMonth;
 }
 if ($filterEsfriando) {
-    $where[] = "COALESCE(c.esfriando_score, 0) >= 30";
+    // Respeita o snooze: clientes adiados não entram no filtro
+    $where[] = "COALESCE(c.esfriando_score, 0) >= 30 AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())";
 }
 
 $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
-        c.esfriando_score AS cli_esfriando_score, c.esfriando_motivos AS cli_esfriando_motivos,
+        -- Esfriando: zera score se o cliente está adiado (snooze) até depois de hoje
+        IF(c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE(), 0, c.esfriando_score) AS cli_esfriando_score,
+        c.esfriando_motivos AS cli_esfriando_motivos,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
         (SELECT MAX(a.data_andamento) FROM case_andamentos a

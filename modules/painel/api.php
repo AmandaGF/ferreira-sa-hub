@@ -64,6 +64,7 @@ if ($action === 'recalcular_esfriando') {
                 $stMsgUlt->closeCursor();
 
                 $r['diff'] = array(
+                    'client_id'      => $clientId,
                     'nome'           => $diff['name'],
                     'score_antes'    => (int)$diff['s'],
                     'motivos_antes'  => (string)($diff['m'] ?? ''),
@@ -80,6 +81,45 @@ if ($action === 'recalcular_esfriando') {
     } catch (Throwable $e) {
         echo json_encode(array('error' => 'Erro ao recalcular: ' . $e->getMessage()));
     }
+    exit;
+}
+
+// ── Adiar cliente do painel de esfriando (snooze) ──
+// Tira o cliente do painel por N dias mesmo quando os sinais ainda apontam
+// alerta. Útil quando Amanda sabe que vai cuidar do caso depois (já abriu
+// chamado, vai resolver na próxima semana, etc.) e não quer ver no painel.
+if ($action === 'adiar_esfriando') {
+    if (!in_array(current_user_role(), array('admin','gestao'), true)) {
+        echo json_encode(array('error' => 'Apenas admin/gestão.')); exit;
+    }
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $dias     = max(1, min(60, (int)($_POST['dias'] ?? 7)));
+    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_ate DATE NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_por INT NULL"); } catch (Exception $e) {}
+    try {
+        $st = $pdo->prepare("UPDATE clients SET esfriando_snooze_ate = DATE_ADD(CURDATE(), INTERVAL ? DAY), esfriando_snooze_por = ? WHERE id = ?");
+        $st->execute(array($dias, (int)current_user_id(), $clientId));
+        $st->closeCursor();
+        @audit_log('IA_ESFRIANDO_SNOOZE', 'clients', $clientId, "+{$dias}d por user#" . current_user_id());
+        echo json_encode(array('ok' => true, 'dias' => $dias));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
+// ── Cancelar adiamento — volta o cliente pro painel mesmo se snooze ativo ──
+if ($action === 'desadiar_esfriando') {
+    if (!in_array(current_user_role(), array('admin','gestao'), true)) {
+        echo json_encode(array('error' => 'Apenas admin/gestão.')); exit;
+    }
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
+    try {
+        $pdo->prepare("UPDATE clients SET esfriando_snooze_ate = NULL, esfriando_snooze_por = NULL WHERE id = ?")->execute(array($clientId));
+        echo json_encode(array('ok' => true));
+    } catch (Throwable $e) { echo json_encode(array('error' => 'Erro: ' . $e->getMessage())); }
     exit;
 }
 
