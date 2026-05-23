@@ -157,6 +157,7 @@ $menuItems = array(
     array('label' => 'Importar Endereços', 'icon' => '📍', 'href' => url('modules/admin/importar_enderecos.php'), 'id' => 'importar_enderecos', 'roles' => array('admin')),
     array('label' => 'WhatsApp dedup',  'icon' => '🔀', 'href' => url('modules/admin/whatsapp_dedup.php'), 'id' => 'whatsapp_dedup', 'roles' => array('admin')),
     array('label' => 'WhatsApp Saúde',  'icon' => '🩺', 'href' => url('modules/admin/diag_wa.php'),       'id' => 'diag_wa',        'roles' => array('admin')),
+    array('label' => 'WA Backup Pendente', 'icon' => '📞', 'href' => url('modules/admin/wa_pendentes.php'), 'id' => 'wa_pendentes',   'roles' => array('admin','gestao')),
     array('label' => 'WhatsApp Config',  'icon' => '🔍', 'href' => url('modules/admin/diag_wa_config.php'), 'id' => 'diag_wa_config', 'roles' => array('admin')),
     array('label' => 'IA — Custo',      'icon' => '🤖', 'href' => url('modules/admin/ia_custo.php'),       'id' => 'ia_custo',       'roles' => array('admin')),
     array('label' => 'Health Check',    'icon' => '🩺', 'href' => url('modules/admin/health.php'),  'id' => 'admin',           'roles' => array('admin')),
