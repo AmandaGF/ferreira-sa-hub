@@ -227,6 +227,141 @@ if ($action === 'criar_pasta_drive') {
     exit;
 }
 
+// ── Resumo do caso por IA (Haiku, cache 24h ou até novo andamento) ──
+// Whitelist: só usuários em configuracoes.ia_users_autorizados.
+// Cache: cases.ia_resumo + ia_resumo_em. Invalida se houver andamento mais
+// recente que o resumo. ?forcar=1 ignora cache (regenerar).
+if ($action === 'resumir_caso_ia') {
+    require_once APP_ROOT . '/core/functions_ia.php';
+    header('Content-Type: application/json; charset=utf-8');
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $forcar = !empty($_POST['forcar']);
+    if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+    $uid = current_user_id();
+    if (!ia_user_autorizado($uid)) { echo json_encode(array('error' => 'Você não está autorizado a usar a IA. Fale com a Amanda.')); exit; }
+    if (!ia_feature_ativa('resumo_caso')) { echo json_encode(array('error' => 'Feature desligada no admin.')); exit; }
+
+    // Caso + cache
+    $st = $pdo->prepare("SELECT id, title, case_type, case_number, status, comarca, vara, ia_resumo, ia_resumo_em FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $caso = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$caso) { echo json_encode(array('error' => 'Caso não encontrado')); exit; }
+
+    // Verifica cache: se já tem resumo E nada novo desde então E < 24h
+    if (!$forcar && $caso['ia_resumo'] && $caso['ia_resumo_em']) {
+        $stA = $pdo->prepare("SELECT MAX(created_at) FROM case_andamentos WHERE case_id = ?");
+        $stA->execute(array($caseId));
+        $ultAnd = (string)$stA->fetchColumn();
+        $resumoTs = strtotime($caso['ia_resumo_em']);
+        $ultAndTs = $ultAnd ? strtotime($ultAnd) : 0;
+        $idade    = time() - $resumoTs;
+        if ($resumoTs >= $ultAndTs && $idade < 86400) {
+            echo json_encode(array(
+                'ok' => true, 'texto' => $caso['ia_resumo'], 'cached' => true,
+                'em' => $caso['ia_resumo_em'], 'custo_brl' => 0,
+            ));
+            exit;
+        }
+    }
+
+    // Monta contexto: últimos 30 andamentos + tarefas pendentes + docs faltantes
+    $stAnd = $pdo->prepare(
+        "SELECT data_andamento, hora_andamento, tipo, descricao, urgencia_ia
+         FROM case_andamentos WHERE case_id = ? ORDER BY data_andamento DESC, id DESC LIMIT 30"
+    );
+    $stAnd->execute(array($caseId));
+    $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
+
+    $stTar = $pdo->prepare(
+        "SELECT titulo, tipo, status, data_limite FROM case_tasks
+         WHERE case_id = ? AND tipo IS NOT NULL AND status != 'concluido' ORDER BY data_limite ASC LIMIT 20"
+    );
+    $stTar->execute(array($caseId));
+    $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
+
+    $stDoc = $pdo->prepare(
+        "SELECT documento FROM documentos_pendentes WHERE case_id = ? AND resolvido = 0 ORDER BY id"
+    );
+    $stDoc->execute(array($caseId));
+    $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
+
+    // Monta texto do contexto
+    $ctx = "PROCESSO: " . ($caso['title'] ?: 'sem título') . "\n";
+    if ($caso['case_number']) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+    $ctx .= "Tipo: " . ($caso['case_type'] ?: '—') . " | Status: " . ($caso['status'] ?: '—');
+    if ($caso['vara'] || $caso['comarca']) $ctx .= " | " . trim(($caso['vara'] ?: '') . ' — ' . ($caso['comarca'] ?: ''), ' —');
+    $ctx .= "\n\n";
+
+    $ctx .= "ANDAMENTOS (mais recentes primeiro):\n";
+    if (!$ands) $ctx .= "  (sem andamentos registrados)\n";
+    foreach ($ands as $a) {
+        $dt = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+        $hr = $a['hora_andamento'] ? ' ' . substr($a['hora_andamento'],0,5) : '';
+        $tx = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+        if (mb_strlen($tx) > 250) $tx = mb_substr($tx,0,250) . '…';
+        $ctx .= "  • {$dt}{$hr} [{$a['tipo']}] {$tx}\n";
+    }
+
+    $ctx .= "\nTAREFAS PENDENTES:\n";
+    if (!$tarefas) $ctx .= "  (nenhuma)\n";
+    foreach ($tarefas as $t) {
+        $dl = $t['data_limite'] ? ' (até ' . date('d/m', strtotime($t['data_limite'])) . ')' : '';
+        $ctx .= "  • {$t['titulo']}{$dl}\n";
+    }
+    $ctx .= "\nDOCUMENTOS FALTANTES:\n";
+    if (!$docsP) $ctx .= "  (nenhum)\n";
+    foreach ($docsP as $d) $ctx .= "  • {$d}\n";
+
+    // Prompt
+    $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
+            . "Vai receber o estado de um processo (andamentos recentes, tarefas, documentos) "
+            . "e deve produzir um RESUMO EXECUTIVO em 4 parágrafos curtos, na seguinte ordem:\n"
+            . "1. **Situação atual**: onde o processo está hoje (1 frase direta).\n"
+            . "2. **Último movimento relevante**: o que mais importa nos últimos andamentos (1-2 frases).\n"
+            . "3. **Próximo passo previsto**: o que esperar ou o que o escritório precisa fazer (1-2 frases).\n"
+            . "4. **Alertas**: prazo crítico, documento pendente, ponto de atenção (1 frase OU 'Nenhum alerta no momento').\n\n"
+            . "REGRAS:\n"
+            . "- Linguagem objetiva, jurídica mas clara, em português brasileiro.\n"
+            . "- NÃO invente fatos que não estão nos andamentos.\n"
+            . "- Use markdown (**negrito** nos rótulos como acima).\n"
+            . "- Total: no máximo 12 linhas. Cada parágrafo: máximo 2 frases.";
+
+    $r = ia_chamar(
+        'resumo_caso',
+        'claude-haiku-4-5',
+        $system,
+        array(array('role' => 'user', 'content' => $ctx)),
+        array(
+            'user_id'      => $uid,
+            'max_tokens'   => 600,
+            'temperature'  => 0.2,
+            'contexto'     => 'case#' . $caseId,
+            'cache_system' => true,  // o system prompt é o mesmo em todas as chamadas
+        )
+    );
+
+    if (!$r['ok']) {
+        echo json_encode(array('error' => $r['erro'] ?: 'Falha na IA'));
+        exit;
+    }
+
+    // Persiste cache
+    $pdo->prepare("UPDATE cases SET ia_resumo = ?, ia_resumo_em = NOW() WHERE id = ?")
+        ->execute(array($r['texto'], $caseId));
+
+    audit_log('IA_RESUMO_CASO', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
+
+    echo json_encode(array(
+        'ok'        => true,
+        'texto'     => $r['texto'],
+        'cached'    => false,
+        'em'        => date('Y-m-d H:i:s'),
+        'custo_brl' => $r['custo_brl'],
+        'tokens'    => $r['input_tokens'] + $r['output_tokens'],
+    ));
+    exit;
+}
+
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
 function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
     // Primeiro por linked_case_id

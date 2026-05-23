@@ -5,6 +5,7 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_once __DIR__ . '/../../core/functions_djen.php';
+require_once __DIR__ . '/../../core/functions_ia.php';
 require_login();
 
 $pdo = db();
@@ -401,6 +402,9 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
+    <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')): ?>
+    <button type="button" id="btnResumirIA" onclick="resumirCasoIA(false)" class="btn btn-sm" style="background:#6d28d9;color:#fff;border:none;" title="Gera um resumo executivo do caso por IA (4 linhas: situação atual, último movimento, próximo passo, alertas). Custo médio: R$ 0,10 por resumo. Cache de 24h.">🤖 Resumir caso</button>
+    <?php endif; ?>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
     <?php endif; ?>
@@ -3302,6 +3306,54 @@ function copiarLinkDrive(btn, url) {
         } catch(e) { alert('Link:\n' + url); }
         tmp.remove();
     });
+}
+
+// Gera resumo executivo do caso por IA (Claude Haiku). Mostra modal
+// flutuante. Cache de 24h em cases.ia_resumo, invalida quando há
+// andamento novo. Botão "Regenerar" força nova geração.
+function resumirCasoIA(forcar) {
+    var btn = document.getElementById('btnResumirIA');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Gerando…'; }
+
+    var fd = new FormData();
+    fd.append('action', 'resumir_caso_ia');
+    fd.append('case_id', '<?= (int)$caseId ?>');
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    if (forcar) fd.append('forcar', '1');
+
+    fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Resumir caso'; }
+            if (d.error) { alert('Falha ao gerar resumo: ' + d.error); return; }
+            // Markdown -> HTML simples (negrito + quebras)
+            var html = String(d.texto || '')
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            var rodape = d.cached
+                ? '<span style="color:#059669;">✓ do cache · gerado em ' + (d.em||'').substr(0,16).replace('T',' ') + '</span>'
+                : '<span style="color:#6366f1;">✨ recém-gerado · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + '</span>';
+            var modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            modal.innerHTML = '<div style="background:#fff;max-width:680px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
+                + '<h3 style="margin:0;color:#1e1b4b;">🤖 Resumo do caso</h3>'
+                + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+                + '</div>'
+                + '<div style="font-size:.95rem;line-height:1.55;color:#1f2937;padding:.8rem 0;">' + html + '</div>'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;padding-top:.8rem;border-top:1px solid #e5e7eb;font-size:.75rem;">'
+                + '<div>' + rodape + '</div>'
+                + '<button onclick="this.closest(\'div[style*=fixed]\').remove(); resumirCasoIA(true);" style="background:#fff;border:1px solid #c7d2fe;color:#6366f1;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Regenerar</button>'
+                + '</div>'
+                + '</div>';
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Resumir caso'; }
+            alert('Erro de conexão ao gerar resumo: ' + e.message);
+        });
 }
 
 // Gera resumo Markdown da pasta + copia pra clipboard. Útil pra colar em
