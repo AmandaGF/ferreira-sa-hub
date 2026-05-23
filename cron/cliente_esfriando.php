@@ -47,14 +47,18 @@ $pdo = db();
 
 // Universo: clientes que têm pelo menos 1 case ativo (não arquivado/renunciado/finalizado).
 // Pega só os ativos pra não inflar a tabela com clientes antigos sem caso aberto.
+$lim = isset($_GET['lim']) ? max(1, (int)$_GET['lim']) : 9999;
 $stClientes = $pdo->query(
     "SELECT DISTINCT c.id, c.name
        FROM clients c
        INNER JOIN cases cs ON cs.client_id = c.id
-      WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0"
+      WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0
+      LIMIT $lim"
 );
 $clientes = $stClientes->fetchAll(PDO::FETCH_ASSOC);
-echo "Clientes ativos analisados: " . count($clientes) . "\n\n";
+echo "Clientes ativos analisados: " . count($clientes) . "\n";
+echo "(use ?lim=N pra limitar)\n";
+@ob_flush(); flush();
 
 $stUpd  = $pdo->prepare("UPDATE clients SET esfriando_score = ?, esfriando_motivos = ?, esfriando_em = NOW() WHERE id = ?");
 
@@ -66,8 +70,11 @@ $stTar  = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs O
 
 $contagem = array('esfriando' => 0, 'atencao' => 0, 'ok' => 0);
 $topAlerta = array();
+$cnt = 0;
 
 foreach ($clientes as $c) {
+    $cnt++;
+    if ($cnt % 10 === 0) { echo "  [progresso] $cnt/" . count($clientes) . "\n"; @ob_flush(); flush(); }
     $score = 0;
     $motivos = array();
 
