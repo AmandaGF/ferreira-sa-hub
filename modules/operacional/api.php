@@ -370,6 +370,156 @@ if ($action === 'resumir_caso_ia') {
     }
 }
 
+// ── Sugestão de próxima ação no caso (Haiku, sem cache — cada clique gera) ──
+// Whitelist + killswitch ia_feature_sugerir_acao. Custo médio: ~R$ 0,10.
+if ($action === 'sugerir_acao_ia') {
+    try {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if (!$caseId) { _json_clean_echo(array('error' => 'case_id obrigatório')); exit; }
+    $uid = current_user_id();
+    if (!ia_user_autorizado($uid)) { _json_clean_echo(array('error' => 'Você não está autorizado a usar a IA. Fale com a Amanda.')); exit; }
+    if (!ia_feature_ativa('sugerir_acao')) { _json_clean_echo(array('error' => 'Feature desligada no admin.')); exit; }
+
+    $st = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $caso = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$caso) { _json_clean_echo(array('error' => 'Caso não encontrado')); exit; }
+
+    // Contexto: andamentos recentes + tarefas + docs + prazos + intimações pendentes
+    $stAnd = $pdo->prepare("SELECT data_andamento, hora_andamento, tipo, descricao, urgencia_ia
+                            FROM case_andamentos WHERE case_id = ? ORDER BY data_andamento DESC, id DESC LIMIT 25");
+    $stAnd->execute(array($caseId));
+    $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
+
+    $stTar = $pdo->prepare("SELECT title, tipo, status, due_date, prioridade FROM case_tasks
+                            WHERE case_id = ? AND tipo IS NOT NULL AND status != 'concluido' ORDER BY due_date ASC LIMIT 15");
+    $stTar->execute(array($caseId));
+    $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
+
+    $stDoc = $pdo->prepare("SELECT documento FROM documentos_pendentes WHERE case_id = ? AND resolvido = 0");
+    $stDoc->execute(array($caseId));
+    $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
+
+    // Prazos processuais (fatal/legal) — peso máximo na sugestão
+    $prazos = array();
+    try {
+        $stPz = $pdo->prepare("SELECT descricao_acao, prazo_fatal FROM prazos_processuais
+                               WHERE case_id = ? AND concluido = 0 AND prazo_fatal >= DATE_SUB(CURDATE(), INTERVAL 2 DAY)
+                               ORDER BY prazo_fatal ASC LIMIT 5");
+        $stPz->execute(array($caseId));
+        $prazos = $stPz->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+
+    // Intimações pendentes (sinal forte de "tem coisa pra cumprir")
+    $intim = array();
+    try {
+        $stI = $pdo->prepare("SELECT tipo_publicacao, resumo_ia, data_disponibilizacao FROM case_publicacoes
+                              WHERE case_id = ? AND status_prazo = 'pendente'
+                              ORDER BY data_disponibilizacao DESC LIMIT 5");
+        $stI->execute(array($caseId));
+        $intim = $stI->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+
+    // Monta texto do contexto
+    $ctx = "PROCESSO: " . (($caso['title'] ?? '') ?: 'sem título') . "\n";
+    if (!empty($caso['case_number'])) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+    $ctx .= "Tipo: " . (($caso['case_type'] ?? '') ?: '—') . " | Status: " . (($caso['status'] ?? '') ?: '—');
+    $vara = $caso['vara'] ?? ''; $com = $caso['comarca'] ?? '';
+    if ($vara || $com) $ctx .= " | " . trim($vara . ' — ' . $com, ' —');
+    $ctx .= "\nHoje: " . date('d/m/Y (l)') . "\n\n";
+
+    if ($prazos) {
+        $ctx .= "🚨 PRAZOS PROCESSUAIS PENDENTES (fatais):\n";
+        foreach ($prazos as $p) {
+            $dias = (int)((strtotime($p['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
+            $marker = $dias < 0 ? '⛔ JÁ VENCEU há ' . abs($dias) . 'd' : ($dias === 0 ? '🔴 HOJE' : ($dias <= 3 ? '🟡 em ' . $dias . 'd' : 'em ' . $dias . 'd'));
+            $ctx .= "  • {$marker}: {$p['descricao_acao']} (até " . date('d/m/Y', strtotime($p['prazo_fatal'])) . ")\n";
+        }
+        $ctx .= "\n";
+    }
+    if ($intim) {
+        $ctx .= "📢 INTIMAÇÕES PENDENTES:\n";
+        foreach ($intim as $i) {
+            $ctx .= "  • {$i['tipo_publicacao']} ({$i['data_disponibilizacao']}): " . mb_substr((string)$i['resumo_ia'], 0, 180) . "\n";
+        }
+        $ctx .= "\n";
+    }
+
+    $ctx .= "ANDAMENTOS (mais recentes primeiro):\n";
+    if (!$ands) $ctx .= "  (nenhum registrado)\n";
+    foreach ($ands as $a) {
+        $dt = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+        $hr = $a['hora_andamento'] ? ' ' . substr($a['hora_andamento'],0,5) : '';
+        $u  = $a['urgencia_ia'] ? "[{$a['urgencia_ia']}]" : '';
+        $tx = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+        if (mb_strlen($tx) > 220) $tx = mb_substr($tx,0,220) . '…';
+        $ctx .= "  • {$dt}{$hr} {$u} [{$a['tipo']}] {$tx}\n";
+    }
+
+    $ctx .= "\nTAREFAS PENDENTES:\n";
+    if (!$tarefas) $ctx .= "  (nenhuma)\n";
+    foreach ($tarefas as $t) {
+        $dl = $t['due_date'] ? ' (até ' . date('d/m', strtotime($t['due_date'])) . ')' : '';
+        $pr = !empty($t['prioridade']) ? ' [' . $t['prioridade'] . ']' : '';
+        $ctx .= "  • {$t['title']}{$pr}{$dl}\n";
+    }
+    $ctx .= "\nDOCUMENTOS FALTANTES:\n";
+    if (!$docsP) $ctx .= "  (nenhum)\n";
+    foreach ($docsP as $d) $ctx .= "  • {$d}\n";
+
+    // Prompt — diferente do resumir_caso: foca em UMA próxima ação concreta
+    $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
+            . "Vai receber o estado COMPLETO de um processo (prazos, intimações, andamentos, tarefas, documentos) "
+            . "e sua missão é responder UMA PERGUNTA: **qual é a PRÓXIMA AÇÃO CONCRETA que o escritório precisa fazer neste processo agora?**\n\n"
+            . "FORMATO DA RESPOSTA (markdown, no máximo 8 linhas):\n"
+            . "**🎯 Próxima ação:** [verbo no infinitivo + objeto direto, 1 frase de até 20 palavras. Ex: 'Peticionar contestação juntando comprovante de residência da autora']\n\n"
+            . "**📅 Quando:** [prazo concreto: 'até dd/mm', 'esta semana', 'hoje', 'antes da audiência de dd/mm']\n\n"
+            . "**🧩 Por quê:** [1 frase ligando à evidência do contexto. Ex: 'Cliente informou em 23/05 que conseguiu o doc; prazo de contestação vence 28/05']\n\n"
+            . "**⚠ Risco se não fizer:** [1 frase curta sobre consequência. Ex: 'Revelia decretada e contestação perdida' ou 'Cliente acumula nova queixa']\n\n"
+            . "REGRAS:\n"
+            . "- Priorize **prazos vencidos ou ≤ 3 dias** acima de qualquer outra coisa.\n"
+            . "- Se há intimação pendente, ela vira a próxima ação automaticamente.\n"
+            . "- NÃO invente fatos que não estejam no contexto.\n"
+            . "- Se realmente não há ação clara (processo em fase de aguardo legítimo), responda exatamente: '**🎯 Próxima ação:** Aguardar próximo movimento — processo em fase regular sem providência pendente nossa.'";
+
+    $r = ia_chamar(
+        'sugerir_acao',
+        'claude-haiku-4-5',
+        $system,
+        array(array('role' => 'user', 'content' => $ctx)),
+        array(
+            'user_id'      => $uid,
+            'max_tokens'   => 400,
+            'temperature'  => 0.3,
+            'contexto'     => 'case#' . $caseId,
+            'cache_system' => true,
+        )
+    );
+
+    if (!$r['ok']) {
+        _json_clean_echo(array('error' => $r['erro'] ?: 'Falha na IA'));
+        exit;
+    }
+
+    @audit_log('IA_SUGERIR_ACAO', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
+
+    _json_clean_echo(array(
+        'ok'        => true,
+        'texto'     => $r['texto'],
+        'em'        => date('Y-m-d H:i:s'),
+        'custo_brl' => $r['custo_brl'],
+        'tokens'    => $r['input_tokens'] + $r['output_tokens'],
+    ));
+    exit;
+    } catch (Throwable $e) {
+        @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
+            date('Y-m-d H:i:s') . " | sugerir_acao_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n", FILE_APPEND);
+        _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
+        exit;
+    }
+}
+
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
 function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
     // Primeiro por linked_case_id

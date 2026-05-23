@@ -75,6 +75,10 @@ $cfgs = array(
     'ia_feature_resumo_caso_enabled'    => '1',
     'ia_feature_classif_andamento_enabled' => '1',
     'ia_feature_cliente_esfriando_enabled' => '1',
+    // Fase 2
+    'ia_feature_sugerir_acao_enabled'       => '1',
+    'ia_feature_briefing_enabled'           => '1',
+    'ia_feature_resumo_wa_chamado_enabled'  => '1',
     // orçamento mensal em reais — alerta quando atinge
     'ia_orcamento_mensal_reais'         => '300',
     'ia_alerta_orcamento_em'            => '',

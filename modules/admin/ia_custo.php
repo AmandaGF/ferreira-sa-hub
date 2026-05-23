@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $usersCsv = trim((string)($_POST['users_autorizados'] ?? ''));
         $usersCsv = implode(',', array_filter(array_map('intval', explode(',', preg_replace('/[^\d,]/', '', $usersCsv)))));
 
-        $feats = array('resumo_caso','classif_andamento','cliente_esfriando');
+        $feats = array('resumo_caso','classif_andamento','cliente_esfriando','sugerir_acao','briefing','resumo_wa_chamado');
         $stCfg = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
         $stCfg->execute(array('ia_orcamento_mensal_reais', (string)$orc));
         $stCfg->execute(array('ia_cambio_brl', (string)$cambio));
@@ -53,6 +53,9 @@ $usersCsv  = cfg($pdo, 'ia_users_autorizados', '');
 $featResumo = cfg($pdo, 'ia_feature_resumo_caso_enabled', '1') === '1';
 $featClass  = cfg($pdo, 'ia_feature_classif_andamento_enabled', '1') === '1';
 $featEsfri  = cfg($pdo, 'ia_feature_cliente_esfriando_enabled', '1') === '1';
+$featSug    = cfg($pdo, 'ia_feature_sugerir_acao_enabled', '1') === '1';
+$featBrief  = cfg($pdo, 'ia_feature_briefing_enabled', '1') === '1';
+$featRwa    = cfg($pdo, 'ia_feature_resumo_wa_chamado_enabled', '1') === '1';
 
 // Lista todos os usuários ativos pra render do checkbox
 $users = $pdo->query("SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
@@ -166,6 +169,18 @@ require_once __DIR__ . '/../../templates/layout_start.php';
             <label style="display:flex;align-items:center;gap:.4rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;">
                 <input type="checkbox" name="feat_cliente_esfriando" <?= $featEsfri ? 'checked' : '' ?>>
                 ❄️ Detector de cliente esfriando (sem IA)
+            </label>
+            <label style="display:flex;align-items:center;gap:.4rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;">
+                <input type="checkbox" name="feat_sugerir_acao" <?= $featSug ? 'checked' : '' ?>>
+                ✨ Sugestão de próxima ação no caso
+            </label>
+            <label style="display:flex;align-items:center;gap:.4rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;">
+                <input type="checkbox" name="feat_briefing" <?= $featBrief ? 'checked' : '' ?>>
+                🌅 Briefing diário no Painel
+            </label>
+            <label style="display:flex;align-items:center;gap:.4rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;">
+                <input type="checkbox" name="feat_resumo_wa_chamado" <?= $featRwa ? 'checked' : '' ?>>
+                🤖 Resumo conversa WA pra chamado
             </label>
         </div>
     </div>

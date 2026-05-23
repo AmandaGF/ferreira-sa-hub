@@ -405,6 +405,9 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')): ?>
     <button type="button" id="btnResumirIA" onclick="resumirCasoIA(false)" class="btn btn-sm" style="background:#6d28d9;color:#fff;border:none;" title="Gera um resumo executivo do caso por IA (4 linhas: situação atual, último movimento, próximo passo, alertas). Custo médio: R$ 0,10 por resumo. Cache de 24h.">🤖 Resumir caso</button>
     <?php endif; ?>
+    <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('sugerir_acao')): ?>
+    <button type="button" id="btnSugerirAcaoIA" onclick="sugerirAcaoIA()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;" title="IA lê prazos, intimações, andamentos, tarefas e sugere a PRÓXIMA AÇÃO concreta com prazo e justificativa. Custo médio: R$ 0,10 por sugestão.">✨ O que fazer agora?</button>
+    <?php endif; ?>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
     <?php endif; ?>
@@ -3319,6 +3322,51 @@ function copiarLinkDrive(btn, url) {
         } catch(e) { alert('Link:\n' + url); }
         tmp.remove();
     });
+}
+
+// Pede à IA a PRÓXIMA AÇÃO concreta no processo (4 blocos: ação, quando,
+// por quê, risco). SEM cache — cada clique gera nova sugestão pra refletir
+// o estado mais recente (prazos / intimações / msgs / andamentos).
+function sugerirAcaoIA() {
+    var btn = document.getElementById('btnSugerirAcaoIA');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Analisando…'; }
+
+    var fd = new FormData();
+    fd.append('action', 'sugerir_acao_ia');
+    fd.append('case_id', '<?= (int)$caseId ?>');
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+
+    fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (btn) { btn.disabled = false; btn.innerHTML = '✨ O que fazer agora?'; }
+            if (d.error) { alert('Falha: ' + d.error); return; }
+            var html = String(d.texto || '')
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>');
+            var rodape = '<span style="color:#0e7490;">✨ Gerado por IA · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + ' · ' + (Number(d.tokens||0)) + ' tokens</span>'
+                       + '<br><span style="color:#9a3412;font-size:.7rem;">⚠ Sugestão automática — sempre confira o estado real do processo antes de agir.</span>';
+            var modal = document.createElement('div');
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            modal.innerHTML = '<div style="background:#fff;max-width:680px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
+                + '<h3 style="margin:0;color:#0e7490;">✨ Próxima ação sugerida</h3>'
+                + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+                + '</div>'
+                + '<div style="font-size:.95rem;line-height:1.6;color:#1f2937;padding:.6rem 0;background:#ecfeff;border-left:3px solid #06b6d4;padding-left:.9rem;border-radius:0 6px 6px 0;">' + html + '</div>'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;padding-top:.8rem;border-top:1px solid #e5e7eb;font-size:.72rem;">'
+                + '<div>' + rodape + '</div>'
+                + '<button onclick="this.closest(\'div[style*=fixed]\').remove(); sugerirAcaoIA();" style="background:#fff;border:1px solid #67e8f9;color:#0e7490;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Gerar nova</button>'
+                + '</div>'
+                + '</div>';
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.innerHTML = '✨ O que fazer agora?'; }
+            alert('Erro de conexão: ' + e.message);
+        });
 }
 
 // Gera resumo executivo do caso por IA (Claude Haiku). Mostra modal
