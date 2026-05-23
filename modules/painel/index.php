@@ -506,7 +506,7 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
                 ? module_url('operacional', 'caso_ver.php?id=' . (int)$_eClient['principal_case_id'])
                 : module_url('clientes', 'ver.php?id=' . (int)$_eClient['id']);
         ?>
-        <div data-esfri-card="<?= (int)$_eClient['id'] ?>" style="background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;color:#1f2937;position:relative;">
+        <div data-esfri-card="<?= (int)$_eClient['id'] ?>" style="background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;color:#1f2937;">
             <a href="<?= e($_href) ?>" style="text-decoration:none;color:inherit;display:block;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;">
                     <div style="font-weight:700;font-size:.85rem;color:#052228;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"><?= e($_eClient['name']) ?></div>
@@ -516,7 +516,9 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
                     <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
                 <?php endif; ?>
             </a>
-            <button type="button" onclick="recalcularEsfriando(<?= (int)$_eClient['id'] ?>, this)" title="Já falei/atendi este cliente — recalcular score agora" style="position:absolute;top:.35rem;right:.35rem;background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.05rem .35rem;border-radius:5px;font-size:.62rem;font-weight:700;cursor:pointer;line-height:1.4;opacity:.65;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.65">✓ Tratei</button>
+            <div style="display:flex;justify-content:flex-end;margin-top:.4rem;padding-top:.35rem;border-top:1px dashed rgba(0,0,0,.08);">
+                <button type="button" onclick="recalcularEsfriando(<?= (int)$_eClient['id'] ?>, this)" title="Já falei/atendi este cliente — recalcular score e mostrar o que mudou" style="background:#fff;border:1px solid #94a3b8;color:#334155;padding:.18rem .55rem;border-radius:5px;font-size:.7rem;font-weight:700;cursor:pointer;">✓ Já tratei — recalcular</button>
+            </div>
         </div>
         <?php endforeach; ?>
     </div>
@@ -526,7 +528,8 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
 // Custo: zero (sem IA). Usado quando a Amanda já interagiu com o cliente e quer ver o score atualizado.
 window.recalcularEsfriando = function(clientId, btn) {
     var headerBtn = document.getElementById('btnRecalcEsfri');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    var btnOrigText = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ verificando…'; }
     if (!clientId && headerBtn) { headerBtn.disabled = true; headerBtn.textContent = '⏳ Recalculando...'; }
 
     var fd = new FormData();
@@ -537,22 +540,87 @@ window.recalcularEsfriando = function(clientId, btn) {
     fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
         .then(function(r){ return r.json(); })
         .then(function(d){
-            if (d.error) { alert(d.error); return; }
-            if (clientId) {
-                // Recálculo de 1 cliente: se o score caiu pra < 30, faz fade out do card; senão reload pra mostrar novo score
-                var card = document.querySelector('[data-esfri-card="' + clientId + '"]');
-                if (card) { card.style.transition = 'opacity .35s'; card.style.opacity = '0'; }
-                setTimeout(function(){ location.reload(); }, 400);
+            if (d.error) {
+                if (btn) { btn.disabled = false; btn.textContent = btnOrigText; }
+                alert(d.error); return;
+            }
+            if (clientId && d.diff) {
+                _esfriMostrarDiff(d.diff);
             } else {
                 location.reload();
             }
         })
         .catch(function(e){
-            if (btn) { btn.disabled = false; btn.textContent = '✓ Tratei'; }
+            if (btn) { btn.disabled = false; btn.textContent = btnOrigText; }
             if (!clientId && headerBtn) { headerBtn.disabled = false; headerBtn.textContent = '🔄 Recalcular agora'; }
             alert('Erro de rede: ' + e.message);
         });
 };
+
+// Mostra modal com antes/depois pra cliente recalculado individualmente.
+// O ponto é a TRANSPARÊNCIA: explica EXATAMENTE o que o sistema viu, pra
+// Amanda confirmar se sua ação foi captada ou se falta registrar algo.
+function _esfriMostrarDiff(diff) {
+    var antes  = diff.score_antes  || 0;
+    var depois = diff.score_depois || 0;
+    var queda  = antes - depois;
+    var cor    = queda > 0 ? '#15803d' : (queda < 0 ? '#b91c1c' : '#92400e');
+    var emoji  = queda > 0 ? '✅' : (queda < 0 ? '📈' : '⚠️');
+
+    // Conclusão amigável conforme o resultado
+    var conclusao = '';
+    if (queda > 0) {
+        conclusao = '<strong>' + emoji + ' Score caiu ' + queda + ' pontos.</strong> A ação que você fez foi captada pelo sistema.';
+    } else if (queda === 0) {
+        conclusao = '<strong>' + emoji + ' Score não mudou.</strong> O sistema não conseguiu ver mudança nos sinais que mede. Se você falou com o cliente por <em>outro canal</em> (telefone particular, e-mail pessoal), o detector não consegue captar — registre um andamento na pasta OU mande mensagem pelo WhatsApp do Hub.';
+    } else {
+        conclusao = '<strong>' + emoji + ' Score subiu ' + Math.abs(queda) + ' pontos.</strong> Algum sinal piorou desde o último cálculo.';
+    }
+
+    // Última mensagem registrada (pra dar âncora temporal)
+    var ulm = '';
+    if (diff.ult_msg_em) {
+        var dt = new Date(diff.ult_msg_em.replace(' ', 'T'));
+        var dtTxt = dt.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' });
+        var lado = diff.ult_msg_direcao === 'enviada' ? 'você enviou' : (diff.ult_msg_direcao === 'recebida' ? 'cliente enviou' : '—');
+        ulm = '<div style="font-size:.72rem;color:#6b7280;margin-top:.4rem;">💬 Última mensagem no WhatsApp do Hub: <strong>' + dtTxt + '</strong> (' + lado + ')</div>';
+    } else {
+        ulm = '<div style="font-size:.72rem;color:#9a3412;margin-top:.4rem;">💬 Nenhuma mensagem registrada no WhatsApp do Hub pra este cliente.</div>';
+    }
+
+    function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    var html = ''
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
+        + '<h3 style="margin:0;color:#1e1b4b;">🌡️ ' + esc(diff.nome) + '</h3>'
+        + '<button onclick="this.closest(\'div[data-esfri-modal]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem;">'
+        +   '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.6rem .7rem;">'
+        +     '<div style="font-size:.65rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;">Antes</div>'
+        +     '<div style="font-size:1.6rem;font-weight:800;color:#374151;">' + antes + '</div>'
+        +     '<div style="font-size:.7rem;color:#6b7280;line-height:1.4;margin-top:.2rem;">' + esc(diff.motivos_antes || '(sem motivos)') + '</div>'
+        +   '</div>'
+        +   '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.6rem .7rem;">'
+        +     '<div style="font-size:.65rem;color:#15803d;text-transform:uppercase;letter-spacing:.05em;">Agora</div>'
+        +     '<div style="font-size:1.6rem;font-weight:800;color:' + cor + ';">' + depois + '</div>'
+        +     '<div style="font-size:.7rem;color:#6b7280;line-height:1.4;margin-top:.2rem;">' + esc(diff.motivos_depois || '✓ Sem sinais de alerta') + '</div>'
+        +   '</div>'
+        + '</div>'
+        + '<div style="background:' + (queda > 0 ? '#ecfdf5' : (queda === 0 ? '#fef3c7' : '#fef2f2')) + ';border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#1f2937;line-height:1.5;">'
+        + conclusao + ulm
+        + '</div>'
+        + '<div style="display:flex;justify-content:flex-end;margin-top:.9rem;">'
+        + '<button onclick="location.reload()" style="background:#6366f1;color:#fff;border:none;padding:.4rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;">Fechar e atualizar painel</button>'
+        + '</div>';
+
+    var modal = document.createElement('div');
+    modal.setAttribute('data-esfri-modal', '1');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML = '<div style="background:#fff;max-width:580px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);">' + html + '</div>';
+    modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+    document.body.appendChild(modal);
+}
 </script>
 <?php endif; ?>
 

@@ -35,7 +35,46 @@ if ($action === 'recalcular_esfriando') {
     @set_time_limit(120);
     $clientId = (int)($_POST['client_id'] ?? 0);
     try {
+        // Pra recálculo de 1 cliente, capturamos antes/depois pra mostrar o
+        // diff na UI — assim a Amanda confirma se a ação dela foi captada.
+        $diff = null;
+        if ($clientId > 0) {
+            $stOld = $pdo->prepare("SELECT name, COALESCE(esfriando_score,0) AS s, esfriando_motivos AS m FROM clients WHERE id = ?");
+            $stOld->execute(array($clientId));
+            $diff = $stOld->fetch(PDO::FETCH_ASSOC) ?: null;
+            $stOld->closeCursor();
+        }
+
         $r = ia_recalcular_esfriando_clientes($pdo, $clientId);
+
+        if ($clientId > 0) {
+            $stNew = $pdo->prepare("SELECT COALESCE(esfriando_score,0) AS s, esfriando_motivos AS m FROM clients WHERE id = ?");
+            $stNew->execute(array($clientId));
+            $now = $stNew->fetch(PDO::FETCH_ASSOC) ?: null;
+            $stNew->closeCursor();
+            if ($diff && $now) {
+                // Última mensagem WhatsApp REAL pro feedback humano ("você falou ontem 14:23")
+                $stMsgUlt = $pdo->prepare(
+                    "SELECT m.created_at, m.direcao FROM zapi_mensagens m
+                     INNER JOIN zapi_conversas co ON co.id = m.conversa_id
+                     WHERE co.client_id = ? ORDER BY m.created_at DESC LIMIT 1"
+                );
+                $stMsgUlt->execute(array($clientId));
+                $ulMsg = $stMsgUlt->fetch(PDO::FETCH_ASSOC) ?: array();
+                $stMsgUlt->closeCursor();
+
+                $r['diff'] = array(
+                    'nome'           => $diff['name'],
+                    'score_antes'    => (int)$diff['s'],
+                    'motivos_antes'  => (string)($diff['m'] ?? ''),
+                    'score_depois'   => (int)$now['s'],
+                    'motivos_depois' => (string)($now['m'] ?? ''),
+                    'ult_msg_em'     => $ulMsg['created_at'] ?? null,
+                    'ult_msg_direcao'=> $ulMsg['direcao'] ?? null,
+                );
+            }
+        }
+
         @audit_log('IA_RECALC_ESFRIANDO', 'clients', $clientId ?: 0, "proc={$r['processados']} esfri={$r['esfriando']} atn={$r['atencao']}");
         echo json_encode(array('ok' => true) + $r);
     } catch (Throwable $e) {
