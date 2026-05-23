@@ -84,8 +84,6 @@ $porDia = $pdo->query("SELECT DATE(created_at) d, COALESCE(SUM(custo_brl),0) brl
 // Últimas 20
 $ultimas = $pdo->query("SELECT l.*, u.name AS user_name FROM ia_usage_log l LEFT JOIN users u ON u.id = l.user_id ORDER BY l.id DESC LIMIT 20")->fetchAll(PDO::FETCH_ASSOC);
 
-require_once __DIR__ . '/../../templates/header.php';
-require_once __DIR__ . '/../../templates/sidebar.php';
 require_once __DIR__ . '/../../templates/layout_start.php';
 ?>
 
