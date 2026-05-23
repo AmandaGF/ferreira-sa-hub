@@ -33,7 +33,6 @@ require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions_ia.php';
 
 @set_time_limit(180);
-ini_set('display_errors', '1'); error_reporting(E_ALL);
 header('Content-Type: text/plain; charset=utf-8');
 echo "=== Detector de cliente esfriando ===\n";
 echo date('d/m/Y H:i:s') . "\n\n";
@@ -56,6 +55,7 @@ $stClientes = $pdo->query(
       LIMIT $lim"
 );
 $clientes = $stClientes->fetchAll(PDO::FETCH_ASSOC);
+$stClientes->closeCursor();
 echo "Clientes ativos analisados: " . count($clientes) . "\n";
 echo "(use ?lim=N pra limitar)\n";
 @ob_flush(); flush();
@@ -80,7 +80,7 @@ foreach ($clientes as $c) {
 
     // 1) Última msg WhatsApp
     $stMsg->execute(array((int)$c['id']));
-    $ultMsg = $stMsg->fetchColumn();
+    $ultMsg = $stMsg->fetchColumn(); $stMsg->closeCursor();
     if (!$ultMsg) {
         $score += 10; $motivos[] = 'Sem conversa WhatsApp registrada';
     } else {
@@ -91,7 +91,7 @@ foreach ($clientes as $c) {
 
     // 2) Último andamento no processo
     $stAnd->execute(array((int)$c['id']));
-    $ultAnd = $stAnd->fetchColumn();
+    $ultAnd = $stAnd->fetchColumn(); $stAnd->closeCursor();
     if ($ultAnd) {
         $diasAnd = (int)((time() - strtotime($ultAnd)) / 86400);
         if ($diasAnd > 60) { $score += 30; $motivos[] = "Processo parado há {$diasAnd}d"; }
@@ -100,12 +100,12 @@ foreach ($clientes as $c) {
 
     // 3) Cobrança vencida > 5 dias
     $stCob->execute(array((int)$c['id']));
-    $qtdCob = (int)$stCob->fetchColumn();
+    $qtdCob = (int)$stCob->fetchColumn(); $stCob->closeCursor();
     if ($qtdCob > 0) { $score += 20; $motivos[] = "{$qtdCob} cobrança(s) vencida(s)"; }
 
     // 4) Tarefa atrasada > 7 dias
     $stTar->execute(array((int)$c['id']));
-    $qtdTar = (int)$stTar->fetchColumn();
+    $qtdTar = (int)$stTar->fetchColumn(); $stTar->closeCursor();
     if ($qtdTar > 0) { $score += 15; $motivos[] = "{$qtdTar} tarefa(s) atrasada(s)"; }
 
     // Cap em 100
