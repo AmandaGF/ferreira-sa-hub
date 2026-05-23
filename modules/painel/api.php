@@ -20,6 +20,30 @@ if (!in_array($action, $readOnlyActions, true)) {
 
 header('Content-Type: application/json; charset=utf-8');
 
+// ── Recálculo do detector de cliente esfriando (sem IA, custo zero) ──
+// Disparado pelo botão "🔄 Recalcular agora" do card no Painel do Dia.
+// Aceita ?client_id=N pra recalcular só 1 cliente (mais rápido — usado
+// após "tratar" um cliente específico) ou sem param pra recálculo total.
+if ($action === 'recalcular_esfriando') {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+    if (!in_array(current_user_role(), array('admin','gestao'), true)) {
+        echo json_encode(array('error' => 'Apenas admin/gestão.')); exit;
+    }
+    if (!ia_feature_ativa('cliente_esfriando')) {
+        echo json_encode(array('error' => 'Feature desligada no admin.')); exit;
+    }
+    @set_time_limit(120);
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    try {
+        $r = ia_recalcular_esfriando_clientes($pdo, $clientId);
+        @audit_log('IA_RECALC_ESFRIANDO', 'clients', $clientId ?: 0, "proc={$r['processados']} esfri={$r['esfriando']} atn={$r['atencao']}");
+        echo json_encode(array('ok' => true) + $r);
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro ao recalcular: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 // Self-heal: cor (post-it) + arquivado (oculta sem apagar) + vínculos + atribuição
 try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN cor VARCHAR(20) DEFAULT 'amarelo'"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE eventos_dia ADD COLUMN arquivado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}

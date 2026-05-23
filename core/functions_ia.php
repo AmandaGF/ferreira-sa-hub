@@ -217,6 +217,98 @@ function ia_gasto_mes_atual() {
     } catch (Exception $e) { return 0.0; }
 }
 
+/**
+ * Recalcula o score "esfriando" — todos os clientes ativos OU um cliente
+ * específico (quando $clientId > 0). Mesmas regras do cron diário, SEM IA.
+ *
+ * @return array{processados:int, esfriando:int, atencao:int, ok:int, top:array}
+ */
+function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
+    if ($clientId > 0) {
+        // Recalcula só 1 cliente — verifica se ainda está no universo ativo
+        $st = $pdo->prepare(
+            "SELECT DISTINCT c.id, c.name
+               FROM clients c
+               INNER JOIN cases cs ON cs.client_id = c.id
+              WHERE c.id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0
+              LIMIT 1"
+        );
+        $st->execute(array((int)$clientId));
+    } else {
+        $st = $pdo->query(
+            "SELECT DISTINCT c.id, c.name
+               FROM clients c
+               INNER JOIN cases cs ON cs.client_id = c.id
+              WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0"
+        );
+    }
+    $clientes = $st->fetchAll(PDO::FETCH_ASSOC);
+    $st->closeCursor();
+
+    $stUpd = $pdo->prepare("UPDATE clients SET esfriando_score = ?, esfriando_motivos = ?, esfriando_em = NOW() WHERE id = ?");
+    $stMsg = $pdo->prepare("SELECT MAX(m.created_at) FROM zapi_mensagens m INNER JOIN zapi_conversas co ON co.id = m.conversa_id WHERE co.client_id = ?");
+    $stAnd = $pdo->prepare("SELECT MAX(ca.created_at) FROM case_andamentos ca INNER JOIN cases cs ON cs.id = ca.case_id WHERE cs.client_id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado')");
+    $stCob = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobranca h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
+    $stTar = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs ON cs.id = t.case_id WHERE cs.client_id = ? AND t.tipo IS NOT NULL AND t.status != 'concluido' AND t.due_date IS NOT NULL AND t.due_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
+
+    $contagem = array('esfriando' => 0, 'atencao' => 0, 'ok' => 0);
+    $top = array();
+
+    foreach ($clientes as $c) {
+        $score = 0; $motivos = array();
+
+        // 1) WhatsApp
+        $stMsg->execute(array((int)$c['id']));
+        $ultMsg = $stMsg->fetchColumn(); $stMsg->closeCursor();
+        if (!$ultMsg) { $score += 10; $motivos[] = 'Sem conversa WhatsApp registrada'; }
+        else {
+            $diasMsg = (int)((time() - strtotime($ultMsg)) / 86400);
+            if     ($diasMsg > 14) { $score += 30; $motivos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
+            elseif ($diasMsg > 7)  { $score += 10; $motivos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
+        }
+        // 2) Andamento
+        $stAnd->execute(array((int)$c['id']));
+        $ultAnd = $stAnd->fetchColumn(); $stAnd->closeCursor();
+        if ($ultAnd) {
+            $diasAnd = (int)((time() - strtotime($ultAnd)) / 86400);
+            if     ($diasAnd > 60) { $score += 30; $motivos[] = "Processo parado há {$diasAnd}d"; }
+            elseif ($diasAnd > 30) { $score += 20; $motivos[] = "Processo parado há {$diasAnd}d"; }
+        }
+        // 3) Cobrança
+        $stCob->execute(array((int)$c['id']));
+        $qtdCob = (int)$stCob->fetchColumn(); $stCob->closeCursor();
+        if ($qtdCob > 0) { $score += 20; $motivos[] = "{$qtdCob} cobrança(s) vencida(s)"; }
+        // 4) Tarefa
+        $stTar->execute(array((int)$c['id']));
+        $qtdTar = (int)$stTar->fetchColumn(); $stTar->closeCursor();
+        if ($qtdTar > 0) { $score += 15; $motivos[] = "{$qtdTar} tarefa(s) atrasada(s)"; }
+
+        if ($score > 100) $score = 100;
+        $motivoStr = $score > 0 ? implode(' · ', $motivos) : '';
+        $stUpd->execute(array($score, $motivoStr, (int)$c['id']));
+
+        if      ($score >= 60) { $contagem['esfriando']++; $top[] = array('id' => $c['id'], 'name' => $c['name'], 'score' => $score, 'motivos' => $motivoStr); }
+        elseif  ($score >= 30) { $contagem['atencao']++; }
+        else                   { $contagem['ok']++; }
+    }
+
+    // Zera score de quem saiu do universo ativo (só no recalc global)
+    if ($clientId <= 0) {
+        $pdo->exec("UPDATE clients c
+                    LEFT JOIN cases cs ON cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0
+                    SET c.esfriando_score = 0, c.esfriando_motivos = NULL, c.esfriando_em = NOW()
+                    WHERE c.esfriando_score > 0 AND cs.id IS NULL");
+    }
+
+    return array(
+        'processados' => count($clientes),
+        'esfriando'   => $contagem['esfriando'],
+        'atencao'     => $contagem['atencao'],
+        'ok'          => $contagem['ok'],
+        'top'         => $top,
+    );
+}
+
 /** Orçamento mensal configurado (R$). */
 function ia_orcamento_mes() {
     try {

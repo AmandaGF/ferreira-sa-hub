@@ -482,6 +482,7 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
         <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
             <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> esfriando</span><?php endif; ?>
             <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> em atenção</span><?php endif; ?>
+            <button type="button" id="btnRecalcEsfri" onclick="recalcularEsfriando(0)" title="Atualiza os scores AGORA (sem IA, custo zero)" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;">🔄 Recalcular agora</button>
             <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Ver Kanban filtrado →</a>
         </span>
     </h3>
@@ -505,18 +506,54 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
                 ? module_url('operacional', 'caso_ver.php?id=' . (int)$_eClient['principal_case_id'])
                 : module_url('clientes', 'ver.php?id=' . (int)$_eClient['id']);
         ?>
-        <a href="<?= e($_href) ?>" style="display:block;background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;text-decoration:none;color:#1f2937;">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;">
-                <div style="font-weight:700;font-size:.85rem;color:#052228;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"><?= e($_eClient['name']) ?></div>
-                <div style="background:<?= $_corNum ?>;color:#fff;border-radius:6px;padding:.1rem .45rem;font-weight:700;font-size:.7rem;flex-shrink:0;"><?= $_isCrit ? '🔴' : '🟡' ?> <?= $_score ?></div>
-            </div>
-            <?php if ($_motivos): ?>
-                <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
-            <?php endif; ?>
-        </a>
+        <div data-esfri-card="<?= (int)$_eClient['id'] ?>" style="background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;color:#1f2937;position:relative;">
+            <a href="<?= e($_href) ?>" style="text-decoration:none;color:inherit;display:block;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;">
+                    <div style="font-weight:700;font-size:.85rem;color:#052228;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"><?= e($_eClient['name']) ?></div>
+                    <div style="background:<?= $_corNum ?>;color:#fff;border-radius:6px;padding:.1rem .45rem;font-weight:700;font-size:.7rem;flex-shrink:0;"><?= $_isCrit ? '🔴' : '🟡' ?> <?= $_score ?></div>
+                </div>
+                <?php if ($_motivos): ?>
+                    <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
+                <?php endif; ?>
+            </a>
+            <button type="button" onclick="recalcularEsfriando(<?= (int)$_eClient['id'] ?>, this)" title="Já falei/atendi este cliente — recalcular score agora" style="position:absolute;top:.35rem;right:.35rem;background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.05rem .35rem;border-radius:5px;font-size:.62rem;font-weight:700;cursor:pointer;line-height:1.4;opacity:.65;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.65">✓ Tratei</button>
+        </div>
         <?php endforeach; ?>
     </div>
 </div>
+<script>
+// Recalcular esfriando — global (botão do header) ou de 1 cliente específico (botão ✓ Tratei).
+// Custo: zero (sem IA). Usado quando a Amanda já interagiu com o cliente e quer ver o score atualizado.
+window.recalcularEsfriando = function(clientId, btn) {
+    var headerBtn = document.getElementById('btnRecalcEsfri');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    if (!clientId && headerBtn) { headerBtn.disabled = true; headerBtn.textContent = '⏳ Recalculando...'; }
+
+    var fd = new FormData();
+    fd.append('action', 'recalcular_esfriando');
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    if (clientId) fd.append('client_id', String(clientId));
+
+    fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) { alert(d.error); return; }
+            if (clientId) {
+                // Recálculo de 1 cliente: se o score caiu pra < 30, faz fade out do card; senão reload pra mostrar novo score
+                var card = document.querySelector('[data-esfri-card="' + clientId + '"]');
+                if (card) { card.style.transition = 'opacity .35s'; card.style.opacity = '0'; }
+                setTimeout(function(){ location.reload(); }, 400);
+            } else {
+                location.reload();
+            }
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.textContent = '✓ Tratei'; }
+            if (!clientId && headerBtn) { headerBtn.disabled = false; headerBtn.textContent = '🔄 Recalcular agora'; }
+            alert('Erro de rede: ' + e.message);
+        });
+};
+</script>
 <?php endif; ?>
 
 <!-- Modal Lembrete (criar OU editar — depende de modoLembreteEdit/idLembreteEdit) -->
