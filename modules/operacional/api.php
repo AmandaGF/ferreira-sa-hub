@@ -232,20 +232,20 @@ if ($action === 'criar_pasta_drive') {
 // Cache: cases.ia_resumo + ia_resumo_em. Invalida se houver andamento mais
 // recente que o resumo. ?forcar=1 ignora cache (regenerar).
 if ($action === 'resumir_caso_ia') {
-    require_once APP_ROOT . '/core/functions_ia.php';
-    header('Content-Type: application/json; charset=utf-8');
+    try {
+    require_once __DIR__ . '/../../core/functions_ia.php';
     $caseId = (int)($_POST['case_id'] ?? 0);
     $forcar = !empty($_POST['forcar']);
-    if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+    if (!$caseId) { _json_clean_echo(array('error' => 'case_id obrigatório')); exit; }
     $uid = current_user_id();
-    if (!ia_user_autorizado($uid)) { echo json_encode(array('error' => 'Você não está autorizado a usar a IA. Fale com a Amanda.')); exit; }
-    if (!ia_feature_ativa('resumo_caso')) { echo json_encode(array('error' => 'Feature desligada no admin.')); exit; }
+    if (!ia_user_autorizado($uid)) { _json_clean_echo(array('error' => 'Você não está autorizado a usar a IA. Fale com a Amanda.')); exit; }
+    if (!ia_feature_ativa('resumo_caso')) { _json_clean_echo(array('error' => 'Feature desligada no admin.')); exit; }
 
-    // Caso + cache
-    $st = $pdo->prepare("SELECT id, title, case_type, case_number, status, comarca, vara, ia_resumo, ia_resumo_em FROM cases WHERE id = ?");
+    // Caso + cache (usa só colunas que sabemos existir — comarca/vara podem variar)
+    $st = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
     $st->execute(array($caseId));
     $caso = $st->fetch(PDO::FETCH_ASSOC);
-    if (!$caso) { echo json_encode(array('error' => 'Caso não encontrado')); exit; }
+    if (!$caso) { _json_clean_echo(array('error' => 'Caso não encontrado')); exit; }
 
     // Verifica cache: se já tem resumo E nada novo desde então E < 24h
     if (!$forcar && $caso['ia_resumo'] && $caso['ia_resumo_em']) {
@@ -256,7 +256,7 @@ if ($action === 'resumir_caso_ia') {
         $ultAndTs = $ultAnd ? strtotime($ultAnd) : 0;
         $idade    = time() - $resumoTs;
         if ($resumoTs >= $ultAndTs && $idade < 86400) {
-            echo json_encode(array(
+            _json_clean_echo(array(
                 'ok' => true, 'texto' => $caso['ia_resumo'], 'cached' => true,
                 'em' => $caso['ia_resumo_em'], 'custo_brl' => 0,
             ));
@@ -285,11 +285,13 @@ if ($action === 'resumir_caso_ia') {
     $stDoc->execute(array($caseId));
     $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
 
-    // Monta texto do contexto
-    $ctx = "PROCESSO: " . ($caso['title'] ?: 'sem título') . "\n";
-    if ($caso['case_number']) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
-    $ctx .= "Tipo: " . ($caso['case_type'] ?: '—') . " | Status: " . ($caso['status'] ?: '—');
-    if ($caso['vara'] || $caso['comarca']) $ctx .= " | " . trim(($caso['vara'] ?: '') . ' — ' . ($caso['comarca'] ?: ''), ' —');
+    // Monta texto do contexto (acesso defensivo — colunas podem variar)
+    $ctx = "PROCESSO: " . (($caso['title'] ?? '') ?: 'sem título') . "\n";
+    if (!empty($caso['case_number'])) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+    $ctx .= "Tipo: " . (($caso['case_type'] ?? '') ?: '—') . " | Status: " . (($caso['status'] ?? '') ?: '—');
+    $vara    = $caso['vara']    ?? '';
+    $comarca = $caso['comarca'] ?? '';
+    if ($vara || $comarca) $ctx .= " | " . trim($vara . ' — ' . $comarca, ' —');
     $ctx .= "\n\n";
 
     $ctx .= "ANDAMENTOS (mais recentes primeiro):\n";
@@ -341,7 +343,7 @@ if ($action === 'resumir_caso_ia') {
     );
 
     if (!$r['ok']) {
-        echo json_encode(array('error' => $r['erro'] ?: 'Falha na IA'));
+        _json_clean_echo(array('error' => $r['erro'] ?: 'Falha na IA'));
         exit;
     }
 
@@ -349,9 +351,9 @@ if ($action === 'resumir_caso_ia') {
     $pdo->prepare("UPDATE cases SET ia_resumo = ?, ia_resumo_em = NOW() WHERE id = ?")
         ->execute(array($r['texto'], $caseId));
 
-    audit_log('IA_RESUMO_CASO', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
+    @audit_log('IA_RESUMO_CASO', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
 
-    echo json_encode(array(
+    _json_clean_echo(array(
         'ok'        => true,
         'texto'     => $r['texto'],
         'cached'    => false,
@@ -360,6 +362,12 @@ if ($action === 'resumir_caso_ia') {
         'tokens'    => $r['input_tokens'] + $r['output_tokens'],
     ));
     exit;
+    } catch (Throwable $e) {
+        @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
+            date('Y-m-d H:i:s') . " | resumir_caso_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n    " . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
+        _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
+        exit;
+    }
 }
 
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
