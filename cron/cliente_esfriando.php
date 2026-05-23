@@ -70,11 +70,8 @@ $stTar  = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs O
 
 $contagem = array('esfriando' => 0, 'atencao' => 0, 'ok' => 0);
 $topAlerta = array();
-$cnt = 0;
 
 foreach ($clientes as $c) {
-    $cnt++;
-    if ($cnt % 10 === 0) { echo "  [progresso] $cnt/" . count($clientes) . "\n"; @ob_flush(); flush(); }
     $score = 0;
     $motivos = array();
 
