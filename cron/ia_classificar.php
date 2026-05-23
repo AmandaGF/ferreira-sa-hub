@@ -55,10 +55,14 @@ register_shutdown_function(function() use ($pdo, $lockKey) {
 
 $LIMITE = 50;
 $st = $pdo->prepare(
-    "SELECT id, descricao, tipo, data_andamento
-       FROM case_andamentos
-      WHERE tipo_origem = 'email_pje' AND (urgencia_ia IS NULL OR urgencia_ia = '')
-      ORDER BY id DESC
+    "SELECT ca.id, ca.descricao, ca.tipo, ca.data_andamento, ca.case_id,
+            cs.title AS case_title, cs.case_number, cs.responsible_user_id, cs.client_id,
+            cl.name AS client_name
+       FROM case_andamentos ca
+       LEFT JOIN cases cs ON cs.id = ca.case_id
+       LEFT JOIN clients cl ON cl.id = cs.client_id
+      WHERE ca.tipo_origem = 'email_pje' AND (ca.urgencia_ia IS NULL OR ca.urgencia_ia = '')
+      ORDER BY ca.id DESC
       LIMIT $LIMITE"
 );
 $st->execute();
@@ -120,6 +124,24 @@ foreach ($ands as $a) {
     $stUpd->execute(array($valor, (int)$a['id']));
     $insOk++;
     $custoTotal += (float)$r['custo_brl'];
+
+    // 🔔 NOTIFICAR QUANDO URGENTE — responsável do caso (ou admins se sem responsável).
+    // Pinga o sino na hora pra a equipe nunca perder uma intimação urgente importada.
+    if ($valor === 'urgente' && !empty($a['case_id'])) {
+        require_once __DIR__ . '/../core/functions_notify.php';
+        $descCurta = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+        if (mb_strlen($descCurta) > 120) $descCurta = mb_substr($descCurta, 0, 120) . '…';
+        $tituloN = '🔴 Andamento urgente: ' . ($a['client_name'] ?: ($a['case_title'] ?: ('Caso #' . $a['case_id'])));
+        $linkN = '/conecta/modules/operacional/caso_ver.php?id=' . (int)$a['case_id'] . '#andamento-' . (int)$a['id'];
+        try {
+            if (!empty($a['responsible_user_id'])) {
+                @notify((int)$a['responsible_user_id'], $tituloN, $descCurta, 'urgencia', $linkN, '🔴');
+            } else {
+                // Sem responsável atribuído — escala pra Amanda + Luiz (whitelist da IA é uma boa proxy)
+                @notify_admins($tituloN, $descCurta, 'urgencia', $linkN, '🔴');
+            }
+        } catch (Exception $e) { /* não bloqueia o batch */ }
+    }
 
     $icon = $valor === 'urgente' ? '🔴' : ($valor === 'info' ? '⚪' : '🟢');
     echo "  $icon #{$a['id']} → {$valor}  (R$ " . number_format($r['custo_brl'], 4, ',', '.') . ")\n";
