@@ -8,7 +8,22 @@
  *
  * Acesso: admin/gestao (mesmo critério do card do painel).
  */
-ini_set('display_errors', '1'); error_reporting(E_ALL);  // DIAG temp
+// Captura QUALQUER fatal e grava no log com stack — bug 500 sem display_errors
+set_exception_handler(function($e) {
+    $msg = date('Y-m-d H:i:s') . " | " . $e->getMessage() . "\n  in " . $e->getFile() . ':' . $e->getLine() . "\n  trace:\n" . $e->getTraceAsString() . "\n\n";
+    @file_put_contents(__DIR__ . '/../../files/em_risco_erro.log', $msg, FILE_APPEND);
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: text/plain; charset=utf-8'); }
+    echo "Erro: " . $e->getMessage() . "\n(detalhes em /files/em_risco_erro.log)";
+    exit;
+});
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR), true)) {
+        $msg = date('Y-m-d H:i:s') . " | FATAL " . $err['message'] . "\n  in " . $err['file'] . ':' . $err['line'] . "\n\n";
+        @file_put_contents(__DIR__ . '/../../files/em_risco_erro.log', $msg, FILE_APPEND);
+    }
+});
+
 require_once __DIR__ . '/../../core/config.php';
 require_once __DIR__ . '/../../core/database.php';
 require_once __DIR__ . '/../../core/auth.php';
