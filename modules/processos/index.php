@@ -52,8 +52,14 @@ if ($filterStatus) {
 if ($filterType) { $where[] = "cs.case_type = ?"; $params[] = $filterType; }
 if ($filterUser && !$isColaborador) { $where[] = "cs.responsible_user_id = ?"; $params[] = (int)$filterUser; }
 if ($search) {
-    $where[] = "(cs.title LIKE ? OR cs.case_number LIKE ? OR c.name LIKE ? OR cs.court LIKE ?)";
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    // Busca tambem em case_partes.nome — pega autor secundario, reu, representante legal.
+    // Resolve: caso com 2 clientes, busca pelo nome do 2o nao achava (Amanda 24/05/2026).
+    $where[] = "(cs.title LIKE ?
+                 OR cs.case_number LIKE ?
+                 OR c.name LIKE ?
+                 OR cs.court LIKE ?
+                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND cp.nome LIKE ?))";
+    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
 }
 $filterVinculo = isset($_GET['vinculo']) ? $_GET['vinculo'] : '';
 if ($filterVinculo === 'principais') { $where[] = "(cs.is_incidental = 0 OR cs.is_incidental IS NULL)"; }

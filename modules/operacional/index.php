@@ -58,9 +58,15 @@ if ($filterUser && !$isColaborador) {
     $params[] = (int)$filterUser;
 }
 if ($filterSearch) {
-    $where[] = "(cs.title LIKE ? OR c.name LIKE ? OR cs.case_type LIKE ? OR cs.case_number LIKE ?)";
+    // Busca tambem em case_partes.nome — pega autor secundario, reu, representante legal, etc.
+    // Resolve a dor: caso com 2 clientes, busca pelo nome do 2o nao achava (Amanda 24/05/2026).
+    $where[] = "(cs.title LIKE ?
+                 OR c.name LIKE ?
+                 OR cs.case_type LIKE ?
+                 OR cs.case_number LIKE ?
+                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND cp.nome LIKE ?))";
     $s = "%$filterSearch%";
-    $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
+    $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
 }
 if ($filterMonth) {
     $where[] = "DATE_FORMAT(cs.created_at, '%Y-%m') = ?";
