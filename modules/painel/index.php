@@ -589,7 +589,7 @@ if ($_painelMostraEsfriando):
 ?>
 <div class="pd-card" style="margin-top:1rem;border-left:4px solid #f59e0b;">
     <h3 style="justify-content:space-between;">
-        <span>🌡️ Clientes precisam de atenção</span>
+        <span>🌡️ PAINEL DE TEMPERATURA <span style="font-weight:400;color:#92400e;">— Clientes em risco</span></span>
         <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
             <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> em risco real</span><?php endif; ?>
             <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> esfriando</span><?php endif; ?>
