@@ -557,8 +557,6 @@ if ($_painelMostraEsfriando) {
              FROM clients c
              WHERE COALESCE(c.esfriando_score, 0) >= 40
                AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
-               -- Defesa extra: só inclui cliente que tem pelo menos 1 case ATIVO
-               -- (segurança caso o cron não tenha rodado depois de arquivar todos)
                AND EXISTS (
                    SELECT 1 FROM cases cs2
                     WHERE cs2.client_id = c.id
@@ -566,9 +564,25 @@ if ($_painelMostraEsfriando) {
                       AND COALESCE(cs2.kanban_oculto, 0) = 0
                )
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
-             LIMIT 20"
+             LIMIT 6"
         );
         $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+// Contagem REAL (sem o LIMIT da listagem) — pros badges do header refletirem o total verdadeiro
+$_esfriTotal     = 0;
+$_esfriTotCrit   = 0;
+$_esfriTotAtenc  = 0;
+if ($_painelMostraEsfriando) {
+    try {
+        $baseW = "FROM clients c WHERE c.esfriando_score IS NOT NULL
+                  AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
+                  AND EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
+                      AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                      AND COALESCE(cs.kanban_oculto,0)=0)";
+        $_esfriTotCrit  = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score >= 80")->fetchColumn();
+        $_esfriTotAtenc = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score BETWEEN 40 AND 79")->fetchColumn();
+        $_esfriTotal    = $_esfriTotCrit + $_esfriTotAtenc;
     } catch (Exception $e) {}
 }
 // Conta clientes adiados (snooze ativo) — útil pra mostrar atalho "ver adiados"
@@ -584,16 +598,14 @@ if ($_painelMostraEsfriando) {
     } catch (Exception $e) {}
 }
 if ($_painelMostraEsfriando):
-    $_esfriCritico  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 80; });
-    $_esfriAtencao  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 40 && (int)$x['esfriando_score'] < 80; });
 ?>
 <div class="pd-card" style="margin-top:1rem;border-left:4px solid #f59e0b;">
     <h3 style="justify-content:space-between;">
         <span>🌡️ PAINEL DE TEMPERATURA <span style="font-weight:400;color:#92400e;">— Clientes em risco</span></span>
         <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
-            <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> em risco real</span><?php endif; ?>
-            <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> esfriando</span><?php endif; ?>
-            <?php if (empty($_esfriClientes)): ?><span style="background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:8px;font-weight:700;">✅ Tudo OK</span><?php endif; ?>
+            <?php if ($_esfriTotCrit  > 0): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= $_esfriTotCrit ?> em risco real</span><?php endif; ?>
+            <?php if ($_esfriTotAtenc > 0): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= $_esfriTotAtenc ?> esfriando</span><?php endif; ?>
+            <?php if ($_esfriTotal === 0): ?><span style="background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:8px;font-weight:700;">✅ Tudo OK</span><?php endif; ?>
             <button type="button" id="btnRecalcEsfri" onclick="recalcularEsfriando(0)" title="Atualiza os scores AGORA (sem IA, custo zero)" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;">🔄 Recalcular</button>
             <a href="<?= module_url('clientes', 'em_risco.php') ?>" style="background:#6366f1;color:#fff;text-decoration:none;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;">🔍 Explorar todos</a>
             <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Kanban →</a>
@@ -655,6 +667,12 @@ if ($_painelMostraEsfriando):
         </div>
         <?php endforeach; ?>
     </div>
+    <?php if ($_esfriTotal > count($_esfriClientes)): ?>
+        <div style="text-align:center;margin-top:.7rem;padding:.5rem;background:#fef3c7;border-radius:6px;font-size:.78rem;color:#92400e;">
+            Mostrando <strong><?= count($_esfriClientes) ?> de <?= $_esfriTotal ?></strong> clientes em risco.
+            <a href="<?= module_url('clientes', 'em_risco.php') ?>" style="color:#6366f1;font-weight:700;text-decoration:none;margin-left:.5rem;">🔍 Ver todos →</a>
+        </div>
+    <?php endif; ?>
     <?php endif; /* fim do else: tem clientes em risco */ ?>
 </div>
 <script>
