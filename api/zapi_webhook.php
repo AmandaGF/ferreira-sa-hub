@@ -616,6 +616,45 @@ try {
                 }
             }
 
+            // ── SENTIMENT WA (Fase 3 / Feature 3) ─────────────────────────────
+            // Detecta cliente irritado/cobrando/urgente e pinga atendente no sino.
+            // Killswitch + filtro local de palavras-gatilho mantem custo controlado
+            // (~90% das msgs nem chega na IA). DEFAULT OFF.
+            //
+            // SO em msgs do CLIENTE (nao fromMe), tipo texto, com conteudo nao vazio.
+            if (!$fromMe && $tipo === 'texto' && !empty(trim($conteudo))) {
+                try {
+                    require_once APP_ROOT . '/core/functions_ia.php';
+                    require_once APP_ROOT . '/core/functions_notify.php';
+                    $sent = ia_sentiment_wa($conteudo, 'Cliente: ' . ($nome ?: 'sem nome'));
+                    if (in_array($sent['categoria'], array('raiva','urgencia','cobranca'), true)) {
+                        // Decide destino do alerta:
+                        //   - atendente_id da conv: vai pra ele direto
+                        //   - sem atendente: gestao geral
+                        $alertaUserId = !empty($conv['atendente_id']) ? (int)$conv['atendente_id'] : 0;
+                        $icones = array('raiva' => '🔴', 'urgencia' => '🚨', 'cobranca' => '🟡');
+                        $labels = array('raiva' => 'irritado', 'urgencia' => 'urgência', 'cobranca' => 'cobrando');
+                        $ico = $icones[$sent['categoria']];
+                        $lbl = $labels[$sent['categoria']];
+                        $tituloAlerta = $ico . ' Cliente ' . $lbl . ': ' . ($nome ?: 'sem nome');
+                        $corpoAlerta = mb_substr(trim($conteudo), 0, 220);
+                        if ($sent['razao']) $corpoAlerta .= "\n— IA: " . $sent['razao'];
+                        $tipoNot = ($sent['categoria'] === 'raiva' || $sent['categoria'] === 'urgencia') ? 'alerta' : 'info';
+                        $urlAlerta = url('modules/whatsapp/?conv=' . (int)$conv['id']);
+                        if ($alertaUserId > 0) {
+                            try { notify($alertaUserId, $tituloAlerta, $corpoAlerta, $tipoNot, $urlAlerta, $ico); }
+                            catch (Exception $e) {}
+                        } else {
+                            try { notify_gestao($tituloAlerta, $corpoAlerta, $tipoNot, $urlAlerta, $ico); }
+                            catch (Exception $e) {}
+                        }
+                        $log("[{$numero}] sentiment={$sent['categoria']} alvo=" . ($alertaUserId ?: 'gestao') . " razao={$sent['razao']}");
+                    }
+                } catch (Exception $eS) {
+                    $log("[{$numero}] sentiment EXCEPTION: " . $eS->getMessage());
+                }
+            }
+
             $log("[{$numero}] msg_id={$msgId} conv_id={$conv['id']} tipo={$tipo}");
             echo json_encode(array('status' => 'ok', 'msg_id' => $msgId, 'conv_id' => $conv['id']));
             break;

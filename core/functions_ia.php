@@ -778,3 +778,135 @@ function ia_revisar_peticao($htmlPeticao, $tipoPeca, $tipoAcao, $userId) {
         'tokens_out'=> (int)($resp['output_tokens'] ?? 0),
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  FASE 3 — FEATURE 3: Sentiment WhatsApp (cliente irritado)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Lista de palavras-gatilho que indicam que a mensagem MERECE ser passada
+ * pra IA classificar o tom. Filtro local pra economizar — 90% das msgs do
+ * dia-a-dia ('oi', 'obrigado', 'ok') NEM chega na IA.
+ *
+ * Apenas substrings (matching case-insensitive sem acentos).
+ */
+function ia_sentiment_wa_gatilhos() {
+    return array(
+        // raiva direta
+        'absurd', 'inaceitavel', 'ridicul', 'vergon', 'decepc', 'indignad',
+        'descaso', 'humilha', 'palhac', 'enganara', 'engana ', 'enganou',
+        // ameaca
+        'procon', 'oab', 'reclama', 'processar voces', 'denunc', 'queixa',
+        // cobranca urgente
+        'cade', 'cadê', 'demora', 'atras', 'esperando', 'urgent', 'imediat',
+        'ja era', 'já era', 'sem resposta', 'nao recebi', 'não recebi',
+        // financeiro
+        'devolver', 'estorn', 'reembolso', 'prejui', 'pagamento que',
+        'paguei e', 'caro demais',
+        // exit intent
+        'cancelar', 'desistir', 'sair daqui', 'trocar de advog', 'outro advog',
+    );
+}
+
+/**
+ * Heuristica local: a mensagem dispara analise de IA?
+ * Verdadeiro se contem >=1 palavra-gatilho OU se tem >=4 pontos de exclamacao
+ * OU se tem palavras em CAIXA ALTA (ex: 'POR FAVOR', 'AGORA').
+ *
+ * NUNCA dispara em msgs muito curtas (<8 chars) ou sem texto.
+ */
+function ia_sentiment_wa_merece_analise($texto) {
+    $t = trim((string)$texto);
+    if (mb_strlen($t) < 8) return false;
+
+    // Normaliza pra busca (lowercase + sem acentos basicos)
+    $norm = mb_strtolower($t, 'UTF-8');
+    $de = array('á','à','â','ã','ä','é','ê','è','í','î','ï','ó','ô','õ','ö','ú','û','ü','ç');
+    $pa = array('a','a','a','a','a','e','e','e','i','i','i','o','o','o','o','u','u','u','c');
+    $norm = str_replace($de, $pa, $norm);
+
+    foreach (ia_sentiment_wa_gatilhos() as $g) {
+        if (mb_strpos($norm, $g) !== false) return true;
+    }
+
+    // Sinais de raiva sem gatilho explicito
+    if (substr_count($t, '!') >= 4) return true;
+    // Palavras CAPS LOCK longas (3+ letras consecutivas em maiuscula que NAO seja sigla)
+    if (preg_match('/\b[A-ZÁÉÍÓÚÂÊÔÃÕÇ]{6,}\b/u', $t)) return true;
+
+    return false;
+}
+
+/**
+ * Classifica o tom da mensagem do cliente. Retorna uma das categorias:
+ *   - 'neutro'   : msg normal, nao precisa de alerta
+ *   - 'cobranca' : cliente cobrando resposta/resolucao, sem agressividade
+ *   - 'urgencia' : cliente com problema urgente / pediu socorro
+ *   - 'raiva'    : cliente irritado, ameaca de cancelamento, PROCON, etc
+ *
+ * SEMPRE roda o filtro de gatilho antes — se filtro falha, retorna neutro
+ * sem chamar IA (custo zero).
+ *
+ * @param string $texto       Mensagem do cliente
+ * @param string $contexto    Contexto curto (ex: nome cliente, ult. msg do escritorio)
+ * @return array ['categoria'=>string, 'razao'=>string, 'custo_brl'=>float, 'cached_hit'=>bool]
+ */
+function ia_sentiment_wa($texto, $contexto = '') {
+    if (!ia_feature_ativa('sentiment_wa')) {
+        return array('categoria' => 'neutro', 'razao' => 'feature desligada', 'custo_brl' => 0, 'cached_hit' => false);
+    }
+
+    // Filtro local — gratis e elimina 90% das msgs
+    if (!ia_sentiment_wa_merece_analise($texto)) {
+        return array('categoria' => 'neutro', 'razao' => 'sem sinal local', 'custo_brl' => 0, 'cached_hit' => true);
+    }
+
+    $system = "Você classifica o tom de uma mensagem que um CLIENTE enviou para um escritório de advocacia no WhatsApp.\n\n"
+            . "Categorias possíveis (escolha UMA):\n"
+            . "- neutro: mensagem normal, dúvida tranquila, agradecimento, confirmação.\n"
+            . "- cobranca: cliente cobrando posição/resposta, ainda educado mas impaciente.\n"
+            . "- urgencia: cliente com problema URGENTE (preso, intimação, prazo, acontecimento agora).\n"
+            . "- raiva: cliente irritado, decepcionado, ameaçando cancelar/processar/PROCON/OAB.\n\n"
+            . "Responda EXATAMENTE neste formato (uma linha):\n"
+            . "CATEGORIA|razão curta em até 60 caracteres\n\n"
+            . "Exemplos:\n"
+            . "neutro|cumprimento e pergunta tranquila\n"
+            . "cobranca|cliente cobrando retorno há vários dias\n"
+            . "urgencia|cliente foi citado e precisa de orientação hoje\n"
+            . "raiva|ameaça de PROCON e cancelamento de contrato\n\n"
+            . "Seja CONSERVADOR: só classifique como raiva/urgencia se for CLARO. Na dúvida, use cobranca ou neutro.";
+
+    $userMsg = ($contexto !== '' ? "Contexto: " . mb_substr($contexto, 0, 200) . "\n\n" : '')
+             . "Mensagem do cliente:\n\"" . mb_substr($texto, 0, 800) . "\"";
+
+    $resp = ia_chamar(
+        'sentiment_wa',
+        'claude-haiku-4-5',
+        $system,
+        array(array('role' => 'user', 'content' => $userMsg)),
+        array(
+            'user_id'     => null,
+            'max_tokens'  => 60,
+            'temperature' => 0.1,
+            'contexto'    => 'msg_wa',
+        )
+    );
+
+    if (!$resp['ok']) {
+        return array('categoria' => 'neutro', 'razao' => 'erro IA: ' . $resp['erro'], 'custo_brl' => 0, 'cached_hit' => false);
+    }
+
+    $linha = trim((string)$resp['texto']);
+    // Espera "categoria|razao"
+    $partes = explode('|', $linha, 2);
+    $cat = strtolower(trim($partes[0] ?? 'neutro'));
+    if (!in_array($cat, array('neutro', 'cobranca', 'urgencia', 'raiva'), true)) $cat = 'neutro';
+    $razao = trim($partes[1] ?? '');
+
+    return array(
+        'categoria'  => $cat,
+        'razao'      => mb_substr($razao, 0, 80),
+        'custo_brl'  => (float)($resp['custo_brl'] ?? 0),
+        'cached_hit' => false,
+    );
+}
