@@ -8,6 +8,7 @@
  *
  * Acesso: admin/gestao (mesmo critério do card do painel).
  */
+ini_set('display_errors', '1'); error_reporting(E_ALL);  // DIAG temp
 require_once __DIR__ . '/../../core/config.php';
 require_once __DIR__ . '/../../core/database.php';
 require_once __DIR__ . '/../../core/auth.php';
