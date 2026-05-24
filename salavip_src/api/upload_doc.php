@@ -180,12 +180,15 @@ try {
     }
 
     // (c) Resolve documentos_pendentes correspondente (match por título, case-insensitive)
+    // Schema real: coluna eh 'descricao' (nao 'documento') e status='pendente'/'recebido' (nao resolvido=0/1).
+    // Bug silencioso desde 04/2026 — query falhava no catch e marcacao nunca era feita.
     try {
         if ($processoId) {
             $stU = $pdo->prepare(
-                "UPDATE documentos_pendentes SET resolvido = 1, resolvido_em = NOW(), resolvido_via = 'central_vip'
-                 WHERE case_id = ? AND resolvido = 0
-                   AND (LOWER(documento) LIKE CONCAT('%', LOWER(?), '%') OR LOWER(?) LIKE CONCAT('%', LOWER(documento), '%'))"
+                "UPDATE documentos_pendentes
+                 SET status = 'recebido', recebido_em = NOW(), recebido_via = 'central_vip'
+                 WHERE case_id = ? AND status = 'pendente'
+                   AND (LOWER(descricao) LIKE CONCAT('%', LOWER(?), '%') OR LOWER(?) LIKE CONCAT('%', LOWER(descricao), '%'))"
             );
             $stU->execute(array($processoId, $titulo, $titulo));
             if ($stU->rowCount() > 0) error_log('upload_doc: ' . $stU->rowCount() . ' doc(s) pendente(s) resolvido(s) por match de título');

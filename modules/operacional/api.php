@@ -279,8 +279,11 @@ if ($action === 'resumir_caso_ia') {
     $stTar->execute(array($caseId));
     $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
 
+    // Schema documentos_pendentes: coluna eh 'descricao' (nao 'documento') e
+    // o status pendente eh status='pendente' (nao resolvido=0). Bug capturado
+    // por Amanda em 24/05/2026 ao clicar "Gerar resumo" na pasta de Carlos Oliveira.
     $stDoc = $pdo->prepare(
-        "SELECT documento FROM documentos_pendentes WHERE case_id = ? AND resolvido = 0 ORDER BY id"
+        "SELECT descricao FROM documentos_pendentes WHERE case_id = ? AND status = 'pendente' ORDER BY id"
     );
     $stDoc->execute(array($caseId));
     $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
@@ -397,7 +400,8 @@ if ($action === 'sugerir_acao_ia') {
     $stTar->execute(array($caseId));
     $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
 
-    $stDoc = $pdo->prepare("SELECT documento FROM documentos_pendentes WHERE case_id = ? AND resolvido = 0");
+    // Mesma correcao do bug do resumir_caso_ia: 'descricao' (nao 'documento') + status='pendente' (nao resolvido=0)
+    $stDoc = $pdo->prepare("SELECT descricao FROM documentos_pendentes WHERE case_id = ? AND status = 'pendente'");
     $stDoc->execute(array($caseId));
     $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
 
