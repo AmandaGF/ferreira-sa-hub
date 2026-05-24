@@ -1105,7 +1105,7 @@ switch ($action) {
         }
 
         // Whitelist de campos editáveis
-        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url','desfecho_processo','competencia','vara_mista');
+        $allowed = array('title','case_type','case_number','court','priority','deadline','notes','responsible_user_id','comarca','comarca_uf','regional','sistema_tribunal','segredo_justica','pro_bono','distribution_date','drive_folder_url','desfecho_processo','competencia','vara_mista','category');
 
         // Se for desfecho_processo, registra a data automaticamente
         if ($field === 'desfecho_processo' && $value && $value !== 'em_andamento') {
@@ -1115,6 +1115,15 @@ switch ($action) {
         if (!in_array($field, $allowed)) {
             echo json_encode(array('error' => 'Campo nao editavel: ' . $field));
             exit;
+        }
+
+        // Validacao do tipo de demanda (category)
+        if ($field === 'category') {
+            $valoresOk = array('judicial','administrativa','extrajudicial','pre_processual');
+            if (!in_array($value, $valoresOk, true)) {
+                echo json_encode(array('error' => 'Tipo de demanda invalido'));
+                exit;
+            }
         }
 
         $dbValue = ($value === '' || $value === '—') ? null : $value;

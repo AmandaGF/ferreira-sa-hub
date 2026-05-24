@@ -446,6 +446,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if ($_isAcompExt): ?>
                             <span class="op-card-badge" style="background:#475569;" title="Processo de outro escritorio — apenas acompanhamento">👁️ Acompanhamento</span>
                         <?php endif; ?>
+                        <?php
+                        // Badge do tipo de demanda. Judicial nao mostra badge (eh o
+                        // padrao — todo card sem badge eh judicial), so destaca os
+                        // diferentes pra Amanda identificar de relance.
+                        $_cat = (string)($cs['category'] ?? 'judicial');
+                        $_catBadges = array(
+                            'administrativa' => array('#7c3aed', '📋 Adm.'),
+                            'extrajudicial'  => array('#0891b2', '🤝 Extrajud.'),
+                            'pre_processual' => array('#a16207', '⏳ Pré-proc.'),
+                        );
+                        if (isset($_catBadges[$_cat])):
+                            list($_catBg, $_catLbl) = $_catBadges[$_cat];
+                        ?>
+                            <span class="op-card-badge" style="background:<?= $_catBg ?>;" title="Tipo de demanda"><?= $_catLbl ?></span>
+                        <?php endif; ?>
                         <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
                             <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
                         <?php endif; ?>
@@ -477,7 +492,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </span>
                         <?php endif; ?>
                     </div>
-                    <?php if ($cs['case_number']): ?>
+                    <?php // CNJ so faz sentido em processo judicial. Em adm/extrajud/preproc o
+                          // card fica mais limpo (a info de tipo ja esta no badge acima).
+                          if ($cs['case_number'] && $_cat === 'judicial'): ?>
                         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" class="op-card-process" style="text-decoration:none;display:block;" title="Abrir pasta do processo">🏛️ <?= e(format_cnj($cs['case_number'])) ?></a>
                     <?php endif; ?>
                     <?php if ($cs['deadline']): ?>

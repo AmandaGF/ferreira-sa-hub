@@ -1985,7 +1985,12 @@ function buscarParceiroSugest(q) {
         ?>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
             <?php
+            // Tipo de demanda: judicial / administrativa / extrajudicial / pre_processual
+            // Quando NAO for judicial, os campos N. Processo / Vara / Comarca / Sistema Tribunal
+            // sao escondidos via JS (data-field-row).
+            $_categoriaAtual = (string)($case['category'] ?? 'judicial');
             $camposProcesso = array(
+                array('label' => 'Tipo de demanda', 'field' => 'category', 'value' => $_categoriaAtual, 'type' => 'text', 'placeholder' => ''),
                 array('label' => 'Número do Processo', 'field' => 'case_number', 'value' => $case['case_number'] ?? '', 'type' => 'text', 'placeholder' => '0000000-00.0000.0.00.0000'),
                 array('label' => 'Tipo de Ação', 'field' => 'case_type', 'value' => $case['case_type'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: Alimentos, Divórcio...'),
                 array('label' => 'Vara / Juízo', 'field' => 'court', 'value' => $case['court'] ?? '', 'type' => 'text', 'placeholder' => 'Ex: 1ª Vara de Família'),
@@ -2009,9 +2014,30 @@ function buscarParceiroSugest(q) {
                     );
                     $isSelect = isset($selectOptsMap[$cp['field']]);
                     $isDataList = in_array($cp['field'], array('comarca','court'), true);
+                    $isCategoria = ($cp['field'] === 'category');
                     $valAtual = (string)$cp['value'];
+                    // Tipo de demanda: pares value=>label (com emoji)
+                    $categoriaLabels = array(
+                        'judicial'       => '🏛️ Judicial',
+                        'administrativa' => '📋 Administrativa',
+                        'extrajudicial'  => '🤝 Extrajudicial',
+                        'pre_processual' => '⏳ Pré-processual',
+                    );
                 ?>
-                <?php if ($isSelect):
+                <?php if ($isCategoria): ?>
+                <select data-id="<?= $caseId ?>" data-field="category"
+                        onchange="salvarCampoProcesso(this); _atualizarVisCNJ(this.value);"
+                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;cursor:pointer;font-weight:600;"
+                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
+                        onblur="this.style.background='transparent'">
+                    <?php foreach ($categoriaLabels as $catKey => $catLabel): ?>
+                    <option value="<?= e($catKey) ?>" <?= $valAtual === $catKey ? 'selected' : '' ?>><?= e($catLabel) ?></option>
+                    <?php endforeach; ?>
+                    <?php if ($valAtual && !isset($categoriaLabels[$valAtual])): ?>
+                    <option value="<?= e($valAtual) ?>" selected><?= e($valAtual) ?> (legado)</option>
+                    <?php endif; ?>
+                </select>
+                <?php elseif ($isSelect):
                     $opcoes = $selectOptsMap[$cp['field']];
                     $extraOnChange = ($cp['field'] === 'comarca_uf') ? '_atualizarRegionaisCv();' : '';
                 ?>
@@ -3623,6 +3649,22 @@ document.addEventListener('DOMContentLoaded', function(){
         }
     });
 })();
+
+// Esconde Numero do Processo + Vara + Comarca + UF + Regional + Sistema Tribunal
+// + Data Distribuicao quando tipo de demanda nao for judicial. Esses campos so
+// fazem sentido em processos judiciais; em adm/extrajud/preproc ficam vazios.
+function _atualizarVisCNJ(cat) {
+    var camposJud = ['case_number','court','comarca','comarca_uf','regional','sistema_tribunal','distribution_date'];
+    var ehJud = (cat === 'judicial');
+    camposJud.forEach(function(f) {
+        var row = document.querySelector('[data-field-row="' + f + '"]');
+        if (row) row.style.display = ehJud ? '' : 'none';
+    });
+}
+document.addEventListener('DOMContentLoaded', function() {
+    var sel = document.querySelector('select[data-field="category"]');
+    if (sel) _atualizarVisCNJ(sel.value);
+});
 
 function _atualizarRegionaisCv() {
     var ufEl  = document.querySelector('input[data-field="comarca_uf"]');

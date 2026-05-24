@@ -75,7 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $sistema_tribunal   = trim($_POST['sistema_tribunal'] ?? '');
     $segredo_justica    = isset($_POST['segredo_justica']) ? 1 : 0;
     $departamento       = trim($_POST['departamento'] ?? 'operacional');
-    $category           = in_array(($_POST['category'] ?? ''), array('judicial', 'extrajudicial')) ? $_POST['category'] : 'judicial';
+    // category = tipo de demanda: judicial | administrativa | extrajudicial | pre_processual
+    $category           = in_array(($_POST['category'] ?? ''), array('judicial', 'administrativa', 'extrajudicial', 'pre_processual')) ? $_POST['category'] : 'judicial';
     $distribution_date  = $_POST['distribution_date'] ?? '';
     $priority           = in_array(($_POST['priority'] ?? ''), array('urgente', 'alta', 'normal', 'baixa')) ? $_POST['priority'] : 'normal';
     $responsible_user_id = (int)($_POST['responsible_user_id'] ?? 0);
@@ -915,17 +916,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </select>
                         <input type="text" name="case_type_outro" id="caseTypeOutro" class="form-input" placeholder="Especifique o tipo..." style="display:none;margin-top:4px;">
                     </div>
-                    <div class="form-col" style="max-width:220px;">
-                        <label>Categoria</label>
-                        <select name="category" class="form-select">
-                            <option value="judicial">Judicial</option>
-                            <option value="extrajudicial">Extrajudicial</option>
+                    <div class="form-col" style="max-width:240px;">
+                        <label>Tipo de demanda <span style="color:#dc2626;">*</span></label>
+                        <select name="category" id="tipoDemandaSel" class="form-select" required onchange="atualizarVisibilidadeCNJ()">
+                            <option value="judicial">🏛️ Judicial</option>
+                            <option value="administrativa">📋 Administrativa</option>
+                            <option value="extrajudicial">🤝 Extrajudicial</option>
+                            <option value="pre_processual">⏳ Pré-processual</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Numero do Processo + Vara -->
-                <div class="form-row">
+                <!-- Numero do Processo + Vara (somente Judicial) -->
+                <div class="form-row" id="rowCnjVara">
                     <div class="form-col">
                         <label>N. do Processo</label>
                         <input type="text" name="case_number" class="form-input" placeholder="0000000-00.0000.0.00.0000" value="<?= e($preCaseNumber) ?>">
@@ -936,6 +939,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <input type="text" name="court" class="form-input" placeholder="Ex: 1a Vara de Familia" value="<?= e($preVara) ?>"<?= $preVara ? ' style="background:#fef9c3;"' : '' ?>>
                     </div>
                 </div>
+                <script>
+                function atualizarVisibilidadeCNJ() {
+                    var sel = document.getElementById('tipoDemandaSel');
+                    var row = document.getElementById('rowCnjVara');
+                    if (!sel || !row) return;
+                    var ehJud = (sel.value === 'judicial');
+                    row.style.display = ehJud ? '' : 'none';
+                }
+                document.addEventListener('DOMContentLoaded', atualizarVisibilidadeCNJ);
+                </script>
 
                 <!-- UF + Comarca (cidade) + Data de Distribuição -->
                 <div class="form-row">
