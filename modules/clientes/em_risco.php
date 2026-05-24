@@ -24,6 +24,13 @@ if (!has_min_role('gestao')) {
 $pdo = db();
 $pageTitle = '🌡️ Clientes em Risco';
 
+// Self-heal das colunas do detector (caso o migrar_ia.php não tenha rodado)
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_score INT DEFAULT 0"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_motivos TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_em DATETIME NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_ate DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_por INT NULL"); } catch (Exception $e) {}
+
 // Filtros
 $filtro    = $_GET['filtro']    ?? 'em_risco';  // em_risco | risco_real | esfriando | adiados | todos_ativos
 $busca     = trim((string)($_GET['q'] ?? ''));
