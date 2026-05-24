@@ -149,11 +149,14 @@ foreach ($topTipos as $t) { if ($t['qtd'] > $topTiposMax) $topTiposMax = (int)$t
 // ═══════════════════════════════════════════════════════
 // 6. EQUIPE — Top produtividade (peças geradas + tarefas concluídas no período)
 // ═══════════════════════════════════════════════════════
+// Schema notado em 24/05/2026: case_tasks usa 'assigned_to' (nao 'responsavel_id')
+// e case_andamentos usa 'created_by' (nao 'usuario_id'). case_tasks nao tem
+// updated_at — uso completed_at quando status concluido.
 $stEq = $pdo->prepare(
     "SELECT u.id, u.name, u.role,
             (SELECT COUNT(*) FROM case_documents cd WHERE cd.gerado_por = u.id AND DATE(cd.created_at) BETWEEN ? AND ?) AS pecas,
-            (SELECT COUNT(*) FROM case_tasks t WHERE t.responsavel_id = u.id AND t.status IN ('concluido','feito') AND DATE(t.updated_at) BETWEEN ? AND ?) AS tarefas,
-            (SELECT COUNT(*) FROM case_andamentos a WHERE a.usuario_id = u.id AND DATE(a.created_at) BETWEEN ? AND ?) AS andamentos
+            (SELECT COUNT(*) FROM case_tasks t WHERE t.assigned_to = u.id AND t.status IN ('concluido','feito') AND DATE(COALESCE(t.completed_at, t.created_at)) BETWEEN ? AND ?) AS tarefas,
+            (SELECT COUNT(*) FROM case_andamentos a WHERE a.created_by = u.id AND DATE(a.created_at) BETWEEN ? AND ?) AS andamentos
      FROM users u
      WHERE u.is_active = 1 AND u.role IN ('admin','gestao','comercial','cx','operacional','estagiario','colaborador')
      ORDER BY (pecas + tarefas + andamentos) DESC LIMIT 8"
