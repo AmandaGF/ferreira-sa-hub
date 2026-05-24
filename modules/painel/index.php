@@ -599,14 +599,19 @@ if ($_painelMostraEsfriando):
             <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Kanban →</a>
         </span>
     </h3>
-    <!-- Legenda compacta — explica as duas cores -->
-    <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.7rem;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:.4rem .7rem;margin-bottom:.7rem;line-height:1.45;">
-        <span><strong style="color:#b91c1c;">🔴 Risco real (≥80)</strong> — cliente prestes a sumir. Aja hoje: ligue ou mande mensagem.</span>
-        <span style="opacity:.6;">|</span>
-        <span><strong style="color:#92400e;">🟡 Esfriando (40–79)</strong> — 45+ dias sem contato ou sem movimento no processo. Faça um follow-up esta semana.</span>
-        <span style="opacity:.6;">|</span>
-        <span style="color:#64748b;">Critérios: <strong>45+ dias sem msg WhatsApp do Hub</strong> ou <strong>45+ dias sem andamento</strong>. Cobrança vencida e tarefa atrasada aparecem como (info), não decidem se entra. Recalcula automaticamente a cada msg/andamento + 1×/dia o cron.</span>
-    </div>
+    <!-- Legenda colapsada — clique pra expandir -->
+    <details style="margin-bottom:.7rem;">
+        <summary style="cursor:pointer;font-size:.7rem;font-weight:700;color:#6b7280;padding:.25rem 0;list-style:none;display:inline-flex;align-items:center;gap:.3rem;">
+            <span style="font-size:.85rem;">ℹ️</span> Legenda
+        </summary>
+        <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.7rem;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:.4rem .7rem;margin-top:.35rem;line-height:1.45;">
+            <span><strong style="color:#b91c1c;">🔴 Risco real (≥80)</strong> — cliente prestes a sumir. Aja hoje: ligue ou mande mensagem.</span>
+            <span style="opacity:.6;">|</span>
+            <span><strong style="color:#92400e;">🟡 Esfriando (40–79)</strong> — 45+ dias sem contato ou sem movimento no processo. Faça um follow-up esta semana.</span>
+            <span style="opacity:.6;">|</span>
+            <span style="color:#64748b;">Critérios: <strong>45+ dias sem msg WhatsApp do Hub</strong> ou <strong>45+ dias sem andamento</strong>. Cobrança vencida e tarefa atrasada aparecem como (info), não decidem se entra. Recalcula automaticamente a cada msg/andamento + 1×/dia o cron.</span>
+        </div>
+    </details>
     <?php if (empty($_esfriClientes)): ?>
         <!-- Estado vazio: nada em risco no momento, mas oferece acesso à exploração completa -->
         <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:1rem 1.2rem;text-align:center;color:#15803d;">
