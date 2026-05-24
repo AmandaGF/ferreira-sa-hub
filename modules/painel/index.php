@@ -558,7 +558,12 @@ if ($_painelMostraEsfriando) {
                        WHERE cs.client_id = c.id
                          AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                          AND COALESCE(cs.kanban_oculto, 0) = 0
-                       ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
+                       ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id,
+                    (SELECT cs.case_type FROM cases cs
+                       WHERE cs.client_id = c.id
+                         AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
+                         AND COALESCE(cs.kanban_oculto, 0) = 0
+                       ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_type
              FROM clients c
              WHERE COALESCE(c.esfriando_score, 0) >= 40
                AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
@@ -643,6 +648,62 @@ if ($_painelMostraEsfriando):
             </div>
         </div>
     <?php else: ?>
+    <?php
+    // Helper de cor/emoji por tipo de ação — devolve [emoji, label_curto, cor_hex]
+    // Cores escolhidas pra serem distinguíveis no fundo rosa/amarelo dos cards de risco.
+    // Tipos não mapeados caem em cinza neutro.
+    if (!function_exists('_temp_caso_visual')) {
+        function _temp_caso_visual($tipo) {
+            $t = strtolower(trim((string)$tipo));
+            $mapa = array(
+                'alimentos'                 => array('🍼', 'Alimentos', '#059669'),
+                'revisional_alimentos'      => array('🔁', 'Rev. Aliment.', '#0d9488'),
+                'execucao_alimentos'        => array('⚖️', 'Exec. Aliment.', '#047857'),
+                'guarda'                    => array('🧒', 'Guarda', '#7c3aed'),
+                'guarda_unilateral'         => array('🧒', 'Guarda Unilat.', '#7c3aed'),
+                'guarda_compartilhada'      => array('🧒', 'Guarda Comp.', '#7c3aed'),
+                'guarda_unilateral_convivencia' => array('🧒', 'Guarda + Conv.', '#7c3aed'),
+                'regulamentacao_convivencia'=> array('📅', 'Reg. Convivência', '#a78bfa'),
+                'divorcio'                  => array('💔', 'Divórcio', '#dc2626'),
+                'divorcio_consensual'       => array('💔', 'Div. Consensual', '#dc2626'),
+                'divorcio_litigioso'        => array('💔', 'Div. Litigioso', '#b91c1c'),
+                'inventario'                => array('📜', 'Inventário', '#92400e'),
+                'arrolamento'               => array('📜', 'Arrolamento', '#92400e'),
+                'usucapiao'                 => array('🏞️', 'Usucapião', '#15803d'),
+                'consumidor'                => array('🛍️', 'Consumidor', '#f59e0b'),
+                'indenizatoria'             => array('💰', 'Indenização', '#ca8a04'),
+                'civil'                     => array('🏛️', 'Cível', '#0e7490'),
+                'imobiliario'               => array('🏠', 'Imobiliário', '#0ea5e9'),
+                'previdenciario'            => array('🏛️', 'Previdência', '#1e40af'),
+                'trabalhista'               => array('👷', 'Trabalhista', '#ea580c'),
+                'criminal'                  => array('⚠️', 'Criminal', '#991b1b'),
+                'medida_protetiva'          => array('🛡️', 'Med. Protetiva', '#9f1239'),
+                'contrato'                  => array('📃', 'Contrato', '#475569'),
+                'averbacao_divorcio'        => array('💔', 'Averbação Div.', '#b91c1c'),
+                'curatela'                  => array('🤝', 'Curatela', '#0891b2'),
+                'tutela'                    => array('🤝', 'Tutela', '#0891b2'),
+                'investigacao_paternidade'  => array('🧬', 'Invest. Patern.', '#7e22ce'),
+                'reconhecimento_paternidade'=> array('🧬', 'Rec. Patern.', '#7e22ce'),
+                'pensao_alimenticia'        => array('🍼', 'Pensão Aliment.', '#059669'),
+                'uniao_estavel'             => array('💞', 'União Estável', '#db2777'),
+                'reconhecimento_dissol_ue'  => array('💔', 'Dissol. União', '#be185d'),
+                'partilha'                  => array('📊', 'Partilha', '#a16207'),
+                'outro'                     => array('📁', 'Outro', '#6b7280'),
+            );
+            if (isset($mapa[$t])) return $mapa[$t];
+            // Fallback: tenta detectar por palavra-chave
+            if (strpos($t, 'aliment') !== false) return array('🍼', 'Alimentos', '#059669');
+            if (strpos($t, 'guarda')   !== false) return array('🧒', 'Guarda', '#7c3aed');
+            if (strpos($t, 'divor')    !== false) return array('💔', 'Divórcio', '#dc2626');
+            if (strpos($t, 'invent')   !== false) return array('📜', 'Inventário', '#92400e');
+            if (strpos($t, 'consum')   !== false) return array('🛍️', 'Consumidor', '#f59e0b');
+            if (strpos($t, 'imobil')   !== false) return array('🏠', 'Imobiliário', '#0ea5e9');
+            if (strpos($t, 'previd')   !== false) return array('🏛️', 'Previdência', '#1e40af');
+            if (strpos($t, 'contrat')  !== false) return array('📃', 'Contrato', '#475569');
+            return array('📁', ucfirst($t ?: '—'), '#6b7280');
+        }
+    }
+    ?>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
         <?php foreach ($_esfriClientes as $_eClient):
             $_score = (int)$_eClient['esfriando_score'];
@@ -651,16 +712,19 @@ if ($_painelMostraEsfriando):
             $_border = $_isCrit ? '#fca5a5' : '#fcd34d';
             $_corNum = $_isCrit ? '#b91c1c' : '#92400e';
             $_motivos = trim((string)$_eClient['esfriando_motivos']);
+            // Visual por tipo de ação
+            list($_tEmoji, $_tLabel, $_tCor) = _temp_caso_visual($_eClient['principal_case_type'] ?? '');
             $_href = !empty($_eClient['principal_case_id'])
                 ? module_url('operacional', 'caso_ver.php?id=' . (int)$_eClient['principal_case_id'])
                 : module_url('clientes', 'ver.php?id=' . (int)$_eClient['id']);
         ?>
-        <div data-esfri-card="<?= (int)$_eClient['id'] ?>" style="background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-radius:8px;padding:.55rem .7rem;color:#1f2937;">
+        <div data-esfri-card="<?= (int)$_eClient['id'] ?>" style="background:<?= $_bg ?>;border:1px solid <?= $_border ?>;border-left:5px solid <?= $_tCor ?>;border-radius:8px;padding:.55rem .7rem;color:#1f2937;">
             <a href="<?= e($_href) ?>" style="text-decoration:none;color:inherit;display:block;">
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.4rem;">
                     <div style="font-weight:700;font-size:.85rem;color:#052228;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0;"><?= e($_eClient['name']) ?></div>
                     <div style="background:<?= $_corNum ?>;color:#fff;border-radius:6px;padding:.1rem .45rem;font-weight:700;font-size:.7rem;flex-shrink:0;"><?= $_isCrit ? '🔴' : '🟡' ?> <?= $_score ?></div>
                 </div>
+                <div style="display:inline-block;background:<?= $_tCor ?>;color:#fff;font-size:.62rem;font-weight:700;padding:.05rem .4rem;border-radius:4px;margin-top:.2rem;letter-spacing:.02em;" title="Tipo de ação"><?= $_tEmoji ?> <?= e($_tLabel) ?></div>
                 <?php if ($_motivos): ?>
                     <div style="font-size:.7rem;color:#6b7280;margin-top:.25rem;line-height:1.35;"><?= e($_motivos) ?></div>
                 <?php endif; ?>
