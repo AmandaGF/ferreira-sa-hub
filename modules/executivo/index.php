@@ -10,6 +10,29 @@
  *
  * Acesso: admin + gestao
  */
+
+// ── Capturador de erro fatal (24/05/2026): logs do PHP ficam bloqueados em
+//    /files/*.log pelo LiteSpeed. Pra diagnosticar o HTTP 500 que so aparece
+//    na sessao real da Amanda, gravamos em uploads/executivo_last_error.log
+//    pra leitura via curl. Pode remover esse bloco depois.
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) {
+        $logDir = dirname(__DIR__, 2) . '/uploads';
+        if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
+        @file_put_contents(
+            $logDir . '/executivo_last_error.log',
+            '[' . date('Y-m-d H:i:s') . "]\n"
+            . 'TIPO: ' . $err['type'] . "\n"
+            . 'MSG: ' . $err['message'] . "\n"
+            . 'FILE: ' . $err['file'] . ':' . $err['line'] . "\n"
+            . 'SESSION_USER: ' . json_encode($_SESSION['user'] ?? null) . "\n"
+            . "\n----\n",
+            FILE_APPEND
+        );
+    }
+});
+
 require_once __DIR__ . '/../../core/middleware.php';
 require_access('executivo');
 
