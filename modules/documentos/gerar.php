@@ -460,32 +460,24 @@ if (!$showEditor) {
                 </label>
             </div>
 
-            <h4 style="margin-top:1rem;">👤 Quem substabelece (advogado outorgante)</h4>
-            <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem;">
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="amanda_para_luiz" checked style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para <strong>Dr. Luiz Eduardo</strong></span>
+            <!-- Hidden que combina origem + destino pra compatibilidade com templates.php -->
+            <input type="hidden" name="substabelecente" id="substabelecenteHidden" value="amanda_para_luiz">
+
+            <h4 style="margin-top:1rem;">👤 1) Quem substabelece</h4>
+            <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
+                <label style="flex:1;display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer;padding:.6rem .9rem;border:1.5px solid #e5e7eb;border-radius:8px;font-weight:600;">
+                    <input type="radio" name="subst_origem" value="amanda" checked style="width:auto;" onchange="atualizarSubst()">
+                    <span>👩‍⚖️ <strong>Dra. Amanda</strong></span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="luiz_para_amanda" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para <strong>Dra. Amanda Guedes Ferreira</strong></span>
+                <label style="flex:1;display:flex;align-items:center;gap:.4rem;font-size:.85rem;cursor:pointer;padding:.6rem .9rem;border:1.5px solid #e5e7eb;border-radius:8px;font-weight:600;">
+                    <input type="radio" name="subst_origem" value="luiz" style="width:auto;" onchange="atualizarSubst()">
+                    <span>👨‍⚖️ <strong>Dr. Luiz Eduardo</strong></span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="amanda_para_carina" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para <strong>Dra. Carina Corrêa e Castro Vaillant Amorim</strong> <span style="color:#6b7280;">(OAB/RJ 189.054)</span></span>
-                </label>
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="luiz_para_carina" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para <strong>Dra. Carina Corrêa e Castro Vaillant Amorim</strong> <span style="color:#6b7280;">(OAB/RJ 189.054)</span></span>
-                </label>
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="amanda_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para outro advogado(a) <span style="color:#6b7280;">(preencher dados abaixo)</span></span>
-                </label>
-                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
-                    <input type="radio" name="substabelecente" value="luiz_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para outro advogado(a) <span style="color:#6b7280;">(preencher dados abaixo)</span></span>
-                </label>
+            </div>
+
+            <h4 style="margin-top:1rem;">🎯 2) Para quem substabelece</h4>
+            <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem;" id="substDestinos">
+                <!-- Destinos preenchidos via JS conforme a origem escolhida -->
             </div>
 
             <div id="substAdvCustom" style="display:none;background:#fef3c7;border:1.5px solid #fbbf24;border-radius:10px;padding:.75rem 1rem;margin-bottom:.75rem;">
@@ -516,11 +508,50 @@ if (!$showEditor) {
         </div>
 
         <script>
-        function toggleSubstAdvCustom() {
-            var box = document.getElementById('substAdvCustom');
-            var v = document.querySelector('input[name="substabelecente"]:checked').value;
-            var precisaCustom = (v === 'amanda_para_outro' || v === 'luiz_para_outro');
-            box.style.display = precisaCustom ? 'block' : 'none';
+        // Lista de destinos disponíveis (atualize aqui pra adicionar novos parceiros)
+        var SUBST_DESTINOS = [
+            { id: 'amanda', label: '👩‍⚖️ <strong>Dra. Amanda Guedes Ferreira</strong>', sub: 'OAB/RJ 163.260' },
+            { id: 'luiz',   label: '👨‍⚖️ <strong>Dr. Luiz Eduardo de Sá Silva Marcelino</strong>', sub: 'OAB/RJ 248.755 · OAB/SP' },
+            { id: 'carina', label: '👩‍⚖️ <strong>Dra. Carina Corrêa e Castro Vaillant Amorim</strong>', sub: 'OAB/RJ 189.054 (parceira)' },
+            { id: 'outro',  label: '📝 <strong>Outro(a) advogado(a)</strong>', sub: 'preencher dados abaixo' }
+        ];
+
+        function atualizarSubst() {
+            var origem = document.querySelector('input[name="subst_origem"]:checked').value;
+            var destinosBox = document.getElementById('substDestinos');
+            var destinoAtual = (document.querySelector('input[name="subst_destino"]:checked') || {}).value;
+
+            // Filtra destinos válidos (não pode substabelecer pra si mesmo)
+            var validos = SUBST_DESTINOS.filter(function(d){ return d.id !== origem; });
+
+            // Se o destino atual ficou inválido, escolhe o primeiro
+            if (!destinoAtual || destinoAtual === origem) destinoAtual = validos[0].id;
+
+            // Renderiza os radios
+            var html = '';
+            validos.forEach(function(d){
+                var checked = d.id === destinoAtual ? 'checked' : '';
+                var subHtml = d.sub ? '<span style="color:#6b7280;font-size:.74rem;">' + d.sub + '</span>' : '';
+                html += '<label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">'
+                      + '<input type="radio" name="subst_destino" value="' + d.id + '" ' + checked + ' style="width:auto;" onchange="atualizarSubst()">'
+                      + '<span>' + d.label + (subHtml ? ' ' + subHtml : '') + '</span>'
+                      + '</label>';
+            });
+            destinosBox.innerHTML = html;
+
+            // Atualiza hidden field "substabelecente" no formato antigo (compat com templates.php)
+            // Ex: amanda + carina → "amanda_para_carina"; amanda + outro → "amanda_para_outro"
+            document.getElementById('substabelecenteHidden').value = origem + '_para_' + destinoAtual;
+
+            // Mostra/esconde box de dados manuais quando destino = "outro"
+            document.getElementById('substAdvCustom').style.display = (destinoAtual === 'outro') ? 'block' : 'none';
+        }
+
+        // Inicializa ao carregar a página
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', atualizarSubst);
+        } else {
+            atualizarSubst();
         }
         </script>
         <?php endif; ?>
