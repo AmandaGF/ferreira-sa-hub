@@ -571,7 +571,20 @@ if ($_painelMostraEsfriando) {
         $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
 }
-if ($_painelMostraEsfriando && !empty($_esfriClientes)):
+<?php
+// Conta clientes adiados (snooze ativo) — útil pra mostrar atalho "ver adiados"
+$_qtdAdiados = 0;
+if ($_painelMostraEsfriando) {
+    try {
+        $_qtdAdiados = (int)$pdo->query(
+            "SELECT COUNT(*) FROM clients c
+              WHERE c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE()
+                AND EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
+                    AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido') AND COALESCE(cs.kanban_oculto,0)=0)"
+        )->fetchColumn();
+    } catch (Exception $e) {}
+}
+if ($_painelMostraEsfriando):
     $_esfriCritico  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 80; });
     $_esfriAtencao  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 40 && (int)$x['esfriando_score'] < 80; });
 ?>
@@ -581,8 +594,10 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
         <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
             <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> em risco real</span><?php endif; ?>
             <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> esfriando</span><?php endif; ?>
-            <button type="button" id="btnRecalcEsfri" onclick="recalcularEsfriando(0)" title="Atualiza os scores AGORA (sem IA, custo zero)" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;">🔄 Recalcular agora</button>
-            <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Ver Kanban filtrado →</a>
+            <?php if (empty($_esfriClientes)): ?><span style="background:#dcfce7;color:#15803d;padding:.15rem .45rem;border-radius:8px;font-weight:700;">✅ Tudo OK</span><?php endif; ?>
+            <button type="button" id="btnRecalcEsfri" onclick="recalcularEsfriando(0)" title="Atualiza os scores AGORA (sem IA, custo zero)" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;">🔄 Recalcular</button>
+            <a href="<?= module_url('clientes', 'em_risco.php') ?>" style="background:#6366f1;color:#fff;text-decoration:none;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;">🔍 Explorar todos</a>
+            <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Kanban →</a>
         </span>
     </h3>
     <!-- Legenda compacta — explica as duas cores -->
@@ -593,6 +608,20 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
         <span style="opacity:.6;">|</span>
         <span style="color:#64748b;">Critérios: <strong>45+ dias sem msg WhatsApp do Hub</strong> ou <strong>45+ dias sem andamento</strong>. Cobrança vencida e tarefa atrasada aparecem como (info), não decidem se entra. Recalcula automaticamente a cada msg/andamento + 1×/dia o cron.</span>
     </div>
+    <?php if (empty($_esfriClientes)): ?>
+        <!-- Estado vazio: nada em risco no momento, mas oferece acesso à exploração completa -->
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:1rem 1.2rem;text-align:center;color:#15803d;">
+            <div style="font-size:1.6rem;margin-bottom:.2rem;">✅</div>
+            <div style="font-weight:700;font-size:.92rem;">Sem clientes em risco agora!</div>
+            <div style="font-size:.78rem;color:#16a34a;margin-top:.25rem;">
+                Ninguém bate o critério (45+ dias sem contato ou andamento).<br>
+                <?php if ($_qtdAdiados > 0): ?>
+                    <strong><?= $_qtdAdiados ?> cliente(s) está(ão) adiado(s) por snooze</strong> —
+                <?php endif; ?>
+                use <strong>"🔍 Explorar todos"</strong> acima pra ver lista completa filtrável (em risco, adiados, ou todos os ativos).
+            </div>
+        </div>
+    <?php else: ?>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
         <?php foreach ($_esfriClientes as $_eClient):
             $_score = (int)$_eClient['esfriando_score'];
@@ -622,6 +651,7 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
         </div>
         <?php endforeach; ?>
     </div>
+    <?php endif; /* fim do else: tem clientes em risco */ ?>
 </div>
 <script>
 // Recalcular esfriando — global (botão do header) ou de 1 cliente específico (botão ✓ Tratei).
