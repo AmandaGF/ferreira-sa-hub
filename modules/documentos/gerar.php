@@ -471,12 +471,20 @@ if (!$showEditor) {
                     <span><strong>Dr. Luiz Eduardo</strong> substabelece para <strong>Dra. Amanda Guedes Ferreira</strong></span>
                 </label>
                 <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="amanda_para_carina" style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para <strong>Dra. Carina Corrêa e Castro Vaillant Amorim</strong> <span style="color:#6b7280;">(OAB/RJ 189.054)</span></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="substabelecente" value="luiz_para_carina" style="width:auto;" onchange="toggleSubstAdvCustom()">
+                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para <strong>Dra. Carina Corrêa e Castro Vaillant Amorim</strong> <span style="color:#6b7280;">(OAB/RJ 189.054)</span></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
                     <input type="radio" name="substabelecente" value="amanda_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para outro advogado(a)</span>
+                    <span><strong>Dra. Amanda Guedes Ferreira</strong> substabelece para outro advogado(a) <span style="color:#6b7280;">(preencher dados abaixo)</span></span>
                 </label>
                 <label style="display:flex;align-items:center;gap:.4rem;font-size:.82rem;cursor:pointer;padding:.5rem .8rem;border:1.5px solid #e5e7eb;border-radius:8px;">
                     <input type="radio" name="substabelecente" value="luiz_para_outro" style="width:auto;" onchange="toggleSubstAdvCustom()">
-                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para outro advogado(a)</span>
+                    <span><strong>Dr. Luiz Eduardo</strong> substabelece para outro advogado(a) <span style="color:#6b7280;">(preencher dados abaixo)</span></span>
                 </label>
             </div>
 

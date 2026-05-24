@@ -497,6 +497,19 @@ function template_substabelecimento($d) {
         $subNome = $esc['adv1_nome']; $subOabTxt = $oabAmandaTxt; $subEmail = $emailAmanda; $subGenero = 'a';
         $subEndereco = $endProfFeS; $subNacionalidade = 'brasileira';
         $advAssinaOAB = 'OAB/RJ ' . $esc['adv2_oab'] . ' &nbsp;·&nbsp; OAB/SP ' . $esc['adv2_oab_sp'];
+    } elseif ($tipo === 'amanda_para_carina') {
+        // Dados pré-definidos da Carina (advogada parceira do escritório)
+        $advNome = $esc['adv1_nome']; $advOabTxt = $oabAmandaTxt; $advEmail = $emailAmanda; $advGenero = 'a';
+        $subNome = 'CARINA CORRÊA E CASTRO VAILLANT AMORIM';
+        $subOabTxt = 'OAB-RJ sob o n. <strong>189.054</strong>';
+        $subEndereco = $endProfFeS; $subEmail = ''; $subNacionalidade = 'brasileira'; $subGenero = 'a';
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv1_oab'];
+    } elseif ($tipo === 'luiz_para_carina') {
+        $advNome = $esc['adv2_nome']; $advOabTxt = $oabLuizTxt;   $advEmail = $emailLuiz;   $advGenero = '';
+        $subNome = 'CARINA CORRÊA E CASTRO VAILLANT AMORIM';
+        $subOabTxt = 'OAB-RJ sob o n. <strong>189.054</strong>';
+        $subEndereco = $endProfFeS; $subEmail = ''; $subNacionalidade = 'brasileira'; $subGenero = 'a';
+        $advAssinaOAB = 'OAB/RJ ' . $esc['adv2_oab'] . ' &nbsp;·&nbsp; OAB/SP ' . $esc['adv2_oab_sp'];
     } elseif ($tipo === 'amanda_para_outro') {
         $advNome = $esc['adv1_nome']; $advOabTxt = $oabAmandaTxt; $advEmail = $emailAmanda; $advGenero = 'a';
         $subNome = $d['subst_adv_nome'] ?: '________________________________';
