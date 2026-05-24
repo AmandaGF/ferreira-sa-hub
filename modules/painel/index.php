@@ -541,12 +541,17 @@ window.gerarBriefing = function(forcar) {
 // ══════════════════════════════════════════════════════════════════════
 $_painelMostraEsfriando = in_array(current_user_role(), array('admin','gestao'), true);
 $_esfriClientes = array();
+// Paginação do painel de temperatura — 6 por página, navegável via ?temp_p=N
+$_tempPerPage = 6;
+$_tempPagina  = max(1, (int)($_GET['temp_p'] ?? 1));
+$_tempOffset  = ($_tempPagina - 1) * $_tempPerPage;
 if ($_painelMostraEsfriando) {
     // Self-heal das colunas de snooze (caso o migrar_ia não tenha rodado ainda)
     try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_ate DATE NULL"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE clients ADD COLUMN esfriando_snooze_por INT NULL"); } catch (Exception $e) {}
     try {
         // Filtra clientes adiados (snooze ativo até CURDATE — só voltam após a data)
+        // OFFSET/LIMIT calculados pelo PHP (são int, seguros pra interpolar)
         $stmtPE = $pdo->query(
             "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.esfriando_em,
                     (SELECT cs.id FROM cases cs
@@ -564,7 +569,7 @@ if ($_painelMostraEsfriando) {
                       AND COALESCE(cs2.kanban_oculto, 0) = 0
                )
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
-             LIMIT 6"
+             LIMIT $_tempPerPage OFFSET $_tempOffset"
         );
         $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
@@ -667,10 +672,47 @@ if ($_painelMostraEsfriando):
         </div>
         <?php endforeach; ?>
     </div>
-    <?php if ($_esfriTotal > count($_esfriClientes)): ?>
-        <div style="text-align:center;margin-top:.7rem;padding:.5rem;background:#fef3c7;border-radius:6px;font-size:.78rem;color:#92400e;">
-            Mostrando <strong><?= count($_esfriClientes) ?> de <?= $_esfriTotal ?></strong> clientes em risco.
-            <a href="<?= module_url('clientes', 'em_risco.php') ?>" style="color:#6366f1;font-weight:700;text-decoration:none;margin-left:.5rem;">🔍 Ver todos →</a>
+    <?php
+    // Paginação numerada — janela de 5 páginas em volta da atual
+    $_tempTotPag = max(1, (int)ceil($_esfriTotal / $_tempPerPage));
+    if ($_tempPagina > $_tempTotPag) $_tempPagina = $_tempTotPag;
+    if ($_tempTotPag > 1):
+        $_tempQsBase = $_GET; unset($_tempQsBase['temp_p']);
+        $_tempPgUrl = function($p) use ($_tempQsBase) {
+            return '?' . http_build_query(array_merge($_tempQsBase, array('temp_p' => $p))) . '#painel-temperatura';
+        };
+        $_tempPgFrom = max(1, $_tempPagina - 2);
+        $_tempPgTo   = min($_tempTotPag, $_tempPgFrom + 4);
+        $_tempPgFrom = max(1, $_tempPgTo - 4);
+        $_tempActive = 'background:#f59e0b;color:#fff;border-color:#f59e0b;';
+        $_tempIdle   = 'background:#fff;color:#92400e;border-color:#fcd34d;';
+    ?>
+        <div id="painel-temperatura" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:.7rem;padding:.55rem .7rem;background:#fef3c7;border-radius:6px;font-size:.75rem;color:#92400e;">
+            <span>Página <strong><?= $_tempPagina ?></strong> de <strong><?= $_tempTotPag ?></strong> · <?= $_esfriTotal ?> total</span>
+            <div style="display:flex;gap:3px;align-items:center;flex-wrap:wrap;">
+                <?php if ($_tempPagina > 1): ?>
+                    <a href="<?= $_tempPgUrl($_tempPagina - 1) ?>" title="Anterior" style="text-decoration:none;<?= $_tempIdle ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;">‹</a>
+                <?php endif; ?>
+                <?php if ($_tempPgFrom > 1): ?>
+                    <a href="<?= $_tempPgUrl(1) ?>" style="text-decoration:none;<?= $_tempIdle ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;">1</a>
+                    <?php if ($_tempPgFrom > 2): ?><span style="color:#a16207;">…</span><?php endif; ?>
+                <?php endif; ?>
+                <?php for ($p = $_tempPgFrom; $p <= $_tempPgTo; $p++): ?>
+                    <?php if ($p === $_tempPagina): ?>
+                        <span style="<?= $_tempActive ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;"><?= $p ?></span>
+                    <?php else: ?>
+                        <a href="<?= $_tempPgUrl($p) ?>" style="text-decoration:none;<?= $_tempIdle ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;"><?= $p ?></a>
+                    <?php endif; ?>
+                <?php endfor; ?>
+                <?php if ($_tempPgTo < $_tempTotPag): ?>
+                    <?php if ($_tempPgTo < $_tempTotPag - 1): ?><span style="color:#a16207;">…</span><?php endif; ?>
+                    <a href="<?= $_tempPgUrl($_tempTotPag) ?>" style="text-decoration:none;<?= $_tempIdle ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;"><?= $_tempTotPag ?></a>
+                <?php endif; ?>
+                <?php if ($_tempPagina < $_tempTotPag): ?>
+                    <a href="<?= $_tempPgUrl($_tempPagina + 1) ?>" title="Próxima" style="text-decoration:none;<?= $_tempIdle ?>border-style:solid;border-width:1px;padding:2px 8px;border-radius:5px;font-weight:700;">›</a>
+                <?php endif; ?>
+                <a href="<?= module_url('clientes', 'em_risco.php') ?>" style="color:#6366f1;font-weight:700;text-decoration:none;margin-left:.5rem;">🔍 Ver todos →</a>
+            </div>
         </div>
     <?php endif; ?>
     <?php endif; /* fim do else: tem clientes em risco */ ?>
