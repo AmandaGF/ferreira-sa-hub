@@ -308,6 +308,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <p style="font-size:.75rem;color:var(--text-muted);">Isso pode levar até 60 segundos.</p>
                     </div>
                     <div id="previewArea" style="display:none;">
+                        <div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap;align-items:center;">
+                            <button id="btnEditar" onclick="toggleEdicaoPeticao()" class="btn btn-outline btn-sm" style="border-color:#059669;color:#059669;">✏️ Editar texto</button>
+                            <button id="btnSalvarEdicao" onclick="salvarEdicaoPeticao()" class="btn btn-primary btn-sm" style="display:none;background:#059669;border-color:#059669;">💾 Salvar edição</button>
+                            <button id="btnCancelarEdicao" onclick="cancelarEdicaoPeticao()" class="btn btn-secondary btn-sm" style="display:none;">↶ Cancelar</button>
+                            <span id="statusEdicao" style="font-size:.72rem;color:#059669;font-weight:600;"></span>
+                        </div>
                         <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;align-items:center;">
                             <button onclick="copiarPeticao()" class="btn btn-primary btn-sm">📋 Copiar</button>
                             <button onclick="baixarWord()" class="btn btn-outline btn-sm" style="border-color:#2b579a;color:#2b579a;">📝 Word</button>
@@ -518,8 +524,14 @@ function gerarPeticao() {
                 document.getElementById('errorArea').style.display = 'block';
             } else {
                 document.getElementById('peticaoHTML').innerHTML = resp.html;
-                document.getElementById('infoTokens').textContent = 'Tokens: ' + (resp.tokens_in + resp.tokens_out) + ' | Custo: $' + resp.custo;
+                var tokens = resp.tokens_in + resp.tokens_out;
+                var custoTxt = 'Tokens: ' + tokens;
+                if (resp.custo_brl) custoTxt += ' · R$ ' + resp.custo_brl;
+                else if (resp.custo) custoTxt += ' · $' + resp.custo;
+                document.getElementById('infoTokens').textContent = custoTxt;
                 document.getElementById('previewArea').style.display = 'block';
+                // Guarda doc_id pra salvamento de edicao
+                window._fabDocId = resp.doc_id || 0;
                 // Botao "Revisar com IA" so aparece se feature estiver ligada
                 <?php
                 $_revOn = '0';
@@ -562,6 +574,103 @@ function copiarPeticao() {
     sel.removeAllRanges();
     alert('Petição copiada para a área de transferência!');
 }
+
+// ── EDIÇÃO INLINE ──────────────────────────────────────
+// Liga contenteditable na peça pra Amanda ajustar texto direto na tela
+// (sem precisar passar pelo Word). Snapshot do HTML pra permitir cancelar.
+var _fabHtmlSnapshot = '';
+function toggleEdicaoPeticao() {
+    var el = document.getElementById('peticaoHTML');
+    if (!el) return;
+    if (!window._fabDocId) {
+        alert('Aguarde a peça ser gerada antes de editar.');
+        return;
+    }
+    _fabHtmlSnapshot = el.innerHTML; // snapshot pra cancelar
+    el.contentEditable = 'true';
+    el.style.outline = '2px dashed #059669';
+    el.style.outlineOffset = '4px';
+    el.style.cursor = 'text';
+    el.focus();
+
+    document.getElementById('btnEditar').style.display = 'none';
+    document.getElementById('btnSalvarEdicao').style.display = '';
+    document.getElementById('btnCancelarEdicao').style.display = '';
+    document.getElementById('statusEdicao').textContent = '✏️ Edite o texto direto na tela. Clique em "Salvar" quando terminar.';
+}
+
+function cancelarEdicaoPeticao() {
+    var el = document.getElementById('peticaoHTML');
+    if (!el) return;
+    if (_fabHtmlSnapshot) el.innerHTML = _fabHtmlSnapshot;
+    el.contentEditable = 'false';
+    el.style.outline = '';
+    el.style.cursor = '';
+
+    document.getElementById('btnEditar').style.display = '';
+    document.getElementById('btnSalvarEdicao').style.display = 'none';
+    document.getElementById('btnCancelarEdicao').style.display = 'none';
+    document.getElementById('statusEdicao').textContent = '';
+}
+
+function salvarEdicaoPeticao() {
+    var el = document.getElementById('peticaoHTML');
+    if (!el) return;
+    var btnSalvar = document.getElementById('btnSalvarEdicao');
+    var status = document.getElementById('statusEdicao');
+    var htmlNovo = el.innerHTML;
+
+    btnSalvar.disabled = true;
+    btnSalvar.textContent = '⏳ Salvando...';
+    status.textContent = '';
+
+    var fd = new FormData();
+    fd.append('action', 'salvar_edicao');
+    fd.append('doc_id', window._fabDocId);
+    fd.append('html', htmlNovo);
+
+    fetch('<?= module_url("peticoes", "api.php") ?>', {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+    }).then(function(r) { return r.json(); }).then(function(j) {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = '💾 Salvar edição';
+        if (j.error) {
+            status.style.color = '#dc2626';
+            status.textContent = '✗ ' + j.error;
+            return;
+        }
+        // Saiu do modo edição
+        el.contentEditable = 'false';
+        el.style.outline = '';
+        el.style.cursor = '';
+        document.getElementById('btnEditar').style.display = '';
+        document.getElementById('btnSalvarEdicao').style.display = 'none';
+        document.getElementById('btnCancelarEdicao').style.display = 'none';
+        status.style.color = '#059669';
+        status.textContent = '✓ Salvo às ' + j.editado_em;
+        // Atualiza snapshot — agora a versão salva é a base
+        _fabHtmlSnapshot = el.innerHTML;
+        setTimeout(function() { status.textContent = ''; }, 4000);
+    }).catch(function(e) {
+        btnSalvar.disabled = false;
+        btnSalvar.textContent = '💾 Salvar edição';
+        status.style.color = '#dc2626';
+        status.textContent = '✗ Erro de conexão';
+    });
+}
+
+// Atalho: Ctrl+S salva quando em modo edição (e impede save-as do navegador)
+document.addEventListener('keydown', function(ev) {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 's') {
+        var el = document.getElementById('peticaoHTML');
+        if (el && el.contentEditable === 'true') {
+            ev.preventDefault();
+            salvarEdicaoPeticao();
+        }
+    }
+});
 
 // Revisa a petição gerada via Claude Sonnet — aponta pontos fracos, fundamentação
 // faltando, jurisprudência relevante, riscos processuais. Não reescreve a peça.

@@ -546,6 +546,16 @@ FIXO;
 
     audit_log('PETICAO_GERADA', 'case', $caseId ?: 0, $titulo);
 
+    // Cambio USD->BRL (cfg em configuracoes, default 5.50)
+    $cambioBrl = 5.50;
+    try {
+        $stCambio = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'ia_cambio_brl'");
+        $stCambio->execute();
+        $v = (float)$stCambio->fetchColumn();
+        if ($v > 0) $cambioBrl = $v;
+    } catch (Exception $e) {}
+    $custoBrl = $custoUsd * $cambioBrl;
+
     echo json_encode(array(
         'ok' => true,
         'doc_id' => $docId,
@@ -554,6 +564,43 @@ FIXO;
         'tokens_in' => $tokensIn,
         'tokens_out' => $tokensOut,
         'custo' => number_format($custoUsd, 4),
+        'custo_brl' => number_format($custoBrl, 2, ',', '.'),
+    ));
+    exit;
+}
+
+// Salvar edicao manual da peticao (contenteditable) — Fabrica refactor 24/05/2026
+if ($action === 'salvar_edicao') {
+    $docId = (int)($_POST['doc_id'] ?? 0);
+    $htmlNovo = $_POST['html'] ?? '';
+    if (!$docId) {
+        echo json_encode(array('error' => 'doc_id obrigatorio'));
+        exit;
+    }
+    if (!$htmlNovo || mb_strlen($htmlNovo) < 50) {
+        echo json_encode(array('error' => 'Conteudo vazio ou muito curto'));
+        exit;
+    }
+    // Confirma que a peca existe (e que o usuario tem acesso — middleware ja garantiu role)
+    $stChk = $pdo->prepare("SELECT id FROM case_documents WHERE id = ?");
+    $stChk->execute(array($docId));
+    if (!$stChk->fetchColumn()) {
+        echo json_encode(array('error' => 'Peticao nao encontrada'));
+        exit;
+    }
+    // Self-heal: colunas para rastrear edicao manual
+    try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_em DATETIME NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_por INT NULL"); } catch (Exception $e) {}
+
+    $stmt = $pdo->prepare("UPDATE case_documents SET conteudo_html = ?, editado_em = NOW(), editado_por = ? WHERE id = ?");
+    $stmt->execute(array($htmlNovo, current_user_id(), $docId));
+
+    audit_log('PETICAO_EDITADA', 'case_document', $docId, 'edicao manual inline');
+
+    echo json_encode(array(
+        'ok' => true,
+        'doc_id' => $docId,
+        'editado_em' => date('d/m/Y H:i'),
     ));
     exit;
 }
