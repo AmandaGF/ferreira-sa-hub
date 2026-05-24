@@ -49,9 +49,9 @@ $pdo = db();
 $r = ia_recalcular_esfriando_clientes($pdo);
 echo "Clientes ativos analisados: " . $r['processados'] . "\n\n";
 echo "Resultado:\n";
-echo "  🔴 esfriando (≥60):  {$r['esfriando']}\n";
-echo "  🟡 atenção  (30-59): {$r['atencao']}\n";
-echo "  ✅ ok        (<30):  {$r['ok']}\n\n";
+echo "  🔴 esfriando (≥80):  {$r['esfriando']}\n";
+echo "  🟡 atenção  (40-79): {$r['atencao']}\n";
+echo "  ✅ ok        (<40):  {$r['ok']}\n\n";
 
 if (!empty($r['top'])) {
     usort($r['top'], function($a, $b) { return $b['score'] - $a['score']; });
