@@ -571,7 +571,6 @@ if ($_painelMostraEsfriando) {
         $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
 }
-<?php
 // Conta clientes adiados (snooze ativo) — útil pra mostrar atalho "ver adiados"
 $_qtdAdiados = 0;
 if ($_painelMostraEsfriando) {
