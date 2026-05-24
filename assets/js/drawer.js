@@ -158,11 +158,11 @@ if(s)bg+='<span class="cb" style="background:#059669">'+(stl[s.status]||s.status
 if(D.cobranca_honorarios)bg+='<span class="cb" style="background:#dc2626">💰 Inadimplente — R$ '+(D.cobranca_honorarios.saldo||0).toLocaleString('pt-BR',{minimumFractionDigits:2})+'</span>';
 // Badge "esfriando" — alimentado pelo cron diário (clients.esfriando_score)
 var esfri=parseInt(c.esfriando_score||0,10);
-if(esfri>=60)      bg+='<span class="cb" style="background:#dc2626" title="'+E(c.esfriando_motivos||'')+'">🔴 Esfriando · '+esfri+'</span>';
-else if(esfri>=30) bg+='<span class="cb" style="background:#f59e0b" title="'+E(c.esfriando_motivos||'')+'">🟡 Atenção · '+esfri+'</span>';
+if(esfri>=80)      bg+='<span class="cb" style="background:#dc2626" title="'+E(c.esfriando_motivos||'')+'">🔴 Risco real · '+esfri+'</span>';
+else if(esfri>=40) bg+='<span class="cb" style="background:#f59e0b" title="'+E(c.esfriando_motivos||'')+'">🟡 Esfriando · '+esfri+'</span>';
 hd+='<div style="margin-top:.4rem">'+bg+'</div>';
-// Linha amarela com os motivos do esfriamento — só quando ≥30 e há motivos cadastrados
-if(esfri>=30 && c.esfriando_motivos){
+// Linha amarela com os motivos do esfriamento — só quando ≥40 e há motivos cadastrados
+if(esfri>=40 && c.esfriando_motivos){
     hd+='<div style="margin-top:.4rem;background:rgba(245,158,11,.15);border-left:3px solid #f59e0b;padding:.35rem .6rem;border-radius:4px;font-size:.7rem;color:#fff;line-height:1.4">'
       + '<strong>❄️ Por que está esfriando:</strong> '+E(c.esfriando_motivos)
       + '</div>';

@@ -579,17 +579,17 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
     <h3 style="justify-content:space-between;">
         <span>🌡️ Clientes precisam de atenção</span>
         <span style="display:flex;gap:.4rem;align-items:center;font-size:.7rem;font-weight:500;">
-            <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> esfriando</span><?php endif; ?>
-            <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> em atenção</span><?php endif; ?>
+            <?php if (!empty($_esfriCritico)): ?><span style="background:#fee2e2;color:#b91c1c;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🔴 <?= count($_esfriCritico) ?> em risco real</span><?php endif; ?>
+            <?php if (!empty($_esfriAtencao)): ?><span style="background:#fef3c7;color:#92400e;padding:.15rem .45rem;border-radius:8px;font-weight:700;">🟡 <?= count($_esfriAtencao) ?> esfriando</span><?php endif; ?>
             <button type="button" id="btnRecalcEsfri" onclick="recalcularEsfriando(0)" title="Atualiza os scores AGORA (sem IA, custo zero)" style="background:#fff;border:1px solid #cbd5e1;color:#1e293b;padding:.2rem .55rem;border-radius:6px;font-size:.68rem;font-weight:700;cursor:pointer;">🔄 Recalcular agora</button>
             <a href="<?= module_url('operacional') . '?esfriando=1' ?>" style="color:#6b7280;text-decoration:none;font-size:.68rem;">Ver Kanban filtrado →</a>
         </span>
     </h3>
     <!-- Legenda compacta — explica as duas cores -->
     <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.7rem;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:.4rem .7rem;margin-bottom:.7rem;line-height:1.45;">
-        <span><strong style="color:#b91c1c;">🔴 Esfriando (≥80)</strong> — risco real de perder o cliente. Aja logo: ligue ou mande mensagem hoje.</span>
+        <span><strong style="color:#b91c1c;">🔴 Risco real (≥80)</strong> — cliente prestes a sumir. Aja hoje: ligue ou mande mensagem.</span>
         <span style="opacity:.6;">|</span>
-        <span><strong style="color:#92400e;">🟡 Atenção (40–79)</strong> — sinais iniciais de desengajamento. Vale um follow-up esta semana.</span>
+        <span><strong style="color:#92400e;">🟡 Esfriando (40–79)</strong> — 45+ dias sem contato ou sem movimento no processo. Faça um follow-up esta semana.</span>
         <span style="opacity:.6;">|</span>
         <span style="color:#64748b;">Critérios: <strong>45+ dias sem msg WhatsApp do Hub</strong> ou <strong>45+ dias sem andamento</strong>. Cobrança vencida e tarefa atrasada aparecem como (info), não decidem se entra. Recalcula automaticamente a cada msg/andamento + 1×/dia o cron.</span>
     </div>

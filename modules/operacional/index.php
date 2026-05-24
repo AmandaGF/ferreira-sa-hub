@@ -310,7 +310,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $_qsEsfri = $_GET; $_qsEsfri['esfriando'] = $filterEsfriando ? 0 : 1;
             $_hrefEsfri = module_url('operacional') . '?' . http_build_query(array_filter($_qsEsfri, function($v){ return $v !== '' && $v !== 0; }));
             ?>
-            <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Filtrar só clientes em risco. Badges no card: 🟡 Atenção 30-59 (desengajamento inicial) · 🔴 Esfriando ≥60 (risco real)">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
+            <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Filtrar só clientes em risco. Badges no card: 🟡 Esfriando 40-79 (45+ dias sem msg ou andamento) · 🔴 Risco real ≥80">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
             <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth || $filterEsfriando): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">✕ Limpar</a>
             <?php endif; ?>
@@ -441,13 +441,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['processo_principal_id']) ?>" onclick="event.stopPropagation();" class="op-card-badge" style="background:#6366f1;text-decoration:none;cursor:pointer;" title="Ver processo principal">📎 Incidental</a>
                         <?php endif; ?>
                         <?php
-                        // Badge de "cliente esfriando" — score >= 30 alerta atenção, >= 60 risco real.
-                        // Calculado pelo cron/cliente_esfriando.php (1x/dia). Hover mostra motivos.
+                        // Badge de "cliente esfriando" — score >= 40 (45+ dias sem msg/andamento),
+                        // >= 80 risco real (2 sinais ou 1 extremo). Calculado pelo cron diario +
+                        // gatilhos automaticos em msg/andamento. Hover mostra motivos.
                         $_esfri = (int)($cs['cli_esfriando_score'] ?? 0);
-                        if ($_esfri >= 30):
-                            $_esfriBg = $_esfri >= 60 ? '#dc2626' : '#f59e0b';
-                            $_esfriIco = $_esfri >= 60 ? '🔴' : '🟡';
-                            $_esfriLbl = $_esfri >= 60 ? 'Esfriando' : 'Atenção';
+                        if ($_esfri >= 40):
+                            $_esfriBg = $_esfri >= 80 ? '#dc2626' : '#f59e0b';
+                            $_esfriIco = $_esfri >= 80 ? '🔴' : '🟡';
+                            $_esfriLbl = $_esfri >= 80 ? 'Risco real' : 'Esfriando';
                             $_esfriTip = trim((string)($cs['cli_esfriando_motivos'] ?? ''));
                         ?>
                             <span class="op-card-badge" style="background:<?= $_esfriBg ?>;" title="<?= e($_esfriTip ?: ('Score ' . $_esfri)) ?>"><?= $_esfriIco ?> <?= $_esfriLbl ?> · <?= $_esfri ?></span>
