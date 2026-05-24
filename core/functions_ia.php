@@ -230,7 +230,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
             "SELECT DISTINCT c.id, c.name
                FROM clients c
                INNER JOIN cases cs ON cs.client_id = c.id
-              WHERE c.id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0
+              WHERE c.id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0 AND COALESCE(cs.acompanhamento_externo, 0) = 0
               LIMIT 1"
         );
         $st->execute(array((int)$clientId));
@@ -239,7 +239,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
             "SELECT DISTINCT c.id, c.name
                FROM clients c
                INNER JOIN cases cs ON cs.client_id = c.id
-              WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0"
+              WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0 AND COALESCE(cs.acompanhamento_externo, 0) = 0"
         );
     }
     $clientes = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -256,11 +256,13 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
                 INNER JOIN cases cs ON cs.id = ca.case_id
                 WHERE cs.client_id = ?
                   AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
-                  AND COALESCE(cs.kanban_oculto,0) = 0),
+                  AND COALESCE(cs.kanban_oculto,0) = 0
+                  AND COALESCE(cs.acompanhamento_externo,0) = 0),
              (SELECT MAX(COALESCE(cs2.distribution_date, cs2.created_at)) FROM cases cs2
                 WHERE cs2.client_id = ?
                   AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
-                  AND COALESCE(cs2.kanban_oculto,0) = 0)
+                  AND COALESCE(cs2.kanban_oculto,0) = 0
+                  AND COALESCE(cs2.acompanhamento_externo,0) = 0)
          ) AS ult_movimento"
     );
     $stCob = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobranca h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
@@ -323,7 +325,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
     // Zera score de quem saiu do universo ativo (só no recalc global)
     if ($clientId <= 0) {
         $pdo->exec("UPDATE clients c
-                    LEFT JOIN cases cs ON cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0
+                    LEFT JOIN cases cs ON cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND cs.kanban_oculto = 0 AND COALESCE(cs.acompanhamento_externo, 0) = 0
                     SET c.esfriando_score = 0, c.esfriando_motivos = NULL, c.esfriando_em = NOW()
                     WHERE c.esfriando_score > 0 AND cs.id IS NULL");
     }

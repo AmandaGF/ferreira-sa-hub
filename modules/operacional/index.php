@@ -75,7 +75,9 @@ $whereStr = implode(' AND ', $where);
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
         -- Esfriando: zera score se o cliente está adiado (snooze) até depois de hoje
-        IF(c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE(), 0, c.esfriando_score) AS cli_esfriando_score,
+        -- OU se o case é acompanhamento externo (não é nosso processo)
+        IF(c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE(), 0,
+           IF(COALESCE(cs.acompanhamento_externo,0)=1, 0, c.esfriando_score)) AS cli_esfriando_score,
         c.esfriando_motivos AS cli_esfriando_motivos,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
@@ -224,6 +226,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card-deadline.overdue { color:#ef4444; font-weight:700; }
 .op-card.prazo-hoje { border-left-color:#dc2626 !important; animation:pulsePrazo 1.5s ease-in-out infinite; }
 .op-card.prazo-3d { border-left-color:#f59e0b !important; animation:pulsePrazoSuave 2s ease-in-out infinite; }
+/* Acompanhamento externo: processo de outro escritorio. Cinza-azulado, com indicador no canto. */
+.op-card.acomp-externo { background:linear-gradient(135deg,#eef2f7 0%,#e2e8f0 100%); border-left-color:#64748b !important; opacity:.92; position:relative; }
+.op-card.acomp-externo::before { content:'👁️'; position:absolute; top:.25rem; right:.4rem; font-size:.85rem; opacity:.55; pointer-events:none; }
+.op-card.acomp-externo .op-card-name { color:#475569; }
+.op-card.acomp-externo .op-card-client,
+.op-card.acomp-externo .op-card-process { color:#64748b; }
 @keyframes pulsePrazo { 0%,100%{box-shadow:0 0 0 0 rgba(220,38,38,.4)} 50%{box-shadow:0 0 0 6px rgba(220,38,38,0)} }
 @keyframes pulsePrazoSuave { 0%,100%{box-shadow:0 0 0 0 rgba(245,158,11,.3)} 50%{box-shadow:0 0 0 4px rgba(245,158,11,0)} }
 .op-card-process { font-size:.58rem; color:var(--petrol-500); font-weight:600; margin-top:.2rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; display:block; }
@@ -423,7 +431,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         elseif ($diasPrazo <= 3) $prazoClass = 'prazo-3d';
                     }
                 ?>
-                <div class="op-card <?= $prazoClass ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="border-left-color:<?= $pColor ?>;"
+                <?php $_isAcompExt = (int)($cs['acompanhamento_externo'] ?? 0) === 1; ?>
+                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isAcompExt ? '' : 'border-left-color:' . $pColor . ';' ?>"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
@@ -434,6 +443,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
                     <div class="op-card-badges">
+                        <?php if ($_isAcompExt): ?>
+                            <span class="op-card-badge" style="background:#475569;" title="Processo de outro escritorio — apenas acompanhamento">👁️ Acompanhamento</span>
+                        <?php endif; ?>
                         <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
                             <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
                         <?php endif; ?>

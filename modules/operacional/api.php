@@ -2458,6 +2458,31 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'toggle_acompanhamento_externo':
+        // Marca/desmarca como processo de outro escritório (apenas observação).
+        // Quando ativo, NÃO entra no painel de temperatura nem em alertas de
+        // inatividade, e visual cinza-azulado no Kanban. Reverte recálculo
+        // do esfriando do cliente (zera score se for o único case).
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId && has_min_role('gestao')) {
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN acompanhamento_externo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+            $stmtAc = $pdo->prepare("SELECT acompanhamento_externo, client_id FROM cases WHERE id = ?");
+            $stmtAc->execute([$caseId]);
+            $row = $stmtAc->fetch(PDO::FETCH_ASSOC) ?: array();
+            $cur = (int)($row['acompanhamento_externo'] ?? 0);
+            $new = $cur ? 0 : 1;
+            $pdo->prepare("UPDATE cases SET acompanhamento_externo = ? WHERE id = ?")->execute([$new, $caseId]);
+            audit_log('toggle_acompanhamento_externo', 'case', $caseId, $new ? 'Marcado como acompanhamento' : 'Voltou a ser nosso');
+            // Recalcula esfriando do cliente — pra remover/repor do painel imediatamente
+            if (!empty($row['client_id'])) {
+                require_once APP_ROOT . '/core/functions_ia.php';
+                try { ia_disparar_recalc_esfriando($pdo, (int)$row['client_id']); } catch (Exception $e) {}
+            }
+            flash_set('success', $new ? 'Caso marcado como APENAS ACOMPANHAMENTO.' : 'Caso voltou a ser tratado como nosso.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'toggle_visibilidade':
         // Blindagem total: limpa qualquer output (warnings/notices) que possa
         // ter vazado antes do nosso JSON — assim a resposta é SEMPRE JSON puro.

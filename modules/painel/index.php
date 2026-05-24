@@ -558,11 +558,13 @@ if ($_painelMostraEsfriando) {
                        WHERE cs.client_id = c.id
                          AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                          AND COALESCE(cs.kanban_oculto, 0) = 0
+                         AND COALESCE(cs.acompanhamento_externo, 0) = 0
                        ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id,
                     (SELECT cs.case_type FROM cases cs
                        WHERE cs.client_id = c.id
                          AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                          AND COALESCE(cs.kanban_oculto, 0) = 0
+                         AND COALESCE(cs.acompanhamento_externo, 0) = 0
                        ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_type
              FROM clients c
              WHERE COALESCE(c.esfriando_score, 0) >= 40
@@ -572,6 +574,7 @@ if ($_painelMostraEsfriando) {
                     WHERE cs2.client_id = c.id
                       AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                       AND COALESCE(cs2.kanban_oculto, 0) = 0
+                      AND COALESCE(cs2.acompanhamento_externo, 0) = 0
                )
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
              LIMIT $_tempPerPage OFFSET $_tempOffset"
@@ -589,7 +592,7 @@ if ($_painelMostraEsfriando) {
                   AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
                   AND EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
                       AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
-                      AND COALESCE(cs.kanban_oculto,0)=0)";
+                      AND COALESCE(cs.kanban_oculto,0)=0 AND COALESCE(cs.acompanhamento_externo,0)=0)";
         $_esfriTotCrit  = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score >= 80")->fetchColumn();
         $_esfriTotAtenc = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score BETWEEN 40 AND 79")->fetchColumn();
         $_esfriTotal    = $_esfriTotCrit + $_esfriTotAtenc;

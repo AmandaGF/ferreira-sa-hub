@@ -15,6 +15,10 @@ $pdo = db();
 // vara_mista: 1 se a vara julga múltiplas competências (ex: "2ª Vara Cível e Criminal").
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN competencia TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN vara_mista TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+// Acompanhamento externo: processo de outro escritório sob nossa observação,
+// sem procuração nossa. NÃO entra no painel de temperatura, ganha visual
+// distinto no Kanban e ficha (cinza-azulado).
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN acompanhamento_externo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 // Self-heal: flag "esta parte é nosso cliente" — permite marcar réu como cliente
 // (ex: réu que contratou o escritório pra acordo). Ver partes_api.php.
 try { $pdo->exec("ALTER TABLE case_partes ADD COLUMN eh_nosso_cliente TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
@@ -381,6 +385,15 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
 .cv-dropdown-menu .cv-divider { height:1px; background:var(--border, #e0e0e0); margin:4px 2px; }
 </style>
 
+<?php if (!empty($case['acompanhamento_externo'])): ?>
+<div style="background:linear-gradient(135deg,#475569,#334155);color:#fff;border-radius:10px;padding:.7rem 1rem;margin-bottom:.75rem;display:flex;align-items:center;gap:.7rem;">
+    <span style="font-size:1.5rem;">👁️</span>
+    <div style="flex:1;">
+        <strong style="font-size:.95rem;">APENAS ACOMPANHAMENTO — Processo de outro escritório</strong>
+        <div style="font-size:.75rem;opacity:.9;margin-top:.15rem;">Sem procuração nossa. Não entra no Painel de Temperatura nem em alertas de inatividade. Visual cinza-azulado no Kanban.</div>
+    </div>
+</div>
+<?php endif; ?>
 <div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 32px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:5;border-bottom:1px solid transparent;">
     <?php
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
@@ -397,6 +410,14 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
         <button type="submit" class="btn btn-primary btn-sm" style="background:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
             <?= $case['salavip_ativo'] ? '🟢' : '⚪' ?> Central VIP
+        </button>
+    </form>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('<?= !empty($case['acompanhamento_externo']) ? 'Voltar a tratar este caso como NOSSO?\\n\\nO processo voltará a aparecer no Painel de Temperatura e a equipe será cobrada por andamento.' : 'Marcar este caso como APENAS ACOMPANHAMENTO?\\n\\nIsso indica que o processo é de OUTRO ESCRITÓRIO — não temos procuração. O caso some do Painel de Temperatura e ganha visual cinza-azulado no Kanban.' ?>');">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="toggle_acompanhamento_externo">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-sm" style="background:<?= !empty($case['acompanhamento_externo']) ? '#475569' : '#fff' ?>;color:<?= !empty($case['acompanhamento_externo']) ? '#fff' : '#475569' ?>;border:1px solid #475569;" title="<?= !empty($case['acompanhamento_externo']) ? 'Marcado como APENAS ACOMPANHAMENTO (processo de outro escritório). Clique para reverter.' : 'Marcar como APENAS ACOMPANHAMENTO — processo de outro escritório, só monitoramos. Não entra no Painel de Temperatura.' ?>">
+            👁️ <?= !empty($case['acompanhamento_externo']) ? 'Acompanhamento externo' : 'Marcar acompanhamento' ?>
         </button>
     </form>
     <?php endif; ?>
