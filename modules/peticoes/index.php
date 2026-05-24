@@ -313,8 +313,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <button onclick="baixarWord()" class="btn btn-outline btn-sm" style="border-color:#2b579a;color:#2b579a;">📝 Word</button>
                             <button onclick="baixarPDF()" class="btn btn-outline btn-sm" style="border-color:#dc2626;color:#dc2626;">📕 PDF</button>
                             <button onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Imprimir</button>
+                            <button id="btnRevisarIA" onclick="revisarPeticao()" class="btn btn-outline btn-sm" style="border-color:#7c3aed;color:#7c3aed;display:none;">🔍 Revisar com IA</button>
                             <button onclick="goStep(1)" class="btn btn-secondary btn-sm">Nova petição</button>
                             <span id="infoTokens" style="margin-left:auto;font-size:.7rem;color:var(--text-muted);"></span>
+                        </div>
+                        <div id="revisaoArea" style="display:none;margin-bottom:1rem;padding:1rem 1.2rem;background:#faf5ff;border:1px solid #d8b4fe;border-left:4px solid #7c3aed;border-radius:8px;">
+                            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+                                <strong style="color:#5b21b6;font-size:.9rem;">🔍 Revisão da IA (Sonnet)</strong>
+                                <span style="font-size:.7rem;color:#7c3aed;" id="revisaoCusto"></span>
+                            </div>
+                            <div id="revisaoConteudo" style="font-size:.88rem;line-height:1.6;color:#1f2937;"></div>
+                            <div style="margin-top:.6rem;padding-top:.5rem;border-top:1px dashed #d8b4fe;font-size:.72rem;color:#6b7280;">
+                                💡 Esta análise é uma <strong>segunda opinião</strong>. Você decide se aceita as sugestões. Não substitui sua revisão final.
+                            </div>
                         </div>
                         <div class="fab-preview" id="peticaoHTML"></div>
                     </div>
@@ -509,6 +520,18 @@ function gerarPeticao() {
                 document.getElementById('peticaoHTML').innerHTML = resp.html;
                 document.getElementById('infoTokens').textContent = 'Tokens: ' + (resp.tokens_in + resp.tokens_out) + ' | Custo: $' + resp.custo;
                 document.getElementById('previewArea').style.display = 'block';
+                // Botao "Revisar com IA" so aparece se feature estiver ligada
+                <?php
+                $_revOn = '0';
+                try {
+                    $_stRev = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'ia_feature_revisao_peticao_enabled'");
+                    $_stRev->execute();
+                    $_revOn = (string)$_stRev->fetchColumn();
+                } catch (Exception $_e) {}
+                if ($_revOn === '1'):
+                ?>
+                document.getElementById('btnRevisarIA').style.display = '';
+                <?php endif; ?>
             }
         } catch(e) {
             document.getElementById('errorMsg').textContent = 'Erro ao processar resposta: ' + e.message;
@@ -538,6 +561,63 @@ function copiarPeticao() {
     document.execCommand('copy');
     sel.removeAllRanges();
     alert('Petição copiada para a área de transferência!');
+}
+
+// Revisa a petição gerada via Claude Sonnet — aponta pontos fracos, fundamentação
+// faltando, jurisprudência relevante, riscos processuais. Não reescreve a peça.
+function revisarPeticao() {
+    var btn = document.getElementById('btnRevisarIA');
+    var area = document.getElementById('revisaoArea');
+    var html = document.getElementById('peticaoHTML').innerHTML;
+    if (!html || html.length < 100) {
+        alert('Gere a petição primeiro.');
+        return;
+    }
+    if (btn.disabled) return;
+
+    var textoOriginal = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Revisando... (pode levar 30-60s)';
+
+    var fd = new FormData();
+    fd.append('action', 'revisar');
+    fd.append('html', html);
+    fd.append('tipo_peca', document.getElementById('tipoPeca').value || '');
+    fd.append('tipo_acao', document.getElementById('tipoAcao').value || '');
+
+    fetch('<?= module_url("peticoes", "api.php") ?>', {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin'
+    }).then(function(r) { return r.json(); }).then(function(j) {
+        btn.disabled = false;
+        btn.innerHTML = '🔍 Revisar de novo';
+        if (j.error) {
+            alert('Falha na revisão: ' + j.error);
+            return;
+        }
+        // Renderiza markdown simples (## títulos, **bold**, listas)
+        var md = j.analise || '';
+        var html = md
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/^## (.+)$/gm, '<h4 style="margin:.8rem 0 .35rem;color:#5b21b6;font-size:.95rem;">$1</h4>')
+            .replace(/^### (.+)$/gm, '<h5 style="margin:.6rem 0 .25rem;color:#7c3aed;font-size:.88rem;">$1</h5>')
+            .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+            .replace(/^- (.+)$/gm, '<li style="margin:.2rem 0;">$1</li>')
+            .replace(/^(\d+)\. (.+)$/gm, '<li style="margin:.2rem 0;">$2</li>')
+            .replace(/(<li[^>]*>.*?<\/li>)(\s*<li)/gs, '$1$2')
+            .replace(/(<li[^>]*>[\s\S]*?<\/li>)+/g, function(m) { return '<ul style="margin:.3rem 0 .5rem 1.2rem;padding-left:.5rem;">' + m + '</ul>'; })
+            .replace(/\n\n+/g, '</p><p style="margin:.4rem 0;">')
+            .replace(/\n/g, '<br>');
+        document.getElementById('revisaoConteudo').innerHTML = '<p style="margin:.3rem 0;">' + html + '</p>';
+        document.getElementById('revisaoCusto').textContent = 'R$ ' + (j.custo_brl || '0.00') + ' · ' + (j.tokens_in + j.tokens_out) + ' tokens';
+        area.style.display = 'block';
+        area.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }).catch(function(e) {
+        btn.disabled = false;
+        btn.innerHTML = textoOriginal;
+        alert('Erro de conexão: ' + e.message);
+    });
 }
 
 // Timbrado HTML para exportação (logo + rodapé)

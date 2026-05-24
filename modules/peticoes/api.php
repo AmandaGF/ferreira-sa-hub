@@ -558,4 +558,33 @@ FIXO;
     exit;
 }
 
+// Revisao de peticao por IA (Sonnet) — Fase 3 / Feature 2
+if ($action === 'revisar') {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+
+    $htmlPeticao = $_POST['html'] ?? '';
+    $tipoPeca    = clean_str($_POST['tipo_peca'] ?? '', 80);
+    $tipoAcao    = clean_str($_POST['tipo_acao'] ?? '', 80);
+
+    if (!$htmlPeticao) {
+        echo json_encode(array('error' => 'Peticao vazia. Gere ou abra uma peca primeiro.'));
+        exit;
+    }
+
+    $resp = ia_revisar_peticao($htmlPeticao, $tipoPeca ?: 'Peca', $tipoAcao ?: 'Acao', current_user_id());
+    if (!$resp['ok']) {
+        echo json_encode(array('error' => $resp['erro'] ?: 'Falha na revisao.'));
+        exit;
+    }
+
+    echo json_encode(array(
+        'ok'         => true,
+        'analise'    => $resp['analise'],
+        'custo_brl'  => number_format($resp['custo_brl'], 4, '.', ''),
+        'tokens_in'  => $resp['tokens_in'],
+        'tokens_out' => $resp['tokens_out'],
+    ));
+    exit;
+}
+
 echo json_encode(array('error' => 'Ação inválida'));

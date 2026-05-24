@@ -670,3 +670,111 @@ function ia_traduzir_andamento_leigo($andamentoId, $descricao, $userId = 0) {
 
     return array('ok' => true, 'traducao' => $traducao, 'cached' => false, 'erro' => null);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  FASE 3 — FEATURE 2: Revisão de petição por IA (Sonnet)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Pede pro Sonnet ler a petição gerada e apontar pontos fracos antes do
+ * advogado enviar/imprimir. Aponta:
+ *   • Argumento fraco ou pouco fundamentado
+ *   • Citação legal faltando ou imprecisa
+ *   • Ausência de jurisprudência relevante
+ *   • Risco de preliminar / prescrição / decadência
+ *   • Pedido mal formulado, conflito interno, contradição
+ *
+ * Tom: critico-mas-construtivo, com sugestoes concretas. NUNCA reescreve a
+ * peca — so apresenta a critica (advogado decide se aceita).
+ *
+ * Modelo: Sonnet 4.6 (Haiku nao tem qualidade juridica suficiente).
+ * Custo: ~R$ 0,30 por revisao.
+ *
+ * @param string $htmlPeticao  HTML da peticao gerada (vai ser limpo de tags)
+ * @param string $tipoPeca     Ex: "Petição Inicial", "Contestação"
+ * @param string $tipoAcao     Ex: "Alimentos", "Divórcio Consensual"
+ * @param int    $userId       Usuario que solicitou
+ * @return array ['ok'=>bool, 'analise'=>string (markdown), 'erro'=>?string,
+ *                'custo_brl'=>float, 'tokens_in'=>int, 'tokens_out'=>int]
+ */
+function ia_revisar_peticao($htmlPeticao, $tipoPeca, $tipoAcao, $userId) {
+    // 1. Killswitch
+    if (!ia_feature_ativa('revisao_peticao')) {
+        return array('ok' => false, 'analise' => '', 'erro' => 'Revisão por IA está desligada. Ative em Admin → IA.',
+                     'custo_brl' => 0, 'tokens_in' => 0, 'tokens_out' => 0);
+    }
+
+    // 2. Limpa HTML pra texto puro (mantem quebras de linha)
+    $texto = $htmlPeticao;
+    $texto = preg_replace('/<br\s*\/?>/i', "\n", $texto);
+    $texto = preg_replace('/<\/p>/i', "\n\n", $texto);
+    $texto = preg_replace('/<\/li>/i', "\n", $texto);
+    $texto = preg_replace('/<\/h[1-6]>/i', "\n\n", $texto);
+    $texto = strip_tags($texto);
+    $texto = preg_replace('/[ \t]+/', ' ', $texto);
+    $texto = preg_replace("/\n{3,}/", "\n\n", $texto);
+    $texto = trim($texto);
+
+    if (mb_strlen($texto) < 80) {
+        return array('ok' => false, 'analise' => '', 'erro' => 'Peticao muito curta pra revisao.',
+                     'custo_brl' => 0, 'tokens_in' => 0, 'tokens_out' => 0);
+    }
+    // Trava de tamanho — Sonnet aguenta muito, mas peticao normal cabe em 20k chars
+    if (mb_strlen($texto) > 60000) {
+        $texto = mb_substr($texto, 0, 60000) . "\n\n[...peticao truncada para revisao...]";
+    }
+
+    $system = "Você é um(a) advogado(a) sênior brasileiro(a) revisando uma petição antes do protocolo.\n\n"
+            . "Sua função é APONTAR PONTOS FRACOS e SUGERIR MELHORIAS — NÃO reescrever a peça.\n\n"
+            . "Critique a partir destes ângulos (só mencione se houver problema real):\n"
+            . "1. **Fundamentação fática**: faltam fatos? Há lacuna na narrativa? Algum fato sem prova mencionado?\n"
+            . "2. **Fundamentação jurídica**: artigo de lei faltando, citado errado, ou genérico demais?\n"
+            . "3. **Jurisprudência**: cabe alguma súmula/precedente do STJ/STF/TJ que reforce o pedido e não foi citado?\n"
+            . "4. **Riscos processuais**: prescrição, decadência, ilegitimidade, falta de interesse, conexão, prevenção, valor da causa.\n"
+            . "5. **Pedidos**: pedido principal claro? Tutela de urgência justificada? Honorários? Custas? Justiça gratuita?\n"
+            . "6. **Coerência**: contradições internas, datas erradas, valores inconsistentes, partes confundidas.\n\n"
+            . "FORMATO da resposta (markdown, máximo 600 palavras):\n"
+            . "## 🚦 Avaliação geral\n"
+            . "Uma frase. Tipo: 'Peça sólida, pequenos ajustes recomendados' ou 'Riscos importantes a corrigir antes do protocolo'.\n\n"
+            . "## ⚠️ Pontos críticos\n"
+            . "Lista de 1-5 itens DE VERDADE preocupantes. Se nao houver nenhum, escreva 'Nenhum ponto crítico identificado.' e siga.\n\n"
+            . "## 💡 Sugestões de melhoria\n"
+            . "Lista de 2-5 sugestões opcionais que tornariam a peça mais forte.\n\n"
+            . "REGRAS DURAS:\n"
+            . "- NÃO reescreva trechos da petição. Só aponte.\n"
+            . "- NÃO invente jurisprudência: se mencionar súmula/REsp/precedente, tem que ser real (use só os que você TEM CERTEZA que existem).\n"
+            . "- NÃO seja genérico ('poderia ter mais fundamentação'). Seja específico ('falta citar art. 1.694 do CC pra justificar o binômio necessidade-possibilidade').\n"
+            . "- Se a peça está realmente boa, diga isso. Não invente problema pra preencher conteúdo.\n"
+            . "- Direito brasileiro, vigência atual.";
+
+    $userMsg = "Tipo de peça: " . $tipoPeca . "\n"
+             . "Tipo de ação: " . $tipoAcao . "\n\n"
+             . "PETIÇÃO A REVISAR:\n---\n" . $texto . "\n---";
+
+    $resp = ia_chamar(
+        'revisao_peticao',
+        'claude-sonnet-4-6',
+        $system,
+        array(array('role' => 'user', 'content' => $userMsg)),
+        array(
+            'user_id'     => (int)$userId ?: null,
+            'max_tokens'  => 1500,
+            'temperature' => 0.3,
+            'contexto'    => 'peticao(' . mb_substr($tipoPeca, 0, 40) . ')',
+        )
+    );
+
+    if (!$resp['ok']) {
+        return array('ok' => false, 'analise' => '', 'erro' => $resp['erro'],
+                     'custo_brl' => 0, 'tokens_in' => 0, 'tokens_out' => 0);
+    }
+
+    return array(
+        'ok'        => true,
+        'analise'   => trim((string)$resp['texto']),
+        'erro'      => null,
+        'custo_brl' => (float)($resp['custo_brl'] ?? 0),
+        'tokens_in' => (int)($resp['input_tokens'] ?? 0),
+        'tokens_out'=> (int)($resp['output_tokens'] ?? 0),
+    );
+}
