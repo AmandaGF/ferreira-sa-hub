@@ -127,7 +127,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 . " | FORM name='" . substr((string)$f['name'],0,40) . "' phone='" . $f['phone'] . "'\n",
                 FILE_APPEND);
             audit_log('client_updated', 'client', $editId);
-            flash_set('success', 'Cliente atualizado em ' . date('H:i:s') . '.');
+
+            // ── VINCULAR CONVERSAS WHATSAPP ────────────────────────────
+            // Se o telefone do cliente mudou, procura conversas WA com esse
+            // numero novo (orfaos client_id=NULL ou vinculadas a outro cliente)
+            // e vincula a este cliente. Fix do bug: trocava o telefone do cliente
+            // e o WA do numero novo nao entrava nas conversas vinculadas a pasta.
+            $msgExtra = '';
+            $phoneAntes = trim((string)($before['phone'] ?? ''));
+            $phoneDepois = trim((string)$f['phone']);
+            if ($phoneDepois !== '' && $phoneDepois !== $phoneAntes) {
+                require_once APP_ROOT . '/core/functions_zapi.php';
+                try {
+                    $resVin = zapi_vincular_conversas_por_telefone((int)$editId);
+                    if (!empty($resVin['vinculadas'])) {
+                        $msgExtra = ' ' . $resVin['vinculadas'] . ' conversa(s) do WhatsApp vinculada(s) ao novo número.';
+                        audit_log('client_phone_changed', 'client', $editId,
+                            "{$phoneAntes} -> {$phoneDepois} · {$resVin['vinculadas']} conv WA vinculada(s)");
+                    } else {
+                        audit_log('client_phone_changed', 'client', $editId,
+                            "{$phoneAntes} -> {$phoneDepois} · nenhuma conv WA com esse numero ainda");
+                    }
+                } catch (Exception $eVin) {
+                    @error_log('cliente_form vincular conv WA falhou: ' . $eVin->getMessage());
+                }
+            }
+
+            flash_set('success', 'Cliente atualizado em ' . date('H:i:s') . '.' . $msgExtra);
         } else {
             $pdo->prepare(
                 'INSERT INTO clients (name, cpf, rg, birth_date, email, phone, phone2,
@@ -147,7 +173,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
             $newId = (int)$pdo->lastInsertId();
             audit_log('client_created', 'client', $newId);
-            flash_set('success', 'Cliente cadastrado.');
+
+            // Vincular conversas WA órfãs com esse mesmo telefone (cliente foi
+            // criado depois de já ter recebido msg WA com aquele número).
+            $msgExtraNew = '';
+            if (!empty($f['phone'])) {
+                require_once APP_ROOT . '/core/functions_zapi.php';
+                try {
+                    $resVinNew = zapi_vincular_conversas_por_telefone($newId);
+                    if (!empty($resVinNew['vinculadas'])) {
+                        $msgExtraNew = ' ' . $resVinNew['vinculadas'] . ' conversa(s) do WhatsApp vinculada(s) automaticamente.';
+                    }
+                } catch (Exception $eVinNew) { /* silencioso */ }
+            }
+
+            flash_set('success', 'Cliente cadastrado.' . $msgExtraNew);
             redirect(module_url('crm', 'cliente_ver.php?id=' . $newId));
         }
         redirect(module_url('crm', 'cliente_ver.php?id=' . $editId));

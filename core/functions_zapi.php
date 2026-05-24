@@ -261,6 +261,76 @@ function zapi_atualizar_lid_cliente($clientId, $force = false) {
 }
 
 /**
+ * Vincula conversas WhatsApp ao cliente com base no telefone (e telefone2).
+ *
+ * Chamada quando o cliente troca de número OU quando o cliente é criado/editado
+ * com telefone novo. Resolve o bug: cliente atualiza phone='11888...' mas a
+ * conversa WA com esse mesmo numero continua com client_id=NULL — assim na
+ * pasta do cliente o novo telefone NAO aparecia como conversa vinculada.
+ *
+ * Estratégia:
+ *  1. Pra cada telefone do cliente (phone, phone2), normaliza pros 8 dígitos finais
+ *  2. Procura conversas em zapi_conversas que (a) sejam 1:1 (não grupo) e
+ *     (b) tenham client_id NULL OU diferente deste cliente, e (c) batam pelo
+ *     fim do telefone
+ *  3. UPDATE: vincula essas conversas a este cliente
+ *  4. Dispara também a atualização de @lid via zapi_atualizar_lid_cliente
+ *     (pra futura mensagem ser identificada pelo @lid também)
+ *
+ * Não cria conversa — apenas vincula as que JÁ existem. Se o cliente troca
+ * número mas o novo número ainda nunca mandou msg, nada é feito (e tudo bem —
+ * quando ele mandar, o webhook tentará match por @lid e a vinculação acontece).
+ *
+ * @param int   $clientId
+ * @return array ['vinculadas'=>int, 'telefones_tentados'=>array]
+ */
+function zapi_vincular_conversas_por_telefone($clientId) {
+    $pdo = db();
+    $clientId = (int)$clientId;
+    if ($clientId <= 0) return array('vinculadas' => 0, 'telefones_tentados' => array());
+
+    $st = $pdo->prepare("SELECT phone, phone2 FROM clients WHERE id = ?");
+    $st->execute(array($clientId));
+    $row = $st->fetch();
+    if (!$row) return array('vinculadas' => 0, 'telefones_tentados' => array());
+
+    $telefones = array();
+    foreach (array($row['phone'], $row['phone2']) as $tel) {
+        $tel = trim((string)$tel);
+        if ($tel === '') continue;
+        $digitos = preg_replace('/\D/', '', $tel);
+        if (strlen($digitos) < 8) continue;
+        $telefones[] = substr($digitos, -8); // sufixo de 8 digitos pega celular sem DDD
+    }
+    if (empty($telefones)) return array('vinculadas' => 0, 'telefones_tentados' => array());
+    $telefones = array_unique($telefones);
+
+    $vinculadas = 0;
+    foreach ($telefones as $sufixo) {
+        // Procura conversas 1:1 nao vinculadas a este cliente (NULL ou outro)
+        // cuja zapi_conversas.telefone termine com esse sufixo.
+        $stConv = $pdo->prepare(
+            "SELECT id FROM zapi_conversas
+             WHERE COALESCE(eh_grupo, 0) = 0
+               AND (client_id IS NULL OR client_id != ?)
+               AND RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(telefone,' ',''),'-',''),'(',''),')',''), 8) = ?"
+        );
+        $stConv->execute(array($clientId, $sufixo));
+        $ids = $stConv->fetchAll(PDO::FETCH_COLUMN);
+        if (empty($ids)) continue;
+
+        $in = implode(',', array_map('intval', $ids));
+        $pdo->exec("UPDATE zapi_conversas SET client_id = " . $clientId . " WHERE id IN ({$in})");
+        $vinculadas += count($ids);
+    }
+
+    // Atualiza @lid também — útil pra futuras vinculações automáticas via webhook
+    try { zapi_atualizar_lid_cliente($clientId, true); } catch (Exception $e) {}
+
+    return array('vinculadas' => $vinculadas, 'telefones_tentados' => $telefones);
+}
+
+/**
  * Adiciona sugestão de mensagem à fila (caixa de envios pendentes).
  * Uso: zapi_fila_enfileirar('andamento', $clientId, $telefone, 'Olá...', array('case_id' => 123));
  */
