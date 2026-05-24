@@ -579,3 +579,94 @@ function ia_orcamento_mes() {
         return (float)$st->fetchColumn() ?: 300.0;
     } catch (Exception $e) { return 300.0; }
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  FASE 3 — FEATURE 1: Tradução jurídico → leigo (Central VIP)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Traduz um andamento jurídico para linguagem comum (a cliente entende).
+ * Cacheia o resultado em case_andamentos.traducao_leiga — cada andamento é
+ * traduzido UMA VEZ. Próximas leituras vêm do banco sem custo.
+ *
+ * Self-heal da coluna na primeira chamada.
+ *
+ * @param int    $andamentoId  ID do registro em case_andamentos
+ * @param string $descricao    Texto original do andamento (jurídico)
+ * @param int    $userId       Usuario solicitante (0 = cliente da sala VIP)
+ * @return array ['ok'=>bool, 'traducao'=>string, 'cached'=>bool, 'erro'=>?string]
+ */
+function ia_traduzir_andamento_leigo($andamentoId, $descricao, $userId = 0) {
+    $pdo = db();
+    $andamentoId = (int)$andamentoId;
+    $descricao = trim((string)$descricao);
+
+    // Self-heal
+    try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN traducao_leiga TEXT NULL"); } catch (Exception $e) {}
+
+    if ($andamentoId <= 0 || $descricao === '') {
+        return array('ok' => false, 'traducao' => '', 'cached' => false, 'erro' => 'Andamento ou descricao vazia');
+    }
+
+    // 1. Cache hit?
+    try {
+        $st = $pdo->prepare("SELECT traducao_leiga FROM case_andamentos WHERE id = ?");
+        $st->execute(array($andamentoId));
+        $existente = (string)$st->fetchColumn();
+        if ($existente !== '') {
+            return array('ok' => true, 'traducao' => $existente, 'cached' => true, 'erro' => null);
+        }
+    } catch (Exception $e) { /* tabela ainda sem a coluna, segue pra criacao */ }
+
+    // 2. Killswitch — se feature desativada, devolve a propria descricao (graceful)
+    if (!ia_feature_ativa('traducao_leiga')) {
+        return array('ok' => false, 'traducao' => $descricao, 'cached' => false,
+                     'erro' => 'Tradução por IA está desativada no momento.');
+    }
+
+    // 3. Chama IA (Haiku — barato, suficiente)
+    $system = "Você é um tradutor jurídico que explica andamentos processuais para clientes leigos. "
+            . "Regras:\n"
+            . "1. Use português comum, sem juridiquês.\n"
+            . "2. Seja curto (1-3 frases, máximo 200 caracteres).\n"
+            . "3. Use voz ativa e tom acolhedor.\n"
+            . "4. NÃO repita o texto original — explique o que aquilo significa na prática para o cliente.\n"
+            . "5. NÃO dê conselho jurídico nem promessas. Só explique.\n"
+            . "6. NÃO invente fatos: se o texto for ambíguo, fale só do que está claro.\n"
+            . "7. Comece direto na explicação. Sem prefácio do tipo 'Isso significa que...'.";
+
+    $userMsg = "Andamento processual:\n\n" . mb_substr($descricao, 0, 1500);
+
+    // Cliente da sala VIP nao esta na whitelist de IA — passa null pra pular o check.
+    // A trava aqui eh o killswitch da feature + cache (1 chamada por andamento, pra sempre).
+    $userIdParam = $userId > 0 ? (int)$userId : null;
+    $resp = ia_chamar(
+        'traducao_leiga',
+        'claude-haiku-4-5',
+        $system,
+        array(array('role' => 'user', 'content' => $userMsg)),
+        array(
+            'user_id'     => $userIdParam,
+            'max_tokens'  => 300,
+            'temperature' => 0.4,
+            'contexto'    => 'andamento#' . $andamentoId,
+        )
+    );
+
+    if (!$resp['ok']) {
+        return array('ok' => false, 'traducao' => $descricao, 'cached' => false, 'erro' => $resp['erro']);
+    }
+
+    $traducao = trim((string)$resp['texto']);
+    if ($traducao === '') {
+        return array('ok' => false, 'traducao' => $descricao, 'cached' => false, 'erro' => 'IA retornou vazio');
+    }
+
+    // 4. Salva no cache
+    try {
+        $pdo->prepare("UPDATE case_andamentos SET traducao_leiga = ? WHERE id = ?")
+            ->execute(array($traducao, $andamentoId));
+    } catch (Exception $e) { /* falha de cache nao bloqueia retorno ao cliente */ }
+
+    return array('ok' => true, 'traducao' => $traducao, 'cached' => false, 'erro' => null);
+}

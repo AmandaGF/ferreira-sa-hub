@@ -180,12 +180,25 @@ require_once __DIR__ . '/../includes/header.php';
             <!-- Linha vertical da timeline -->
             <div style="position:absolute;left:8px;top:8px;bottom:8px;width:2px;background:var(--sv-border);"></div>
 
+            <?php
+            // Checa se a feature de IA esta ligada — se sim, mostra botao "?"
+            // ao lado de cada andamento; se nao, esconde o botao (silenciosamente).
+            $_iaTraducaoOn = false;
+            try {
+                $stCfg = $pdo->prepare("SELECT valor FROM configuracoes WHERE chave = 'ia_feature_traducao_leiga_enabled'");
+                $stCfg->execute();
+                $_iaTraducaoOn = ((string)$stCfg->fetchColumn() === '1');
+            } catch (Exception $e) {}
+            ?>
             <?php foreach ($andamentos as $i => $and):
                 $tipo = $and['tipo'] ?? 'observacao';
                 $cor = $tipoAndCores[$tipo] ?? '#64748b';
                 $icon = $tipoAndIcons[$tipo] ?? '📋';
                 $label = $tipoAndLabels[$tipo] ?? ucfirst($tipo);
-                $descTraduzida = sv_traduzir_andamento($and['descricao'] ?? '');
+                $descOriginal = $and['descricao'] ?? '';
+                $descTraduzidaSimples = sv_traduzir_andamento($descOriginal); // fallback str_replace
+                $traducaoIaCache = (string)($and['traducao_leiga'] ?? '');
+                $andId = (int)($and['id'] ?? 0);
             ?>
             <div style="position:relative;margin-bottom:1rem;padding-bottom:1rem;<?= $i < count($andamentos)-1 ? 'border-bottom:1px solid rgba(255,255,255,.03);' : '' ?>">
                 <!-- Bolinha da timeline -->
@@ -195,7 +208,27 @@ require_once __DIR__ . '/../includes/header.php';
                     <span style="font-size:.88rem;font-weight:700;color:var(--sv-accent);"><?= sv_formatar_data($and['data_andamento']) ?></span>
                     <span style="background:<?= $cor ?>20;color:<?= $cor ?>;padding:2px 8px;border-radius:6px;font-size:.7rem;font-weight:700;letter-spacing:.3px;"><?= $icon ?> <?= sv_e($label) ?></span>
                 </div>
-                <div style="color:var(--sv-text);font-size:.9rem;line-height:1.6;"><?= nl2br(sv_e($descTraduzida)) ?></div>
+                <div style="color:var(--sv-text);font-size:.9rem;line-height:1.6;" id="and-desc-<?= $andId ?>"><?= nl2br(sv_e($descTraduzidaSimples)) ?></div>
+
+                <?php if ($_iaTraducaoOn && $andId > 0): ?>
+                    <?php if ($traducaoIaCache !== ''): ?>
+                        <!-- Tradução já em cache: mostra logo abaixo, em destaque sutil -->
+                        <div class="sv-traducao-leiga" style="margin-top:.5rem;padding:.65rem .8rem;background:rgba(99,102,241,.08);border-left:3px solid #6366f1;border-radius:6px;font-size:.85rem;color:var(--sv-text);line-height:1.55;">
+                            <span style="font-size:.7rem;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:.25rem;">📖 Em linguagem comum</span>
+                            <?= nl2br(sv_e($traducaoIaCache)) ?>
+                        </div>
+                    <?php else: ?>
+                        <!-- Botão pra disparar tradução sob demanda -->
+                        <button type="button"
+                                onclick="svTraduzirAndamento(<?= $andId ?>, this)"
+                                style="margin-top:.4rem;background:transparent;color:#818cf8;border:1px solid rgba(99,102,241,.4);padding:4px 12px;border-radius:6px;font-size:.78rem;font-weight:600;cursor:pointer;transition:background .15s;display:inline-flex;align-items:center;gap:.35rem;"
+                                onmouseover="this.style.background='rgba(99,102,241,.12)'"
+                                onmouseout="this.style.background='transparent'">
+                            ❓ Em linguagem comum
+                        </button>
+                        <div id="and-traducao-<?= $andId ?>" style="display:none;"></div>
+                    <?php endif; ?>
+                <?php endif; ?>
             </div>
             <?php endforeach; ?>
         </div>
@@ -277,5 +310,45 @@ require_once __DIR__ . '/../includes/header.php';
 <div style="margin-top:1rem;">
     <a href="<?= sv_url('pages/mensagem_nova.php?processo=' . $caseId) ?>" class="sv-btn sv-btn-gold" style="gap:6px;">💬 Enviar Mensagem sobre este Processo</a>
 </div>
+
+<script>
+// Traduz um andamento jurídico em linguagem comum (IA, cache permanente).
+// 1 clique = 1 chamada ao endpoint. Próximas visitas pegam do cache já salvo no DB.
+function svTraduzirAndamento(andId, btnEl) {
+    if (btnEl.disabled) return;
+    var textoOriginal = btnEl.innerHTML;
+    btnEl.disabled = true;
+    btnEl.innerHTML = '⏳ Traduzindo...';
+
+    fetch('<?= sv_url('pages/ia_traduzir_andamento.php') ?>?andamento_id=' + encodeURIComponent(andId), {
+        credentials: 'same-origin'
+    }).then(function(r) { return r.json(); }).then(function(j) {
+        var holder = document.getElementById('and-traducao-' + andId);
+        if (j.ok && j.traducao) {
+            holder.style.display = '';
+            holder.innerHTML =
+                '<div style="margin-top:.5rem;padding:.65rem .8rem;background:rgba(99,102,241,.08);border-left:3px solid #6366f1;border-radius:6px;font-size:.85rem;color:var(--sv-text);line-height:1.55;">' +
+                '<span style="font-size:.7rem;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:.25rem;">📖 Em linguagem comum</span>' +
+                _svEscape(j.traducao).replace(/\n/g, '<br>') +
+                '</div>';
+            // Esconde o botão (traduziu, missão cumprida)
+            btnEl.style.display = 'none';
+        } else {
+            btnEl.disabled = false;
+            btnEl.innerHTML = textoOriginal;
+            alert(j.erro || 'Não foi possível traduzir agora. Tente em alguns instantes.');
+        }
+    }).catch(function() {
+        btnEl.disabled = false;
+        btnEl.innerHTML = textoOriginal;
+        alert('Erro de conexão. Tente novamente.');
+    });
+}
+function _svEscape(s) {
+    var d = document.createElement('div');
+    d.textContent = String(s || '');
+    return d.innerHTML;
+}
+</script>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>
