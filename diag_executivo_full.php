@@ -13,10 +13,12 @@ error_reporting(E_ALL);
 
 // Simular sessão admin (id 1 = Amanda) pra passar pelos middlewares
 session_start();
-$_SESSION['user_id'] = 1;
-$_SESSION['user_role'] = 'admin';
-$_SESSION['user_name'] = 'Amanda (diag)';
-// Tokens auxiliares
+$_SESSION['user'] = array(
+    'id'    => 1,
+    'role'  => 'admin',
+    'name'  => 'Amanda (diag)',
+    'email' => 'diag@ferreiraesa.com.br',
+);
 $_SESSION['csrf_token'] = 'diag';
 
 // Captura tudo
