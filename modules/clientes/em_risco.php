@@ -29,6 +29,7 @@ require_once __DIR__ . '/../../core/database.php';
 require_once __DIR__ . '/../../core/auth.php';
 require_once __DIR__ . '/../../core/middleware.php';
 require_once __DIR__ . '/../../core/functions_utils.php';
+require_once __DIR__ . '/../../core/functions_caso_visual.php';
 
 require_login();
 if (!has_min_role('gestao')) {
@@ -88,6 +89,10 @@ $sql = "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.
                   AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                   AND COALESCE(cs.kanban_oculto,0)=0
                 ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id,
+               (SELECT cs.case_type FROM cases cs WHERE cs.client_id = c.id
+                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
+                  AND COALESCE(cs.kanban_oculto,0)=0
+                ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_type,
                (SELECT COUNT(*) FROM cases cs WHERE cs.client_id = c.id
                   AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                   AND COALESCE(cs.kanban_oculto,0)=0) AS qtd_cases_ativos
@@ -160,6 +165,7 @@ function _chip($filtro_atual, $chave, $label, $count, $cor) {
     <thead style="background:#f9fafb;">
     <tr style="text-align:left;">
         <th style="padding:.6rem .8rem;">Cliente</th>
+        <th style="padding:.6rem .8rem;">Tipo de ação</th>
         <th style="padding:.6rem .8rem;text-align:center;">Score</th>
         <th style="padding:.6rem .8rem;">Motivos</th>
         <th style="padding:.6rem .8rem;text-align:center;">Cases</th>
@@ -172,11 +178,16 @@ function _chip($filtro_atual, $chave, $label, $count, $cor) {
         $score = (int)$r['esfriando_score'];
         $adiado = !empty($r['esfriando_snooze_ate']) && strtotime($r['esfriando_snooze_ate']) >= strtotime(date('Y-m-d'));
         $bg = $score >= 80 ? '#fef2f2' : ($score >= 40 ? '#fffbeb' : '#fff');
+        // Visual por tipo de ação (helper compartilhado)
+        list($_tEmoji, $_tLabel, $_tCor) = caso_tipo_visual($r['principal_case_type'] ?? '');
     ?>
-    <tr style="border-top:1px solid #f3f4f6;background:<?= $bg ?>;">
+    <tr style="border-top:1px solid #f3f4f6;background:<?= $bg ?>;border-left:4px solid <?= $_tCor ?>;">
         <td style="padding:.55rem .8rem;">
             <div style="font-weight:600;color:#052228;"><?= e($r['name']) ?></div>
             <?php if ($r['phone']): ?><div style="font-size:.7rem;color:#6b7280;"><?= e($r['phone']) ?></div><?php endif; ?>
+        </td>
+        <td style="padding:.55rem .8rem;">
+            <span style="background:<?= $_tCor ?>;color:#fff;padding:.15rem .5rem;border-radius:4px;font-weight:700;font-size:.72rem;display:inline-block;"><?= $_tEmoji ?> <?= e($_tLabel) ?></span>
         </td>
         <td style="padding:.55rem .8rem;text-align:center;">
             <?php if ($score >= 80): ?>
