@@ -230,7 +230,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
             "SELECT DISTINCT c.id, c.name
                FROM clients c
                INNER JOIN cases cs ON cs.client_id = c.id
-              WHERE c.id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0
+              WHERE c.id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido') AND cs.kanban_oculto = 0
               LIMIT 1"
         );
         $st->execute(array((int)$clientId));
@@ -239,7 +239,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
             "SELECT DISTINCT c.id, c.name
                FROM clients c
                INNER JOIN cases cs ON cs.client_id = c.id
-              WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0"
+              WHERE cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido') AND cs.kanban_oculto = 0"
         );
     }
     $clientes = $st->fetchAll(PDO::FETCH_ASSOC);
@@ -247,7 +247,7 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
 
     $stUpd = $pdo->prepare("UPDATE clients SET esfriando_score = ?, esfriando_motivos = ?, esfriando_em = NOW() WHERE id = ?");
     $stMsg = $pdo->prepare("SELECT MAX(m.created_at) FROM zapi_mensagens m INNER JOIN zapi_conversas co ON co.id = m.conversa_id WHERE co.client_id = ?");
-    $stAnd = $pdo->prepare("SELECT MAX(ca.created_at) FROM case_andamentos ca INNER JOIN cases cs ON cs.id = ca.case_id WHERE cs.client_id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado')");
+    $stAnd = $pdo->prepare("SELECT MAX(ca.created_at) FROM case_andamentos ca INNER JOIN cases cs ON cs.id = ca.case_id WHERE cs.client_id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')");
     $stCob = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobranca h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
     $stTar = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs ON cs.id = t.case_id WHERE cs.client_id = ? AND t.tipo IS NOT NULL AND t.status != 'concluido' AND t.due_date IS NOT NULL AND t.due_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
 
@@ -255,47 +255,59 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
     $top = array();
 
     foreach ($clientes as $c) {
-        $score = 0; $motivos = array();
+        $score = 0;
+        $motivosPontos = array();   // sinais que SOMAM pontos (decidem se aparece)
+        $motivosInfo   = array();   // só contexto (não somam — aparecem como "(info)")
 
-        // 1) WhatsApp
+        // ── Sinais que SOMAM pontos (regra ajustada pela Amanda em 23/05/2026) ──
+        // Só 2 sinais decidem se cliente aparece: WhatsApp parado E/OU processo parado.
+        // Threshold subiu de 14d → 45d (msg) e 30d → 45d (andamento) — antes gerava
+        // muito falso positivo (cliente com 8d sem msg + cobrança aparecia como atenção).
+
+        // 1) WhatsApp parado há 45+ dias
         $stMsg->execute(array((int)$c['id']));
         $ultMsg = $stMsg->fetchColumn(); $stMsg->closeCursor();
-        if (!$ultMsg) { $score += 10; $motivos[] = 'Sem conversa WhatsApp registrada'; }
-        else {
+        if ($ultMsg) {
             $diasMsg = (int)((time() - strtotime($ultMsg)) / 86400);
-            if     ($diasMsg > 14) { $score += 30; $motivos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
-            elseif ($diasMsg > 7)  { $score += 10; $motivos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
+            if     ($diasMsg >= 90) { $score += 60; $motivosPontos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
+            elseif ($diasMsg >= 45) { $score += 40; $motivosPontos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
         }
-        // 2) Andamento
+        // 2) Andamento no processo parado há 45+ dias
         $stAnd->execute(array((int)$c['id']));
         $ultAnd = $stAnd->fetchColumn(); $stAnd->closeCursor();
         if ($ultAnd) {
             $diasAnd = (int)((time() - strtotime($ultAnd)) / 86400);
-            if     ($diasAnd > 60) { $score += 30; $motivos[] = "Processo parado há {$diasAnd}d"; }
-            elseif ($diasAnd > 30) { $score += 20; $motivos[] = "Processo parado há {$diasAnd}d"; }
+            if     ($diasAnd >= 90) { $score += 60; $motivosPontos[] = "Processo parado há {$diasAnd}d"; }
+            elseif ($diasAnd >= 45) { $score += 40; $motivosPontos[] = "Processo parado há {$diasAnd}d"; }
         }
-        // 3) Cobrança
+
+        // ── Sinais de contexto (só info — NÃO somam pontos, mas aparecem no card) ──
+        // 3) Cobrança vencida
         $stCob->execute(array((int)$c['id']));
         $qtdCob = (int)$stCob->fetchColumn(); $stCob->closeCursor();
-        if ($qtdCob > 0) { $score += 20; $motivos[] = "{$qtdCob} cobrança(s) vencida(s)"; }
-        // 4) Tarefa
+        if ($qtdCob > 0) { $motivosInfo[] = "{$qtdCob} cobrança(s) vencida(s) (info)"; }
+        // 4) Tarefa atrasada
         $stTar->execute(array((int)$c['id']));
         $qtdTar = (int)$stTar->fetchColumn(); $stTar->closeCursor();
-        if ($qtdTar > 0) { $score += 15; $motivos[] = "{$qtdTar} tarefa(s) atrasada(s)"; }
+        if ($qtdTar > 0) { $motivosInfo[] = "{$qtdTar} tarefa(s) atrasada(s) (info)"; }
 
         if ($score > 100) $score = 100;
-        $motivoStr = $score > 0 ? implode(' · ', $motivos) : '';
+        // Junta motivos: pontos primeiro (relevantes), info depois (contexto)
+        $todos = array_merge($motivosPontos, $motivosInfo);
+        // Se score>0 (cliente vai aparecer), mostra TODOS os motivos. Senão limpa.
+        $motivoStr = $score > 0 ? implode(' · ', $todos) : '';
         $stUpd->execute(array($score, $motivoStr, (int)$c['id']));
 
-        if      ($score >= 60) { $contagem['esfriando']++; $top[] = array('id' => $c['id'], 'name' => $c['name'], 'score' => $score, 'motivos' => $motivoStr); }
-        elseif  ($score >= 30) { $contagem['atencao']++; }
+        // Novas faixas: ≥80 esfriando (2 sinais OU 1 sinal extremo), 40-79 atenção
+        if      ($score >= 80) { $contagem['esfriando']++; $top[] = array('id' => $c['id'], 'name' => $c['name'], 'score' => $score, 'motivos' => $motivoStr); }
+        elseif  ($score >= 40) { $contagem['atencao']++; }
         else                   { $contagem['ok']++; }
     }
 
     // Zera score de quem saiu do universo ativo (só no recalc global)
     if ($clientId <= 0) {
         $pdo->exec("UPDATE clients c
-                    LEFT JOIN cases cs ON cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado') AND cs.kanban_oculto = 0
+                    LEFT JOIN cases cs ON cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido') AND cs.kanban_oculto = 0
                     SET c.esfriando_score = 0, c.esfriando_motivos = NULL, c.esfriando_em = NOW()
                     WHERE c.esfriando_score > 0 AND cs.id IS NULL");
     }

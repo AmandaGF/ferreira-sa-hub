@@ -549,19 +549,31 @@ if ($_painelMostraEsfriando) {
         // Filtra clientes adiados (snooze ativo até CURDATE — só voltam após a data)
         $stmtPE = $pdo->query(
             "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.esfriando_em,
-                    (SELECT cs.id FROM cases cs WHERE cs.client_id = c.id AND cs.status NOT IN ('arquivado','renunciamos','finalizado') ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
+                    (SELECT cs.id FROM cases cs
+                       WHERE cs.client_id = c.id
+                         AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                         AND COALESCE(cs.kanban_oculto, 0) = 0
+                       ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
              FROM clients c
-             WHERE COALESCE(c.esfriando_score, 0) >= 30
+             WHERE COALESCE(c.esfriando_score, 0) >= 40
                AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
+               -- Defesa extra: só inclui cliente que tem pelo menos 1 case ATIVO
+               -- (segurança caso o cron não tenha rodado depois de arquivar todos)
+               AND EXISTS (
+                   SELECT 1 FROM cases cs2
+                    WHERE cs2.client_id = c.id
+                      AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                      AND COALESCE(cs2.kanban_oculto, 0) = 0
+               )
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
-             LIMIT 12"
+             LIMIT 20"
         );
         $_esfriClientes = $stmtPE->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
 }
 if ($_painelMostraEsfriando && !empty($_esfriClientes)):
-    $_esfriCritico  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 60; });
-    $_esfriAtencao  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 30 && (int)$x['esfriando_score'] < 60; });
+    $_esfriCritico  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 80; });
+    $_esfriAtencao  = array_filter($_esfriClientes, function($x){ return (int)$x['esfriando_score'] >= 40 && (int)$x['esfriando_score'] < 80; });
 ?>
 <div class="pd-card" style="margin-top:1rem;border-left:4px solid #f59e0b;">
     <h3 style="justify-content:space-between;">
@@ -575,11 +587,11 @@ if ($_painelMostraEsfriando && !empty($_esfriClientes)):
     </h3>
     <!-- Legenda compacta — explica as duas cores -->
     <div style="display:flex;gap:.6rem;flex-wrap:wrap;font-size:.7rem;color:#475569;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;padding:.4rem .7rem;margin-bottom:.7rem;line-height:1.45;">
-        <span><strong style="color:#b91c1c;">🔴 Esfriando (≥60)</strong> — risco real de perder o cliente. Aja logo: ligue ou mande mensagem hoje.</span>
+        <span><strong style="color:#b91c1c;">🔴 Esfriando (≥80)</strong> — risco real de perder o cliente. Aja logo: ligue ou mande mensagem hoje.</span>
         <span style="opacity:.6;">|</span>
-        <span><strong style="color:#92400e;">🟡 Atenção (30–59)</strong> — sinais iniciais de desengajamento. Vale um follow-up esta semana.</span>
+        <span><strong style="color:#92400e;">🟡 Atenção (40–79)</strong> — sinais iniciais de desengajamento. Vale um follow-up esta semana.</span>
         <span style="opacity:.6;">|</span>
-        <span style="color:#64748b;">Score soma: WhatsApp parado · processo parado · cobrança vencida · tarefa atrasada. Atualizado 1×/dia.</span>
+        <span style="color:#64748b;">Critérios: <strong>45+ dias sem msg WhatsApp do Hub</strong> ou <strong>45+ dias sem andamento</strong>. Cobrança vencida e tarefa atrasada aparecem como (info), não decidem se entra. Recalcula automaticamente a cada msg/andamento + 1×/dia o cron.</span>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
         <?php foreach ($_esfriClientes as $_eClient):

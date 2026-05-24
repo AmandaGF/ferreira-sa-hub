@@ -68,7 +68,7 @@ if ($filterMonth) {
 }
 if ($filterEsfriando) {
     // Respeita o snooze: clientes adiados não entram no filtro
-    $where[] = "COALESCE(c.esfriando_score, 0) >= 30 AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())";
+    $where[] = "COALESCE(c.esfriando_score, 0) >= 40 AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())";
 }
 
 $whereStr = implode(' AND ', $where);
