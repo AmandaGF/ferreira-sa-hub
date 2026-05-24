@@ -58,6 +58,7 @@ function _permission_defaults()
         'peticoes'            => $todos,
         'formularios'         => $todos,
         'relatorios'          => $todos,
+        'executivo'           => array('admin','gestao'),
         'usuarios'            => array('admin'), // manter só admin
         'financeiro'          => $todos,
         'faturamento'         => $todos,
@@ -280,6 +281,7 @@ function module_permission_labels()
         'peticoes' => 'Fábrica de Petições',
         'formularios' => 'Formulários',
         'relatorios' => 'Relatórios',
+        'executivo' => 'Painel Executivo',
         'financeiro' => 'Módulo Financeiro',
         'cobranca_honorarios' => 'Cobrança de Honorários',
         'usuarios' => 'Gestão de Usuários',

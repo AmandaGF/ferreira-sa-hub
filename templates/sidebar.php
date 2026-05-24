@@ -115,6 +115,7 @@ $menuItems = array(
 
     array('section' => 'Dados'),
     array('label' => 'Documentos',      'icon' => '📜', 'href' => url('modules/documentos/'),      'id' => 'documentos',      'roles' => $_rolesEquipe),
+    array('label' => 'Painel Executivo','icon' => '📈', 'href' => url('modules/executivo/'),        'id' => 'executivo',       'roles' => array('admin','gestao')),
     array('label' => 'Relatórios',      'icon' => '📉', 'href' => url('modules/relatorios/'),       'id' => 'relatorios',      'roles' => array('admin','gestao')),
     array('label' => 'Planilha',        'icon' => '📊', 'href' => url('modules/planilha/'),         'id' => 'planilha',        'roles' => $_rolesEquipe),
 
