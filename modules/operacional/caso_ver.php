@@ -2068,7 +2068,7 @@ function buscarParceiroSugest(q) {
             $tmp = json_decode($case['competencia'], true);
             if (is_array($tmp)) $competenciasArr = $tmp;
         }
-        $listaCompetencias = array('Cível','Família','Sucessões','Infância e Juventude','Criminal','Fazenda Pública','Trabalhista','Empresarial','Previdenciário','Tributário','Consumidor');
+        $listaCompetencias = array('Cível','Família','Sucessões','Infância e Juventude','Criminal','Fazenda Pública','Trabalhista','Empresarial','Previdenciário','Tributário','Consumidor','Imobiliário');
         ?>
         <div style="display:flex;align-items:flex-start;padding:.45rem .6rem;border-bottom:1px solid var(--border);" class="campo-proc-row" data-field-row="competencia">
             <label style="font-size:.75rem;font-weight:600;color:var(--text-muted);min-width:140px;flex-shrink:0;padding-top:4px;">⚖️ Competência</label>
