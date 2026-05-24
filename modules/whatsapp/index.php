@@ -745,6 +745,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
+        // Botão "Vincular cliente" — aparece quando conversa AINDA NÃO tem cliente vinculado
+        if (!c.client_id) actions += '<button onclick="waVincularCliente()" title="Vincular esta conversa do WhatsApp a um cliente já cadastrado (útil quando o cliente trocou de número ou a conversa começou antes do cadastro)" style="background:#059669;color:#fff;border-color:#059669;">🔗 Vincular cliente</button>';
         actions += '<button onclick="waExportarConversa()" title="Exportar a conversa em .txt e salvar no Drive do processo da cliente" style="background:#0f766e;color:#fff;border-color:#0f766e;">📄 Exportar</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         // ✏️ Nº disponível pra todo atendente — Naiara/CX/Operacional precisam
@@ -2433,6 +2435,64 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
     // Permite corrigir o numero da conversa quando ele veio malformado da Z-API
     // (ex: nº BR exibido como +60 ou +1 porque chegou sem o prefixo 55).
+    // ── VINCULAR CLIENTE À CONVERSA ───────────────────────────
+    // Aberto quando a conversa nao tem cliente vinculado (ex: cliente trocou
+    // de numero, ou comecou a falar antes do cadastro). Reusa o endpoint
+    // buscar_clients_nome do operacional pra autocomplete.
+    window.waVincularCliente = function() {
+        if (!convAtiva) return;
+        var q = prompt('Vincular esta conversa do WhatsApp a um cliente\n\nDigite parte do nome ou CPF:');
+        if (q === null) return;
+        q = q.trim();
+        if (q.length < 2) { alert('Digite ao menos 2 caracteres.'); return; }
+
+        var buscaUrl = '<?= module_url("operacional", "api.php") ?>?action=buscar_clients_nome&q=' + encodeURIComponent(q);
+        fetch(buscaUrl, {credentials:'same-origin'})
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (!j || !Array.isArray(j) || j.length === 0) {
+                    alert('Nenhum cliente encontrado com "' + q + '". Verifique a grafia ou cadastre primeiro em CRM.');
+                    return;
+                }
+                // Monta lista numerada e pede escolha
+                var msg = 'Encontrados ' + j.length + ' cliente(s). Digite o número:\n\n';
+                j.forEach(function(c, i) {
+                    var tel = c.phone ? ' · ' + c.phone : '';
+                    var cpf = c.cpf ? ' · CPF ' + c.cpf : '';
+                    msg += (i + 1) + '. ' + c.name + tel + cpf + '\n';
+                });
+                msg += '\n0. Cancelar';
+                var escolha = prompt(msg);
+                if (escolha === null) return;
+                var idx = parseInt(escolha, 10) - 1;
+                if (isNaN(idx) || idx < 0 || idx >= j.length) {
+                    if (escolha !== '0') alert('Escolha inválida.');
+                    return;
+                }
+                var cli = j[idx];
+                if (!confirm('Vincular esta conversa ao cliente:\n\n' + cli.name + (cli.phone ? ' (' + cli.phone + ')' : '') + '\n\nDepois disso a conversa aparecerá vinculada à pasta dele.')) return;
+
+                var fd = new FormData();
+                fd.append('action', 'vincular_cliente_conversa');
+                fd.append('conversa_id', convAtiva);
+                fd.append('client_id', cli.id);
+                fd.append('csrf_token', csrf);
+                fetch(apiUrl, { method:'POST', body:fd, credentials:'same-origin' })
+                    .then(function(r){ return r.json(); })
+                    .then(function(j2){
+                        if (j2 && j2.ok) {
+                            alert('✓ Conversa vinculada a ' + cli.name + '.\n\nA pasta do processo agora reconhece esse número.');
+                            window.waAbrir(convAtiva);
+                            carregarLista();
+                        } else {
+                            alert('❌ ' + ((j2 && j2.error) || 'Falha ao vincular.'));
+                        }
+                    })
+                    .catch(function(e){ alert('❌ Erro: ' + e.message); });
+            })
+            .catch(function(e){ alert('❌ Erro de busca: ' + e.message); });
+    };
+
     window.waEditarTelefone = function() {
         if (!convAtiva) return;
         var atual = prompt(

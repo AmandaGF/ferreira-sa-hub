@@ -1774,6 +1774,54 @@ if ($action === 'enviar_rapido') {
     exit;
 }
 
+// ── VINCULAR CLIENTE À CONVERSA ──────────────────────────────────
+// Permite que o atendente vincule manualmente um cliente cadastrado a uma
+// conversa WA (ex: cliente trocou de numero, ou comecou a falar antes do
+// cadastro). Resolve a categoria "conversa WA sem client_id".
+if ($action === 'vincular_cliente_conversa') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if (!$convId || !$clientId) { echo json_encode(array('error' => 'Dados incompletos')); exit; }
+
+    $conv = $pdo->prepare("SELECT id, canal, client_id, telefone, nome_contato FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch();
+    if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+    $cli = $pdo->prepare("SELECT id, name, phone FROM clients WHERE id = ?");
+    $cli->execute(array($clientId));
+    $cli = $cli->fetch();
+    if (!$cli) { echo json_encode(array('error' => 'Cliente não encontrado')); exit; }
+
+    // Vincula a conversa
+    $pdo->prepare("UPDATE zapi_conversas SET client_id = ? WHERE id = ?")
+        ->execute(array($clientId, $convId));
+
+    // Auto-merge: outras conversas do mesmo cliente no mesmo canal sao mescladas
+    try {
+        if (function_exists('zapi_auto_merge_por_client_id')) {
+            zapi_auto_merge_por_client_id($pdo, $convId, $clientId, $conv['canal']);
+        }
+    } catch (Exception $e) {}
+
+    // Atualiza @lid do cliente pro telefone desta conversa (futuras msgs ja batem)
+    try {
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        zapi_atualizar_lid_cliente($clientId, true);
+    } catch (Exception $e) {}
+
+    audit_log('wa_vincular_cliente_manual', 'zapi_conversas', $convId,
+        "conv tel={$conv['telefone']} -> client#{$clientId} ({$cli['name']})");
+
+    echo json_encode(array(
+        'ok' => true,
+        'client_id' => $clientId,
+        'client_name' => $cli['name'],
+        'conversa_id' => $convId,
+    ));
+    exit;
+}
+
 // ── GERAR/RENOVAR LINK DA CENTRAL VIP e retornar mensagem pronta pro WhatsApp ──
 if ($action === 'gerar_link_salavip') {
     $convId = (int)($_POST['conversa_id'] ?? 0);
