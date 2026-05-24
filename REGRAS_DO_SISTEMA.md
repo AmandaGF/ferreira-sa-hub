@@ -168,7 +168,7 @@ Quando um documento pendente e marcado como recebido:
 | Lead → suspenso | Caso → suspenso |
 | Lead → cancelado | Caso → cancelado |
 
-**Funcao auxiliar:** `buscarLeadVinculado($pdo, $caseId, $clientId)` — busca por `linked_case_id`, fallback por `client_id`
+**Funcao auxiliar:** `buscarLeadVinculado($pdo, $caseId, $clientId)` — busca por `linked_case_id`. Fallback por `client_id` SO retorna leads orfaos (`linked_case_id IS NULL`) ou ja vinculados a este mesmo caso. **NUNCA retorna lead vinculado a OUTRO caso do mesmo cliente** (regra de 24/05/2026 — evita "lead roubado" entre pastas duplicadas: ao mover a duplicata para `doc_faltante`, o sistema deve criar um NOVO lead em vez de sobrescrever o `linked_case_id` do lead existente).
 
 **Fonte da verdade para resolve_doc:** o documento (`documentos_pendentes.case_id`), nao o que o drawer envia
 

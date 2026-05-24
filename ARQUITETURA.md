@@ -525,7 +525,7 @@ ultimo_acesso, tentativas_login, bloqueado_ate, criado_em, criado_por, atualizad
 
 ### 7.1 Espelhamento bilateral Pipeline ↔ Operacional
 
-Fonte única de verdade: `buscarLeadVinculado($pdo, $caseId, $clientId)` — busca por `pipeline_leads.linked_case_id` → fallback `client_id`.
+Fonte única de verdade: `buscarLeadVinculado($pdo, $caseId, $clientId)` — busca por `pipeline_leads.linked_case_id`. **Fallback por `client_id` SÓ pega leads órfãos (`linked_case_id IS NULL`) ou já vinculados a este caso** — nunca rouba lead de outro caso do mesmo cliente (regra 24/05/2026, fix de "pasta duplicada"). Mesma lógica aplicada em `buscarLeadVinculadoPrev` (modules/prev/api.php).
 
 | Gatilho no Pipeline | Reflexo no Operacional |
 |---|---|

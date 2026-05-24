@@ -521,16 +521,29 @@ if ($action === 'sugerir_acao_ia') {
 }
 
 // Helper: buscar lead vinculado ao caso (por case_id ou client_id)
+//
+// REGRA (24/05/2026): o fallback por client_id SO retorna leads orfaos
+// (linked_case_id IS NULL) ou ja vinculados a ESTE mesmo case. Se um lead
+// ja esta vinculado a OUTRO caso do mesmo cliente, ele pertence a esse
+// outro caso e NAO pode ser "roubado". Bug anterior: ao duplicar pasta e
+// mover a duplicata para doc_faltante, o fallback achava o lead da pasta
+// original e sobrescrevia o linked_case_id, deixando apenas 1 card no
+// Comercial em vez de 2.
 function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
-    // Primeiro por linked_case_id
+    // 1. Vinculo exato por linked_case_id (caminho feliz)
     $stmt = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao, stage_antes_doc_faltante FROM pipeline_leads WHERE linked_case_id = ? LIMIT 1");
     $stmt->execute(array($caseId));
     $row = $stmt->fetch();
     if ($row) return $row;
-    // Fallback por client_id
+    // 2. Fallback por client_id, mas SO leads orfaos (NULL) ou ja deste caso
     if ($clientId > 0) {
-        $stmt2 = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao, stage_antes_doc_faltante FROM pipeline_leads WHERE client_id = ? AND stage NOT IN ('finalizado','perdido') ORDER BY id DESC LIMIT 1");
-        $stmt2->execute(array($clientId));
+        $stmt2 = $pdo->prepare("SELECT id, stage, coluna_antes_suspensao, stage_antes_doc_faltante
+                                FROM pipeline_leads
+                                WHERE client_id = ?
+                                  AND (linked_case_id IS NULL OR linked_case_id = ?)
+                                  AND stage NOT IN ('finalizado','perdido')
+                                ORDER BY id DESC LIMIT 1");
+        $stmt2->execute(array($clientId, $caseId));
         return $stmt2->fetch();
     }
     return null;
