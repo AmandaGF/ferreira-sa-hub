@@ -247,7 +247,22 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
 
     $stUpd = $pdo->prepare("UPDATE clients SET esfriando_score = ?, esfriando_motivos = ?, esfriando_em = NOW() WHERE id = ?");
     $stMsg = $pdo->prepare("SELECT MAX(m.created_at) FROM zapi_mensagens m INNER JOIN zapi_conversas co ON co.id = m.conversa_id WHERE co.client_id = ?");
-    $stAnd = $pdo->prepare("SELECT MAX(ca.created_at) FROM case_andamentos ca INNER JOIN cases cs ON cs.id = ca.case_id WHERE cs.client_id = ? AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')");
+    // Andamento — pega data do andamento mais recente; se não houver, cai pra data de
+    // distribuição/criação do case ativo (cliente cujo processo está parado desde sempre).
+    // Sem esse fallback, processo sem andamento NUNCA pontuava (bug reportado pela Amanda).
+    $stAnd = $pdo->prepare(
+        "SELECT COALESCE(
+             (SELECT MAX(ca.created_at) FROM case_andamentos ca
+                INNER JOIN cases cs ON cs.id = ca.case_id
+                WHERE cs.client_id = ?
+                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                  AND COALESCE(cs.kanban_oculto,0) = 0),
+             (SELECT MAX(COALESCE(cs2.distribution_date, cs2.created_at)) FROM cases cs2
+                WHERE cs2.client_id = ?
+                  AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                  AND COALESCE(cs2.kanban_oculto,0) = 0)
+         ) AS ult_movimento"
+    );
     $stCob = $pdo->prepare("SELECT COUNT(*) FROM honorarios_cobranca h WHERE h.client_id = ? AND h.status NOT IN ('pago','cancelado') AND h.vencimento < DATE_SUB(CURDATE(), INTERVAL 5 DAY)");
     $stTar = $pdo->prepare("SELECT COUNT(*) FROM case_tasks t INNER JOIN cases cs ON cs.id = t.case_id WHERE cs.client_id = ? AND t.tipo IS NOT NULL AND t.status != 'concluido' AND t.due_date IS NOT NULL AND t.due_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
 
@@ -272,8 +287,9 @@ function ia_recalcular_esfriando_clientes(PDO $pdo, $clientId = 0) {
             if     ($diasMsg >= 90) { $score += 60; $motivosPontos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
             elseif ($diasMsg >= 45) { $score += 40; $motivosPontos[] = "Sem msg WhatsApp há {$diasMsg}d"; }
         }
-        // 2) Andamento no processo parado há 45+ dias
-        $stAnd->execute(array((int)$c['id']));
+        // 2) Andamento no processo parado há 45+ dias (com fallback pra distribution_date
+        //    quando não há andamento nenhum — captura processo parado desde sempre)
+        $stAnd->execute(array((int)$c['id'], (int)$c['id']));
         $ultAnd = $stAnd->fetchColumn(); $stAnd->closeCursor();
         if ($ultAnd) {
             $diasAnd = (int)((time() - strtotime($ultAnd)) / 86400);
