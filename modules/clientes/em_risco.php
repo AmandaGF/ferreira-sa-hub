@@ -55,7 +55,7 @@ $params = array();
 
 // Filtra clientes que têm pelo menos 1 case ativo (universo do detector)
 $where[] = "EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
-                    AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                    AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                     AND COALESCE(cs.kanban_oculto,0) = 0)";
 
 if ($filtro === 'em_risco') {
@@ -85,11 +85,11 @@ $sql = "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.
                c.esfriando_snooze_ate, c.esfriando_snooze_por,
                u.name AS snooze_por_name,
                (SELECT cs.id FROM cases cs WHERE cs.client_id = c.id
-                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                   AND COALESCE(cs.kanban_oculto,0)=0
                 ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id,
                (SELECT COUNT(*) FROM cases cs WHERE cs.client_id = c.id
-                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                  AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                   AND COALESCE(cs.kanban_oculto,0)=0) AS qtd_cases_ativos
         FROM clients c
         LEFT JOIN users u ON u.id = c.esfriando_snooze_por
@@ -104,7 +104,7 @@ $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 // Contagens pros chips
 $cnt = array();
 $baseCnt = "FROM clients c WHERE EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
-            AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+            AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
             AND COALESCE(cs.kanban_oculto,0)=0)";
 try {
     $cnt['em_risco']     = (int)$pdo->query("SELECT COUNT(*) $baseCnt AND COALESCE(c.esfriando_score,0) >= 40 AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())")->fetchColumn();

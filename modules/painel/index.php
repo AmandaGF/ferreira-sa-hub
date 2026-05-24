@@ -556,7 +556,7 @@ if ($_painelMostraEsfriando) {
             "SELECT c.id, c.name, c.phone, c.esfriando_score, c.esfriando_motivos, c.esfriando_em,
                     (SELECT cs.id FROM cases cs
                        WHERE cs.client_id = c.id
-                         AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                         AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                          AND COALESCE(cs.kanban_oculto, 0) = 0
                        ORDER BY cs.updated_at DESC LIMIT 1) AS principal_case_id
              FROM clients c
@@ -565,7 +565,7 @@ if ($_painelMostraEsfriando) {
                AND EXISTS (
                    SELECT 1 FROM cases cs2
                     WHERE cs2.client_id = c.id
-                      AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                      AND cs2.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                       AND COALESCE(cs2.kanban_oculto, 0) = 0
                )
              ORDER BY c.esfriando_score DESC, c.esfriando_em DESC
@@ -583,7 +583,7 @@ if ($_painelMostraEsfriando) {
         $baseW = "FROM clients c WHERE c.esfriando_score IS NOT NULL
                   AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
                   AND EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
-                      AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido')
+                      AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
                       AND COALESCE(cs.kanban_oculto,0)=0)";
         $_esfriTotCrit  = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score >= 80")->fetchColumn();
         $_esfriTotAtenc = (int)$pdo->query("SELECT COUNT(*) $baseW AND c.esfriando_score BETWEEN 40 AND 79")->fetchColumn();
@@ -598,7 +598,7 @@ if ($_painelMostraEsfriando) {
             "SELECT COUNT(*) FROM clients c
               WHERE c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE()
                 AND EXISTS (SELECT 1 FROM cases cs WHERE cs.client_id = c.id
-                    AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido') AND COALESCE(cs.kanban_oculto,0)=0)"
+                    AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado') AND COALESCE(cs.kanban_oculto,0)=0)"
         )->fetchColumn();
     } catch (Exception $e) {}
 }
