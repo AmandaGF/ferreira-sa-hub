@@ -1260,8 +1260,24 @@ if ($action === 'salvar_drive') {
         exit;
     }
 
-    // Nome do arquivo: nome original ou deriva da extensão + timestamp
-    $nomeFinal = $msg['arquivo_nome'] ?: ('whatsapp_' . date('Ymd_His') . '_' . $msgId);
+    // Nome do arquivo:
+    // 1. Se Amanda renomeou no prompt (nome_personalizado), usa esse (sanitizado)
+    // 2. Senao, nome original do anexo do WhatsApp (arquivo_nome)
+    // 3. Senao, deriva de "whatsapp_<data>_<msgId>"
+    // Em qualquer caso, garante extensao baseada no MIME.
+    $nomePersonalizado = trim((string)($_POST['nome_personalizado'] ?? ''));
+    if ($nomePersonalizado !== '') {
+        // Sanitiza: remove caracteres perigosos pra Drive/filesystem
+        $nomePersonalizado = preg_replace('/[\/\\\\\\x00-\\x1F<>:"|?*]/', '', $nomePersonalizado);
+        // Bloqueia path traversal
+        $nomePersonalizado = str_replace(array('..', '~'), '', $nomePersonalizado);
+        // Limita tamanho
+        $nomePersonalizado = mb_substr($nomePersonalizado, 0, 200);
+        $nomeFinal = $nomePersonalizado;
+    } else {
+        $nomeFinal = $msg['arquivo_nome'] ?: ('whatsapp_' . date('Ymd_His') . '_' . $msgId);
+    }
+
     if (!pathinfo($nomeFinal, PATHINFO_EXTENSION)) {
         $ext = 'bin';
         if ($msg['arquivo_mime']) {
@@ -1281,8 +1297,12 @@ if ($action === 'salvar_drive') {
 
     $pdo->prepare("UPDATE zapi_mensagens SET arquivo_salvo_drive = 1, drive_file_id = ? WHERE id = ?")
         ->execute(array($r['fileId'] ?? '', $msgId));
-    audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']}");
-    echo json_encode(array('ok' => true, 'fileUrl' => $r['fileUrl'] ?? null));
+    audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']} nome={$nomeFinal}");
+    echo json_encode(array(
+        'ok' => true,
+        'fileUrl' => $r['fileUrl'] ?? null,
+        'nome_final' => $nomeFinal,
+    ));
     exit;
 }
 

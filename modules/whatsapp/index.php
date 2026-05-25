@@ -916,7 +916,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     if (+m.arquivo_salvo_drive) {
                         html += '<div style="font-size:.68rem;color:#22c55e;font-weight:700;margin-bottom:3px;">✅ Salvo no Drive</div>';
                     } else {
-                        html += '<button onclick="waSalvarDrive('+m.id+')" style="background:#4285f4;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;margin-bottom:5px;display:block;">📁 Salvar no Drive</button>';
+                        // data-nome serve de sugestão no prompt de renomeação (waConfirmarDrive)
+                        var _nomeArq = m.arquivo_nome || '';
+                        html += '<button onclick="waSalvarDrive('+m.id+')" data-nome="'+escapeHtml(_nomeArq)+'" style="background:#4285f4;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;margin-bottom:5px;display:block;">📁 Salvar no Drive</button>';
                     }
                 }
                 // Mídia (imagem/vídeo/áudio/documento)
@@ -2147,17 +2149,39 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
     window.waConfirmarDrive = function(msgId, caseId) {
+        // Antes de subir, pedir confirmação/edição do nome do arquivo. Backend
+        // usa o que vier (sanitizado) ou cai no original se vazio.
         var modal = document.getElementById('waDriveModal');
+        // Tenta achar o nome original do anexo na bolha (data-nome no botão).
+        // Se não achou, deixa em branco — backend usa o original do banco.
+        var sugestao = '';
+        try {
+            var btn = document.querySelector('button[onclick*="waSalvarDrive(' + msgId + ')"]');
+            if (btn && btn.dataset && btn.dataset.nome) sugestao = btn.dataset.nome;
+        } catch(e){}
+        var nome = prompt(
+            'Renomear antes de salvar no Drive?\n\n' +
+            'Use só letras, números, espaços e _ - . ( )\n' +
+            '(A extensão é preservada automaticamente se você não digitar uma)\n\n' +
+            'Deixe em branco pra manter o nome original do arquivo.',
+            sugestao
+        );
+        if (nome === null) { // cancelou
+            if (modal) modal.remove();
+            return;
+        }
+
         if (modal) modal.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;"><strong>Salvando no Drive...</strong></div>';
         var fd = new FormData();
         fd.append('action', 'salvar_drive');
         fd.append('mensagem_id', msgId);
         fd.append('case_id', caseId);
+        fd.append('nome_personalizado', nome.trim());
         fd.append('csrf_token', csrf);
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             if (modal) modal.remove();
             if (d.error) { alert('⚠️ Falha: ' + d.error); return; }
-            alert('✅ Arquivo salvo no Drive!' + (d.fileUrl ? '\n\nURL: ' + d.fileUrl : ''));
+            alert('✅ Arquivo salvo no Drive como: ' + (d.nome_final || '(nome original)') + (d.fileUrl ? '\n\nURL: ' + d.fileUrl : ''));
             window.waAbrir(convAtiva);
         });
     };
