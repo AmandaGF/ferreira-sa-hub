@@ -537,12 +537,19 @@ if ($action === 'salvar_display_name') {
 // ── ABRIR CONVERSA (zera não lidas + retorna mensagens) ──
 if ($action === 'abrir_conversa') {
     $id = (int)($_GET['id'] ?? 0);
+    // Self-heal das colunas de nota fixa (idempotente) — primeira chamada cria.
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa TEXT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_em DATETIME NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_por INT NULL"); } catch (Exception $e) {}
+
     $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, pl.name AS lead_name,
-                                  u.name AS atendente_name, u.wa_display_name AS atendente_display_name
+                                  u.name AS atendente_name, u.wa_display_name AS atendente_display_name,
+                                  un.name AS nota_fixa_por_name
                            FROM zapi_conversas co
                            LEFT JOIN clients cl ON cl.id = co.client_id
                            LEFT JOIN pipeline_leads pl ON pl.id = co.lead_id
                            LEFT JOIN users u ON u.id = co.atendente_id
+                           LEFT JOIN users un ON un.id = co.nota_fixa_por
                            WHERE co.id = ?");
     $stmt->execute(array($id));
     $conv = $stmt->fetch();
@@ -1791,6 +1798,54 @@ if ($action === 'enviar_rapido') {
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'conversa_id' => $conv['id'] ?? null));
+    exit;
+}
+
+// ── NOTA FIXA NA CONVERSA ─────────────────────────────────────────
+// Banner amarelo permanente no topo do chat com observacao da equipe sobre
+// o cliente/conversa (ex: "estamos tentando acordo, nao mover pro contencioso").
+// Visivel pra TODOS os atendentes que abrem essa conversa. Nao vai pro cliente.
+if ($action === 'set_nota_fixa') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $nota = trim((string)($_POST['nota'] ?? ''));
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatorio')); exit; }
+
+    // Self-heal (caso ainda nao tenha rodado pelo abrir_conversa)
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa TEXT NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_em DATETIME NULL"); } catch (Exception $e) {}
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_por INT NULL"); } catch (Exception $e) {}
+
+    $check = $pdo->prepare("SELECT id FROM zapi_conversas WHERE id = ?");
+    $check->execute(array($convId));
+    if (!$check->fetchColumn()) { echo json_encode(array('error' => 'Conversa nao encontrada')); exit; }
+
+    // Limite generoso pra observacao (textarea pode crescer). 4000 chars deve sobrar.
+    if (mb_strlen($nota) > 4000) $nota = mb_substr($nota, 0, 4000);
+
+    if ($nota === '') {
+        // Apagar nota
+        $pdo->prepare("UPDATE zapi_conversas SET nota_fixa = NULL, nota_fixa_em = NULL, nota_fixa_por = NULL WHERE id = ?")
+            ->execute(array($convId));
+        audit_log('wa_nota_fixa_remover', 'zapi_conversas', $convId, '');
+        echo json_encode(array('ok' => true, 'removida' => true));
+        exit;
+    }
+
+    $pdo->prepare("UPDATE zapi_conversas SET nota_fixa = ?, nota_fixa_em = NOW(), nota_fixa_por = ? WHERE id = ?")
+        ->execute(array($nota, current_user_id(), $convId));
+    audit_log('wa_nota_fixa_set', 'zapi_conversas', $convId, mb_substr($nota, 0, 200));
+
+    // Devolve quem editou pra UI atualizar
+    $stU = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+    $stU->execute(array(current_user_id()));
+    $nomeAutor = (string)$stU->fetchColumn();
+
+    echo json_encode(array(
+        'ok' => true,
+        'nota' => $nota,
+        'nota_fixa_em' => date('d/m/Y H:i'),
+        'nota_fixa_por_name' => $nomeAutor,
+    ));
     exit;
 }
 

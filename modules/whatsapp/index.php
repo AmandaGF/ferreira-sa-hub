@@ -747,6 +747,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         // Botão "Vincular cliente" — aparece quando conversa AINDA NÃO tem cliente vinculado
         if (!c.client_id) actions += '<button onclick="waVincularCliente()" title="Vincular esta conversa do WhatsApp a um cliente já cadastrado (útil quando o cliente trocou de número ou a conversa começou antes do cadastro)" style="background:#059669;color:#fff;border-color:#059669;">🔗 Vincular cliente</button>';
+        // Nota fixa: amarelo quando ja tem nota (chama atencao), cinza quando vazio (so adicionar)
+        var temNota = !!(d.conversa && d.conversa.nota_fixa);
+        actions += '<button onclick="waNotaFixa()" title="Observação interna fixa no topo do chat (visível pra toda equipe)" style="background:' + (temNota ? '#f59e0b' : '#fef3c7') + ';color:' + (temNota ? '#fff' : '#92400e') + ';border-color:' + (temNota ? '#d97706' : '#fcd34d') + ';">📌 ' + (temNota ? 'Editar nota' : 'Nota fixa') + '</button>';
         actions += '<button onclick="waExportarConversa()" title="Exportar a conversa em .txt e salvar no Drive do processo da cliente" style="background:#0f766e;color:#fff;border-color:#0f766e;">📄 Exportar</button>';
         actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
         // ✏️ Nº disponível pra todo atendente — Naiara/CX/Operacional precisam
@@ -852,6 +855,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Body com mensagens
         var body = document.getElementById('waChatBody');
 
+        // ── BANNER NOTA FIXA ──────────────────────────────────────
+        // Observacao interna persistente — visivel pra TODA equipe que abrir
+        // a conversa. Nao vai pro cliente. Ex: "estamos tentando acordo, nao
+        // mover pro contencioso ainda". Click no lapis pra editar/limpar.
+        var notaFixaHtml = '';
+        var nfTxt = (d.conversa && d.conversa.nota_fixa) ? String(d.conversa.nota_fixa) : '';
+        var nfPor = (d.conversa && d.conversa.nota_fixa_por_name) ? d.conversa.nota_fixa_por_name : '';
+        var nfEm = (d.conversa && d.conversa.nota_fixa_em) ? d.conversa.nota_fixa_em : '';
+        var nfEmFmt = '';
+        if (nfEm) {
+            try {
+                var nfDt = new Date(nfEm.replace(' ', 'T'));
+                nfEmFmt = ('0'+nfDt.getDate()).slice(-2) + '/' + ('0'+(nfDt.getMonth()+1)).slice(-2) + '/' + nfDt.getFullYear()
+                       + ' ' + ('0'+nfDt.getHours()).slice(-2) + ':' + ('0'+nfDt.getMinutes()).slice(-2);
+            } catch(e) { nfEmFmt = nfEm; }
+        }
+        if (nfTxt) {
+            var assinatura = '';
+            if (nfPor || nfEmFmt) {
+                assinatura = '<div style="font-size:.65rem;color:#78350f;margin-top:6px;opacity:.8;">'
+                           + (nfPor ? 'por ' + escapeHtml(nfPor.split(' ')[0]) : '')
+                           + (nfPor && nfEmFmt ? ' · ' : '')
+                           + (nfEmFmt ? nfEmFmt : '')
+                           + '</div>';
+            }
+            notaFixaHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-left:4px solid #d97706;border-radius:8px;padding:10px 14px;margin-bottom:12px;position:relative;">'
+                         + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
+                         + '<div style="flex:1;min-width:0;">'
+                         + '<div style="font-size:.7rem;font-weight:700;color:#92400e;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;">📌 Observação interna</div>'
+                         + '<div style="font-size:.88rem;color:#451a03;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;">' + escapeHtml(nfTxt) + '</div>'
+                         + assinatura
+                         + '</div>'
+                         + '<button onclick="waNotaFixa()" title="Editar observação" style="background:#fbbf24;border:none;color:#fff;border-radius:6px;font-size:.72rem;padding:4px 10px;cursor:pointer;font-weight:700;flex-shrink:0;">✏️ Editar</button>'
+                         + '</div>'
+                         + '</div>';
+        }
+
         // Card de mensagens fixadas (no topo do chat, antes das mensagens normais)
         var pinnedHtml = '';
         if (d.fixadas && d.fixadas.length) {
@@ -869,9 +909,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
 
         if (!d.mensagens.length) {
-            body.innerHTML = pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
+            body.innerHTML = notaFixaHtml + pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
         } else {
-            var html = pinnedHtml;
+            var html = notaFixaHtml + pinnedHtml;
             d.mensagens.forEach(function(m){
                 var dir = m.direcao === 'recebida' ? 'left' : 'right';
                 var cls = 'wa-msg';
@@ -2459,6 +2499,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
     // Permite corrigir o numero da conversa quando ele veio malformado da Z-API
     // (ex: nº BR exibido como +60 ou +1 porque chegou sem o prefixo 55).
+    // ── NOTA FIXA NA CONVERSA ─────────────────────────────────
+    // Observacao interna persistente, fica de banner amarelo no topo do chat
+    // pra TODOS os atendentes verem. Ex: 'estamos tentando acordo, nao mover
+    // pro contencioso ainda', 'cliente sensivel, tratar com cuidado'.
+    window.waNotaFixa = function() {
+        if (!convAtiva) return;
+        // Buscar nota atual da conversa em memoria (objeto d que tava no abrir)
+        var atual = '';
+        try {
+            var banner = document.querySelector('#waChatBody [style*="📌 Observação interna"]');
+            if (banner) {
+                var div = banner.parentNode.querySelector('div[style*="white-space:pre-wrap"]');
+                if (div) atual = div.textContent || '';
+            }
+        } catch(e){}
+
+        var nova = prompt(
+            'Observação interna sobre esta conversa\n\n' +
+            'Fica como banner amarelo no topo do chat. Toda a equipe vê quando entra.\n' +
+            'Cliente NÃO vê (é só interno).\n\n' +
+            'Exemplos:\n' +
+            '• Estamos tentando acordo, não mover pro contencioso\n' +
+            '• Cliente sensível, tratar com cuidado\n' +
+            '• Aguardando documentação até dia 30\n\n' +
+            'Deixe em branco pra REMOVER a nota.',
+            atual
+        );
+        if (nova === null) return; // cancelou
+
+        var fd = new FormData();
+        fd.append('action', 'set_nota_fixa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('nota', nova.trim());
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (j && j.error) { alert('❌ ' + j.error); return; }
+                // Recarrega a conversa pra mostrar o banner atualizado
+                window.waAbrir(convAtiva);
+            })
+            .catch(function(e){ alert('❌ Erro: ' + e.message); });
+    };
+
     // ── VINCULAR CLIENTE À CONVERSA ───────────────────────────
     // Aberto quando a conversa nao tem cliente vinculado (ex: cliente trocou
     // de numero, ou comecou a falar antes do cadastro). Reusa o endpoint
