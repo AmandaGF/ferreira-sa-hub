@@ -978,7 +978,11 @@ if ($action === 'remarcar') {
         list($ok, $msg) = _balcao_valida_horario($novaData . ' ' . $novaHora . ':00');
         if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
     }
-    $pdo->prepare("UPDATE agenda_eventos SET data_inicio=?, hora_inicio=?, status='agendado', updated_at=NOW() WHERE id=?")
+    // BUG fix 24/05/2026 (Amanda): UPDATE precisa zerar dia_todo. Se o evento
+    // estava como "dia todo" e a usuaria informa hora especifica no remarcar,
+    // tem que sair desse estado — caso contrario o frontend mostra 'Dia todo'
+    // mesmo com hora_inicio preenchida (var hr = ev.dia_todo==1 ? 'Dia todo' : hora).
+    $pdo->prepare("UPDATE agenda_eventos SET data_inicio=?, hora_inicio=?, dia_todo=0, status='agendado', updated_at=NOW() WHERE id=?")
         ->execute(array($novaData, $novaHora . ':00', $id));
     audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaData . ' ' . $novaHora);
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
@@ -1034,6 +1038,9 @@ if ($action === 'remarcar_novo') {
         $novaFim = $novaFimDt->format('Y-m-d H:i:s');
     }
 
+    // Como o remarcar_novo SEMPRE recebe hora especifica (nova_hora obrigatoria),
+    // o novo evento nao deve herdar dia_todo=1 do original — caso contrario o
+    // frontend mostra 'Dia todo' ignorando o horario que a Amanda informou.
     $pdo->prepare(
         "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
          local, meet_link, descricao, client_id, case_id, responsavel_id,
@@ -1042,7 +1049,7 @@ if ($action === 'remarcar_novo') {
          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'agendado',?)"
     )->execute(array(
         $tituloNovo, $original['tipo'], $original['modalidade'],
-        $novaInicio, $novaFim, $original['dia_todo'],
+        $novaInicio, $novaFim, 0,
         $original['local'], $original['meet_link'],
         'Remarcação do evento #' . $id . '. ' . ($original['descricao'] ?: ''),
         $original['client_id'], $original['case_id'], $original['responsavel_id'],
