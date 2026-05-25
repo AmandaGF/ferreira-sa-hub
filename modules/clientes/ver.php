@@ -502,8 +502,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </tr></thead>
         <tbody>
         <?php
-        $tipoAgLabels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. Interna','mediacao_cejusc'=>'Mediação','ligacao'=>'Ligação');
-        $tipoAgCores = array('audiencia'=>'#052228','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000','onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A','ligacao'=>'#888880');
+        $tipoAgLabels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. Interna','mediacao_cejusc'=>'Mediação','ligacao'=>'Ligação','pessoal'=>'Pessoal');
+        $tipoAgCores = array('audiencia'=>'#052228','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000','onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A','ligacao'=>'#888880','pessoal'=>'#a855f7');
         foreach ($compromissos as $ev):
             $cor = isset($tipoAgCores[$ev['tipo']]) ? $tipoAgCores[$ev['tipo']] : '#888';
             $lbl = isset($tipoAgLabels[$ev['tipo']]) ? $tipoAgLabels[$ev['tipo']] : $ev['tipo'];

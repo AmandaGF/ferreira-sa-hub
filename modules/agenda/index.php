@@ -29,7 +29,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <style>
 /* ── VARIÁVEIS ── */
-.ag { --audiencia:#e67e22;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--tarefa:#6366f1;--cobre-suave:#F5EDE3; }
+.ag { --audiencia:#e67e22;--reuniao:#B87333;--prazo:#CC0000;--onboarding:#2D7A4F;--interna:#1a3a7a;--mediacao:#6B4C9A;--balcao:#0d9488;--ligacao:#888880;--tarefa:#6366f1;--pessoal:#a855f7;--cobre-suave:#F5EDE3; }
 
 /* ── TOPO ── */
 .ag-topo { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px; }
@@ -282,8 +282,8 @@ if ($voltarCaso > 0): ?>
             <label class="ag-fl">Tipo de compromisso</label>
             <div class="ag-tipo-grid">
                 <?php
-                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}");
-                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação');
+                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}",'pessoal'=>"\u{1F4CC}");
+                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','pessoal'=>'Pessoal');
                 foreach ($labels as $k => $lb): ?>
                 <button type="button" class="ag-tipo-btn" data-t="<?= $k ?>" onclick="selTipo('<?= $k ?>',this)">
                     <span class="te"><?= $emojis[$k] ?></span><?= $lb ?>
@@ -489,9 +489,9 @@ var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 var CX_USER_IDS = <?= json_encode($cxUserIds) ?>;
-var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1'};
-var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa'};
-var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705"};
+var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1',pessoal:'#a855f7'};
+var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa',pessoal:'Pessoal'};
+var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705",pessoal:"\u{1F4CC}"};
 
 // ── INIT ────────────────────────────────────────────────────
 mesAtual = hoje.getMonth();
