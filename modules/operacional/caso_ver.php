@@ -1367,11 +1367,14 @@ function confirmarMarcarIncidental() {
             var r = JSON.parse(xhr.responseText);
             if (r.error) { alert('Erro: ' + r.error); btn.disabled = false; btn.textContent = 'Vincular →'; return; }
             if (r.ok) {
-                alert('✓ Processo vinculado como incidental.');
+                alert(tipoVinc === 'recurso' ? '✓ Recurso vinculado.' : '✓ Processo vinculado como incidental.');
                 window.location.reload();
             }
         } catch (e) {
-            alert('Resposta inválida do servidor.');
+            // Mostra um trecho da resposta crua pra diagnostico (Amanda manda print pra mim
+            // identificar a causa em vez de adivinhar).
+            var trecho = (xhr.responseText || '').substring(0, 400);
+            alert('Resposta inválida do servidor (HTTP ' + xhr.status + ').\n\nTrecho da resposta:\n' + trecho);
             btn.disabled = false;
             btn.textContent = 'Vincular →';
         }

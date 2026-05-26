@@ -2598,13 +2598,19 @@ switch ($action) {
         $tipoRelacao = clean_str($_POST['tipo_relacao'] ?? '', 50);
 
         if ($principalId && $incidentalId && $principalId !== $incidentalId) {
-            $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, is_incidental = 1, updated_at = NOW() WHERE id = ?")
-                ->execute(array($principalId, $tipoRelacao ?: null, $incidentalId));
-            audit_log('incidental_vinculado', 'case', $incidentalId, "Principal: #$principalId, Tipo: $tipoRelacao");
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-            flash_set('success', 'Processo incidental vinculado.');
+            try {
+                $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, is_incidental = 1, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($principalId, $tipoRelacao ?: null, $incidentalId));
+                audit_log('incidental_vinculado', 'case', $incidentalId, "Principal: #$principalId, Tipo: $tipoRelacao");
+                if ($isAjax) { _json_clean_echo(array('ok' => true)); exit; }
+                flash_set('success', 'Processo incidental vinculado.');
+            } catch (Exception $e) {
+                @error_log('[vincular_incidental] ' . $e->getMessage() . ' p=' . $principalId . ' i=' . $incidentalId);
+                if ($isAjax) { _json_clean_echo(array('error' => 'Falha ao vincular: ' . $e->getMessage())); exit; }
+                flash_set('error', 'Falha ao vincular: ' . $e->getMessage());
+            }
         } else {
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados inválidos')); exit; }
+            if ($isAjax) { _json_clean_echo(array('error' => 'Dados inválidos (principal_id=' . $principalId . ' incidental_id=' . $incidentalId . ')')); exit; }
             flash_set('error', 'Dados inválidos.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
@@ -2616,13 +2622,19 @@ switch ($action) {
         $tipoRelacao = clean_str($_POST['tipo_relacao'] ?? '', 50);
 
         if ($principalId && $recursoId && $principalId !== $recursoId) {
-            $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, tipo_vinculo = 'recurso', is_incidental = 1, updated_at = NOW() WHERE id = ?")
-                ->execute(array($principalId, $tipoRelacao ?: null, $recursoId));
-            audit_log('recurso_vinculado', 'case', $recursoId, "Principal: #$principalId, Tipo: $tipoRelacao");
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-            flash_set('success', 'Recurso vinculado.');
+            try {
+                $pdo->prepare("UPDATE cases SET processo_principal_id = ?, tipo_relacao = ?, tipo_vinculo = 'recurso', is_incidental = 1, updated_at = NOW() WHERE id = ?")
+                    ->execute(array($principalId, $tipoRelacao ?: null, $recursoId));
+                audit_log('recurso_vinculado', 'case', $recursoId, "Principal: #$principalId, Tipo: $tipoRelacao");
+                if ($isAjax) { _json_clean_echo(array('ok' => true)); exit; }
+                flash_set('success', 'Recurso vinculado.');
+            } catch (Exception $e) {
+                @error_log('[vincular_recurso] ' . $e->getMessage() . ' p=' . $principalId . ' r=' . $recursoId);
+                if ($isAjax) { _json_clean_echo(array('error' => 'Falha ao vincular: ' . $e->getMessage())); exit; }
+                flash_set('error', 'Falha ao vincular: ' . $e->getMessage());
+            }
         } else {
-            if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Dados inválidos')); exit; }
+            if ($isAjax) { _json_clean_echo(array('error' => 'Dados inválidos (principal_id=' . $principalId . ' recurso_id=' . $recursoId . ')')); exit; }
             flash_set('error', 'Dados inválidos.');
         }
         redirect(module_url('operacional', 'caso_ver.php?id=' . $principalId));
