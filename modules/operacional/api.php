@@ -2630,14 +2630,21 @@ switch ($action) {
 
     case 'desvincular_incidental':
         $caseId = (int)($_POST['case_id'] ?? 0);
+        // 'voltar_para' opcional: usado quando o botao eh acionado a partir
+        // do card de "Recursos/Incidentais" do processo PRINCIPAL — assim a
+        // Amanda volta pro principal e ve o card atualizado, em vez de cair
+        // na pasta do recurso recem-desvinculado.
+        $voltarPara = (int)($_POST['voltar_para'] ?? 0);
         if ($caseId) {
-            $pdo->prepare("UPDATE cases SET processo_principal_id = NULL, tipo_relacao = NULL, is_incidental = 0, updated_at = NOW() WHERE id = ?")
+            // Tambem zera tipo_vinculo pra desvincular tambem recursos (que tinham tipo_vinculo='recurso')
+            $pdo->prepare("UPDATE cases SET processo_principal_id = NULL, tipo_relacao = NULL, tipo_vinculo = NULL, is_incidental = 0, updated_at = NOW() WHERE id = ?")
                 ->execute(array($caseId));
             audit_log('incidental_desvinculado', 'case', $caseId);
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-            flash_set('success', 'Processo desvinculado.');
+            flash_set('success', 'Vínculo removido.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        $idVolta = $voltarPara > 0 ? $voltarPara : $caseId;
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $idVolta));
         break;
 
     // ═══════════════════════════════════════════════════════

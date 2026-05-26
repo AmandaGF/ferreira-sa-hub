@@ -1410,7 +1410,18 @@ function confirmarMarcarIncidental() {
                         · <span style="color:<?= $incStatusCor ?>;font-weight:600;"><?= e($incStatusLabel) ?></span>
                     </div>
                 </div>
-                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $inc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir processo</a>
+                <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0;">
+                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $inc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir processo</a>
+                    <?php if (has_min_role('gestao')): ?>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular <?= e($inc['tipo_relacao'] ?: 'este processo incidental') ?> deste processo?\n\nA pasta do incidental continua existindo, só perde o vinculo com este processo principal.');" style="margin:0;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="desvincular_incidental">
+                        <input type="hidden" name="case_id" value="<?= (int)$inc['id'] ?>">
+                        <input type="hidden" name="voltar_para" value="<?= (int)$caseId ?>">
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;" title="Remover vínculo deste incidental com o processo principal">🔗 Desvincular</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
@@ -1488,7 +1499,18 @@ function confirmarMarcarIncidental() {
                         · <span style="color:<?= $recStatusCor ?>;font-weight:600;"><?= e($recStatusLabel) ?></span>
                     </div>
                 </div>
-                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $rec['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir recurso</a>
+                <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0;">
+                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $rec['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir recurso</a>
+                    <?php if (has_min_role('gestao')): ?>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular <?= e($rec['tipo_relacao'] ?: 'este recurso') ?> deste processo?\n\nA pasta do recurso continua existindo, só perde o vinculo com este processo principal.');" style="margin:0;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="desvincular_incidental">
+                        <input type="hidden" name="case_id" value="<?= (int)$rec['id'] ?>">
+                        <input type="hidden" name="voltar_para" value="<?= (int)$caseId ?>">
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;" title="Remover vínculo deste recurso com o processo principal">🔗 Desvincular</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
             </div>
             <?php endforeach; ?>
         <?php endif; ?>
