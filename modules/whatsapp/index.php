@@ -903,7 +903,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                            + (nfEmFmt ? nfEmFmt : '')
                            + '</div>';
             }
-            notaFixaHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-left:4px solid #d97706;border-radius:8px;padding:10px 14px;margin-bottom:12px;position:relative;">'
+            notaFixaHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-left:4px solid #d97706;border-radius:8px;padding:10px 14px;margin-bottom:8px;">'
                          + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">'
                          + '<div style="flex:1;min-width:0;">'
                          + '<div style="font-size:.7rem;font-weight:700;color:#92400e;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em;">📌 Observação interna</div>'
@@ -931,10 +931,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
             pinnedHtml += '</div>';
         }
 
+        // STICKY container — agrupa todos os avisos importantes (banner de genero faltante,
+        // observacao interna fixa, mensagens fixadas) num bloco que fica grudado no topo do
+        // scroll do chat. Antes esses banners ficavam soltos no topo do body e sumiam quando
+        // o chat fazia auto-scroll pro fundo. Bug Amanda 26/05/2026.
+        var stickyTopo = '';
+        if (generoBannerHtml || notaFixaHtml || pinnedHtml) {
+            stickyTopo = '<div style="position:sticky;top:-1px;z-index:10;background:rgba(244,243,232,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);padding:8px 4px 4px;margin:-4px -4px 4px;border-bottom:1px solid rgba(184,115,51,.15);">'
+                      + generoBannerHtml + notaFixaHtml + pinnedHtml
+                      + '</div>';
+        }
         if (!d.mensagens.length) {
-            body.innerHTML = generoBannerHtml + notaFixaHtml + pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
+            body.innerHTML = stickyTopo + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
         } else {
-            var html = generoBannerHtml + notaFixaHtml + pinnedHtml;
+            var html = stickyTopo;
             d.mensagens.forEach(function(m){
                 var dir = m.direcao === 'recebida' ? 'left' : 'right';
                 var cls = 'wa-msg';
