@@ -12,10 +12,13 @@
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
 
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $aplicar = ($_GET['aplicar'] ?? '0') === '1';
 
 echo "=== Reparo dia_todo em audiencias/reunioes/etc ===\n";
