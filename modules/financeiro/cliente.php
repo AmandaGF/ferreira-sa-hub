@@ -211,7 +211,12 @@ echo voltar_ao_processo_html();
             Cobranças (<?= count($cobrancas) ?>)
             <?php if ($filtroCase): ?><span style="font-size:.7rem;font-weight:500;color:#1e40af;">— só deste processo</span><?php endif; ?>
         </h4>
-        <button onclick="document.getElementById('modalNovaCob').style.display='flex'; if(window.atualizarCobUI2) setTimeout(atualizarCobUI2, 0);" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;" title="Abre com dados do último lead pré-preenchidos — você só confere e ajusta">+ Nova Cobrança</button>
+        <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+            <?php if (!empty($client['asaas_customer_id'])): ?>
+            <button onclick="sincronizarClienteAsaas(<?= (int)$clientId ?>, this)" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca TODAS as cobranças deste cliente no Asaas (sem limite de data) e atualiza no Hub. Útil quando faltam parcelas antigas.">🔄 Sincronizar com Asaas</button>
+            <?php endif; ?>
+            <button onclick="document.getElementById('modalNovaCob').style.display='flex'; if(window.atualizarCobUI2) setTimeout(atualizarCobUI2, 0);" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;" title="Abre com dados do último lead pré-preenchidos — você só confere e ajusta">+ Nova Cobrança</button>
+        </div>
     </div>
 
     <?php if (!empty($cobrancas) && !empty($processosCliente)): ?>
@@ -440,6 +445,42 @@ echo voltar_ao_processo_html();
 
 <script>
 // Vincula TODAS as cobranças do cliente ao processo escolhido (bulk)
+// Sincroniza TODAS as cobrancas deste cliente do Asaas (sem limite de data,
+// diferente do sync geral que so pega 30 dias). Resolve o caso de cliente
+// com contrato antigo + parcelas espalhadas no futuro que nao apareciam
+// no Hub (ex: Thais com 12 parcelas).
+function sincronizarClienteAsaas(clientId, btn) {
+    if (!confirm('Buscar TODAS as cobranças deste cliente no Asaas?\n\nIsso pode levar alguns segundos. Cobranças novas serão importadas e as existentes atualizadas com o status mais recente.')) return;
+    var txtOrig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ Sincronizando...';
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+    var fd = new FormData();
+    fd.append('action', 'sync_cliente');
+    fd.append('client_id', clientId);
+    fd.append('csrf_token', csrf);
+    fetch('<?= module_url('financeiro', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){
+        return r.text().then(function(t){ try { return { status:r.status, body:JSON.parse(t) }; } catch(e){ return { status:r.status, body:{ error:'Resposta nao-JSON (status '+r.status+')' } }; } });
+    }).then(function(res){
+        var d = res.body || {};
+        btn.disabled = false;
+        btn.textContent = txtOrig;
+        if (d.error) { alert('❌ ' + d.error); return; }
+        alert('✓ Sincronização concluída!\n\n' +
+              'Total no Asaas: ' + (d.total || 0) + '\n' +
+              'Novas importadas: ' + (d.novas || 0) + '\n' +
+              'Atualizadas: ' + (d.atualizadas || 0));
+        location.reload();
+    }).catch(function(e){
+        btn.disabled = false;
+        btn.textContent = txtOrig;
+        alert('❌ Erro: ' + e.message);
+    });
+}
+
 function vincularTodasAoProcesso(clientId) {
     var selCase = document.getElementById('bulkVincCase');
     var selEscopo = document.getElementById('bulkVincEscopo');

@@ -59,6 +59,92 @@ if (!validate_csrf()) {
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// SYNC POR CLIENTE — busca TODAS as cobranças desse customer no Asaas (sem limite
+// de data) e faz UPSERT no banco. Resolve o problema da Amanda 26/05/2026:
+// cliente Thais tem 12 parcelas no Asaas mas só apareciam algumas no Hub porque
+// o sync.php geral só busca os últimos 30 dias (cobranças criadas além disso
+// ficavam invisíveis).
+if ($action === 'sync_cliente') {
+    try {
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        if (!$clientId) { _fin_json_echo(array('error' => 'client_id obrigatório')); exit; }
+
+        $st = $pdo->prepare("SELECT id, name, asaas_customer_id FROM clients WHERE id = ?");
+        $st->execute(array($clientId));
+        $cli = $st->fetch();
+        if (!$cli) { _fin_json_echo(array('error' => 'Cliente não encontrado')); exit; }
+        if (empty($cli['asaas_customer_id'])) {
+            _fin_json_echo(array('error' => 'Cliente sem asaas_customer_id — não há cobranças no Asaas pra vincular'));
+            exit;
+        }
+
+        $custId = $cli['asaas_customer_id'];
+        set_time_limit(90);
+
+        // Pagina por /payments?customer={cust} — Asaas retorna até 100 por página.
+        $offset = 0; $limit = 100; $inserted = 0; $updated = 0; $totalApi = 0; $paginas = 0;
+        $upsert = $pdo->prepare(
+            "INSERT INTO asaas_cobrancas
+                (client_id, asaas_payment_id, asaas_customer_id, descricao, valor,
+                 vencimento, status, forma_pagamento, data_pagamento, valor_pago,
+                 link_boleto, invoice_url, ultima_sync, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE
+                client_id = VALUES(client_id), asaas_customer_id = VALUES(asaas_customer_id),
+                descricao = VALUES(descricao), valor = VALUES(valor), vencimento = VALUES(vencimento),
+                status = VALUES(status), forma_pagamento = VALUES(forma_pagamento),
+                data_pagamento = VALUES(data_pagamento), valor_pago = VALUES(valor_pago),
+                link_boleto = VALUES(link_boleto), invoice_url = VALUES(invoice_url),
+                ultima_sync = NOW()"
+        );
+        while ($paginas < 20) { // até 2000 cobranças
+            $resp = asaas_request('GET', '/payments?customer=' . urlencode($custId) . '&limit=' . $limit . '&offset=' . $offset);
+            if (!$resp || isset($resp['error'])) {
+                _fin_json_echo(array('error' => 'Asaas: ' . ($resp['error'] ?? 'sem resposta')));
+                exit;
+            }
+            $lista = $resp['data'] ?? array();
+            if (empty($lista)) break;
+            $totalApi += count($lista);
+
+            foreach ($lista as $p) {
+                $payId = $p['id'] ?? ''; if (!$payId) continue;
+                $upsert->execute(array(
+                    $clientId, $payId, $custId,
+                    mb_substr((string)($p['description'] ?? ''), 0, 250),
+                    $p['value'] ?? 0,
+                    $p['dueDate'] ?? date('Y-m-d'),
+                    $p['status'] ?? 'PENDING',
+                    $p['billingType'] ?? null,
+                    $p['paymentDate'] ?? null,
+                    $p['netValue'] ?? null,
+                    $p['bankSlipUrl'] ?? null,
+                    $p['invoiceUrl'] ?? null,
+                ));
+                if ($upsert->rowCount() === 1) $inserted++;
+                else $updated++;
+            }
+            $offset += $limit;
+            $paginas++;
+            if (!($resp['hasMore'] ?? false)) break;
+        }
+
+        audit_log('asaas_sync_cliente', 'clients', $clientId, "cust={$custId} total={$totalApi} novas={$inserted} upd={$updated}");
+        _fin_json_echo(array(
+            'ok' => true,
+            'total' => $totalApi,
+            'novas' => $inserted,
+            'atualizadas' => $updated,
+            'cliente' => $cli['name'],
+        ));
+        exit;
+    } catch (Exception $e) {
+        @error_log('[sync_cliente] ' . $e->getMessage());
+        _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
+        exit;
+    }
+}
+
 // Vincular / desvincular cobrança a um processo (case_id)
 if ($action === 'vincular_case') {
     try {
