@@ -451,9 +451,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
-    <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')): ?>
-    <button type="button" id="btnResumirIA" onclick="resumirCasoIA(false)" class="btn btn-sm" style="background:#6d28d9;color:#fff;border:none;" title="Gera um resumo executivo do caso por IA (4 linhas: situação atual, último movimento, próximo passo, alertas). Custo médio: R$ 0,10 por resumo. Cache de 24h.">🤖 Resumir caso</button>
-    <?php endif; ?>
+    <?php /* Botão "Resumir caso" movido pro bloco fixo da ficha em 26/05/2026 — fica sempre visível, custo zero quando há cache. */ ?>
     <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('sugerir_acao')): ?>
     <button type="button" id="btnSugerirAcaoIA" onclick="sugerirAcaoIA()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;" title="IA lê prazos, intimações, andamentos, tarefas e sugere a PRÓXIMA AÇÃO concreta com prazo e justificativa. Custo médio: R$ 0,10 por sugestão.">✨ O que fazer agora?</button>
     <?php endif; ?>
@@ -714,7 +712,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                                 <div style="font-size:.62rem;color:#64748b;margin-top:2px;margin-left:1.3rem;">
                                     <?= e($papelLbl) ?>
                                     <?php if ($papelCv === 'representante_legal'): ?>
-                                        · rep. <?= e(explode(' ', $clientesVinculados[0]['name'])[0]) ?>
+                                        · representa <?= e(explode(' ', $clientesVinculados[0]['name'])[0]) ?>
                                     <?php endif; ?>
                                 </div>
                             <?php endif; ?>
@@ -2017,6 +2015,79 @@ function buscarParceiroSugest(q) {
     }, 220);
 }
 </script>
+
+<?php
+// ── Bloco de Resumo IA (carrega do cache, custo R$ 0) ──
+// Só exibe se usuário é autorizado E feature está ativa. Se já tem cache
+// e nenhum andamento novo, mostra o texto direto sem chamar IA. Botão
+// "Regerar" força nova geração. Adicionado em 26/05/2026 a pedido da
+// Amanda: "salvar isso em algum lugar, para não precisar ficar pedindo
+// toda hora" — o cache já existia mas era invisível atrás de um botão.
+if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')):
+    $_iaResumoTxt = (string)($case['ia_resumo'] ?? '');
+    $_iaResumoEm  = (string)($case['ia_resumo_em'] ?? '');
+
+    // Cache desatualizado se há andamento posterior ao resumo
+    $_iaResumoStale = false;
+    if ($_iaResumoTxt && $_iaResumoEm) {
+        try {
+            $_stIaUlt = $pdo->prepare("SELECT MAX(created_at) FROM case_andamentos WHERE case_id = ?");
+            $_stIaUlt->execute(array($caseId));
+            $_ultAnd = (string)$_stIaUlt->fetchColumn();
+            if ($_ultAnd && strtotime($_ultAnd) > strtotime($_iaResumoEm)) {
+                $_iaResumoStale = true;
+            }
+        } catch (Throwable $_e) { /* ignora */ }
+    }
+
+    // Renderiza markdown simples (negrito + quebras)
+    $_iaResumoHtml = htmlspecialchars($_iaResumoTxt, ENT_QUOTES, 'UTF-8');
+    $_iaResumoHtml = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $_iaResumoHtml);
+    $_iaResumoHtml = nl2br($_iaResumoHtml);
+?>
+<div class="card mb-2" id="cardResumoIA" style="border-left:3px solid #6d28d9;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;">
+        <h3 style="display:flex;align-items:center;gap:.4rem;margin:0;">
+            🤖 <span>Resumo executivo</span>
+            <?php if ($_iaResumoTxt && !$_iaResumoStale): ?>
+                <span style="font-size:.62rem;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-weight:700;">✓ atualizado</span>
+            <?php elseif ($_iaResumoStale): ?>
+                <span style="font-size:.62rem;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:99px;font-weight:700;" title="Houve andamento novo após o último resumo — vale regenerar">⚠ desatualizado</span>
+            <?php endif; ?>
+        </h3>
+        <div style="display:flex;gap:.4rem;align-items:center;">
+            <?php if ($_iaResumoEm): ?>
+                <span style="font-size:.7rem;color:#6b7280;">gerado em <?= e(date('d/m/Y H:i', strtotime($_iaResumoEm))) ?></span>
+            <?php endif; ?>
+            <button type="button" id="btnResumirIA" onclick="resumirCasoIA(<?= $_iaResumoTxt ? 'true' : 'false' ?>)" class="btn btn-sm" style="background:#6d28d9;color:#fff;border:none;font-size:.75rem;" title="<?= $_iaResumoTxt ? 'Regerar com IA (custo médio R$ 0,02–0,05)' : 'Gerar resumo executivo (custo médio R$ 0,02–0,05)' ?>">
+                <?= $_iaResumoTxt ? '🔄 Regerar' : '✨ Gerar resumo' ?>
+            </button>
+            <?php if (ia_feature_ativa('analise_aprofundada')): ?>
+            <button type="button" id="btnAnaliseAprofIA" onclick="analiseAprofundadaIA(false)" class="btn btn-sm" style="background:#7c2d12;color:#fff;border:none;font-size:.75rem;" title="Análise estratégica profunda com Sonnet — pontos fortes/fracos, riscos, estratégia adversária, próximos movimentos. Custo médio R$ 0,15–0,30. Cache 30 dias ou até andamento novo.">
+                🧠 Análise estratégica
+            </button>
+            <?php endif; ?>
+        </div>
+    </div>
+    <div class="card-body" id="iaResumoCorpo" style="padding:.9rem 1.1rem;">
+        <?php if ($_iaResumoTxt): ?>
+            <div id="iaResumoTexto" style="font-size:.92rem;line-height:1.55;color:#1f2937;">
+                <?= $_iaResumoHtml ?>
+            </div>
+            <?php if ($_iaResumoStale): ?>
+                <div style="margin-top:.7rem;padding:.5rem .7rem;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:.78rem;color:#92400e;">
+                    ⚠ Houve andamento novo após este resumo. Clique em <strong>🔄 Regerar</strong> para atualizar.
+                </div>
+            <?php endif; ?>
+        <?php else: ?>
+            <div id="iaResumoTexto" style="text-align:center;padding:1rem;color:#6b7280;font-size:.85rem;">
+                Nenhum resumo gerado ainda — clique em <strong>✨ Gerar resumo</strong>.<br>
+                <span style="font-size:.7rem;">Depois de gerado fica salvo aqui e só é recalculado quando entra andamento novo.</span>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <!-- Dados do Processo (editável inline) -->
 <div class="card mb-2">
@@ -3512,12 +3583,21 @@ function sugerirAcaoIA() {
         });
 }
 
-// Gera resumo executivo do caso por IA (Claude Haiku). Mostra modal
-// flutuante. Cache de 24h em cases.ia_resumo, invalida quando há
-// andamento novo. Botão "Regenerar" força nova geração.
+// Gera resumo executivo do caso por IA (Haiku) e atualiza o bloco
+// #cardResumoIA in-place — sem modal. Cache em cases.ia_resumo, invalida
+// só quando entra andamento novo (sem TTL). Botão "Regerar" passa
+// forcar=true. Refatorado em 26/05/2026 pra não abrir modal (UX melhor:
+// resumo aparece direto no bloco já visível).
 function resumirCasoIA(forcar) {
     var btn = document.getElementById('btnResumirIA');
+    var corpo = document.getElementById('iaResumoCorpo');
+    if (forcar) {
+        if (!confirm('Regerar consome IA (custo médio R$ 0,02–0,05). Continuar?')) return;
+    }
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Gerando…'; }
+    if (corpo) {
+        corpo.innerHTML = '<div style="text-align:center;padding:1.2rem;color:#6b7280;font-size:.85rem;">⏳ Gerando resumo com IA…</div>';
+    }
 
     var fd = new FormData();
     fd.append('action', 'resumir_caso_ia');
@@ -3528,35 +3608,103 @@ function resumirCasoIA(forcar) {
     fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(r){ return r.json(); })
         .then(function(d){
-            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Resumir caso'; }
-            if (d.error) { alert('Falha ao gerar resumo: ' + d.error); return; }
-            // Markdown -> HTML simples (negrito + quebras)
+            if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Regerar'; }
+            if (d.error) {
+                if (corpo) corpo.innerHTML = '<div style="text-align:center;padding:1rem;color:#b91c1c;font-size:.85rem;">Falha: ' + String(d.error).replace(/</g,'&lt;') + '</div>';
+                return;
+            }
             var html = String(d.texto || '')
                 .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
                 .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>');
+            if (corpo) {
+                var rodapeCusto = d.cached
+                    ? ''
+                    : '<div style="margin-top:.6rem;font-size:.7rem;color:#6366f1;">✨ recém-gerado · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + '</div>';
+                corpo.innerHTML = '<div id="iaResumoTexto" style="font-size:.92rem;line-height:1.55;color:#1f2937;">' + html + '</div>' + rodapeCusto;
+            }
+            // Atualiza badge do header (remove "desatualizado" se havia)
+            var card = document.getElementById('cardResumoIA');
+            if (card) {
+                var badges = card.querySelectorAll('.card-header h3 span:not(:first-child)');
+                badges.forEach(function(b){ b.remove(); });
+                var h3 = card.querySelector('.card-header h3');
+                if (h3) {
+                    var ok = document.createElement('span');
+                    ok.style.cssText = 'font-size:.62rem;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:99px;font-weight:700;';
+                    ok.textContent = '✓ atualizado';
+                    h3.appendChild(ok);
+                }
+            }
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.innerHTML = '🔄 Regerar'; }
+            if (corpo) corpo.innerHTML = '<div style="text-align:center;padding:1rem;color:#b91c1c;font-size:.85rem;">Erro de conexão: ' + String(e.message).replace(/</g,'&lt;') + '</div>';
+        });
+}
+
+// Análise estratégica profunda (Sonnet). Custo maior, então pede
+// confirmação. Cache em cases.ia_analise_aprofundada (30 dias OU até
+// andamento novo). Abre modal próprio (resposta é mais longa que o
+// resumo executivo).
+function analiseAprofundadaIA(forcar) {
+    if (forcar) {
+        if (!confirm('Análise estratégica profunda usa Claude Sonnet (custo médio R$ 0,15–0,30). Regerar mesmo? O cache atual será descartado.')) return;
+    } else {
+        // Primeiro clique: confirma só se não houver cache
+        var temCache = window._fsaAnaliseCacheada || false;
+        if (!temCache) {
+            if (!confirm('Esta análise usa IA mais avançada (Sonnet) e custa em média R$ 0,15–0,30 por geração. Fica em cache por 30 dias ou até entrar andamento novo. Gerar agora?')) return;
+        }
+    }
+
+    var btn = document.getElementById('btnAnaliseAprofIA');
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Analisando…'; }
+
+    var fd = new FormData();
+    fd.append('action', 'analise_aprofundada_ia');
+    fd.append('case_id', '<?= (int)$caseId ?>');
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    if (forcar) fd.append('forcar', '1');
+
+    fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (btn) { btn.disabled = false; btn.innerHTML = '🧠 Análise estratégica'; }
+            if (d.error) { alert('Falha na análise: ' + d.error); return; }
+            window._fsaAnaliseCacheada = true;
+            var html = String(d.texto || '')
+                .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/^### (.+)$/gm, '<h4 style="margin:.9rem 0 .3rem;color:#7c2d12;font-size:.95rem;">$1</h4>')
+                .replace(/^## (.+)$/gm, '<h3 style="margin:1rem 0 .4rem;color:#7c2d12;">$1</h3>')
+                .replace(/^- (.+)$/gm, '<li>$1</li>')
+                .replace(/(<li>.*<\/li>\n?)+/g, function(m){ return '<ul style="margin:.3rem 0 .6rem 1.2rem;">' + m + '</ul>'; })
+                .replace(/\n/g, '<br>');
             var rodape = d.cached
                 ? '<span style="color:#059669;">✓ do cache · gerado em ' + (d.em||'').substr(0,16).replace('T',' ') + '</span>'
-                : '<span style="color:#6366f1;">✨ recém-gerado · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + '</span>';
+                : '<span style="color:#7c2d12;">🧠 recém-gerado · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + ' · Sonnet</span>';
             var modal = document.createElement('div');
-            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
-            modal.innerHTML = '<div style="background:#fff;max-width:680px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
-                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
-                + '<h3 style="margin:0;color:#1e1b4b;">🤖 Resumo do caso</h3>'
-                + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            modal.innerHTML = '<div style="background:#fff;max-width:760px;width:100%;max-height:85vh;overflow-y:auto;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.35);border-top:4px solid #7c2d12;">'
+                + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;position:sticky;top:0;background:#fff;padding-bottom:.6rem;border-bottom:1px solid #f3f4f6;">'
+                + '<h3 style="margin:0;color:#7c2d12;">🧠 Análise estratégica</h3>'
+                + '<button id="btnFecharAnaliseAprof" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
                 + '</div>'
-                + '<div style="font-size:.95rem;line-height:1.55;color:#1f2937;padding:.8rem 0;">' + html + '</div>'
+                + '<div style="font-size:.92rem;line-height:1.6;color:#1f2937;">' + html + '</div>'
                 + '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;padding-top:.8rem;border-top:1px solid #e5e7eb;font-size:.75rem;">'
-                + '<div>' + rodape + '</div>'
-                + '<button onclick="this.closest(\'div[style*=fixed]\').remove(); resumirCasoIA(true);" style="background:#fff;border:1px solid #c7d2fe;color:#6366f1;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Regenerar</button>'
+                + '<div>' + rodape + '<br><span style="color:#9a3412;font-size:.7rem;">⚠ Análise gerada por IA — confira fatos e jurisprudência antes de usar em peça processual.</span></div>'
+                + '<button id="btnRegerarAnaliseAprof" style="background:#fff;border:1px solid #fdba74;color:#7c2d12;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-weight:600;">🔄 Regerar</button>'
                 + '</div>'
                 + '</div>';
             document.body.appendChild(modal);
-            modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+            modal.querySelector('#btnFecharAnaliseAprof').addEventListener('click', function(){ modal.remove(); });
+            modal.querySelector('#btnRegerarAnaliseAprof').addEventListener('click', function(){ modal.remove(); analiseAprofundadaIA(true); });
+            // NÃO fecha ao clicar fora — análise custa caro, pra não perder
         })
         .catch(function(e){
-            if (btn) { btn.disabled = false; btn.innerHTML = '🤖 Resumir caso'; }
-            alert('Erro de conexão ao gerar resumo: ' + e.message);
+            if (btn) { btn.disabled = false; btn.innerHTML = '🧠 Análise estratégica'; }
+            alert('Erro de conexão: ' + e.message);
         });
 }
 
@@ -4198,9 +4346,18 @@ function renderPartes() {
         var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
         var tipo = p.tipo_pessoa === 'juridica' ? 'Jurídica' : 'Física';
         var cor = papelCores[p.papel] || '#888';
+        // Bug fix 26/05/2026 (Amanda): se a parte é representante_legal,
+        // ela REPRESENTA outras partes — não é representada. A semântica
+        // de representa_parte_id no save (partes_api.php#L294) é
+        // "representa_parte_id da parte representada aponta pro representante",
+        // então quem tem o subquery representado_por populado é justamente
+        // quem REPRESENTA essas partes.
         var repInfo = '';
-        if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representado_por) + ')</span>';
-        if (p.papel === 'representante_legal' && p.representa_nome) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representa_nome) + ')</span>';
+        if (p.papel === 'representante_legal') {
+            if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representado_por) + ')</span>';
+        } else if (p.representa_nome) {
+            repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representa_nome) + ')</span>';
+        }
         // Badge 'NOSSO CLIENTE': papel do nosso lado COM client_id, OU parte marcada
         // explicitamente como nosso cliente (eh_nosso_cliente=1 — ex: réu que contratou).
         // client_id em réu SEM a flag é dado sujo legado — não mostra badge.

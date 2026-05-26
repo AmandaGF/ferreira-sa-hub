@@ -32,7 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $feats = array('resumo_caso','classif_andamento','cliente_esfriando','sugerir_acao','briefing','resumo_wa_chamado',
                        // Fase 3
-                       'traducao_leiga','revisao_peticao','sentiment_wa');
+                       'traducao_leiga','revisao_peticao','sentiment_wa',
+                       // Fase 4 — análise profunda com Sonnet (26/05/2026)
+                       'analise_aprofundada');
         $stCfg = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
         $stCfg->execute(array('ia_orcamento_mensal_reais', (string)$orc));
         $stCfg->execute(array('ia_cambio_brl', (string)$cambio));
@@ -62,6 +64,8 @@ $featRwa    = cfg($pdo, 'ia_feature_resumo_wa_chamado_enabled', '1') === '1';
 $featTrad   = cfg($pdo, 'ia_feature_traducao_leiga_enabled', '0') === '1';
 $featRev    = cfg($pdo, 'ia_feature_revisao_peticao_enabled', '0') === '1';
 $featSent   = cfg($pdo, 'ia_feature_sentiment_wa_enabled', '0') === '1';
+// Fase 4 — DEFAULT OFF (Sonnet, custo médio R$ 0,15-0,30 por análise)
+$featAnaP   = cfg($pdo, 'ia_feature_analise_aprofundada_enabled', '0') === '1';
 
 // Lista todos os usuários ativos pra render do checkbox
 $users = $pdo->query("SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
@@ -205,6 +209,10 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                 <label style="display:flex;align-items:center;gap:.4rem;background:#fff;border:1px solid #fde68a;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;">
                     <input type="checkbox" name="feat_sentiment_wa" <?= $featSent ? 'checked' : '' ?>>
                     🌡️ Detectar tom irritado no WhatsApp <span style="color:#9ca3af;font-size:.72rem;">~R$5–9/mês</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.4rem;background:#fff;border:1px solid #fde68a;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;" title="Análise estratégica profunda da pasta (Sonnet) — pontos fortes/fracos, riscos, estratégia adversária, próximos movimentos. Cache 30 dias + invalida em andamento novo.">
+                    <input type="checkbox" name="feat_analise_aprofundada" <?= $featAnaP ? 'checked' : '' ?>>
+                    🧠 Análise estratégica do caso (Sonnet) <span style="color:#9ca3af;font-size:.72rem;">~R$0,20/análise · cache 30d</span>
                 </label>
             </div>
         </div>

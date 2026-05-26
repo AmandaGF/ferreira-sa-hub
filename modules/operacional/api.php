@@ -227,10 +227,12 @@ if ($action === 'criar_pasta_drive') {
     exit;
 }
 
-// ── Resumo do caso por IA (Haiku, cache 24h ou até novo andamento) ──
+// ── Resumo do caso por IA (Haiku, cache permanente até novo andamento) ──
 // Whitelist: só usuários em configuracoes.ia_users_autorizados.
-// Cache: cases.ia_resumo + ia_resumo_em. Invalida se houver andamento mais
-// recente que o resumo. ?forcar=1 ignora cache (regenerar).
+// Cache: cases.ia_resumo + ia_resumo_em. Invalida APENAS se houver andamento
+// mais recente que o resumo. Sem expiração por tempo — se nada mudou no
+// processo, o resumo cacheado continua válido (Amanda pediu menor custo
+// possível, 26/05/2026). ?forcar=1 ignora cache (regenerar).
 if ($action === 'resumir_caso_ia') {
     try {
     require_once __DIR__ . '/../../core/functions_ia.php';
@@ -247,15 +249,15 @@ if ($action === 'resumir_caso_ia') {
     $caso = $st->fetch(PDO::FETCH_ASSOC);
     if (!$caso) { _json_clean_echo(array('error' => 'Caso não encontrado')); exit; }
 
-    // Verifica cache: se já tem resumo E nada novo desde então E < 24h
+    // Cache: só invalida quando entra andamento novo após o resumo.
+    // Sem TTL — economia máxima.
     if (!$forcar && $caso['ia_resumo'] && $caso['ia_resumo_em']) {
         $stA = $pdo->prepare("SELECT MAX(created_at) FROM case_andamentos WHERE case_id = ?");
         $stA->execute(array($caseId));
         $ultAnd = (string)$stA->fetchColumn();
         $resumoTs = strtotime($caso['ia_resumo_em']);
         $ultAndTs = $ultAnd ? strtotime($ultAnd) : 0;
-        $idade    = time() - $resumoTs;
-        if ($resumoTs >= $ultAndTs && $idade < 86400) {
+        if ($resumoTs >= $ultAndTs) {
             _json_clean_echo(array(
                 'ok' => true, 'texto' => $caso['ia_resumo'], 'cached' => true,
                 'em' => $caso['ia_resumo_em'], 'custo_brl' => 0,
@@ -368,6 +370,180 @@ if ($action === 'resumir_caso_ia') {
     } catch (Throwable $e) {
         @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
             date('Y-m-d H:i:s') . " | resumir_caso_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n    " . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
+        _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
+        exit;
+    }
+}
+
+// ── Análise estratégica profunda (Sonnet, cache 30 dias + invalida em
+// andamento novo). Custo ~R$ 0,15–0,30. OFF por padrão — Amanda liga
+// em /admin/ia_custo.php. Criada em 26/05/2026 a pedido da Amanda
+// ("uma análise mais aprofundada. fica mt mais caro?").
+if ($action === 'analise_aprofundada_ia') {
+    try {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $forcar = !empty($_POST['forcar']);
+    if (!$caseId) { _json_clean_echo(array('error' => 'case_id obrigatório')); exit; }
+    $uid = current_user_id();
+    if (!ia_user_autorizado($uid)) { _json_clean_echo(array('error' => 'Você não está autorizado a usar a IA. Fale com a Amanda.')); exit; }
+    if (!ia_feature_ativa('analise_aprofundada')) { _json_clean_echo(array('error' => 'Feature desligada. Ligue em /admin/ia_custo.php.')); exit; }
+
+    // Self-heal: garante que colunas existem (idempotente)
+    try { $pdo->exec("ALTER TABLE cases ADD COLUMN ia_analise_aprofundada MEDIUMTEXT NULL AFTER ia_resumo_em"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE cases ADD COLUMN ia_analise_em DATETIME NULL AFTER ia_analise_aprofundada"); } catch (Throwable $e) {}
+
+    $st = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $caso = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$caso) { _json_clean_echo(array('error' => 'Caso não encontrado')); exit; }
+
+    // Cache: válido se < 30 dias E sem andamento posterior
+    $cacheTxt = $caso['ia_analise_aprofundada'] ?? '';
+    $cacheEm  = $caso['ia_analise_em'] ?? '';
+    if (!$forcar && $cacheTxt && $cacheEm) {
+        $stA = $pdo->prepare("SELECT MAX(created_at) FROM case_andamentos WHERE case_id = ?");
+        $stA->execute(array($caseId));
+        $ultAnd = (string)$stA->fetchColumn();
+        $cacheTs  = strtotime($cacheEm);
+        $ultAndTs = $ultAnd ? strtotime($ultAnd) : 0;
+        $idadeDias = (time() - $cacheTs) / 86400;
+        if ($cacheTs >= $ultAndTs && $idadeDias < 30) {
+            _json_clean_echo(array(
+                'ok' => true, 'texto' => $cacheTxt, 'cached' => true,
+                'em' => $cacheEm, 'custo_brl' => 0,
+            ));
+            exit;
+        }
+    }
+
+    // Contexto: até 60 andamentos (mais que o resumo simples) + tarefas + docs
+    $stAnd = $pdo->prepare(
+        "SELECT data_andamento, hora_andamento, tipo, descricao, urgencia_ia
+         FROM case_andamentos WHERE case_id = ? ORDER BY data_andamento DESC, id DESC LIMIT 60"
+    );
+    $stAnd->execute(array($caseId));
+    $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
+
+    $stTar = $pdo->prepare(
+        "SELECT title, tipo, status, due_date FROM case_tasks
+         WHERE case_id = ? AND tipo IS NOT NULL ORDER BY due_date ASC LIMIT 30"
+    );
+    $stTar->execute(array($caseId));
+    $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
+
+    $stDoc = $pdo->prepare(
+        "SELECT descricao, status FROM documentos_pendentes WHERE case_id = ? ORDER BY id"
+    );
+    $stDoc->execute(array($caseId));
+    $docs = $stDoc->fetchAll(PDO::FETCH_ASSOC);
+
+    // Partes do processo (autor, réu, terceiros)
+    $partes = array();
+    try {
+        $stPa = $pdo->prepare(
+            "SELECT DISTINCT c.name, cp.papel
+             FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id
+             WHERE cp.case_id = ?"
+        );
+        $stPa->execute(array($caseId));
+        $partes = $stPa->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) { /* tabela pode variar */ }
+
+    // Monta contexto
+    $ctx = "PROCESSO: " . (($caso['title'] ?? '') ?: 'sem título') . "\n";
+    if (!empty($caso['case_number'])) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+    $ctx .= "Tipo: " . (($caso['case_type'] ?? '') ?: '—') . " | Status: " . (($caso['status'] ?? '') ?: '—');
+    $vara    = $caso['vara']    ?? ($caso['court'] ?? '');
+    $comarca = $caso['comarca'] ?? '';
+    if ($vara || $comarca) $ctx .= " | " . trim($vara . ' — ' . $comarca, ' —');
+    $ctx .= "\n\n";
+
+    if ($partes) {
+        $ctx .= "PARTES:\n";
+        foreach ($partes as $p) $ctx .= "  • " . $p['name'] . " (" . ($p['papel'] ?? 'parte') . ")\n";
+        $ctx .= "\n";
+    }
+
+    $ctx .= "ANDAMENTOS (mais recentes primeiro, até 60):\n";
+    if (!$ands) $ctx .= "  (sem andamentos registrados)\n";
+    foreach ($ands as $a) {
+        $dt = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+        $hr = $a['hora_andamento'] ? ' ' . substr($a['hora_andamento'],0,5) : '';
+        $tx = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+        if (mb_strlen($tx) > 400) $tx = mb_substr($tx,0,400) . '…';
+        $ctx .= "  • {$dt}{$hr} [{$a['tipo']}] {$tx}\n";
+    }
+
+    $ctx .= "\nTAREFAS:\n";
+    if (!$tarefas) $ctx .= "  (nenhuma)\n";
+    foreach ($tarefas as $t) {
+        $dl = $t['due_date'] ? ' (até ' . date('d/m/Y', strtotime($t['due_date'])) . ')' : '';
+        $ctx .= "  • [{$t['status']}] {$t['title']}{$dl}\n";
+    }
+
+    $ctx .= "\nDOCUMENTOS:\n";
+    if (!$docs) $ctx .= "  (nenhum)\n";
+    foreach ($docs as $d) $ctx .= "  • [{$d['status']}] {$d['descricao']}\n";
+
+    // Prompt — análise estratégica em camadas
+    $system = "Você é uma advogada sênior do escritório Ferreira & Sá Advocacia, com 15+ anos "
+            . "de experiência em direito civil/família/consumidor brasileiro. Vai receber o estado "
+            . "COMPLETO de um processo (andamentos, tarefas, documentos, partes) e deve produzir "
+            . "uma ANÁLISE ESTRATÉGICA APROFUNDADA em markdown, com as seguintes seções (use ## como cabeçalho):\n\n"
+            . "## Situação processual\n"
+            . "Onde o processo está hoje em termos práticos (fase, próxima decisão esperada).\n\n"
+            . "## Pontos fortes da nossa posição\n"
+            . "Lista de 2 a 4 pontos a favor (com base nos andamentos e fatos do dossiê).\n\n"
+            . "## Pontos de atenção / fragilidades\n"
+            . "Lista de 1 a 4 fragilidades reais ou pontos que a parte adversa pode explorar.\n\n"
+            . "## Estratégia provável da parte contrária\n"
+            . "O que esperar do outro lado nos próximos atos (1-2 parágrafos curtos).\n\n"
+            . "## Próximos movimentos recomendados\n"
+            . "Lista priorizada (1, 2, 3…) de ações concretas com prazo estimado.\n\n"
+            . "## Riscos & alertas críticos\n"
+            . "Prazos, documentos pendentes, vícios processuais que possam virar problema.\n\n"
+            . "REGRAS RÍGIDAS:\n"
+            . "- Português brasileiro, linguagem jurídica mas direta.\n"
+            . "- NUNCA invente fatos que não estão nos andamentos.\n"
+            . "- Se faltar info pra alguma seção, escreva 'Dados insuficientes' nela.\n"
+            . "- NÃO cite jurisprudência específica (número de acórdão) — só princípios/teses gerais.\n"
+            . "- Não exceda 2 parágrafos por seção. Total: até 50 linhas.\n"
+            . "- Use **negrito** para destacar prazos e pontos críticos.";
+
+    $r = ia_chamar(
+        'analise_aprofundada',
+        'claude-sonnet-4-6',
+        $system,
+        array(array('role' => 'user', 'content' => $ctx)),
+        array(
+            'user_id'      => $uid,
+            'max_tokens'   => 2000,
+            'temperature'  => 0.3,
+            'contexto'     => 'case#' . $caseId,
+            'cache_system' => true,
+        )
+    );
+
+    if (!$r['ok']) { _json_clean_echo(array('error' => $r['erro'] ?: 'Falha na IA')); exit; }
+
+    $pdo->prepare("UPDATE cases SET ia_analise_aprofundada = ?, ia_analise_em = NOW() WHERE id = ?")
+        ->execute(array($r['texto'], $caseId));
+
+    @audit_log('IA_ANALISE_APROF', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
+
+    _json_clean_echo(array(
+        'ok'        => true,
+        'texto'     => $r['texto'],
+        'cached'    => false,
+        'em'        => date('Y-m-d H:i:s'),
+        'custo_brl' => $r['custo_brl'],
+        'tokens'    => $r['input_tokens'] + $r['output_tokens'],
+    ));
+    exit;
+    } catch (Throwable $e) {
+        @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
+            date('Y-m-d H:i:s') . " | analise_aprofundada_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n    " . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
         _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
         exit;
     }
