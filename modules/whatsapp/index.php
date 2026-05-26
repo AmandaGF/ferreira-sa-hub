@@ -910,7 +910,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                          + '<div style="font-size:.88rem;color:#451a03;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;">' + escapeHtml(nfTxt) + '</div>'
                          + assinatura
                          + '</div>'
-                         + '<button onclick="waNotaFixa()" title="Editar observação" style="background:#fbbf24;border:none;color:#fff;border-radius:6px;font-size:.72rem;padding:4px 10px;cursor:pointer;font-weight:700;flex-shrink:0;">✏️ Editar</button>'
+                         + '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">'
+                         + '<button onclick="waNotaFixa()" title="Editar observação" style="background:#fbbf24;border:none;color:#fff;border-radius:6px;font-size:.72rem;padding:4px 10px;cursor:pointer;font-weight:700;white-space:nowrap;">✏️ Editar</button>'
+                         + '<button onclick="waNotaFixaRemover()" title="Excluir observação" style="background:transparent;border:1px solid #fbbf24;color:#92400e;border-radius:6px;font-size:.7rem;padding:3px 10px;cursor:pointer;font-weight:600;white-space:nowrap;">🗑 Excluir</button>'
+                         + '</div>'
                          + '</div>'
                          + '</div>';
         }
@@ -2591,6 +2594,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
             .then(function(j){
                 if (j && j.error) { alert('❌ ' + j.error); return; }
                 // Recarrega a conversa pra mostrar o banner atualizado
+                window.waAbrir(convAtiva);
+            })
+            .catch(function(e){ alert('❌ Erro: ' + e.message); });
+    };
+
+    // Excluir observacao interna (1-click no botao 🗑 do banner amarelo).
+    // Endpoint set_nota_fixa com nota vazia ja apaga — so confirma antes.
+    window.waNotaFixaRemover = function() {
+        if (!convAtiva) return;
+        if (!confirm('Excluir esta observação interna?\n\nA nota some pra toda a equipe e não tem como recuperar (a não ser digitar de novo).')) return;
+        var fd = new FormData();
+        fd.append('action', 'set_nota_fixa');
+        fd.append('conversa_id', convAtiva);
+        fd.append('nota', '');
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (j && j.error) { alert('❌ ' + j.error); return; }
                 window.waAbrir(convAtiva);
             })
             .catch(function(e){ alert('❌ Erro: ' + e.message); });
