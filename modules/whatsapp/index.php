@@ -2447,8 +2447,53 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // Versão IA: pede um resumo da conversa pro Haiku, mostra preview num
     // modal pra Amanda revisar/editar, e ao confirmar abre helpdesk/novo
     // com a descrição já preenchida.
+    // Helpers de cache do resumo (localStorage por conversa) — protecao contra
+    // perda acidental quando Amanda fecha modal sem querer e teria que pagar
+    // IA de novo pra regerar. Bug relatado 26/05/2026.
+    function _waResumoCacheKey(convId) { return 'fsa_wa_resumo_ia_' + convId; }
+    function _waResumoSalvar(convId, payload) {
+        try {
+            payload._ts = Date.now();
+            localStorage.setItem(_waResumoCacheKey(convId), JSON.stringify(payload));
+        } catch(e){}
+    }
+    function _waResumoCarregar(convId) {
+        try {
+            var raw = localStorage.getItem(_waResumoCacheKey(convId));
+            if (!raw) return null;
+            var p = JSON.parse(raw);
+            // Cache valido por 7 dias (resumo provavelmente nao serve mais alem disso)
+            if (!p._ts || (Date.now() - p._ts) > 7 * 86400 * 1000) {
+                localStorage.removeItem(_waResumoCacheKey(convId));
+                return null;
+            }
+            return p;
+        } catch(e){ return null; }
+    }
+    function _waResumoLimpar(convId) {
+        try { localStorage.removeItem(_waResumoCacheKey(convId)); } catch(e){}
+    }
+
     window.waCriarChamadoComResumoIA = function() {
         if (!convAtiva) return;
+
+        // PROTECAO 1: se ja tem um resumo cacheado pra essa conversa, oferecer
+        // reabrir sem pagar IA de novo
+        var cache = _waResumoCarregar(convAtiva);
+        if (cache && cache.texto) {
+            var quando = new Date(cache._ts);
+            var quandoStr = ('0'+quando.getDate()).slice(-2) + '/' + ('0'+(quando.getMonth()+1)).slice(-2)
+                          + ' ' + ('0'+quando.getHours()).slice(-2) + ':' + ('0'+quando.getMinutes()).slice(-2);
+            if (confirm('Tem um resumo da IA salvo pra essa conversa (gerado em ' + quandoStr + ').\n\n'
+                       + '✓ OK = abrir o salvo (sem custo)\n'
+                       + '✗ Cancelar = gerar novo (~R$ 0,05)')) {
+                _waMostrarModalChamadoIA(cache);
+                return;
+            }
+            // Amanda quer gerar novo — limpa o cache pra nao confundir depois
+            _waResumoLimpar(convAtiva);
+        }
+
         var btn = event && event.currentTarget;
         if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Resumindo…'; }
         var fd = new FormData();
@@ -2460,6 +2505,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             .then(function(d){
                 if (btn) { btn.disabled = false; btn.innerHTML = '✨ Chamado IA'; }
                 if (d.error) { alert('Falha IA: ' + d.error); return; }
+                // Salva no cache ANTES de mostrar (assim mesmo se fechar acidentalmente, recupera)
+                _waResumoSalvar(convAtiva, d);
                 _waMostrarModalChamadoIA(d);
             })
             .catch(function(e){
@@ -2470,24 +2517,65 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     function _waMostrarModalChamadoIA(d) {
         var modal = document.createElement('div');
+        modal.id = 'waModalChamadoIA';
         modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        var cidAtual = convAtiva;
+        // Indicador de cache + custo
+        var infoCusto = '';
+        if (d._ts) {
+            var dt = new Date(d._ts);
+            var dtStr = ('0'+dt.getDate()).slice(-2) + '/' + ('0'+(dt.getMonth()+1)).slice(-2) + ' ' + ('0'+dt.getHours()).slice(-2) + ':' + ('0'+dt.getMinutes()).slice(-2);
+            infoCusto = '<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:4px;font-weight:600;">💾 cache ' + dtStr + '</span>';
+        } else {
+            infoCusto = 'custo IA: R$ ' + (Number(d.custo_brl||0)).toFixed(4);
+        }
         var html = '<div style="background:#fff;max-width:680px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">'
             + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">'
             +   '<h3 style="margin:0;color:#5b21b6;">✨ Descrição do chamado (revise antes de abrir)</h3>'
-            +   '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+            +   '<button onclick="_waFecharModalChamadoIA()" title="Fechar (texto fica salvo, voce pode reabrir sem pagar de novo)" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
             + '</div>'
-            + '<div style="font-size:.75rem;color:#6b7280;margin-bottom:.5rem;">Cliente: <strong>' + (d.cliente||'?') + '</strong> · custo IA: R$ ' + (Number(d.custo_brl||0)).toFixed(4) + '</div>'
-            + '<textarea id="iaResumoChamado" style="width:100%;min-height:280px;font-family:ui-monospace,monospace;font-size:.82rem;line-height:1.5;padding:.7rem;border:1px solid #ddd6fe;border-radius:8px;resize:vertical;">' + (d.texto || '').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</textarea>'
-            + '<div style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">💡 Você pode editar o texto acima antes de prosseguir. Ao clicar em "Abrir chamado", o helpdesk/novo abre em nova aba com este texto já na descrição.</div>'
-            + '<div style="display:flex;justify-content:flex-end;gap:.5rem;margin-top:.9rem;">'
-            +   '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;">Cancelar</button>'
-            +   '<button onclick="_waAbrirHelpdeskComResumo(' + JSON.stringify({client_id: d.client_id, telefone: d.telefone, cliente: d.cliente, canal: d.canal}).replace(/"/g,'&quot;') + ')" style="background:#6d28d9;border:none;color:#fff;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;">📋 Abrir chamado →</button>'
+            + '<div style="font-size:.75rem;color:#6b7280;margin-bottom:.5rem;">Cliente: <strong>' + (d.cliente||'?') + '</strong> · ' + infoCusto + '</div>'
+            + '<textarea id="iaResumoChamado" oninput="_waSalvarRascunhoChamado('+ cidAtual +')" style="width:100%;min-height:280px;font-family:ui-monospace,monospace;font-size:.82rem;line-height:1.5;padding:.7rem;border:1px solid #ddd6fe;border-radius:8px;resize:vertical;">' + (d.texto || '').replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</textarea>'
+            + '<div style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">💡 O texto fica <strong>salvo automaticamente</strong> enquanto você edita. Se fechar a janela sem querer, basta clicar em "✨ Chamado IA" de novo e o resumo volta — sem pagar IA novamente.</div>'
+            + '<div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:.9rem;">'
+            +   '<button onclick="if(confirm(\'Apagar o resumo salvo desta conversa? Esta acao nao tem volta.\')) { _waResumoLimpar('+ cidAtual +'); _waFecharModalChamadoIA(); }" style="background:#fff;border:1px solid #fecaca;color:#dc2626;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;font-size:.78rem;">🗑 Descartar resumo</button>'
+            +   '<div style="display:flex;gap:.5rem;">'
+            +     '<button onclick="_waFecharModalChamadoIA()" style="background:#fff;border:1px solid #cbd5e1;color:#475569;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:600;">Fechar</button>'
+            +     '<button onclick="_waAbrirHelpdeskComResumo(' + JSON.stringify({client_id: d.client_id, telefone: d.telefone, cliente: d.cliente, canal: d.canal}).replace(/"/g,'&quot;') + ')" style="background:#6d28d9;border:none;color:#fff;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-weight:700;">📋 Abrir chamado →</button>'
+            +   '</div>'
             + '</div>'
             + '</div>';
         modal.innerHTML = html;
-        modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
+        // PROTECAO 2: NAO fechar com click fora — antes era 'click no backdrop fecha'
+        // que causou o bug da Amanda perdendo o resumo. Agora so fecha com botoes
+        // explicitos ou tecla Escape.
         document.body.appendChild(modal);
+        // PROTECAO 3: Escape fecha (ainda atalho rapido, mas intencional)
+        var escListener = function(ev) {
+            if (ev.key === 'Escape') { _waFecharModalChamadoIA(); }
+        };
+        modal._escListener = escListener;
+        document.addEventListener('keydown', escListener);
     }
+
+    window._waFecharModalChamadoIA = function() {
+        var m = document.getElementById('waModalChamadoIA');
+        if (!m) return;
+        if (m._escListener) document.removeEventListener('keydown', m._escListener);
+        m.remove();
+    };
+
+    // Auto-save do rascunho enquanto Amanda edita (debounced via oninput)
+    window._waSalvarRascunhoChamado = function(convId) {
+        var ta = document.getElementById('iaResumoChamado');
+        if (!ta || !convId) return;
+        var cache = _waResumoCarregar(convId) || {};
+        cache.texto = ta.value;
+        cache._ts = cache._ts || Date.now();
+        _waResumoSalvar(convId, cache);
+    };
+
+    window._waResumoLimpar = _waResumoLimpar; // expoe pra onclick
 
     window._waAbrirHelpdeskComResumo = function(meta) {
         var texto = document.getElementById('iaResumoChamado').value;
@@ -2498,8 +2586,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (meta.telefone) params.set('client_contact', meta.telefone);
         params.set('description', texto);
         window.open('<?= module_url('helpdesk', 'novo.php') ?>?' + params.toString(), '_blank');
-        var modal = document.querySelector('div[style*=fixed]');
-        if (modal) modal.remove();
+        // Limpa cache depois que abriu o chamado (resumo ja foi usado)
+        _waResumoLimpar(convAtiva);
+        _waFecharModalChamadoIA();
     };
 
     window.waCriarChamado = function() {
