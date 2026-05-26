@@ -542,7 +542,11 @@ if ($action === 'abrir_conversa') {
     try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_em DATETIME NULL"); } catch (Exception $e) {}
     try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa_por INT NULL"); } catch (Exception $e) {}
 
-    $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, pl.name AS lead_name,
+    // Self-heal pra coluna gender_pulado (usada quando atendente "Pular" no banner)
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN gender_pulado TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+    $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, cl.gender AS client_gender,
+                                  COALESCE(cl.gender_pulado, 0) AS client_gender_pulado,
+                                  pl.name AS lead_name,
                                   u.name AS atendente_name, u.wa_display_name AS atendente_display_name,
                                   un.name AS nota_fixa_por_name
                            FROM zapi_conversas co
@@ -1798,6 +1802,41 @@ if ($action === 'enviar_rapido') {
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'conversa_id' => $conv['id'] ?? null));
+    exit;
+}
+
+// ── SETAR GÊNERO DO CLIENTE (1-click do banner do WhatsApp) ───────
+// Quando o cliente da conversa nao tem gender cadastrado, o WhatsApp
+// mostra banner perguntando. Click salva direto em clients.gender e
+// faz a personalizacao de templates ({{masc|fem}}) funcionar corretamente.
+if ($action === 'set_client_gender') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $gender = trim((string)($_POST['gender'] ?? '')); // 'Masculino' | 'Feminino' | 'Pular'
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatorio')); exit; }
+
+    $cv = $pdo->prepare("SELECT client_id FROM zapi_conversas WHERE id = ?");
+    $cv->execute(array($convId));
+    $cv = $cv->fetch();
+    if (!$cv || !$cv['client_id']) { echo json_encode(array('error' => 'Conversa sem cliente vinculado')); exit; }
+
+    if ($gender === 'Pular') {
+        // Marca como "pular" usando uma coluna auxiliar — assim o banner nao incomoda mais
+        // pra esse cliente. Self-heal idempotente.
+        try { $pdo->exec("ALTER TABLE clients ADD COLUMN gender_pulado TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+        $pdo->prepare("UPDATE clients SET gender_pulado = 1 WHERE id = ?")->execute(array($cv['client_id']));
+        audit_log('wa_gender_pulado', 'clients', (int)$cv['client_id'], '');
+        echo json_encode(array('ok' => true, 'pulado' => true));
+        exit;
+    }
+
+    if (!in_array($gender, array('Masculino','Feminino','Outro'), true)) {
+        echo json_encode(array('error' => 'Genero invalido')); exit;
+    }
+
+    $pdo->prepare("UPDATE clients SET gender = ?, updated_at = NOW() WHERE id = ?")
+        ->execute(array($gender, $cv['client_id']));
+    audit_log('wa_gender_set', 'clients', (int)$cv['client_id'], $gender);
+    echo json_encode(array('ok' => true, 'gender' => $gender));
     exit;
 }
 

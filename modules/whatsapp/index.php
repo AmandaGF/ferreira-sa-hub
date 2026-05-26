@@ -855,6 +855,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Body com mensagens
         var body = document.getElementById('waChatBody');
 
+        // ── BANNER GÊNERO FALTANTE (Amanda 26/05/2026) ────────────
+        // Aparece SO quando o cliente esta vinculado mas sem gender cadastrado
+        // e n\xc3\xa3o foi marcado como 'pular'. Click 1x define + atualiza ficha.
+        // Util pra personalizar templates {{masc|fem}} (aniversario, boas-vindas).
+        var generoBannerHtml = '';
+        if (d.conversa && d.conversa.client_id
+            && !d.conversa.client_gender
+            && +(d.conversa.client_gender_pulado || 0) === 0) {
+            var primNome = escapeHtml((nome || '').split(' ')[0] || 'esse cliente');
+            generoBannerHtml = '<div style="background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #6366f1;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">'
+                             + '<span style="font-size:1rem;">❓</span>'
+                             + '<div style="flex:1;min-width:200px;font-size:.85rem;color:#1e1b4b;line-height:1.4;">'
+                             + '<strong>' + primNome + '</strong> está sem gênero cadastrado.<br>'
+                             + '<span style="font-size:.72rem;color:#4338ca;">Define agora pra personalizar mensagens (Prezado/Prezada, bem-vindo/bem-vinda, etc).</span>'
+                             + '</div>'
+                             + '<div style="display:flex;gap:.4rem;flex-wrap:wrap;">'
+                             + '<button onclick="waSetGender(\'Masculino\')" style="background:#3b82f6;color:#fff;border:none;border-radius:6px;font-size:.78rem;padding:6px 12px;cursor:pointer;font-weight:700;">👨 Masculino</button>'
+                             + '<button onclick="waSetGender(\'Feminino\')" style="background:#ec4899;color:#fff;border:none;border-radius:6px;font-size:.78rem;padding:6px 12px;cursor:pointer;font-weight:700;">👩 Feminino</button>'
+                             + '<button onclick="waSetGender(\'Pular\')" title="Não perguntar mais pra esse cliente" style="background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb;border-radius:6px;font-size:.78rem;padding:6px 12px;cursor:pointer;">Pular</button>'
+                             + '</div>'
+                             + '</div>';
+        }
+
         // ── BANNER NOTA FIXA ──────────────────────────────────────
         // Observacao interna persistente — visivel pra TODA equipe que abrir
         // a conversa. Nao vai pro cliente. Ex: "estamos tentando acordo, nao
@@ -909,9 +932,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         }
 
         if (!d.mensagens.length) {
-            body.innerHTML = notaFixaHtml + pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
+            body.innerHTML = generoBannerHtml + notaFixaHtml + pinnedHtml + '<div class="wa-chat-empty"><div class="wa-chat-empty-ico">📭</div><div>Nenhuma mensagem ainda.</div></div>';
         } else {
-            var html = notaFixaHtml + pinnedHtml;
+            var html = generoBannerHtml + notaFixaHtml + pinnedHtml;
             d.mensagens.forEach(function(m){
                 var dir = m.direcao === 'recebida' ? 'left' : 'right';
                 var cls = 'wa-msg';
@@ -2499,6 +2522,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
     // ── EDITAR NOME DA CONVERSA ─────────────────────────
     // Permite corrigir o numero da conversa quando ele veio malformado da Z-API
     // (ex: nº BR exibido como +60 ou +1 porque chegou sem o prefixo 55).
+    // ── DEFINIR GÊNERO DO CLIENTE (1-click no banner) ─────────
+    // Atualiza clients.gender direto. 'Pular' marca pra nunca mais perguntar
+    // sobre esse cliente especifico.
+    window.waSetGender = function(genero) {
+        if (!convAtiva) return;
+        var fd = new FormData();
+        fd.append('action', 'set_client_gender');
+        fd.append('conversa_id', convAtiva);
+        fd.append('gender', genero);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd, credentials:'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                if (j && j.error) { alert('❌ ' + j.error); return; }
+                // Recarrega a conversa pra esconder o banner
+                window.waAbrir(convAtiva);
+            })
+            .catch(function(e){ alert('❌ Erro: ' + e.message); });
+    };
+
     // ── NOTA FIXA NA CONVERSA ─────────────────────────────────
     // Observacao interna persistente, fica de banner amarelo no topo do chat
     // pra TODOS os atendentes verem. Ex: 'estamos tentando acordo, nao mover

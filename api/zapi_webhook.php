@@ -589,7 +589,12 @@ try {
                 $canalBv = zapi_auto_cfg('zapi_auto_boasvindas_canal', '21');
                 if ($canalBv === 'ambos' || $canalBv === $numero) {
                     $tplNome = zapi_auto_cfg('zapi_auto_boasvindas_tpl', 'Boas-vindas Comercial');
-                    $tpl = zapi_get_template($tplNome, array('nome' => $nome ?: 'cliente'));
+                    // client_id ativa resolucao de {{masc|fem}} (ex: bem-{{vindo|vinda}})
+                    // baseado em clients.gender ou inferencia pelo nome.
+                    $tpl = zapi_get_template($tplNome, array(
+                        'nome' => $nome ?: 'cliente',
+                        'client_id' => !empty($conv['client_id']) ? (int)$conv['client_id'] : 0,
+                    ));
                     if ($tpl) {
                         zapi_send_text($numero, $telefone, $tpl);
                         $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_bot, status) VALUES (?, 'enviada', 'texto', ?, 1, 'enviada')")
