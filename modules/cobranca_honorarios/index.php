@@ -35,11 +35,24 @@ for ($i = 5; $i >= 0; $i--) {
     } catch (Exception $e) { $grafRecuperado[] = 0; $grafAberto[] = 0; }
 }
 
+// ─── Busca por nome/CPF (Amanda 26/05/2026) ───
+// Filtra o Kanban e o Historico. Match em nome, CPF (digits + raw), telefone.
+$buscaCH = trim($_GET['q'] ?? '');
+$buscaWhere = '';
+$buscaParams = array();
+if ($buscaCH !== '') {
+    $digitsBusca = preg_replace('/\D/', '', $buscaCH);
+    $likeBusca = '%' . $buscaCH . '%';
+    $likeDigits = '%' . ($digitsBusca !== '' ? $digitsBusca : $buscaCH) . '%';
+    $buscaWhere = " AND (cl.name LIKE ? OR cl.cpf LIKE ? OR cl.phone LIKE ? OR cs.title LIKE ? OR cs.case_number LIKE ?)";
+    $buscaParams = array($likeBusca, $likeDigits, $likeDigits, $likeBusca, $likeBusca);
+}
+
 // ─── Fila de Cobrança (Kanban) ───
 $filaCobranca = array();
 try {
-    $filaCobranca = $pdo->query(
-        "SELECT hc.*, cl.name as client_name, cl.phone as client_phone, cs.title as case_title,
+    $stmtFila = $pdo->prepare(
+        "SELECT hc.*, cl.name as client_name, cl.phone as client_phone, cl.cpf as client_cpf, cs.title as case_title,
                 cs.desfecho_processo, cs.id as cs_id,
                 u.name as responsavel_nome,
                 DATEDIFF(CURDATE(), hc.vencimento) as dias_atraso,
@@ -48,9 +61,11 @@ try {
          LEFT JOIN clients cl ON cl.id = hc.client_id
          LEFT JOIN cases cs ON cs.id = hc.case_id
          LEFT JOIN users u ON u.id = hc.responsavel_cobranca
-         WHERE hc.status NOT IN ('pago','cancelado')
+         WHERE hc.status NOT IN ('pago','cancelado')" . $buscaWhere . "
          ORDER BY hc.status ASC, dias_atraso DESC"
-    )->fetchAll();
+    );
+    $stmtFila->execute($buscaParams);
+    $filaCobranca = $stmtFila->fetchAll();
 } catch (Exception $e) {}
 
 // Agrupar por status para Kanban
@@ -135,18 +150,28 @@ if ($filtroPeriodo) {
         $historicoParams[] = $datas[1] . ' 23:59:59';
     }
 }
+// Tambem aplica a busca por nome/CPF no Historico (aba ao lado do Kanban)
+$historicoBuscaWhere = '';
+$historicoBuscaParams = array();
+if ($buscaCH !== '') {
+    $digitsHist = preg_replace('/\D/', '', $buscaCH);
+    $likeHist = '%' . $buscaCH . '%';
+    $likeDigitsHist = '%' . ($digitsHist !== '' ? $digitsHist : $buscaCH) . '%';
+    $historicoBuscaWhere = " AND (cl.name LIKE ? OR cl.cpf LIKE ? OR cl.phone LIKE ?)";
+    $historicoBuscaParams = array($likeHist, $likeDigitsHist, $likeDigitsHist);
+}
 $historico = array();
 try {
     $stmtH = $pdo->prepare(
-        "SELECT hc.*, cl.name as client_name, cl.phone as client_phone, u.name as responsavel_nome,
+        "SELECT hc.*, cl.name as client_name, cl.phone as client_phone, cl.cpf as client_cpf, u.name as responsavel_nome,
                 DATEDIFF(CURDATE(), hc.vencimento) as dias_atraso
          FROM honorarios_cobranca hc
          LEFT JOIN clients cl ON cl.id = hc.client_id
          LEFT JOIN users u ON u.id = hc.responsavel_cobranca
-         WHERE $historicoWhere
+         WHERE $historicoWhere" . $historicoBuscaWhere . "
          ORDER BY hc.updated_at DESC LIMIT 100"
     );
-    $stmtH->execute($historicoParams);
+    $stmtH->execute(array_merge($historicoParams, $historicoBuscaParams));
     $historico = $stmtH->fetchAll();
 } catch (Exception $e) {}
 
@@ -210,7 +235,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;flex-wrap:wrap;gap:.5rem;">
     <h2 style="font-size:1.1rem;font-weight:800;color:var(--petrol-900);">⚠️ Cobrança de Honorários</h2>
-    <div style="display:flex;gap:.4rem;">
+    <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
+        <!-- Busca por nome/CPF/telefone — filtra Kanban + Historico. Preserva aba ativa. -->
+        <form method="GET" style="margin:0;display:flex;align-items:center;">
+            <input type="hidden" name="aba" value="<?= e($abaAtiva) ?>">
+            <input type="text" name="q" value="<?= e($buscaCH) ?>" placeholder="🔍 Buscar por nome, CPF ou telefone..." style="padding:.42rem .65rem;border:1.5px solid var(--border);border-radius:6px 0 0 6px;font-size:.78rem;min-width:240px;border-right:none;">
+            <button type="submit" class="btn btn-primary btn-sm" style="font-size:.72rem;border-radius:0 6px 6px 0;padding:.42rem .75rem;background:#B87333;">Buscar</button>
+            <?php if ($buscaCH !== ''): ?>
+            <a href="<?= module_url('cobranca_honorarios') ?>?aba=<?= e($abaAtiva) ?>" style="margin-left:.4rem;font-size:.72rem;color:#dc2626;text-decoration:none;" title="Limpar busca">✕ Limpar</a>
+            <?php endif; ?>
+        </form>
         <form method="POST" action="<?= module_url('cobranca_honorarios', 'api.php') ?>" style="margin:0;">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="importar_asaas">

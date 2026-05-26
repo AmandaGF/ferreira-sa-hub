@@ -158,7 +158,12 @@ echo voltar_ao_processo_html();
             </select>
         </form>
     </div>
-    <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;">
+        <!-- Busca rapida: redireciona pra cobrancas.php (motor de busca completo por nome/CPF/Asaas/processo) -->
+        <form method="GET" action="<?= module_url('financeiro', 'cobrancas.php') ?>" style="margin:0;display:flex;align-items:center;">
+            <input type="text" name="q" placeholder="🔍 Buscar cliente por nome ou CPF..." style="padding:.45rem .7rem;border:1.5px solid var(--border);border-radius:6px 0 0 6px;font-size:.82rem;min-width:240px;border-right:none;" title="Aperta Enter pra buscar — abre a tela 'Todas as cobranças' com o filtro aplicado">
+            <button type="submit" class="btn btn-primary btn-sm" style="font-size:.78rem;border-radius:0 6px 6px 0;padding:.45rem .8rem;">Buscar</button>
+        </form>
         <a href="<?= module_url('financeiro', 'cobrancas.php') ?>" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#7c3aed;" title="Ver todas as cobranças com filtros por período, status, busca etc">📋 Todas as cobranças</a>
         <a href="<?= module_url('financeiro', 'sync.php') ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca cobranças dos últimos 30 dias no Asaas">🔄 Sincronizar Asaas</a>
         <button onclick="document.getElementById('modalCobranca').style.display='flex';" class="btn btn-primary btn-sm" style="background:#B87333;">+ Nova Cobrança</button>
