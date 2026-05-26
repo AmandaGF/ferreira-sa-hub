@@ -238,7 +238,20 @@ $clientWhatsapp = $clientPhone ? 'https://wa.me/55' . $clientPhone : '';
 // Todos os clientes vinculados ao processo (principal + partes com client_id)
 $clientesVinculados = array();
 if ($case['client_id']) {
-    $clientesVinculados[] = array('id' => $case['client_id'], 'name' => $case['client_name'], 'phone' => $case['client_phone'] ?: '');
+    // Papel do principal: se case_partes tem registro, usa; senao 'autor' por default
+    $papelPrincipal = 'autor';
+    try {
+        $stP = $pdo->prepare("SELECT papel FROM case_partes WHERE case_id = ? AND client_id = ? LIMIT 1");
+        $stP->execute(array($caseId, (int)$case['client_id']));
+        $pap = $stP->fetchColumn();
+        if ($pap) $papelPrincipal = $pap;
+    } catch (Exception $e) {}
+    $clientesVinculados[] = array(
+        'id' => $case['client_id'],
+        'name' => $case['client_name'],
+        'phone' => $case['client_phone'] ?: '',
+        'papel' => $papelPrincipal,
+    );
 }
 try {
     // Inclui partes do NOSSO LADO (autor/litisconsorte ativo/representante legal)
@@ -253,9 +266,24 @@ try {
     );
     $stmtCliVinc->execute(array($caseId, (int)($case['client_id'] ?: 0)));
     foreach ($stmtCliVinc->fetchAll() as $cv) {
-        $clientesVinculados[] = array('id' => $cv['client_id'], 'name' => $cv['name'], 'phone' => $cv['phone'] ?: '');
+        $clientesVinculados[] = array(
+            'id' => $cv['client_id'],
+            'name' => $cv['name'],
+            'phone' => $cv['phone'] ?: '',
+            'papel' => $cv['papel'] ?: 'autor',
+        );
     }
 } catch (Exception $e) {}
+
+// Mapa de label legivel por papel (pra dropdown 'Ver cliente')
+$_papelLabel = array(
+    'autor'                  => 'Autor',
+    'litisconsorte_ativo'    => 'Litisconsorte ativo',
+    'representante_legal'    => 'Representante legal',
+    'reu'                    => 'Réu',
+    'litisconsorte_passivo'  => 'Litisconsorte passivo',
+    'terceiro_interessado'   => 'Terceiro interessado',
+);
 
 // Detectar processos duplicados (mesmo case_number)
 $duplicatas = array();
@@ -659,6 +687,12 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                     <div id="menuClientes" style="display:none;position:absolute;top:100%;left:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:260px;margin-top:4px;overflow:hidden;">
                         <?php foreach ($clientesVinculados as $idx => $cv):
                             $isPrincipal = ($idx === 0);
+                            $papelCv = $cv['papel'] ?? 'autor';
+                            $papelLbl = $_papelLabel[$papelCv] ?? ucfirst(str_replace('_', ' ', $papelCv));
+                            // BUG fix 26/05/2026 (Amanda): antes assumia "Representado · rep. por X"
+                            // pra qualquer secundario. Em a\xc3\xa7\xc3\xa3o consensual (div\xc3\xb3rcio/dissolu\xc3\xa7\xc3\xa3o)
+                            // s\xc3\xa3o 2+ autores (litisconsortes ativos), n\xc3\xa3o tem representante.
+                            // Agora mostra o papel real (Autor / Litisconsorte ativo / Representante legal).
                         ?>
                         <a href="<?= module_url('clientes', 'ver.php?id=' . $cv['id']) ?>"
                            style="display:block;padding:.6rem 1rem;color:#052228;text-decoration:none;font-size:.85rem;font-weight:<?= $isPrincipal ? '700' : '500' ?>;border-bottom:1px solid #f1f5f9;<?= $isPrincipal ? 'background:#ecfdf5;border-left:3px solid #059669;' : '' ?>"
@@ -669,13 +703,20 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                                     <span style="font-size:1rem;">⭐</span>
                                     <span><?= e($cv['name']) ?></span>
                                 </div>
-                                <div style="font-size:.62rem;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;margin-left:1.3rem;">Cliente principal</div>
+                                <div style="font-size:.62rem;color:#059669;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;margin-left:1.3rem;">
+                                    <?= e($papelLbl) ?> · Cliente principal
+                                </div>
                             <?php else: ?>
                                 <div style="display:flex;align-items:center;gap:.35rem;">
                                     <span>👤</span>
                                     <span><?= e($cv['name']) ?></span>
                                 </div>
-                                <div style="font-size:.62rem;color:#64748b;margin-top:2px;margin-left:1.3rem;">Representado · rep. por <?= e(explode(' ', $clientesVinculados[0]['name'])[0]) ?></div>
+                                <div style="font-size:.62rem;color:#64748b;margin-top:2px;margin-left:1.3rem;">
+                                    <?= e($papelLbl) ?>
+                                    <?php if ($papelCv === 'representante_legal'): ?>
+                                        · rep. <?= e(explode(' ', $clientesVinculados[0]['name'])[0]) ?>
+                                    <?php endif; ?>
+                                </div>
                             <?php endif; ?>
                         </a>
                         <?php endforeach; ?>
