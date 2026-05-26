@@ -25,19 +25,27 @@ echo "=== Reparo dia_todo em audiencias/reunioes/etc ===\n";
 echo $aplicar ? "MODO: APLICAR\n\n" : "MODO: DRY-RUN (use &aplicar=1 pra gravar)\n\n";
 
 $tiposAfetados = array('audiencia','reuniao_cliente','mediacao_cejusc','balcao_virtual','ligacao','reuniao_interna');
-$ph = implode(',', array_fill(0, count($tiposAfetados), '?'));
+// Lista hard-coded eh ok aqui — todos vem de array literal, sem input do usuario.
+$tiposIn = "'" . implode("','", $tiposAfetados) . "'";
 
-// Lista os candidatos a corrigir
-$sqlSel = "SELECT id, titulo, tipo, data_inicio, hora_inicio, dia_todo
-           FROM agenda_eventos
-           WHERE dia_todo = 1
-             AND tipo IN ($ph)
-             AND hora_inicio IS NOT NULL
-             AND hora_inicio != '00:00:00'
-           ORDER BY data_inicio DESC LIMIT 100";
-$st = $pdo->prepare($sqlSel);
-$st->execute($tiposAfetados);
-$candidatos = $st->fetchAll();
+echo "Buscando candidatos (tipos: $tiposIn)...\n";
+
+try {
+    $st = $pdo->query(
+        "SELECT id, titulo, tipo, data_inicio, hora_inicio, dia_todo
+         FROM agenda_eventos
+         WHERE dia_todo = 1
+           AND tipo IN ($tiposIn)
+           AND hora_inicio IS NOT NULL
+           AND hora_inicio != '00:00:00'
+         ORDER BY data_inicio DESC LIMIT 100"
+    );
+    $candidatos = $st->fetchAll();
+    echo "Encontrados: " . count($candidatos) . "\n\n";
+} catch (Exception $e) {
+    echo "ERRO no SELECT: " . $e->getMessage() . "\n";
+    exit;
+}
 
 echo "Candidatos (primeiros 100):\n";
 if (empty($candidatos)) {
@@ -51,14 +59,14 @@ if (empty($candidatos)) {
 }
 
 if ($aplicar && !empty($candidatos)) {
-    $sqlUpd = "UPDATE agenda_eventos SET dia_todo = 0
-               WHERE dia_todo = 1
-                 AND tipo IN ($ph)
-                 AND hora_inicio IS NOT NULL
-                 AND hora_inicio != '00:00:00'";
-    $stUpd = $pdo->prepare($sqlUpd);
-    $stUpd->execute($tiposAfetados);
-    echo "\n[OK] Atualizados: " . $stUpd->rowCount() . " eventos.\n";
+    $stUpd = $pdo->exec(
+        "UPDATE agenda_eventos SET dia_todo = 0
+         WHERE dia_todo = 1
+           AND tipo IN ($tiposIn)
+           AND hora_inicio IS NOT NULL
+           AND hora_inicio != '00:00:00'"
+    );
+    echo "\n[OK] Atualizados: " . (int)$stUpd . " eventos.\n";
 } else if ($aplicar) {
     echo "\nNada a aplicar.\n";
 }
@@ -67,11 +75,10 @@ if ($aplicar && !empty($candidatos)) {
 // (a Amanda pode ter intencionalmente marcado dia inteiro pra alguma audiencia
 // sem horario definido). Apenas reporta.
 echo "\n--- Eventos dia_todo=1 SEM hora (nao tocados — talvez intencionais) ---\n";
-$stOk = $pdo->prepare("SELECT id, titulo, tipo, data_inicio FROM agenda_eventos
-                       WHERE dia_todo = 1 AND tipo IN ($ph)
-                         AND (hora_inicio IS NULL OR hora_inicio = '00:00:00')
-                       ORDER BY data_inicio DESC LIMIT 30");
-$stOk->execute($tiposAfetados);
+$stOk = $pdo->query("SELECT id, titulo, tipo, data_inicio FROM agenda_eventos
+                     WHERE dia_todo = 1 AND tipo IN ($tiposIn)
+                       AND (hora_inicio IS NULL OR hora_inicio = '00:00:00')
+                     ORDER BY data_inicio DESC LIMIT 30");
 $semHora = $stOk->fetchAll();
 if (empty($semHora)) echo "  Nenhum.\n";
 else foreach ($semHora as $e) {
