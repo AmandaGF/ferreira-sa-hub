@@ -35,6 +35,8 @@ $cls = $pdo->query($sql)->fetchAll();
 echo "Clientes a analisar: " . count($cls) . "\n\n";
 
 $totalNovas = 0; $clientesAfetados = 0; $erros = 0;
+$comCustomerAsaas = 0; $comCobrancasAsaas = 0; $comMultiplosCustomers = 0;
+$totalCobsAsaas = 0;
 
 $upsert = $pdo->prepare(
     "INSERT INTO asaas_cobrancas
@@ -68,6 +70,8 @@ foreach ($cls as $cli) {
     }
     if (empty($custIds)) continue;
     $custIds = array_keys($custIds);
+    $comCustomerAsaas++;
+    if (count($custIds) > 1) $comMultiplosCustomers++;
 
     // Pra cada customer, busca payments
     $faltantes = 0; $totalCust = 0; $cobsFaltantes = array();
@@ -90,6 +94,12 @@ foreach ($cls as $cli) {
             $offset += 100; $paginas++;
             if (!($resp['hasMore'] ?? false)) break;
         }
+    }
+
+    if ($totalCust > 0) { $comCobrancasAsaas++; $totalCobsAsaas += $totalCust; }
+    if (count($custIds) > 1) {
+        echo sprintf("[DUPL] #%d %s  CPF=%s  customers=[%s]  cobs_asaas=%d  faltantes=%d\n",
+            $cid, $cli['name'], $cli['cpf'], implode(',', $custIds), $totalCust, $faltantes);
     }
 
     if ($faltantes > 0) {
@@ -136,7 +146,12 @@ foreach ($cls as $cli) {
 }
 
 echo "\n=== RESUMO ===\n";
-echo "Clientes com cobrancas faltando: $clientesAfetados\n";
+echo "Clientes analisados: " . count($cls) . "\n";
+echo "  com customer Asaas (por CPF ou vinculo): $comCustomerAsaas\n";
+echo "  com 2+ customers Asaas (duplicatas): $comMultiplosCustomers\n";
+echo "  com pelo menos 1 cobranca no Asaas: $comCobrancasAsaas\n";
+echo "Total de cobrancas no Asaas (entre esses): $totalCobsAsaas\n";
+echo "Clientes com cobrancas faltando no Hub: $clientesAfetados\n";
 echo "Total de cobrancas a sincronizar: $totalNovas\n";
 echo "Erros de API Asaas: $erros\n";
 
