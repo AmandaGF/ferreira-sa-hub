@@ -69,20 +69,41 @@ if ($action === 'sync_cliente') {
         $clientId = (int)($_POST['client_id'] ?? 0);
         if (!$clientId) { _fin_json_echo(array('error' => 'client_id obrigatório')); exit; }
 
-        $st = $pdo->prepare("SELECT id, name, asaas_customer_id FROM clients WHERE id = ?");
+        $st = $pdo->prepare("SELECT id, name, cpf, asaas_customer_id FROM clients WHERE id = ?");
         $st->execute(array($clientId));
         $cli = $st->fetch();
         if (!$cli) { _fin_json_echo(array('error' => 'Cliente não encontrado')); exit; }
-        if (empty($cli['asaas_customer_id'])) {
-            _fin_json_echo(array('error' => 'Cliente sem asaas_customer_id — não há cobranças no Asaas pra vincular'));
+        if (empty($cli['asaas_customer_id']) && empty($cli['cpf'])) {
+            _fin_json_echo(array('error' => 'Cliente sem asaas_customer_id e sem CPF — não há como localizar cobranças'));
             exit;
         }
 
-        $custId = $cli['asaas_customer_id'];
-        set_time_limit(90);
+        // Bug Thais Rodrigues (26/05/2026): no Asaas pode haver MAIS DE UM
+        // customer com mesmo CPF (duplicatas). O sync antigo so olhava o
+        // asaas_customer_id salvo no clients e perdia cobrancas dos outros
+        // cadastros. Agora: monta a lista de TODOS os customers Asaas com
+        // mesmo CPF + o asaas_customer_id ja vinculado.
+        $custIds = array();
+        if (!empty($cli['asaas_customer_id'])) $custIds[$cli['asaas_customer_id']] = true;
+        if (!empty($cli['cpf'])) {
+            require_once __DIR__ . '/../../core/asaas_helper.php';
+            $cpfLimpo = preg_replace('/\D/', '', $cli['cpf']);
+            if (strlen($cpfLimpo) >= 11) {
+                $rc = asaas_request('GET', '/customers?cpfCnpj=' . urlencode($cpfLimpo) . '&limit=20');
+                if ($rc && !empty($rc['data'])) {
+                    foreach ($rc['data'] as $c) { if (!empty($c['id'])) $custIds[$c['id']] = true; }
+                }
+            }
+        }
+        if (empty($custIds)) {
+            _fin_json_echo(array('error' => 'Nenhum customer Asaas localizado pelo CPF'));
+            exit;
+        }
+        $custIds = array_keys($custIds);
 
-        // Pagina por /payments?customer={cust} — Asaas retorna até 100 por página.
-        $offset = 0; $limit = 100; $inserted = 0; $updated = 0; $totalApi = 0; $paginas = 0;
+        set_time_limit(120);
+
+        $inserted = 0; $updated = 0; $totalApi = 0; $custsVistos = array();
         $upsert = $pdo->prepare(
             "INSERT INTO asaas_cobrancas
                 (client_id, asaas_payment_id, asaas_customer_id, descricao, valor,
@@ -97,45 +118,52 @@ if ($action === 'sync_cliente') {
                 link_boleto = VALUES(link_boleto), invoice_url = VALUES(invoice_url),
                 ultima_sync = NOW()"
         );
-        while ($paginas < 20) { // até 2000 cobranças
-            $resp = asaas_request('GET', '/payments?customer=' . urlencode($custId) . '&limit=' . $limit . '&offset=' . $offset);
-            if (!$resp || isset($resp['error'])) {
-                _fin_json_echo(array('error' => 'Asaas: ' . ($resp['error'] ?? 'sem resposta')));
-                exit;
-            }
-            $lista = $resp['data'] ?? array();
-            if (empty($lista)) break;
-            $totalApi += count($lista);
+        // Pra cada customer Asaas encontrado, pagina /payments?customer={cust}
+        foreach ($custIds as $custId) {
+            $custsVistos[] = $custId;
+            $offset = 0; $limit = 100; $paginas = 0;
+            while ($paginas < 20) { // ate 2000 cobrancas por customer
+                $resp = asaas_request('GET', '/payments?customer=' . urlencode($custId) . '&limit=' . $limit . '&offset=' . $offset);
+                if (!$resp || isset($resp['error'])) {
+                    _fin_json_echo(array('error' => 'Asaas (' . $custId . '): ' . ($resp['error'] ?? 'sem resposta')));
+                    exit;
+                }
+                $lista = $resp['data'] ?? array();
+                if (empty($lista)) break;
+                $totalApi += count($lista);
 
-            foreach ($lista as $p) {
-                $payId = $p['id'] ?? ''; if (!$payId) continue;
-                $upsert->execute(array(
-                    $clientId, $payId, $custId,
-                    mb_substr((string)($p['description'] ?? ''), 0, 250),
-                    $p['value'] ?? 0,
-                    $p['dueDate'] ?? date('Y-m-d'),
-                    $p['status'] ?? 'PENDING',
-                    $p['billingType'] ?? null,
-                    $p['paymentDate'] ?? null,
-                    $p['netValue'] ?? null,
-                    $p['bankSlipUrl'] ?? null,
-                    $p['invoiceUrl'] ?? null,
-                ));
-                if ($upsert->rowCount() === 1) $inserted++;
-                else $updated++;
+                foreach ($lista as $p) {
+                    $payId = $p['id'] ?? ''; if (!$payId) continue;
+                    $upsert->execute(array(
+                        $clientId, $payId, $custId,
+                        mb_substr((string)($p['description'] ?? ''), 0, 250),
+                        $p['value'] ?? 0,
+                        $p['dueDate'] ?? date('Y-m-d'),
+                        $p['status'] ?? 'PENDING',
+                        $p['billingType'] ?? null,
+                        $p['paymentDate'] ?? null,
+                        $p['netValue'] ?? null,
+                        $p['bankSlipUrl'] ?? null,
+                        $p['invoiceUrl'] ?? null,
+                    ));
+                    if ($upsert->rowCount() === 1) $inserted++;
+                    else $updated++;
+                }
+                $offset += $limit;
+                $paginas++;
+                if (!($resp['hasMore'] ?? false)) break;
             }
-            $offset += $limit;
-            $paginas++;
-            if (!($resp['hasMore'] ?? false)) break;
         }
 
-        audit_log('asaas_sync_cliente', 'clients', $clientId, "cust={$custId} total={$totalApi} novas={$inserted} upd={$updated}");
+        $custsCsv = implode(',', $custsVistos);
+        audit_log('asaas_sync_cliente', 'clients', $clientId, "custs=[{$custsCsv}] total={$totalApi} novas={$inserted} upd={$updated}");
         _fin_json_echo(array(
             'ok' => true,
             'total' => $totalApi,
             'novas' => $inserted,
             'atualizadas' => $updated,
             'cliente' => $cli['name'],
+            'customers_consultados' => $custsVistos,
         ));
         exit;
     } catch (Exception $e) {
