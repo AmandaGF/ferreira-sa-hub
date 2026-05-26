@@ -1829,6 +1829,15 @@ function confirmarMarcarIncidental() {
                         <?= $ged['visivel_cliente'] ? '👁 Visível' : '🔒 Oculto' ?>
                     </span>
                     <a href="<?= module_url('salavip', 'download.php?id=' . $ged['id']) ?>" target="_blank" style="background:none;border:none;cursor:pointer;font-size:.9rem;color:#0d9488;text-decoration:none;" title="Ver arquivo">📥</a>
+                    <?php
+                    $_temToken = !empty($ged['share_token']) && empty($ged['share_revogado']);
+                    $_acessos  = (int)($ged['share_acessos'] ?? 0);
+                    ?>
+                    <button type="button" onclick="gedAbrirLink(<?= (int)$ged['id'] ?>, this)"
+                            style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;color:<?= $_temToken ? '#0e7490' : '#9ca3af' ?>;"
+                            title="<?= $_temToken ? 'Link ativo · ' . $_acessos . ' acesso(s) · clique pra ver / copiar / revogar' : 'Gerar link pra enviar ao cliente pelo WhatsApp' ?>">
+                        🔗<?= $_temToken && $_acessos > 0 ? '<sup style="font-size:.55rem;color:#059669;font-weight:700;">' . $_acessos . '</sup>' : '' ?>
+                    </button>
                     <form method="POST" action="<?= module_url('salavip', 'ged.php') ?>" style="display:inline;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="toggle_visivel">
@@ -1849,6 +1858,96 @@ function confirmarMarcarIncidental() {
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+// Link público compartilhável do GED (Amanda 26/05/2026): mesmo modal
+// usado em /modules/salavip/ged.php, replicado aqui pra ficha do caso.
+(function(){
+    var GED_URL = '<?= module_url('salavip', 'ged.php') ?>';
+
+    window.gedAbrirLink = function(docId, btn) {
+        if (btn) { btn.disabled = true; var _txt = btn.innerHTML; btn.innerHTML = '⏳'; }
+        var fd = new FormData();
+        fd.append('ajax_action', 'gerar_link');
+        fd.append('id', docId);
+        fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+
+        fetch(GED_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (btn) { btn.disabled = false; btn.innerHTML = _txt; }
+                if (d.error) { alert('Falha: ' + d.error); return; }
+                if (d.csrf_expired && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+                gedMostrarModalLink(docId, d.url, d.acessos, d.ultimo, d.reativou);
+            })
+            .catch(function(e){
+                if (btn) { btn.disabled = false; btn.innerHTML = _txt; }
+                alert('Erro de conexão: ' + e.message);
+            });
+    };
+
+    function gedMostrarModalLink(docId, url, acessos, ultimo, reativou) {
+        var ultStr = ultimo ? new Date(ultimo.replace(' ', 'T')).toLocaleString('pt-BR') : '—';
+        var modal = document.createElement('div');
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        modal.innerHTML = '<div style="background:#fff;max-width:560px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);border-top:4px solid #0e7490;">'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">'
+            + '<h3 style="margin:0;color:#0e7490;">🔗 Link público para o cliente</h3>'
+            + '<button id="gedFecharLink" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+            + '</div>'
+            + (reativou ? '<div style="padding:.4rem .7rem;background:#dcfce7;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;font-size:.78rem;color:#166534;margin-bottom:.7rem;">✓ Link reativado.</div>' : '')
+            + '<p style="font-size:.83rem;color:#374151;margin:0 0 .7rem;">Envie este link pelo WhatsApp, e-mail ou SMS. Quem abrir consegue ver/baixar o arquivo sem login.</p>'
+            + '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.7rem;margin-bottom:.8rem;">'
+            + '<input id="gedLinkInput" type="text" readonly value="' + url + '" style="width:100%;font-family:monospace;font-size:.84rem;border:none;background:transparent;padding:.3rem 0;outline:none;color:#0e7490;">'
+            + '</div>'
+            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.8rem;">'
+            + '<button id="gedCopiarLink" style="background:#0e7490;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">📋 Copiar link</button>'
+            + '<a id="gedWhatsLink" href="https://wa.me/?text=' + encodeURIComponent('Olá! Segue o documento: ' + url) + '" target="_blank" rel="noopener" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;text-align:center;text-decoration:none;font-size:.85rem;">💬 Abrir WhatsApp</a>'
+            + '</div>'
+            + '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:.7rem;border-top:1px solid #e5e7eb;font-size:.78rem;color:#6b7280;">'
+            + '<div>👁 <strong>' + (acessos || 0) + '</strong> acesso' + ((acessos === 1) ? '' : 's') + ' · último: ' + ultStr + '</div>'
+            + '<button id="gedRevogarLink" data-id="' + docId + '" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.3rem .6rem;border-radius:6px;font-size:.72rem;cursor:pointer;">🚫 Revogar link</button>'
+            + '</div>'
+            + '<div style="margin-top:.7rem;padding:.5rem .7rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:.72rem;color:#92400e;">⚠ Qualquer pessoa com este link consegue abrir o documento. Revogue se compartilhar errado.</div>'
+            + '</div>';
+        document.body.appendChild(modal);
+
+        var fechar = function(){ modal.remove(); };
+        modal.querySelector('#gedFecharLink').addEventListener('click', fechar);
+        document.addEventListener('keydown', function _k(ev){ if (ev.key === 'Escape') { fechar(); document.removeEventListener('keydown', _k); } });
+
+        modal.querySelector('#gedCopiarLink').addEventListener('click', function(){
+            var inp = modal.querySelector('#gedLinkInput');
+            inp.select(); inp.setSelectionRange(0, 99999);
+            var btnCp = this;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(url).then(function(){
+                    btnCp.innerHTML = '✓ Copiado!'; btnCp.style.background = '#16a34a';
+                    setTimeout(function(){ btnCp.innerHTML = '📋 Copiar link'; btnCp.style.background = '#0e7490'; }, 1800);
+                }).catch(function(){ try { document.execCommand('copy'); btnCp.innerHTML = '✓ Copiado!'; } catch(e){} });
+            } else {
+                try { document.execCommand('copy'); btnCp.innerHTML = '✓ Copiado!'; } catch(e){}
+            }
+        });
+
+        modal.querySelector('#gedRevogarLink').addEventListener('click', function(){
+            if (!confirm('Revogar o link?\n\nQuem tiver o link não conseguirá mais abrir o documento.\nVocê pode gerar um link novo depois.')) return;
+            var fd = new FormData();
+            fd.append('ajax_action', 'revogar_link');
+            fd.append('id', docId);
+            fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+            fetch(GED_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(r){ return r.json(); })
+                .then(function(d){
+                    if (d.error) { alert('Falha: ' + d.error); return; }
+                    fechar();
+                    location.reload();
+                })
+                .catch(function(e){ alert('Erro: ' + e.message); });
+        });
+    }
+})();
+</script>
 
 <!-- Status e Informações -->
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
