@@ -35,14 +35,16 @@ $tiposIn = "'" . implode("','", $tiposAfetados) . "'";
 
 echo "Buscando candidatos (tipos: $tiposIn)...\n";
 
+// Schema notado em 24/05/2026: agenda_eventos.data_inicio eh DATETIME com hora
+// embutida — nao existe coluna 'hora_inicio'. Detectamos eventos com hora
+// definida via TIME(data_inicio) != '00:00:00'.
 try {
     $st = $pdo->query(
-        "SELECT id, titulo, tipo, data_inicio, hora_inicio, dia_todo
+        "SELECT id, titulo, tipo, data_inicio, dia_todo
          FROM agenda_eventos
          WHERE dia_todo = 1
            AND tipo IN ($tiposIn)
-           AND hora_inicio IS NOT NULL
-           AND hora_inicio != '00:00:00'
+           AND TIME(data_inicio) != '00:00:00'
          ORDER BY data_inicio DESC LIMIT 100"
     );
     $candidatos = $st->fetchAll();
@@ -59,7 +61,7 @@ if (empty($candidatos)) {
     foreach ($candidatos as $e) {
         echo "  #" . str_pad((string)$e['id'], 5, ' ') . " [" . str_pad($e['tipo'], 18, ' ') . "] "
             . substr((string)$e['titulo'], 0, 50)
-            . " | " . $e['data_inicio'] . " hora=" . substr((string)$e['hora_inicio'], 0, 5) . "\n";
+            . " | " . $e['data_inicio'] . "\n";
     }
 }
 
@@ -68,8 +70,7 @@ if ($aplicar && !empty($candidatos)) {
         "UPDATE agenda_eventos SET dia_todo = 0
          WHERE dia_todo = 1
            AND tipo IN ($tiposIn)
-           AND hora_inicio IS NOT NULL
-           AND hora_inicio != '00:00:00'"
+           AND TIME(data_inicio) != '00:00:00'"
     );
     echo "\n[OK] Atualizados: " . (int)$stUpd . " eventos.\n";
 } else if ($aplicar) {
@@ -82,7 +83,7 @@ if ($aplicar && !empty($candidatos)) {
 echo "\n--- Eventos dia_todo=1 SEM hora (nao tocados — talvez intencionais) ---\n";
 $stOk = $pdo->query("SELECT id, titulo, tipo, data_inicio FROM agenda_eventos
                      WHERE dia_todo = 1 AND tipo IN ($tiposIn)
-                       AND (hora_inicio IS NULL OR hora_inicio = '00:00:00')
+                       AND TIME(data_inicio) = '00:00:00'
                      ORDER BY data_inicio DESC LIMIT 30");
 $semHora = $stOk->fetchAll();
 if (empty($semHora)) echo "  Nenhum.\n";
