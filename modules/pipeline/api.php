@@ -51,12 +51,9 @@ switch ($action) {
 
         $fromStage = $lead['stage'];
 
-        // ── Checagens de permissão ANTES de qualquer update (para não dessincronizar) ──
-        if (in_array($toStage, array('cancelado','suspenso'), true) && !has_role('admin')) {
-            flash_set('error', 'Apenas administradores podem ' . ($toStage === 'cancelado' ? 'cancelar' : 'suspender') . '.');
-            redirect(module_url('pipeline'));
-            exit;
-        }
+        // Permissao pra cancelar/suspender: aberto pra toda equipe (Amanda 26/05/2026
+        // pediu tirar trava — Naiara/CX precisa cancelar leads sem depender de admin).
+        // Antes era 'has_role admin' apenas. Audit log continua registrando quem fez.
 
         // ── PARA ARQUIVAR: marcação visual do Kanban — NÃO muda stage real ──
         if ($toStage === 'para_arquivar') {
