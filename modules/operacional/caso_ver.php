@@ -2008,13 +2008,24 @@ function buscarParceiroSugest(q) {
             try { $comarcasExistentes = $pdo->query("SELECT DISTINCT comarca FROM cases WHERE comarca IS NOT NULL AND comarca != '' ORDER BY comarca")->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
             try { $varasExistentes    = $pdo->query("SELECT DISTINCT court   FROM cases WHERE court   IS NOT NULL AND court   != '' ORDER BY court")  ->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
         ?>
-        <!-- Grid responsivo: 2 colunas em telas largas, 1 coluna em telas <1200px (evita texto cortado no n. do processo, vara) -->
+        <!-- Grid responsivo: 2 colunas em telas largas, 1 coluna em telas <1200px (evita texto cortado).
+             Campos longos (Número do Processo, Vara, Drive) ocupam a linha inteira (grid-column:1/-1)
+             pra dar espaço — n. CNJ tem 25 chars e nao cabia em meia largura. -->
         <style>
         .cv-dados-processo-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
         @media (max-width: 1200px) {
             .cv-dados-processo-grid { grid-template-columns:1fr; }
         }
         .cv-dados-processo-grid .campo-proc-row label { min-width:120px !important; }
+        .cv-dados-processo-grid .campo-proc-row[data-field-row="case_number"],
+        .cv-dados-processo-grid .campo-proc-row[data-field-row="court"],
+        .cv-dados-processo-grid .campo-proc-row[data-field-row="drive_folder_url"] {
+            grid-column: 1 / -1;
+        }
+        .cv-dados-processo-grid .campo-proc-row[data-field-row="case_number"] input {
+            font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            letter-spacing: .02em;
+        }
         </style>
         <div class="cv-dados-processo-grid">
             <?php
