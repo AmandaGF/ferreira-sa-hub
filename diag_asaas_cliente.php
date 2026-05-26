@@ -55,8 +55,26 @@ if (!$cust && $cli['cpf']) {
 
 if (!$cust) { echo "\nSem customer_id, nao da pra sincronizar cobrancas.\n"; exit; }
 
+// 4a) Lista TODOS os customers no Asaas com o nome similar (achar duplicados)
+echo "\n--- Customers no Asaas com nome '$nome' ---\n";
+$resp = asaas_request('GET', '/customers?name=' . urlencode($nome) . '&limit=50');
+if ($resp && isset($resp['data'])) {
+    foreach ($resp['data'] as $c) {
+        $vinculado = ($c['id'] === $cust) ? ' [VINCULADO AO HUB]' : '';
+        echo sprintf("  %s  CPF=%s  Nome='%s'  Email=%s%s\n",
+            $c['id'], $c['cpfCnpj'] ?? '?', $c['name'] ?? '?', $c['email'] ?? '-', $vinculado);
+        // Quantas cobrancas tem cada um?
+        $rp = asaas_request('GET', '/payments?customer=' . urlencode($c['id']) . '&limit=100');
+        $qtd = $rp && isset($rp['data']) ? count($rp['data']) : 0;
+        $totQtd = $rp && isset($rp['totalCount']) ? (int)$rp['totalCount'] : $qtd;
+        echo "      -> $totQtd cobranca(s) no Asaas\n";
+    }
+} else {
+    echo "  (erro ou sem resposta)\n";
+}
+
 // 4) Busca cobrancas no Asaas (sem filtro de data)
-echo "\n--- Buscando cobrancas no Asaas para customer=$cust ---\n";
+echo "\n--- Buscando cobrancas no Asaas para customer=$cust (atual vinculo) ---\n";
 $offset = 0; $totalApi = 0; $paginas = 0; $todos = array();
 while ($paginas < 20) {
     $resp = asaas_request('GET', '/payments?customer=' . urlencode($cust) . '&limit=100&offset=' . $offset);
