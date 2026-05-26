@@ -12,8 +12,13 @@
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
+header('X-Accel-Buffering: no');
 ini_set('display_errors', '1');
+ini_set('output_buffering', '0');
+ini_set('implicit_flush', '1');
 error_reporting(E_ALL);
+while (ob_get_level()) ob_end_flush();
+ob_implicit_flush(true);
 
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
