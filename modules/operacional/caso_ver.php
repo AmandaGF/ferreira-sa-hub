@@ -2008,7 +2008,15 @@ function buscarParceiroSugest(q) {
             try { $comarcasExistentes = $pdo->query("SELECT DISTINCT comarca FROM cases WHERE comarca IS NOT NULL AND comarca != '' ORDER BY comarca")->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
             try { $varasExistentes    = $pdo->query("SELECT DISTINCT court   FROM cases WHERE court   IS NOT NULL AND court   != '' ORDER BY court")  ->fetchAll(PDO::FETCH_COLUMN); } catch (Exception $e) {}
         ?>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+        <!-- Grid responsivo: 2 colunas em telas largas, 1 coluna em telas <1200px (evita texto cortado no n. do processo, vara) -->
+        <style>
+        .cv-dados-processo-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+        @media (max-width: 1200px) {
+            .cv-dados-processo-grid { grid-template-columns:1fr; }
+        }
+        .cv-dados-processo-grid .campo-proc-row label { min-width:120px !important; }
+        </style>
+        <div class="cv-dados-processo-grid">
             <?php
             // Tipo de demanda: judicial / administrativa / extrajudicial / pre_processual
             // Quando NAO for judicial, os campos N. Processo / Vara / Comarca / Sistema Tribunal
@@ -2088,6 +2096,7 @@ function buscarParceiroSugest(q) {
                        list="<?= $listId ?>" autocomplete="off"
                        onchange="salvarCampoProcesso(this); <?= $extraOnChange ?>"
                        placeholder="<?= e($cp['placeholder']) ?>"
+                       title="<?= e($cp['value']) ?>"
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
                        onblur="this.style.background='transparent'">
@@ -2097,6 +2106,7 @@ function buscarParceiroSugest(q) {
                        <?= $cp['field'] === 'regional' ? 'list="listRegionaisCv" autocomplete="off"' : '' ?>
                        onchange="salvarCampoProcesso(this);"
                        placeholder="<?= e($cp['placeholder']) ?>"
+                       title="<?= e($cp['value']) ?>"
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
                        onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
                        onblur="this.style.background='transparent'">
