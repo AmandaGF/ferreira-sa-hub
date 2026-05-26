@@ -8,6 +8,14 @@ require_login();
 
 $pdo = db();
 
+// Self-heal: colunas para link publico compartilhavel (criadas 26/05/2026
+// a pedido da Amanda: enviar link em vez de arquivo pesado pelo WhatsApp).
+try { $pdo->exec("ALTER TABLE salavip_ged ADD COLUMN share_token VARCHAR(64) NULL UNIQUE AFTER visivel_cliente"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE salavip_ged ADD COLUMN share_token_em DATETIME NULL AFTER share_token"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE salavip_ged ADD COLUMN share_revogado TINYINT(1) DEFAULT 0 AFTER share_token_em"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE salavip_ged ADD COLUMN share_acessos INT DEFAULT 0 AFTER share_revogado"); } catch (Throwable $e) {}
+try { $pdo->exec("ALTER TABLE salavip_ged ADD COLUMN share_ultimo_acesso DATETIME NULL AFTER share_acessos"); } catch (Throwable $e) {}
+
 // AJAX: buscar processos de um cliente
 if (isset($_GET['ajax_cases']) && isset($_GET['client_id'])) {
     header('Content-Type: application/json; charset=utf-8');
@@ -15,6 +23,66 @@ if (isset($_GET['ajax_cases']) && isset($_GET['client_id'])) {
     $stmt = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE client_id = ? ORDER BY title");
     $stmt->execute([$cid]);
     echo json_encode($stmt->fetchAll());
+    exit;
+}
+
+// AJAX: gerar/recuperar link publico de um documento
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'gerar_link') {
+    while (ob_get_level() > 0) @ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF expirado — recarregue', 'csrf_expired' => true)); exit; }
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(array('error' => 'id ausente')); exit; }
+
+        $st = $pdo->prepare("SELECT id, share_token, share_revogado, share_acessos, share_ultimo_acesso FROM salavip_ged WHERE id = ?");
+        $st->execute(array($id));
+        $row = $st->fetch();
+        if (!$row) { echo json_encode(array('error' => 'Documento nao encontrado')); exit; }
+
+        $token = $row['share_token'];
+        $reativou = false;
+        if (!$token) {
+            $token = bin2hex(random_bytes(16));
+            $pdo->prepare("UPDATE salavip_ged SET share_token = ?, share_token_em = NOW(), share_revogado = 0 WHERE id = ?")
+                ->execute(array($token, $id));
+        } elseif (!empty($row['share_revogado'])) {
+            // Reativa: mantem o token (continuidade de auditoria) mas desfaz revogacao
+            $pdo->prepare("UPDATE salavip_ged SET share_revogado = 0 WHERE id = ?")->execute(array($id));
+            $reativou = true;
+        }
+
+        audit_log($reativou ? 'salavip_ged_link_reativado' : 'salavip_ged_link_gerado', 'salavip_ged', $id);
+
+        echo json_encode(array(
+            'ok'       => true,
+            'url'      => url('d.php?t=' . $token),
+            'acessos'  => (int)($row['share_acessos'] ?? 0),
+            'ultimo'   => $row['share_ultimo_acesso'] ?? null,
+            'reativou' => $reativou,
+        ));
+    } catch (Throwable $e) {
+        @error_log('[salavip ged gerar_link] ' . $e->getMessage());
+        echo json_encode(array('error' => 'Erro interno: ' . $e->getMessage()));
+    }
+    exit;
+}
+
+// AJAX: revogar link publico
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'revogar_link') {
+    while (ob_get_level() > 0) @ob_end_clean();
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF expirado — recarregue', 'csrf_expired' => true)); exit; }
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(array('error' => 'id ausente')); exit; }
+        $pdo->prepare("UPDATE salavip_ged SET share_revogado = 1 WHERE id = ?")->execute(array($id));
+        audit_log('salavip_ged_link_revogado', 'salavip_ged', $id);
+        echo json_encode(array('ok' => true));
+    } catch (Throwable $e) {
+        @error_log('[salavip ged revogar_link] ' . $e->getMessage());
+        echo json_encode(array('error' => 'Erro interno: ' . $e->getMessage()));
+    }
     exit;
 }
 
@@ -270,11 +338,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <th>Categoria</th>
                         <th>Data</th>
                         <th>Visível</th>
+                        <th>Link público</th>
                         <th>Ações</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <?php foreach ($docs as $doc): ?>
+                    <?php foreach ($docs as $doc):
+                        $_temToken = !empty($doc['share_token']) && empty($doc['share_revogado']);
+                        $_acessos  = (int)($doc['share_acessos'] ?? 0);
+                    ?>
                         <tr>
                             <td style="font-weight:600;"><?= e($doc['client_name']) ?></td>
                             <td class="text-sm text-muted"><?= $doc['case_number'] ? e($doc['case_number']) : '—' ?></td>
@@ -290,6 +362,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                         <?= $doc['visivel_cliente'] ? '&#9989;' : '&#10060;' ?>
                                     </button>
                                 </form>
+                            </td>
+                            <td>
+                                <button type="button" onclick="gedAbrirLink(<?= (int)$doc['id'] ?>, this)"
+                                        class="btn btn-sm"
+                                        style="font-size:.7rem;padding:.25rem .55rem;<?= $_temToken ? 'background:#0e7490;color:#fff;border:none;' : 'background:#fff;color:#0e7490;border:1px solid #0e7490;' ?>"
+                                        title="<?= $_temToken ? 'Link ativo · ' . $_acessos . ' acesso(s)' : 'Gerar link para enviar ao cliente' ?>">
+                                    🔗 <?= $_temToken ? ($_acessos > 0 ? $_acessos . ' acesso' . ($_acessos > 1 ? 's' : '') : 'Ativo') : 'Gerar' ?>
+                                </button>
                             </td>
                             <td>
                                 <div style="display:flex;gap:.3rem;">
@@ -333,6 +413,93 @@ document.getElementById('ged_client').addEventListener('change', function(){
         })
         .catch(function(){});
 });
+
+// ── Link público compartilhável (Amanda: enviar pelo WhatsApp) ──────
+var GED_URL = '<?= module_url('salavip', 'ged.php') ?>';
+
+function gedAbrirLink(docId, btn) {
+    if (btn) { btn.disabled = true; var _txt = btn.innerHTML; btn.innerHTML = '⏳'; }
+    var fd = new FormData();
+    fd.append('ajax_action', 'gerar_link');
+    fd.append('id', docId);
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+
+    fetch(GED_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (btn) { btn.disabled = false; btn.innerHTML = _txt; }
+            if (d.error) { alert('Falha: ' + d.error); return; }
+            if (d.csrf_expired && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+            gedMostrarModalLink(docId, d.url, d.acessos, d.ultimo, d.reativou);
+        })
+        .catch(function(e){
+            if (btn) { btn.disabled = false; btn.innerHTML = _txt; }
+            alert('Erro de conexao: ' + e.message);
+        });
+}
+
+function gedMostrarModalLink(docId, url, acessos, ultimo, reativou) {
+    var ultStr = ultimo ? new Date(ultimo.replace(' ', 'T')).toLocaleString('pt-BR') : '—';
+    var modal = document.createElement('div');
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML = '<div style="background:#fff;max-width:560px;width:100%;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);border-top:4px solid #0e7490;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">'
+        + '<h3 style="margin:0;color:#0e7490;">🔗 Link público para o cliente</h3>'
+        + '<button id="gedFecharLink" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
+        + '</div>'
+        + (reativou ? '<div style="padding:.4rem .7rem;background:#dcfce7;border-left:3px solid #16a34a;border-radius:0 6px 6px 0;font-size:.78rem;color:#166534;margin-bottom:.7rem;">✓ Link reativado.</div>' : '')
+        + '<p style="font-size:.83rem;color:#374151;margin:0 0 .7rem;">Envie este link pelo WhatsApp, e-mail ou SMS. Quem abrir consegue ver/baixar o arquivo sem login.</p>'
+        + '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.7rem;margin-bottom:.8rem;">'
+        + '<input id="gedLinkInput" type="text" readonly value="' + url + '" style="width:100%;font-family:monospace;font-size:.84rem;border:none;background:transparent;padding:.3rem 0;outline:none;color:#0e7490;">'
+        + '</div>'
+        + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.8rem;">'
+        + '<button id="gedCopiarLink" style="background:#0e7490;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">📋 Copiar link</button>'
+        + '<a id="gedWhatsLink" href="https://wa.me/?text=' + encodeURIComponent('Olá! Segue o documento: ' + url) + '" target="_blank" rel="noopener" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;text-align:center;text-decoration:none;font-size:.85rem;">💬 Abrir WhatsApp</a>'
+        + '</div>'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:.7rem;border-top:1px solid #e5e7eb;font-size:.78rem;color:#6b7280;">'
+        + '<div>👁 <strong>' + (acessos || 0) + '</strong> acesso' + ((acessos === 1) ? '' : 's') + ' · último: ' + ultStr + '</div>'
+        + '<button id="gedRevogarLink" data-id="' + docId + '" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;padding:.3rem .6rem;border-radius:6px;font-size:.72rem;cursor:pointer;">🚫 Revogar link</button>'
+        + '</div>'
+        + '<div style="margin-top:.7rem;padding:.5rem .7rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:.72rem;color:#92400e;">⚠ Qualquer pessoa com este link consegue abrir o documento. Revogue se compartilhar errado.</div>'
+        + '</div>';
+    document.body.appendChild(modal);
+
+    var fechar = function(){ modal.remove(); };
+    modal.querySelector('#gedFecharLink').addEventListener('click', fechar);
+    // Esc fecha; clique fora NAO fecha (evita perder por acidente)
+    document.addEventListener('keydown', function _k(ev){ if (ev.key === 'Escape') { fechar(); document.removeEventListener('keydown', _k); } });
+
+    modal.querySelector('#gedCopiarLink').addEventListener('click', function(){
+        var inp = modal.querySelector('#gedLinkInput');
+        inp.select(); inp.setSelectionRange(0, 99999);
+        var ok = false;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(url).then(function(){
+                this.innerHTML = '✓ Copiado!';
+                this.style.background = '#16a34a';
+                setTimeout(function(){ try { this.innerHTML = '📋 Copiar link'; this.style.background = '#0e7490'; } catch(e){} }.bind(this), 1800);
+            }.bind(this)).catch(function(){ try { document.execCommand('copy'); ok = true; } catch(e){} });
+        } else {
+            try { document.execCommand('copy'); this.innerHTML = '✓ Copiado!'; } catch(e){}
+        }
+    });
+
+    modal.querySelector('#gedRevogarLink').addEventListener('click', function(){
+        if (!confirm('Revogar o link?\n\nQuem tiver o link nao conseguira mais abrir o documento.\nVoce pode gerar um link novo depois.')) return;
+        var fd = new FormData();
+        fd.append('ajax_action', 'revogar_link');
+        fd.append('id', docId);
+        fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+        fetch(GED_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('Falha: ' + d.error); return; }
+                fechar();
+                location.reload();
+            })
+            .catch(function(e){ alert('Erro: ' + e.message); });
+    });
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
