@@ -109,8 +109,10 @@ if (($_GET['action'] ?? $_POST['action'] ?? '') === 'resumir_conv_ia') {
         $conv = $stC->fetch(PDO::FETCH_ASSOC);
         if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
+        // BUG fix 26/05/2026: 'created_at' sem alias era ambíguo (zapi_mensagens.created_at
+        // e users.created_at ambos existem). Qualificar com m.created_at.
         $stM = db()->prepare(
-            "SELECT direcao, tipo, conteudo, created_at, u.name AS quem
+            "SELECT m.direcao, m.tipo, m.conteudo, m.created_at, u.name AS quem
              FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
              WHERE m.conversa_id = ? AND m.conteudo IS NOT NULL AND m.conteudo != ''
              ORDER BY m.created_at DESC LIMIT 30"
