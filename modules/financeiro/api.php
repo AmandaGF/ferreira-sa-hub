@@ -12,6 +12,40 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('financeiro'));
 
 $isAjax = (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest');
 
+// Para AJAX: liga buffer pra impedir que warnings/notices/BOM quebrem o JSON.
+// Helper limpa o buffer antes do echo. Corrige bug do "Resposta nao-JSON" que
+// a Amanda reportou em 26/05/2026 ao vincular cobranca a processo.
+if ($isAjax) { @ob_start(); }
+function _fin_json_echo($data, $status = null) {
+    while (@ob_get_level() > 0) { @ob_end_clean(); }
+    if (!headers_sent()) {
+        if ($status) http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+    echo json_encode($data);
+}
+
+// Capturador de erro fatal — loga em uploads/financeiro_last_error.log
+// pra rastrear o 500 que aparece pra Amanda em produção.
+register_shutdown_function(function() {
+    $err = error_get_last();
+    if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) {
+        $logDir = dirname(__DIR__, 2) . '/uploads';
+        if (!is_dir($logDir)) @mkdir($logDir, 0755, true);
+        @file_put_contents(
+            $logDir . '/financeiro_last_error.log',
+            '[' . date('Y-m-d H:i:s') . "]\n"
+            . 'TIPO: ' . $err['type'] . "\n"
+            . 'MSG: ' . $err['message'] . "\n"
+            . 'FILE: ' . $err['file'] . ':' . $err['line'] . "\n"
+            . 'ACTION: ' . ($_POST['action'] ?? '?') . "\n"
+            . 'POST: ' . json_encode($_POST) . "\n"
+            . "\n----\n",
+            FILE_APPEND
+        );
+    }
+});
+
 if (!validate_csrf()) {
     if ($isAjax) {
         header('Content-Type: application/json', true, 403);
@@ -27,69 +61,79 @@ $pdo = db();
 
 // Vincular / desvincular cobrança a um processo (case_id)
 if ($action === 'vincular_case') {
-    header('Content-Type: application/json');
-    $cobId = (int)($_POST['cobranca_id'] ?? 0);
-    $caseId = (int)($_POST['case_id'] ?? 0);
-    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    try {
+        $cobId = (int)($_POST['cobranca_id'] ?? 0);
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if (!$cobId) { _fin_json_echo(array('error' => 'cobranca_id obrigatório')); exit; }
 
-    // Se caseId > 0, validar que o caso pertence ao mesmo cliente da cobrança
-    if ($caseId > 0) {
-        $chk = $pdo->prepare("SELECT cs.id FROM cases cs JOIN asaas_cobrancas ac ON ac.client_id = cs.client_id WHERE ac.id = ? AND cs.id = ?");
-        $chk->execute(array($cobId, $caseId));
-        if (!$chk->fetch()) { echo json_encode(array('error' => 'Processo não pertence a este cliente')); exit; }
+        // Se caseId > 0, validar que o caso pertence ao mesmo cliente da cobrança
+        if ($caseId > 0) {
+            $chk = $pdo->prepare("SELECT cs.id FROM cases cs JOIN asaas_cobrancas ac ON ac.client_id = cs.client_id WHERE ac.id = ? AND cs.id = ?");
+            $chk->execute(array($cobId, $caseId));
+            if (!$chk->fetch()) { _fin_json_echo(array('error' => 'Processo não pertence a este cliente')); exit; }
+        }
+        $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE id = ?")
+            ->execute(array($caseId ?: null, $cobId));
+        // Sincroniza honorarios_cobranca se existir entrada
+        $pdo->prepare("UPDATE honorarios_cobranca SET case_id = ? WHERE asaas_payment_id = (SELECT asaas_payment_id FROM asaas_cobrancas WHERE id = ?)")
+            ->execute(array($caseId ?: null, $cobId));
+        audit_log('asaas_vincular_case', 'asaas_cobrancas', $cobId, "case_id={$caseId}");
+        _fin_json_echo(array('ok' => true));
+        exit;
+    } catch (Exception $e) {
+        @error_log('[vincular_case] ' . $e->getMessage() . ' cob=' . $cobId . ' case=' . $caseId);
+        _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
+        exit;
     }
-    $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE id = ?")
-        ->execute(array($caseId ?: null, $cobId));
-    // Sincroniza honorarios_cobranca se existir entrada
-    $pdo->prepare("UPDATE honorarios_cobranca SET case_id = ? WHERE asaas_payment_id = (SELECT asaas_payment_id FROM asaas_cobrancas WHERE id = ?)")
-        ->execute(array($caseId ?: null, $cobId));
-    audit_log('asaas_vincular_case', 'asaas_cobrancas', $cobId, "case_id={$caseId}");
-    echo json_encode(array('ok' => true));
-    exit;
 }
 
 // Vincular TODAS as cobranças de um cliente a um processo específico (bulk)
 // Opcionalmente filtra por status (só pendentes, só vencidas, etc)
 if ($action === 'vincular_case_bulk') {
-    header('Content-Type: application/json');
-    $clientId = (int)($_POST['client_id'] ?? 0);
-    $caseId   = (int)($_POST['case_id'] ?? 0);
-    $apenas   = $_POST['apenas'] ?? 'todas'; // todas | sem_vinculo | pendentes_vencidas
-    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
-
-    // Valida que o caso pertence ao cliente (quando caseId > 0)
-    if ($caseId > 0) {
-        $chk = $pdo->prepare("SELECT id FROM cases WHERE id = ? AND client_id = ?");
-        $chk->execute(array($caseId, $clientId));
-        if (!$chk->fetch()) { echo json_encode(array('error' => 'Processo não pertence a este cliente')); exit; }
-    }
-
-    $where = "client_id = ?";
-    $params = array($clientId);
-    if ($apenas === 'sem_vinculo') {
-        $where .= " AND (case_id IS NULL OR case_id = 0)";
-    } elseif ($apenas === 'pendentes_vencidas') {
-        $where .= " AND status IN ('PENDING', 'OVERDUE')";
-    }
-
-    // Atualiza em asaas_cobrancas
-    $sql = "UPDATE asaas_cobrancas SET case_id = ? WHERE $where";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute(array_merge(array($caseId ?: null), $params));
-    $atualizadas = $stmt->rowCount();
-
-    // Sincroniza em honorarios_cobranca (pelos asaas_payment_id dos registros afetados)
     try {
-        $pdo->prepare("UPDATE honorarios_cobranca hc
-                       JOIN asaas_cobrancas ac ON BINARY ac.asaas_payment_id = BINARY hc.asaas_payment_id
-                       SET hc.case_id = ?
-                       WHERE ac.$where")
-            ->execute(array_merge(array($caseId ?: null), $params));
-    } catch (Exception $e) {}
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $caseId   = (int)($_POST['case_id'] ?? 0);
+        $apenas   = $_POST['apenas'] ?? 'todas'; // todas | sem_vinculo | pendentes_vencidas
+        if (!$clientId) { _fin_json_echo(array('error' => 'client_id obrigatório')); exit; }
 
-    audit_log('asaas_vincular_case_bulk', 'clients', $clientId, "case_id={$caseId}, apenas={$apenas}, atualizadas={$atualizadas}");
-    echo json_encode(array('ok' => true, 'atualizadas' => $atualizadas));
-    exit;
+        // Valida que o caso pertence ao cliente (quando caseId > 0)
+        if ($caseId > 0) {
+            $chk = $pdo->prepare("SELECT id FROM cases WHERE id = ? AND client_id = ?");
+            $chk->execute(array($caseId, $clientId));
+            if (!$chk->fetch()) { _fin_json_echo(array('error' => 'Processo não pertence a este cliente')); exit; }
+        }
+
+        $where = "client_id = ?";
+        $params = array($clientId);
+        if ($apenas === 'sem_vinculo') {
+            $where .= " AND (case_id IS NULL OR case_id = 0)";
+        } elseif ($apenas === 'pendentes_vencidas') {
+            $where .= " AND status IN ('PENDING', 'OVERDUE')";
+        }
+
+        // Atualiza em asaas_cobrancas
+        $sql = "UPDATE asaas_cobrancas SET case_id = ? WHERE $where";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute(array_merge(array($caseId ?: null), $params));
+        $atualizadas = $stmt->rowCount();
+
+        // Sincroniza em honorarios_cobranca (pelos asaas_payment_id dos registros afetados)
+        try {
+            $pdo->prepare("UPDATE honorarios_cobranca hc
+                           JOIN asaas_cobrancas ac ON BINARY ac.asaas_payment_id = BINARY hc.asaas_payment_id
+                           SET hc.case_id = ?
+                           WHERE ac.$where")
+                ->execute(array_merge(array($caseId ?: null), $params));
+        } catch (Exception $e) {}
+
+        audit_log('asaas_vincular_case_bulk', 'clients', $clientId, "case_id={$caseId}, apenas={$apenas}, atualizadas={$atualizadas}");
+        _fin_json_echo(array('ok' => true, 'atualizadas' => $atualizadas));
+        exit;
+    } catch (Exception $e) {
+        @error_log('[vincular_case_bulk] ' . $e->getMessage() . ' client=' . $clientId . ' case=' . $caseId);
+        _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
+        exit;
+    }
 }
 
 // ═══ Ações sobre cobranças existentes (AJAX) ═══
