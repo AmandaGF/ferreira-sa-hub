@@ -2012,11 +2012,19 @@ function buscarParceiroSugest(q) {
              Campos longos (Número do Processo, Vara, Drive) ocupam a linha inteira (grid-column:1/-1)
              pra dar espaço — n. CNJ tem 25 chars e nao cabia em meia largura. -->
         <style>
-        .cv-dados-processo-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; }
+        .cv-dados-processo-grid { display:grid; grid-template-columns:1fr 1fr; gap:0; min-width:0; }
         @media (max-width: 1200px) {
             .cv-dados-processo-grid { grid-template-columns:1fr; }
         }
-        .cv-dados-processo-grid .campo-proc-row label { min-width:120px !important; }
+        .cv-dados-processo-grid .campo-proc-row { min-width:0; }
+        .cv-dados-processo-grid .campo-proc-row label { min-width:120px !important; flex-shrink:0; }
+        .cv-dados-processo-grid .campo-proc-row input,
+        .cv-dados-processo-grid .campo-proc-row select {
+            flex:1 1 0 !important;
+            min-width:0 !important;
+            width:100% !important;
+        }
+        /* Campos longos (CNJ/Vara/Drive) ocupam linha inteira pra caber o conteudo */
         .cv-dados-processo-grid .campo-proc-row[data-field-row="case_number"],
         .cv-dados-processo-grid .campo-proc-row[data-field-row="court"],
         .cv-dados-processo-grid .campo-proc-row[data-field-row="drive_folder_url"] {
@@ -2024,6 +2032,7 @@ function buscarParceiroSugest(q) {
         }
         .cv-dados-processo-grid .campo-proc-row[data-field-row="case_number"] input {
             font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            font-size: .8rem !important;
             letter-spacing: .02em;
         }
         </style>
