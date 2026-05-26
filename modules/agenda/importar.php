@@ -18,7 +18,7 @@ foreach ($users as $u) {
     if (!isset($userMap[$firstName])) $userMap[$firstName] = (int)$u['id'];
 }
 
-$tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','ligacao');
+$tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','ligacao','pericia_inss');
 $tipoAliases = array(
     'audiencia' => 'audiencia', 'audiência' => 'audiencia',
     'reuniao' => 'reuniao_cliente', 'reunião' => 'reuniao_cliente', 'reunião com cliente' => 'reuniao_cliente', 'reuniao cliente' => 'reuniao_cliente', 'reunião cliente' => 'reuniao_cliente',
@@ -27,6 +27,7 @@ $tipoAliases = array(
     'reuniao interna' => 'reuniao_interna', 'reunião interna' => 'reuniao_interna', 'interna' => 'reuniao_interna',
     'mediacao' => 'mediacao_cejusc', 'mediação' => 'mediacao_cejusc', 'cejusc' => 'mediacao_cejusc', 'mediação / cejusc' => 'mediacao_cejusc',
     'ligacao' => 'ligacao', 'ligação' => 'ligacao', 'retorno' => 'ligacao', 'ligação / retorno' => 'ligacao',
+    'pericia inss' => 'pericia_inss', 'perícia inss' => 'pericia_inss', 'pericia' => 'pericia_inss', 'perícia' => 'pericia_inss', 'pericia medica' => 'pericia_inss', 'perícia médica' => 'pericia_inss',
 );
 
 $step = $_POST['step'] ?? '1';
@@ -351,7 +352,7 @@ body.dark-mode .imp-map-label { color:var(--text); }
                 <?php endforeach; ?>
 
                 <div class="imp-dica">
-                    <strong>Tipos aceitos:</strong> audiência, reunião cliente, prazo, onboarding, reunião interna, mediação / CEJUSC, ligação.<br>
+                    <strong>Tipos aceitos:</strong> audiência, reunião cliente, prazo, onboarding, reunião interna, mediação / CEJUSC, ligação, perícia INSS.<br>
                     <strong>Datas:</strong> aceita dd/mm/aaaa ou aaaa-mm-dd. Hora separada ou junto da data.<br>
                     <strong>Cliente:</strong> o sistema busca pelo nome na Agenda de Contatos.
                 </div>

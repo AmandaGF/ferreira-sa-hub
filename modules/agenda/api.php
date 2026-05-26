@@ -149,6 +149,7 @@ function _agenda_notificar_conflitos($novoId, $novoTitulo, $novoTipo, $novoInici
         'reuniao_interna' => 'Reunião interna', 'prazo' => 'Prazo',
         'onboarding' => 'Onboarding', 'mediacao_cejusc' => 'Mediação/CEJUSC',
         'balcao_virtual' => 'Balcão Virtual', 'ligacao' => 'Ligação',
+        'pericia_inss' => 'Perícia INSS',
     );
     $rotulo = $tiposLbl[$novoTipo] ?? 'Compromisso';
     $dataHumana = date('d/m/Y \à\s H:i', strtotime($novoInicio));
@@ -522,7 +523,7 @@ if ($action === 'salvar') {
     $participantesIds = array_filter($participantesIds, function($v){ return $v > 0; });
     $participantesJson = !empty($participantesIds) ? json_encode(array_values($participantesIds)) : null;
 
-    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal');
+    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal','pericia_inss');
     $modalidadesValidas = array('presencial','online','hibrida','nao_aplicavel');
     $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 
@@ -606,7 +607,7 @@ if ($action === 'salvar') {
         // Andamento de ALTERAÇÃO: quando data/hora/local/modalidade/link mudam
         // num evento vinculado a caso, registra no timeline pra ficar trilha
         // pro cliente. Sem isso, alteração de audiência some do processo.
-        $tiposAndamentoEdit = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao');
+        $tiposAndamentoEdit = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao','pericia_inss');
         if ($caseId && $oldEv && in_array($tipo, $tiposAndamentoEdit, true)) {
             $mudancas = array();
             $oldIni = (string)($oldEv['data_inicio'] ?? '');
@@ -652,6 +653,7 @@ if ($action === 'salvar') {
                         'mediacao_cejusc' => 'Mediação/CEJUSC',
                         'balcao_virtual'  => 'Balcão Virtual',
                         'ligacao'         => 'Ligação/Retorno',
+                        'pericia_inss'    => 'Perícia INSS',
                     );
                     $rotuloEv = $rotulosEv[$tipo] ?? 'Compromisso';
                     $descAndEdit = "✏️ {$rotuloEv} ALTERADA: {$titulo}\n";
@@ -721,7 +723,7 @@ if ($action === 'salvar') {
         // Registrar andamento no processo quando vinculado a um caso.
         // prazo e reuniao_interna ficam fora: prazo tem cascade próprio (prazos_processuais);
         // reuniao_interna é de staff e não entra no timeline do processo.
-        $tiposAndamento = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao');
+        $tiposAndamento = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao','pericia_inss');
         if ($caseId && in_array($tipo, $tiposAndamento, true)) {
             try {
                 $rotulos = array(
@@ -731,6 +733,7 @@ if ($action === 'salvar') {
                     'mediacao_cejusc' => 'Mediação/CEJUSC',
                     'balcao_virtual'  => 'Balcão Virtual',
                     'ligacao'         => 'Ligação/Retorno',
+                    'pericia_inss'    => 'Perícia INSS',
                 );
                 $rotulo = $rotulos[$tipo] ?? 'Compromisso';
                 $dtEv  = strtotime($dataInicio);

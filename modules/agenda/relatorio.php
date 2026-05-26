@@ -22,6 +22,7 @@ $tiposMapa = array(
     'mediacao_cejusc'  => array('cor' => '#6B4C9A', 'icon' => '🤝', 'label' => 'Mediação / CEJUSC'),
     'balcao_virtual'   => array('cor' => '#0d9488', 'icon' => '🏛', 'label' => 'Balcão Virtual'),
     'ligacao'          => array('cor' => '#888880', 'icon' => '📞', 'label' => 'Ligação / Retorno'),
+    'pericia_inss'     => array('cor' => '#be185d', 'icon' => '🩺', 'label' => 'Perícia INSS'),
 );
 
 // ── Helpers de periodo ──
