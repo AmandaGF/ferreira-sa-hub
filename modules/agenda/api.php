@@ -493,7 +493,11 @@ if ($action === 'salvar') {
     $modalidade    = $_POST['modalidade'] ?? 'nao_aplicavel';
     $dataInicio    = $_POST['data_inicio'] ?? '';
     $dataFim       = $_POST['data_fim'] ?? '';
-    $diaTodo       = isset($_POST['dia_todo']) ? 1 : 0;
+    // BUG fix 24/05/2026 (Amanda): JS sempre manda 'dia_todo' com valor '0' ou '1'
+    // (fd.append('dia_todo', ehDiaTodo ? '1' : '0')). Antes usava isset() que
+    // retornava true mesmo quando o valor era '0' — TODA audiencia/reuniao saia
+    // como dia_todo=1. Agora le o VALOR.
+    $diaTodo       = (isset($_POST['dia_todo']) && (string)$_POST['dia_todo'] === '1') ? 1 : 0;
     // Cliente presencial so faz sentido em online/hibrida. Backend filtra
     // (presencial = redundante, nao_aplicavel = sem significado).
     $clientePresencial = (isset($_POST['cliente_presencial']) && $_POST['cliente_presencial'] === '1'
