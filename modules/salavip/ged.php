@@ -54,9 +54,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === '
 
         audit_log($reativou ? 'salavip_ged_link_reativado' : 'salavip_ged_link_gerado', 'salavip_ged', $id);
 
+        // Monta URL absoluta (BASE_URL pode vir relativo tipo "/conecta")
+        $_scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $_host   = $_SERVER['HTTP_HOST'] ?? 'ferreiraesa.com.br';
+        $_rel    = url('d.php?t=' . $token);
+        $publicUrl = (stripos($_rel, 'http') === 0) ? $_rel : ($_scheme . '://' . $_host . '/' . ltrim($_rel, '/'));
+
         echo json_encode(array(
             'ok'       => true,
-            'url'      => url('d.php?t=' . $token),
+            'url'      => $publicUrl,
             'acessos'  => (int)($row['share_acessos'] ?? 0),
             'ultimo'   => $row['share_ultimo_acesso'] ?? null,
             'reativou' => $reativou,
