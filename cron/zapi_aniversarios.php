@@ -125,7 +125,12 @@ foreach ($clientes as $c) {
     } else {
         $tplNome = $cfg['tpl'];
     }
-    $msg = zapi_get_template($tplNome, array('nome' => $nome));
+    // client_id ativa resolucao de {{masc|fem}} no template baseado em
+    // clients.gender (com fallback de inferencia pelo nome quando vazio).
+    $msg = zapi_get_template($tplNome, array(
+        'nome'      => $nome,
+        'client_id' => (int)$c['id'],
+    ));
     if (!$msg) { echo "  [SKIP] {$c['name']} — template '{$tplNome}' não encontrado\n"; continue; }
 
     $r = zapi_send_text($cfg['canal'], $c['phone'], $msg);

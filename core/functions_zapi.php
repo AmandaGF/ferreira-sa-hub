@@ -1151,12 +1151,107 @@ function zapi_auto_cfg($chave, $default = '') {
 /**
  * Busca template pelo nome (case-insensitive) e expande variáveis {{nome}}, etc.
  */
+/**
+ * Infere gênero ('M' / 'F') a partir do primeiro nome usando heurística simples
+ * (terminação) + lista de exceções comuns. Não substitui clients.gender (mais
+ * confiável), mas serve quando esse campo está vazio.
+ *
+ * Retorna 'M', 'F' ou '' (incerto — use forma neutra ou feminina como default).
+ */
+function zapi_inferir_genero_por_nome($nome) {
+    $nome = trim((string)$nome);
+    if ($nome === '') return '';
+    $primeiro = mb_strtolower(explode(' ', $nome)[0], 'UTF-8');
+    // Normaliza acentos pra comparação
+    $de = array('á','à','â','ã','ä','é','ê','è','í','î','ï','ó','ô','õ','ö','ú','û','ü','ç');
+    $pa = array('a','a','a','a','a','e','e','e','i','i','i','o','o','o','o','u','u','u','c');
+    $primeiroNorm = str_replace($de, $pa, $primeiro);
+
+    // Exceções: nomes masculinos terminados em -A (sobrescrevem regra padrão)
+    $masc_em_a = array(
+        'andre','andrea','dalva','elias','eliel','isaias','jeremias','joshua','joao',
+        'luca','luca','noah','sasha','tadeu','tobias','zacarias','jonas','tomas',
+        'osias','iuri','ivan','enzo','dorival','lourival','percival','israel',
+        // Nomes terminados em -A masculinos comuns no Brasil
+        'da','silva','souza','costa','rocha','luna','barba','cunha','aranha',
+    );
+    // Exceções: nomes femininos terminados em -O/consoante (raros)
+    $fem_em_outras = array(
+        'beatriz','iris','isabel','raquel','rute','ester','miriam','luz','flor',
+        'jasmim','jacqueline','luan','consuelo',
+    );
+
+    if (in_array($primeiroNorm, $fem_em_outras, true)) return 'F';
+    if (in_array($primeiroNorm, $masc_em_a, true)) return 'M';
+
+    // Regra padrão: -A geralmente feminino, -O ou consoante geralmente masculino
+    $ult = mb_substr($primeiroNorm, -1, 1);
+    if ($ult === 'a') return 'F';
+    if ($ult === 'o') return 'M';
+    if (in_array($ult, array('e','i','u'), true)) return ''; // incerto
+    // Consoantes — maioria masculina (Luiz, Daniel, Gabriel, Rafael, etc)
+    return 'M';
+}
+
+/**
+ * Resolve sintaxe {{masc|fem}} em texto baseado no gênero.
+ * - $gender = 'M' → escolhe o lado esquerdo
+ * - $gender = 'F' → escolhe o lado direito
+ * - $gender = '' (incerto) → escolhe feminino (maioria dos clientes)
+ *
+ * Exemplos:
+ *   "{{Prezado|Prezada}}" + F → "Prezada"
+ *   "tê-{{lo|la}}" + M → "tê-lo"
+ *   "cercad{{o|a}} de amor" + '' → "cercada de amor"
+ */
+function zapi_resolver_genero($texto, $gender) {
+    $idx = ($gender === 'M') ? 0 : 1; // F ou vazio → feminino
+    return preg_replace_callback('/\{\{([^{}|]*)\|([^{}|]*)\}\}/', function($m) use ($idx) {
+        return $idx === 0 ? $m[1] : $m[2];
+    }, $texto);
+}
+
+/**
+ * Carrega e renderiza um template do banco.
+ *
+ * @param string $nome       Nome do template
+ * @param array  $vars       Variáveis pra substituir ({{var}}). Use 'client_id'
+ *                           ou 'gender' pra ativar resolução de {{masc|fem}}.
+ * @return string Texto renderizado (vazio se template não existir/inativo)
+ */
 function zapi_get_template($nome, $vars = array()) {
     $stmt = db()->prepare("SELECT conteudo FROM zapi_templates WHERE nome = ? AND ativo = 1 LIMIT 1");
     $stmt->execute(array($nome));
     $tpl = $stmt->fetchColumn();
     if (!$tpl) return '';
+
+    // Resolve sintaxe {{masc|fem}} baseado em gender ou client_id (se fornecido)
+    $gender = '';
+    if (!empty($vars['gender'])) {
+        $g = strtoupper(substr(trim((string)$vars['gender']), 0, 1));
+        if ($g === 'M' || $g === 'F') $gender = $g;
+    }
+    if ($gender === '' && !empty($vars['client_id'])) {
+        try {
+            $stG = db()->prepare("SELECT gender, name FROM clients WHERE id = ?");
+            $stG->execute(array((int)$vars['client_id']));
+            $rowG = $stG->fetch();
+            if ($rowG) {
+                $g = strtoupper(substr(trim((string)$rowG['gender']), 0, 1));
+                if ($g === 'M' || $g === 'F') {
+                    $gender = $g;
+                } else {
+                    $gender = zapi_inferir_genero_por_nome($rowG['name']);
+                }
+            }
+        } catch (Exception $e) {}
+    }
+    // Aplica resolução de {{masc|fem}} mesmo se gender vazio (fallback feminino)
+    $tpl = zapi_resolver_genero($tpl, $gender);
+
+    // Substituições simples {{var}}
     foreach ($vars as $k => $v) {
+        if (in_array($k, array('client_id', 'gender'), true)) continue;
         $tpl = str_replace('{{' . $k . '}}', $v, $tpl);
     }
     return $tpl;
