@@ -2409,7 +2409,24 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')):
                             <?= $of['plataforma'] ? ' · ' . e(strtoupper($of['plataforma'])) : '' ?>
                         </div>
                     </div>
-                    <span style="background:<?= e($_stM[1]) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:.68rem;font-weight:700;white-space:nowrap;"><?= e($_stM[0]) ?></span>
+                    <div class="of-status-wrap" data-of-id="<?= (int)$of['id'] ?>" style="position:relative;">
+                        <button type="button" onclick="ofAbrirMenuStatus(<?= (int)$of['id'] ?>, event)" title="Clique pra alterar o status — vira evento na linha do tempo" style="background:<?= e($_stM[1]) ?>;color:#fff;padding:3px 10px;border-radius:12px;font-size:.68rem;font-weight:700;white-space:nowrap;border:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;"><?= e($_stM[0]) ?> <span style="font-size:.55rem;opacity:.85;">▾</span></button>
+                        <div id="ofMenuStatus_<?= (int)$of['id'] ?>" class="of-status-menu" style="display:none;position:absolute;top:calc(100% + 4px);right:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.12);z-index:60;min-width:230px;overflow:hidden;">
+                            <div style="padding:.45rem .7rem;background:#f9fafb;border-bottom:1px solid #e5e7eb;font-size:.66rem;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Alterar status</div>
+                            <?php foreach ($_ofStatusMeta as $_stKey => $_stMeta):
+                                $_stAtivo = ($_stKey === $_st);
+                            ?>
+                            <button type="button" onclick="ofSetStatus(<?= (int)$of['id'] ?>, '<?= e($_stKey) ?>', this)"
+                                    style="display:flex;align-items:center;gap:.5rem;width:100%;text-align:left;padding:.5rem .75rem;border:none;background:<?= $_stAtivo ? '#f3f4f6' : '#fff' ?>;cursor:pointer;font-size:.78rem;color:#1f2937;border-bottom:1px solid #f3f4f6;"
+                                    onmouseover="this.style.background='#fef3c7';" onmouseout="this.style.background='<?= $_stAtivo ? '#f3f4f6' : '#fff' ?>';"
+                                    <?= $_stAtivo ? 'disabled' : '' ?>>
+                                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:<?= e($_stMeta[1]) ?>;flex-shrink:0;"></span>
+                                <span style="flex:1;"><?= e($_stMeta[0]) ?></span>
+                                <?php if ($_stAtivo): ?><span style="font-size:.6rem;color:#9ca3af;">atual</span><?php endif; ?>
+                            </button>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                     <?php if ($of['retorno_ar']): ?>
                         <span style="background:#059669;color:#fff;padding:3px 8px;border-radius:4px;font-size:.66rem;font-weight:700;">✓ AR <?= e($of['retorno_ar']) ?></span>
                     <?php elseif ($semAR): ?>
@@ -2450,6 +2467,72 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')):
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+// Status do ofício clicável: badge vira botão; abre dropdown; ao escolher
+// novo status, faz POST pro endpoint existente novo_oficio.php?ajax_action=add_historico
+// que ja registra o evento na linha do tempo + atualiza ultima_atividade_em
+// + (opcional) atualiza status_oficio. Reaproveita 100% o backend.
+(function(){
+    var URL_OFICIO = '<?= module_url('oficios', 'novo_oficio.php') ?>';
+    var STATUS_LABELS = <?= json_encode(array_map(function($m){ return $m[0]; }, $_ofStatusMeta), JSON_UNESCAPED_UNICODE) ?>;
+    // Mapeia novo status -> tipo de evento mais semantico na timeline
+    var TIPO_POR_STATUS = {
+        oficio_enviado:     'oficio_formal',
+        rh_respondeu:       'rh_respondeu',
+        em_cobranca:        'cobranca',
+        pensao_implantada:  'pensao_implantada',
+        problema:           'problema'
+        // aguardando_contato_rh / sem_resposta / arquivado caem em 'outro'
+    };
+
+    window.ofAbrirMenuStatus = function(ofId, ev) {
+        if (ev) { ev.stopPropagation(); }
+        document.querySelectorAll('.of-status-menu').forEach(function(m){
+            if (m.id !== 'ofMenuStatus_' + ofId) m.style.display = 'none';
+        });
+        var menu = document.getElementById('ofMenuStatus_' + ofId);
+        if (menu) menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+    };
+
+    window.ofSetStatus = function(ofId, novoStatus, btn) {
+        var menu = document.getElementById('ofMenuStatus_' + ofId);
+        if (menu) menu.style.display = 'none';
+        var label = STATUS_LABELS[novoStatus] || novoStatus;
+        if (!confirm('Alterar status para: ' + label + '?\n\nIsso vira um evento novo na linha do tempo do ofício.')) return;
+
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+
+        var tipo = TIPO_POR_STATUS[novoStatus] || 'outro';
+        var fd = new FormData();
+        fd.append('ajax_action', 'add_historico');
+        fd.append('oficio_id', ofId);
+        fd.append('tipo', tipo);
+        fd.append('descricao', 'Status alterado para: ' + label);
+        fd.append('novo_status', novoStatus);
+        fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+
+        fetch(URL_OFICIO, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('Falha: ' + d.error); if (btn) { btn.disabled = false; btn.style.opacity = '1'; } return; }
+                if (d.csrf_expired && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return; }
+                location.reload();
+            })
+            .catch(function(e){
+                alert('Erro de conexao: ' + e.message);
+                if (btn) { btn.disabled = false; btn.style.opacity = '1'; }
+            });
+    };
+
+    // Fecha menu ao clicar fora
+    document.addEventListener('click', function(e){
+        if (!e.target.closest('.of-status-wrap')) {
+            document.querySelectorAll('.of-status-menu').forEach(function(m){ m.style.display = 'none'; });
+        }
+    });
+})();
+</script>
 <?php endif; ?>
 
 <!-- Prazos Processuais -->
