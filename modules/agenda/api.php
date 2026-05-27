@@ -978,20 +978,36 @@ if ($action === 'remarcar') {
         echo json_encode(array('error' => 'Formato de data/hora inválido'));
         exit;
     }
-    $stmt = $pdo->prepare("SELECT tipo FROM agenda_eventos WHERE id = ?");
+    $stmt = $pdo->prepare("SELECT tipo, data_inicio, data_fim FROM agenda_eventos WHERE id = ?");
     $stmt->execute(array($id));
-    $evTipo = $stmt->fetchColumn();
-    if ($evTipo === 'balcao_virtual') {
+    $evRow = $stmt->fetch();
+    if (!$evRow) { echo json_encode(array('error' => 'Evento nao encontrado', 'csrf' => $newCsrf)); exit; }
+    if (($evRow['tipo'] ?? '') === 'balcao_virtual') {
         list($ok, $msg) = _balcao_valida_horario($novaData . ' ' . $novaHora . ':00');
         if (!$ok) { echo json_encode(array('error' => $msg, 'csrf' => $newCsrf)); exit; }
     }
-    // BUG fix 24/05/2026 (Amanda): UPDATE precisa zerar dia_todo. Se o evento
-    // estava como "dia todo" e a usuaria informa hora especifica no remarcar,
-    // tem que sair desse estado — caso contrario o frontend mostra 'Dia todo'
-    // mesmo com hora_inicio preenchida (var hr = ev.dia_todo==1 ? 'Dia todo' : hora).
-    $pdo->prepare("UPDATE agenda_eventos SET data_inicio=?, hora_inicio=?, dia_todo=0, status='agendado', updated_at=NOW() WHERE id=?")
-        ->execute(array($novaData, $novaHora . ':00', $id));
-    audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaData . ' ' . $novaHora);
+    // Bug fix CRITICO 26/05/2026 (Amanda — pasta ALLAN COSTA): a coluna
+    // hora_inicio NAO EXISTE na tabela agenda_eventos. data_inicio e DATETIME.
+    // O codigo antigo tentava UPDATE data_inicio=?, hora_inicio=? — SQL
+    // falhava e o remarcar nao gravava nada.
+    // Agora: monta DATETIME completo em data_inicio e ajusta data_fim mantendo
+    // duracao original.
+    $novaInicio = $novaData . ' ' . $novaHora . ':00';
+    $novaFim = null;
+    try {
+        $dtIni = new DateTime($evRow['data_inicio']);
+        $dtFim = $evRow['data_fim'] ? new DateTime($evRow['data_fim']) : null;
+        if ($dtFim) {
+            $duracao = $dtIni->diff($dtFim);
+            $novaFimDt = new DateTime($novaInicio);
+            $novaFimDt->add($duracao);
+            $novaFim = $novaFimDt->format('Y-m-d H:i:s');
+        }
+    } catch (Throwable $e) { /* mantem novaFim NULL */ }
+
+    $pdo->prepare("UPDATE agenda_eventos SET data_inicio = ?, data_fim = ?, dia_todo = 0, status = 'agendado', updated_at = NOW() WHERE id = ?")
+        ->execute(array($novaInicio, $novaFim, $id));
+    audit_log('AGENDA_REMARCAR', 'agenda', $id, 'Remarcado para ' . $novaInicio);
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }
