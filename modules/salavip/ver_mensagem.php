@@ -299,16 +299,142 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
     <div class="card-header"><h3>Responder</h3></div>
     <div class="card-body">
         <?php if (!empty($respostasPadrao)): ?>
-            <div style="margin-bottom:.7rem;">
-                <div style="font-size:.72rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:.3rem;">⚡ Respostas rápidas (clique para preencher)</div>
-                <div style="display:flex;flex-wrap:wrap;gap:.3rem;">
-                    <?php foreach ($respostasPadrao as $rp): ?>
-                        <button type="button" onclick="document.getElementById('txtResposta').value = <?= htmlspecialchars(json_encode($rp['texto']), ENT_QUOTES) ?>;" style="background:#f3f4f6;border:1px solid var(--border);padding:5px 10px;border-radius:16px;font-size:.75rem;cursor:pointer;color:var(--text);" title="<?= e($rp['texto']) ?>">
+            <?php
+            // Helper: infere tema visual a partir do titulo (sem precisar de coluna na tabela).
+            // Cada tema = [bg-light, border, text, hover-bg]
+            $vipTemaResposta = function($titulo) {
+                $t = mb_strtolower($titulo);
+                if (strpos($t,'boas-vindas')!==false || strpos($t,'olá')!==false || strpos($t,'ola')!==false || strpos($t,'bem-vind')!==false) {
+                    return array('#ecfdf5','#86efac','#065f46','#d1fae5'); // verde
+                }
+                if (strpos($t,'docs')!==false || strpos($t,'document')!==false || strpos($t,'recebido')!==false) {
+                    return array('#eff6ff','#93c5fd','#1e40af','#dbeafe'); // azul
+                }
+                if (strpos($t,'análise')!==false || strpos($t,'analise')!==false || strpos($t,'analis')!==false || strpos($t,'aguard')!==false) {
+                    return array('#fffbeb','#fcd34d','#92400e','#fef3c7'); // ambar
+                }
+                if (strpos($t,'duplicad')!==false || strpos($t,'fechad')!==false || strpos($t,'já')!==false) {
+                    return array('#f3f4f6','#d1d5db','#374151','#e5e7eb'); // cinza
+                }
+                if (strpos($t,'contato')!==false || strpos($t,'ligar')!==false || strpos($t,'entraremos')!==false || strpos($t,'retorn')!==false) {
+                    return array('#ecfeff','#67e8f9','#155e75','#cffafe'); // ciano
+                }
+                if (strpos($t,'audiência')!==false || strpos($t,'audiencia')!==false || strpos($t,'reunião')!==false || strpos($t,'reuniao')!==false) {
+                    return array('#faf5ff','#d8b4fe','#6b21a8','#f3e8ff'); // roxo
+                }
+                if (strpos($t,'acordo')!==false || strpos($t,'negocia')!==false || strpos($t,'proposta')!==false) {
+                    return array('#fff7ed','#fdba74','#9a3412','#ffedd5'); // laranja
+                }
+                if (strpos($t,'resolv')!==false || strpos($t,'conclu')!==false || strpos($t,'finaliz')!==false) {
+                    return array('#ecfdf5','#34d399','#065f46','#d1fae5'); // esmeralda
+                }
+                return array('#f9fafb','#e5e7eb','#374151','#f3f4f6'); // neutro
+            };
+            ?>
+            <div style="margin-bottom:.9rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.45rem;">
+                    <div style="font-size:.7rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;">⚡ Respostas rápidas <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#9ca3af;font-size:.7rem;">— passe o mouse para ver o texto · clique para inserir</span></div>
+                    <button type="button" id="btnLimparResp" onclick="vipLimparResposta()" style="background:none;border:none;color:#9ca3af;font-size:.72rem;cursor:pointer;padding:.2rem .5rem;border-radius:6px;display:none;" title="Limpar campo de resposta">↺ Limpar</button>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:.4rem;" id="vipRespostasRapidas">
+                    <?php foreach ($respostasPadrao as $rp):
+                        list($bg, $bd, $tx, $hov) = $vipTemaResposta($rp['titulo']);
+                        $preview = mb_substr(trim($rp['texto']), 0, 220);
+                        if (mb_strlen($rp['texto']) > 220) $preview .= '...';
+                    ?>
+                        <button type="button"
+                                class="vip-rapida-btn"
+                                data-texto="<?= htmlspecialchars($rp['texto'], ENT_QUOTES) ?>"
+                                data-preview="<?= htmlspecialchars($preview, ENT_QUOTES) ?>"
+                                style="background:<?= $bg ?>;border:1.5px solid <?= $bd ?>;color:<?= $tx ?>;padding:.45rem .85rem;border-radius:18px;font-size:.78rem;font-weight:600;cursor:pointer;transition:all .15s ease;line-height:1.2;">
                             <?= e($rp['titulo']) ?>
                         </button>
                     <?php endforeach; ?>
                 </div>
+                <!-- Preview tooltip (criado por JS, mostrado on hover) -->
+                <div id="vipPreviewTip" style="display:none;position:absolute;z-index:1000;background:#1f2937;color:#fff;font-size:.78rem;line-height:1.45;padding:.6rem .8rem;border-radius:8px;max-width:380px;box-shadow:0 4px 12px rgba(0,0,0,.25);white-space:pre-wrap;pointer-events:none;"></div>
             </div>
+
+            <style>
+            .vip-rapida-btn:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 3px 8px rgba(0,0,0,.08);
+                filter: brightness(0.97);
+            }
+            .vip-rapida-btn:active {
+                transform: translateY(0);
+            }
+            .vip-rapida-btn.vip-selecionada {
+                box-shadow: 0 0 0 2px currentColor, 0 2px 6px rgba(0,0,0,.08);
+                font-weight: 700;
+            }
+            @keyframes vipPulse {
+                0% { transform: scale(1); }
+                50% { transform: scale(1.06); }
+                100% { transform: scale(1); }
+            }
+            .vip-rapida-btn.vip-pulse { animation: vipPulse .3s ease; }
+            </style>
+
+            <script>
+            (function(){
+                var tip = document.getElementById('vipPreviewTip');
+                var btns = document.querySelectorAll('.vip-rapida-btn');
+                var btnLimpar = document.getElementById('btnLimparResp');
+                var txt = document.getElementById('txtResposta');
+
+                btns.forEach(function(btn){
+                    // Hover -> mostra preview tooltip
+                    btn.addEventListener('mouseenter', function(e){
+                        tip.textContent = btn.getAttribute('data-preview');
+                        tip.style.display = 'block';
+                        var r = btn.getBoundingClientRect();
+                        tip.style.left = (window.scrollX + r.left) + 'px';
+                        tip.style.top = (window.scrollY + r.bottom + 6) + 'px';
+                    });
+                    btn.addEventListener('mouseleave', function(){ tip.style.display = 'none'; });
+
+                    // Click -> insere texto (sem destruir o que ja foi digitado)
+                    btn.addEventListener('click', function(){
+                        var novo = btn.getAttribute('data-texto');
+                        var atual = (txt.value || '').trim();
+                        if (atual && atual !== novo) {
+                            // Anexa ao final em vez de sobrescrever
+                            if (!confirm('Voce ja digitou algo. Deseja SUBSTITUIR pela resposta rapida? \n\n(Cancele para anexar ao final em vez de substituir.)')) {
+                                txt.value = atual + '\n\n' + novo;
+                            } else {
+                                txt.value = novo;
+                            }
+                        } else {
+                            txt.value = novo;
+                        }
+                        // Feedback visual
+                        btns.forEach(function(b){ b.classList.remove('vip-selecionada'); });
+                        btn.classList.add('vip-selecionada', 'vip-pulse');
+                        setTimeout(function(){ btn.classList.remove('vip-pulse'); }, 300);
+                        // Foca no textarea com cursor no final
+                        txt.focus();
+                        txt.setSelectionRange(txt.value.length, txt.value.length);
+                        if (btnLimpar) btnLimpar.style.display = 'inline-block';
+                    });
+                });
+
+                // Mostra/esconde botao limpar conforme o textarea
+                if (txt) {
+                    txt.addEventListener('input', function(){
+                        if (btnLimpar) btnLimpar.style.display = (txt.value.length > 0 ? 'inline-block' : 'none');
+                    });
+                }
+                window.vipLimparResposta = function(){
+                    if (!txt) return;
+                    if (txt.value.trim() && !confirm('Limpar o campo de resposta?')) return;
+                    txt.value = '';
+                    btns.forEach(function(b){ b.classList.remove('vip-selecionada'); });
+                    if (btnLimpar) btnLimpar.style.display = 'none';
+                    txt.focus();
+                };
+            })();
+            </script>
         <?php endif; ?>
 
         <form method="POST" enctype="multipart/form-data">
