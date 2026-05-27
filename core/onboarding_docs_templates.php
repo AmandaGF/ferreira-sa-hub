@@ -746,3 +746,275 @@ function render_contrato_prestacao_marketing($colaborador, $dadosAdmin, $dadosCo
     $h .= '</div>';
     return $h;
 }
+
+// ═══════════════════════════════════════════════════════════
+// 6) CONTRATO DE PRESTAÇÃO DE SERVIÇOS COMERCIAIS (PJ/MEI/Autônomo)
+// Criado 27/05/2026 — Nativania (PJ no comercial). Reaproveita o esqueleto
+// protetivo do contrato de marketing (11 cláusulas), adaptando o escopo
+// pra atividade comercial (prospecção, atendimento, conversão) e a
+// remuneração pra comportar comissão por contrato fechado.
+// ═══════════════════════════════════════════════════════════
+function render_contrato_prestacao_comercial($colaborador, $dadosAdmin, $dadosColab, $assinaturas = array()) {
+    $perfil = (string)($colaborador['perfil_cargo'] ?? '');
+    $ehPJ   = ($perfil === 'prestador_pj');
+    $ehMEI  = ($perfil === 'prestador_mei');
+    $ehAuto = ($perfil === 'prestador_autonomo');
+
+    $nome  = strtoupper($colaborador['nome_completo'] ?? '');
+    $cpf   = $colaborador['cpf'] ?? '___.___.___-__';
+    $email = $colaborador['email_institucional'] ?? ($colaborador['email_pessoal'] ?? '___');
+    $dataNasc = _onb_data_br($colaborador['data_nascimento'] ?? '');
+
+    $cnpj         = $colaborador['cnpj'] ?? '';
+    $razaoSocial  = $colaborador['razao_social'] ?? '';
+    $emiteNF      = !empty($colaborador['emite_nf']);
+    $escopo       = trim((string)($colaborador['escopo_servicos'] ?? ''));
+    $dadosBanc    = trim((string)($colaborador['dados_bancarios'] ?? ''));
+    $dataInicio   = _onb_data_br($colaborador['data_inicio_contrato'] ?? '');
+    $dataTermino  = _onb_data_br($colaborador['data_termino_contrato'] ?? '');
+
+    $valorRem     = isset($colaborador['valor_remuneracao']) ? (float)$colaborador['valor_remuneracao'] : 0;
+    $valorRemFmt  = $valorRem > 0 ? 'R$ ' . number_format($valorRem, 2, ',', '.') : 'R$ ___';
+    $valorRemExt  = $valorRem > 0 ? _onb_extenso_real($valorRem) : '';
+
+    $rg            = $dadosColab['rg'] ?? '___';
+    $rgOrgao       = $dadosColab['rg_orgao_uf'] ?? '___';
+    $telefone      = $dadosColab['telefone'] ?? '___';
+    $repLegal      = trim((string)($dadosColab['representante_legal_nome'] ?? ''));
+
+    if (!empty($dadosColab['endereco_logradouro']) || !empty($dadosColab['cep'])) {
+        $partes = array();
+        if (!empty($dadosColab['endereco_logradouro'])) {
+            $rua = $dadosColab['endereco_logradouro'];
+            if (!empty($dadosColab['endereco_numero'])) $rua .= ', n° ' . $dadosColab['endereco_numero'];
+            $partes[] = $rua;
+        }
+        if (!empty($dadosColab['endereco_complemento'])) $partes[] = $dadosColab['endereco_complemento'];
+        if (!empty($dadosColab['endereco_bairro'])) $partes[] = $dadosColab['endereco_bairro'];
+        if (!empty($dadosColab['endereco_cidade']) && !empty($dadosColab['endereco_uf'])) {
+            $partes[] = $dadosColab['endereco_cidade'] . '/' . $dadosColab['endereco_uf'];
+        } elseif (!empty($dadosColab['endereco_cidade'])) {
+            $partes[] = $dadosColab['endereco_cidade'];
+        }
+        if (!empty($dadosColab['cep'])) $partes[] = 'CEP ' . $dadosColab['cep'];
+        $endereco = implode(', ', $partes);
+    } else {
+        $endereco = $dadosColab['endereco_completo'] ?? '___';
+    }
+
+    $diaPag       = (int)($dadosAdmin['dia_pagamento'] ?? 5);
+    if ($diaPag < 1 || $diaPag > 28) $diaPag = 5;
+    $formaPag     = (string)($dadosAdmin['forma_pagamento'] ?? 'fixo_mais_comis');
+    $formaPagMap  = array(
+        'mensal_fixo'     => 'valor mensal fixo',
+        'comissao_pura'   => 'comissão variável por contrato efetivamente celebrado',
+        'fixo_mais_comis' => 'parte fixa mensal + comissão variável por contrato celebrado',
+    );
+    $formaPagTxt  = $formaPagMap[$formaPag] ?? 'parte fixa mensal + comissão variável por contrato celebrado';
+    $comissaoPct  = isset($dadosAdmin['comissao_percentual']) ? (float)$dadosAdmin['comissao_percentual'] : 0;
+    $metaMensal   = isset($dadosAdmin['meta_mensal']) ? (int)$dadosAdmin['meta_mensal'] : 0;
+    $multaMeses   = isset($dadosAdmin['multa_rescisoria_meses']) ? (int)$dadosAdmin['multa_rescisoria_meses'] : 1;
+    if ($multaMeses < 0 || $multaMeses > 6) $multaMeses = 1;
+
+    $cnpjFmt = '___';
+    if (preg_match('/^\d{14}$/', preg_replace('/\D/', '', (string)$cnpj))) {
+        $c = preg_replace('/\D/', '', (string)$cnpj);
+        $cnpjFmt = substr($c,0,2).'.'.substr($c,2,3).'.'.substr($c,5,3).'/'.substr($c,8,4).'-'.substr($c,12,2);
+    } elseif ($cnpj) {
+        $cnpjFmt = htmlspecialchars($cnpj);
+    }
+
+    if ($ehPJ) { $rotuloParte = 'CONTRATADA'; $tipoJur = 'pessoa jurídica'; }
+    elseif ($ehMEI) { $rotuloParte = 'CONTRATADO(A)'; $tipoJur = 'microempreendedor(a) individual'; }
+    else { $rotuloParte = 'PRESTADOR(A)'; $tipoJur = 'profissional autônomo(a)'; }
+
+    $h = '<div class="doc-page">';
+    $h .= _onb_header('Contrato de Prestação', 'de Serviços Comerciais');
+
+    $h .= '<p>Pelo presente instrumento particular, as partes a seguir qualificadas celebram o presente <strong>CONTRATO DE PRESTAÇÃO DE SERVIÇOS COMERCIAIS</strong>, regido pelos arts. 593 a 609 do Código Civil e pelas cláusulas e condições a seguir estabelecidas, que aceitam e se obrigam a cumprir integralmente.</p>';
+
+    $h .= '<div class="doc-section-bar">Da Qualificação das Partes</div>';
+
+    $h .= '<div class="doc-subsection-bar">CONTRATANTE</div>';
+    $h .= '<p><strong>FERREIRA &amp; SÁ ADVOCACIA ESPECIALIZADA</strong>, sociedade individual de advocacia, inscrita no CNPJ sob o n. 51.294.223/0001-40, registrada na OAB-RJ sob o n. 005.987/2023, com sede na Rua Dr. Aldrovando de Oliveira, n. 140, Ano Bom, Barra Mansa/RJ, neste ato representada por sua sócia-administradora <strong>AMANDA GUEDES FERREIRA</strong>, advogada inscrita na OAB-RJ sob o n. 163.260, doravante denominada simplesmente <strong>CONTRATANTE</strong>.</p>';
+
+    $h .= '<div class="doc-subsection-bar">' . $rotuloParte . '</div>';
+    if ($ehPJ) {
+        $repTxt = $repLegal ? ', neste ato representada por <strong>' . htmlspecialchars(mb_strtoupper($repLegal, 'UTF-8')) . '</strong>, portador(a) do RG n. <strong>' . htmlspecialchars($rg) . ' — ' . htmlspecialchars($rgOrgao) . '</strong>' : '';
+        $h .= '<p><strong>' . htmlspecialchars($razaoSocial ?: $nome) . '</strong>, ' . $tipoJur . ' de direito privado, inscrita no CNPJ sob o n. <strong>' . $cnpjFmt . '</strong>, com sede em ' . htmlspecialchars($endereco) . $repTxt . ', telefone ' . htmlspecialchars($telefone) . ', e-mail ' . htmlspecialchars($email) . ', doravante denominada simplesmente <strong>CONTRATADA</strong>.</p>';
+    } elseif ($ehMEI) {
+        $h .= '<p><strong>' . htmlspecialchars($nome) . '</strong>, ' . $tipoJur . ', inscrito(a) no CPF sob o n. <strong>' . htmlspecialchars($cpf) . '</strong>, portador(a) do RG n. <strong>' . htmlspecialchars($rg) . ' — ' . htmlspecialchars($rgOrgao) . '</strong>, titular da MEI sob o CNPJ n. <strong>' . $cnpjFmt . '</strong>' . ($razaoSocial ? ' (' . htmlspecialchars($razaoSocial) . ')' : '') . ', com endereço em ' . htmlspecialchars($endereco) . ', telefone ' . htmlspecialchars($telefone) . ', e-mail ' . htmlspecialchars($email) . ', doravante denominado(a) simplesmente <strong>CONTRATADO(A)</strong>.</p>';
+    } else {
+        $h .= '<p><strong>' . htmlspecialchars($nome) . '</strong>, ' . $tipoJur . ', inscrito(a) no CPF sob o n. <strong>' . htmlspecialchars($cpf) . '</strong>, portador(a) do RG n. <strong>' . htmlspecialchars($rg) . ' — ' . htmlspecialchars($rgOrgao) . '</strong>' . ($dataNasc ? ', nascido(a) em ' . htmlspecialchars($dataNasc) : '') . ', residente e domiciliado(a) em ' . htmlspecialchars($endereco) . ', telefone ' . htmlspecialchars($telefone) . ', e-mail ' . htmlspecialchars($email) . ', doravante denominado(a) simplesmente <strong>PRESTADOR(A)</strong>.</p>';
+    }
+
+    $h .= '<div class="doc-section-bar">Das Cláusulas e Condições</div>';
+
+    // 1. OBJETO
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 1ª — DO OBJETO E DO ESCOPO DOS SERVIÇOS</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">1.1</div><div class="doc-clausula-corpo">O presente contrato tem por objeto a prestação, pela ' . $rotuloParte . ', de <strong>serviços comerciais</strong> à CONTRATANTE — compreendendo prospecção ativa, qualificação e atendimento de potenciais clientes, condução de tratativas pré-contratuais e apoio à conversão de propostas em contratos de honorários advocatícios —, em caráter de profissional autônomo, sem subordinação jurídica, sem habitualidade no sentido empregatício, sem pessoalidade indelegável e sem exclusividade, salvo cláusula expressa em contrário.</div></div>';
+    if ($escopo !== '') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">1.2</div><div class="doc-clausula-corpo">O escopo específico dos serviços contratados compreende:<br><br><em>' . nl2br(htmlspecialchars($escopo)) . '</em></div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">1.2</div><div class="doc-clausula-corpo">O escopo específico dos serviços contratados compreende, sem caráter exaustivo:<ul>'
+            . '<li>prospecção ativa de potenciais clientes nos canais autorizados pela CONTRATANTE;</li>'
+            . '<li>qualificação inicial e triagem de leads recebidos pela CONTRATANTE;</li>'
+            . '<li>atendimento e acolhimento de potenciais clientes via WhatsApp, telefone, e-mail ou presencialmente;</li>'
+            . '<li>esclarecimento de informações gerais e não-jurídicas sobre os serviços do escritório;</li>'
+            . '<li>condução das tratativas comerciais e apresentação de propostas pré-aprovadas pela CONTRATANTE;</li>'
+            . '<li>encaminhamento dos potenciais clientes à equipe técnica para análise jurídica do caso;</li>'
+            . '<li>acompanhamento do funil até a celebração do contrato de honorários;</li>'
+            . '<li>registro de todas as interações e propostas no F&amp;S Hub (Pipeline Comercial);</li>'
+            . '<li>reuniões periódicas de alinhamento com a CONTRATANTE.</li>'
+            . '</ul></div></div>';
+    }
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">1.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' executará os serviços com autonomia técnica e organizacional, escolhendo seus próprios meios, ferramentas, métodos e horários de trabalho, respeitados os prazos pactuados, as diretrizes de relacionamento com clientes e os padrões institucionais da CONTRATANTE.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">1.4</div><div class="doc-clausula-corpo"><strong>A ' . $rotuloParte . ' não está autorizada a:</strong> (i) prestar consultoria jurídica nem opinar sobre o mérito de causas, atividade privativa de advogado; (ii) fixar honorários ou alterar valores pré-aprovados pela CONTRATANTE; (iii) celebrar contratos em nome do escritório sem autorização específica; (iv) representar a CONTRATANTE em juízo ou em órgãos públicos. Os serviços ora contratados têm natureza estritamente comercial.</div></div>';
+
+    // 2. NATUREZA CIVIL
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 2ª — DA NATUREZA CIVIL E DA AUSÊNCIA DE VÍNCULO EMPREGATÍCIO</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">2.1</div><div class="doc-clausula-corpo">As partes <strong>reconhecem e declaram</strong> que o presente contrato é de natureza estritamente civil, regido pelos arts. 593 a 609 do Código Civil, <strong>não gerando entre si qualquer espécie de vínculo empregatício, societário ou de subordinação hierárquica</strong>, nos termos do art. 3º da CLT.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">2.2</div><div class="doc-clausula-corpo">A ausência dos requisitos do vínculo empregatício decorre dos seguintes elementos:<ul>'
+        . '<li><strong>Autonomia</strong>: a ' . $rotuloParte . ' organiza livremente seus meios, horários e métodos de trabalho;</li>'
+        . '<li><strong>Não-pessoalidade</strong>: os serviços podem ser executados, sob responsabilidade da ' . $rotuloParte . ', por seus prepostos ou colaboradores;</li>'
+        . '<li><strong>Não-habitualidade no sentido CLT</strong>: a continuidade da prestação é natural da modalidade civil de prestação de serviços contínuos;</li>'
+        . '<li><strong>Risco do negócio</strong>: a remuneração variável reflete a assunção, pela ' . $rotuloParte . ', do risco econômico de sua atividade;</li>'
+        . '<li><strong>Não-exclusividade</strong>: a ' . $rotuloParte . ' pode prestar serviços a outros tomadores não-concorrentes.</li>'
+        . '</ul></div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">2.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' é a <strong>única e exclusiva responsável</strong> pelo recolhimento de tributos (IRPJ, CSLL, PIS, COFINS, ISS, INSS patronal/contribuinte individual e demais), contribuições previdenciárias próprias e quaisquer outros encargos decorrentes desta contratação, eximindo a CONTRATANTE de qualquer responsabilidade fiscal, trabalhista ou previdenciária por tais obrigações.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">2.4</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' declara que <strong>não receberá da CONTRATANTE</strong>, em razão deste contrato: salário, 13º salário, férias remuneradas, aviso prévio remunerado, FGTS, vale-transporte, vale-refeição, plano de saúde, equipamentos de proteção, uniforme custeado ou qualquer outra verba típica de relação empregatícia, por <strong>incompatibilidade absoluta</strong> com a natureza civil deste ajuste.</div></div>';
+
+    // 3. VIGÊNCIA
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 3ª — DA VIGÊNCIA</div>';
+    if ($dataInicio && $dataTermino) {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">3.1</div><div class="doc-clausula-corpo">O presente contrato vigorará pelo prazo determinado de <strong>' . htmlspecialchars($dataInicio) . '</strong> a <strong>' . htmlspecialchars($dataTermino) . '</strong>, prorrogando-se automaticamente por iguais e sucessivos períodos, salvo manifestação em contrário de qualquer das partes com antecedência mínima de 30 (trinta) dias do termo final.</div></div>';
+    } elseif ($dataInicio) {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">3.1</div><div class="doc-clausula-corpo">O presente contrato vigorará por prazo indeterminado, com início em <strong>' . htmlspecialchars($dataInicio) . '</strong>, podendo ser denunciado a qualquer tempo, na forma da Cláusula 8ª.</div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">3.1</div><div class="doc-clausula-corpo">O presente contrato vigorará por prazo indeterminado a partir da data de sua assinatura, podendo ser denunciado a qualquer tempo, na forma da Cláusula 8ª.</div></div>';
+    }
+
+    // 4. REMUNERAÇÃO
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 4ª — DA REMUNERAÇÃO E DA FORMA DE PAGAMENTO</div>';
+    if ($formaPag === 'comissao_pura') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.1</div><div class="doc-clausula-corpo">Pelos serviços prestados, a CONTRATANTE pagará à ' . $rotuloParte . ' remuneração na modalidade de <strong>' . $formaPagTxt . '</strong>, correspondente a <strong>' . number_format($comissaoPct, 1, ',', '.') . '%</strong> sobre o valor dos honorários efetivamente recebidos de cada cliente cuja contratação tenha sido conduzida pela ' . $rotuloParte . ', considerando-se apenas as parcelas <strong>efetivamente pagas</strong> ao escritório.</div></div>';
+    } elseif ($formaPag === 'fixo_mais_comis') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.1</div><div class="doc-clausula-corpo">Pelos serviços prestados, a CONTRATANTE pagará à ' . $rotuloParte . ' remuneração mista composta de: <strong>(i)</strong> parcela fixa mensal de <strong>' . htmlspecialchars($valorRemFmt) . '</strong>' . ($valorRemExt ? ' (' . htmlspecialchars($valorRemExt) . ')' : '') . '; e <strong>(ii)</strong> comissão variável de <strong>' . number_format($comissaoPct, 1, ',', '.') . '%</strong> sobre o valor dos honorários efetivamente recebidos de cada cliente cuja contratação tenha sido conduzida pela ' . $rotuloParte . ', considerando-se apenas as parcelas <strong>efetivamente pagas</strong> ao escritório.</div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.1</div><div class="doc-clausula-corpo">Pelos serviços prestados, a CONTRATANTE pagará à ' . $rotuloParte . ' o valor mensal fixo de <strong>' . htmlspecialchars($valorRemFmt) . '</strong>' . ($valorRemExt ? ' (' . htmlspecialchars($valorRemExt) . ')' : '') . ', na modalidade de <strong>' . $formaPagTxt . '</strong>.</div></div>';
+    }
+    $diaExtMap2 = array(1=>'primeiro',2=>'segundo',3=>'terceiro',4=>'quarto',5=>'quinto',6=>'sexto',7=>'sétimo',8=>'oitavo',9=>'nono',10=>'décimo',15=>'décimo quinto',20=>'vigésimo',25=>'vigésimo quinto',28=>'vigésimo oitavo');
+    $diaPagExt2 = isset($diaExtMap2[$diaPag]) ? $diaExtMap2[$diaPag] : (string)$diaPag . 'º';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.2</div><div class="doc-clausula-corpo">O pagamento será efetuado até o <strong>' . $diaPag . 'º (' . htmlspecialchars($diaPagExt2) . ') dia útil</strong> do mês subsequente ao da prestação dos serviços, mediante depósito ou PIX nos seguintes dados bancários informados pela ' . $rotuloParte . ':<br><br><em>' . ($dadosBanc !== '' ? nl2br(htmlspecialchars($dadosBanc)) : '___') . '</em></div></div>';
+    if ($emiteNF) {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' obriga-se a emitir <strong>nota fiscal de serviço</strong> em favor da CONTRATANTE a cada parcela paga (fixa ou comissão), sob pena de retenção do pagamento até a regularização documental.</div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' fornecerá recibo de prestação de serviços (RPA) a cada parcela paga, observando os tributos retidos na fonte aplicáveis ao caso.</div></div>';
+    }
+    if ($formaPag !== 'mensal_fixo') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.4</div><div class="doc-clausula-corpo">A comissão variável incidirá <strong>exclusivamente sobre os valores efetivamente recebidos</strong> pelo escritório, parcela a parcela. Em caso de inadimplência do cliente, cancelamento, distrato ou devolução de valores, a comissão correspondente não será devida (ou será proporcionalmente glosada do pagamento subsequente, se já adiantada).</div></div>';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.5</div><div class="doc-clausula-corpo">Considera-se "contratação conduzida pela ' . $rotuloParte . '" aquela em que ela tenha sido a responsável pela prospecção, atendimento e tratativas pré-contratuais do cliente, conforme registro no F&amp;S Hub (Pipeline Comercial).</div></div>';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.6</div><div class="doc-clausula-corpo">O atraso no pagamento por mais de 10 (dez) dias úteis sujeita a CONTRATANTE à incidência de multa moratória de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA/IBGE.</div></div>';
+    } else {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.4</div><div class="doc-clausula-corpo">O atraso no pagamento por mais de 10 (dez) dias úteis sujeita a CONTRATANTE à incidência de multa moratória de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA/IBGE.</div></div>';
+    }
+
+    // 5. OBRIGAÇÕES
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 5ª — DAS OBRIGAÇÕES DA ' . $rotuloParte . '</div>';
+    $obrigList = '<ul>'
+        . '<li>executar os serviços com diligência, técnica e zelo profissional, observando as melhores práticas de atendimento comercial;</li>'
+        . '<li>cumprir os prazos pactuados e comunicar imediatamente atrasos, impedimentos ou impossibilidades;</li>'
+        . '<li>registrar todas as interações, propostas, leads e contratos fechados no F&amp;S Hub (Pipeline Comercial), garantindo a rastreabilidade exigida pela CONTRATANTE;</li>'
+        . '<li>respeitar os scripts, valores, condições comerciais e a identidade institucional do escritório, jamais alterando-os por conta própria;</li>'
+        . '<li>responsabilizar-se integralmente pelos próprios encargos fiscais, trabalhistas e previdenciários;</li>'
+        . '<li>manter sigilo absoluto sobre todas as informações de que tenha conhecimento em razão da execução dos serviços, nos termos da Cláusula 6ª;</li>'
+        . '<li>não utilizar leads, listas de prospecção, base de clientes, scripts comerciais ou informações de mercado da CONTRATANTE para fins próprios ou de terceiros;</li>'
+        . '<li>abster-se de qualquer ato que possa ser caracterizado como exercício irregular da advocacia (arts. 1º e 3º da Lei 8.906/94).</li>'
+        . '</ul>';
+    if ($metaMensal > 0) {
+        $obrigList = '<p>Sem prejuízo das demais obrigações, fica estabelecida <strong>meta indicativa de ' . $metaMensal . ' contratos celebrados por mês</strong>, cujo descumprimento reiterado por mais de 3 (três) meses consecutivos enseja revisão deste contrato, sem caracterizar, contudo, subordinação ou direito a qualquer indenização trabalhista.</p>' . $obrigList;
+    }
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">5.1</div><div class="doc-clausula-corpo">Compete à ' . $rotuloParte . ':' . $obrigList . '</div></div>';
+
+    // 6. SIGILO + LGPD
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 6ª — DA CONFIDENCIALIDADE E DA LGPD</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">6.1</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' obriga-se a manter <strong>absoluto sigilo</strong> sobre todas as informações, dados, documentos, estratégias, identidade de clientes e leads, fluxos comerciais, sistemas internos e demais conteúdos a que tenha acesso em razão da execução dos serviços, ainda que tais informações não estejam expressamente classificadas como confidenciais.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">6.2</div><div class="doc-clausula-corpo">O dever de sigilo persiste <strong>por prazo indeterminado</strong>, mesmo após o término, a rescisão ou a denúncia do presente contrato, e abrange, sem caráter exaustivo:<ul>'
+        . '<li>nomes, dados pessoais, situação processual e histórico de clientes do escritório;</li>'
+        . '<li>base de leads, prospects, listas de mailing e CRM da CONTRATANTE;</li>'
+        . '<li>scripts comerciais, fluxos de atendimento e estratégias de conversão;</li>'
+        . '<li>dados financeiros, comerciais, contratuais e operacionais da CONTRATANTE;</li>'
+        . '<li>credenciais e acessos a sistemas e ferramentas internas (F&amp;S Hub, WhatsApp Business etc.).</li>'
+        . '</ul></div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">6.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' compromete-se a tratar todos os dados pessoais a que tenha acesso em observância à <strong>Lei 13.709/2018 (LGPD)</strong>, atuando como agente de tratamento sob a direção da CONTRATANTE (controladora), e reportará à CONTRATANTE qualquer incidente de segurança no prazo máximo de 24 (vinte e quatro) horas.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">6.4</div><div class="doc-clausula-corpo">A violação do dever de sigilo sujeita a ' . $rotuloParte . ' a multa contratual equivalente a <strong>10 (dez) vezes o valor mensal previsto na Cláusula 4ª</strong> (ou, em caso de comissão pura, ao maior valor recebido em qualquer mês de vigência), sem prejuízo da responsabilização civil, criminal (art. 154 do Código Penal) e administrativa pelos danos materiais, morais e à imagem causados à CONTRATANTE ou a seus clientes.</div></div>';
+
+    // 7. ATIVOS COMERCIAIS
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 7ª — DA PROPRIEDADE DOS ATIVOS COMERCIAIS</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">7.1</div><div class="doc-clausula-corpo"><strong>Todos os leads, prospects, contatos comerciais, registros de tratativas, propostas e contratos celebrados</strong> em razão da execução deste contrato — bem como qualquer outro ativo comercial gerado ou enriquecido pela ' . $rotuloParte . ' durante a vigência — pertencem com <strong>exclusividade à CONTRATANTE</strong>, integrando seu CRM e base de dados de forma irrevogável.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">7.2</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' não poderá, durante ou após a vigência deste contrato, copiar, exportar, levar consigo ou utilizar para qualquer finalidade pessoal ou de terceiros as bases de leads, listas de clientes, scripts ou demais ativos comerciais da CONTRATANTE.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">7.3</div><div class="doc-clausula-corpo">Eventuais materiais autorais produzidos pela ' . $rotuloParte . ' (scripts, modelos de mensagem, planilhas, relatórios) em razão deste contrato têm seus direitos patrimoniais <strong>cedidos integral, definitiva e gratuitamente</strong> à CONTRATANTE, encontrando-se a cessão remunerada pelo valor previsto na Cláusula 4ª.</div></div>';
+
+    // 8. RESCISÃO
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 8ª — DA RESCISÃO E DA MULTA RESCISÓRIA</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">8.1</div><div class="doc-clausula-corpo">O presente contrato poderá ser denunciado, imotivadamente, por qualquer das partes, mediante comunicação escrita com antecedência mínima de <strong>30 (trinta) dias</strong>, sem ônus para a parte denunciante, observado o pagamento dos serviços efetivamente prestados (parcela fixa e/ou comissões devidas) até a data do efetivo desligamento.</div></div>';
+    if ($multaMeses > 0) {
+        $mesesExt2 = array(1=>'um',2=>'dois',3=>'três',4=>'quatro',5=>'cinco',6=>'seis');
+        $multaExt2 = isset($mesesExt2[$multaMeses]) ? $mesesExt2[$multaMeses] : (string)$multaMeses;
+        $baseMulta = ($formaPag === 'comissao_pura')
+            ? 'maior valor mensal recebido pela ' . $rotuloParte . ' nos últimos 6 (seis) meses de vigência'
+            : 'valor da parcela fixa mensal ajustada na Cláusula 4ª';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">8.2</div><div class="doc-clausula-corpo">Em caso de rescisão imotivada sem o aviso prévio mínimo previsto no item 8.1, a parte denunciante pagará à outra multa rescisória correspondente a <strong>' . $multaMeses . ' (' . htmlspecialchars($multaExt2) . ') ' . ($multaMeses > 1 ? 'vezes' : 'vez') . ' o ' . $baseMulta . '</strong>.</div></div>';
+    }
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">' . ($multaMeses > 0 ? '8.3' : '8.2') . '</div><div class="doc-clausula-corpo">O contrato será rescindido de pleno direito, independentemente de aviso prévio e sem incidência da multa do item 8.2, nas hipóteses de:<ul>'
+        . '<li>descumprimento reiterado de prazos, qualidade ou padrões de atendimento;</li>'
+        . '<li>violação do dever de sigilo previsto na Cláusula 6ª;</li>'
+        . '<li>uso indevido de informações, leads, base de clientes ou ativos comerciais da CONTRATANTE;</li>'
+        . '<li>exercício irregular da advocacia (oferta de consultoria jurídica ou opinião sobre mérito);</li>'
+        . '<li>fixação de honorários ou alteração de condições comerciais sem autorização específica;</li>'
+        . '<li>conduta incompatível com a ética profissional ou com os valores institucionais do escritório;</li>'
+        . '<li>insolvência, falência ou recuperação judicial de qualquer das partes.</li>'
+        . '</ul></div></div>';
+
+    // 9. NÃO ALICIAMENTO + NÃO CONCORRÊNCIA
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 9ª — DO NÃO ALICIAMENTO E DA NÃO CONCORRÊNCIA</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">9.1</div><div class="doc-clausula-corpo">Pelo prazo de <strong>12 (doze) meses</strong> contados do término deste contrato, a ' . $rotuloParte . ' compromete-se a <strong>não aliciar, contatar ou contratar</strong> — para si, para terceiros ou para outro escritório de advocacia — clientes, leads, prospects ou colaboradores da CONTRATANTE com os quais tenha tido contato em razão da execução deste contrato.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">9.2</div><div class="doc-clausula-corpo">A violação do item 9.1 sujeita a ' . $rotuloParte . ' a multa equivalente a <strong>6 (seis) vezes o valor médio mensal recebido</strong> nos últimos 6 (seis) meses de vigência, <strong>por cliente, lead ou colaborador aliciado</strong>, sem prejuízo da indenização pelas perdas e danos comprovados, inclusive lucros cessantes.</div></div>';
+
+    // 10. DISPOSIÇÕES GERAIS
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 10ª — DAS DISPOSIÇÕES GERAIS</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">10.1</div><div class="doc-clausula-corpo">As comunicações oficiais entre as partes serão feitas preferencialmente por escrito (e-mail ou plataforma do F&amp;S Hub), considerando-se recebidas com a confirmação de leitura ou no prazo de 48 (quarenta e oito) horas após o envio.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">10.2</div><div class="doc-clausula-corpo">A tolerância de qualquer das partes quanto ao descumprimento de obrigações da outra não constituirá novação, renúncia ou alteração contratual, podendo ser exigido o cumprimento integral a qualquer tempo.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">10.3</div><div class="doc-clausula-corpo">As alterações deste contrato somente terão validade quando formalizadas por aditivo escrito, assinado por ambas as partes.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">10.4</div><div class="doc-clausula-corpo">A invalidade ou nulidade de qualquer cláusula não contamina as demais, que permanecerão em pleno vigor.</div></div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">10.5</div><div class="doc-clausula-corpo">Este contrato obriga as partes, seus herdeiros e sucessores a qualquer título.</div></div>';
+
+    // 11. FORO
+    $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 11ª — DO FORO</div>';
+    $h .= '<div class="doc-clausula"><div class="doc-clausula-num">11.1</div><div class="doc-clausula-corpo">Fica eleito o foro da Comarca de Barra Mansa/RJ para dirimir quaisquer controvérsias oriundas do presente contrato, com renúncia a qualquer outro, por mais privilegiado que seja.</div></div>';
+
+    $h .= '<p style="margin-top:1.5rem;">E, por estarem assim ajustadas, firmam as partes o presente instrumento em 2 (duas) vias de igual teor e forma, para que produza seus regulares efeitos jurídicos.</p>';
+
+    $assinDt2 = !empty($assinaturas['estagiario_em']) ? _onb_data_br_extenso(date('Y-m-d', strtotime($assinaturas['estagiario_em']))) : null;
+    $h .= '<div class="doc-data-local">Barra Mansa/RJ, ' . htmlspecialchars($assinDt2 ?: '_____ de _________________ de 20___') . '.</div>';
+
+    $h .= '<div class="doc-assinatura">'
+        . '<div class="doc-assinatura-linha"></div>'
+        . '<div class="doc-assinatura-nome">CONTRATANTE</div>'
+        . '<div class="doc-assinatura-sub">Ferreira &amp; Sá Advocacia Especializada</div>'
+        . '<div class="doc-assinatura-sub">Dra. Amanda Guedes Ferreira (OAB/RJ 163.260)</div>'
+        . '</div>';
+
+    $nomeAssin2 = ($ehPJ && $repLegal)
+        ? mb_strtoupper($repLegal, 'UTF-8') . ' (rep. legal de ' . ($razaoSocial ?: $nome) . ')'
+        : ($colaborador['nome_completo'] ?? '');
+    $h .= _onb_assinatura_eletronica(
+        $nomeAssin2 . ' — ' . $rotuloParte,
+        $assinaturas['estagiario_em'] ?? null,
+        $assinaturas['estagiario_ip'] ?? ''
+    );
+
+    $h .= _onb_footer_html();
+    $h .= '</div>';
+    return $h;
+}

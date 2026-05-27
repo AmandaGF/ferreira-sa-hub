@@ -268,6 +268,92 @@ $ONBOARDING_DOC_SCHEMAS = array(
         'nome_arquivo' => 'Contrato_de_Prestacao_de_Servicos_de_Marketing.pdf',
     ),
 
+    // ─────────────────────────────────────────────────────────
+    // PRESTADOR DE SERVIÇOS COMERCIAIS (PJ / MEI / Autônomo)
+    // Criado 27/05/2026 pra onboarding da Nativania (PJ comercial).
+    // Estrutura idêntica ao contrato_prestacao_marketing — cláusulas
+    // protetivas (afasta vínculo CLT, sigilo, propriedade intelectual,
+    // não-aliciamento). Diferença: escopo é prospecção/atendimento
+    // comercial em vez de marketing.
+    // ─────────────────────────────────────────────────────────
+
+    'contrato_prestacao_comercial' => array(
+        'label' => 'Contrato de Prestação de Serviços Comerciais',
+        'icon' => '🤝',
+        'descricao' => 'Contrato civil de prestação de serviços comerciais (prospecção, atendimento, conversão) — escopo, prazo, comissão, NDA, não-aliciamento. Cláusulas protetivas contra alegação de vínculo empregatício.',
+        'perfis' => array('prestador_pj','prestador_mei','prestador_autonomo'),
+        'fluxo' => 'admin_preenche_e_ambos_assinam',
+        'campos_admin' => array(
+            'dia_pagamento' => array(
+                'label' => 'Dia do mês para pagamento (1 a 28)',
+                'tipo' => 'number',
+                'min' => 1, 'max' => 28,
+                'obrigatorio' => true,
+                'default' => 5,
+                'placeholder' => 'Ex: 5',
+            ),
+            'forma_pagamento' => array(
+                'label' => 'Forma de remuneração',
+                'tipo' => 'select',
+                'opcoes' => array(
+                    'mensal_fixo'     => 'Mensal fixo (valor cheio todo mês)',
+                    'comissao_pura'   => 'Comissão pura (% sobre contratos fechados)',
+                    'fixo_mais_comis' => 'Misto (fixo mensal + comissão variável)',
+                ),
+                'obrigatorio' => true,
+                'default' => 'fixo_mais_comis',
+            ),
+            'comissao_percentual' => array(
+                'label' => 'Comissão por contrato fechado (%)',
+                'tipo' => 'number',
+                'min' => 0, 'max' => 100, 'step' => '0.5',
+                'obrigatorio' => false,
+                'default' => 5,
+                'placeholder' => 'Ex: 5 (= 5% sobre o honorário pago pelo cliente)',
+            ),
+            'meta_mensal' => array(
+                'label' => 'Meta mensal de contratos fechados (opcional)',
+                'tipo' => 'number',
+                'min' => 0,
+                'obrigatorio' => false,
+                'placeholder' => 'Ex: 8',
+            ),
+            'multa_rescisoria_meses' => array(
+                'label' => 'Multa rescisória (em meses do valor fixo mensal)',
+                'tipo' => 'number',
+                'min' => 0, 'max' => 6,
+                'obrigatorio' => false,
+                'default' => 1,
+                'placeholder' => 'Padrão: 1 mês',
+            ),
+        ),
+        'campos_colaborador' => array(
+            'representante_legal_nome' => array(
+                'label' => 'Nome do representante legal (apenas se PJ)',
+                'tipo' => 'text',
+                'obrigatorio' => false,
+                'placeholder' => 'Quem assina pela PJ',
+            ),
+            'rg' => array('label' => 'RG (representante legal, se PJ; do próprio, se MEI/autônomo)', 'tipo' => 'text', 'obrigatorio' => true, 'placeholder' => 'Ex: 12.345.678-9'),
+            'rg_orgao_uf' => array('label' => 'Órgão emissor / UF', 'tipo' => 'text', 'obrigatorio' => true, 'placeholder' => 'Ex: SSP/RJ'),
+            'cep' => array('label' => 'CEP', 'tipo' => 'cep', 'obrigatorio' => true, 'placeholder' => '00000-000', 'grupo' => 'endereco'),
+            'endereco_logradouro' => array('label' => 'Rua / Avenida', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'logradouro'),
+            'endereco_numero' => array('label' => 'Número', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco'),
+            'endereco_bairro' => array('label' => 'Bairro', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'bairro'),
+            'endereco_complemento' => array('label' => 'Complemento (opcional)', 'tipo' => 'text', 'obrigatorio' => false, 'grupo' => 'endereco'),
+            'endereco_cidade' => array('label' => 'Cidade', 'tipo' => 'text', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'localidade'),
+            'endereco_uf' => array(
+                'label' => 'UF', 'tipo' => 'select', 'obrigatorio' => true, 'grupo' => 'endereco', 'auto_viacep' => 'uf',
+                'opcoes' => array('AC'=>'AC','AL'=>'AL','AM'=>'AM','AP'=>'AP','BA'=>'BA','CE'=>'CE','DF'=>'DF','ES'=>'ES','GO'=>'GO','MA'=>'MA','MG'=>'MG','MS'=>'MS','MT'=>'MT','PA'=>'PA','PB'=>'PB','PE'=>'PE','PI'=>'PI','PR'=>'PR','RJ'=>'RJ','RN'=>'RN','RO'=>'RO','RR'=>'RR','RS'=>'RS','SC'=>'SC','SE'=>'SE','SP'=>'SP','TO'=>'TO'),
+            ),
+            'telefone' => array('label' => 'Telefone (com DDD)', 'tipo' => 'tel', 'obrigatorio' => true, 'placeholder' => '(00) 00000-0000'),
+        ),
+        'assinaturas' => array('colaborador', 'escritorio_amanda'),
+        'render_function' => 'render_contrato_prestacao_comercial',
+        'pasta_drive' => '/Onboarding/{nome_colaborador}/',
+        'nome_arquivo' => 'Contrato_de_Prestacao_de_Servicos_Comerciais.pdf',
+    ),
+
 );
 
 /**
