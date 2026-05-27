@@ -18,6 +18,17 @@ $userId = current_user_id();
 $isColaborador = has_role('colaborador');
 $canMove = can_move_operacional();
 
+// Flag por usuario: forca filtro "so os meus" no kanban PREV mesmo sem
+// ser colaborador. Setada em user_permissions como pseudo-modulo
+// 'prev_so_meus' = 1. Permite que operacional/cx veja so os proprios.
+// (Caso da Simone, 27/05/2026: Amanda pediu acesso restrito.)
+$forcarSoMeus = false;
+try {
+    $stMy = $pdo->prepare("SELECT allowed FROM user_permissions WHERE user_id = ? AND module = 'prev_so_meus'");
+    $stMy->execute(array($userId));
+    $forcarSoMeus = (bool)$stMy->fetchColumn();
+} catch (Throwable $e) {}
+
 // Filtros
 $filterUser = isset($_GET['user']) ? $_GET['user'] : '';
 $filterSearch = isset($_GET['q']) ? trim($_GET['q']) : '';
@@ -76,11 +87,11 @@ $tipoBadgeColors = array(
 $where = array('cs.kanban_prev = 1');
 $params = array();
 
-if ($isColaborador) {
+if ($isColaborador || $forcarSoMeus) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = $userId;
 }
-if ($filterUser && !$isColaborador) {
+if ($filterUser && !$isColaborador && !$forcarSoMeus) {
     $where[] = "cs.responsible_user_id = ?";
     $params[] = (int)$filterUser;
 }
@@ -199,7 +210,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- KPIs -->
 <div class="pv-kpis">
-    <div class="pv-kpi"><span style="font-size:1rem;">🏛️</span><div><div class="pv-kpi-value"><?= $totalAtivos ?></div><div class="pv-kpi-label"><?= $isColaborador ? 'Seus casos PREV' : 'Casos PREV ativos' ?></div></div></div>
+    <div class="pv-kpi"><span style="font-size:1rem;">🏛️</span><div><div class="pv-kpi-value"><?= $totalAtivos ?></div><div class="pv-kpi-label"><?= ($isColaborador || $forcarSoMeus) ? 'Seus casos PREV' : 'Casos PREV ativos' ?></div></div></div>
     <?php if ($urgentes > 0): ?><div class="pv-kpi"><span style="font-size:1rem;">🔴</span><div><div class="pv-kpi-value"><?= $urgentes ?></div><div class="pv-kpi-label">Urgentes</div></div></div><?php endif; ?>
     <?php
     // Enviados este mês
@@ -227,7 +238,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <option value="<?= e($tb) ?>" <?= $filterTipo === $tb ? 'selected' : '' ?>><?= e($tb) ?></option>
                 <?php endforeach; ?>
             </select>
-            <?php if (!$isColaborador): ?>
+            <?php if (!$isColaborador && !$forcarSoMeus): ?>
             <select name="user" class="pv-filter-select" onchange="this.form.submit()">
                 <option value="">Responsável</option>
                 <?php foreach ($users as $u): ?>

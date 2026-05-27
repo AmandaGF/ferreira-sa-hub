@@ -368,6 +368,48 @@ require_once APP_ROOT . '/templates/sidebar.php';
             <?= flash_html() ?>
 
 <?php
+// ── Banner GLOBAL de aviso (instabilidade, manutencao etc) ──
+// Setado via configuracoes.aviso_global_msg. Visivel em todas as paginas
+// pra todos os usuarios. Vazio = sem banner. Pra desativar: setar string
+// vazia. Cada user pode fechar (localStorage) com 'hash' invalidando ao
+// trocar a msg.
+$__avisoMsg = '';
+try {
+    $__stA = db()->prepare("SELECT valor FROM configuracoes WHERE chave = 'aviso_global_msg'");
+    $__stA->execute();
+    $__avisoMsg = trim((string)$__stA->fetchColumn());
+} catch (Throwable $e) {}
+if ($__avisoMsg !== '') {
+    $__avisoHash = substr(md5($__avisoMsg), 0, 12);
+?>
+<style>
+.aviso-global { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border-radius:10px; padding:.65rem 1rem; margin-bottom:.75rem; font-size:.82rem; display:flex; align-items:center; gap:.6rem; box-shadow:0 2px 8px rgba(245,158,11,.25); }
+.aviso-global .aviso-icon { font-size:1.15rem; flex-shrink:0; }
+.aviso-global .aviso-msg { flex:1; line-height:1.4; }
+.aviso-global button.aviso-x { background:rgba(255,255,255,.18); border:none; color:#fff; padding:.18rem .55rem; border-radius:6px; cursor:pointer; font-weight:700; font-size:.78rem; flex-shrink:0; }
+.aviso-global button.aviso-x:hover { background:rgba(255,255,255,.32); }
+</style>
+<div class="no-print aviso-global" id="avisoGlobalEl" data-hash="<?= e($__avisoHash) ?>">
+    <span class="aviso-icon">⚠️</span>
+    <div class="aviso-msg"><?= e($__avisoMsg) ?></div>
+    <button type="button" class="aviso-x" onclick="(function(b){try{localStorage.setItem('fsa_aviso_global_dismiss','<?= e($__avisoHash) ?>');}catch(e){} b.closest('#avisoGlobalEl').style.display='none';})(this);" title="Fechar (volta a aparecer se a mensagem mudar)">✕</button>
+</div>
+<script>
+(function(){
+    try {
+        var dismissed = localStorage.getItem('fsa_aviso_global_dismiss');
+        if (dismissed === '<?= e($__avisoHash) ?>') {
+            var el = document.getElementById('avisoGlobalEl');
+            if (el) el.style.display = 'none';
+        }
+    } catch (e) {}
+})();
+</script>
+<?php
+}
+?>
+
+<?php
 // Banner de prazos urgentes (próximos 3 dias) — visível em todas as páginas.
 // 11/05/2026 Amanda pediu: linha inteira clicavel + mais informacoes
 // (CNJ formatado, comarca/vara, responsavel).
