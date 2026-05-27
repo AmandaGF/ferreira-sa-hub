@@ -34,17 +34,16 @@ foreach ($regs as $r) {
 echo "\n=== COLABORADORES_DOCUMENTOS (vinculados) ===\n";
 foreach ($regs as $r) {
     echo "\nColaborador #{$r['id']} ({$r['nome_completo']}):\n";
-    $st2 = $pdo->prepare("SELECT id, tipo, status, dados_admin_json, dados_estagiario_json,
-                                 assinatura_estagiario_em, criado_em
-                          FROM colaboradores_documentos WHERE colaborador_id = ?");
+    $st2 = $pdo->prepare("SELECT * FROM colaboradores_documentos WHERE colaborador_id = ?");
     $st2->execute(array($r['id']));
     $docs = $st2->fetchAll();
     if (!$docs) { echo "  (nenhum documento vinculado)\n"; continue; }
     foreach ($docs as $d) {
         echo "  - doc #{$d['id']} tipo={$d['tipo']} status={$d['status']}\n";
         echo "    schema existe? " . (onboarding_doc_schema($d['tipo']) ? 'SIM' : 'NÃO') . "\n";
-        echo "    dados_admin_json: " . ($d['dados_admin_json'] ?: '(vazio)') . "\n";
-        echo "    assinatura: " . ($d['assinatura_estagiario_em'] ?: '(não assinado)') . "\n";
+        echo "    dados_admin_json: " . (!empty($d['dados_admin_json']) ? $d['dados_admin_json'] : '(vazio)') . "\n";
+        echo "    assinatura: " . (!empty($d['assinatura_estagiario_em']) ? $d['assinatura_estagiario_em'] : '(não assinado)') . "\n";
+        echo "    pdf_html_snapshot len: " . (isset($d['pdf_html_snapshot']) ? strlen($d['pdf_html_snapshot']) : 'col não existe') . "\n";
     }
 }
 
