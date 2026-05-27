@@ -63,6 +63,22 @@ function _onb_extenso_real($valor) {
     return $txt;
 }
 
+// Helper: extenso simples para numeros pequenos (1-100)
+// Usado em "X (Y) horas por semana", "Z (W) horas uteis", "K (L) meses" etc.
+function _onb_extenso_simples($n) {
+    $n = (int)$n;
+    if ($n < 0) return '';
+    $unidades = array('zero','um','dois','três','quatro','cinco','seis','sete','oito','nove','dez',
+        'onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove');
+    $dezenas = array('','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa');
+    if ($n < 20) return $unidades[$n];
+    if ($n === 100) return 'cem';
+    if ($n > 100) return (string)$n; // fallback — pouco provavel para horas/semana
+    $d = (int)($n / 10);
+    $u = $n % 10;
+    return $dezenas[$d] . ($u > 0 ? ' e ' . $unidades[$u] : '');
+}
+
 // Helper interno: formata data BR
 function _onb_data_br($iso) {
     if (!$iso) return '';

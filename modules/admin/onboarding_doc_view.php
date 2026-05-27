@@ -138,8 +138,8 @@ if (!empty($doc['pdf_html_snapshot'])) {
         ) : array();
         try {
             echo $renderFn($reg, $dadosAdmin, $dadosColab, $assinaturas);
-        } catch (Exception $e) {
-            echo '<div class="doc-page"><p style="color:#991b1b;padding:2rem;">Erro ao renderizar: ' . htmlspecialchars($e->getMessage()) . '</p></div>';
+        } catch (Throwable $e) {
+            echo '<div class="doc-page"><p style="color:#991b1b;padding:2rem;">Erro ao renderizar: ' . htmlspecialchars($e->getMessage()) . '<br><small>' . htmlspecialchars($e->getFile() . ':' . $e->getLine()) . '</small></p></div>';
         }
     } else {
         echo '<div class="doc-page"><p style="color:#9a3412;padding:2rem;text-align:center;">⏳ Renderização ainda não disponível para este tipo de documento.</p></div>';
