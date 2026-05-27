@@ -2753,7 +2753,43 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     .then(function(r){ return r.json(); })
                     .then(function(j2){
                         if (j2 && j2.ok) {
-                            alert('✓ Conversa vinculada a ' + cli.name + '.\n\nA pasta do processo agora reconhece esse número.');
+                            // Bug fix 26/05/2026: se o telefone da conversa eh
+                            // diferente do cadastro, pergunta se quer atualizar
+                            // (senao msgs automaticas vao pro numero antigo).
+                            if (j2.telefone_diferente) {
+                                var msgConfirm = '✓ Conversa vinculada a ' + cli.name + '.\n\n'
+                                    + '⚠ Atenção: o telefone desta conversa é diferente do cadastro do cliente.\n\n'
+                                    + 'Cadastro atual: ' + (j2.telefone_cadastro || '(vazio)') + '\n'
+                                    + 'Esta conversa:  ' + j2.telefone_conversa + '\n\n'
+                                    + 'Atualizar o cadastro com o número NOVO?\n'
+                                    + '(o antigo fica preservado como "segundo número")\n\n'
+                                    + 'Se você não atualizar, mensagens automáticas (audiência, Central VIP, parabéns) '
+                                    + 'vão continuar indo para o número antigo.';
+                                if (confirm(msgConfirm)) {
+                                    var fd2 = new FormData();
+                                    fd2.append('action', 'atualizar_telefone_principal');
+                                    fd2.append('client_id', cli.id);
+                                    fd2.append('novo_telefone', j2.telefone_conversa);
+                                    fd2.append('csrf_token', csrf);
+                                    fetch(apiUrl, { method:'POST', body:fd2, credentials:'same-origin' })
+                                        .then(function(r){ return r.json(); })
+                                        .then(function(j3){
+                                            if (j3 && j3.ok) {
+                                                alert('✓ Cadastro atualizado.\nNovo principal: ' + j3.phone
+                                                    + (j3.antigo_preservado ? '\nAntigo (preservado): ' + j3.phone2 : ''));
+                                            } else {
+                                                alert('⚠ Falha ao atualizar cadastro: ' + ((j3 && j3.error) || 'erro'));
+                                            }
+                                            window.waAbrir(convAtiva);
+                                            carregarLista();
+                                        })
+                                        .catch(function(e){ alert('Erro: ' + e.message); window.waAbrir(convAtiva); carregarLista(); });
+                                    return;
+                                }
+                                // Se nao confirmou, segue com a vinculacao normal
+                            } else {
+                                alert('✓ Conversa vinculada a ' + cli.name + '.\n\nA pasta do processo agora reconhece esse número.');
+                            }
                             window.waAbrir(convAtiva);
                             carregarLista();
                         } else {

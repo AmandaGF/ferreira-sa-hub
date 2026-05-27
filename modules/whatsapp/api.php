@@ -1904,7 +1904,7 @@ if ($action === 'vincular_cliente_conversa') {
     $conv = $conv->fetch();
     if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
 
-    $cli = $pdo->prepare("SELECT id, name, phone FROM clients WHERE id = ?");
+    $cli = $pdo->prepare("SELECT id, name, phone, phone2 FROM clients WHERE id = ?");
     $cli->execute(array($clientId));
     $cli = $cli->fetch();
     if (!$cli) { echo json_encode(array('error' => 'Cliente não encontrado')); exit; }
@@ -1929,11 +1929,65 @@ if ($action === 'vincular_cliente_conversa') {
     audit_log('wa_vincular_cliente_manual', 'zapi_conversas', $convId,
         "conv tel={$conv['telefone']} -> client#{$clientId} ({$cli['name']})");
 
+    // Bug fix 26/05/2026 (Amanda): se o telefone da conversa nova for diferente
+    // do clients.phone atual, sinaliza pro frontend perguntar se quer atualizar
+    // o cadastro. Sem isso, msgs automaticas (audiencia, central VIP, parabens)
+    // continuam indo pro numero antigo.
+    $telConvDig = preg_replace('/\D/', '', (string)$conv['telefone']);
+    $telCliDig  = preg_replace('/\D/', '', (string)$cli['phone']);
+    // Normaliza: remove 55 inicial pra comparar so DDD+numero
+    $_norm = function($t){ $d = preg_replace('/\D/', '', (string)$t); if (strlen($d) > 11 && substr($d,0,2) === '55') $d = substr($d, 2); return $d; };
+    $diferente = ($_norm($telConvDig) !== $_norm($telCliDig)) && strlen($telConvDig) >= 10;
+
     echo json_encode(array(
         'ok' => true,
         'client_id' => $clientId,
         'client_name' => $cli['name'],
         'conversa_id' => $convId,
+        'telefone_diferente' => $diferente,
+        'telefone_cadastro' => $cli['phone'],
+        'telefone_conversa' => $conv['telefone'],
+    ));
+    exit;
+}
+
+// Atualiza o telefone principal do cliente, movendo o antigo pra phone2.
+// Chamada pelo modal de confirmacao quando vincular_cliente_conversa detecta
+// telefone diferente.
+if ($action === 'atualizar_telefone_principal') {
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $novoTel  = trim($_POST['novo_telefone'] ?? '');
+    if (!$clientId || !$novoTel) { echo json_encode(array('error' => 'Dados incompletos')); exit; }
+
+    // Self-heal: phone2 ja existe no schema atual, mas garante
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN phone2 VARCHAR(40) NULL"); } catch (Throwable $e) {}
+
+    $st = $pdo->prepare("SELECT id, name, phone, phone2 FROM clients WHERE id = ?");
+    $st->execute(array($clientId));
+    $cli = $st->fetch();
+    if (!$cli) { echo json_encode(array('error' => 'Cliente nao encontrado')); exit; }
+
+    $telAntigo = $cli['phone'];
+    // Move antigo pra phone2 se nao for igual ao novo nem ao phone2 ja existente
+    $_dig = function($t){ return preg_replace('/\D/', '', (string)$t); };
+    $movePhone2 = $telAntigo && $_dig($telAntigo) !== $_dig($novoTel) && $_dig($telAntigo) !== $_dig($cli['phone2']);
+
+    if ($movePhone2) {
+        $pdo->prepare("UPDATE clients SET phone = ?, phone2 = ? WHERE id = ?")
+            ->execute(array($novoTel, $telAntigo, $clientId));
+    } else {
+        $pdo->prepare("UPDATE clients SET phone = ? WHERE id = ?")
+            ->execute(array($novoTel, $clientId));
+    }
+
+    audit_log('wa_atualizar_telefone_principal', 'clients', $clientId,
+        "novo='{$novoTel}' antigo='{$telAntigo}'" . ($movePhone2 ? " (antigo movido pra phone2)" : ""));
+
+    echo json_encode(array(
+        'ok' => true,
+        'phone' => $novoTel,
+        'phone2' => $movePhone2 ? $telAntigo : $cli['phone2'],
+        'antigo_preservado' => $movePhone2,
     ));
     exit;
 }
