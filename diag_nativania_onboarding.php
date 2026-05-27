@@ -8,6 +8,7 @@ error_reporting(E_ALL);
 ini_set('display_errors', '1');
 require_once __DIR__ . '/core/database.php';
 require_once __DIR__ . '/core/onboarding_docs_schema.php';
+require_once __DIR__ . '/core/onboarding_docs_templates.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
@@ -47,6 +48,31 @@ foreach ($regs as $r) {
     }
 }
 
+echo "\n=== TESTE FUNCOES RENDER ===\n";
+$todasRender = array(
+    'render_termo_compromisso_estagio',
+    'render_termo_confidencialidade_lgpd',
+    'render_pop_estagiario',
+    'render_checklist_admissional_estagiario',
+    'render_contrato_prestacao_marketing',
+    'render_contrato_prestacao_comercial',
+);
+foreach ($todasRender as $f) {
+    echo "  $f: " . (function_exists($f) ? 'OK' : 'MISSING') . "\n";
+}
+
+echo "\n=== FILE INFO ===\n";
+$file = __DIR__ . '/core/onboarding_docs_templates.php';
+echo "  arquivo: $file\n";
+echo "  existe?: " . (file_exists($file) ? 'SIM' : 'NÃO') . "\n";
+echo "  tamanho: " . filesize($file) . " bytes\n";
+echo "  mtime: " . date('Y-m-d H:i:s', filemtime($file)) . "\n";
+$lines = file($file);
+echo "  total linhas: " . count($lines) . "\n";
+echo "  ultimas 5 linhas:\n";
+foreach (array_slice($lines, -5) as $i => $line) {
+    echo "    " . (count($lines) - 5 + $i + 1) . ": " . rtrim($line) . "\n";
+}
 echo "\n=== DOCUMENTOS DISPONÍVEIS PARA perfil=prestador_pj ===\n";
 foreach (onboarding_docs_por_perfil('prestador_pj') as $tipo => $sch) {
     echo "  - $tipo : {$sch['icon']} {$sch['label']}\n";
