@@ -4,11 +4,18 @@
  * URL: /conecta/diag_nativania_onboarding.php?key=fsa-hub-deploy-2026
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 require_once __DIR__ . '/core/database.php';
 require_once __DIR__ . '/core/onboarding_docs_schema.php';
 
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
+$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+set_exception_handler(function($e) {
+    echo "\n=== EXCEPTION ===\n" . $e->getMessage() . "\n" . $e->getFile() . ':' . $e->getLine() . "\n";
+});
 
 echo "=== COLABORADORES_ONBOARDING (TODOS) ===\n";
 $st = $pdo->prepare("SELECT id, nome_completo, email_institucional, email_pessoal, cpf, cnpj, razao_social,
