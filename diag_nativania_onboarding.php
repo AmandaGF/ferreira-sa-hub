@@ -10,14 +10,13 @@ require_once __DIR__ . '/core/onboarding_docs_schema.php';
 header('Content-Type: text/plain; charset=utf-8');
 $pdo = db();
 
-echo "=== COLABORADORES_ONBOARDING (Nativania) ===\n";
+echo "=== COLABORADORES_ONBOARDING (TODOS) ===\n";
 $st = $pdo->prepare("SELECT id, nome_completo, email_institucional, email_pessoal, cpf, cnpj, razao_social,
                             perfil_cargo, status, token, data_inicio_contrato, data_termino_contrato,
                             escopo_servicos, dados_bancarios, valor_remuneracao,
                             link_contrato_url, criado_em
                      FROM colaboradores_onboarding
-                     WHERE nome_completo LIKE '%Nativ%' OR nome_completo LIKE '%Dourado%' OR email_pessoal LIKE '%douradon%'
-                     ORDER BY id DESC");
+                     ORDER BY id DESC LIMIT 10");
 $st->execute();
 $regs = $st->fetchAll();
 if (!$regs) { echo "(nenhum cadastro encontrado)\n"; exit; }
