@@ -4,9 +4,44 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_zapi.php';
 require_login();
 
 $pdo = db();
+
+/**
+ * Envia mensagem WhatsApp avisando o cliente que tem documento novo na Central VIP.
+ * Retorna: 'enviado' | 'sem_telefone' | 'falhou'
+ */
+function _ged_notificar_whatsapp_cliente(PDO $pdo, int $clientId, string $tituloDoc): string {
+    $st = $pdo->prepare("SELECT name, phone FROM clients WHERE id = ?");
+    $st->execute(array($clientId));
+    $cli = $st->fetch();
+    if (!$cli) return 'falhou';
+    $telefone = preg_replace('/\D/', '', (string)$cli['phone']);
+    if (strlen($telefone) < 10) return 'sem_telefone';
+
+    // Primeiro nome só (mais natural)
+    $primNome = explode(' ', trim($cli['name']))[0];
+    $tituloFmt = mb_substr(trim($tituloDoc), 0, 100);
+
+    $msg = "Olá, {$primNome}! 👋\n\n";
+    $msg .= "Disponibilizamos um novo documento no seu portal da Central VIP:\n\n";
+    $msg .= "📄 *{$tituloFmt}*\n\n";
+    $msg .= "Acesse para visualizar:\n";
+    $msg .= "https://www.ferreiraesa.com.br/salavip/\n\n";
+    $msg .= "Em caso de dúvidas, estamos à disposição.\n\n";
+    $msg .= "_Equipe Ferreira & Sá Advocacia_";
+
+    // CX/Operacional usa DDD 24
+    try {
+        $r = zapi_send_text(24, $telefone, $msg);
+        return (!empty($r['ok'])) ? 'enviado' : 'falhou';
+    } catch (Throwable $e) {
+        @error_log('[ged whatsapp] ' . $e->getMessage());
+        return 'falhou';
+    }
+}
 
 // Self-heal: colunas para link publico compartilhavel (criadas 26/05/2026
 // a pedido da Amanda: enviar link em vez de arquivo pesado pelo WhatsApp).
@@ -183,9 +218,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())"
         );
         $stmt->execute([$clientId, $caseId, $titulo, $descricao, $categoria, $filename, $file['name'], $visivel, current_user_id()]);
+        $novoDocId = (int)$pdo->lastInsertId();
 
-        audit_log('salavip_ged_upload', 'salavip_ged', (int)$pdo->lastInsertId(), "Documento: $titulo");
-        flash_set('success', 'Documento enviado com sucesso.');
+        audit_log('salavip_ged_upload', 'salavip_ged', $novoDocId, "Documento: $titulo");
+
+        // Notifica o cliente por WhatsApp (so se o doc esta visivel pro cliente)
+        $waResultado = null;
+        if ($visivel) {
+            $waResultado = _ged_notificar_whatsapp_cliente($pdo, $clientId, $titulo);
+        }
+
+        if ($waResultado === 'enviado') {
+            flash_set('success', 'Documento enviado com sucesso. 📱 WhatsApp avisando o cliente já foi disparado.');
+        } elseif ($waResultado === 'sem_telefone') {
+            flash_set('success', 'Documento enviado. ⚠️ WhatsApp NÃO enviado: cliente sem telefone cadastrado.');
+        } elseif ($waResultado === 'falhou') {
+            flash_set('success', 'Documento enviado. ⚠️ WhatsApp não pôde ser enviado (Z-API indisponível ou número inválido). Cliente ainda pode ver na Central VIP.');
+        } else {
+            flash_set('success', 'Documento enviado com sucesso.');
+        }
         $fromCase = (int)($_POST['from_case'] ?? 0);
         if ($fromCase) {
             redirect(module_url('operacional', 'caso_ver.php?id=' . $fromCase));

@@ -39,6 +39,19 @@ $stmtDocs = $pdo->prepare(
 $stmtDocs->execute([$clienteId]);
 $kpiDocumentos = (int) $stmtDocs->fetchColumn();
 
+// --- Documentos novos do escritorio (GED) — banner destacado ---
+$stmtGedNovos = $pdo->prepare(
+    "SELECT g.id, g.titulo, g.categoria, g.compartilhado_em, c.title AS processo_titulo
+     FROM salavip_ged g
+     LEFT JOIN cases c ON c.id = g.processo_id
+     WHERE g.cliente_id = ? AND g.visivel_cliente = 1 AND g.primeira_visualizacao IS NULL
+     ORDER BY g.compartilhado_em DESC
+     LIMIT 5"
+);
+$stmtGedNovos->execute([$clienteId]);
+$gedNovos = $stmtGedNovos->fetchAll();
+$kpiGedNovos = count($gedNovos);
+
 // --- KPI 4: Próximos compromissos ---
 $stmtEventos = $pdo->prepare(
     "SELECT COUNT(*) FROM agenda_eventos WHERE client_id = ? AND visivel_cliente = 1 AND data_inicio >= NOW() AND status NOT IN ('cancelado','remarcado','realizado')"
@@ -81,6 +94,32 @@ require_once __DIR__ . '/../includes/header.php';
 <p style="font-family:'Playfair Display',serif;color:var(--sv-accent);font-size:1.5rem;margin-bottom:1.5rem;">
     Bem-vindo(a), <?= sv_e($primeiroNome) ?>
 </p>
+
+<!-- Banner DESTACADO: documentos novos do escritorio -->
+<?php if ($kpiGedNovos > 0): ?>
+<a href="<?= sv_url('pages/ged.php') ?>" style="display:block;text-decoration:none;background:linear-gradient(135deg,#7c2d12,#9a3412);border:1.5px solid #c2410c;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1.25rem;box-shadow:0 4px 12px rgba(124,45,18,.25);transition:all .2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+    <div style="display:flex;align-items:center;gap:.85rem;flex-wrap:wrap;">
+        <div style="font-size:2.2rem;line-height:1;animation:pulse 2.5s infinite;">📁</div>
+        <div style="flex:1;min-width:200px;">
+            <div style="color:#fff;font-weight:700;font-size:1.05rem;">
+                Você tem <?= $kpiGedNovos ?> documento<?= $kpiGedNovos > 1 ? 's' : '' ?> nov<?= $kpiGedNovos > 1 ? 'os' : 'o' ?> do escritório
+            </div>
+            <div style="color:#fed7aa;font-size:.82rem;margin-top:.2rem;">
+                <?php
+                $maxMostrar = min(3, count($gedNovos));
+                $titulos = [];
+                for ($i = 0; $i < $maxMostrar; $i++) {
+                    $titulos[] = sv_e($gedNovos[$i]['titulo']);
+                }
+                echo implode(' · ', $titulos);
+                if (count($gedNovos) > 3) echo ' · +' . (count($gedNovos) - 3) . ' a mais';
+                ?>
+            </div>
+        </div>
+        <span style="background:#fff;color:#7c2d12;padding:.45rem .9rem;border-radius:8px;font-weight:700;font-size:.85rem;">Ver agora →</span>
+    </div>
+</a>
+<?php endif; ?>
 
 <!-- Dica de navegação -->
 <?php if ($kpiProcessos > 0): ?>

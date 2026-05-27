@@ -40,6 +40,19 @@ try {
     $_svUnread = 0;
 }
 
+// Contar documentos GED novos (que o cliente ainda nao baixou)
+$_svGedNovos = 0;
+try {
+    $stmtGedNovos = sv_db()->prepare(
+        'SELECT COUNT(*) FROM salavip_ged
+         WHERE cliente_id = ? AND visivel_cliente = 1 AND primeira_visualizacao IS NULL'
+    );
+    $stmtGedNovos->execute([$_svUser['cliente_id']]);
+    $_svGedNovos = (int) $stmtGedNovos->fetchColumn();
+} catch (Exception $e) {
+    $_svGedNovos = 0;
+}
+
 // Pagina atual para marcar menu ativo
 $_svCurrentPage = basename($_SERVER['SCRIPT_FILENAME'] ?? '');
 
@@ -56,6 +69,12 @@ if (!isset($pageTitle)) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= sv_e($pageTitle) ?> — Central VIP</title>
+    <style>
+    @keyframes pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, .55); }
+        50% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+    }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -111,7 +130,7 @@ if (!isset($pageTitle)) {
         <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
         <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>
         <li><a href="<?= sv_url('pages/documentos.php') ?>"<?= $_svCurrentPage === 'documentos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C4;</span> Documentos</a></li>
-        <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio</a></li>
+        <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio<?php if ($_svGedNovos > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;animation:pulse 2s infinite;"><?= $_svGedNovos ?></span><?php endif; ?></a></li>
         <li><a href="<?= sv_url('pages/mensagens.php') ?>"<?= $_svCurrentPage === 'mensagens.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4AC;</span> Mensagens<?php if ($_svUnread > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;"><?= $_svUnread ?></span><?php endif; ?></a></li>
         <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
         <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>
@@ -150,7 +169,7 @@ if (!isset($pageTitle)) {
             <li><a href="<?= sv_url('pages/dashboard.php') ?>"<?= $_svCurrentPage === 'dashboard.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4CA;</span> Painel</a></li>
             <li><a href="<?= sv_url('pages/meus_processos.php') ?>"<?= $_svCurrentPage === 'meus_processos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C2;</span> Meus Processos</a></li>
             <li><a href="<?= sv_url('pages/documentos.php') ?>"<?= $_svCurrentPage === 'documentos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C4;</span> Documentos</a></li>
-            <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio</a></li>
+            <li><a href="<?= sv_url('pages/ged.php') ?>"<?= $_svCurrentPage === 'ged.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C1;</span> Docs do Escrit&oacute;rio<?php if ($_svGedNovos > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;animation:pulse 2s infinite;"><?= $_svGedNovos ?></span><?php endif; ?></a></li>
             <li><a href="<?= sv_url('pages/mensagens.php') ?>"<?= $_svCurrentPage === 'mensagens.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4AC;</span> Mensagens<?php if ($_svUnread > 0): ?> <span class="sv-badge" style="background:#dc2626;color:#fff;margin-left:4px;"><?= $_svUnread ?></span><?php endif; ?></a></li>
             <li><a href="<?= sv_url('pages/compromissos.php') ?>"<?= $_svCurrentPage === 'compromissos.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4C5;</span> Compromissos</a></li>
             <li><a href="<?= sv_url('pages/financeiro.php') ?>"<?= $_svCurrentPage === 'financeiro.php' ? ' class="active"' : '' ?>><span class="nav-icon">&#x1F4B0;</span> Financeiro</a></li>
