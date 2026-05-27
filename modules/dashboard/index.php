@@ -171,7 +171,7 @@ $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluid
 
 // Prazos vencendo em 7 dias
 $prazos7dias = qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
-$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id WHERE p.concluido = 0 AND p.prazo_fatal >= CURDATE() ORDER BY p.prazo_fatal LIMIT 10");
+$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name, cs.title as case_title FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id LEFT JOIN cases cs ON cs.id = p.case_id WHERE p.concluido = 0 AND p.prazo_fatal >= CURDATE() ORDER BY p.prazo_fatal LIMIT 10");
 
 // Clientes sem movimentação 30+ dias
 $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c.updated_at) as dias_parado FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') AND c.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY) ORDER BY dias_parado DESC LIMIT 10");
@@ -672,9 +672,15 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div class="dash-card" style="margin-bottom:1.25rem;">
     <h4>⏰ Prazos Processuais</h4>
     <table><thead><tr><th>Descrição</th><th>Cliente</th><th>Prazo</th><th>Dias</th></tr></thead><tbody>
-    <?php foreach ($prazosLista as $p): $dias = (int)$p['dias']; ?>
-    <tr style="<?= $dias <= 2 ? 'background:#fef2f2;' : ($dias <= 5 ? 'background:#fffbeb;' : '') ?>">
-        <td style="font-weight:600;"><?= e($p['descricao_acao']) ?></td>
+    <?php foreach ($prazosLista as $p):
+        $dias = (int)$p['dias'];
+        $_prazoHref = $p['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) : '';
+        $_estiloLinha = $dias <= 2 ? 'background:#fef2f2;' : ($dias <= 5 ? 'background:#fffbeb;' : '');
+        if ($_prazoHref) $_estiloLinha .= 'cursor:pointer;';
+    ?>
+    <tr style="<?= $_estiloLinha ?>"
+        <?php if ($_prazoHref): ?>onclick="window.location.href='<?= e($_prazoHref) ?>'" title="Abrir pasta do processo"<?php endif; ?>>
+        <td style="font-weight:600;"><?= e($p['descricao_acao']) ?><?php if ($p['case_title']): ?> <span style="color:#6b7280;font-weight:400;font-size:.78rem;">· <?= e($p['case_title']) ?></span><?php endif; ?></td>
         <td><?= e($p['client_name'] ?: '—') ?></td>
         <td style="font-family:monospace;font-size:.72rem;"><?= date('d/m/Y', strtotime($p['prazo_fatal'])) ?></td>
         <td style="font-weight:700;color:<?= $dias <= 2 ? '#dc2626' : ($dias <= 5 ? '#f59e0b' : '#059669') ?>;"><?= $dias === 0 ? 'HOJE' : $dias . 'd' ?></td>
