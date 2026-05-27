@@ -94,6 +94,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
         $usersByName[$primeiro] = (int)$u['id'];
     }
 
+    // Carregar TODOS os processos existentes, indexados pelo numero
+    // normalizado (so digitos) -> evita duplicar quando o LegalOne exporta
+    // o CNJ formatado e o Hub esta com so digitos, ou vice-versa.
+    $existingCasesByNumber = array(); // ['00012345620248190001' => ['id' => 42, 'title' => '...', 'client_id' => 7]]
+    $stExist = $pdo->query("SELECT id, case_number, title, client_id FROM cases WHERE case_number IS NOT NULL AND case_number != ''");
+    foreach ($stExist->fetchAll() as $caso) {
+        $digits = preg_replace('/\D/', '', (string)$caso['case_number']);
+        if ($digits === '') continue;
+        $existingCasesByNumber[$digits] = array(
+            'id' => (int)$caso['id'],
+            'title' => $caso['title'],
+            'client_id' => (int)$caso['client_id'],
+        );
+    }
+    // Tambem detectar duplicatas DENTRO do proprio CSV (mesmo numero repetido em linhas diferentes)
+    $seenInCsv = array();
+
     $rows = array();
     foreach ($lines as $line) {
         $line = trim($line);
@@ -132,25 +149,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             }
         }
 
+        // Deteccao de duplicata (por numero do processo normalizado)
+        $row['_is_duplicate'] = false;
+        $row['_dup_existing_id'] = null;
+        $row['_dup_motivo'] = '';
+        if (!empty($row['case_number'])) {
+            $digits = preg_replace('/\D/', '', $row['case_number']);
+            if ($digits !== '') {
+                if (isset($existingCasesByNumber[$digits])) {
+                    $row['_is_duplicate'] = true;
+                    $row['_dup_existing_id'] = $existingCasesByNumber[$digits]['id'];
+                    $row['_dup_motivo'] = 'Ja cadastrado (caso #' . $existingCasesByNumber[$digits]['id'] . ')';
+                } elseif (isset($seenInCsv[$digits])) {
+                    $row['_is_duplicate'] = true;
+                    $row['_dup_motivo'] = 'Repetido na propria planilha (linha anterior)';
+                } else {
+                    $seenInCsv[$digits] = true;
+                }
+            }
+        }
+
         if (!empty($row['client_name']) || !empty($row['case_number'])) {
             $rows[] = $row;
         }
     }
 
     if ($action === 'preview') {
-        $preview = array('mapped' => $colIndex, 'rows' => array_slice($rows, 0, 15), 'total' => count($rows));
+        // Mostra duplicatas PRIMEIRO no preview (para a Amanda ver quais serao puladas)
+        usort($rows, function($a, $b) {
+            $ad = !empty($a['_is_duplicate']) ? 0 : 1;
+            $bd = !empty($b['_is_duplicate']) ? 0 : 1;
+            return $ad - $bd;
+        });
+        $preview = array('mapped' => $colIndex, 'rows' => array_slice($rows, 0, 20), 'total' => count($rows));
         $preview['matched'] = 0;
         $preview['unmatched'] = 0;
+        $preview['duplicados'] = 0;
+        $preview['novos'] = 0;
         foreach ($rows as $r) {
             if ($r['_client_id']) $preview['matched']++;
             else $preview['unmatched']++;
+            if (!empty($r['_is_duplicate'])) {
+                $preview['duplicados']++;
+            } else {
+                $preview['novos']++;
+            }
         }
     } elseif ($action === 'importar') {
         $imported = 0;
         $skipped = 0;
+        $duplicadosPulados = 0;
         $clientsCreated = 0;
 
         foreach ($rows as $row) {
+            // Bloqueia duplicatas (numero ja existe no banco OU repetido no CSV)
+            if (!empty($row['_is_duplicate'])) {
+                $duplicadosPulados++;
+                $skipped++;
+                continue;
+            }
+
             $clientId = $row['_client_id'];
 
             // Se não encontrou cliente, criar novo
@@ -165,11 +223,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
 
             if (!$clientId) { $skipped++; continue; }
 
-            // Verificar duplicata de processo pelo número
+            // Cinto e suspensorio: ultimo check em SQL com numero normalizado
+            // (caso outro import paralelo tenha inserido entre a leitura do cache e este insert).
             if (!empty($row['case_number'])) {
-                $dup = $pdo->prepare("SELECT id FROM cases WHERE case_number = ?");
-                $dup->execute(array($row['case_number']));
-                if ($dup->fetch()) { $skipped++; continue; }
+                $digits = preg_replace('/\D/', '', $row['case_number']);
+                if ($digits !== '') {
+                    $dup = $pdo->prepare("SELECT id FROM cases WHERE REGEXP_REPLACE(case_number, '[^0-9]', '') = ? LIMIT 1");
+                    try {
+                        $dup->execute(array($digits));
+                        if ($dup->fetch()) { $duplicadosPulados++; $skipped++; continue; }
+                    } catch (Exception $e) {
+                        // MySQL < 8 nao tem REGEXP_REPLACE -> fallback igualdade exata
+                        $dup2 = $pdo->prepare("SELECT id FROM cases WHERE case_number = ? LIMIT 1");
+                        $dup2->execute(array($row['case_number']));
+                        if ($dup2->fetch()) { $duplicadosPulados++; $skipped++; continue; }
+                    }
+                }
             }
 
             // Formatar deadline
@@ -218,9 +287,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
             $imported++;
         }
 
-        $result = array('imported' => $imported, 'skipped' => $skipped, 'clients_created' => $clientsCreated, 'total' => count($rows));
-        audit_log('cases_imported', 'case', null, "importados: $imported, clientes criados: $clientsCreated");
-        notify_admins('Importação de processos', "$imported processos importados ($clientsCreated novos clientes criados).", 'sucesso', url('modules/operacional/'), '📥');
+        $result = array(
+            'imported' => $imported,
+            'skipped' => $skipped,
+            'duplicados_pulados' => $duplicadosPulados,
+            'clients_created' => $clientsCreated,
+            'total' => count($rows),
+        );
+        audit_log('cases_imported', 'case', null, "importados: $imported, clientes criados: $clientsCreated, duplicados pulados: $duplicadosPulados");
+        notify_admins('Importação de processos', "$imported processos importados ($clientsCreated novos clientes criados, $duplicadosPulados duplicados pulados).", 'sucesso', url('modules/operacional/'), '📥');
     }
 }
 
@@ -257,7 +332,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="result-stats">
             <div class="result-stat"><div class="val" style="color:var(--success);"><?= $result['imported'] ?></div><div class="lbl">Processos importados</div></div>
             <div class="result-stat"><div class="val" style="color:var(--info);"><?= $result['clients_created'] ?></div><div class="lbl">Novos clientes criados</div></div>
-            <div class="result-stat"><div class="val" style="color:var(--warning);"><?= $result['skipped'] ?></div><div class="lbl">Duplicados/ignorados</div></div>
+            <div class="result-stat"><div class="val" style="color:#f59e0b;"><?= (int)($result['duplicados_pulados'] ?? 0) ?></div><div class="lbl">🔁 Duplicados pulados</div></div>
+            <div class="result-stat"><div class="val" style="color:var(--warning);"><?= $result['skipped'] ?></div><div class="lbl">Total ignorados</div></div>
         </div>
         <div style="margin-top:1.5rem;">
             <a href="<?= module_url('operacional') ?>" class="btn btn-primary">Ver Operacional</a>
@@ -270,7 +346,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card">
     <div class="card-header"><h3>Pré-visualização — <?= $preview['total'] ?> processos</h3></div>
     <div class="card-body">
-        <div style="display:flex;gap:1rem;margin-bottom:1rem;">
+        <div style="display:flex;gap:1rem;margin-bottom:1rem;flex-wrap:wrap;">
+            <div style="background:rgba(5,150,105,.1);padding:.5rem 1rem;border-radius:var(--radius);font-size:.82rem;">
+                <strong style="color:var(--success);"><?= (int)($preview['novos'] ?? 0) ?></strong> processos novos (serão importados)
+            </div>
+            <div style="background:rgba(245,158,11,.12);padding:.5rem 1rem;border-radius:var(--radius);font-size:.82rem;">
+                🔁 <strong style="color:#b45309;"><?= (int)($preview['duplicados'] ?? 0) ?></strong> duplicados (serão pulados)
+            </div>
             <div style="background:rgba(5,150,105,.1);padding:.5rem 1rem;border-radius:var(--radius);font-size:.82rem;">
                 <strong style="color:var(--success);"><?= $preview['matched'] ?></strong> vinculados a clientes
             </div>
@@ -279,9 +361,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </div>
         </div>
 
+        <?php if (!empty($preview['duplicados'])): ?>
+        <div style="background:#fff7ed;border:1px solid #f59e0b;color:#92400e;padding:.75rem 1rem;border-radius:8px;font-size:.85rem;margin-bottom:1rem;">
+            ⚠️ <strong><?= (int)$preview['duplicados'] ?> processos</strong> já existem no sistema (comparado pelo número CNJ normalizado, ignorando pontos e traços). Eles serão <strong>automaticamente pulados</strong> na importação — só os <strong><?= (int)$preview['novos'] ?> novos</strong> serão cadastrados.
+        </div>
+        <?php endif; ?>
+
         <div style="overflow-x:auto;">
         <table class="preview-table">
             <thead><tr>
+                <th></th>
                 <th>Cliente</th>
                 <th>Match</th>
                 <th>Nº Processo</th>
@@ -292,7 +381,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </tr></thead>
             <tbody>
                 <?php foreach ($preview['rows'] as $row): ?>
-                <tr>
+                <tr<?= !empty($row['_is_duplicate']) ? ' style="background:#fef3c7;opacity:.85;"' : '' ?>>
+                    <td style="white-space:nowrap;font-size:.7rem;">
+                        <?php if (!empty($row['_is_duplicate'])): ?>
+                            <span style="background:#f59e0b;color:#fff;padding:.15rem .5rem;border-radius:10px;font-weight:700;" title="<?= e($row['_dup_motivo']) ?>">🔁 DUPLICADO</span>
+                        <?php else: ?>
+                            <span style="background:#10b981;color:#fff;padding:.15rem .5rem;border-radius:10px;font-weight:700;">✓ NOVO</span>
+                        <?php endif; ?>
+                    </td>
                     <td><?= e(isset($row['client_name']) ? $row['client_name'] : '—') ?></td>
                     <td class="<?= $row['_client_id'] ? 'match-ok' : 'match-fail' ?>"><?= $row['_client_match'] ?></td>
                     <td><?= e(isset($row['case_number']) ? $row['case_number'] : '—') ?></td>
@@ -302,8 +398,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td><?= e(isset($row['responsible']) ? $row['responsible'] : '—') ?></td>
                 </tr>
                 <?php endforeach; ?>
-                <?php if ($preview['total'] > 15): ?>
-                <tr><td colspan="7" style="text-align:center;color:var(--text-muted);">... e mais <?= $preview['total'] - 15 ?></td></tr>
+                <?php if ($preview['total'] > 20): ?>
+                <tr><td colspan="8" style="text-align:center;color:var(--text-muted);">... e mais <?= $preview['total'] - 20 ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -311,7 +407,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         <div id="confirmImport" style="margin-top:1.5rem;text-align:center;">
             <p style="font-size:.85rem;color:var(--petrol-900);font-weight:600;margin-bottom:.75rem;">
-                <?= $preview['unmatched'] ?> clientes serão criados automaticamente.
+                <?= (int)$preview['novos'] ?> processos serão importados · <?= (int)($preview['duplicados'] ?? 0) ?> duplicados pulados · <?= $preview['unmatched'] ?> clientes criados.
             </p>
             <form method="POST" enctype="multipart/form-data">
                 <?= csrf_input() ?>
