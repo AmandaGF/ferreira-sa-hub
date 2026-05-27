@@ -312,11 +312,13 @@ $ONBOARDING_DOC_SCHEMAS = array(
                 'placeholder' => 'Ex: 5 (= 5% sobre o honorário pago pelo cliente)',
             ),
             'meta_mensal' => array(
-                'label' => 'Meta mensal de contratos fechados (opcional)',
+                'label' => 'Meta mensal de contratos fechados',
                 'tipo' => 'number',
                 'min' => 0,
                 'obrigatorio' => false,
                 'placeholder' => 'Ex: 8',
+                'incluir_opcional' => true,
+                'incluir_default' => false, // padrao: NAO incluir esta clausula
             ),
             'horas_semana_estimadas' => array(
                 'label' => 'Disponibilidade semanal estimada (horas/semana)',
@@ -324,6 +326,8 @@ $ONBOARDING_DOC_SCHEMAS = array(
                 'min' => 1, 'max' => 44,
                 'obrigatorio' => false,
                 'placeholder' => 'Ex: 20',
+                'incluir_opcional' => true,
+                'incluir_default' => false,
             ),
             'tempo_resposta_lead_horas' => array(
                 'label' => 'Tempo máximo de resposta a lead (horas úteis)',
@@ -340,6 +344,8 @@ $ONBOARDING_DOC_SCHEMAS = array(
                 'obrigatorio' => false,
                 'default' => 1,
                 'placeholder' => 'Padrão: 1 mês',
+                'incluir_opcional' => true,
+                'incluir_default' => true, // padrao: incluir a clausula de multa
             ),
         ),
         'campos_colaborador' => array(

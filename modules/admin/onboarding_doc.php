@@ -94,6 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             // Checklist tem estrutura própria (será tratado em outra subpágina)
             continue;
         }
+        // Clausula opcional com toggle "incluir/nao incluir":
+        // se admin selecionou "Nao incluir", grava '' (vazio = clausula omitida no render).
+        if (!empty($def['incluir_opcional'])) {
+            $incluir = ($_POST['incluir_' . $key] ?? '1') === '1';
+            $novosDados[$key] = $incluir ? trim($_POST[$key] ?? '') : '';
+            continue;
+        }
         $val = trim($_POST[$key] ?? '');
         $novosDados[$key] = $val;
     }
@@ -169,38 +176,93 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 ✨ <strong>Pré-preenchimento automático:</strong> os dados abaixo já vêm do cadastro do colaborador. Os <em>demais campos do termo</em> (carga horária, dias de trabalho, horários, local presencial, modalidade Presencial/Remoto/Híbrido) também são puxados direto do cadastro — não precisa preencher aqui.
             </div>
         <?php endif; ?>
+        <?php
+        // Se ja houve um save anterior, NAO sobrescrevemos saves em branco com o default
+        // (a colaboradora pode ter intencionalmente deixado uma clausula opcional em branco).
+        $temSavePrevio = !empty($dadosAdmin);
+        ?>
         <div class="adm-doc-grid">
         <?php foreach ($schema['campos_admin'] as $key => $def):
             if ($def['tipo'] === 'checklist') continue;
             $val = $dadosAdmin[$key] ?? '';
-            // Se admin ainda não preencheu, sugere valor a partir do cadastro do colaborador
-            $sugestao = ($val === '' && isset($autofill[$key])) ? $autofill[$key] : '';
-            if ($sugestao !== '' && $val === '') $val = $sugestao;
+            // Autofill (do cadastro principal + defaults do schema) so quando NUNCA foi salvo.
+            if (!$temSavePrevio && $val === '' && isset($autofill[$key])) {
+                $val = $autofill[$key];
+            }
+            // Toggle "incluir/nao incluir" para clausulas opcionais
+            $optBool = !empty($def['incluir_opcional']);
+            if ($optBool) {
+                if ($temSavePrevio) {
+                    // Estado salvo: vazio -> nao incluir; com valor -> incluir
+                    $incluir = ($val !== '' && $val !== '0');
+                } else {
+                    $incluir = !empty($def['incluir_default']);
+                }
+            }
         ?>
             <div<?= ($def['tipo'] === 'text' && (strpos($key, 'endereco') !== false)) ? ' style="grid-column:1/-1;"' : '' ?>>
                 <label><?= htmlspecialchars($def['label']) ?><?= !empty($def['obrigatorio']) ? ' *' : '' ?></label>
+                <?php if ($optBool): ?>
+                    <div class="opt-toggle" style="display:flex;gap:.4rem;margin-bottom:.4rem;font-size:.75rem;">
+                        <label style="display:flex;align-items:center;gap:.25rem;font-weight:500;cursor:pointer;padding:.25rem .55rem;border-radius:6px;background:<?= $incluir ? '#d1fae5' : '#f3f4f6' ?>;border:1px solid <?= $incluir ? '#34d399' : '#d1d5db' ?>;">
+                            <input type="radio" name="incluir_<?= e($key) ?>" value="1" <?= $incluir ? 'checked' : '' ?> onchange="atualizarOptCampo('<?= e($key) ?>')"> ✅ Incluir
+                        </label>
+                        <label style="display:flex;align-items:center;gap:.25rem;font-weight:500;cursor:pointer;padding:.25rem .55rem;border-radius:6px;background:<?= !$incluir ? '#fee2e2' : '#f3f4f6' ?>;border:1px solid <?= !$incluir ? '#fca5a5' : '#d1d5db' ?>;">
+                            <input type="radio" name="incluir_<?= e($key) ?>" value="0" <?= !$incluir ? 'checked' : '' ?> onchange="atualizarOptCampo('<?= e($key) ?>')"> ❌ Não incluir
+                        </label>
+                    </div>
+                <?php endif; ?>
                 <?php if ($def['tipo'] === 'select'): ?>
-                    <select name="<?= e($key) ?>">
+                    <select name="<?= e($key) ?>" id="opt_<?= e($key) ?>" <?= $optBool && !$incluir ? 'disabled' : '' ?>>
                         <option value="">— Selecione —</option>
                         <?php foreach ($def['opcoes'] as $optK => $optLabel): ?>
                             <option value="<?= e($optK) ?>" <?= $val === $optK ? 'selected' : '' ?>><?= e($optLabel) ?></option>
                         <?php endforeach; ?>
                     </select>
                 <?php elseif ($def['tipo'] === 'date'): ?>
-                    <input type="date" name="<?= e($key) ?>" value="<?= e($val) ?>">
+                    <input type="date" name="<?= e($key) ?>" id="opt_<?= e($key) ?>" value="<?= e($val) ?>" <?= $optBool && !$incluir ? 'disabled' : '' ?>>
                 <?php elseif ($def['tipo'] === 'money'): ?>
-                    <input type="number" step="0.01" min="0" name="<?= e($key) ?>" value="<?= e($val) ?>" placeholder="0,00">
+                    <input type="number" step="0.01" min="0" name="<?= e($key) ?>" id="opt_<?= e($key) ?>" value="<?= e($val) ?>" placeholder="0,00" <?= $optBool && !$incluir ? 'disabled' : '' ?>>
                 <?php elseif ($def['tipo'] === 'number'): ?>
-                    <input type="number" name="<?= e($key) ?>" value="<?= e($val) ?>"
+                    <input type="number" name="<?= e($key) ?>" id="opt_<?= e($key) ?>" value="<?= e($val) ?>"
                         <?= isset($def['min']) ? 'min="' . (int)$def['min'] . '"' : '' ?>
-                        <?= isset($def['max']) ? 'max="' . (int)$def['max'] . '"' : '' ?>>
+                        <?= isset($def['max']) ? 'max="' . (int)$def['max'] . '"' : '' ?>
+                        <?= !empty($def['placeholder']) ? 'placeholder="' . e($def['placeholder']) . '"' : '' ?>
+                        <?= $optBool && !$incluir ? 'disabled' : '' ?>>
                 <?php else: ?>
-                    <input type="text" name="<?= e($key) ?>" value="<?= e($val) ?>"
-                        <?= !empty($def['placeholder']) ? 'placeholder="' . e($def['placeholder']) . '"' : '' ?>>
+                    <input type="text" name="<?= e($key) ?>" id="opt_<?= e($key) ?>" value="<?= e($val) ?>"
+                        <?= !empty($def['placeholder']) ? 'placeholder="' . e($def['placeholder']) . '"' : '' ?>
+                        <?= $optBool && !$incluir ? 'disabled' : '' ?>>
                 <?php endif; ?>
             </div>
         <?php endforeach; ?>
         </div>
+
+        <script>
+        // Toggle "incluir/nao incluir" das clausulas opcionais
+        function atualizarOptCampo(key) {
+            var radios = document.getElementsByName('incluir_' + key);
+            var incluir = '1';
+            for (var i = 0; i < radios.length; i++) if (radios[i].checked) incluir = radios[i].value;
+            var input = document.getElementById('opt_' + key);
+            if (!input) return;
+            input.disabled = (incluir === '0');
+            // Repinta labels
+            var wrap = input.closest('.adm-doc-grid > div');
+            if (wrap) {
+                var labels = wrap.querySelectorAll('.opt-toggle label');
+                if (labels.length === 2) {
+                    if (incluir === '1') {
+                        labels[0].style.background = '#d1fae5'; labels[0].style.borderColor = '#34d399';
+                        labels[1].style.background = '#f3f4f6'; labels[1].style.borderColor = '#d1d5db';
+                    } else {
+                        labels[0].style.background = '#f3f4f6'; labels[0].style.borderColor = '#d1d5db';
+                        labels[1].style.background = '#fee2e2'; labels[1].style.borderColor = '#fca5a5';
+                    }
+                }
+            }
+        }
+        </script>
 
         <div style="margin-top:1.5rem;">
             <button type="submit" class="btn btn-primary">💾 Salvar campos administrativos</button>
