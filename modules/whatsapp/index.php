@@ -2404,11 +2404,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
         })
             .then(function(r){ return r.json(); })
             .then(function(d){
-                var casos = ((d && d.casos) || []).filter(function(c){ return c.status !== 'arquivado'; });
+                // Amanda 27/05/2026: mostra TODOS os casos, inclusive arquivado/finalizado
+                // (antes filtrava 'status !== arquivado' e dava 'sem processo ativo'). Casos
+                // inativos ganham badge visual; ordem: ativos primeiro, depois arquivado/finalizado.
+                var casos = ((d && d.casos) || []).slice();
                 if (!casos.length) {
-                    alert('Esse cliente não tem processo ativo cadastrado no Operacional.');
+                    alert('Esse cliente não tem nenhum processo cadastrado no Operacional.');
                     return;
                 }
+                var inativos = ['arquivado','finalizado','cancelado'];
+                casos.sort(function(a,b){
+                    var ai = inativos.indexOf(a.status) >= 0 ? 1 : 0;
+                    var bi = inativos.indexOf(b.status) >= 0 ? 1 : 0;
+                    return ai - bi;
+                });
                 if (casos.length === 1) {
                     window.open(base + '/modules/operacional/caso_ver.php?id=' + casos[0].id, '_blank');
                     return;
@@ -2420,17 +2429,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
                          + '<h3 style="margin:0;font-size:1rem;color:#052228;">⚖️ Qual processo abrir?</h3>'
                          + '<button onclick="document.getElementById(\'waProcOverlay\').remove()" style="background:#f3f4f6;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;">×</button>'
                          + '</div>'
-                         + '<p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem;">Este cliente tem ' + casos.length + ' processos. Escolha qual abrir:</p>'
+                         + '<p style="font-size:.8rem;color:#64748b;margin-bottom:.75rem;">Este cliente tem ' + casos.length + ' processo(s). Escolha qual abrir:</p>'
                          + '<div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:.35rem;">';
+                var badgesStatus = {arquivado:'📦 Arquivado', finalizado:'✅ Finalizado', cancelado:'🚫 Cancelado'};
                 casos.forEach(function(cs){
                     var titulo = cs.title || ('Processo #' + cs.id);
+                    var inativo = inativos.indexOf(cs.status) >= 0;
                     var sub = '';
                     if (cs.case_number) sub += cs.case_number;
-                    if (cs.status) sub += (sub ? ' · ' : '') + String(cs.status).replace(/_/g,' ');
+                    if (cs.status && !inativo) sub += (sub ? ' · ' : '') + String(cs.status).replace(/_/g,' ');
+                    var badge = badgesStatus[cs.status]
+                        ? ' <span style="font-size:.62rem;background:#f3f4f6;color:#6b7280;padding:1px 6px;border-radius:99px;font-weight:700;">' + badgesStatus[cs.status] + '</span>'
+                        : '';
                     html += '<a href="' + base + '/modules/operacional/caso_ver.php?id=' + cs.id + '" target="_blank"'
-                          + ' style="display:block;padding:.6rem .8rem;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:var(--petrol-900);transition:background .15s;"'
+                          + ' style="display:block;padding:.6rem .8rem;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:var(--petrol-900);transition:background .15s;'
+                          + (inativo ? 'opacity:.7;' : '') + '"'
                           + ' onmouseover="this.style.background=\'#f1f5f9\'" onmouseout="this.style.background=\'transparent\'">'
-                          + '<div style="font-weight:700;font-size:.85rem;">' + escapeHtml(titulo) + '</div>'
+                          + '<div style="font-weight:700;font-size:.85rem;">' + escapeHtml(titulo) + badge + '</div>'
                           + (sub ? '<div style="font-size:.7rem;color:#64748b;margin-top:2px;">' + escapeHtml(sub) + '</div>' : '')
                           + '</a>';
                 });
