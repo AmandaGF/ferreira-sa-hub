@@ -528,7 +528,7 @@ if ($editId) {
     $reg = $st->fetch();
     if ($reg) {
         try {
-            $stD = $pdo->prepare("SELECT tipo, status, dados_admin_json, assinatura_estagiario_em
+            $stD = $pdo->prepare("SELECT id, tipo, status, dados_admin_json, assinatura_estagiario_em
                                   FROM colaboradores_documentos WHERE colaborador_id = ?");
             $stD->execute(array($editId));
             foreach ($stD->fetchAll() as $d) {
