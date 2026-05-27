@@ -598,7 +598,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="hidden" name="id" value="<?= (int)$reg['id'] ?>">
                 <button class="btn btn-outline btn-sm" type="submit" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">🔄 Regenerar</button>
             </form>
+            <!-- Ficha pro corretor de seguro: gera PDF com identidade visual + cobertura selecionada -->
+            <div style="display:inline-flex;gap:.25rem;align-items:center;background:#fff7ed;border:1.5px solid #d7ab90;border-radius:8px;padding:.15rem .3rem;">
+                <span style="font-size:.75rem;color:#6a3c2c;font-weight:600;padding:0 .3rem;">🛡️ Seguro:</span>
+                <select id="fichaSegCobertura" style="font-size:.78rem;padding:.25rem .45rem;border:1px solid #d7ab90;border-radius:6px;background:#fff;color:#052228;">
+                    <option value="30000">R$ 30.000</option>
+                    <option value="50000">R$ 50.000</option>
+                    <option value="100000" selected>R$ 100.000</option>
+                    <option value="250000">R$ 250.000</option>
+                    <option value="500000">R$ 500.000</option>
+                </select>
+                <button type="button" class="btn btn-sm" style="background:#052228;color:#fff;font-size:.75rem;padding:.3rem .7rem;border:none;border-radius:6px;cursor:pointer;font-weight:600;" onclick="gerarFichaSeguro(<?= (int)$reg['id'] ?>)" title="Gera PDF com os dados deste colaborador formatado pra enviar ao corretor de seguro">📄 Gerar ficha</button>
+            </div>
         </div>
+        <script>
+        function gerarFichaSeguro(colabId) {
+            var cob = document.getElementById('fichaSegCobertura').value;
+            var url = '<?= module_url('admin', 'ficha_seguro_corretor.php') ?>?colab_id=' + colabId + '&cobertura=' + cob;
+            window.open(url, '_blank');
+        }
+        </script>
         <p style="font-size:.75rem;color:#6a3c2c;margin-top:.6rem;margin-bottom:0;">
             <strong>Acesso:</strong> a colaboradora digita o nome completo (igual ao cadastro) + data de nascimento (DD/MM/AAAA).
         </p>
