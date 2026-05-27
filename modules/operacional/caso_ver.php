@@ -2188,6 +2188,150 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_caso')):
 </div>
 <?php endif; ?>
 
+<?php
+// Chat IA — barra de perguntas dentro da pasta do processo (Amanda 27/05/2026).
+// Disponivel pra usuarios da whitelist + se feature 'chat_caso' estiver ligada.
+// Haiku pra todos os autorizados; modo 'aprofundado' (Sonnet) so pra Amanda (#1).
+if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
+    $_chatPodeAprofundar = ((int)current_user_id() === 1);
+?>
+<div class="card mb-2" id="cardChatIA" style="border-left:3px solid #0e7490;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;">
+        <h3 style="display:flex;align-items:center;gap:.4rem;margin:0;">
+            💬 <span>Pergunte sobre este processo</span>
+            <span style="font-size:.62rem;background:#ecfeff;color:#0e7490;padding:2px 8px;border-radius:99px;font-weight:700;">IA</span>
+        </h3>
+        <button type="button" id="chatIALimpar" onclick="chatIALimparHistorico()" style="font-size:.7rem;background:none;border:1px solid #e5e7eb;color:#6b7280;padding:.25rem .55rem;border-radius:6px;cursor:pointer;display:none;" title="Limpa o histórico desta conversa (não apaga o cache do processo)">🗑 Limpar histórico</button>
+    </div>
+    <div class="card-body" style="padding:.85rem 1rem;">
+        <div id="chatIAHistorico" style="display:none;max-height:380px;overflow-y:auto;margin-bottom:.7rem;padding:.5rem;background:#f9fafb;border-radius:8px;border:1px solid #f3f4f6;"></div>
+        <div style="display:flex;gap:.5rem;align-items:flex-end;">
+            <textarea id="chatIAInput" rows="2" placeholder="Ex: O cliente já enviou a procuração? · Qual o próximo prazo? · Tem audiência marcada? · Faltam quais documentos?"
+                      style="flex:1;font-size:.85rem;padding:.55rem .7rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;resize:vertical;min-height:48px;"
+                      onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();chatIAPerguntar('rapido');}"></textarea>
+            <div style="display:flex;flex-direction:column;gap:.3rem;">
+                <button type="button" id="chatIABtnRapido" onclick="chatIAPerguntar('rapido')"
+                        style="background:#0e7490;color:#fff;border:none;padding:.45rem .85rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.8rem;white-space:nowrap;"
+                        title="Pergunta com modelo rápido (Haiku) — custo médio R$ 0,02-0,05">⚡ Perguntar</button>
+                <?php if ($_chatPodeAprofundar): ?>
+                <button type="button" id="chatIABtnSonnet" onclick="chatIAPerguntar('aprofundado')"
+                        style="background:#7c2d12;color:#fff;border:none;padding:.4rem .85rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.72rem;white-space:nowrap;"
+                        title="Modo aprofundado (Sonnet) — raciocínio jurídico mais elaborado. Custo R$ 0,15-0,30. Restrito à Amanda.">🧠 Aprofundado</button>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div style="margin-top:.45rem;font-size:.68rem;color:#9ca3af;display:flex;justify-content:space-between;flex-wrap:wrap;gap:.4rem;">
+            <span>⌨ Enter envia · Shift+Enter quebra linha</span>
+            <span id="chatIAStatusCusto"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var CHAT_API   = '<?= module_url('operacional', 'api.php') ?>';
+    var CASE_ID    = <?= (int)$caseId ?>;
+    var historico  = []; // [{q:'...', a:'...'}, ...]
+
+    function _chatEsc(s){ var d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+    function _chatRender(){
+        var div = document.getElementById('chatIAHistorico');
+        var btnLimpar = document.getElementById('chatIALimpar');
+        if (!historico.length) { div.style.display='none'; btnLimpar.style.display='none'; return; }
+        div.style.display='block';
+        btnLimpar.style.display='inline-block';
+        var html = '';
+        historico.forEach(function(h, idx){
+            html += '<div style="margin-bottom:.7rem;">'
+                  + '<div style="display:flex;gap:.4rem;align-items:flex-start;margin-bottom:.25rem;">'
+                  + '<div style="background:#0e7490;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.7rem;flex-shrink:0;">V</div>'
+                  + '<div style="flex:1;padding:.35rem .55rem;background:#ecfeff;border-radius:8px;font-size:.83rem;color:#155e75;">' + _chatEsc(h.q) + '</div>'
+                  + '</div>';
+            if (h.a) {
+                var html_a = _chatEsc(h.a)
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\n/g, '<br>');
+                html += '<div style="display:flex;gap:.4rem;align-items:flex-start;">'
+                      + '<div style="background:#7c2d12;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.62rem;flex-shrink:0;">🤖</div>'
+                      + '<div style="flex:1;padding:.4rem .65rem;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:.84rem;color:#1f2937;line-height:1.55;">' + html_a;
+                if (h.modo === 'aprofundado') html += '<div style="font-size:.6rem;color:#7c2d12;margin-top:.3rem;">🧠 Modo aprofundado</div>';
+                html += '</div></div>';
+            } else {
+                html += '<div style="display:flex;gap:.4rem;align-items:flex-start;">'
+                      + '<div style="background:#7c2d12;color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:.62rem;flex-shrink:0;">🤖</div>'
+                      + '<div style="flex:1;padding:.4rem .65rem;background:#fff;border:1px solid #e5e7eb;border-radius:8px;font-size:.83rem;color:#9ca3af;font-style:italic;">⏳ pensando…</div></div>';
+            }
+            html += '</div>';
+        });
+        div.innerHTML = html;
+        div.scrollTop = div.scrollHeight;
+    }
+
+    window.chatIAPerguntar = function(modo) {
+        var inp = document.getElementById('chatIAInput');
+        var pergunta = (inp.value || '').trim();
+        if (!pergunta) { inp.focus(); return; }
+        if (pergunta.length > 500) { alert('Pergunta muito longa (máx 500 caracteres).'); return; }
+
+        if (modo === 'aprofundado') {
+            if (!confirm('Modo aprofundado usa Sonnet (R$ 0,15–0,30 por pergunta). Continuar?')) return;
+        }
+
+        historico.push({ q: pergunta, a: '', modo: modo });
+        _chatRender();
+        inp.value = '';
+        inp.disabled = true;
+        var btns = document.querySelectorAll('#chatIABtnRapido, #chatIABtnSonnet');
+        btns.forEach(function(b){ b.disabled = true; b.style.opacity = '0.6'; });
+        document.getElementById('chatIAStatusCusto').textContent = '⏳ enviando…';
+
+        var histPraEnviar = historico.slice(0, -1); // tudo menos a atual (já está no field 'pergunta')
+
+        var fd = new FormData();
+        fd.append('action', 'chat_caso_ia');
+        fd.append('case_id', CASE_ID);
+        fd.append('pergunta', pergunta);
+        fd.append('modo', modo);
+        fd.append('historico_json', JSON.stringify(histPraEnviar));
+        fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+
+        fetch(CHAT_API, { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                inp.disabled = false;
+                btns.forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+                inp.focus();
+                if (d.error) {
+                    historico[historico.length - 1].a = '❌ ' + d.error;
+                    document.getElementById('chatIAStatusCusto').textContent = '';
+                    _chatRender();
+                    return;
+                }
+                historico[historico.length - 1].a = d.texto || '(sem resposta)';
+                historico[historico.length - 1].modo = d.modo || modo;
+                document.getElementById('chatIAStatusCusto').innerHTML = '✓ resposta · custo R$ ' + (Number(d.custo_brl||0)).toFixed(4) + ' · ' + (Number(d.tokens||0)) + ' tokens';
+                _chatRender();
+            })
+            .catch(function(e){
+                inp.disabled = false;
+                btns.forEach(function(b){ b.disabled = false; b.style.opacity = '1'; });
+                historico[historico.length - 1].a = '❌ Erro de conexão: ' + e.message;
+                document.getElementById('chatIAStatusCusto').textContent = '';
+                _chatRender();
+            });
+    };
+
+    window.chatIALimparHistorico = function() {
+        if (!historico.length) return;
+        if (!confirm('Limpar o histórico desta conversa? (As perguntas serão removidas da tela, mas ficam no log de auditoria.)')) return;
+        historico = [];
+        _chatRender();
+        document.getElementById('chatIAStatusCusto').textContent = '';
+    };
+})();
+</script>
+<?php endif; ?>
+
 <!-- Dados do Processo (editável inline) -->
 <div class="card mb-2">
     <div class="card-header">

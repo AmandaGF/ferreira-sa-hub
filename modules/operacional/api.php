@@ -549,6 +549,174 @@ if ($action === 'analise_aprofundada_ia') {
     }
 }
 
+// ── Chat IA do processo (perguntas pontuais sobre o caso) ──
+// Criada 27/05/2026 a pedido da Amanda. Modo 'rapido' usa Haiku (~R$0,03/pergunta),
+// 'aprofundado' usa Sonnet (~R$0,20/pergunta). Cache do system prompt evita
+// repagar o contexto em perguntas sequenciais (~80% de desconto na 2a em diante).
+if ($action === 'chat_caso_ia') {
+    try {
+    require_once __DIR__ . '/../../core/functions_ia.php';
+    $caseId   = (int)($_POST['case_id'] ?? 0);
+    $pergunta = trim((string)($_POST['pergunta'] ?? ''));
+    $modo     = ($_POST['modo'] ?? 'rapido') === 'aprofundado' ? 'aprofundado' : 'rapido';
+    $historicoRaw = $_POST['historico_json'] ?? '[]';
+    $historico = json_decode($historicoRaw, true);
+    if (!is_array($historico)) $historico = array();
+
+    if (!$caseId)   { _json_clean_echo(array('error' => 'case_id obrigatório')); exit; }
+    if ($pergunta === '') { _json_clean_echo(array('error' => 'Pergunta vazia.')); exit; }
+    if (mb_strlen($pergunta) > 500) { _json_clean_echo(array('error' => 'Pergunta muito longa (máx 500 caracteres).')); exit; }
+
+    $uid = current_user_id();
+    if (!ia_user_autorizado($uid)) { _json_clean_echo(array('error' => 'Você não está autorizado a usar a IA.')); exit; }
+    if (!ia_feature_ativa('chat_caso')) { _json_clean_echo(array('error' => 'Feature desligada. Ligue em /admin/ia_custo.php.')); exit; }
+
+    // Modo 'aprofundado' (Sonnet, ~R$0,20/pergunta) é restrito à Amanda (user 1).
+    // Demais usuários autorizados usam Haiku, mesmo que mandem 'aprofundado' no POST.
+    if ($modo === 'aprofundado' && (int)$uid !== 1) {
+        $modo = 'rapido';
+    }
+
+    $st = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $caso = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$caso) { _json_clean_echo(array('error' => 'Caso não encontrado')); exit; }
+
+    // Monta contexto do caso (mesmo template do resumir_caso, com algumas adições)
+    $stAnd = $pdo->prepare(
+        "SELECT data_andamento, hora_andamento, tipo, descricao
+         FROM case_andamentos WHERE case_id = ? ORDER BY data_andamento DESC, id DESC LIMIT 40"
+    );
+    $stAnd->execute(array($caseId));
+    $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
+
+    $stTar = $pdo->prepare(
+        "SELECT title, tipo, status, due_date FROM case_tasks
+         WHERE case_id = ? AND tipo IS NOT NULL ORDER BY due_date ASC LIMIT 30"
+    );
+    $stTar->execute(array($caseId));
+    $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
+
+    $stDoc = $pdo->prepare(
+        "SELECT descricao, status FROM documentos_pendentes WHERE case_id = ? ORDER BY id"
+    );
+    $stDoc->execute(array($caseId));
+    $docs = $stDoc->fetchAll(PDO::FETCH_ASSOC);
+
+    $partes = array();
+    try {
+        $stPa = $pdo->prepare(
+            "SELECT DISTINCT c.name, cp.papel
+             FROM case_partes cp INNER JOIN clients c ON c.id = cp.client_id
+             WHERE cp.case_id = ?"
+        );
+        $stPa->execute(array($caseId));
+        $partes = $stPa->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {}
+
+    // Cliente principal
+    $clienteNome = '—';
+    try {
+        $stCli = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $stCli->execute(array((int)$caso['client_id']));
+        $r = $stCli->fetch();
+        if ($r) $clienteNome = $r['name'];
+    } catch (Throwable $e) {}
+
+    $ctx = "PROCESSO: " . (($caso['title'] ?? '') ?: 'sem título') . "\n";
+    if (!empty($caso['case_number']))       $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+    $ctx .= "Tipo: " . (($caso['case_type'] ?? '') ?: '—') . " | Status: " . (($caso['status'] ?? '') ?: '—');
+    $vara    = $caso['court']   ?? '';
+    $comarca = $caso['comarca'] ?? '';
+    if ($vara || $comarca) $ctx .= " | " . trim($vara . ' — ' . $comarca, ' —');
+    $ctx .= "\nCliente principal: " . $clienteNome . "\n";
+    if (!empty($caso['distribution_date'])) $ctx .= "Distribuído em: " . date('d/m/Y', strtotime($caso['distribution_date'])) . "\n";
+
+    if ($partes) {
+        $ctx .= "\nPARTES:\n";
+        foreach ($partes as $p) $ctx .= "  • " . $p['name'] . " (" . ($p['papel'] ?? 'parte') . ")\n";
+    }
+
+    $ctx .= "\nANDAMENTOS (mais recentes primeiro, até 40):\n";
+    if (!$ands) $ctx .= "  (sem andamentos registrados)\n";
+    foreach ($ands as $a) {
+        $dt = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+        $hr = $a['hora_andamento'] ? ' ' . substr($a['hora_andamento'],0,5) : '';
+        $tx = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+        if (mb_strlen($tx) > 300) $tx = mb_substr($tx,0,300) . '…';
+        $ctx .= "  • {$dt}{$hr} [{$a['tipo']}] {$tx}\n";
+    }
+
+    $ctx .= "\nTAREFAS:\n";
+    if (!$tarefas) $ctx .= "  (nenhuma)\n";
+    foreach ($tarefas as $t) {
+        $dl = $t['due_date'] ? ' (até ' . date('d/m/Y', strtotime($t['due_date'])) . ')' : '';
+        $ctx .= "  • [{$t['status']}] {$t['title']}{$dl}\n";
+    }
+
+    $ctx .= "\nDOCUMENTOS:\n";
+    if (!$docs) $ctx .= "  (nenhum)\n";
+    foreach ($docs as $d) $ctx .= "  • [{$d['status']}] {$d['descricao']}\n";
+
+    // System: instruções + contexto (cacheable)
+    $system  = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. ";
+    $system .= "Vai responder perguntas pontuais sobre o estado de um processo, com base nos dados abaixo. ";
+    $system .= "REGRAS RÍGIDAS:\n";
+    $system .= "- Português brasileiro, linguagem objetiva e jurídica quando necessário.\n";
+    $system .= "- Responda APENAS com base nos dados fornecidos. Se a info pedida não está no dossiê, diga 'Não há essa informação no dossiê' (não invente).\n";
+    $system .= "- Cite datas, números e fatos exatos do dossiê quando relevantes.\n";
+    $system .= "- Respostas curtas (1-3 parágrafos no máximo). Use markdown leve (**negrito** em pontos críticos).\n";
+    $system .= "- Se a pergunta exigir interpretação jurídica complexa, sinalize ao final: '⚠ Esta resposta envolve interpretação — confirme com a Dra. Amanda'.\n";
+    $system .= "\nDADOS DO PROCESSO:\n\n" . $ctx;
+
+    // Histórico Q/A vira mensagens user/assistant
+    $messages = array();
+    foreach ($historico as $h) {
+        $q = (string)($h['q'] ?? '');
+        $a = (string)($h['a'] ?? '');
+        if ($q !== '') $messages[] = array('role' => 'user',      'content' => $q);
+        if ($a !== '') $messages[] = array('role' => 'assistant', 'content' => $a);
+    }
+    $messages[] = array('role' => 'user', 'content' => $pergunta);
+
+    $modelo = ($modo === 'aprofundado') ? 'claude-sonnet-4-6' : 'claude-haiku-4-5';
+    $maxTok = ($modo === 'aprofundado') ? 1200 : 600;
+
+    $r = ia_chamar(
+        'chat_caso',
+        $modelo,
+        $system,
+        $messages,
+        array(
+            'user_id'      => $uid,
+            'max_tokens'   => $maxTok,
+            'temperature'  => 0.2,
+            'contexto'     => 'case#' . $caseId,
+            'cache_system' => true,
+        )
+    );
+
+    if (!$r['ok']) { _json_clean_echo(array('error' => $r['erro'] ?: 'Falha na IA')); exit; }
+
+    @audit_log('IA_CHAT_CASO', 'case', $caseId, "modo={$modo} tokens={$r['input_tokens']}/{$r['output_tokens']} R$" . $r['custo_brl']);
+
+    _json_clean_echo(array(
+        'ok'        => true,
+        'texto'     => $r['texto'],
+        'modo'      => $modo,
+        'modelo'    => $modelo,
+        'custo_brl' => $r['custo_brl'],
+        'tokens'    => $r['input_tokens'] + $r['output_tokens'],
+    ));
+    exit;
+    } catch (Throwable $e) {
+        @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
+            date('Y-m-d H:i:s') . " | chat_caso_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n    " . $e->getFile() . ':' . $e->getLine() . "\n", FILE_APPEND);
+        _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
+        exit;
+    }
+}
+
 // ── Sugestão de próxima ação no caso (Haiku, sem cache — cada clique gera) ──
 // Whitelist + killswitch ia_feature_sugerir_acao. Custo médio: ~R$ 0,10.
 if ($action === 'sugerir_acao_ia') {
