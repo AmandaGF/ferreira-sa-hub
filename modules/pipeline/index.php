@@ -1428,5 +1428,7 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
-<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
+<?php /* HOTFIX 27/05/2026: card_drawer desativado no pipeline — bug 'todo card abre o da Zilma'.
+       Volta ao comportamento antigo (onclick do .lead-card chama lead_ver.php?id=X direto).
+       require_once APP_ROOT . '/modules/shared/card_drawer.php'; */ ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
