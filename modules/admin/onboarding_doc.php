@@ -21,7 +21,7 @@ if (!$docId) { redirect(module_url('admin', 'onboarding.php')); }
 $st = $pdo->prepare("SELECT cd.*, co.nome_completo, co.token AS colab_token,
                             co.valor_remuneracao, co.beneficios, co.cargo, co.setor,
                             co.modalidade AS colab_modalidade, co.horario_inicio, co.horario_fim,
-                            co.local_presencial,
+                            co.local_presencial, co.data_pagamento, co.perfil_cargo,
                             co.modalidade_estagio, co.data_inicio_estagio, co.data_termino_estagio,
                             co.seguro_num_apolice, co.seguro_seguradora
                      FROM colaboradores_documentos cd
@@ -71,6 +71,20 @@ if (!empty($doc['data_inicio_estagio']))  $autofill['data_inicio'] = $doc['data_
 if (!empty($doc['data_termino_estagio'])) $autofill['data_termino'] = $doc['data_termino_estagio'];
 if (!empty($doc['seguro_num_apolice']))   $autofill['num_apolice'] = $doc['seguro_num_apolice'];
 if (!empty($doc['seguro_seguradora']))    $autofill['seguradora'] = $doc['seguro_seguradora'];
+
+// Dia de pagamento — extrai número do campo "data_pagamento" do cadastro (ex.: "5º dia útil" → 5)
+if (!empty($doc['data_pagamento']) && preg_match('/(\d{1,2})/', $doc['data_pagamento'], $m)) {
+    $dia = (int)$m[1];
+    if ($dia >= 1 && $dia <= 28) $autofill['dia_pagamento'] = (string)$dia;
+}
+
+// Defaults do schema (forma_pagamento, multa, tempo_resposta_lead etc) entram como sugestão
+// SE o admin ainda não tocou no campo. Assim a Amanda vê o que vai pro contrato sem precisar preencher tudo.
+foreach ($schema['campos_admin'] as $_k => $_def) {
+    if (!isset($_def['default'])) continue;
+    if (isset($autofill[$_k])) continue; // já sugerido por outra regra (ex.: data_pagamento)
+    $autofill[$_k] = (string)$_def['default'];
+}
 
 // Salvar
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
