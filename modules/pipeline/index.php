@@ -1428,7 +1428,8 @@ function exportTableCSV(tableId, name) {
     a.click();
 }
 </script>
-<?php /* HOTFIX 27/05/2026: card_drawer desativado no pipeline — bug 'todo card abre o da Zilma'.
-       Volta ao comportamento antigo (onclick do .lead-card chama lead_ver.php?id=X direto).
-       require_once APP_ROOT . '/modules/shared/card_drawer.php'; */ ?>
+<?php /* Drawer reativado 27/05/2026: o bug 'Zilma' nao era do drawer e sim dos
+       dados — lead da Vanissia tinha client_id apontando pra Zilma (mae que
+       compartilha telefone). Resolvido separando os clientes. */ ?>
+<?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
