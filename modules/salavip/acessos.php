@@ -132,6 +132,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ── Auditoria: clientes com docs GED pendentes de acesso ────
+// Pega quem tem ao menos 1 doc com visivel_cliente=1 mas a conta VIP nao
+// esta ativa (token de ativacao pendente) OU nem existe usuario criado.
+$docsPendentes = array(
+    'inativos'   => array(),  // tem usuario VIP, mas ativo=0
+    'semUsuario' => array(),  // tem doc mas sem usuario VIP
+);
+try {
+    $st = $pdo->query("
+        SELECT g.cliente_id, c.name AS cliente_nome, c.email AS cliente_email, c.phone,
+               COUNT(*) AS qtd_docs, MAX(g.compartilhado_em) AS ultimo_em
+        FROM salavip_ged g
+        LEFT JOIN clients c ON c.id = g.cliente_id
+        WHERE g.visivel_cliente = 1
+        GROUP BY g.cliente_id, c.name, c.email, c.phone
+        ORDER BY ultimo_em DESC
+    ");
+    foreach ($st->fetchAll() as $r) {
+        $u = $pdo->prepare("SELECT id, email, ativo FROM salavip_usuarios WHERE cliente_id = ? ORDER BY id DESC LIMIT 1");
+        $u->execute(array($r['cliente_id']));
+        $uRow = $u->fetch();
+        if (!$uRow) {
+            $docsPendentes['semUsuario'][] = $r;
+        } elseif ((int)$uRow['ativo'] === 0) {
+            $r['_user_id'] = (int)$uRow['id'];
+            $r['_user_email'] = $uRow['email'] ?: $r['cliente_email'];
+            $docsPendentes['inativos'][] = $r;
+        }
+    }
+} catch (Throwable $e) {}
+
 // ── Listar usuarios ─────────────────────────────────────
 $search = trim($_GET['q'] ?? '');
 $where = '1=1';
@@ -170,6 +201,61 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <a href="<?= module_url('salavip') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar</a>
+
+<?php
+$totPendentes = count($docsPendentes['inativos']) + count($docsPendentes['semUsuario']);
+if ($totPendentes > 0):
+?>
+<div class="card mb-2" style="border:1.5px solid #f59e0b;background:#fffbeb;">
+    <div class="card-header" style="background:#fef3c7;border-bottom:1px solid #f59e0b;">
+        <h3 style="color:#92400e;">⚠️ <?= $totPendentes ?> cliente(s) com documentos esperando acesso</h3>
+    </div>
+    <div class="card-body">
+        <p style="font-size:.85rem;color:#92400e;margin-bottom:.75rem;">
+            Esses clientes <strong>receberam documentos no GED</strong> mas <strong>não conseguem ver na Central VIP</strong> porque a conta deles ainda não foi ativada (não clicaram no link de convite por email).
+        </p>
+
+        <?php if (!empty($docsPendentes['inativos'])): ?>
+        <h4 style="font-size:.85rem;color:#92400e;margin:.5rem 0;">⏳ <?= count($docsPendentes['inativos']) ?> com conta criada mas não ativada — reenvie o convite:</h4>
+        <div style="display:flex;flex-direction:column;gap:.4rem;">
+            <?php foreach ($docsPendentes['inativos'] as $p): ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:.5rem .75rem;font-size:.82rem;flex-wrap:wrap;gap:.5rem;">
+                    <div style="flex:1;min-width:240px;">
+                        <strong style="color:#052228;"><?= e($p['cliente_nome']) ?></strong>
+                        <span style="background:#fef3c7;color:#92400e;font-size:.7rem;padding:.1rem .45rem;border-radius:10px;margin-left:.4rem;"><?= (int)$p['qtd_docs'] ?> doc(s)</span>
+                        <br>
+                        <small style="color:#6b7280;font-family:monospace;font-size:.72rem;"><?= e($p['_user_email']) ?: '(sem email)' ?> · último doc: <?= e(date('d/m/Y', strtotime($p['ultimo_em']))) ?></small>
+                    </div>
+                    <form method="POST" onsubmit="return confirm('Reenviar email de ativação para <?= e($p['cliente_nome']) ?>?');" style="display:flex;gap:.3rem;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="reenviar_link">
+                        <input type="hidden" name="id" value="<?= (int)$p['_user_id'] ?>">
+                        <button type="submit" class="btn btn-sm" style="background:#f59e0b;color:#fff;border:none;font-weight:600;padding:.35rem .8rem;border-radius:6px;">📧 Reenviar convite</button>
+                    </form>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <?php if (!empty($docsPendentes['semUsuario'])): ?>
+        <h4 style="font-size:.85rem;color:#7c2d12;margin:1rem 0 .5rem;">🚫 <?= count($docsPendentes['semUsuario']) ?> SEM conta criada — precisa cadastrar acesso na Central VIP primeiro:</h4>
+        <div style="display:flex;flex-direction:column;gap:.4rem;">
+            <?php foreach ($docsPendentes['semUsuario'] as $p): ?>
+                <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #fca5a5;border-radius:8px;padding:.5rem .75rem;font-size:.82rem;flex-wrap:wrap;gap:.5rem;">
+                    <div style="flex:1;min-width:240px;">
+                        <strong style="color:#7c2d12;"><?= e($p['cliente_nome']) ?></strong>
+                        <span style="background:#fee2e2;color:#7c2d12;font-size:.7rem;padding:.1rem .45rem;border-radius:10px;margin-left:.4rem;"><?= (int)$p['qtd_docs'] ?> doc(s)</span>
+                        <br>
+                        <small style="color:#6b7280;font-family:monospace;font-size:.72rem;"><?= e($p['cliente_email']) ?: '(sem email)' ?> · 📞 <?= e($p['phone']) ?: '(sem telefone)' ?></small>
+                    </div>
+                    <a href="<?= module_url('salavip') ?>?cliente_id=<?= (int)$p['cliente_id'] ?>#cadastrar" class="btn btn-sm" style="background:#dc2626;color:#fff;font-weight:600;padding:.35rem .8rem;border-radius:6px;text-decoration:none;">➕ Cadastrar acesso</a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endif; ?>
 
 <div class="card">
     <div class="card-header" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem;">

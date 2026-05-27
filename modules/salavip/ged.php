@@ -26,6 +26,32 @@ if (isset($_GET['ajax_cases']) && isset($_GET['client_id'])) {
     exit;
 }
 
+// AJAX: status do cliente na Central VIP (pra avisar antes do upload)
+if (isset($_GET['ajax_vip_status']) && isset($_GET['client_id'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $cid = (int)$_GET['client_id'];
+    $stmt = $pdo->prepare("SELECT id, email, ativo, ultimo_acesso FROM salavip_usuarios WHERE cliente_id = ? ORDER BY id DESC LIMIT 1");
+    $stmt->execute([$cid]);
+    $u = $stmt->fetch();
+    if (!$u) {
+        echo json_encode(array('status' => 'sem_usuario'));
+    } elseif ((int)$u['ativo'] === 0) {
+        echo json_encode(array(
+            'status' => 'inativo',
+            'user_id' => (int)$u['id'],
+            'email' => $u['email'],
+        ));
+    } else {
+        echo json_encode(array(
+            'status' => 'ativo',
+            'user_id' => (int)$u['id'],
+            'email' => $u['email'],
+            'ultimo_acesso' => $u['ultimo_acesso'],
+        ));
+    }
+    exit;
+}
+
 // AJAX: gerar/recuperar link publico de um documento
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax_action'] ?? '') === 'gerar_link') {
     while (ob_get_level() > 0) @ob_end_clean();
@@ -267,6 +293,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <option value="<?= $cli['id'] ?>"><?= e($cli['name']) ?></option>
                     <?php endforeach; ?>
                 </select>
+                <!-- Aviso de status da Central VIP (preenchido por JS) -->
+                <div id="ged_vip_status" style="margin-top:.4rem;font-size:.78rem;line-height:1.3;display:none;padding:.5rem .7rem;border-radius:6px;"></div>
             </div>
 
             <div>
@@ -397,11 +425,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
-// Load cases when client changes
+// Load cases when client changes + verifica status da Central VIP
 document.getElementById('ged_client').addEventListener('change', function(){
     var clientId = this.value;
     var caseSelect = document.getElementById('ged_case');
+    var vipBox = document.getElementById('ged_vip_status');
     caseSelect.innerHTML = '<option value="">Carregando processos...</option>';
+    vipBox.style.display = 'none';
     if (!clientId) { caseSelect.innerHTML = '<option value="">Selecione o cliente primeiro...</option>'; return; }
 
     fetch('<?= module_url('salavip', 'ged.php') ?>?ajax_cases=1&client_id=' + clientId)
@@ -418,6 +448,33 @@ document.getElementById('ged_client').addEventListener('change', function(){
             }
         })
         .catch(function(){});
+
+    // Verifica se o cliente tem conta ATIVA na Central VIP
+    fetch('<?= module_url('salavip', 'ged.php') ?>?ajax_vip_status=1&client_id=' + clientId)
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            vipBox.style.display = 'block';
+            if (d.status === 'ativo') {
+                vipBox.style.background = '#d1fae5';
+                vipBox.style.border = '1px solid #34d399';
+                vipBox.style.color = '#065f46';
+                var quando = d.ultimo_acesso ? ' · último acesso ' + d.ultimo_acesso.substring(0, 10).split('-').reverse().join('/') : ' · ainda não logou';
+                vipBox.innerHTML = '✅ <strong>Conta da Central VIP ATIVA</strong> ('+ (d.email || 'sem email') +')' + quando + ' — o cliente vai conseguir ver o documento.';
+            } else if (d.status === 'inativo') {
+                vipBox.style.background = '#fef3c7';
+                vipBox.style.border = '1.5px solid #f59e0b';
+                vipBox.style.color = '#92400e';
+                vipBox.innerHTML = '⚠️ <strong>Conta INATIVA</strong> (' + (d.email || 'sem email') + ') — o cliente recebeu o convite mas <strong>não ativou a conta</strong>. O doc vai ficar invisível até ele ativar. ' +
+                    '<a href="<?= module_url('salavip', 'acessos.php') ?>" target="_blank" style="color:#92400e;text-decoration:underline;font-weight:600;">Reenviar convite →</a>';
+            } else {
+                vipBox.style.background = '#fee2e2';
+                vipBox.style.border = '1.5px solid #f87171';
+                vipBox.style.color = '#7c2d12';
+                vipBox.innerHTML = '❌ <strong>Cliente SEM conta na Central VIP</strong> — você precisa cadastrar o acesso primeiro, senão o doc vai ficar invisível. ' +
+                    '<a href="<?= module_url('salavip') ?>" target="_blank" style="color:#7c2d12;text-decoration:underline;font-weight:600;">Cadastrar acesso →</a>';
+            }
+        })
+        .catch(function(){ vipBox.style.display = 'none'; });
 });
 
 // ── Link público compartilhável (Amanda: enviar pelo WhatsApp) ──────
