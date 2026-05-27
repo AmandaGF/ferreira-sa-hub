@@ -412,9 +412,9 @@ function onboarding_perfis_cargo() {
         'advogado_associado'   => 'Advogada(o) Associada(o)',
         'clt'                  => 'CLT',
         'sociedade'            => 'Sociedade',
-        'prestador_pj'         => 'Prestador de Serviços — PJ',
-        'prestador_mei'        => 'Prestador de Serviços — MEI',
-        'prestador_autonomo'   => 'Prestador de Serviços — Autônomo',
+        'prestador_pj'         => 'Prestador de Serviços — PJ (empresa com CNPJ)',
+        'prestador_mei'        => 'Prestador de Serviços — MEI (com CNPJ próprio)',
+        'prestador_autonomo'   => 'Prestador de Serviços — Autônomo (pessoa física, sem CNPJ)',
         'outro'                => 'Outro',
     );
 }

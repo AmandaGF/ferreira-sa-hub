@@ -523,14 +523,22 @@ function render_contrato_prestacao_marketing($colaborador, $dadosAdmin, $dadosCo
     $ehMEI  = ($perfil === 'prestador_mei');
     $ehAuto = ($perfil === 'prestador_autonomo');
 
+    // Dados da PJ/MEI vindos do cadastro
+    $cnpj         = $colaborador['cnpj'] ?? '';
+    $razaoSocial  = $colaborador['razao_social'] ?? '';
+
+    // Fallback: PJ/MEI sem CNPJ valido -> trata como pessoa fisica (autonomo)
+    $cnpjDigitos = preg_replace('/\D/', '', (string)$cnpj);
+    if (($ehPJ || $ehMEI) && strlen($cnpjDigitos) !== 14) {
+        $ehPJ = false;
+        $ehMEI = false;
+        $ehAuto = true;
+    }
+
     $nome  = strtoupper($colaborador['nome_completo'] ?? '');
     $cpf   = $colaborador['cpf'] ?? '___.___.___-__';
     $email = $colaborador['email_institucional'] ?? ($colaborador['email_pessoal'] ?? '___');
     $dataNasc = _onb_data_br($colaborador['data_nascimento'] ?? '');
-
-    // Dados da PJ/MEI vindos do cadastro
-    $cnpj         = $colaborador['cnpj'] ?? '';
-    $razaoSocial  = $colaborador['razao_social'] ?? '';
     $emiteNF      = !empty($colaborador['emite_nf']);
     $escopo       = trim((string)($colaborador['escopo_servicos'] ?? ''));
     $dadosBanc    = trim((string)($colaborador['dados_bancarios'] ?? ''));
@@ -776,13 +784,23 @@ function render_contrato_prestacao_comercial($colaborador, $dadosAdmin, $dadosCo
     $ehMEI  = ($perfil === 'prestador_mei');
     $ehAuto = ($perfil === 'prestador_autonomo');
 
+    $cnpj         = $colaborador['cnpj'] ?? '';
+    $razaoSocial  = $colaborador['razao_social'] ?? '';
+
+    // Fallback de seguranca: se cadastro marcou PJ/MEI mas CNPJ esta vazio
+    // (ou nao tem 14 digitos), trata como pessoa fisica (autonomo) — evita
+    // contrato sair com "pessoa juridica de direito privado, CNPJ: ___".
+    $cnpjDigitos = preg_replace('/\D/', '', (string)$cnpj);
+    if (($ehPJ || $ehMEI) && strlen($cnpjDigitos) !== 14) {
+        $ehPJ = false;
+        $ehMEI = false;
+        $ehAuto = true;
+    }
+
     $nome  = strtoupper($colaborador['nome_completo'] ?? '');
     $cpf   = $colaborador['cpf'] ?? '___.___.___-__';
     $email = $colaborador['email_institucional'] ?? ($colaborador['email_pessoal'] ?? '___');
     $dataNasc = _onb_data_br($colaborador['data_nascimento'] ?? '');
-
-    $cnpj         = $colaborador['cnpj'] ?? '';
-    $razaoSocial  = $colaborador['razao_social'] ?? '';
     $emiteNF      = !empty($colaborador['emite_nf']);
     $escopo       = trim((string)($colaborador['escopo_servicos'] ?? ''));
     $dadosBanc    = trim((string)($colaborador['dados_bancarios'] ?? ''));

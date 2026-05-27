@@ -713,10 +713,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <!-- Dados do Prestador (PJ/MEI/Autônomo) — só aparece quando o perfil de cargo é prestador_* -->
         <div id="prestadorBlock" style="display:<?= onboarding_eh_prestador($reg['perfil_cargo'] ?? '') ? 'block' : 'none' ?>;background:rgba(184,115,51,.06);border:1px solid rgba(184,115,51,.2);border-radius:8px;padding:14px;margin-top:14px;">
             <h4 style="font-size:.85rem;color:#6a3c2c;margin:0 0 .6rem;">💼 Dados do Prestador de Serviços</h4>
+            <div id="cnpjAvisoPF" style="display:none;background:#fef3c7;border:1px solid #fbbf24;color:#92400e;padding:.55rem .8rem;border-radius:8px;font-size:.78rem;margin-bottom:.7rem;">
+                ⚠️ <strong>PJ/MEI sem CNPJ:</strong> se a colaboradora não tem CNPJ, o contrato será gerado automaticamente como <strong>pessoa física (Autônomo)</strong>. Se ela tem CNPJ, preencha abaixo. Se ela é mesmo pessoa física, troque o perfil para <em>Autônomo</em> para deixar o cadastro coerente.
+            </div>
             <div class="ob-grid">
                 <div>
-                    <label>CNPJ <span style="color:#888;font-size:.7rem;font-weight:400;">(PJ/MEI)</span></label>
-                    <input name="cnpj" value="<?= e($reg['cnpj'] ?? '') ?>" placeholder="00.000.000/0000-00">
+                    <label>CNPJ <span style="color:#888;font-size:.7rem;font-weight:400;">(obrigatório para PJ/MEI)</span></label>
+                    <input name="cnpj" id="cnpjInput" value="<?= e($reg['cnpj'] ?? '') ?>" placeholder="00.000.000/0000-00" oninput="atualizarAvisoCnpj()">
                 </div>
                 <div>
                     <label>Razão social / Nome empresarial</label>
@@ -751,8 +754,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
             sel.addEventListener('change', function(){
                 var b=document.getElementById('prestadorBlock');
                 if (b) b.style.display = (prest.indexOf(sel.value)>=0) ? 'block' : 'none';
+                atualizarAvisoCnpj();
             });
         })();
+        // Mostra aviso "vai virar PF" quando perfil=PJ/MEI mas CNPJ ainda nao tem 14 digitos
+        function atualizarAvisoCnpj() {
+            var sel = document.getElementById('perfilCargoSelect');
+            var cnpj = document.getElementById('cnpjInput');
+            var aviso = document.getElementById('cnpjAvisoPF');
+            if (!sel || !cnpj || !aviso) return;
+            var ehPjMei = (sel.value === 'prestador_pj' || sel.value === 'prestador_mei');
+            var cnpjDig = (cnpj.value || '').replace(/\D/g, '');
+            aviso.style.display = (ehPjMei && cnpjDig.length !== 14) ? 'block' : 'none';
+        }
+        document.addEventListener('DOMContentLoaded', atualizarAvisoCnpj);
         </script>
 
         <h4 style="font-size:.85rem;color:#6a3c2c;margin:1.2rem 0 .5rem;">📧 Acesso institucional</h4>
