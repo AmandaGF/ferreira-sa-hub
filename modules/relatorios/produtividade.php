@@ -74,12 +74,16 @@ foreach ($users as $u) {
         $m['documentos'] = (int)$d->fetchColumn();
     } catch (Exception $e) {}
 
-    // Processos distribuídos no mês
+    // Processos distribuídos no mês.
+    // Usa distribution_date (data REAL da distribuicao) — antes era updated_at,
+    // que dava resultado errado pois qualquer edicao posterior do caso o jogava
+    // pra contagem do mes corrente, ficando inconsistente com o dashboard.
     try {
         $p = $pdo->prepare(
             "SELECT COUNT(*) FROM cases
              WHERE responsible_user_id = ? AND status = 'distribuido'
-               AND DATE_FORMAT(updated_at, '%Y-%m') = ?"
+               AND distribution_date IS NOT NULL
+               AND DATE_FORMAT(distribution_date, '%Y-%m') = ?"
         );
         $p->execute(array($uid, $mesAno));
         $m['processos_distrib'] = (int)$p->fetchColumn();

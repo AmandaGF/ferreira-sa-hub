@@ -251,12 +251,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['csv_file'])) {
                 }
             }
 
-            // Mapear status
-            $status = 'ativo';
+            // Mapear status. Default = 'em_andamento' (NUNCA 'ativo' — esse status é sinônimo
+            // legado e foi unificado em 27/05/2026 via migrar_unificar_status_ativo.php).
+            // Veja [[import_processos_dedupe]] e diag_contagem_processos.php.
+            $status = 'em_andamento';
             if (!empty($row['status'])) {
                 $sLower = mb_strtolower($row['status']);
                 $statusMap = array(
-                    'ativo' => 'ativo', 'em andamento' => 'em_andamento', 'aguardando' => 'aguardando_docs',
+                    'ativo' => 'em_andamento', 'em andamento' => 'em_andamento',
+                    'distribuido' => 'distribuido', 'distribuído' => 'distribuido',
+                    'aguardando' => 'aguardando_docs',
                     'concluido' => 'concluido', 'concluído' => 'concluido', 'arquivado' => 'arquivado',
                     'suspenso' => 'suspenso', 'cancelado' => 'arquivado',
                 );
