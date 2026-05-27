@@ -18,12 +18,7 @@ set_exception_handler(function($e) {
 });
 
 echo "=== COLABORADORES_ONBOARDING (TODOS) ===\n";
-$st = $pdo->prepare("SELECT id, nome_completo, email_institucional, email_pessoal, cpf, cnpj, razao_social,
-                            perfil_cargo, status, token, data_inicio_contrato, data_termino_contrato,
-                            escopo_servicos, dados_bancarios, valor_remuneracao,
-                            link_contrato_url, criado_em
-                     FROM colaboradores_onboarding
-                     ORDER BY id DESC LIMIT 10");
+$st = $pdo->prepare("SELECT * FROM colaboradores_onboarding ORDER BY id DESC LIMIT 10");
 $st->execute();
 $regs = $st->fetchAll();
 if (!$regs) { echo "(nenhum cadastro encontrado)\n"; exit; }
