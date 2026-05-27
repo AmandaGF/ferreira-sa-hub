@@ -461,6 +461,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <a href="<?= module_url('relatorios', 'exportar.php?tipo=casos') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
                 ⚙️ Casos Operacionais
             </a>
+            <a href="<?= module_url('relatorios', 'exportar_casos_custom.php') ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;background:#0e7490;color:#fff;border-color:#0e7490;">
+                📊 Casos — Customizado (escolher campos)
+            </a>
             <a href="<?= module_url('relatorios', 'exportar.php?tipo=contratos&de=' . $dataInicio . '&ate=' . $dataFim) ?>" class="export-btn" style="padding:.75rem 1rem;font-size:.8rem;">
                 ✅ Contratos (<?= $periodoLabel ?>)
             </a>
