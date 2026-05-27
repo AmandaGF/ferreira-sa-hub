@@ -6,6 +6,7 @@
 
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
 require_once __DIR__ . '/core/database.php';
+require_once __DIR__ . '/core/functions_utils.php';
 $pdo = db();
 header('Content-Type: text/plain; charset=utf-8');
 
@@ -54,7 +55,7 @@ try {
     }
 }
 
-audit_log('client_rename', 'clients', $clientId, "'$nomeAntigo' -> '$nomeNovo' (Vanissia preencheu form com nome da mae)");
+try { audit_log('client_rename', 'clients', $clientId, "'$nomeAntigo' -> '$nomeNovo' (Vanissia preencheu form com nome da mae)"); } catch (Throwable $e) {}
 
 $st->execute(array($clientId));
 $cliPos = $st->fetch();
