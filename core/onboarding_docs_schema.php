@@ -318,6 +318,21 @@ $ONBOARDING_DOC_SCHEMAS = array(
                 'obrigatorio' => false,
                 'placeholder' => 'Ex: 8',
             ),
+            'horas_semana_estimadas' => array(
+                'label' => 'Disponibilidade semanal estimada (horas/semana)',
+                'tipo' => 'number',
+                'min' => 1, 'max' => 44,
+                'obrigatorio' => false,
+                'placeholder' => 'Ex: 20',
+            ),
+            'tempo_resposta_lead_horas' => array(
+                'label' => 'Tempo máximo de resposta a lead (horas úteis)',
+                'tipo' => 'number',
+                'min' => 1, 'max' => 48,
+                'obrigatorio' => false,
+                'default' => 4,
+                'placeholder' => 'Padrão: 4 horas úteis',
+            ),
             'multa_rescisoria_meses' => array(
                 'label' => 'Multa rescisória (em meses do valor fixo mensal)',
                 'tipo' => 'number',
