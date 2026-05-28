@@ -12,6 +12,15 @@
  *   /migrar_demandas_prev.php?key=fsa-hub-deploy-2026&modo=executar
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('forbidden'); }
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+        @http_response_code(500);
+        echo '<pre style="color:#7f1d1d;background:#fee2e2;padding:1rem;">FATAL: ' . htmlspecialchars($e['message']) . "\nem " . htmlspecialchars($e['file']) . ':' . $e['line'] . '</pre>';
+    }
+});
 
 require_once __DIR__ . '/core/database.php';
 require_once __DIR__ . '/core/functions_utils.php';
