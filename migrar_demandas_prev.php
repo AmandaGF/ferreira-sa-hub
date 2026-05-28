@@ -238,6 +238,17 @@ $processar = array(
     'ambiguo'        => array(),
 );
 
+// Overrides manuais confirmados pela Amanda em 27/05/2026 (nomes que nao batem
+// no exato nem no fuzzy mas a Amanda confirmou que sao a mesma pessoa).
+// Chave = nome normalizado da PLANILHA; valor = client_id no banco.
+$OVERRIDES = array(
+    'eliane rosalina'                  => 660,  // ELIANE ROSALINA DA SILVA
+    'jose herickson'                   => 864,  // JOSE HERICKSON BARREIRA
+    'elaine cristina bilha'            => 657,  // Elaine Cristina bilha Ferreira da Silva
+    'luciana'                          => 974,  // LUCIANA DINIZ BARBOSA (BPC Kaio - Luiz)
+    'luciana berteges'                 => 980,  // Luciene Rodrigues Berteges de Souza
+);
+
 foreach ($REGISTROS as $idx => $reg) {
     $nomeNorm = _normalizar_nome($reg['cliente_nome']);
     $candidatos = isset($mapNomeNorm[$nomeNorm]) ? $mapNomeNorm[$nomeNorm] : array();
@@ -253,6 +264,12 @@ foreach ($REGISTROS as $idx => $reg) {
                 $matchTipo = 'fuzzy_prim_ult';
             }
         }
+    }
+
+    // Override manual (vence todos os outros)
+    if (isset($OVERRIDES[$nomeNorm])) {
+        $candidatos = array($OVERRIDES[$nomeNorm]);
+        $matchTipo = 'override_manual';
     }
 
     $reg['_idx'] = $idx;
@@ -410,7 +427,9 @@ echo '<h2>1) Match unico (' . count($processar['match_unico']) . ')</h2>';
 echo '<table><tr><th>Cliente</th><th>client_id</th><th>Demanda</th><th>Especie / B</th><th>Fase</th><th>Status</th><th>Obs (snippet)</th><th>Resp.</th></tr>';
 foreach ($processar['match_unico'] as $reg) {
     $cnjBadge = $reg['_cnj'] ? ' <code>' . htmlspecialchars($reg['_cnj']) . '</code>' : '';
-    $matchBadge = $reg['_match_tipo'] === 'fuzzy_prim_ult' ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-size:.65rem;">fuzzy</span>' : '';
+    $matchBadge = '';
+    if ($reg['_match_tipo'] === 'fuzzy_prim_ult') $matchBadge = ' <span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-size:.65rem;">fuzzy</span>';
+    if ($reg['_match_tipo'] === 'override_manual') $matchBadge = ' <span style="background:#fce7f3;color:#9d174d;padding:1px 4px;border-radius:3px;font-size:.65rem;">override</span>';
     echo '<tr>';
     echo '<td class="match-ok">' . htmlspecialchars($reg['cliente_nome']) . $matchBadge . '</td>';
     echo '<td><code>#' . $reg['_client_id'] . '</code></td>';
