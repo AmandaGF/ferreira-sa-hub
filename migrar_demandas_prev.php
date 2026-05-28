@@ -151,11 +151,19 @@ function _normalizar_nome($s) {
 
 // Carrega clientes uma vez na memoria
 $clientesCache = $pdo->query("SELECT id, name FROM clients")->fetchAll();
-$mapNomeNorm = array(); // nome_normalizado => [client_id, client_id, ...]
+$mapNomeNorm = array();           // nome_normalizado => [client_id, ...]
+$mapPrimUlt = array();             // primeiro+ultimo nome => [client_id, ...]  (fallback fuzzy)
 foreach ($clientesCache as $c) {
     $n = _normalizar_nome($c['name']);
     if (!isset($mapNomeNorm[$n])) $mapNomeNorm[$n] = array();
     $mapNomeNorm[$n][] = (int)$c['id'];
+
+    $partes = preg_split('/\s+/', $n);
+    if (count($partes) >= 2) {
+        $primUlt = $partes[0] . ' ' . end($partes);
+        if (!isset($mapPrimUlt[$primUlt])) $mapPrimUlt[$primUlt] = array();
+        $mapPrimUlt[$primUlt][] = (int)$c['id'];
+    }
 }
 
 // Mapeamento profissional -> user_id (busca por primeiro nome)
@@ -233,9 +241,24 @@ $processar = array(
 foreach ($REGISTROS as $idx => $reg) {
     $nomeNorm = _normalizar_nome($reg['cliente_nome']);
     $candidatos = isset($mapNomeNorm[$nomeNorm]) ? $mapNomeNorm[$nomeNorm] : array();
+    $matchTipo = 'exato';
+
+    // Fallback fuzzy: primeiro + ultimo nome
+    if (empty($candidatos)) {
+        $partes = preg_split('/\s+/', $nomeNorm);
+        if (count($partes) >= 2) {
+            $chaveFuzzy = $partes[0] . ' ' . end($partes);
+            if (isset($mapPrimUlt[$chaveFuzzy])) {
+                $candidatos = $mapPrimUlt[$chaveFuzzy];
+                $matchTipo = 'fuzzy_prim_ult';
+            }
+        }
+    }
+
     $reg['_idx'] = $idx;
     $reg['_nome_norm'] = $nomeNorm;
     $reg['_candidatos'] = $candidatos;
+    $reg['_match_tipo'] = $matchTipo;
     $reg['_cnj'] = _extrair_cnj($reg['observacoes']);
     $reg['_status_map'] = _mapear_status($reg['status_normalizado'], $reg['observacoes']);
 
@@ -270,17 +293,23 @@ if ($modo === 'executar') {
             $titulo = trim($reg['demanda_original']);
             $respId = $profMap[$reg['profissional']] ?? null;
 
+            // Rejane = parceira externa (sem user no Hub) -> case marcado is_parceria=1
+            $ehParceriaRejane = (mb_strtolower($reg['profissional']) === 'rejane');
+
             // 1) INSERT cases
             $pdo->prepare(
                 "INSERT INTO cases
                   (client_id, title, case_type, category, status, kanban_prev, kanban_oculto,
-                   responsible_user_id, case_number, opened_at, created_at, notes)
-                 VALUES (?, ?, 'previdenciario', 'previdenciario', ?, 1, ?, ?, ?, CURDATE(), NOW(), ?)"
+                   responsible_user_id, case_number, opened_at, created_at, notes,
+                   is_parceria, parceria_executor)
+                 VALUES (?, ?, 'previdenciario', 'previdenciario', ?, 1, ?, ?, ?, CURDATE(), NOW(), ?, ?, ?)"
             )->execute(array(
                 $clientId, $titulo,
                 $sm['cases_status'], $sm['kanban_oculto'],
                 $respId, $reg['_cnj'],
-                "Importado da planilha em " . date('d/m/Y') . ". Observação original: " . $reg['observacoes']
+                "Importado da planilha em " . date('d/m/Y') . ". Observação original: " . $reg['observacoes'],
+                $ehParceriaRejane ? 1 : 0,
+                $ehParceriaRejane ? 'Rejane (parceira externa de PREV)' : null
             ));
             $caseId = (int)$pdo->lastInsertId();
 
@@ -381,8 +410,9 @@ echo '<h2>1) Match unico (' . count($processar['match_unico']) . ')</h2>';
 echo '<table><tr><th>Cliente</th><th>client_id</th><th>Demanda</th><th>Especie / B</th><th>Fase</th><th>Status</th><th>Obs (snippet)</th><th>Resp.</th></tr>';
 foreach ($processar['match_unico'] as $reg) {
     $cnjBadge = $reg['_cnj'] ? ' <code>' . htmlspecialchars($reg['_cnj']) . '</code>' : '';
+    $matchBadge = $reg['_match_tipo'] === 'fuzzy_prim_ult' ? ' <span style="background:#fef3c7;color:#92400e;padding:1px 4px;border-radius:3px;font-size:.65rem;">fuzzy</span>' : '';
     echo '<tr>';
-    echo '<td class="match-ok">' . htmlspecialchars($reg['cliente_nome']) . '</td>';
+    echo '<td class="match-ok">' . htmlspecialchars($reg['cliente_nome']) . $matchBadge . '</td>';
     echo '<td><code>#' . $reg['_client_id'] . '</code></td>';
     echo '<td>' . htmlspecialchars($reg['demanda_original']) . $cnjBadge . '</td>';
     echo '<td>' . htmlspecialchars($reg['especie_normalizada']) . ($reg['codigo_b'] ? ' / <strong>' . $reg['codigo_b'] . '</strong>' : '') . '</td>';
