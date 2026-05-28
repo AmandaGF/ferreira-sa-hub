@@ -852,6 +852,25 @@ if ($action === 'sugerir_acao_ia') {
 
     @audit_log('IA_SUGERIR_ACAO', 'case', $caseId, 'tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
 
+    // Salva no historico — Amanda pediu pra nao perder sugestoes anteriores
+    // (antes, fechou o modal e a sugestao sumia, sem registro).
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS case_ia_sugestoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            case_id INT NOT NULL,
+            sugestao_texto TEXT NOT NULL,
+            custo_brl DECIMAL(10,5) DEFAULT 0,
+            tokens_total INT DEFAULT 0,
+            gerado_por INT NOT NULL,
+            gerado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_case (case_id, gerado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $pdo->prepare("INSERT INTO case_ia_sugestoes (case_id, sugestao_texto, custo_brl, tokens_total, gerado_por) VALUES (?, ?, ?, ?, ?)")
+            ->execute(array($caseId, $r['texto'], (float)$r['custo_brl'], (int)($r['input_tokens'] + $r['output_tokens']), (int)$uid));
+    } catch (Throwable $e) {
+        @error_log('[ia historico] ' . $e->getMessage());
+    }
+
     _json_clean_echo(array(
         'ok'        => true,
         'texto'     => $r['texto'],
@@ -864,6 +883,40 @@ if ($action === 'sugerir_acao_ia') {
         @file_put_contents(__DIR__ . '/../../files/ia_erro.log',
             date('Y-m-d H:i:s') . " | sugerir_acao_ia case#" . ($caseId ?? '?') . " | " . $e->getMessage() . "\n", FILE_APPEND);
         _json_clean_echo(array('error' => 'Erro no servidor: ' . $e->getMessage()));
+        exit;
+    }
+}
+
+// Historico de sugestoes da IA para um caso
+if ($action === 'historico_acoes_ia') {
+    try {
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if (!$caseId) { _json_clean_echo(array('error' => 'caso invalido')); exit; }
+        // Permissao: mesma do caso (require_access ja foi feito acima)
+        $pdo = db();
+        try { $pdo->exec("CREATE TABLE IF NOT EXISTS case_ia_sugestoes (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            case_id INT NOT NULL,
+            sugestao_texto TEXT NOT NULL,
+            custo_brl DECIMAL(10,5) DEFAULT 0,
+            tokens_total INT DEFAULT 0,
+            gerado_por INT NOT NULL,
+            gerado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_case (case_id, gerado_em)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Throwable $e) {}
+
+        $st = $pdo->prepare("SELECT s.id, s.sugestao_texto, s.custo_brl, s.tokens_total, s.gerado_em, u.name AS user_nome
+                             FROM case_ia_sugestoes s
+                             LEFT JOIN users u ON u.id = s.gerado_por
+                             WHERE s.case_id = ?
+                             ORDER BY s.gerado_em DESC
+                             LIMIT 50");
+        $st->execute(array($caseId));
+        $rows = $st->fetchAll();
+        _json_clean_echo(array('ok' => true, 'sugestoes' => $rows));
+        exit;
+    } catch (Throwable $e) {
+        _json_clean_echo(array('error' => 'Erro: ' . $e->getMessage()));
         exit;
     }
 }
