@@ -30,8 +30,12 @@ $pdo = db();
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $modo = ($_GET['modo'] ?? 'simular') === 'executar' ? 'executar' : 'simular';
-$assumirAmanda = current_user_id(); // pode ser null se rodando via curl sem sessao
-if (!$assumirAmanda) $assumirAmanda = 1; // fallback Amanda#1 (importacao admin)
+$assumirAmanda = function_exists('current_user_id') ? current_user_id() : null;
+if (!$assumirAmanda) $assumirAmanda = 1; // fallback Amanda#1 (importacao admin via curl)
+$_uid_audit = $assumirAmanda; // usar nas chamadas de audit
+function _audit_safe($acao, $entidade, $eid, $msg) {
+    if (function_exists('audit_log')) { try { audit_log($acao, $entidade, $eid, $msg); } catch (Exception $e) {} }
+}
 
 echo '<!doctype html><meta charset="utf-8">';
 echo '<style>
@@ -360,7 +364,7 @@ if ($modo === 'executar') {
         }
 
         $pdo->commit();
-        audit_log('PREV_MIGRACAO_EXECUTADA', 'cases', null, "Migracao planilha 27/05/2026: $criados cases criados, $pendentes pendencias");
+        _audit_safe('PREV_MIGRACAO_EXECUTADA', 'cases', null, "Migracao planilha 27/05/2026: $criados cases criados, $pendentes pendencias");
         echo '<div class="ok"><strong>&#x2705; EXECUTADO!</strong> ' . $criados . ' cases criados, ' . $pendentes . ' pendencias em prev_migracao_pendente.</div>';
     } catch (Exception $e) {
         $pdo->rollBack();
