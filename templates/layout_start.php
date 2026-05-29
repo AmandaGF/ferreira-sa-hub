@@ -418,6 +418,8 @@ try {
     $__role = current_user_role();
     $__prazosUrgentes = array();
     if (in_array($__role, array('admin','gestao','operacional'))) {
+        // Inclui VENCIDOS nao concluidos (prazo_fatal <= +3d, sem limite inferior).
+        // Antes: BETWEEN CURDATE() AND +3d -- vencido sumia do banner. (28/05/2026)
         $__stmtPz = db()->prepare(
             "SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.case_id,
                     cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
@@ -427,8 +429,8 @@ try {
              LEFT JOIN cases cs ON cs.id = p.case_id
              LEFT JOIN clients cl ON cl.id = p.client_id
              LEFT JOIN users u ON u.id = cs.responsible_user_id
-             WHERE p.concluido = 0 AND p.prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-             ORDER BY p.prazo_fatal ASC LIMIT 10"
+             WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+             ORDER BY p.prazo_fatal ASC LIMIT 15"
         );
         $__stmtPz->execute();
         $__prazosUrgentes = $__stmtPz->fetchAll();
@@ -498,6 +500,10 @@ if (!empty($__prazosUrgentes)):
 ?>
 <style>
 .urg-banner { background:linear-gradient(135deg,#dc2626,#b91c1c); color:#fff; border-radius:10px; padding:.6rem 1rem; margin-bottom:.75rem; font-size:.78rem; }
+.urg-banner.urg-tem-vencido { background:linear-gradient(135deg,#991b1b,#7f1d1d); box-shadow:0 0 0 2px rgba(220,38,38,.4), 0 4px 14px rgba(127,29,29,.4); animation:urgPulse 2.5s infinite; }
+@keyframes urgPulse { 0%,100%{box-shadow:0 0 0 2px rgba(220,38,38,.4), 0 4px 14px rgba(127,29,29,.4);} 50%{box-shadow:0 0 0 6px rgba(220,38,38,.2), 0 6px 18px rgba(127,29,29,.55);} }
+.urg-row.urg-row-vencido { background:rgba(0,0,0,.18); }
+.urg-row.urg-row-vencido .urg-label { background:#fff; color:#7f1d1d; padding:1px 8px; border-radius:6px; font-weight:800; }
 .urg-banner .urg-hdr { display:flex; align-items:center; gap:.5rem; margin-bottom:.45rem; }
 .urg-row { display:flex; align-items:center; gap:.55rem; padding:.45rem .55rem; border-top:1px solid rgba(255,255,255,.15); text-decoration:none; color:#fff; border-radius:6px; transition:background .15s; }
 .urg-row:hover { background:rgba(255,255,255,.1); color:#fff; }
@@ -509,22 +515,46 @@ if (!empty($__prazosUrgentes)):
 .urg-row .urg-data { margin-left:auto; flex-shrink:0; text-align:right; font-family:monospace; font-size:.78rem; font-weight:600; }
 .urg-row .urg-data small { display:block; font-size:.65rem; opacity:.75; font-weight:400; font-family:inherit; }
 </style>
-<div class="no-print urg-banner">
+<?php
+// Conta vencidos vs proximos pra ajustar o titulo e a cor do banner
+$__qtdVencidos = 0;
+foreach ($__prazosUrgentes as $__pz) {
+    if ((strtotime($__pz['prazo_fatal']) - strtotime(date('Y-m-d'))) < 0) $__qtdVencidos++;
+}
+$__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
+?>
+<div class="no-print urg-banner<?= $__qtdVencidos > 0 ? ' urg-tem-vencido' : '' ?>">
     <div class="urg-hdr">
-        <span style="font-size:1rem;">🚨</span>
-        <strong><?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!</strong>
+        <span style="font-size:1rem;"><?= $__qtdVencidos > 0 ? '🚨' : '⏰' ?></span>
+        <strong>
+            <?php if ($__qtdVencidos > 0): ?>
+                <?= $__qtdVencidos ?> prazo(s) <span style="background:#fff;color:#7f1d1d;padding:1px 8px;border-radius:6px;font-size:.78rem;margin:0 .25rem;">VENCIDO(S)</span>
+                <?php if ($__qtdProximos > 0): ?>+ <?= $__qtdProximos ?> nos próximos 3 dias<?php endif; ?>
+            <?php else: ?>
+                <?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!
+            <?php endif; ?>
+        </strong>
         <a href="<?= url('modules/prazos/') ?>" style="color:#fecaca;margin-left:auto;font-size:.7rem;text-decoration:underline;">Ver todos →</a>
     </div>
     <?php foreach ($__prazosUrgentes as $__pz):
         $__diasPz = (int)((strtotime($__pz['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
-        $__urgLabel = $__diasPz <= 0 ? '🔴 HOJE' : ($__diasPz === 1 ? '🟡 AMANHÃ' : '⚠️ ' . $__diasPz . 'd');
+        if ($__diasPz < 0) {
+            $__urgLabel = '🚨 VENCIDO há ' . abs($__diasPz) . 'd';
+        } elseif ($__diasPz === 0) {
+            $__urgLabel = '🔴 HOJE';
+        } elseif ($__diasPz === 1) {
+            $__urgLabel = '🟡 AMANHÃ';
+        } else {
+            $__urgLabel = '⚠️ ' . $__diasPz . 'd';
+        }
+        $__rowExtra = $__diasPz < 0 ? ' urg-row-vencido' : '';
         $__caseHref = $__pz['case_id'] ? url('modules/operacional/caso_ver.php?id=' . $__pz['case_id']) : url('modules/prazos/');
         $__cnjFmt = $__pz['case_cnj'] ? _layoutFormatCnj($__pz['case_cnj']) : ($__pz['numero_processo'] ? _layoutFormatCnj($__pz['numero_processo']) : '');
         $__localTxt = '';
         if (!empty($__pz['vara']))    $__localTxt .= $__pz['vara'];
         if (!empty($__pz['comarca'])) $__localTxt .= ($__localTxt ? ' — ' : '') . $__pz['comarca'] . (!empty($__pz['comarca_uf']) ? '/' . $__pz['comarca_uf'] : '');
     ?>
-    <a class="urg-row" href="<?= e($__caseHref) ?>" title="Abrir pasta do processo">
+    <a class="urg-row<?= $__rowExtra ?>" href="<?= e($__caseHref) ?>" title="Abrir pasta do processo">
         <span class="urg-label"><?= $__urgLabel ?></span>
         <div class="urg-meio">
             <div class="urg-titulo">
