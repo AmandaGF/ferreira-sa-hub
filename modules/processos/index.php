@@ -42,8 +42,10 @@ if ($isColaborador) {
     $params[] = current_user_id();
 }
 // Por default, só mostra processos em andamento (esconde arquivados/cancelados/concluídos).
-// `?ver_arquivados=1` mostra todos. Se filtro status explícito foi escolhido, respeita.
-$verArquivados = (($_GET['ver_arquivados'] ?? '') === '1');
+// `?ver_arquivados=1` OU status='__todos__' mostra todos. Se filtro status
+// especifico foi escolhido, respeita.
+$verArquivados = (($_GET['ver_arquivados'] ?? '') === '1') || ($filterStatus === '__todos__');
+if ($filterStatus === '__todos__') $filterStatus = ''; // sentinela so do select
 if ($filterStatus) {
     $where[] = "cs.status = ?"; $params[] = $filterStatus;
 } elseif (!$verArquivados) {
@@ -460,7 +462,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <form method="GET" class="proc-filters">
         <input type="text" name="q" value="<?= e($search) ?>" placeholder="Buscar nº processo, cliente, vara..." style="font-size:.8rem;padding:.4rem .75rem;border:1.5px solid var(--border);border-radius:var(--radius);width:250px;">
         <select name="status" class="proc-filter-sel" onchange="this.form.submit()">
-            <option value="">Status</option>
+            <option value="">Status (só ativos)</option>
+            <option value="__todos__" <?= $verArquivados ? 'selected' : '' ?>>📂 Todos (inclui arquivados/concluídos/cancelados)</option>
             <?php foreach ($statusLabels as $k => $v): ?>
                 <option value="<?= $k ?>" <?= $filterStatus === $k ? 'selected' : '' ?>><?= $v ?></option>
             <?php endforeach; ?>
