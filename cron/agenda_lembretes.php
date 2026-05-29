@@ -122,15 +122,21 @@ try {
     $em3d = date('Y-m-d', strtotime('+3 days'));
     $em7d = date('Y-m-d', strtotime('+7 days'));
 
-    // Buscar TODOS os prazos ativos nos próximos 7 dias
+    // Self-heal: coluna pra registrar quando foi a ultima notificacao de prazo VENCIDO.
+    // Antes, prazos com prazo_fatal < hoje sumiam da query (BETWEEN hoje AND +7d) e a
+    // notificacao parava de aparecer assim que o prazo passava — o oposto do que faz
+    // sentido. Agora vencidos sao re-notificados 1x por dia ate serem concluidos.
+    try { $pdo->exec("ALTER TABLE prazos_processuais ADD COLUMN alertado_vencido_em DATETIME NULL"); } catch (Exception $e) {}
+
+    // Buscar TODOS os prazos ativos: VENCIDOS (sem limite inferior) ate +7d
     $stmtPrazos = $pdo->prepare(
         "SELECT p.*, cs.title as case_title, cs.responsible_user_id, cl.name as client_name
          FROM prazos_processuais p
          LEFT JOIN cases cs ON cs.id = p.case_id
          LEFT JOIN clients cl ON cl.id = p.client_id
-         WHERE p.concluido = 0 AND p.prazo_fatal BETWEEN ? AND ?"
+         WHERE p.concluido = 0 AND p.prazo_fatal <= ?"
     );
-    $stmtPrazos->execute(array($hoje, $em7d));
+    $stmtPrazos->execute(array($em7d));
     $prazosProximos = $stmtPrazos->fetchAll();
 
     // Usuários que devem receber alertas
@@ -143,7 +149,10 @@ try {
         $dataFmt = date('d/m/Y', strtotime($pr['prazo_fatal']));
 
         // Definir nível de urgência e ícone
-        if ($diasRestantes <= 0) {
+        if ($diasRestantes < 0) {
+            $diasVencido = abs($diasRestantes);
+            $nivelTag = 'VENCIDO há ' . $diasVencido . 'd'; $icon = '🚨'; $tipo = 'urgencia';
+        } elseif ($diasRestantes == 0) {
             $nivelTag = 'HOJE'; $icon = '🚨'; $tipo = 'urgencia';
         } elseif ($diasRestantes <= 1) {
             $nivelTag = 'AMANHÃ'; $icon = '🔴'; $tipo = 'urgencia';
@@ -153,14 +162,21 @@ try {
             $nivelTag = $diasRestantes . 'd'; $icon = '📅'; $tipo = 'info';
         }
 
-        // Coluna de controle: alertado_7d, alertado_3d, alertado_1d, alertado_hoje
+        // Coluna de controle: alertado_vencido_em, alertado_hoje, alertado_1d, alertado_3d, alertado_7d
+        // Para VENCIDOS: re-notifica 1x por dia (compara DATE de alertado_vencido_em com hoje).
         $colAlerta = null;
-        if ($diasRestantes <= 0 && empty($pr['alertado_hoje'])) $colAlerta = 'alertado_hoje';
+        if ($diasRestantes < 0) {
+            $ultimoAlertaVencido = !empty($pr['alertado_vencido_em']) ? date('Y-m-d', strtotime($pr['alertado_vencido_em'])) : null;
+            if ($ultimoAlertaVencido !== $hoje) {
+                $colAlerta = 'alertado_vencido_em'; // re-alerta a cada dia novo
+            }
+        }
+        elseif ($diasRestantes == 0 && empty($pr['alertado_hoje'])) $colAlerta = 'alertado_hoje';
         elseif ($diasRestantes <= 1 && empty($pr['alertado_1d'])) $colAlerta = 'alertado_1d';
         elseif ($diasRestantes <= 3 && empty($pr['alertado_3d'])) $colAlerta = 'alertado_3d';
         elseif ($diasRestantes <= 7 && empty($pr['alertado_7d'])) $colAlerta = 'alertado_7d';
 
-        if (!$colAlerta) continue; // Já alertado neste nível
+        if (!$colAlerta) continue; // Já alertado neste nível (ou ja notificou vencido hoje)
 
         $titulo = $icon . ' Prazo ' . $nivelTag . ': ' . $pr['descricao_acao'];
         $msg = 'Prazo fatal ' . $dataFmt . ' — ' . ($pr['case_title'] ?: ($pr['numero_processo'] ?: 'Processo')) . ($pr['client_name'] ? ' (' . $pr['client_name'] . ')' : '');

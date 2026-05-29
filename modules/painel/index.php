@@ -104,21 +104,29 @@ try {
     }
 } catch (Exception $e) {}
 
-// Prazos fatais
+// Prazos fatais — INCLUI VENCIDOS NAO CONCLUIDOS (antes so prazo_fatal=hoje, fix 28/05/2026)
 try {
     $stmtP = $pdo->prepare(
-        "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.concluido, cs.title as case_title
+        "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.concluido,
+                cs.title as case_title,
+                DATEDIFF(p.prazo_fatal, ?) AS dias_vs_hoje
          FROM prazos_processuais p LEFT JOIN cases cs ON cs.id = p.case_id
-         WHERE p.prazo_fatal = ? AND p.concluido = 0 ORDER BY p.prazo_fatal"
+         WHERE p.prazo_fatal <= ? AND p.concluido = 0 ORDER BY p.prazo_fatal"
     );
-    $stmtP->execute(array($hoje));
+    $stmtP->execute(array($hoje, $hoje));
     foreach ($stmtP->fetchAll() as $p) {
+        $_diasVH = (int)$p['dias_vs_hoje'];
+        $_eVencido = $_diasVH < 0;
+        $_tituloPrz = $p['descricao_acao'];
+        if ($_eVencido) {
+            $_tituloPrz = '🚨 VENCIDO há ' . abs($_diasVH) . 'd — ' . $p['descricao_acao'];
+        }
         $agendaHoje[] = array(
-            'hora' => '⏰',
-            'titulo' => $p['descricao_acao'],
+            'hora' => $_eVencido ? '🚨' : '⏰',
+            'titulo' => $_tituloPrz,
             'tipo' => 'prazo',
-            'badge' => '🔴',
-            'cor' => '#dc2626',
+            'badge' => $_eVencido ? '⚠️' : '🔴',
+            'cor' => $_eVencido ? '#7f1d1d' : '#dc2626',
             'detalhe' => $p['case_title'] ?: '',
             'link' => null,
             'processo' => $p['numero_processo'] ?: '',
@@ -198,7 +206,8 @@ try {
     $stR2->execute(array($hoje));
     $resumo['audiencias'] = (int)$stR2->fetchColumn();
 
-    $resumo['prazos'] = (int)$pdo->query("SELECT COUNT(*) FROM prazos_processuais WHERE prazo_fatal = '$hoje' AND concluido = 0")->fetchColumn();
+    // Conta prazos de HOJE + os VENCIDOS nao concluidos (antes so '=hoje' fazia vencidos sumirem)
+    $resumo['prazos'] = (int)$pdo->query("SELECT COUNT(*) FROM prazos_processuais WHERE prazo_fatal <= '$hoje' AND concluido = 0")->fetchColumn();
     $resumo['docs_faltantes'] = (int)$pdo->query("SELECT COUNT(*) FROM documentos_pendentes WHERE status = 'pendente'")->fetchColumn();
 
     if ($isGestao) {

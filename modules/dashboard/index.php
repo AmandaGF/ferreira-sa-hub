@@ -169,9 +169,11 @@ $distribuidos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribui
 $distribuidosAnt = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status = 'distribuido' AND distribution_date IS NOT NULL AND DATE_FORMAT(distribution_date,'%Y-%m')='$mesAnterior' AND $kanbanFiltro");
 $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluido','arquivado') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'");
 
-// Prazos vencendo em 7 dias
-$prazos7dias = qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
-$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name, cs.title as case_title FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id LEFT JOIN cases cs ON cs.id = p.case_id WHERE p.concluido = 0 AND p.prazo_fatal >= CURDATE() ORDER BY p.prazo_fatal LIMIT 10");
+// Prazos vencendo em 7 dias E TAMBEM VENCIDOS (qualquer prazo nao concluido <= +7d).
+// Vencidos so SAEM da listagem quando concluido=1 (alguem deu baixa). Antes,
+// passaram a data, sumiam da query — e a notificacao tambem (bug reportado 28/05/2026).
+$prazos7dias = qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name, cs.title as case_title FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id LEFT JOIN cases cs ON cs.id = p.case_id WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY p.prazo_fatal ASC LIMIT 10");
 
 // Clientes sem movimentação 30+ dias
 $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c.updated_at) as dias_parado FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') AND c.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY) ORDER BY dias_parado DESC LIMIT 10");
@@ -440,11 +442,20 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
     <h4>🔔 Alertas e Próximos Compromissos</h4>
     <?php foreach ($prazosLista as $p): if ((int)$p['dias'] <= 7):
         $prazoLink = $p['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) : module_url('agenda');
+        $_diasInt = (int)$p['dias'];
+        $_vencido = $_diasInt < 0;
+        if ($_vencido) {
+            $_lblDias = 'VENCIDO há ' . abs($_diasInt) . 'd'; $_corDias = '#7f1d1d';
+        } elseif ($_diasInt === 0) {
+            $_lblDias = '🚨 HOJE'; $_corDias = '#dc2626';
+        } else {
+            $_lblDias = $_diasInt . 'd'; $_corDias = ($_diasInt <= 2 ? '#dc2626' : '#f59e0b');
+        }
     ?>
-    <a href="<?= $prazoLink ?>" class="alert-item <?= (int)$p['dias'] <= 2 ? 'danger' : 'warn' ?>" style="text-decoration:none;color:inherit;cursor:pointer;">
-        <span>⏰</span>
+    <a href="<?= $prazoLink ?>" class="alert-item <?= $_vencido || $_diasInt <= 2 ? 'danger' : 'warn' ?>" style="text-decoration:none;color:inherit;cursor:pointer;<?= $_vencido ? 'background:#fef2f2;border-left:4px solid #7f1d1d;' : '' ?>">
+        <span><?= $_vencido ? '🚨' : '⏰' ?></span>
         <div style="flex:1;"><strong><?= e($p['descricao_acao']) ?></strong><?php if ($p['client_name']): ?> — <?= e($p['client_name']) ?><?php endif; ?></div>
-        <span style="font-size:.72rem;font-weight:700;color:<?= (int)$p['dias'] <= 2 ? '#dc2626' : '#f59e0b' ?>;"><?= (int)$p['dias'] === 0 ? 'HOJE' : $p['dias'] . 'd' ?></span>
+        <span style="font-size:.72rem;font-weight:800;color:<?= $_corDias ?>;"><?= $_lblDias ?></span>
     </a>
     <?php endif; endforeach; ?>
     <?php if ($docsFaltantes > 0): ?>
@@ -674,8 +685,23 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     <table><thead><tr><th>Descrição</th><th>Cliente</th><th>Prazo</th><th>Dias</th></tr></thead><tbody>
     <?php foreach ($prazosLista as $p):
         $dias = (int)$p['dias'];
+        $vencido = $dias < 0;
         $_prazoHref = $p['case_id'] ? module_url('operacional', 'caso_ver.php?id=' . $p['case_id']) : '';
-        $_estiloLinha = $dias <= 2 ? 'background:#fef2f2;' : ($dias <= 5 ? 'background:#fffbeb;' : '');
+        if ($vencido) {
+            $_estiloLinha = 'background:#fee2e2;border-left:4px solid #7f1d1d;';
+            $_corDias = '#7f1d1d';
+            $_lblDias = '🚨 VENCIDO há ' . abs($dias) . 'd';
+        } elseif ($dias === 0) {
+            $_estiloLinha = 'background:#fef2f2;';
+            $_corDias = '#dc2626';
+            $_lblDias = 'HOJE';
+        } elseif ($dias <= 2) {
+            $_estiloLinha = 'background:#fef2f2;'; $_corDias = '#dc2626'; $_lblDias = $dias . 'd';
+        } elseif ($dias <= 5) {
+            $_estiloLinha = 'background:#fffbeb;'; $_corDias = '#f59e0b'; $_lblDias = $dias . 'd';
+        } else {
+            $_estiloLinha = ''; $_corDias = '#059669'; $_lblDias = $dias . 'd';
+        }
         if ($_prazoHref) $_estiloLinha .= 'cursor:pointer;';
     ?>
     <tr style="<?= $_estiloLinha ?>"
@@ -683,7 +709,7 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
         <td style="font-weight:600;"><?= e($p['descricao_acao']) ?><?php if ($p['case_title']): ?> <span style="color:#6b7280;font-weight:400;font-size:.78rem;">· <?= e($p['case_title']) ?></span><?php endif; ?></td>
         <td><?= e($p['client_name'] ?: '—') ?></td>
         <td style="font-family:monospace;font-size:.72rem;"><?= date('d/m/Y', strtotime($p['prazo_fatal'])) ?></td>
-        <td style="font-weight:700;color:<?= $dias <= 2 ? '#dc2626' : ($dias <= 5 ? '#f59e0b' : '#059669') ?>;"><?= $dias === 0 ? 'HOJE' : $dias . 'd' ?></td>
+        <td style="font-weight:800;color:<?= $_corDias ?>;"><?= $_lblDias ?></td>
     </tr>
     <?php endforeach; ?></tbody></table>
 </div>
