@@ -4722,33 +4722,72 @@ function renderPartes() {
         el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:.8rem;font-size:.85rem;">Nenhuma parte cadastrada. Clique em "+ Adicionar Parte".</div>';
         return;
     }
-    var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:140px;">Ações</th></tr></thead><tbody>';
+
+    // Reordena: cada representante_legal aparece logo abaixo da parte que
+    // representa (indentado). Reps "orfaos" (sem representado_por) vao no fim.
+    // Pedido Amanda 29/05/2026 — "para facilitar a leitura".
+    var naoReps = [];
+    var reps = [];
     partesData.forEach(function(p) {
+        if (p.papel === 'representante_legal') reps.push(p);
+        else naoReps.push(p);
+    });
+
+    // Normaliza nome (lower + trim) pra matching robusto entre representado_por
+    // (que pode ser CSV "Nome A, Nome B") e nome da parte.
+    function _norm(s) { return (s || '').toString().trim().toLowerCase(); }
+    function _repRepresentaParte(rep, parteNome) {
+        if (!rep.representado_por) return false;
+        var nomeNorm = _norm(parteNome);
+        var lista = rep.representado_por.split(',').map(_norm);
+        return lista.indexOf(nomeNorm) !== -1;
+    }
+
+    var jaRenderizados = {};
+    var ordenada = [];
+    naoReps.forEach(function(p) {
+        var nomeBase = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '') : (p.nome || '');
+        ordenada.push({parte: p, isFilho: false});
+        // Cada rep que representa essa parte vira "filho" indentado dela
+        reps.forEach(function(r) {
+            if (jaRenderizados[r.id]) return;
+            if (_repRepresentaParte(r, nomeBase)) {
+                ordenada.push({parte: r, isFilho: true});
+                jaRenderizados[r.id] = true;
+            }
+        });
+    });
+    // Reps orfaos no fim (nao representam ninguem identificavel — dado sujo legado)
+    reps.forEach(function(r) {
+        if (!jaRenderizados[r.id]) ordenada.push({parte: r, isFilho: false});
+    });
+
+    var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:140px;">Ações</th></tr></thead><tbody>';
+    ordenada.forEach(function(item) {
+        var p = item.parte;
+        var isFilho = item.isFilho;
         var nome = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '—') : (p.nome || '—');
         var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
         var tipo = p.tipo_pessoa === 'juridica' ? 'Jurídica' : 'Física';
         var cor = papelCores[p.papel] || '#888';
-        // Bug fix 26/05/2026 (Amanda): se a parte é representante_legal,
-        // ela REPRESENTA outras partes — não é representada. A semântica
-        // de representa_parte_id no save (partes_api.php#L294) é
-        // "representa_parte_id da parte representada aponta pro representante",
-        // então quem tem o subquery representado_por populado é justamente
-        // quem REPRESENTA essas partes.
         var repInfo = '';
         if (p.papel === 'representante_legal') {
             if (p.representado_por) repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(representa ' + esc(p.representado_por) + ')</span>';
         } else if (p.representa_nome) {
             repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representa_nome) + ')</span>';
         }
-        // Badge 'NOSSO CLIENTE': papel do nosso lado COM client_id, OU parte marcada
-        // explicitamente como nosso cliente (eh_nosso_cliente=1 — ex: réu que contratou).
-        // client_id em réu SEM a flag é dado sujo legado — não mostra badge.
         var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo' || p.papel === 'representante_legal');
         var _ehClienteExplicito = (+p.eh_nosso_cliente === 1);
         var clienteBadge = (p.client_id && (_ehNossoLado || _ehClienteExplicito)) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
-        html += '<tr style="border-bottom:1px solid var(--border);">'
-            + '<td style="padding:6px 8px;"><span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
-            + '<td style="font-weight:600;">' + esc(nome) + repInfo + clienteBadge + '</td>'
+
+        // Indentacao visual + ícone "↳" pra representante aninhado
+        var rowBg = isFilho ? 'background:rgba(99,102,241,.04);' : '';
+        var papelCellExtra = isFilho ? 'padding-left:1.8rem;position:relative;' : 'padding:6px 8px;';
+        var iconeFilho = isFilho ? '<span style="position:absolute;left:.5rem;top:50%;transform:translateY(-50%);color:#6366f1;font-size:.85rem;font-weight:700;">↳</span>' : '';
+
+        html += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">'
+            + '<td style="' + papelCellExtra + '">' + iconeFilho + '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
+            + '<td style="font-weight:600;' + (isFilho ? 'padding-left:.5rem;' : '') + '">' + esc(nome) + repInfo + clienteBadge + '</td>'
             + '<td style="font-family:monospace;font-size:.78rem;">' + esc(doc) + '</td>'
             + '<td>' + tipo + '</td>'
             + '<td style="white-space:nowrap;">'
