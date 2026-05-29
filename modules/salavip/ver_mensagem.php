@@ -442,7 +442,7 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
             <input type="hidden" name="action" value="responder">
 
             <div class="mb-1">
-                <textarea id="txtResposta" name="mensagem" class="form-control" rows="4" placeholder="Digite sua resposta (ou clique em uma resposta rápida acima)..." required></textarea>
+                <textarea id="txtResposta" name="mensagem" class="form-control" rows="10" placeholder="Digite sua resposta (ou clique em uma resposta rápida acima)..." required style="width:100%;min-height:200px;resize:vertical;font-size:.92rem;line-height:1.5;padding:.85rem 1rem;"></textarea>
             </div>
 
             <div class="mb-1">
