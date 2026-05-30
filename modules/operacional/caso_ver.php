@@ -285,14 +285,33 @@ $_papelLabel = array(
     'terceiro_interessado'   => 'Terceiro interessado',
 );
 
-// Detectar processos duplicados (mesmo case_number)
+// Detectar processos duplicados (mesmo case_number).
+// 29/05/2026 (Amanda): antes filtrava 'status NOT IN (arquivado)' -- entao
+// quando 1 dos 2 ja tinha sido arquivado/unificado, o outro nao mostrava
+// aviso. Agora pega TODOS, ate arquivados, pra Amanda poder decidir mesclar.
+// Compara por CNJ normalizado (so digitos) pra pegar formato diferente do
+// LegalOne tambem.
 $duplicatas = array();
 if (!empty($case['case_number'])) {
     try {
-        $stmtDup = $pdo->prepare("SELECT id, title, case_number, status, client_id FROM cases WHERE case_number = ? AND id != ? AND status NOT IN ('arquivado')");
-        $stmtDup->execute(array($case['case_number'], $caseId));
+        $cnjDg = preg_replace('/\D/', '', $case['case_number']);
+        $stmtDup = $pdo->prepare(
+            "SELECT id, title, case_number, status, client_id, created_at
+             FROM cases
+             WHERE REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') = ?
+               AND id != ?
+             ORDER BY created_at ASC, id ASC"
+        );
+        $stmtDup->execute(array($cnjDg, $caseId));
         $duplicatas = $stmtDup->fetchAll();
-    } catch (Exception $e) {}
+    } catch (Exception $e) {
+        // Fallback se REPLACE falhar (improvavel mas seguro)
+        try {
+            $stmtDup2 = $pdo->prepare("SELECT id, title, case_number, status, client_id, created_at FROM cases WHERE case_number = ? AND id != ? ORDER BY created_at ASC, id ASC");
+            $stmtDup2->execute(array($case['case_number'], $caseId));
+            $duplicatas = $stmtDup2->fetchAll();
+        } catch (Exception $e2) {}
+    }
 }
 
 // Processos incidentais e recursos
@@ -726,28 +745,66 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     </div>
 </div>
 
-<?php if (!empty($duplicatas)): ?>
+<?php if (!empty($duplicatas)):
+    // Data de criacao deste case + dos duplicados pra apresentar no banner/prompt
+    $_caseCriadoEm = !empty($case['created_at']) ? date('d/m/Y', strtotime($case['created_at'])) : '?';
+    // Determina qual eh o mais antigo entre TODOS (este + duplicados)
+    $_todosCriadoEm = array(strtotime($case['created_at'] ?? '1970-01-01') => 'este');
+    foreach ($duplicatas as $_d) $_todosCriadoEm[strtotime($_d['created_at'] ?? '1970-01-01')] = (int)$_d['id'];
+    ksort($_todosCriadoEm);
+    $_idMaisAntigo = reset($_todosCriadoEm); // 'este' ou int id
+?>
 <!-- Banner: Processo duplicado detectado -->
-<div style="background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border-radius:var(--radius-lg);padding:.75rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
-    <span style="font-size:1.1rem;">⚠️</span>
-    <div style="flex:1;">
+<div style="background:linear-gradient(135deg,#dc2626,#ef4444);color:#fff;border-radius:var(--radius-lg);padding:.85rem 1.25rem;margin-bottom:1rem;">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem;">
+        <span style="font-size:1.1rem;">⚠️</span>
         <span style="font-size:.85rem;font-weight:700;">Processo com número duplicado!</span>
-        <span style="font-size:.78rem;opacity:.9;margin-left:.5rem;">O nº <?= e($case['case_number']) ?> também existe em:</span>
-        <?php foreach ($duplicatas as $dup): ?>
-            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $dup['id']) ?>" style="color:#fff;font-weight:700;text-decoration:underline;margin-left:.5rem;">
-                <?= e($dup['title']) ?> (#<?= $dup['id'] ?>)
+        <span style="font-size:.78rem;opacity:.9;">O nº <?= e($case['case_number']) ?> aparece em mais de uma pasta:</span>
+    </div>
+    <div style="background:rgba(0,0,0,.15);border-radius:8px;padding:.55rem .8rem;font-size:.78rem;display:flex;flex-direction:column;gap:.3rem;">
+        <!-- Esta pasta -->
+        <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="background:#fff;color:#7f1d1d;padding:1px 7px;border-radius:4px;font-weight:700;font-size:.7rem;">ESTA</span>
+            <span style="font-weight:600;"><?= e($case['title']) ?></span>
+            <span style="opacity:.85;">(#<?= $caseId ?> · cadastrada em <?= e($_caseCriadoEm) ?>)</span>
+            <?php if ($_idMaisAntigo === 'este'): ?>
+                <span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:4px;font-weight:700;font-size:.65rem;">+ ANTIGA</span>
+            <?php endif; ?>
+        </div>
+        <?php foreach ($duplicatas as $dup):
+            $_dCriadoEm = !empty($dup['created_at']) ? date('d/m/Y', strtotime($dup['created_at'])) : '?';
+        ?>
+        <div style="display:flex;align-items:center;gap:.5rem;">
+            <span style="background:rgba(255,255,255,.2);color:#fff;padding:1px 7px;border-radius:4px;font-weight:700;font-size:.7rem;">OUTRA</span>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $dup['id']) ?>" style="color:#fff;font-weight:600;text-decoration:underline;">
+                <?= e($dup['title']) ?>
             </a>
+            <span style="opacity:.85;">(#<?= $dup['id'] ?> · cadastrada em <?= e($_dCriadoEm) ?>)</span>
+            <?php if ($_idMaisAntigo === (int)$dup['id']): ?>
+                <span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:4px;font-weight:700;font-size:.65rem;">+ ANTIGA</span>
+            <?php endif; ?>
+            <?php if ($dup['status'] === 'arquivado'): ?>
+                <span style="background:#374151;color:#fff;padding:1px 7px;border-radius:4px;font-weight:700;font-size:.65rem;">ARQUIVADA</span>
+            <?php endif; ?>
+        </div>
         <?php endforeach; ?>
     </div>
     <?php if (has_min_role('gestao')): ?>
-    <button onclick="abrirMergeDuplicata(<?= (int)$duplicatas[0]['id'] ?>, '<?= e(addslashes($duplicatas[0]['title'])) ?>')" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;font-size:.78rem;font-weight:700;">🔗 Mesclar pastas</button>
+    <div style="margin-top:.55rem;text-align:right;">
+        <button onclick="abrirMergeDuplicata(<?= (int)$duplicatas[0]['id'] ?>, <?= htmlspecialchars(json_encode($duplicatas[0]['title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($duplicatas[0]['created_at'] ? date('d/m/Y', strtotime($duplicatas[0]['created_at'])) : '?'), ENT_QUOTES) ?>)" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;font-size:.78rem;font-weight:700;">🔗 Mesclar pastas</button>
+    </div>
     <?php endif; ?>
 </div>
 <script>
-function abrirMergeDuplicata(outroId, outroTitulo) {
+function abrirMergeDuplicata(outroId, outroTitulo, outroCriadoEm) {
     if (!confirm('Mesclar esta pasta com "' + outroTitulo + '"?\n\nUma das pastas será absorvida pela outra. Todos os dados (tarefas, andamentos, partes, docs) serão migrados.\n\nDeseja continuar?')) return;
 
-    var quem = prompt('Qual pasta deve ser MANTIDA?\n\n1 = Esta pasta (<?= e(addslashes($case['title'])) ?>)\n2 = ' + outroTitulo + '\n\nDigite 1 ou 2:');
+    var quem = prompt(
+        'Qual pasta deve ser MANTIDA?\n\n' +
+        '1 = Esta pasta (<?= e(addslashes($case['title'])) ?>) — cadastrada em <?= e($_caseCriadoEm) ?>\n' +
+        '2 = ' + outroTitulo + ' — cadastrada em ' + outroCriadoEm + '\n\n' +
+        'Digite 1 ou 2:'
+    );
     if (quem !== '1' && quem !== '2') { alert('Operação cancelada.'); return; }
 
     var principalId = quem === '1' ? <?= $caseId ?> : outroId;
