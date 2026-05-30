@@ -2350,9 +2350,38 @@ switch ($action) {
                     )->execute(array($caseId, $pubId));
                 } catch (Exception $eAg) {}
 
+                // 29/05/2026 (Amanda): tambem fecha prazos em prazos_processuais
+                // ligados a este case/CNJ na mesma data. Antes o banner global
+                // (que le de prazos_processuais.concluido=0) continuava mostrando
+                // 'VENCIDO' mesmo depois de descartar/confirmar a intimacao.
+                try {
+                    $stPub = $pdo->prepare("SELECT cs.case_number, pub.data_prazo_fim
+                                            FROM case_publicacoes pub
+                                            LEFT JOIN cases cs ON cs.id = pub.case_id
+                                            WHERE pub.id = ?");
+                    $stPub->execute(array($pubId));
+                    $infoPub = $stPub->fetch();
+                    if ($infoPub) {
+                        $cnjDg = preg_replace('/\D/', '', (string)($infoPub['case_number'] ?? ''));
+                        $dataPrz = $novaData ?: ($infoPub['data_prazo_fim'] ?? null);
+                        if ($dataPrz) {
+                            $pdo->prepare(
+                                "UPDATE prazos_processuais
+                                 SET concluido = 1, concluido_em = NOW()
+                                 WHERE concluido = 0
+                                   AND prazo_fatal = ?
+                                   AND (case_id = ?
+                                        OR (case_id IS NULL AND REPLACE(REPLACE(REPLACE(numero_processo,'-',''),'.',''),'/','') = ?))"
+                            )->execute(array($dataPrz, $caseId, $cnjDg));
+                        }
+                    }
+                } catch (Exception $eP) {
+                    @error_log('[confirmar_prazo_publicacao -> prazos_processuais] ' . $eP->getMessage());
+                }
+
                 $acaoLog = ($novoStatus === 'descartado') ? 'PRAZO_PUBLICACAO_DESCARTADO' : 'PRAZO_PUBLICACAO_CONFIRMADO';
                 audit_log($acaoLog, 'case', $caseId, 'pub_id=' . $pubId);
-                flash_set('success', ($novoStatus === 'descartado') ? 'Intimação marcada como "não precisa fazer nada".' : 'Prazo cumprido.');
+                flash_set('success', ($novoStatus === 'descartado') ? 'Intimação marcada como "não precisa fazer nada". Prazo correspondente fechado.' : 'Prazo cumprido.');
             } catch (Exception $e) {
                 @file_put_contents(APP_ROOT . '/files/erro_confirmar_prazo.log',
                     '[' . date('Y-m-d H:i:s') . '] pubId=' . $pubId . ' caseId=' . $caseId . ' erro=' . $e->getMessage() . "\n",
