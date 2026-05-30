@@ -286,29 +286,38 @@ $_papelLabel = array(
 );
 
 // Detectar processos duplicados (mesmo case_number).
-// 29/05/2026 (Amanda): antes filtrava 'status NOT IN (arquivado)' -- entao
-// quando 1 dos 2 ja tinha sido arquivado/unificado, o outro nao mostrava
-// aviso. Agora pega TODOS, ate arquivados, pra Amanda poder decidir mesclar.
-// Compara por CNJ normalizado (so digitos) pra pegar formato diferente do
-// LegalOne tambem.
+// 29/05/2026 (Amanda): historia em camadas:
+//  1. Antes filtrava 'status NOT IN (arquivado)' -> nao mostrava em arquivados
+//  2. Removi o filtro pra mostrar nos 2 lados sempre
+//  3. PROBLEMA: depois de mesclar, banner continuava aparecendo apontando pro
+//     case absorvido (arquivado), Amanda achava 'nao mesclou' e tentava de novo
+//     (audit log mostra 4 merges seguidos do mesmo par #908 <- #1185).
+// Agora:
+//  - Se ESTE case ja foi absorvido por outro (notes 'Unificado ao caso #X'),
+//    esconde o banner (o aviso vai aparecer no case principal)
+//  - Filtra duplicatas que ja foram absorvidas POR ESTE case (notes contendo
+//    'Unificado ao caso #<caseId>')
+//  - Comparacao por CNJ normalizado (so digitos)
 $duplicatas = array();
-if (!empty($case['case_number'])) {
+$_eAbsorvido = !empty($case['notes']) && preg_match('/Unificado ao caso #\d+/', $case['notes']);
+if (!empty($case['case_number']) && !$_eAbsorvido) {
     try {
         $cnjDg = preg_replace('/\D/', '', $case['case_number']);
         $stmtDup = $pdo->prepare(
-            "SELECT id, title, case_number, status, client_id, created_at
+            "SELECT id, title, case_number, status, client_id, created_at, notes
              FROM cases
              WHERE REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') = ?
                AND id != ?
+               AND (notes IS NULL OR notes NOT LIKE ?)
              ORDER BY created_at ASC, id ASC"
         );
-        $stmtDup->execute(array($cnjDg, $caseId));
+        $stmtDup->execute(array($cnjDg, $caseId, '%Unificado ao caso #' . $caseId . '%'));
         $duplicatas = $stmtDup->fetchAll();
     } catch (Exception $e) {
         // Fallback se REPLACE falhar (improvavel mas seguro)
         try {
-            $stmtDup2 = $pdo->prepare("SELECT id, title, case_number, status, client_id, created_at FROM cases WHERE case_number = ? AND id != ? ORDER BY created_at ASC, id ASC");
-            $stmtDup2->execute(array($case['case_number'], $caseId));
+            $stmtDup2 = $pdo->prepare("SELECT id, title, case_number, status, client_id, created_at, notes FROM cases WHERE case_number = ? AND id != ? AND (notes IS NULL OR notes NOT LIKE ?) ORDER BY created_at ASC, id ASC");
+            $stmtDup2->execute(array($case['case_number'], $caseId, '%Unificado ao caso #' . $caseId . '%'));
             $duplicatas = $stmtDup2->fetchAll();
         } catch (Exception $e2) {}
     }
