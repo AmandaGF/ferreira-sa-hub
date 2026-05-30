@@ -313,9 +313,9 @@ body.dark-mode thead tr[style*="background:#f9fafb"] { background:var(--bg-secon
             if (empty($group['items'])) continue;
             $sectionSlug = 'sec_' . $si;
         ?>
-            <div class="sidebar-section sidebar-section-header" data-section="<?= $sectionSlug ?>" onclick="toggleSidebarSection('<?= $sectionSlug ?>')">
+            <div class="sidebar-section sidebar-section-header" data-section="<?= $sectionSlug ?>" onclick="expandirSidebarSection('<?= $sectionSlug ?>')" title="Clique para expandir esta seção (use o ▾ para recolher)">
                 <span><?= e($group['name']) ?></span>
-                <span class="sidebar-section-chevron" id="chv_<?= $sectionSlug ?>">▾</span>
+                <span class="sidebar-section-chevron" id="chv_<?= $sectionSlug ?>" onclick="event.stopPropagation(); toggleSidebarSection('<?= $sectionSlug ?>')" title="Recolher / expandir" style="cursor:pointer;padding:.15rem .35rem;">▾</span>
             </div>
             <div class="sidebar-section-items" id="items_<?= $sectionSlug ?>">
                 <?php foreach ($group['items'] as $item):
@@ -581,6 +581,21 @@ function toggleSidebarSection(slug) {
     try {
         var state = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
         state[slug] = collapsed ? 1 : 0;
+        localStorage.setItem('sidebar_sections', JSON.stringify(state));
+    } catch(e) {}
+}
+// Clique no NOME da secao SO expande (nunca recolhe). Recolher = clicar
+// no ▾ explicitamente. Antes, clicar acidentalmente no label do PRINCIPAL
+// recolhia tudo e confundia (Amanda relatou 30/05/2026).
+function expandirSidebarSection(slug) {
+    var header = document.querySelector('[data-section="' + slug + '"]');
+    var items = document.getElementById('items_' + slug);
+    if (!header || !items) return;
+    items.classList.remove('collapsed');
+    header.classList.remove('collapsed');
+    try {
+        var state = JSON.parse(localStorage.getItem('sidebar_sections') || '{}');
+        state[slug] = 0;
         localStorage.setItem('sidebar_sections', JSON.stringify(state));
     } catch(e) {}
 }

@@ -482,7 +482,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php /* Botão "Resumir caso" movido pro bloco fixo da ficha em 26/05/2026 — fica sempre visível, custo zero quando há cache. */ ?>
     <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('sugerir_acao')): ?>
     <button type="button" id="btnSugerirAcaoIA" onclick="sugerirAcaoIA()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;" title="IA lê prazos, intimações, andamentos, tarefas e sugere a PRÓXIMA AÇÃO concreta com prazo e justificativa. Custo médio: R$ 0,10 por sugestão.">✨ O que fazer agora?</button>
-    <button type="button" id="btnHistoricoAcaoIA" onclick="verHistoricoAcoesIA()" class="btn btn-sm" style="background:#fff;color:#0e7490;border:1px solid #67e8f9;" title="Lista as sugestões anteriores da IA pra este processo (sem gerar nova, custo zero).">📜 Histórico</button>
+    <button type="button" id="btnHistoricoAcaoIA" onclick="verHistoricoAcoesIA()" class="btn btn-sm" style="background:#fff;color:#0e7490;border:1px solid #67e8f9;" title="Lista as sugestões anteriores da IA pra este processo (sem gerar nova, custo zero).">✨ Histórico IA</button>
     <?php endif; ?>
     <?php if ($case['client_id'] && can_access('financeiro')): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $case['client_id'] . '&from_case=' . $caseId) ?>" class="btn btn-outline btn-sm">💰 Financeiro</a>
@@ -3991,7 +3991,7 @@ function verHistoricoAcoesIA() {
     fetch('<?= module_url('operacional', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function(r){ return r.json(); })
         .then(function(d){
-            if (btn) { btn.disabled = false; btn.innerHTML = '📜 Histórico'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '✨ Histórico IA'; }
             if (d.error) { alert('Falha: ' + d.error); return; }
             var lista = d.sugestoes || [];
             var conteudo = '';
@@ -4017,7 +4017,7 @@ function verHistoricoAcoesIA() {
             modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
             modal.innerHTML = '<div style="background:#fff;max-width:760px;width:100%;max-height:85vh;overflow-y:auto;border-radius:12px;padding:1.4rem 1.6rem;box-shadow:0 10px 40px rgba(0,0,0,.3);">'
                 + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;border-bottom:1px solid #e5e7eb;padding-bottom:.6rem;">'
-                + '<h3 style="margin:0;color:#0e7490;">📜 Histórico de sugestões da IA</h3>'
+                + '<h3 style="margin:0;color:#0e7490;">✨ Histórico IA de sugestões da IA</h3>'
                 + '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">×</button>'
                 + '</div>'
                 + conteudo
@@ -4026,7 +4026,7 @@ function verHistoricoAcoesIA() {
             modal.addEventListener('click', function(e){ if (e.target === modal) modal.remove(); });
         })
         .catch(function(e){
-            if (btn) { btn.disabled = false; btn.innerHTML = '📜 Histórico'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '✨ Histórico IA'; }
             alert('Erro de conexão: ' + e.message);
         });
 }
