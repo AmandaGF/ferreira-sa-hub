@@ -16,30 +16,41 @@ $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $modo = ($_GET['modo'] ?? 'simular') === 'executar' ? 'executar' : 'simular';
 echo "MODO: $modo\n\n";
 
-// Busca prazos abertos que tem intimacao correspondente ja
-// descartada/confirmada (mesma data + mesmo case/CNJ).
-$sql = "
-    SELECT
-        p.id AS prazo_id, p.descricao_acao, p.prazo_fatal, p.case_id AS p_case,
-        p.numero_processo AS p_cnj,
-        pub.id AS pub_id, pub.status_prazo, pub.case_id AS pub_case,
-        cs.case_number, cs.title
-    FROM prazos_processuais p
-    JOIN case_publicacoes pub ON (
-        pub.status_prazo IN ('descartado','confirmado')
-        AND (
-            pub.case_id = p.case_id
-            OR REPLACE(REPLACE(REPLACE((SELECT case_number FROM cases WHERE id = pub.case_id),'-',''),'.',''),'/','') =
-               REPLACE(REPLACE(REPLACE(p.numero_processo,'-',''),'.',''),'/','')
+// Por padrao busca prazos a fechar via intimacao vinculada (mesma data).
+// Com ?ids=16,17,23 fecha esses ids diretamente (uso emergencial pra
+// Amanda quando ela ja marcou manualmente e os prazos ficaram orfaos).
+$idsParam = trim((string)($_GET['ids'] ?? ''));
+if ($idsParam) {
+    $idsArr = array_filter(array_map('intval', explode(',', $idsParam)));
+    if (empty($idsArr)) { echo "ids invalidos\n"; exit; }
+    $ph = implode(',', array_fill(0, count($idsArr), '?'));
+    $st = $pdo->prepare("SELECT id AS prazo_id, descricao_acao, prazo_fatal FROM prazos_processuais WHERE id IN ($ph) AND concluido = 0");
+    $st->execute($idsArr);
+    $rows = $st->fetchAll();
+} else {
+    $sql = "
+        SELECT
+            p.id AS prazo_id, p.descricao_acao, p.prazo_fatal, p.case_id AS p_case,
+            p.numero_processo AS p_cnj,
+            pub.id AS pub_id, pub.status_prazo, pub.case_id AS pub_case,
+            cs.case_number, cs.title
+        FROM prazos_processuais p
+        JOIN case_publicacoes pub ON (
+            pub.status_prazo IN ('descartado','confirmado')
+            AND (
+                pub.case_id = p.case_id
+                OR REPLACE(REPLACE(REPLACE((SELECT case_number FROM cases WHERE id = pub.case_id),'-',''),'.',''),'/','') =
+                   REPLACE(REPLACE(REPLACE(p.numero_processo,'-',''),'.',''),'/','')
+            )
+            AND pub.data_prazo_fim = p.prazo_fatal
         )
-        AND pub.data_prazo_fim = p.prazo_fatal
-    )
-    LEFT JOIN cases cs ON cs.id = COALESCE(p.case_id, pub.case_id)
-    WHERE p.concluido = 0
-    GROUP BY p.id
-    ORDER BY p.prazo_fatal
-";
-$rows = $pdo->query($sql)->fetchAll();
+        LEFT JOIN cases cs ON cs.id = COALESCE(p.case_id, pub.case_id)
+        WHERE p.concluido = 0
+        GROUP BY p.id
+        ORDER BY p.prazo_fatal
+    ";
+    $rows = $pdo->query($sql)->fetchAll();
+}
 echo count($rows) . " prazo(s) abertos com intimacao ja descartada/confirmada:\n\n";
 
 foreach ($rows as $r) {

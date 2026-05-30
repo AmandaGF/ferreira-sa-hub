@@ -554,7 +554,9 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
         if (!empty($__pz['vara']))    $__localTxt .= $__pz['vara'];
         if (!empty($__pz['comarca'])) $__localTxt .= ($__localTxt ? ' — ' : '') . $__pz['comarca'] . (!empty($__pz['comarca_uf']) ? '/' . $__pz['comarca_uf'] : '');
     ?>
-    <a class="urg-row<?= $__rowExtra ?>" href="<?= e($__caseHref) ?>" title="Abrir pasta do processo">
+    <div class="urg-row<?= $__rowExtra ?>" data-prazo-id="<?= (int)$__pz['id'] ?>" style="display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;border-top:1px solid rgba(255,255,255,.15);">
+        <button type="button" class="urg-fechar-btn" data-prazo-id="<?= (int)$__pz['id'] ?>" data-csrf="<?= e(generate_csrf_token()) ?>" title="Marcar este prazo como cumprido / não tem o que fazer" style="background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:2px 8px;border-radius:50%;cursor:pointer;font-weight:700;font-size:.9rem;line-height:1;flex-shrink:0;">✓</button>
+        <a href="<?= e($__caseHref) ?>" title="Abrir pasta do processo" style="display:flex;flex:1;align-items:center;gap:.55rem;text-decoration:none;color:#fff;">
         <span class="urg-label"><?= $__urgLabel ?></span>
         <div class="urg-meio">
             <div class="urg-titulo">
@@ -574,9 +576,43 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
             <?= date('d/m', strtotime($__pz['prazo_fatal'])) ?>
             <small><?= date('D', strtotime($__pz['prazo_fatal'])) ?></small>
         </span>
-    </a>
+        </a>
+    </div>
     <?php endforeach; ?>
 </div>
+<script>
+(function(){
+    document.querySelectorAll('.urg-fechar-btn').forEach(function(btn){
+        btn.addEventListener('click', function(e){
+            e.preventDefault(); e.stopPropagation();
+            if (!confirm('Marcar este prazo como cumprido (não tem o que fazer)?')) return;
+            var pid = btn.getAttribute('data-prazo-id');
+            var csrf = btn.getAttribute('data-csrf');
+            btn.disabled = true; btn.style.opacity = '.4';
+            var fd = new FormData();
+            fd.append('action', 'concluir_prazo');
+            fd.append('prazo_id', pid);
+            fd.append('case_id', '0');
+            fd.append('csrf_token', csrf);
+            fetch('<?= url("modules/operacional/api.php") ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
+                .then(function(){
+                    var linha = btn.closest('.urg-row');
+                    if (linha) linha.style.display = 'none';
+                    // Se nao tem mais linhas, esconde banner inteiro
+                    var visiveis = document.querySelectorAll('.urg-banner .urg-row:not([style*="display: none"])');
+                    if (!visiveis.length) {
+                        var banner = document.querySelector('.urg-banner');
+                        if (banner) banner.style.display = 'none';
+                    }
+                })
+                .catch(function(){
+                    alert('Falha ao marcar. Tente recarregar a página.');
+                    btn.disabled = false; btn.style.opacity = '';
+                });
+        });
+    });
+})();
+</script>
 <?php endif; ?>
 
 <?php
