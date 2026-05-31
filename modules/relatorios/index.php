@@ -29,11 +29,16 @@ switch ($periodo) {
         $periodoLabel = date('F/Y');
         break;
     case 'trimestre':
+        // Nilce r16 31/05/2026: bug - $triInicio (mes de inicio: 1,4,7,10) era
+        // usado como numero do trimestre no label. Maio (mes 5) virou
+        // '4o trimestre' em vez de '2o'. Separadas: $triMesInicio (range) e
+        // $triNumero (label).
         $mesAtual = (int)date('n');
-        $triInicio = (int)(floor(($mesAtual - 1) / 3) * 3 + 1);
-        $dataInicio = date('Y') . '-' . str_pad($triInicio, 2, '0', STR_PAD_LEFT) . '-01';
+        $triNumero = (int)ceil($mesAtual / 3);             // 1..4
+        $triMesInicio = ($triNumero - 1) * 3 + 1;          // 1,4,7,10
+        $dataInicio = date('Y') . '-' . str_pad($triMesInicio, 2, '0', STR_PAD_LEFT) . '-01';
         $dataFim = date('Y-m-t', strtotime($dataInicio . ' +2 months'));
-        $periodoLabel = $triInicio . 'º trimestre/' . date('Y');
+        $periodoLabel = $triNumero . 'º trimestre/' . date('Y');
         break;
     case 'ano':
         $dataInicio = date('Y-01-01');
@@ -295,9 +300,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="card-body">
                 <div class="bar-chart">
                     <?php $maxL = 1; foreach ($leadsBySource as $ls) { if ($ls['total'] > $maxL) $maxL = $ls['total']; } ?>
-                    <?php foreach ($leadsBySource as $ls): ?>
+                    <?php foreach ($leadsBySource as $ls):
+                        // Nilce r16 31/05/2026: source NULL/vazio renderizava barra sem rótulo.
+                        $_srcRaw = trim((string)($ls['source'] ?? ''));
+                        if ($_srcRaw === '' || $_srcRaw === '0') {
+                            $_srcLabel = '— Não informado';
+                        } elseif (isset($sourceLabels[$_srcRaw])) {
+                            $_srcLabel = $sourceLabels[$_srcRaw];
+                        } else {
+                            $_srcLabel = $_srcRaw;
+                        }
+                    ?>
                     <div class="bar-row">
-                        <span class="bar-label"><?= isset($sourceLabels[$ls['source']]) ? $sourceLabels[$ls['source']] : $ls['source'] ?></span>
+                        <span class="bar-label"><?= e($_srcLabel) ?></span>
                         <div class="bar-track"><div class="bar-fill" style="width:<?= round(($ls['total']/$maxL)*100) ?>%;background:var(--petrol-500);"><?= $ls['total'] ?></div></div>
                     </div>
                     <?php endforeach; ?>
@@ -509,14 +524,24 @@ new Chart(document.getElementById('chartTendencia'), {
     options:defaultOpts
 });
 
-// Funil
+// Funil — Nilce r16 31/05/2026: defaultOpts tinha scales x/y so com font/ticks
+// (sem beginAtZero). Quando indexAxis='y', o eixo de VALORES vira o X mas o
+// Chart.js inferia errado (escala 0-1) e as barras (ate 48) ficavam fora da area
+// visivel. Forca scales explicito pro caso horizontal.
 new Chart(document.getElementById('chartFunil'), {
     type:'bar',
     data:{
         labels:<?= json_encode($funilLabels) ?>,
         datasets:[{ label:'Leads', data:<?= json_encode($funilData) ?>, backgroundColor:['#6366f1','#0ea5e9','#f59e0b','#d97706','#8b5cf6','#059669','#0d9488','#15803d'] }]
     },
-    options:Object.assign({}, defaultOpts, { plugins:{ legend:{ display:false } }, indexAxis:'y' })
+    options:{
+        responsive:true, maintainAspectRatio:false, indexAxis:'y',
+        plugins:{ legend:{ display:false } },
+        scales:{
+            x:{ beginAtZero:true, ticks:{ font:{ family:fontFamily, size:10 }, stepSize:1, precision:0 } },
+            y:{ ticks:{ font:{ family:fontFamily, size:10 } } }
+        }
+    }
 });
 
 // Estágios (pizza)
