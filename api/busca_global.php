@@ -21,7 +21,11 @@ if (mb_strlen($q) < 3) {
 }
 
 $like = '%' . $q . '%';
-$likeDoc = '%' . preg_replace('/\D/', '', $q) . '%';
+// Pra CPF/telefone: SO usa o filtro se o termo tiver digitos.
+// Senao '%' . '' . '%' = '%%' que casa com TODOS os clientes que tem CPF/phone preenchido
+// (bug Nilce r5 31/05/2026: buscar 'Marisa' trazia '123 Milhas', 'AASP' etc).
+$qDig = preg_replace('/\D/', '', $q);
+$likeDoc = $qDig ? '%' . $qDig . '%' : '%__nao_casa__%';
 $grupos = array();
 
 // ── CLIENTES ──
