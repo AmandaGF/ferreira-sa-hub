@@ -25,15 +25,38 @@ $likeDoc = '%' . preg_replace('/\D/', '', $q) . '%';
 $grupos = array();
 
 // ── CLIENTES ──
+// 31/05/2026 (Amanda): 'estou colocando o nome da cliente mas nao
+// estao aparecendo todos os cadastros'. 2 bugs:
+//  1) name LIKE %Maria Silva% nao acha 'Maria DA Silva' -- precisa quebrar
+//     em palavras com AND parcial.
+//  2) LIMIT 5 era baixo demais -- subiu pra 15.
 try {
-    $stmt = $pdo->prepare(
-        "SELECT id, name AS titulo, cpf AS subtitulo, phone
-         FROM clients
-         WHERE name LIKE ? OR cpf LIKE ? OR phone LIKE ?
-         ORDER BY (name LIKE ?) DESC, name
-         LIMIT 5"
-    );
-    $stmt->execute(array($like, $likeDoc, $likeDoc, $q . '%'));
+    $palavras = preg_split('/\s+/', trim($q));
+    $palavras = array_filter($palavras, function($p){ return mb_strlen($p) >= 2; });
+
+    $clauseNome = array();
+    $paramsNome = array();
+    if (!empty($palavras)) {
+        foreach ($palavras as $p) {
+            $clauseNome[] = "name LIKE ?";
+            $paramsNome[] = '%' . $p . '%';
+        }
+    } else {
+        $clauseNome[] = "name LIKE ?";
+        $paramsNome[] = $like;
+    }
+    $clauseNomeStr = '(' . implode(' AND ', $clauseNome) . ')';
+
+    $sql = "SELECT id, name AS titulo, cpf AS subtitulo, phone
+            FROM clients
+            WHERE $clauseNomeStr
+               OR REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),'/','') LIKE ?
+               OR REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-','') LIKE ?
+            ORDER BY (name LIKE ?) DESC, name
+            LIMIT 15";
+    $stmt = $pdo->prepare($sql);
+    $params = array_merge($paramsNome, array($likeDoc, $likeDoc, $q . '%'));
+    $stmt->execute($params);
     $rows = $stmt->fetchAll();
     if ($rows) {
         $grupos['clientes'] = array();

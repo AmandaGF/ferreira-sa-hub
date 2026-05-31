@@ -21,11 +21,38 @@ $where = array('1=1');
 $params = array();
 
 if ($search) {
-    $where[] = "(c.name LIKE ? OR c.cpf LIKE ? OR c.phone LIKE ? OR c.email LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
+    // Busca por NOME quebra em palavras (AND parcial) -> 'Maria Silva' acha
+    // 'Maria da Silva', 'Maria Pereira Silva', etc. Antes era LIKE
+    // %Maria Silva% e so achava na ordem exata, perdendo varios cadastros.
+    // Amanda 31/05/2026: 'estou colocando o nome da cliente mas nao
+    // estao aparecendo todos os cadastros'.
+    $_searchDigit = preg_replace('/\D/', '', $search);
+    $palavras = preg_split('/\s+/', trim($search));
+    $palavras = array_filter($palavras, function($p){ return mb_strlen($p) >= 2; });
+
+    $clauseNome = array();
+    $paramsNome = array();
+    if (!empty($palavras)) {
+        foreach ($palavras as $p) {
+            $clauseNome[] = "c.name LIKE ?";
+            $paramsNome[] = '%' . $p . '%';
+        }
+    } else {
+        $clauseNome[] = "c.name LIKE ?";
+        $paramsNome[] = '%' . $search . '%';
+    }
+    $clauseNomeStr = '(' . implode(' AND ', $clauseNome) . ')';
+
+    // CPF/phone busca em digitos normalizados (aceita 12345678900 ou 123.456.789-00).
+    // Email/name na busca textual original.
+    $where[] = "($clauseNomeStr
+                 OR REPLACE(REPLACE(REPLACE(c.cpf,'.',''),'-',''),'/','') LIKE ?
+                 OR REPLACE(REPLACE(REPLACE(c.phone,'(',''),')',''),'-','') LIKE ?
+                 OR c.email LIKE ?)";
+    foreach ($paramsNome as $pn) $params[] = $pn;
+    $params[] = '%' . ($_searchDigit ?: $search) . '%';
+    $params[] = '%' . ($_searchDigit ?: $search) . '%';
+    $params[] = '%' . $search . '%';
 }
 if ($filterStatus) {
     $where[] = "c.client_status = ?";
