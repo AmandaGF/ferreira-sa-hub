@@ -259,14 +259,35 @@ if ($totPendentes > 0):
 
 <div class="card">
     <div class="card-header" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
-        <h3>Clientes com Acesso (<?= count($usuarios) ?>)</h3>
-        <form method="GET" style="display:flex;gap:.4rem;">
-            <input type="text" name="q" value="<?= e($search) ?>" placeholder="Buscar nome, CPF, email..." class="form-control" style="font-size:.78rem;width:220px;">
+        <h3>Clientes com Acesso (<span id="accClientesHeader"><?= count($usuarios) ?></span>)</h3>
+        <form method="GET" action="<?= module_url('salavip', 'acessos.php') ?>" style="display:flex;gap:.4rem;" id="accBuscaForm">
+            <input type="text" name="q" id="accBuscaInput" value="<?= e($search) ?>" placeholder="Buscar nome, CPF, email..." class="form-control" style="font-size:.78rem;width:220px;" autocomplete="off" oninput="accFiltrarClientside(this.value)">
             <button type="submit" class="btn btn-outline btn-sm">Buscar</button>
             <?php if ($search): ?>
                 <a href="<?= module_url('salavip', 'acessos.php') ?>" class="btn btn-outline btn-sm">Limpar</a>
             <?php endif; ?>
         </form>
+        <script>
+        // Nilce r12 31/05/2026: a Nilce relatou que clicar 'Buscar' nao filtrava.
+        // Causa raiz nao confirmada (form parecia OK). Defesa em camadas:
+        //   1) action explicito no form (acima)
+        //   2) busca client-side instantanea via oninput (abaixo) - filtra as 172 linhas ja no DOM
+        //   3) Enter ainda submete pra ?q=X (backend funciona, ja confirmado pela Nilce)
+        function accFiltrarClientside(termo) {
+            var t = (termo || '').toLowerCase().trim();
+            var rows = document.querySelectorAll('table.acc-table tbody tr');
+            var visiveis = 0;
+            rows.forEach(function(tr) {
+                if (!t) { tr.style.display = ''; visiveis++; return; }
+                var txt = tr.textContent.toLowerCase();
+                if (txt.indexOf(t) !== -1) { tr.style.display = ''; visiveis++; }
+                else { tr.style.display = 'none'; }
+            });
+            // Atualiza contador no header
+            var hdr = document.getElementById('accClientesHeader');
+            if (hdr) hdr.textContent = visiveis + (t ? ' de ' + rows.length : '');
+        }
+        </script>
     </div>
     <div class="card-body" style="padding:0;overflow-x:auto;">
         <?php if (empty($usuarios)): ?>

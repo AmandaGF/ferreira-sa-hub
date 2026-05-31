@@ -10,15 +10,32 @@ $pageTitle = 'Central VIP — Gestao';
 $pdo = db();
 
 // ── KPIs ────────────────────────────────────────────────
-$totalAcessos = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE ativo = 1")->fetchColumn();
+// Nilce r12 31/05/2026: KPI mostrava so ativos sem rotulo claro,
+// gestor olhava '68' e nao sabia se eram TODOS os clientes ou so ATIVOS.
+$acessosAtivos     = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE ativo = 1")->fetchColumn();
+$acessosBloqueados = (int)$pdo->query("SELECT COUNT(*) FROM salavip_usuarios WHERE ativo = 0")->fetchColumn();
+$totalAcessos      = $acessosAtivos + $acessosBloqueados;
 
 $msgNaoLidas = (int)$pdo->query(
     "SELECT COUNT(*) FROM salavip_mensagens WHERE origem = 'salavip' AND lida_equipe = 0"
 )->fetchColumn();
 
+// 'Docs pendentes' = solicitacoes da equipe ao cliente em salavip_documentos_cliente
 $docsPendentes = (int)$pdo->query(
     "SELECT COUNT(*) FROM salavip_documentos_cliente WHERE status = 'pendente'"
 )->fetchColumn();
+
+// Docs no GED esperando ACESSO do cliente (conta nao ativada) - metrica diferente
+// que a Nilce levantou pra evitar leitura enganosa do '0'.
+$docsAguardandoAcesso = 0;
+try {
+    $docsAguardandoAcesso = (int)$pdo->query(
+        "SELECT COUNT(DISTINCT g.cliente_id)
+         FROM salavip_ged g
+         LEFT JOIN salavip_usuarios u ON u.cliente_id = g.cliente_id
+         WHERE g.visivel_cliente = 1 AND (u.id IS NULL OR u.ativo = 0)"
+    )->fetchColumn();
+} catch (Exception $e) {}
 
 $acessosHoje = (int)$pdo->query(
     "SELECT COUNT(*) FROM salavip_log_acesso WHERE DATE(criado_em) = CURDATE()"
@@ -58,19 +75,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- KPIs -->
 <div class="sv-stats">
-    <div class="sv-stat">
+    <div class="sv-stat" title="<?= $acessosAtivos ?> ativos + <?= $acessosBloqueados ?> bloqueados = <?= $totalAcessos ?> contas cadastradas. Não confundir com base total de clientes (consultada no GED).">
         <span class="sv-stat-icon">&#128101;</span>
-        <div><div class="sv-stat-val"><?= $totalAcessos ?></div><div class="sv-stat-lbl">Clientes com acesso</div></div>
+        <div>
+            <div class="sv-stat-val"><?= $acessosAtivos ?> <span style="font-size:.85rem;color:var(--text-muted);font-weight:600;">/ <?= $totalAcessos ?></span></div>
+            <div class="sv-stat-lbl">Acessos ativos / cadastrados</div>
+        </div>
     </div>
-    <div class="sv-stat">
+    <div class="sv-stat" title="Mensagens enviadas pelo cliente que a equipe ainda não leu">
         <span class="sv-stat-icon">&#9993;</span>
         <div><div class="sv-stat-val"><?= $msgNaoLidas ?></div><div class="sv-stat-lbl">Msgs nao lidas</div></div>
     </div>
-    <div class="sv-stat">
+    <div class="sv-stat" title="Solicitações de documento pendentes (equipe pediu ao cliente e ainda não recebeu)">
         <span class="sv-stat-icon">&#128196;</span>
         <div><div class="sv-stat-val"><?= $docsPendentes ?></div><div class="sv-stat-lbl">Docs pendentes</div></div>
     </div>
-    <div class="sv-stat">
+    <?php if ($docsAguardandoAcesso > 0): ?>
+    <a href="<?= module_url('salavip', 'acessos.php') ?>" class="sv-stat" style="text-decoration:none;background:#fffbeb;border-color:#f59e0b;cursor:pointer;" title="Clientes que receberam documentos no GED mas não conseguem ver porque a conta deles não foi ativada. Clique pra abrir Gerenciar Acessos.">
+        <span class="sv-stat-icon">&#9888;&#65039;</span>
+        <div><div class="sv-stat-val" style="color:#b45309;"><?= $docsAguardandoAcesso ?></div><div class="sv-stat-lbl" style="color:#92400e;">Docs sem acesso →</div></div>
+    </a>
+    <?php endif; ?>
+    <div class="sv-stat" title="Visualizações de páginas da Central VIP por clientes hoje (qualquer cliente, qualquer página)">
         <span class="sv-stat-icon">&#128065;</span>
         <div><div class="sv-stat-val"><?= $acessosHoje ?></div><div class="sv-stat-lbl">Acessos hoje</div></div>
     </div>
@@ -83,6 +109,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a href="<?= module_url('salavip', 'faq_admin.php') ?>" class="btn btn-outline btn-sm">&#10067; FAQ</a>
     <a href="<?= module_url('salavip', 'palavras_bloqueio.php') ?>" class="btn btn-outline btn-sm">&#128683; Palavras Bloqueio</a>
     <a href="<?= module_url('salavip', 'log.php') ?>" class="btn btn-outline btn-sm">&#128220; Log de Acessos</a>
+    <?php
+    // Nilce r12 31/05/2026: ela nao achou a 'IA de traducao' porque ela vive no portal
+    // cliente logado (/portal-cliente/processo_detalhe.php) - botao "Em linguagem comum"
+    // sobre cada andamento. Aqui na gestao expomos o atalho pro admin de IA pra ficar visivel.
+    if (has_min_role('gestao')):
+        $_iaTradAtivo = false;
+        try {
+            $_iaTradAtivo = (int)$pdo->query("SELECT valor FROM configuracoes WHERE chave='ia_feature_traducao_leiga_enabled'")->fetchColumn() === 1;
+        } catch (Exception $e) {}
+    ?>
+    <a href="<?= url('modules/admin/ia_custo.php') ?>" class="btn btn-outline btn-sm" title="IA de tradução jurídico→leigo: aparece pro cliente no portal (botão 'Em linguagem comum' em cada andamento). Cache em case_andamentos.traducao_leiga, killswitch em configurações.">
+        🤖 IA Tradução
+        <span style="font-size:.65rem;padding:1px 6px;border-radius:10px;background:<?= $_iaTradAtivo ? '#dcfce7;color:#166534' : '#f3f4f6;color:#6b7280' ?>;font-weight:700;margin-left:4px;"><?= $_iaTradAtivo ? 'ON' : 'OFF' ?></span>
+    </a>
+    <?php endif; ?>
 </div>
 
 <!-- Inbox: Mensagens Nao Lidas -->
