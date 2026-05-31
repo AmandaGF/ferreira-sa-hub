@@ -732,9 +732,9 @@ sort($opTipos);
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cid) ?>" style="color:#999;text-decoration:none;" title="Abrir pasta"><?= $n++ ?></a>
     </td>
-    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)"></td>
-    <td style="font-size:.78rem;"><?= e($cs['client_name'] ?: '—') ?></td>
-    <td class="editable" style="min-width:100px;"><input value="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>" data-id="<?= $cid ?>" data-field="case_type" onchange="saveCaseCell(this)"></td>
+    <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;" title="<?= e($cs['title'] ?: '') ?>"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)" title="<?= e($cs['title'] ?: '') ?>"></td>
+    <td style="font-size:.78rem;" title="<?= e($cs['client_name'] ?: '') ?>"><?= e($cs['client_name'] ?: '—') ?></td>
+    <td class="editable" style="min-width:100px;" title="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>"><input value="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>" data-id="<?= $cid ?>" data-field="case_type" onchange="saveCaseCell(this)" title="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>"></td>
     <td class="editable" style="min-width:90px;">
         <select data-id="<?= $cid ?>" data-field="responsible_user_id" onchange="saveCaseCell(this)">
             <option value="">—</option>
