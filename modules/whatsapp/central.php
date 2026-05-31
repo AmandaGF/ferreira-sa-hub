@@ -58,6 +58,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <span class="cfg-tag">Regras automáticas</span>
     </a>
 
+    <a href="<?= module_url('whatsapp', 'fluxos.php') ?>" class="cfg-card">
+        <div class="cfg-ico">🌊</div>
+        <h3 class="cfg-titulo">Fluxos (Motor)</h3>
+        <p class="cfg-desc">Editor de fluxos passo-a-passo: envia mensagens, captura respostas em campos, condicionais. Alimenta intake estruturado pra Fábrica de Petições. <em>Em validação — killswitch global.</em></p>
+        <span class="cfg-tag">Conversação guiada</span>
+    </a>
+
     <a href="<?= module_url('whatsapp', 'configurar.php') ?>" class="cfg-card">
         <div class="cfg-ico">🔑</div>
         <h3 class="cfg-titulo">Credenciais Z-API</h3>
