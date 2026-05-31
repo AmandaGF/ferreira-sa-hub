@@ -121,12 +121,23 @@ $tempoMedio = qfloat($pdo, "SELECT AVG(DATEDIFF(converted_at, created_at)) FROM 
 // Pipeline por estágio — sem importados
 // Aguardando assinatura = cadastro_preenchido + elaboracao_docs + link_enviados (antes de assinar)
 $aguardandoContrato = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cadastro_preenchido','elaboracao_docs','link_enviados') AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
-$pastasAptas = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'pasta_apta'");
+// Nilce r11 31/05/2026: faltava filtrar kanban_oculto. Sem isso, leads que Amanda
+// removeu do Kanban via 'Arquivar TODOS' ainda contavam aqui (48 vs 46 reais).
+$pastasAptas = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage = 'pasta_apta' AND IFNULL(kanban_oculto, 0) = 0");
 
 // Cancelados
 $canceladosMes = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'");
 $canceladosTotal = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('cancelado','perdido')");
-$canceladosDetalhe = qrows($pdo, "SELECT name, DATE_FORMAT(converted_at,'%m/%Y') as mes_contrato, DATE_FORMAT(updated_at,'%d/%m') as data_cancel FROM pipeline_leads WHERE stage IN ('cancelado','perdido') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual' ORDER BY updated_at DESC LIMIT 10");
+// Nilce r11 31/05/2026: listava o mesmo cliente N vezes quando ele tinha N leads
+// no pipeline_leads (1 por caso/contrato). Deduplica por nome+data, mostra qtd.
+$canceladosDetalhe = qrows($pdo, "SELECT name,
+        MAX(DATE_FORMAT(converted_at,'%m/%Y')) as mes_contrato,
+        DATE_FORMAT(updated_at,'%d/%m') as data_cancel,
+        COUNT(*) as qtd_contratos
+    FROM pipeline_leads
+    WHERE stage IN ('cancelado','perdido') AND DATE_FORMAT(updated_at,'%Y-%m')='$mesAtual'
+    GROUP BY name, DATE_FORMAT(updated_at,'%Y-%m-%d')
+    ORDER BY MAX(updated_at) DESC LIMIT 10");
 
 // Funil — sem importados
 $pipeStages = array('cadastro_preenchido'=>0,'elaboracao_docs'=>0,'link_enviados'=>0,'contrato_assinado'=>0,'agendado_docs'=>0,'reuniao_cobranca'=>0,'pasta_apta'=>0,'perdido'=>0);
@@ -564,7 +575,7 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
 <div class="kpi-grid">
     <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-value"><?= $contratosMes ?></div><div class="kpi-label">Contratos em <?= $mesNome ?></div><?= comparativo($contratosMes, $contratosMesAnt) ?><?php if ($melhorContratos > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: <?= $melhorContratos ?> (<?= $melhorContratosMes ?>)</div><?php endif; ?><?= metaBar($contratosMes, $metas['contratos_mes'], '100px') ?></div></a>
     <?php if (can_access('faturamento')): ?>
-    <a href="<?= module_url('pipeline') ?>" class="kpi-card"><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 2, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?></div><?= comparativo($faturamentoMes, $faturamentoMesAnt, true) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 2, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
+    <a href="<?= module_url('pipeline') ?>" class="kpi-card" title="Faturamento CONTRATADO no mês (soma do estimated_value dos leads que viraram contrato neste mês, exclui cancelados). Diferente de 'Recebido' no Financeiro, que conta entrada real de dinheiro via Asaas."><div class="kpi-icon purple">💰</div><div><div class="kpi-value">R$ <?= number_format($faturamentoMes, 2, ',', '.') ?></div><div class="kpi-label">Faturamento <?= $mesNome ?> <span style="font-size:.55rem;color:#64748b;font-weight:500;">(contratado)</span></div><?= comparativo($faturamentoMes, $faturamentoMesAnt, true) ?><?php if ($melhorFat > 0): ?><div style="font-size:.58rem;color:var(--text-muted);margin-top:.1rem;">Recorde: R$ <?= number_format($melhorFat, 2, ',', '.') ?> (<?= $melhorFatMes ?>)</div><?php endif; ?></div></a>
     <div class="kpi-card"><div class="kpi-icon blue">🎯</div><div><div class="kpi-value">R$ <?= number_format($ticketMedio, 2, ',', '.') ?></div><div class="kpi-label">Ticket Médio</div><div class="kpi-sub"><?= $tempoMedio > 0 ? round($tempoMedio) . ' dias p/ fechar' : '—' ?></div></div></div>
     <?php else: ?>
     <?php $pctFat = $faturamentoMesAnt > 0 ? round((($faturamentoMes - $faturamentoMesAnt) / $faturamentoMesAnt) * 100) : ($faturamentoMes > 0 ? 100 : 0); ?>
@@ -579,7 +590,7 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
 <div class="dash-card" style="margin-bottom:1.25rem;">
     <h4>❌ Cancelamentos em <?= $mesNome ?> <span style="font-weight:400;color:var(--text-muted);font-size:.72rem;">(quando o contrato foi fechado)</span></h4>
     <?php foreach ($canceladosDetalhe as $cd): ?>
-    <div class="alert-item danger"><span class="nome" style="font-weight:600;color:#dc2626;"><?= e($cd['name']) ?></span><span class="info" style="color:var(--text-muted);font-size:.72rem;margin-left:.5rem;">cancelou em <?= $cd['data_cancel'] ?><?= $cd['mes_contrato'] ? ' (contrato: '.$cd['mes_contrato'].')' : '' ?></span></div>
+    <div class="alert-item danger"><span class="nome" style="font-weight:600;color:#dc2626;"><?= e($cd['name']) ?></span><?php if ((int)$cd['qtd_contratos'] > 1): ?> <span style="font-size:.65rem;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:4px;font-weight:700;" title="<?= (int)$cd['qtd_contratos'] ?> contratos deste cliente cancelados no mesmo dia"><?= (int)$cd['qtd_contratos'] ?>x</span><?php endif; ?><span class="info" style="color:var(--text-muted);font-size:.72rem;margin-left:.5rem;">cancelou em <?= $cd['data_cancel'] ?><?= $cd['mes_contrato'] ? ' (contrato: '.$cd['mes_contrato'].')' : '' ?></span></div>
     <?php endforeach; ?>
 </div>
 <?php endif; ?>
@@ -632,7 +643,7 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <!-- ═══════════════ ABA OPERACIONAL ═══════════════ -->
 <div class="kpi-grid">
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">🟢</div><div><div class="kpi-value"><?= $casosEmAndamento ?></div><div class="kpi-label">Em Andamento</div></div></a>
-    <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon orange">🟡</div><div><div class="kpi-value"><?= $casosSuspensos ?></div><div class="kpi-label">Suspensos</div></div></a>
+    <a href="<?= module_url('operacional') ?>" class="kpi-card" title="Processos judiciais com status=suspenso (tabela cases). Não confundir com 'leads suspensos' na coluna do Pipeline Comercial — são conceitos diferentes."><div class="kpi-icon orange">🟡</div><div><div class="kpi-value"><?= $casosSuspensos ?></div><div class="kpi-label">Processos suspensos</div></div></a>
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon red">📄</div><div><div class="kpi-value"><?= $casosDocFaltante ?></div><div class="kpi-label">Doc Faltante</div></div></a>
     <a href="<?= module_url('prazos') ?>" class="kpi-card"><div class="kpi-icon <?= $prazos7dias > 0 ? 'red' : 'green' ?>">⏰</div><div><div class="kpi-value"><?= $prazos7dias ?></div><div class="kpi-label">Prazos 7 dias</div><?php if ($prazos7dias > 0): ?><div class="kpi-sub" style="color:#dc2626;">Atenção!</div><?php endif; ?></div></a>
 </div>
@@ -652,7 +663,7 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
                 </div>
             <?php endif; ?>
             <?php if ((int)$djKpi['casos_erro'] > 0): ?>
-                <div style="font-size:.65rem;color:#dc2626;margin-top:.15rem;font-weight:600;"><?= $djKpi['casos_erro'] ?> com erro</div>
+                <div style="font-size:.65rem;color:#dc2626;margin-top:.15rem;font-weight:600;" title="Processos que o DataJud não conseguiu consultar (CNJ inválido, processo não encontrado no tribunal, ou falha de rede no último sync). Clique no card pra abrir o Monitor DJEN e ver detalhes por processo."><?= $djKpi['casos_erro'] ?> com erro de consulta DataJud →</div>
             <?php endif; ?>
         </div>
     </a>
