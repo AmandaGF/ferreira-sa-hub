@@ -444,7 +444,7 @@ window.gerarBriefing = function(forcar) {
             <div class="pd-resumo-num" style="color:#dc2626;">⏰ <?= $resumo['prazos'] ?? 0 ?></div>
             <div class="pd-resumo-label">prazos vencendo hoje</div>
         </a>
-        <a href="<?= url('modules/operacional/?filtro=doc_faltante') ?>" class="pd-resumo-item">
+        <a href="<?= url('modules/operacional/?filtro=doc_faltante') ?>" class="pd-resumo-item" title="Itens em aberto no checklist de documentos dos casos (tabela documentos_pendentes). Não confundir com 'Doc Faltante' do Pipeline (lead travado por falta de doc) nem com 'Docs pendentes' da Central VIP (solicitações ao cliente).">
             <div class="pd-resumo-num" style="color:#d97706;">📄 <?= $resumo['docs_faltantes'] ?? 0 ?></div>
             <div class="pd-resumo-label">documentos faltantes ativos</div>
         </a>
@@ -667,7 +667,11 @@ if ($_painelMostraEsfriando):
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:.55rem;">
         <?php foreach ($_esfriClientes as $_eClient):
             $_score = (int)$_eClient['esfriando_score'];
-            $_isCrit = $_score >= 60;
+            // Nilce r14 31/05/2026: threshold estava em >=60 mas a legenda diz >=80,
+            // o badge agregado conta >=80 como 'risco real' e 40-79 como 'esfriando'.
+            // Resultado: clientes com score 60 apareciam vermelhos mas eram contados
+            // como amarelos no agregado. Agora bate com legenda e card_badge do Kanban.
+            $_isCrit = $_score >= 80;
             $_bg     = $_isCrit ? '#fef2f2' : '#fffbeb';
             $_border = $_isCrit ? '#fca5a5' : '#fcd34d';
             $_corNum = $_isCrit ? '#b91c1c' : '#92400e';
