@@ -145,10 +145,15 @@ $pipeRows = qrows($pdo, "SELECT stage, COUNT(*) as total FROM pipeline_leads WHE
 foreach ($pipeRows as $r) { if (isset($pipeStages[$r['stage']])) $pipeStages[$r['stage']] = (int)$r['total']; }
 
 // Taxa de conversão + entradas/contratos (6 meses, sem importados)
+// Nilce r15 31/05/2026: strtotime("-N months") a partir do dia 31 dava overflow em
+// Fev (28d) e Abr (30d), gerando duplicatas (Dez,Jan,Mar,Mar,Mai,Mai). Ancora no
+// dia 1 do mes atual pra subtracao mensal funcionar consistente.
 $convLabels = array(); $convData = array(); $convEntradas = array(); $convConvertidos = array();
+$_baseMes = strtotime(date('Y-m-01'));
 for ($i = 5; $i >= 0; $i--) {
-    $mes = date('Y-m', strtotime("-$i months"));
-    $convLabels[] = $ML[(int)date('n', strtotime("-$i months"))];
+    $_ref = strtotime("-$i months", $_baseMes);
+    $mes = date('Y-m', $_ref);
+    $convLabels[] = $ML[(int)date('n', $_ref)];
     $total = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE DATE_FORMAT(created_at,'%Y-%m')='$mes' AND (notes IS NULL OR notes NOT LIKE '%Importado%')");
     $conv = qval($pdo, "SELECT COUNT(*) FROM pipeline_leads WHERE converted_at IS NOT NULL AND DATE_FORMAT(converted_at,'%Y-%m')='$mes'");
     $convEntradas[] = $total;
@@ -205,11 +210,12 @@ $prevAtivos = qval($pdo, "SELECT COUNT(*) FROM cases WHERE kanban_prev = 1 AND p
 $prevEnviadosMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE kanban_prev = 1 AND prev_mes_envio = MONTH(NOW()) AND prev_ano_envio = YEAR(NOW())");
 $prevPorTipo = qrows($pdo, "SELECT prev_tipo_beneficio, COUNT(*) as total FROM cases WHERE kanban_prev = 1 AND prev_status NOT IN ('cancelado') AND status NOT IN ('cancelado','arquivado') AND prev_tipo_beneficio IS NOT NULL GROUP BY prev_tipo_beneficio ORDER BY total DESC");
 
-// Distribuídos x Pendentes (6 meses)
+// Distribuídos x Pendentes (6 meses) — mesma correção do loop acima (Nilce r15)
 $distPendLabels = array(); $distPendDist = array(); $distPendPend = array();
 for ($i = 5; $i >= 0; $i--) {
-    $mes = date('Y-m', strtotime("-$i months"));
-    $distPendLabels[] = $ML[(int)date('n', strtotime("-$i months"))];
+    $_ref = strtotime("-$i months", $_baseMes);
+    $mes = date('Y-m', $_ref);
+    $distPendLabels[] = $ML[(int)date('n', $_ref)];
     $distPendDist[] = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status='distribuido' AND distribution_date IS NOT NULL AND DATE_FORMAT(distribution_date,'%Y-%m')='$mes'");
     $distPendPend[] = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('em_elaboracao','em_andamento','pasta_apta') AND DATE_FORMAT(updated_at,'%Y-%m')='$mes'");
 }
@@ -470,7 +476,7 @@ a.alert-item:hover { filter:brightness(.96); transform:translateX(3px); }
     </a>
     <?php endif; endforeach; ?>
     <?php if ($docsFaltantes > 0): ?>
-    <a href="<?= module_url('pipeline') ?>" class="alert-item warn" style="text-decoration:none;color:inherit;cursor:pointer;"><span>📄</span><div style="flex:1;"><strong><?= $docsFaltantes ?></strong> documento(s) faltante(s)</div><span style="font-size:.72rem;">Ver →</span></a>
+    <a href="<?= module_url('pipeline') ?>" class="alert-item warn" style="text-decoration:none;color:inherit;cursor:pointer;" title="Itens em aberto no checklist de documentos dos casos (tabela documentos_pendentes). Não confundir com KPI 'Doc Faltante' da aba Operacional, que conta CASOS inteiros travados (cases.status='doc_faltante')."><span>📄</span><div style="flex:1;"><strong><?= $docsFaltantes ?></strong> item(ns) pendente(s) em checklists de docs</div><span style="font-size:.72rem;">Ver →</span></a>
     <?php endif; ?>
     <?php foreach ($proxCompromissos as $comp):
         $compData = date('Y-m-d', strtotime($comp['data_inicio']));
@@ -644,7 +650,7 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div class="kpi-grid">
     <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon green">🟢</div><div><div class="kpi-value"><?= $casosEmAndamento ?></div><div class="kpi-label">Em Andamento</div></div></a>
     <a href="<?= module_url('operacional') ?>" class="kpi-card" title="Processos judiciais com status=suspenso (tabela cases). Não confundir com 'leads suspensos' na coluna do Pipeline Comercial — são conceitos diferentes."><div class="kpi-icon orange">🟡</div><div><div class="kpi-value"><?= $casosSuspensos ?></div><div class="kpi-label">Processos suspensos</div></div></a>
-    <a href="<?= module_url('operacional') ?>" class="kpi-card"><div class="kpi-icon red">📄</div><div><div class="kpi-value"><?= $casosDocFaltante ?></div><div class="kpi-label">Doc Faltante</div></div></a>
+    <a href="<?= module_url('operacional') ?>" class="kpi-card" title="Casos com status='doc_faltante' (caso INTEIRO travado por falta de docs). Na aba Geral o número 'X item(ns) pendente(s) em checklists' conta itens individuais (descricao por descricao) na tabela documentos_pendentes - é mais granular e geralmente maior."><div class="kpi-icon red">📄</div><div><div class="kpi-value"><?= $casosDocFaltante ?></div><div class="kpi-label">Casos travados (doc faltante)</div></div></a>
     <a href="<?= module_url('prazos') ?>" class="kpi-card"><div class="kpi-icon <?= $prazos7dias > 0 ? 'red' : 'green' ?>">⏰</div><div><div class="kpi-value"><?= $prazos7dias ?></div><div class="kpi-label">Prazos 7 dias</div><?php if ($prazos7dias > 0): ?><div class="kpi-sub" style="color:#dc2626;">Atenção!</div><?php endif; ?></div></a>
 </div>
 
@@ -765,7 +771,19 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div id="modalMetas" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:420px;width:90%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
     <h3 style="font-size:1rem;margin-bottom:1rem;color:var(--petrol-900);">⚙️ Metas Mensais</h3>
-    <form method="POST"><?= csrf_input() ?><input type="hidden" name="action" value="salvar_metas">
+    <?php
+    // Nilce r15 31/05/2026: meta de Faturamento estava em R$ 7.500.000 (provavel erro
+    // de digitacao - mai foi R$ 26 mil, recorde R$ 72 mil). Aviso amarelo no modal se
+    // meta atual > 5x o recorde historico.
+    $_metaAlerta = ($melhorFat > 0 && $metas['faturamento_mes'] > $melhorFat * 5);
+    if ($_metaAlerta): ?>
+    <div style="margin-bottom:1rem;padding:.6rem .8rem;background:#fef3c7;border-left:4px solid #f59e0b;border-radius:6px;font-size:.72rem;color:#78350f;">
+        ⚠️ Sua meta atual de faturamento (R$ <?= number_format($metas['faturamento_mes'], 2, ',', '.') ?>)
+        é mais de <strong>5×</strong> o recorde histórico (R$ <?= number_format($melhorFat, 2, ',', '.') ?>).
+        Confira se não houve erro de digitação (ex: ponto vs vírgula).
+    </div>
+    <?php endif; ?>
+    <form method="POST" onsubmit="return validarMetas(this);"><?= csrf_input() ?><input type="hidden" name="action" value="salvar_metas">
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Contratos / mês</label><input type="number" name="contratos_mes" value="<?= $metas['contratos_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Faturamento / mês</label><input type="text" name="faturamento_mes" value="<?= number_format($metas['faturamento_mes'], 2, ',', '.') ?>" class="form-input" style="width:100%;" placeholder="R$ 50.000,00" oninput="this.value=formatarReais(this.value)"></div>
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Distribuições / mês</label><input type="number" name="distribuicoes_mes" value="<?= $metas['distribuicoes_mes'] ?>" class="form-input" min="1" style="width:100%;"></div>
@@ -774,6 +792,18 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
             <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar</button>
         </div>
     </form>
+    <script>
+    // Confirma quando a meta digitada e absurdamente alta (Nilce r15)
+    function validarMetas(form) {
+        var fatStr = (form.querySelector('input[name=faturamento_mes]').value || '').replace(/\./g,'').replace(',','.');
+        var fat = parseFloat(fatStr) || 0;
+        var recorde = <?= (float)($melhorFat ?? 0) ?>;
+        if (recorde > 0 && fat > recorde * 5) {
+            return confirm('⚠️ A meta de Faturamento (R$ ' + fat.toLocaleString('pt-BR',{minimumFractionDigits:2}) + ') é mais de 5× o recorde histórico (R$ ' + recorde.toLocaleString('pt-BR',{minimumFractionDigits:2}) + ').\n\nConfira se não há erro de digitação (ex: 7.500.000,00 em vez de 75.000,00).\n\nSalvar mesmo assim?');
+        }
+        return true;
+    }
+    </script>
 </div></div>
 <?php endif; ?>
 
@@ -816,9 +846,26 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
     var c3=document.getElementById('chartDP');
     if(c3) new Chart(c3,{type:'bar',data:{labels:<?= json_encode($distPendLabels) ?>,datasets:[{label:'Distribuídos',data:<?= json_encode($distPendDist) ?>,backgroundColor:'rgba(5,150,105,.6)',borderRadius:3},{label:'Pendentes',data:<?= json_encode($distPendPend) ?>,backgroundColor:'rgba(249,115,22,.5)',borderRadius:3}]},options:opts});
 
+    <?php
+    // Nilce r15 31/05/2026: gráfico mostrava 'Amanda' 2x porque havia 2 users
+    // com mesmo primeiro nome. Desambigua adicionando inicial do sobrenome
+    // SO quando o primeiro nome aparece > 1 vez.
+    $_primeiros = array_map(function($r){ return explode(' ', $r['name'])[0]; }, $cargaResp);
+    $_freq = array_count_values($_primeiros);
+    $_labels = array();
+    foreach ($cargaResp as $_r) {
+        $_partes = explode(' ', $_r['name']);
+        $_first = $_partes[0];
+        if (($_freq[$_first] ?? 0) > 1 && count($_partes) > 1) {
+            $_labels[] = $_first . ' ' . mb_substr(end($_partes), 0, 1) . '.';
+        } else {
+            $_labels[] = $_first;
+        }
+    }
+    ?>
     var c4=document.getElementById('chartCarga');
     if(c4){
-        var nomes=<?= json_encode(array_map(function($r){return explode(' ',$r['name'])[0];}, $cargaResp)) ?>;
+        var nomes=<?= json_encode($_labels) ?>;
         var ativos=<?= json_encode(array_map(function($r){return (int)$r['ativos'];}, $cargaResp)) ?>;
         var distM=<?= json_encode(array_map(function($r){return (int)$r['distribuidos_mes'];}, $cargaResp)) ?>;
         new Chart(c4,{type:'bar',data:{labels:nomes,datasets:[{label:'Ativos',data:ativos,backgroundColor:'rgba(99,102,241,.6)',borderRadius:3},{label:'Distrib. mês',data:distM,backgroundColor:'rgba(5,150,105,.6)',borderRadius:3}]},options:{responsive:true,indexAxis:'y',plugins:{legend:{labels:{color:fc,font:{size:10}}}},scales:{x:{beginAtZero:true,ticks:{color:fc,stepSize:1},grid:{color:gc}},y:{ticks:{color:fc},grid:{display:false}}}}});

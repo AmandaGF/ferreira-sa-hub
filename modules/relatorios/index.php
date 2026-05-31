@@ -93,10 +93,11 @@ $leadsByStage = $pdo->query("SELECT stage, COUNT(*) as total FROM pipeline_leads
 $tempoMedio = $pdo->query("SELECT ROUND(AVG(DATEDIFF(COALESCE(converted_at, NOW()), created_at))) as media FROM pipeline_leads WHERE stage IN ('contrato','preparacao_pasta','pasta_apta','finalizado') AND converted_at IS NOT NULL")->fetchColumn();
 $tempoMedio = $tempoMedio ?: 0;
 
-// Tendência mensal (últimos 6 meses)
+// Tendência mensal (últimos 6 meses) — ancora no dia 1 pra evitar overflow Fev/Abr (Nilce r15)
 $tendencia = array();
+$_baseMes = strtotime(date('Y-m-01'));
 for ($i = 5; $i >= 0; $i--) {
-    $m = date('Y-m', strtotime("-$i months"));
+    $m = date('Y-m', strtotime("-$i months", $_baseMes));
     $stmtT = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE DATE_FORMAT(created_at, '%Y-%m') = ?");
     $stmtT->execute(array($m));
     $novos = (int)$stmtT->fetchColumn();

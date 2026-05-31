@@ -25,10 +25,13 @@ try {
 } catch (Exception $e) {}
 
 // ─── Gráfico 6 meses ───
+// Nilce r15 31/05/2026: ancora no dia 1 pra evitar overflow em Fev/Abr.
 $grafLabels = array(); $grafRecuperado = array(); $grafAberto = array();
+$_baseMes = strtotime(date('Y-m-01'));
 for ($i = 5; $i >= 0; $i--) {
-    $m = date('Y-m', strtotime("-$i months"));
-    $grafLabels[] = $ML[(int)date('n', strtotime("-$i months"))];
+    $_ref = strtotime("-$i months", $_baseMes);
+    $m = date('Y-m', $_ref);
+    $grafLabels[] = $ML[(int)date('n', $_ref)];
     try {
         $grafRecuperado[] = (float)$pdo->query("SELECT IFNULL(SUM(valor_pago),0) FROM honorarios_cobranca_historico WHERE etapa IN ('pagamento_parcial','pagamento_total') AND DATE_FORMAT(created_at,'%Y-%m') = '$m'")->fetchColumn();
         $grafAberto[] = (float)$pdo->query("SELECT IFNULL(SUM(valor_total - valor_pago),0) FROM honorarios_cobranca WHERE status NOT IN ('pago','cancelado') AND DATE_FORMAT(created_at,'%Y-%m') <= '$m'")->fetchColumn();

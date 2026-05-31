@@ -43,10 +43,13 @@ try {
 } catch (Exception $e) {}
 
 // ─── Gráfico: Previsto x Recebido (6 meses) ───
+// Nilce r15 31/05/2026: strtotime("-N months") em dia 31 dava overflow (Fev/Abr).
 $grafLabels = array(); $grafPrevisto = array(); $grafRecebido = array();
+$_baseMes = strtotime(date('Y-m-01'));
 for ($i = 5; $i >= 0; $i--) {
-    $m = date('Y-m', strtotime("-$i months"));
-    $grafLabels[] = $ML[(int)date('n', strtotime("-$i months"))];
+    $_ref = strtotime("-$i months", $_baseMes);
+    $m = date('Y-m', $_ref);
+    $grafLabels[] = $ML[(int)date('n', $_ref)];
     try {
         $grafPrevisto[] = (float)$pdo->query("SELECT IFNULL(SUM(valor),0) FROM asaas_cobrancas WHERE DATE_FORMAT(vencimento,'%Y-%m') = '$m'")->fetchColumn();
         $grafRecebido[] = (float)$pdo->query("SELECT IFNULL(SUM(valor_pago),0) FROM asaas_cobrancas WHERE status IN ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH') AND DATE_FORMAT(data_pagamento,'%Y-%m') = '$m'")->fetchColumn();
