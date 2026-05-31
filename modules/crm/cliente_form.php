@@ -233,7 +233,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <div class="card">
         <div class="card-body">
-            <form method="POST">
+            <form method="POST" onsubmit="return crmFormValidar(this);">
                 <?= csrf_input() ?>
 
                 <div class="form-group">
@@ -410,6 +410,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <script>
+// Nilce r18 31/05/2026: warn (nao-bloqueante) quando salva sem telefone E sem CPF.
+// Sugestao dela: 'cadastro fantasma' sem identificador de contato. Mantida como
+// confirm pra Amanda decidir caso a caso (pode haver lead super-cru legitimo).
+function crmFormValidar(form) {
+    var phone = (form.querySelector('[name=phone]') || {}).value || '';
+    var phone2 = (form.querySelector('[name=phone2]') || {}).value || '';
+    var cpf = (form.querySelector('[name=cpf]') || {}).value || '';
+    var email = (form.querySelector('[name=email]') || {}).value || '';
+    var temContato = (phone.replace(/\D/g,'').length >= 8)
+                 || (phone2.replace(/\D/g,'').length >= 8)
+                 || (cpf.replace(/\D/g,'').length === 11)
+                 || (email.indexOf('@') > 0);
+    if (!temContato) {
+        return confirm('⚠️ Esse cadastro não tem telefone, CPF nem e-mail preenchido.\n\nO cliente não vai ter como ser contatado e fica difícil de identificar/dedupe no banco.\n\nSalvar mesmo assim?');
+    }
+    return true;
+}
+
 // ══ Máscara de CPF ══
 var cpfField = document.querySelector('[name=cpf]');
 if (cpfField) {
