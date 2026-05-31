@@ -2422,6 +2422,100 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         exit;
 
+    case 'evento_remarcar':
+        // 31/05/2026 (Amanda): remarca uma audiencia/reuniao/balcao mantendo
+        // o mesmo registro em agenda_eventos. Atualiza data/hora/modalidade/
+        // local/link, limpa avisado_em (cliente precisa ser notificado da nova
+        // data), gera andamento contando a mudanca e zera status pra agendado.
+        if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
+        $eventoId = (int)($_POST['evento_id'] ?? 0);
+        $caseId   = (int)($_POST['case_id'] ?? 0);
+        $novaData = trim($_POST['nova_data'] ?? '');
+        $novaHora = trim($_POST['nova_hora'] ?? '');
+        $modalidade = trim($_POST['modalidade'] ?? 'presencial');
+        $meetLink = trim($_POST['meet_link'] ?? '');
+        $local    = trim($_POST['local'] ?? '');
+        $motivo   = trim($_POST['motivo'] ?? '');
+        $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+
+        if (!$eventoId || !$caseId || !$novaData || !$novaHora || !$motivo
+            || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $novaData)
+            || !preg_match('/^\d{2}:\d{2}$/', $novaHora)) {
+            flash_set('error', 'Dados invalidos pra remarcar.');
+            redirect($back ?: module_url('operacional', 'caso_ver.php?id=' . $caseId));
+            exit;
+        }
+        if (!in_array($modalidade, array('presencial','online','hibrido'), true)) $modalidade = 'presencial';
+
+        try {
+            // 1) Snapshot ANTES
+            $stOld = $pdo->prepare("SELECT id, titulo, tipo, data_inicio, data_fim, modalidade, local, meet_link FROM agenda_eventos WHERE id = ? AND case_id = ?");
+            $stOld->execute(array($eventoId, $caseId));
+            $old = $stOld->fetch();
+            if (!$old) { flash_set('error', 'Compromisso nao encontrado.'); redirect($back ?: module_url('operacional', 'caso_ver.php?id=' . $caseId)); exit; }
+
+            // Calcula nova data_fim preservando a duracao do evento original
+            $novaInicio = $novaData . ' ' . $novaHora . ':00';
+            $duracaoSeg = 3600; // 1h default
+            if (!empty($old['data_fim']) && !empty($old['data_inicio'])) {
+                $diff = strtotime($old['data_fim']) - strtotime($old['data_inicio']);
+                if ($diff > 0 && $diff < 86400) $duracaoSeg = $diff;
+            }
+            $novaFim = date('Y-m-d H:i:s', strtotime($novaInicio) + $duracaoSeg);
+
+            // 2) UPDATE agenda_eventos (zera status pra agendado + avisado_em pra
+            //    forcar Amanda a avisar de novo o cliente da nova data)
+            $sql = "UPDATE agenda_eventos
+                    SET data_inicio = ?, data_fim = ?, modalidade = ?, local = ?, meet_link = ?,
+                        status = 'agendado', cliente_avisado_em = NULL, dia_todo = 0, updated_at = NOW()
+                    WHERE id = ? AND case_id = ?";
+            $pdo->prepare($sql)->execute(array(
+                $novaInicio, $novaFim, $modalidade, $local ?: null, $meetLink ?: null,
+                $eventoId, $caseId
+            ));
+
+            // 3) Andamento contando a remarcacao
+            $rotulos = array(
+                'audiencia'       => 'Audiência',
+                'reuniao_cliente' => 'Reunião com cliente',
+                'onboarding'      => 'Onboarding',
+                'mediacao_cejusc' => 'Mediação/CEJUSC',
+                'balcao_virtual'  => 'Balcão Virtual',
+                'ligacao'         => 'Ligação/Retorno',
+            );
+            $rotulo = $rotulos[$old['tipo']] ?? 'Compromisso';
+            $dtAntes = date('d/m/Y \à\s H:i', strtotime($old['data_inicio']));
+            $dtDepois = date('d/m/Y \à\s H:i', strtotime($novaInicio));
+            $modLabel = array('presencial'=>'Presencial','online'=>'Online','hibrido'=>'Híbrido');
+            $descAnd  = "🔄 {$rotulo} REMARCADA: " . ($old['titulo'] ?? '') . "\n";
+            $descAnd .= "🗓 De: {$dtAntes}\n";
+            $descAnd .= "🗓 Para: {$dtDepois}\n";
+            $descAnd .= "🎥 Modalidade: " . ($modLabel[$modalidade] ?? $modalidade);
+            if ($modalidade === 'online' && $meetLink) $descAnd .= " — {$meetLink}";
+            if (($modalidade === 'presencial' || $modalidade === 'hibrido') && $local) $descAnd .= "\n📍 Local: {$local}";
+            if ($modalidade === 'hibrido' && $meetLink) $descAnd .= "\n💻 Link: {$meetLink}";
+            $descAnd .= "\n\n📝 Motivo: {$motivo}";
+
+            $tipoAnd = ($old['tipo'] === 'audiencia') ? 'audiencia' : 'observacao';
+            try {
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                     VALUES (?, ?, ?, ?, 1, ?, NOW())"
+                )->execute(array($caseId, date('Y-m-d'), $tipoAnd, trim($descAnd), current_user_id()));
+            } catch (Exception $eA) { /* nao bloqueia */ }
+
+            audit_log('EVENTO_REMARCADO', 'case', $caseId, 'evento_id=' . $eventoId . ' de=' . $old['data_inicio'] . ' para=' . $novaInicio . ' motivo=' . mb_substr($motivo, 0, 80));
+            flash_set('success', '✓ Compromisso remarcado pra ' . $dtDepois . '. Andamento criado — não esqueça de avisar o cliente.');
+        } catch (Exception $e) {
+            flash_set('error', 'Erro ao remarcar: ' . $e->getMessage());
+        }
+        if ($back && (strpos($back, 'ferreiraesa.com.br') !== false || strpos($back, '/') === 0)) {
+            header('Location: ' . $back);
+            exit;
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
     case 'evento_cancelado':
         // Marca um evento como CANCELADO (audiencia/reuniao desmarcada pelo juizo/parte
         // adversa/cliente). Diferente de 'realizado' (deu certo) e de 'excluir' (foi

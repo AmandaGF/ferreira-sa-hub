@@ -992,6 +992,114 @@ function executarMesclarPasta() {
 </script>
 <?php endif; ?>
 
+<!-- Modal Remarcar Compromisso (Amanda 31/05/2026): coleta nova data/hora,
+     modalidade, link/local e motivo. Backend atualiza agenda_eventos +
+     cria andamento contando a remarcacao. -->
+<div id="remarcarOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="background:linear-gradient(135deg,#1e40af,#2563eb);color:#fff;padding:1rem 1.2rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:1rem;">🔄 Remarcar compromisso</h3>
+            <button onclick="fecharRemarcar()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;">×</button>
+        </div>
+        <div style="padding:1.2rem;">
+            <div id="remarcarOriginal" style="background:#f3f4f6;padding:.55rem .8rem;border-radius:8px;font-size:.8rem;margin-bottom:.9rem;color:#374151;"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem;">
+                <div>
+                    <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Nova data *</label>
+                    <input type="date" id="remarcarData" class="form-input" required style="width:100%;">
+                </div>
+                <div>
+                    <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Novo horário *</label>
+                    <input type="time" id="remarcarHora" class="form-input" required style="width:100%;">
+                </div>
+            </div>
+            <div style="margin-bottom:.7rem;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Modalidade</label>
+                <select id="remarcarModalidade" class="form-select" onchange="remarcarToggleCampos()" style="width:100%;">
+                    <option value="presencial">📍 Presencial</option>
+                    <option value="online">💻 Online (videoconferência)</option>
+                    <option value="hibrido">🔀 Híbrido (presencial + remoto)</option>
+                </select>
+            </div>
+            <div id="remarcarLinkWrap" style="margin-bottom:.7rem;display:none;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Link da videoconferência</label>
+                <input type="url" id="remarcarLink" class="form-input" placeholder="https://meet.google.com/..." style="width:100%;">
+            </div>
+            <div id="remarcarLocalWrap" style="margin-bottom:.7rem;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Local presencial</label>
+                <input type="text" id="remarcarLocal" class="form-input" placeholder="Ex: 5ª Vara de Família — Sala 302" style="width:100%;">
+            </div>
+            <div style="margin-bottom:.9rem;">
+                <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.2rem;">Motivo da remarcação <span style="color:#dc2626;">*</span></label>
+                <textarea id="remarcarMotivo" rows="3" class="form-input" required placeholder="Ex: Redesignação pelo juízo / Pedido da parte adversa / Conflito de agenda do advogado..." style="width:100%;font-size:.85rem;"></textarea>
+            </div>
+            <div style="background:#fef3c7;border:1px solid #fcd34d;color:#92400e;padding:.55rem .8rem;border-radius:8px;font-size:.74rem;margin-bottom:.9rem;">
+                ℹ️ A remarcação vai: <strong>atualizar a agenda</strong> · <strong>criar andamento</strong> registrando a mudança · <strong>limpar a flag "Avisado"</strong> (precisa avisar o cliente da nova data).
+            </div>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                <button onclick="fecharRemarcar()" class="btn btn-outline btn-sm">Cancelar</button>
+                <button onclick="executarRemarcar()" class="btn btn-sm" style="background:#1e40af;color:#fff;border:none;font-weight:700;">🔄 Confirmar remarcação</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+var _remarcarEventoId = 0;
+function abrirRemarcar(comp) {
+    _remarcarEventoId = comp.id;
+    document.getElementById('remarcarOverlay').style.display = 'flex';
+    var dt = comp.dt ? new Date(comp.dt.replace(' ', 'T')) : null;
+    var info = '<strong>' + (comp.titulo || 'Compromisso') + '</strong>';
+    if (dt) info += '<br>Atualmente em ' + dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+    if (comp.local) info += ' · 📍 ' + comp.local;
+    document.getElementById('remarcarOriginal').innerHTML = info;
+    // Pre-preenche com data/hora atual da audiencia (Amanda muda)
+    if (dt) {
+        document.getElementById('remarcarData').value = dt.toISOString().substring(0, 10);
+        document.getElementById('remarcarHora').value = String(dt.getHours()).padStart(2,'0') + ':' + String(dt.getMinutes()).padStart(2,'0');
+    }
+    var mod = (comp.modalidade || '').toLowerCase();
+    if (mod.indexOf('online') !== -1 || mod.indexOf('remoto') !== -1 || mod.indexOf('virtual') !== -1) document.getElementById('remarcarModalidade').value = 'online';
+    else if (mod.indexOf('hibrido') !== -1 || mod.indexOf('híbrido') !== -1) document.getElementById('remarcarModalidade').value = 'hibrido';
+    else document.getElementById('remarcarModalidade').value = 'presencial';
+    document.getElementById('remarcarLink').value = comp.meet_link || '';
+    document.getElementById('remarcarLocal').value = comp.local || '';
+    document.getElementById('remarcarMotivo').value = '';
+    remarcarToggleCampos();
+}
+function fecharRemarcar() { document.getElementById('remarcarOverlay').style.display = 'none'; }
+function remarcarToggleCampos() {
+    var m = document.getElementById('remarcarModalidade').value;
+    document.getElementById('remarcarLinkWrap').style.display = (m === 'online' || m === 'hibrido') ? 'block' : 'none';
+    document.getElementById('remarcarLocalWrap').style.display = (m === 'presencial' || m === 'hibrido') ? 'block' : 'none';
+}
+function executarRemarcar() {
+    var data = document.getElementById('remarcarData').value;
+    var hora = document.getElementById('remarcarHora').value;
+    var motivo = document.getElementById('remarcarMotivo').value.trim();
+    if (!data || !hora) { alert('Informe a nova data e hora.'); return; }
+    if (!motivo) { alert('Informe o motivo da remarcação (vai virar andamento no caso).'); return; }
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+    function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
+    addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addH('action', 'evento_remarcar');
+    addH('evento_id', _remarcarEventoId);
+    addH('case_id', <?= (int)$caseId ?>);
+    addH('nova_data', data);
+    addH('nova_hora', hora);
+    addH('modalidade', document.getElementById('remarcarModalidade').value);
+    addH('meet_link', document.getElementById('remarcarLink').value.trim());
+    addH('local', document.getElementById('remarcarLocal').value.trim());
+    addH('motivo', motivo);
+    addH('_back', '<?= module_url("operacional", "caso_ver.php?id=" . $caseId) ?>');
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+
 <?php if ($processoPrincipal):
     $isRecurso = (isset($case['tipo_vinculo']) && $case['tipo_vinculo'] === 'recurso');
     $bannerGrad = $isRecurso ? '#b45309,#d97706' : '#6366f1,#4f46e5';
@@ -1239,7 +1347,8 @@ if (!empty($compromissosCaso)): ?>
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
                     <button type="submit" title="Marcar como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
-                <?php if ($comp['tipo'] !== 'prazo'): // 'cancelar' so faz sentido pra compromissos (audiencia/reuniao/balcao); prazo nao se cancela, se cumpre ou nao se cumpre ?>
+                <?php if ($comp['tipo'] !== 'prazo'): // 'cancelar'/'remarcar' so fazem sentido pra compromissos ?>
+                <button type="button" onclick='abrirRemarcar(<?= htmlspecialchars(json_encode(array("id"=>(int)$comp["id"],"titulo"=>$comp["titulo"]??"","tipo"=>$comp["tipo"]??"","dt"=>$dtInicio,"local"=>$comp["local"]??"","meet_link"=>$comp["meet_link"]??"","modalidade"=>$comp["modalidade"]??"")), ENT_QUOTES, "UTF-8") ?>)' title="Remarcar para outra data/hora (gera andamento + atualiza agenda)" style="font-size:.7rem;background:#dbeafe;color:#1e40af;padding:3px 8px;border:1px solid #93c5fd;border-radius:5px;cursor:pointer;font-weight:600;">🔄 Remarcar</button>
                 <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Marcar este compromisso como CANCELADO?\n\nUse quando a audiencia/reuniao foi desmarcada pelo juizo, pela parte adversa ou pelo cliente.\n\n(Diferente de Excluir, que apaga o registro. Cancelado preserva o historico.)');">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="evento_cancelado">
