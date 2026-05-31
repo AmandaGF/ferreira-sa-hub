@@ -46,6 +46,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'toggle_ativo') {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) {
+            // Se está ATIVANDO, valida grafo antes (não permite ativar com erro crítico)
+            $atual = (int)$pdo->query("SELECT ativo FROM zapi_fluxo WHERE id = $id")->fetchColumn();
+            if ($atual === 0) {
+                $problemas = fluxo_validar_grafo($id);
+                $crits = array_filter($problemas, function($p){ return $p['nivel'] === 'critico'; });
+                if (!empty($crits)) {
+                    flash_set('error', 'Fluxo tem ' . count($crits) . ' problema(s) crítico(s). Abra o editor pra ver e corrigir antes de ativar.');
+                    redirect(module_url('whatsapp', 'fluxos.php'));
+                }
+            }
             $pdo->prepare("UPDATE zapi_fluxo SET ativo = 1 - ativo WHERE id = ?")->execute(array($id));
             audit_log('zapi_fluxo_toggle', 'zapi_fluxo', $id);
             flash_set('success', 'Estado alterado.');
@@ -84,6 +94,17 @@ try {
     $killswitchAtivo = ((string)$st->fetchColumn() === '1');
 } catch (Exception $e) {}
 
+// Status do cron tick
+$cronLastFile = APP_ROOT . '/files/zapi_fluxo_tick.last';
+$cronLastTs = file_exists($cronLastFile) ? (string)@file_get_contents($cronLastFile) : '';
+$cronLastEpoch = $cronLastTs ? strtotime($cronLastTs) : 0;
+$cronIdadeMin = $cronLastEpoch ? round((time() - $cronLastEpoch) / 60) : null;
+$cronSaude = 'desconhecida';
+if ($cronIdadeMin === null) $cronSaude = 'nunca_rodou';
+elseif ($cronIdadeMin <= 5) $cronSaude = 'ok';
+elseif ($cronIdadeMin <= 30) $cronSaude = 'atrasado';
+else $cronSaude = 'parado';
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 <style>
@@ -105,6 +126,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
     <h1 style="margin:0;">🌊 Fluxos do WhatsApp</h1>
     <span style="font-size:.7rem;color:#6b7280;font-style:italic;">motor zapi_fluxo*</span>
+    <a href="<?= module_url('whatsapp', 'campos.php') ?>" class="btn btn-outline btn-sm" style="margin-left:auto;">📦 Campos →</a>
 </div>
 
 <!-- Killswitch -->
@@ -127,6 +149,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <a href="<?= url('toggle_fluxo_executor.php?key=fsa-hub-deploy-2026&on') ?>" class="btn btn-primary btn-sm" onclick="return confirm('Ligar o executor? Mensagens de clientes vão começar a disparar fluxos ativos. Recomendado testar antes via curl.');">▶ Ligar</a>
             <?php endif; ?>
         </div>
+    </div>
+</div>
+
+<!-- Status do cron tick -->
+<?php
+$cronCor = array('ok'=>'#16a34a','atrasado'=>'#f59e0b','parado'=>'#dc2626','nunca_rodou'=>'#6b7280')[$cronSaude] ?? '#6b7280';
+$cronBg  = array('ok'=>'#f0fdf4','atrasado'=>'#fffbeb','parado'=>'#fef2f2','nunca_rodou'=>'#f9fafb')[$cronSaude] ?? '#f9fafb';
+$cronEmoji = array('ok'=>'🟢','atrasado'=>'🟡','parado'=>'🔴','nunca_rodou'=>'⚪')[$cronSaude] ?? '⚪';
+$cronTxt = array(
+    'ok' => "Última execução há {$cronIdadeMin} min — cron rodando ok.",
+    'atrasado' => "Última execução há {$cronIdadeMin} min — cron pode estar atrasado.",
+    'parado' => "Última execução há {$cronIdadeMin} min (mais de 30) — cron PARADO. Timeouts de blocos 'esperar' não vão destravar.",
+    'nunca_rodou' => "Nunca rodou. Configure o cronjob conforme instruções abaixo."
+)[$cronSaude] ?? '?';
+?>
+<div class="fxl-card" style="border-color:<?= $cronCor ?>;background:<?= $cronBg ?>;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;">
+        <div>
+            <strong style="color:<?= $cronCor ?>;"><?= $cronEmoji ?> Cron tick (timeouts)</strong>
+            <p style="margin:.25rem 0 0;font-size:.78rem;color:#475569;"><?= htmlspecialchars($cronTxt) ?></p>
+        </div>
+        <details>
+            <summary style="cursor:pointer;font-size:.78rem;color:#0d9488;">📋 Como configurar</summary>
+            <div style="margin-top:.5rem;padding:.6rem;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:.78rem;">
+                <p style="margin:0 0 .4rem;">No cPanel → <strong>Cron Jobs</strong>, adicionar entrada:</p>
+                <pre style="background:#0f172a;color:#e2e8f0;padding:.55rem .65rem;border-radius:5px;font-size:.72rem;overflow-x:auto;margin:0;">* * * * * curl -s "https://ferreiraesa.com.br/conecta/cron/zapi_fluxo_tick.php?key=fsa-hub-deploy-2026" &gt; /dev/null</pre>
+                <p style="margin:.4rem 0 0;font-size:.72rem;color:#6b7280;">Roda a cada 1 min, varre execuções com timeout vencido. Sem isso, blocos <code>esperar</code> só destravam quando o cliente responder.</p>
+            </div>
+        </details>
     </div>
 </div>
 

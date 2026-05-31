@@ -160,6 +160,13 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
     $execId = (int)$execId;
     if ($execId <= 0) return array('estado' => 'erro', 'erro' => 'exec_id invalido');
 
+    // Self-heal: coluna log_json acumula trace dos passos pra auditoria/debug
+    static $_logSelfHeal = false;
+    if (!$_logSelfHeal) {
+        try { $pdo->exec("ALTER TABLE zapi_fluxo_execucao ADD COLUMN log_json LONGTEXT NULL"); } catch (Exception $e) {}
+        $_logSelfHeal = true;
+    }
+
     // Carrega execução
     $st = $pdo->prepare("SELECT * FROM zapi_fluxo_execucao WHERE id = ?");
     $st->execute(array($execId));
@@ -186,11 +193,26 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
     $aguardarAte = null;
     $entradaPendente = $entradaUsuario; // só é consumida pelo primeiro bloco que precisa dela
 
+    // Carrega log existente (se houver) pra acumular
+    $logExecucao = array();
+    if (!empty($exec['log_json'])) {
+        $tmpLog = json_decode($exec['log_json'], true);
+        if (is_array($tmpLog)) $logExecucao = $tmpLog;
+    }
+    // Marca o ponto de entrada desta chamada de avancar
+    $logExecucao[] = array(
+        'ts' => date('Y-m-d H:i:s'),
+        'evento' => 'avancar_entrada',
+        'entrada' => $entradaUsuario === null ? null : mb_substr((string)$entradaUsuario, 0, 200),
+        'bloco_inicio' => $blocoAtualId,
+    );
+
     while ($blocoAtualId && $passos < $maxPassos) {
         $passos++;
         if (!isset($grafo['blocos'][$blocoAtualId])) {
             $erro = "bloco $blocoAtualId nao existe no grafo";
             $estadoFinal = 'erro';
+            $logExecucao[] = array('ts' => date('Y-m-d H:i:s'), 'evento' => 'erro', 'msg' => $erro);
             break;
         }
         $bloco = $grafo['blocos'][$blocoAtualId];
@@ -198,6 +220,18 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
         $res = _fluxo_aplicar_bloco($bloco, $conversa, $entradaPendente);
         // Bloco consumiu a entrada? Limpa pra próximos blocos não reusarem
         if (!empty($res['consome_entrada'])) $entradaPendente = null;
+
+        // Log do passo
+        $logExecucao[] = array(
+            'ts' => date('Y-m-d H:i:s'),
+            'evento' => 'bloco',
+            'bloco_id' => $blocoAtualId,
+            'tipo' => $bloco['tipo'],
+            'saida' => $res['saida'] ?? null,
+            'fim' => !empty($res['fim']),
+            'aguardar' => !empty($res['aguardar_ate']),
+            'erro' => $res['erro'] ?? null,
+        );
 
         if (!empty($res['erro'])) { $erro = $res['erro']; $estadoFinal = 'erro'; break; }
         if (!empty($res['fim']))  { $estadoFinal = 'concluido'; break; }
@@ -213,6 +247,7 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
         if (!$proximoId) {
             // Sem aresta de saída = fim implícito
             $estadoFinal = 'concluido';
+            $logExecucao[] = array('ts' => date('Y-m-d H:i:s'), 'evento' => 'fim_implicito', 'msg' => 'sem aresta');
             break;
         }
         $blocoAtualId = $proximoId;
@@ -221,14 +256,35 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
     if ($passos >= $maxPassos && $estadoFinal === 'em_andamento') {
         $erro = "limite de passos ($maxPassos) atingido — possivel loop infinito";
         $estadoFinal = 'erro';
+        $logExecucao[] = array('ts' => date('Y-m-d H:i:s'), 'evento' => 'erro', 'msg' => $erro);
     }
 
-    // Persiste estado novo
+    // Log final
+    $logExecucao[] = array(
+        'ts' => date('Y-m-d H:i:s'),
+        'evento' => 'avancar_saida',
+        'estado' => $estadoFinal,
+        'bloco_final' => $blocoAtualId ?: null,
+        'aguardar_ate' => $aguardarAte,
+        'passos' => $passos,
+    );
+
+    // Trunca log pra ate 200 entradas (suficiente pra debug; previne crescimento descontrolado)
+    if (count($logExecucao) > 200) {
+        $logExecucao = array_slice($logExecucao, -200);
+    }
+
+    // Persiste estado novo + log
     $pdo->prepare(
         "UPDATE zapi_fluxo_execucao
-            SET bloco_atual_id = ?, estado = ?, aguardando_ate = ?, tentativas = tentativas + 1
+            SET bloco_atual_id = ?, estado = ?, aguardando_ate = ?, tentativas = tentativas + 1,
+                log_json = ?
           WHERE id = ?"
-    )->execute(array($blocoAtualId ?: null, $estadoFinal, $aguardarAte, $execId));
+    )->execute(array(
+        $blocoAtualId ?: null, $estadoFinal, $aguardarAte,
+        json_encode($logExecucao, JSON_UNESCAPED_UNICODE),
+        $execId
+    ));
 
     $ret = array(
         'estado' => $estadoFinal,
@@ -445,6 +501,77 @@ function _fluxo_aplicar_bloco($bloco, $conversa, $entradaUsuario) {
             return array('saida' => ($bate ? 'sim' : 'nao'), 'aguardar_ate' => null, 'fim' => false);
         }
 
+        case 'transferir_humano': {
+            // Encerra a interacao automatizada: marca conversa pra atendimento humano,
+            // desliga bot Haiku, opcionalmente envia uma msg pro cliente.
+            // Config: { "mensagem": "Vou transferir pra equipe" } (opcional)
+            //         { "status": "aguardando" }                  (padrao 'aguardando')
+            $msg = trim((string)($cfg['mensagem'] ?? ''));
+            $statusAlvo = (string)($cfg['status'] ?? 'aguardando');
+            if (!in_array($statusAlvo, array('aguardando','em_atendimento'), true)) {
+                $statusAlvo = 'aguardando';
+            }
+            try {
+                db()->prepare("UPDATE zapi_conversas SET bot_ativo = 0, status = ? WHERE id = ?")
+                    ->execute(array($statusAlvo, (int)$conversa['id']));
+            } catch (Exception $e) { /* segue */ }
+            if ($msg !== '') {
+                $msg = _fluxo_resolver_vars($msg, $conversa);
+                $env = zapi_send_text($conversa['canal'], $conversa['telefone'], $msg);
+                try {
+                    db()->prepare(
+                        "INSERT INTO zapi_mensagens (conversa_id, direcao, tipo, conteudo, enviado_por_bot, status)
+                         VALUES (?, 'enviada', 'texto', ?, 1, ?)"
+                    )->execute(array(
+                        (int)$conversa['id'], mb_substr($msg, 0, 5000),
+                        !empty($env['ok']) ? 'enviada' : 'falhou'
+                    ));
+                } catch (Exception $e) {}
+            }
+            return array('saida' => null, 'aguardar_ate' => null, 'fim' => true);
+        }
+
+        case 'anotar': {
+            // Adiciona texto numa anotacao do CRM/Operacional. Destinos:
+            //   conversa  -> append em zapi_conversas.nota_fixa
+            //   cliente   -> append em clients.notes (so se conversa tem client_id)
+            //   caso      -> append em cases.notes do caso vinculado ao cliente
+            // Config: { "destino": "conversa"|"cliente"|"caso", "texto": "..." }
+            $destino = (string)($cfg['destino'] ?? 'conversa');
+            $texto = trim((string)($cfg['texto'] ?? ''));
+            if ($texto === '') {
+                return array('saida' => 'default', 'aguardar_ate' => null, 'fim' => false);
+            }
+            $texto = _fluxo_resolver_vars($texto, $conversa);
+            $stamp = '[Fluxo ' . date('d/m/Y H:i') . '] ' . $texto;
+            $pdoL = db();
+            try {
+                if ($destino === 'conversa') {
+                    try { $pdoL->exec("ALTER TABLE zapi_conversas ADD COLUMN nota_fixa TEXT NULL"); } catch (Exception $e) {}
+                    $pdoL->prepare("UPDATE zapi_conversas SET nota_fixa = CONCAT(COALESCE(nota_fixa,''), IF(nota_fixa IS NULL OR nota_fixa='', '', '\n'), ?) WHERE id = ?")
+                         ->execute(array($stamp, (int)$conversa['id']));
+                } elseif ($destino === 'cliente') {
+                    $cid = (int)($conversa['client_id'] ?? 0);
+                    if ($cid > 0) {
+                        $pdoL->prepare("UPDATE clients SET notes = CONCAT(COALESCE(notes,''), IF(notes IS NULL OR notes='', '', '\n'), ?) WHERE id = ?")
+                             ->execute(array($stamp, $cid));
+                    }
+                } elseif ($destino === 'caso') {
+                    $cid = (int)($conversa['client_id'] ?? 0);
+                    if ($cid > 0) {
+                        $st = $pdoL->prepare("SELECT id FROM cases WHERE client_id = ? ORDER BY id DESC LIMIT 1");
+                        $st->execute(array($cid));
+                        $caseId = (int)$st->fetchColumn();
+                        if ($caseId > 0) {
+                            $pdoL->prepare("UPDATE cases SET notes = CONCAT(COALESCE(notes,''), IF(notes IS NULL OR notes='', '', '\n'), ?) WHERE id = ?")
+                                 ->execute(array($stamp, $caseId));
+                        }
+                    }
+                }
+            } catch (Exception $e) { /* anotacao nao deve quebrar o fluxo */ }
+            return array('saida' => 'default', 'aguardar_ate' => null, 'fim' => false);
+        }
+
         case 'fim': {
             return array('saida' => null, 'aguardar_ate' => null, 'fim' => true);
         }
@@ -535,6 +662,105 @@ function fluxo_valor_get($conversaId, $chave) {
     $st->execute(array($conversaId, (int)$campo['id']));
     $v = $st->fetchColumn();
     return ($v === false) ? null : $v;
+}
+
+/**
+ * Valida o grafo de um fluxo e retorna lista de problemas.
+ * Cada item: { nivel: 'critico'|'aviso'|'info', msg: 'descricao' }
+ *
+ * Critico = bloqueia ativação. Aviso = vale rever. Info = só nota.
+ */
+function fluxo_validar_grafo($fluxoId) {
+    $grafo = fluxo_carregar($fluxoId);
+    $problemas = array();
+    if (!$grafo) {
+        $problemas[] = array('nivel' => 'critico', 'msg' => 'Fluxo não encontrado.');
+        return $problemas;
+    }
+
+    $blocos = $grafo['blocos'];
+    $arestas = $grafo['arestas'];
+    $fluxo = $grafo['fluxo'];
+
+    // 1. Tem blocos?
+    if (empty($blocos)) {
+        $problemas[] = array('nivel' => 'critico', 'msg' => 'Fluxo sem blocos. Adicione pelo menos um bloco antes de ativar.');
+        return $problemas;
+    }
+
+    // 2. Bloco inicial existe e está no fluxo?
+    $iniId = (int)($fluxo['bloco_inicial_id'] ?? 0);
+    if ($iniId === 0) {
+        $problemas[] = array('nivel' => 'aviso', 'msg' => 'Bloco inicial não definido. Vai usar o primeiro bloco (menor id) como fallback.');
+    } elseif (!isset($blocos[$iniId])) {
+        $problemas[] = array('nivel' => 'critico', 'msg' => "Bloco inicial #$iniId não existe no fluxo.");
+    }
+
+    // 3. Cada bloco não-terminal tem saída? Cada condicional tem 'sim' e 'nao'?
+    foreach ($blocos as $bid => $b) {
+        $tipo = $b['tipo'];
+        $saidasDoBloco = isset($arestas[$bid]) ? array_keys($arestas[$bid]) : array();
+
+        if ($tipo === 'fim' || $tipo === 'transferir_humano') {
+            if (!empty($saidasDoBloco)) {
+                $problemas[] = array('nivel' => 'info', 'msg' => "Bloco #$bid ($tipo) tem saída mas é terminal — a aresta será ignorada.");
+            }
+            continue;
+        }
+
+        if (empty($saidasDoBloco)) {
+            $problemas[] = array('nivel' => 'aviso', 'msg' => "Bloco #$bid ($tipo) não tem saída. Execução vai terminar implicitamente aqui.");
+        }
+
+        if ($tipo === 'condicional') {
+            $temSim = in_array('sim', $saidasDoBloco, true);
+            $temNao = in_array('nao', $saidasDoBloco, true);
+            $temDef = in_array('default', $saidasDoBloco, true);
+            if (!$temSim && !$temDef) {
+                $problemas[] = array('nivel' => 'critico', 'msg' => "Bloco #$bid (condicional) sem saída 'sim' (nem 'default'). Quando a condição bater, fluxo trava.");
+            }
+            if (!$temNao && !$temDef) {
+                $problemas[] = array('nivel' => 'critico', 'msg' => "Bloco #$bid (condicional) sem saída 'nao' (nem 'default'). Quando a condição NÃO bater, fluxo trava.");
+            }
+        }
+    }
+
+    // 4. Arestas apontam pra blocos que não existem? (cobertura defensiva — FK em cascade já trata)
+    foreach ($arestas as $oid => $saidas) {
+        if (!isset($blocos[$oid])) {
+            $problemas[] = array('nivel' => 'critico', 'msg' => "Aresta sai do bloco #$oid que não existe.");
+            continue;
+        }
+        foreach ($saidas as $saida => $did) {
+            if (!isset($blocos[$did])) {
+                $problemas[] = array('nivel' => 'critico', 'msg' => "Aresta #$oid -[$saida]-> #$did aponta pra bloco inexistente.");
+            }
+        }
+    }
+
+    // 5. Blocos órfãos (sem aresta de entrada) que não sejam o inicial?
+    $temEntrada = array();
+    foreach ($arestas as $saidas) {
+        foreach ($saidas as $did) $temEntrada[$did] = true;
+    }
+    $blocoInicialReal = $iniId ?: (int)min(array_keys($blocos));
+    foreach ($blocos as $bid => $b) {
+        if ($bid === $blocoInicialReal) continue;
+        if (empty($temEntrada[$bid])) {
+            $problemas[] = array('nivel' => 'aviso', 'msg' => "Bloco #$bid ({$b['tipo']}) não tem aresta de entrada — vai ser inalcançável.");
+        }
+    }
+
+    // 6. Gatilho coerente?
+    if ($fluxo['gatilho_tipo'] === 'palavra_chave') {
+        $cfg = json_decode((string)$fluxo['gatilho_config'], true) ?: array();
+        $palavras = isset($cfg['palavras']) && is_array($cfg['palavras']) ? array_filter($cfg['palavras']) : array();
+        if (empty($palavras)) {
+            $problemas[] = array('nivel' => 'critico', 'msg' => "Gatilho é 'palavra_chave' mas gatilho_config não tem palavras. Ex: {\"palavras\":[\"menu\",\"ajuda\"]}");
+        }
+    }
+
+    return $problemas;
 }
 
 /**

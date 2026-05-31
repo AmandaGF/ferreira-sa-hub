@@ -77,4 +77,8 @@ try {
 }
 
 @unlink($lockFile);
+
+// Marca timestamp da última execução pra UI mostrar saúde do cron
+@file_put_contents(dirname(__DIR__) . '/files/zapi_fluxo_tick.last', date('Y-m-d H:i:s'));
+
 echo "=== Fim ===\n";

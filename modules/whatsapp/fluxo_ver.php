@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $posX = (int)($_POST['pos_x'] ?? 0);
         // valida JSON
         $parsed = json_decode($cfg, true);
-        if (!in_array($tipo, array('mensagem','esperar','capturar','condicional','fim'), true)) {
+        if (!in_array($tipo, array('mensagem','esperar','capturar','condicional','transferir_humano','anotar','fim'), true)) {
             flash_set('error', "Tipo '$tipo' não suportado nesta versão.");
         } elseif ($cfg !== '' && $parsed === null && $cfg !== 'null') {
             flash_set('error', 'config_json inválido — não é JSON.');
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $posX = (int)($_POST['pos_x'] ?? 0);
         $parsed = json_decode($cfg, true);
         if ($blocoId <= 0) { flash_set('error', 'ID do bloco inválido.'); }
-        elseif (!in_array($tipo, array('mensagem','esperar','capturar','condicional','fim'), true)) {
+        elseif (!in_array($tipo, array('mensagem','esperar','capturar','condicional','transferir_humano','anotar','fim'), true)) {
             flash_set('error', "Tipo '$tipo' não suportado.");
         } elseif ($cfg !== '' && $parsed === null && $cfg !== 'null') {
             flash_set('error', 'config_json inválido.');
@@ -125,6 +125,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         redirect(module_url('whatsapp', 'fluxo_ver.php?id=' . $fluxoId));
     }
+
+    if ($action === 'disparar_manual') {
+        $convId = (int)($_POST['conv_id'] ?? 0);
+        if ($convId <= 0) {
+            flash_set('error', 'conv_id obrigatório.');
+        } else {
+            $st = $pdo->prepare("SELECT id, telefone, nome_contato FROM zapi_conversas WHERE id = ?");
+            $st->execute(array($convId));
+            $convAlvo = $st->fetch();
+            if (!$convAlvo) {
+                flash_set('error', "Conversa #$convId não existe.");
+            } else {
+                try {
+                    $execId = fluxo_iniciar($fluxoId, $convId, current_user_id());
+                    if (!$execId) {
+                        flash_set('error', 'Não foi possível iniciar. Fluxo está ativo? Tem bloco inicial?');
+                    } else {
+                        $res = fluxo_avancar((int)$execId, null);
+                        audit_log('zapi_fluxo_disparo_manual', 'zapi_fluxo_execucao', $execId, "fluxo=$fluxoId conv=$convId");
+                        flash_set('success', "Disparado em #$convId ({$convAlvo['nome_contato']}). Execução #$execId — estado: " . ($res['estado'] ?? '?'));
+                    }
+                } catch (Exception $e) {
+                    flash_set('error', 'Erro: ' . $e->getMessage());
+                }
+            }
+        }
+        redirect(module_url('whatsapp', 'fluxo_ver.php?id=' . $fluxoId));
+    }
 }
 
 // ── Carrega tudo ────────────────────────────────────────
@@ -138,6 +166,11 @@ $pageTitle = 'Fluxo: ' . $fluxo['nome'];
 $st = $pdo->prepare("SELECT * FROM zapi_fluxo_aresta WHERE fluxo_id = ? ORDER BY origem_bloco_id, saida");
 $st->execute(array($fluxoId));
 $arestas = $st->fetchAll();
+
+// Validação do grafo
+$problemas = fluxo_validar_grafo($fluxoId);
+$temCritico = false;
+foreach ($problemas as $p) { if ($p['nivel'] === 'critico') { $temCritico = true; break; } }
 
 // Últimas execuções (read-only)
 $st = $pdo->prepare(
@@ -169,6 +202,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .fx-tipo.esperar { background:#fef3c7; color:#92400e; }
 .fx-tipo.capturar { background:#dcfce7; color:#166534; }
 .fx-tipo.condicional { background:#e9d5ff; color:#7c3aed; }
+.fx-tipo.transferir_humano { background:#fee2e2; color:#991b1b; }
+.fx-tipo.anotar { background:#cffafe; color:#155e75; }
 .fx-tipo.fim { background:#f3f4f6; color:#6b7280; }
 .fx-cfg { font-family:'Consolas',monospace; font-size:.72rem; color:#475569; background:#fafbfc; padding:.3rem .5rem; border-radius:4px; max-width:380px; overflow-x:auto; white-space:nowrap; }
 </style>
@@ -181,7 +216,67 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?= $fluxo['ativo'] ? 'ATIVO' : 'INATIVO' ?>
     </span>
     <span style="font-size:.7rem;color:#94a3b8;">id=<?= (int)$fluxo['id'] ?> · execuções totais: <?= (int)$fluxo['execucoes'] ?></span>
+    <?php if ($fluxo['ativo'] && count($blocos) > 0): ?>
+        <button type="button" onclick="document.getElementById('modalDisparar').style.display='flex'"
+            style="margin-left:auto;background:#0d9488;color:#fff;border:none;padding:6px 14px;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;">
+            ▶ Disparar manualmente
+        </button>
+    <?php endif; ?>
 </div>
+
+<!-- Modal: Disparar manualmente -->
+<div id="modalDisparar" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="margin:0 0 .75rem;font-size:1rem;color:#052228;">▶ Disparar fluxo manualmente</h3>
+        <p style="margin:0 0 .75rem;font-size:.78rem;color:#475569;">
+            Esse disparo é <strong>real</strong>: vai enviar mensagens via WhatsApp pra conversa escolhida.
+            Use sua própria conversa pra testar, ou uma conversa interna do escritório.
+        </p>
+        <form method="POST">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="disparar_manual">
+            <label style="display:flex;flex-direction:column;gap:.2rem;font-size:.75rem;font-weight:700;color:#374151;margin-bottom:.75rem;">
+                ID da conversa (zapi_conversas.id) <span style="color:#dc2626;">*</span>
+                <input type="number" name="conv_id" required min="1" placeholder="Ex: 1" style="padding:.5rem;border:1.5px solid var(--border);border-radius:6px;font-size:.85rem;">
+                <span style="font-size:.7rem;font-weight:400;color:#6b7280;margin-top:.2rem;">
+                    Você pode achar o ID na URL do chat (após /id= ou no DB).
+                </span>
+            </label>
+            <div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:.5rem .75rem;border-radius:6px;font-size:.72rem;color:#78350f;margin-bottom:.75rem;">
+                ⚠ Confirme que: (1) o killswitch está LIGADO se quiser que o cliente possa AVANÇAR o fluxo respondendo;
+                (2) você não vai incomodar um cliente real sem necessidade.
+            </div>
+            <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                <button type="button" onclick="document.getElementById('modalDisparar').style.display='none'" class="btn btn-outline btn-sm">Cancelar</button>
+                <button type="submit" class="btn btn-primary btn-sm" style="background:#0d9488;">▶ Disparar agora</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ── Validação ── -->
+<?php if (!empty($problemas)):
+    $crits = array_filter($problemas, function($p){return $p['nivel']==='critico';});
+    $avisos = array_filter($problemas, function($p){return $p['nivel']==='aviso';});
+    $infos = array_filter($problemas, function($p){return $p['nivel']==='info';});
+    $bgPrincipal = !empty($crits) ? '#fef2f2' : (!empty($avisos) ? '#fffbeb' : '#f0fdf4');
+    $borderPrincipal = !empty($crits) ? '#dc2626' : (!empty($avisos) ? '#f59e0b' : '#16a34a');
+    $titulo = !empty($crits) ? '🚫 Problemas críticos — fluxo não pode ser ativado'
+            : (!empty($avisos) ? '⚠️ Avisos — vale revisar'
+            : '✓ Verificação OK');
+?>
+<div class="fx-card" style="background:<?= $bgPrincipal ?>;border-color:<?= $borderPrincipal ?>;border-left:4px solid <?= $borderPrincipal ?>;">
+    <h3 style="margin:0 0 .5rem;color:<?= $borderPrincipal ?>;">🔎 <?= $titulo ?> (<?= count($problemas) ?>)</h3>
+    <ul style="margin:.25rem 0 0;padding-left:1.25rem;font-size:.82rem;color:#1f2937;">
+        <?php foreach ($problemas as $p):
+            $cor = $p['nivel']==='critico' ? '#991b1b' : ($p['nivel']==='aviso' ? '#92400e' : '#15803d');
+            $emoji = $p['nivel']==='critico' ? '🚫' : ($p['nivel']==='aviso' ? '⚠️' : 'ℹ️');
+        ?>
+            <li style="margin:.15rem 0;color:<?= $cor ?>;"><?= $emoji ?> <?= htmlspecialchars($p['msg']) ?></li>
+        <?php endforeach; ?>
+    </ul>
+</div>
+<?php endif; ?>
 
 <!-- ── Cabeçalho ── -->
 <div class="fx-card">
@@ -270,7 +365,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <div class="fx-grid">
                                 <label>Tipo
                                     <select name="tipo">
-                                        <?php foreach (array('mensagem','esperar','capturar','condicional','fim') as $t): ?>
+                                        <?php foreach (array('mensagem','esperar','capturar','condicional','transferir_humano','anotar','fim') as $t): ?>
                                             <option value="<?= $t ?>" <?= $b['tipo'] === $t ? 'selected' : '' ?>><?= $t ?></option>
                                         <?php endforeach; ?>
                                     </select>
@@ -311,6 +406,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <option value="esperar">esperar · pausa até resposta/timeout</option>
                         <option value="capturar">capturar · grava resposta em campo</option>
                         <option value="condicional">condicional · saídas 'sim'/'nao'</option>
+                        <option value="transferir_humano">transferir_humano · passa pra atendente humano (encerra fluxo)</option>
+                        <option value="anotar">anotar · grava texto em conversa/cliente/caso</option>
                         <option value="fim">fim · encerra execução</option>
                     </select>
                 </label>
@@ -319,7 +416,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </label>
             </div>
             <label style="margin-top:.4rem;">config_json
-                <textarea name="config_json" rows="3" placeholder='{"texto": "Oi {{nome}}!"}  · ou: {"timeout_min": 60}  · ou: {"campo": "telefone_alt"}  · ou: {"campo": "estado_civil", "operador": "igual", "valor": "casado"}'>{}</textarea>
+                <textarea name="config_json" rows="3" placeholder='mensagem:    {"texto": "Oi {{nome}}!"}
+esperar:     {"timeout_min": 60}
+capturar:    {"campo": "telefone_alt", "trim": true}
+condicional: {"campo": "estado_civil", "operador": "igual", "valor": "casado"}
+transferir:  {"mensagem": "Vou te transferir agora 🙌"}
+anotar:      {"destino": "conversa", "texto": "Cliente disse: {{campo:resposta_demo}}"}'>{}</textarea>
             </label>
             <button type="submit" class="btn btn-primary btn-sm" style="margin-top:.4rem;">➕ Adicionar bloco</button>
         </form>
@@ -420,7 +522,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <tbody>
         <?php foreach ($execucoes as $e): ?>
             <tr>
-                <td style="font-family:monospace;color:#94a3b8;">#<?= (int)$e['id'] ?></td>
+                <td style="font-family:monospace;color:#94a3b8;">
+                    <a href="<?= module_url('whatsapp', 'fluxo_execucao_ver.php?id=' . (int)$e['id']) ?>" style="color:#0d9488;text-decoration:none;font-weight:700;">#<?= (int)$e['id'] ?></a>
+                </td>
                 <td>
                     <?= htmlspecialchars($e['nome_contato'] ?: '(sem nome)') ?>
                     <div style="font-size:.7rem;color:#94a3b8;">conv#<?= (int)$e['conversa_id'] ?> · tel <?= htmlspecialchars($e['telefone'] ?? '') ?></div>
