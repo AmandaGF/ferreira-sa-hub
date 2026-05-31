@@ -55,6 +55,14 @@ switch ($action) {
         $validPriorities = ['baixa','normal','urgente'];
 
         if ($ticketId && in_array($status, $validStatuses) && in_array($priority, $validPriorities)) {
+            // Captura estado anterior pra auditoria de SLA/prioridade (Nilce r7 31/05/2026)
+            $_antes = array();
+            try {
+                $stmtAnt = $pdo->prepare('SELECT status, priority, due_date FROM tickets WHERE id = ?');
+                $stmtAnt->execute(array($ticketId));
+                $_antes = $stmtAnt->fetch() ?: array();
+            } catch (Exception $e) {}
+
             $resolvedAt = ($status === 'resolvido') ? date('Y-m-d H:i:s') : null;
             $pdo->prepare('UPDATE tickets SET status=?, priority=?, category=?, department=?, due_date=?, resolved_at=COALESCE(?,resolved_at), updated_at=NOW() WHERE id=?')
                 ->execute([$status, $priority, $category ?: null, $department ?: null, $dueDate, $resolvedAt, $ticketId]);
@@ -93,7 +101,14 @@ switch ($action) {
                 }
             }
 
-            audit_log('ticket_updated', 'ticket', $ticketId, "status:$status priority:$priority");
+            // Auditoria detalhada: capta mudancas em status, prioridade E SLA
+            $_diffs = array();
+            if (isset($_antes['status']) && $_antes['status'] !== $status) $_diffs[] = "status: {$_antes['status']} -> $status";
+            if (isset($_antes['priority']) && $_antes['priority'] !== $priority) $_diffs[] = "priority: {$_antes['priority']} -> $priority";
+            $_antesSla = $_antes['due_date'] ?? null;
+            if ($_antesSla !== $dueDate) $_diffs[] = "SLA: " . ($_antesSla ?: '—') . " -> " . ($dueDate ?: '—');
+            $_msg = $_diffs ? implode(' | ', $_diffs) : "status:$status priority:$priority sla:" . ($dueDate ?: '—');
+            audit_log('ticket_updated', 'ticket', $ticketId, $_msg);
             flash_set('success', 'Chamado atualizado.');
         }
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));

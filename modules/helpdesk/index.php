@@ -75,6 +75,13 @@ if ($sortParam && isset($validSorts[$sortParam])) {
     $orderBy = "COALESCE(t.pinned, 0) DESC, t.created_at DESC";
 }
 
+// Paginacao (Nilce r7 31/05/2026): antes era LIMIT 100 sem aviso, 170+ chamados
+// ficavam ocultos. Agora paginacao real com count + UI no topo e rodape.
+$hdPageNum = max(1, (int)($_GET['page'] ?? 1));
+$hdPerPage = 100;
+$hdOffset  = ($hdPageNum - 1) * $hdPerPage;
+$hdTotalLista = 0;
+
 if ($filterOrigem === 'clientes') {
     // ── Aba Chamados de Clientes: puxa de salavip_threads ──
     // Mapeia status salavip → status ticket: aberta → aberto, respondida → em_andamento, fechada → resolvido
@@ -112,10 +119,15 @@ if ($filterOrigem === 'clientes') {
          LEFT JOIN cases cs ON cs.id = st.processo_id
          $whereStrThreads
          ORDER BY FIELD(st.status, 'aberta','respondida','aguardando','fechada'), st.criado_em DESC
-         LIMIT 100"
+         LIMIT $hdPerPage OFFSET $hdOffset"
     );
     $stmt->execute($paramsThreads);
     $tickets = $stmt->fetchAll();
+    try {
+        $stmtC = $pdo->prepare("SELECT COUNT(*) FROM salavip_threads st LEFT JOIN clients c ON c.id = st.cliente_id $whereStrThreads");
+        $stmtC->execute($paramsThreads);
+        $hdTotalLista = (int)$stmtC->fetchColumn();
+    } catch (Exception $e) { $hdTotalLista = count($tickets); }
     // Mapear status pra usar mesmos labels/badges dos tickets
     foreach ($tickets as &$t) { $t['status'] = $mapStatus[$t['status_raw']] ?? 'aberto'; }
     unset($t);
@@ -131,18 +143,37 @@ if ($filterOrigem === 'clientes') {
          $whereStr
          GROUP BY t.id
          ORDER BY $orderBy
-         LIMIT 100"
+         LIMIT $hdPerPage OFFSET $hdOffset"
     );
     $stmt->execute($params);
     $tickets = $stmt->fetchAll();
+    try {
+        $stmtC = $pdo->prepare("SELECT COUNT(DISTINCT t.id) FROM tickets t LEFT JOIN ticket_assignees ta ON ta.ticket_id = t.id $whereStr");
+        $stmtC->execute($params);
+        $hdTotalLista = (int)$stmtC->fetchColumn();
+    } catch (Exception $e) { $hdTotalLista = count($tickets); }
 }
+$hdTotalPag = max(1, (int)ceil($hdTotalLista / $hdPerPage));
+if ($hdPageNum > $hdTotalPag) { $hdPageNum = $hdTotalPag; $hdOffset = ($hdPageNum - 1) * $hdPerPage; }
 
-// KPIs
-$kpi = $pdo->query("SELECT
-    SUM(CASE WHEN status IN ('aberto','em_andamento','aguardando') THEN 1 ELSE 0 END) as abertos,
-    SUM(CASE WHEN priority = 'urgente' AND status IN ('aberto','em_andamento') THEN 1 ELSE 0 END) as urgentes,
-    SUM(CASE WHEN status = 'resolvido' AND MONTH(resolved_at) = MONTH(NOW()) THEN 1 ELSE 0 END) as resolvidos_mes
-    FROM tickets")->fetch();
+// KPIs ─ dependem da aba selecionada (Nilce r7 31/05/2026):
+// antes a query era so sobre tickets e mostrava "68 abertos" mesmo na aba
+// Central VIP, confundindo a leitura. Agora cada aba tem sua propria base.
+if ($filterOrigem === 'clientes') {
+    $kpi = $pdo->query("SELECT
+        SUM(CASE WHEN status IN ('aberta','respondida','aguardando') THEN 1 ELSE 0 END) as abertos,
+        0 as urgentes,
+        SUM(CASE WHEN status = 'fechada' AND MONTH(atualizado_em) = MONTH(NOW()) AND YEAR(atualizado_em) = YEAR(NOW()) THEN 1 ELSE 0 END) as resolvidos_mes
+        FROM salavip_threads")->fetch();
+    $kpiContexto = 'Central VIP';
+} else {
+    $kpi = $pdo->query("SELECT
+        SUM(CASE WHEN status IN ('aberto','em_andamento','aguardando') THEN 1 ELSE 0 END) as abertos,
+        SUM(CASE WHEN priority = 'urgente' AND status IN ('aberto','em_andamento') THEN 1 ELSE 0 END) as urgentes,
+        SUM(CASE WHEN status = 'resolvido' AND MONTH(resolved_at) = MONTH(NOW()) THEN 1 ELSE 0 END) as resolvidos_mes
+        FROM tickets WHERE (origem IS NULL OR origem != 'salavip')")->fetch();
+    $kpiContexto = 'Chamados internos';
+}
 
 $statusLabels = array('aberto' => 'Aberto', 'em_andamento' => 'Em andamento', 'aguardando' => 'Aguardando', 'resolvido' => 'Resolvido', 'cancelado' => 'Cancelado');
 $statusBadge = array('aberto' => 'warning', 'em_andamento' => 'info', 'aguardando' => 'gestao', 'resolvido' => 'success', 'cancelado' => 'danger');
@@ -245,7 +276,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // arquivados=1 explicitamente -> mostra TUDO, batendo com o contador.
         $_paramsTodos = array_filter(array('origem'=>$filterOrigem,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee,'arquivados'=>'1'));
         ?>
-        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query($_paramsTodos) ?>" class="hd-pill <?= (!$filterStatus && $showArquivados) ? 'active' : '' ?>" title="Mostra TODOS os chamados (incluindo resolvidos e cancelados)">Todos <span class="cnt"><?= $totalTickets ?></span></a>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query($_paramsTodos) ?>" class="hd-pill <?= (!$filterStatus && $showArquivados) ? 'active' : '' ?>" title="Mostra TODOS os chamados (inclui resolvidos, cancelados e arquivados)">📦 Todos (c/ arquivados) <span class="cnt"><?= $totalTickets ?></span></a>
         <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('origem'=>$filterOrigem,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= (!$filterStatus && !$showArquivados) ? 'active' : '' ?>" title="Esconde resolvidos e cancelados (padrão)">Ativos <span class="cnt"><?= ($totalTickets - ($statusCounts['resolvido'] ?? 0) - ($statusCounts['cancelado'] ?? 0)) ?></span></a>
         <?php foreach ($statusLabels as $sk => $sv): ?>
             <?php $cnt = $statusCounts[$sk] ?? 0; if ($cnt === 0 && $sk !== $filterStatus) continue; ?>
@@ -293,7 +324,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- KPIs rápidos -->
+<!-- KPIs rapidos (refletem a aba selecionada — Nilce r7) -->
+<div style="font-size:.65rem;color:#64748b;margin:0 0 .3rem;font-weight:600;letter-spacing:.3px;text-transform:uppercase;">
+    Panorama da aba <strong style="color:#B87333;"><?= e($kpiContexto) ?></strong>:
+</div>
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:.5rem 1rem;display:flex;align-items:center;gap:.5rem;">
         <span style="font-size:1.1rem;">🎫</span>
@@ -320,9 +354,43 @@ function filtrarHelpdesk(param, value) {
 }
 </script>
 
+<!-- Helper paginacao (topo + rodape) -->
+<?php
+$_hdPag = function($pos) use ($hdPageNum, $hdTotalPag, $hdTotalLista, $hdPerPage, $hdOffset) {
+    if ($hdTotalLista === 0) return;
+    $qsBase = $_GET;
+    $ini = $hdTotalLista ? ($hdOffset + 1) : 0;
+    $fim = min($hdOffset + $hdPerPage, $hdTotalLista);
+    $css = 'padding:5px 10px;border-radius:5px;text-decoration:none;font-size:.74rem;font-weight:600;border:1px solid var(--border);';
+    $mb  = $pos === 'topo' ? 'margin:.2rem 0 .6rem;' : 'margin:.8rem 0 .2rem;';
+    echo '<div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;'.$mb.'">';
+    echo '<span style="font-size:.74rem;color:#475569;">Mostrando <strong>'.$ini.'–'.$fim.'</strong> de <strong>'.$hdTotalLista.'</strong>';
+    if ($hdTotalPag > 1) echo ' <span style="color:#0f7c66;font-weight:700;">(página '.$hdPageNum.' de '.$hdTotalPag.')</span>';
+    echo '</span>';
+    if ($hdTotalPag > 1) {
+        echo '<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;">';
+        $qsBase['page'] = max(1, $hdPageNum - 1);
+        $offPrev = $hdPageNum === 1 ? 'opacity:.4;pointer-events:none;' : '';
+        echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.'background:#fff;color:#052228;'.$offPrev.'" title="Página anterior">« Anterior</a>';
+        for ($p = 1; $p <= $hdTotalPag; $p++) {
+            if ($p > 1 && $p < $hdTotalPag && abs($p - $hdPageNum) > 2) continue;
+            $qsBase['page'] = $p;
+            $ativo = $p === $hdPageNum ? 'background:#052228;color:#fff;' : 'background:#fff;color:#052228;';
+            echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.$ativo.'">'.$p.'</a>';
+        }
+        $qsBase['page'] = min($hdTotalPag, $hdPageNum + 1);
+        $offNext = $hdPageNum === $hdTotalPag ? 'opacity:.4;pointer-events:none;' : '';
+        echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.'background:#fff;color:#052228;'.$offNext.'" title="Próxima página">Próxima »</a>';
+        echo '</div>';
+    }
+    echo '</div>';
+};
+?>
+
 <!-- Lista -->
 <div class="card">
     <div class="table-wrapper">
+        <?php $_hdPag('topo'); ?>
         <table>
             <thead><tr>
                 <?php
@@ -374,6 +442,7 @@ function filtrarHelpdesk(param, value) {
                 <?php endif; ?>
             </tbody>
         </table>
+        <?php $_hdPag('rodape'); ?>
     </div>
 </div>
 

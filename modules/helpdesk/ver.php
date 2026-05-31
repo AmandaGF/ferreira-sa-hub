@@ -371,7 +371,7 @@ echo voltar_ao_processo_html();
         <?php endif; ?>
 
         <!-- Nova mensagem -->
-        <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" enctype="multipart/form-data" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);" id="formMsgHelpdesk">
+        <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" enctype="multipart/form-data" style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);" id="formMsgHelpdesk" onsubmit="return validarEnvioMsgHelpdesk(this);">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="add_message">
             <input type="hidden" name="ticket_id" value="<?= $ticket['id'] ?>">
@@ -394,6 +394,19 @@ echo voltar_ao_processo_html();
         </form>
 
 <script>
+// Nilce r7 31/05/2026: clicar Enviar com mensagem E anexos vazios passava
+// silenciosamente. Agora valida antes do submit (mensagem OU anexo).
+function validarEnvioMsgHelpdesk(form) {
+    var txt = (document.getElementById('msgTextarea').value || '').trim();
+    var preview = document.getElementById('hdAnexosPreview');
+    var temAnexo = preview && preview.style.display === 'block';
+    if (!txt && !temAnexo) {
+        alert('⚠️ Escreva uma mensagem ou anexe um arquivo antes de enviar.');
+        document.getElementById('msgTextarea').focus();
+        return false;
+    }
+    return true;
+}
 (function(){
     var fileInput = document.getElementById('hdFileInput');
     var preview = document.getElementById('hdAnexosPreview');
