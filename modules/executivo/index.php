@@ -34,6 +34,7 @@ register_shutdown_function(function() {
 });
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/pipeline_stages.php';
 require_access('executivo');
 
 $pdo = db();
@@ -84,13 +85,15 @@ $stL2 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE DATE(created_at
 $stL2->execute(array($inicioAnterior, $fimAnterior));
 $leadsAnterior = (int)$stL2->fetchColumn();
 
-// Conversões (lead → contrato_assinado) no período
-$stC1 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
-$stC1->execute(array($inicioAtual, $hoje));
+// Conversões (lead → pós-contrato) no período — fonte única em core/pipeline_stages.php
+$_posContrato = pipeline_stages_pos_contrato();
+$_phPos = pipeline_stages_in_placeholders($_posContrato);
+$stC1 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ($_phPos) AND DATE(converted_at) BETWEEN ? AND ?");
+$stC1->execute(array_merge($_posContrato, array($inicioAtual, $hoje)));
 $conversoesAtual = (int)$stC1->fetchColumn();
 
-$stC2 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
-$stC2->execute(array($inicioAnterior, $fimAnterior));
+$stC2 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ($_phPos) AND DATE(converted_at) BETWEEN ? AND ?");
+$stC2->execute(array_merge($_posContrato, array($inicioAnterior, $fimAnterior)));
 $conversoesAnterior = (int)$stC2->fetchColumn();
 
 $taxaConvAtual    = $leadsAtual > 0    ? round(($conversoesAtual    / $leadsAtual)    * 100, 1) : 0;

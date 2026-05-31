@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/pipeline_stages.php';
 require_access('relatorios');
 
 $pageTitle = 'Relatórios';
@@ -74,12 +75,12 @@ $stmtLP->execute(array($dataInicio, $dataFim));
 $leadsPeriodo = (int)$stmtLP->fetchColumn();
 
 // Conversões no período
-// Nilce r17 31/05/2026: stages 'contrato' e 'preparacao_pasta' nao existem mais
-// no pipeline atual - sub-contava conversoes (12 em vez de 25 vs Executivo).
-// Stages reais pos-contrato: contrato_assinado, agendado_docs, reuniao_cobranca,
-// doc_faltante, pasta_apta, finalizado.
-$stmtConv = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
-$stmtConv->execute(array($dataInicio, $dataFim));
+// Conversões: stages pós-contrato vêm de core/pipeline_stages.php (Nilce r17 fix
+// + migração pra fonte unica). Quando o pipeline mudar, so o helper muda.
+$_posContrato = pipeline_stages_pos_contrato();
+$_phPos = pipeline_stages_in_placeholders($_posContrato);
+$stmtConv = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ($_phPos) AND DATE(converted_at) BETWEEN ? AND ?");
+$stmtConv->execute(array_merge($_posContrato, array($dataInicio, $dataFim)));
 $conversoesPeriodo = (int)$stmtConv->fetchColumn();
 
 // Perdidos no período
@@ -99,7 +100,9 @@ $leadsBySource = $stmtOrig->fetchAll();
 $leadsByStage = $pdo->query("SELECT stage, COUNT(*) as total FROM pipeline_leads WHERE stage NOT IN ('finalizado','perdido','arquivado','cancelado') GROUP BY stage ORDER BY FIELD(stage,'cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','suspenso','para_arquivar')")->fetchAll();
 
 // Tempo médio no funil (dias) — leads convertidos
-$tempoMedio = $pdo->query("SELECT ROUND(AVG(DATEDIFF(COALESCE(converted_at, NOW()), created_at))) as media FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND converted_at IS NOT NULL")->fetchColumn();
+$_stmtTM = $pdo->prepare("SELECT ROUND(AVG(DATEDIFF(COALESCE(converted_at, NOW()), created_at))) as media FROM pipeline_leads WHERE stage IN ($_phPos) AND converted_at IS NOT NULL");
+$_stmtTM->execute($_posContrato);
+$tempoMedio = $_stmtTM->fetchColumn();
 $tempoMedio = $tempoMedio ?: 0;
 
 // Tendência mensal (últimos 6 meses) — ancora no dia 1 pra evitar overflow Fev/Abr (Nilce r15)
@@ -111,8 +114,8 @@ for ($i = 5; $i >= 0; $i--) {
     $stmtT->execute(array($m));
     $novos = (int)$stmtT->fetchColumn();
 
-    $stmtC = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE_FORMAT(converted_at, '%Y-%m') = ?");
-    $stmtC->execute(array($m));
+    $stmtC = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ($_phPos) AND DATE_FORMAT(converted_at, '%Y-%m') = ?");
+    $stmtC->execute(array_merge($_posContrato, array($m)));
     $conv = (int)$stmtC->fetchColumn();
 
     $mesNum = (int)date('n', strtotime($m . '-01'));
@@ -120,9 +123,13 @@ for ($i = 5; $i >= 0; $i--) {
 }
 
 // Funil completo (para gráfico)
-// Nilce r17: stages obsoletos no funil tambem. Alinhado com modules/pipeline/index.php.
-$funilStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta');
-$funilLabels = array('Cadastro','Elaboração','Link Enviado','Contrato','Agendado','Cobrando Docs','Doc Faltante','Pasta Apta');
+// Funil: 8 stages principais do Kanban (exclui terminais e secundarios).
+$funilStages = array(
+    PIPELINE_STAGE_CADASTRO, PIPELINE_STAGE_ELABORACAO, PIPELINE_STAGE_LINK,
+    PIPELINE_STAGE_CONTRATO, PIPELINE_STAGE_AGENDADO, PIPELINE_STAGE_REUNIAO,
+    PIPELINE_STAGE_DOC_FALTANTE, PIPELINE_STAGE_PASTA_APTA
+);
+$funilLabels = array_map('pipeline_stage_label', $funilStages);
 $funilData = array();
 foreach ($funilStages as $fs) {
     $stmtF = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage = ?");
@@ -553,7 +560,7 @@ new Chart(document.getElementById('chartFunil'), {
 new Chart(document.getElementById('chartEstagios'), {
     type:'doughnut',
     data:{
-        labels:<?= json_encode(array_map(function($s) use ($sourceLabels) { $map = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboração','link_enviados'=>'Link Enviado','contrato_assinado'=>'Contrato','agendado_docs'=>'Agendado','reuniao_cobranca'=>'Cobrando Docs','doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','suspenso'=>'Suspenso','para_arquivar'=>'Para Arquivar'); return isset($map[$s['stage']]) ? $map[$s['stage']] : $s['stage']; }, $leadsByStage)) ?>,
+        labels:<?= json_encode(array_map(function($s) { return pipeline_stage_label($s['stage']); }, $leadsByStage)) ?>,
         datasets:[{ data:<?= json_encode(array_column($leadsByStage, 'total')) ?>, backgroundColor:['#6366f1','#0ea5e9','#f59e0b','#059669','#0d9488','#d97706','#dc2626','#15803d','#9ca3af','#374151'] }]
     },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{ family:fontFamily, size:10 } } } } }
