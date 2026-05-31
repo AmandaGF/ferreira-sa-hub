@@ -5227,29 +5227,34 @@ function renderPartes() {
         return lista.indexOf(nomeNorm) !== -1;
     }
 
-    var jaRenderizados = {};
+    // Aninha o rep_legal embaixo de CADA parte que ele representa (vira filho
+    // visual em cada uma). Antes (29/05) aninhava so na 1a -- Amanda achou
+    // que 'nao estava vinculando' quando uma rep representa 2+ partes.
+    // jaRenderizados controla apenas reps ORFAOS no fim, nao bloqueia duplicacao.
+    var apareceuComoFilho = {};
     var ordenada = [];
     naoReps.forEach(function(p) {
         var nomeBase = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '') : (p.nome || '');
         ordenada.push({parte: p, isFilho: false});
-        // Cada rep que representa essa parte vira "filho" indentado dela
+        // Cada rep que representa essa parte vira 'filho' indentado dela
         reps.forEach(function(r) {
-            if (jaRenderizados[r.id]) return;
             if (_repRepresentaParte(r, nomeBase)) {
-                ordenada.push({parte: r, isFilho: true});
-                jaRenderizados[r.id] = true;
+                var ehDuplicado = !!apareceuComoFilho[r.id];
+                ordenada.push({parte: r, isFilho: true, duplicado: ehDuplicado});
+                apareceuComoFilho[r.id] = true;
             }
         });
     });
     // Reps orfaos no fim (nao representam ninguem identificavel — dado sujo legado)
     reps.forEach(function(r) {
-        if (!jaRenderizados[r.id]) ordenada.push({parte: r, isFilho: false});
+        if (!apareceuComoFilho[r.id]) ordenada.push({parte: r, isFilho: false});
     });
 
     var html = '<table style="width:100%;font-size:.82rem;border-collapse:collapse;"><thead><tr style="background:var(--petrol-900);color:#fff;"><th style="padding:6px 8px;">Papel</th><th>Nome / Razão Social</th><th>CPF / CNPJ</th><th>Tipo</th><th style="width:140px;">Ações</th></tr></thead><tbody>';
     ordenada.forEach(function(item) {
         var p = item.parte;
         var isFilho = item.isFilho;
+        var isDuplicado = !!item.duplicado;
         var nome = p.tipo_pessoa === 'juridica' ? (p.razao_social || p.nome_fantasia || '—') : (p.nome || '—');
         var doc = p.tipo_pessoa === 'juridica' ? (p.cnpj || '—') : (p.cpf || '—');
         var tipo = p.tipo_pessoa === 'juridica' ? 'Jurídica' : 'Física';
@@ -5260,24 +5265,32 @@ function renderPartes() {
         } else if (p.representa_nome) {
             repInfo = ' <span style="font-size:.68rem;color:#6366f1;">(rep. por ' + esc(p.representa_nome) + ')</span>';
         }
+        // Marca visual nas aparicoes 2/3/N do mesmo representante (aninhado em
+        // mais de uma parte): texto cinza '· mesmo registro' + botoes de editar/
+        // excluir desabilitados (acoes ficam na 1a aparicao pra evitar dupla
+        // exclusao acidental do mesmo ID).
+        var dupInfo = isDuplicado ? ' <span style="font-size:.65rem;color:#9ca3af;font-style:italic;">· mesmo registro</span>' : '';
         var _ehNossoLado = (p.papel === 'autor' || p.papel === 'litisconsorte_ativo' || p.papel === 'representante_legal');
         var _ehClienteExplicito = (+p.eh_nosso_cliente === 1);
         var clienteBadge = (p.client_id && (_ehNossoLado || _ehClienteExplicito)) ? ' <span style="font-size:.58rem;background:#B87333;color:#fff;padding:1px 5px;border-radius:3px;font-weight:700;">NOSSO CLIENTE</span>' : '';
 
-        // Indentacao visual + ícone "↳" pra representante aninhado
+        // Indentacao visual + icone '↳' pra representante aninhado
         var rowBg = isFilho ? 'background:rgba(99,102,241,.04);' : '';
+        if (isDuplicado) rowBg = 'background:rgba(99,102,241,.02);opacity:.85;';
         var papelCellExtra = isFilho ? 'padding-left:1.8rem;position:relative;' : 'padding:6px 8px;';
         var iconeFilho = isFilho ? '<span style="position:absolute;left:.5rem;top:50%;transform:translateY(-50%);color:#6366f1;font-size:.85rem;font-weight:700;">↳</span>' : '';
 
+        var acoesHtml = isDuplicado
+            ? '<span style="font-size:.65rem;color:#9ca3af;" title="Editar/excluir na primeira aparição desta parte (acima)">— ações na linha de cima —</span>'
+            : ('<button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;" title="Editar parte">Editar</button> '
+            +   '<button onclick="excluirParteDireto(' + p.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ')" class="btn btn-sm" style="font-size:.68rem;padding:2px 6px;color:#dc2626;border:1px solid #dc2626;background:#fff;cursor:pointer;border-radius:4px;" title="Excluir parte">×</button>');
+
         html += '<tr style="border-bottom:1px solid var(--border);' + rowBg + '">'
             + '<td style="' + papelCellExtra + '">' + iconeFilho + '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:.68rem;font-weight:700;color:#fff;background:' + cor + ';">' + (papelLabels[p.papel]||p.papel) + '</span></td>'
-            + '<td style="font-weight:600;' + (isFilho ? 'padding-left:.5rem;' : '') + '">' + esc(nome) + repInfo + clienteBadge + '</td>'
+            + '<td style="font-weight:600;' + (isFilho ? 'padding-left:.5rem;' : '') + '">' + esc(nome) + repInfo + clienteBadge + dupInfo + '</td>'
             + '<td style="font-family:monospace;font-size:.78rem;">' + esc(doc) + '</td>'
             + '<td>' + tipo + '</td>'
-            + '<td style="white-space:nowrap;">'
-            +   '<button onclick="editarParte(' + p.id + ')" class="btn btn-outline btn-sm" style="font-size:.68rem;padding:2px 6px;" title="Editar parte">Editar</button> '
-            +   '<button onclick="excluirParteDireto(' + p.id + ', ' + JSON.stringify(nome).replace(/"/g, '&quot;') + ')" class="btn btn-sm" style="font-size:.68rem;padding:2px 6px;color:#dc2626;border:1px solid #dc2626;background:#fff;cursor:pointer;border-radius:4px;" title="Excluir parte">×</button>'
-            + '</td>'
+            + '<td style="white-space:nowrap;">' + acoesHtml + '</td>'
             + '</tr>';
     });
     html += '</tbody></table>';
