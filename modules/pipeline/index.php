@@ -294,13 +294,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 <?php endif; ?>
 
-<!-- KPIs -->
+<!-- KPIs (refletem o escopo do KANBAN — exclui finalizado/perdido/arquivado) -->
+<?php
+// Soma das colunas visiveis no Kanban (pra mostrar a diferenca pro 'No funil' se houver)
+$_somaColunas = 0;
+foreach ($byStage as $_arr) $_somaColunas += count($_arr);
+$_foraColunas = $totalAtivos - $_somaColunas;
+?>
 <div class="pipeline-stats">
-    <div class="stat-card"><div class="stat-icon info">📋</div><div class="stat-info"><div class="stat-value"><?= $totalAtivos ?></div><div class="stat-label">No funil</div></div></div>
-    <div class="stat-card"><div class="stat-icon success">✅</div><div class="stat-info"><div class="stat-value"><?= $contratosAssinados ?></div><div class="stat-label">Pós-contrato</div></div></div>
-    <div class="stat-card"><div class="stat-icon rose">✔️</div><div class="stat-info"><div class="stat-value"><?= $pastasAptas ?></div><div class="stat-label">Pastas aptas</div></div></div>
+    <div class="stat-card" title="Leads atualmente no funil (exclui finalizado, perdido e arquivado). Inclui cancelado e suspenso.<?= $_foraColunas > 0 ? "\nObs: {$_foraColunas} lead(s) sem stage mapeado — não aparecem em colunas." : '' ?>">
+        <div class="stat-icon info">📋</div>
+        <div class="stat-info">
+            <div class="stat-value"><?= $totalAtivos ?></div>
+            <div class="stat-label">Ativos no funil</div>
+        </div>
+    </div>
+    <div class="stat-card" title="Leads que já assinaram contrato e estão em fase posterior (contrato_assinado + agendado_docs + reunião_cobrança + pasta_apta)"><div class="stat-icon success">✅</div><div class="stat-info"><div class="stat-value"><?= $contratosAssinados ?></div><div class="stat-label">Pós-contrato</div></div></div>
+    <div class="stat-card" title="Leads com pasta apta a virar caso no Operacional"><div class="stat-icon rose">✔️</div><div class="stat-info"><div class="stat-value"><?= $pastasAptas ?></div><div class="stat-label">Pastas aptas</div></div></div>
     <?php if ($docsFaltantes > 0): ?>
-    <div class="stat-card"><div class="stat-icon danger">⚠️</div><div class="stat-info"><div class="stat-value"><?= $docsFaltantes ?></div><div class="stat-label">Doc faltante</div></div></div>
+    <div class="stat-card" title="Leads em 'Documento Faltante' aguardando providência de CX"><div class="stat-icon danger">⚠️</div><div class="stat-info"><div class="stat-value"><?= $docsFaltantes ?></div><div class="stat-label">Doc faltante</div></div></div>
     <?php endif; ?>
 </div>
 
@@ -572,7 +584,16 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
         <option value="">Tipo</option>
         <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <span class="tbl-count"><?= count($allLeadsFlat) ?> leads<?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?></span>
+    <?php
+    $_tblTotal = count($allLeadsFlat);
+    $_tblIni = $_tblTotal ? ($pOffset + 1) : 0;
+    $_tblFim = min($pOffset + $perPage, $_tblTotal);
+    ?>
+    <span class="tbl-count" title="Histórico completo de leads com contrato assinado (converted_at preenchido). Inclui finalizado, cancelado, suspenso. Soma é maior que o Kanban porque a Tabela é histórica.">
+        Mostrando <strong><?= $_tblIni ?>–<?= $_tblFim ?></strong> de <strong><?= $_tblTotal ?></strong> leads
+        <?php if ($totalPages > 1): ?><span style="color:#0f7c66;font-weight:700;">(pág <?= $tabelaPage ?>/<?= $totalPages ?>)</span><?php endif; ?>
+        <?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?>
+    </span>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
 <?php if ($respStats && $respStats['total_contratos'] > 0):
@@ -779,12 +800,22 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 <div class="tbl-pag">
     <?php
     $_pageParams = $_GET;
+    $_prev = max(1, $tabelaPage - 1);
+    $_next = min($totalPages, $tabelaPage + 1);
+    $_pageParams['tp'] = $_prev;
+    $_offPrev = $tabelaPage === 1 ? 'opacity:.4;pointer-events:none;' : '';
+    ?>
+    <a href="?<?= htmlspecialchars(http_build_query($_pageParams)) ?>" style="<?= $_offPrev ?>" title="Página anterior">« Anterior</a>
+    <?php
     for ($p = 1; $p <= $totalPages; $p++):
+        if ($p > 1 && $p < $totalPages && abs($p - $tabelaPage) > 2) continue;
         $_pageParams['tp'] = $p;
         $_pageUrl = '?' . http_build_query($_pageParams);
     ?>
         <a href="<?= htmlspecialchars($_pageUrl) ?>" class="<?= $p === $tabelaPage ? 'active' : '' ?>"><?= $p ?></a>
     <?php endfor; ?>
+    <?php $_pageParams['tp'] = $_next; $_offNext = $tabelaPage === $totalPages ? 'opacity:.4;pointer-events:none;' : ''; ?>
+    <a href="?<?= htmlspecialchars(http_build_query($_pageParams)) ?>" style="<?= $_offNext ?>" title="Próxima página">Próxima »</a>
 </div>
 <?php endif; ?>
 </div>
@@ -943,10 +974,31 @@ function excluirLeadPlanilha(leadId, nome) {
     });
 }
 
+// Stages sensiveis (terminais ou semi-terminais) - exigem confirmacao do usuario
+// antes de mover, pra evitar clique acidental no select (Nilce r9 31/05/2026).
+var PIPE_STAGES_SENSIVEIS = {
+    'perdido':       { label: 'Perdido',          icon: '❌', txt: 'Marcar como PERDIDO?' },
+    'cancelado':     { label: 'Cancelado',        icon: '❌', txt: 'Marcar como CANCELADO?' },
+    'suspenso':      { label: 'Suspenso',         icon: '⏸️', txt: 'Marcar como SUSPENSO?' },
+    'para_arquivar': { label: 'Para Arquivar',    icon: '📦', txt: 'Marcar como Para Arquivar?' },
+    'arquivado':     { label: 'Arquivado',        icon: '📦', txt: 'ARQUIVAR esse lead?' },
+    'finalizado':    { label: 'Finalizado',       icon: '🏛️', txt: 'Marcar como FINALIZADO?' }
+};
 function handleStageMove(select) {
     var stage = select.value;
     if (!stage) return;
     var form = select.closest('form');
+
+    // Confirmacao pra destinos sensiveis - sem isso, clicar errado no select move na hora
+    if (PIPE_STAGES_SENSIVEIS[stage]) {
+        var leadName = (form && form.dataset.leadName) ? form.dataset.leadName : 'este lead';
+        var info = PIPE_STAGES_SENSIVEIS[stage];
+        var msg = info.icon + ' ' + info.txt + '\n\nLead: ' + leadName + '\n\nDeseja continuar?';
+        if (!confirm(msg)) {
+            select.value = ''; // reverte o select pro estado inicial
+            return;
+        }
+    }
 
     if (stage === 'doc_faltante') {
         _pendingForm = form;

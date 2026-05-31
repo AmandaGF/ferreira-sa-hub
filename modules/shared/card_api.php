@@ -214,10 +214,13 @@ usort($histItems, function($a, $b) { return strcmp($b['date'], $a['date']); });
 $result['historico'] = array_slice($histItems, 0, 30);
 
 // ── STAGE LABELS ──
+// Nilce r9 31/05/2026: faltavam suspenso/para_arquivar/arquivado, daí o slug
+// vinha cru ('moveu para arquivado') no Histórico Pipeline do drawer.
 $result['stage_labels'] = array(
     'cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboração','link_enviados'=>'Link Enviado',
     'contrato_assinado'=>'Contrato Assinado','agendado_docs'=>'Agendado Docs','reuniao_cobranca'=>'Cobrando Docs',
     'doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','finalizado'=>'Finalizado','perdido'=>'Cancelado','cancelado'=>'Cancelado',
+    'suspenso'=>'Suspenso','para_arquivar'=>'Para Arquivar','arquivado'=>'Arquivado',
 );
 $result['status_labels'] = array(
     'aguardando_docs'=>'Ag. Docs','em_elaboracao'=>'Pasta Apta','em_andamento'=>'Em Andamento',

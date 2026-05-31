@@ -73,6 +73,7 @@ $stageLabels = array(
     'contrato_assinado'=>'✅ Contrato','agendado_docs'=>'📅 Agendado','reuniao_cobranca'=>'🤝 Reunião',
     'doc_faltante'=>'⚠️ Doc Faltante','pasta_apta'=>'✔️ Pasta Apta','cancelado'=>'❌ Cancelado',
     'suspenso'=>'⏸️ Suspenso','finalizado'=>'🏁 Finalizado','perdido'=>'❌ Perdido',
+    'para_arquivar'=>'📦 Para Arquivar','arquivado'=>'📦 Arquivado',
 );
 $sourceLabels = array('calculadora'=>'Calculadora','landing'=>'Site','indicacao'=>'Indicação','instagram'=>'Instagram','google'=>'Google','whatsapp'=>'WhatsApp','outro'=>'Outro');
 
