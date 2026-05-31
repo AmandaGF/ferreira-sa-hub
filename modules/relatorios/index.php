@@ -74,7 +74,11 @@ $stmtLP->execute(array($dataInicio, $dataFim));
 $leadsPeriodo = (int)$stmtLP->fetchColumn();
 
 // Conversões no período
-$stmtConv = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato','preparacao_pasta','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
+// Nilce r17 31/05/2026: stages 'contrato' e 'preparacao_pasta' nao existem mais
+// no pipeline atual - sub-contava conversoes (12 em vez de 25 vs Executivo).
+// Stages reais pos-contrato: contrato_assinado, agendado_docs, reuniao_cobranca,
+// doc_faltante, pasta_apta, finalizado.
+$stmtConv = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
 $stmtConv->execute(array($dataInicio, $dataFim));
 $conversoesPeriodo = (int)$stmtConv->fetchColumn();
 
@@ -91,11 +95,11 @@ $stmtOrig = $pdo->prepare("SELECT source, COUNT(*) as total FROM pipeline_leads 
 $stmtOrig->execute(array($dataInicio, $dataFim));
 $leadsBySource = $stmtOrig->fetchAll();
 
-// Leads por estágio (todos ativos)
-$leadsByStage = $pdo->query("SELECT stage, COUNT(*) as total FROM pipeline_leads WHERE stage NOT IN ('contrato','finalizado','perdido') GROUP BY stage ORDER BY FIELD(stage,'novo','contato_inicial','agendado','proposta','elaboracao','preparacao_pasta','pasta_apta')")->fetchAll();
+// Leads por estágio (todos ativos) — Nilce r17: stages obsoletos atualizados
+$leadsByStage = $pdo->query("SELECT stage, COUNT(*) as total FROM pipeline_leads WHERE stage NOT IN ('finalizado','perdido','arquivado','cancelado') GROUP BY stage ORDER BY FIELD(stage,'cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','suspenso','para_arquivar')")->fetchAll();
 
 // Tempo médio no funil (dias) — leads convertidos
-$tempoMedio = $pdo->query("SELECT ROUND(AVG(DATEDIFF(COALESCE(converted_at, NOW()), created_at))) as media FROM pipeline_leads WHERE stage IN ('contrato','preparacao_pasta','pasta_apta','finalizado') AND converted_at IS NOT NULL")->fetchColumn();
+$tempoMedio = $pdo->query("SELECT ROUND(AVG(DATEDIFF(COALESCE(converted_at, NOW()), created_at))) as media FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND converted_at IS NOT NULL")->fetchColumn();
 $tempoMedio = $tempoMedio ?: 0;
 
 // Tendência mensal (últimos 6 meses) — ancora no dia 1 pra evitar overflow Fev/Abr (Nilce r15)
@@ -107,7 +111,7 @@ for ($i = 5; $i >= 0; $i--) {
     $stmtT->execute(array($m));
     $novos = (int)$stmtT->fetchColumn();
 
-    $stmtC = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato','preparacao_pasta','pasta_apta','finalizado') AND DATE_FORMAT(converted_at, '%Y-%m') = ?");
+    $stmtC = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE_FORMAT(converted_at, '%Y-%m') = ?");
     $stmtC->execute(array($m));
     $conv = (int)$stmtC->fetchColumn();
 
@@ -116,8 +120,9 @@ for ($i = 5; $i >= 0; $i--) {
 }
 
 // Funil completo (para gráfico)
-$funilStages = array('novo','contato_inicial','agendado','proposta','elaboracao','contrato','preparacao_pasta','pasta_apta');
-$funilLabels = array('Novo','Contato','Agendado','Proposta','Elaboração','Contrato','Prep. Pasta','Pasta Apta');
+// Nilce r17: stages obsoletos no funil tambem. Alinhado com modules/pipeline/index.php.
+$funilStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta');
+$funilLabels = array('Cadastro','Elaboração','Link Enviado','Contrato','Agendado','Cobrando Docs','Doc Faltante','Pasta Apta');
 $funilData = array();
 foreach ($funilStages as $fs) {
     $stmtF = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage = ?");
@@ -548,8 +553,8 @@ new Chart(document.getElementById('chartFunil'), {
 new Chart(document.getElementById('chartEstagios'), {
     type:'doughnut',
     data:{
-        labels:<?= json_encode(array_map(function($s) use ($sourceLabels) { $map = array('novo'=>'Novo','contato_inicial'=>'Contato','agendado'=>'Agendado','proposta'=>'Proposta','elaboracao'=>'Elaboração','preparacao_pasta'=>'Prep. Pasta','pasta_apta'=>'Pasta Apta'); return isset($map[$s['stage']]) ? $map[$s['stage']] : $s['stage']; }, $leadsByStage)) ?>,
-        datasets:[{ data:<?= json_encode(array_column($leadsByStage, 'total')) ?>, backgroundColor:['#6366f1','#0ea5e9','#f59e0b','#d97706','#8b5cf6','#0d9488','#15803d'] }]
+        labels:<?= json_encode(array_map(function($s) use ($sourceLabels) { $map = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboração','link_enviados'=>'Link Enviado','contrato_assinado'=>'Contrato','agendado_docs'=>'Agendado','reuniao_cobranca'=>'Cobrando Docs','doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','suspenso'=>'Suspenso','para_arquivar'=>'Para Arquivar'); return isset($map[$s['stage']]) ? $map[$s['stage']] : $s['stage']; }, $leadsByStage)) ?>,
+        datasets:[{ data:<?= json_encode(array_column($leadsByStage, 'total')) ?>, backgroundColor:['#6366f1','#0ea5e9','#f59e0b','#059669','#0d9488','#d97706','#dc2626','#15803d','#9ca3af','#374151'] }]
     },
     options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'right', labels:{ font:{ family:fontFamily, size:10 } } } } }
 });

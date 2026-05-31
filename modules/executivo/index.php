@@ -45,8 +45,13 @@ if (!in_array($dias, array(30, 60, 90), true)) $dias = 30;
 
 $hoje = date('Y-m-d');
 $inicioAtual    = date('Y-m-d', strtotime("-{$dias} days"));
-$inicioAnterior = date('Y-m-d', strtotime('-' . ($dias * 2) . ' days'));
-$fimAnterior    = date('Y-m-d', strtotime("-{$dias} days", strtotime('-1 day') + 86400)); // dia anterior ao início atual
+// Nilce r17 31/05/2026: fimAnterior estava calculado com expressao torta E nao
+// era usado em nenhuma query - todas usavam $inicioAtual como fim do anterior,
+// double-counting o dia de fronteira. Corrigido pra janelas simetricas:
+// Atual:    [inicioAtual, hoje]                  (dias+1 datas, ex: 01/05..31/05 = 31 dias)
+// Anterior: [inicioAnterior, fimAnterior]        (mesmo tamanho, sem overlap)
+$fimAnterior    = date('Y-m-d', strtotime("$inicioAtual -1 day"));
+$inicioAnterior = date('Y-m-d', strtotime("$fimAnterior -{$dias} days"));
 
 // Helper: variação % entre dois números (positivo = melhorou)
 function _var_pct($atual, $anterior) {
@@ -63,7 +68,7 @@ $stR1->execute(array($inicioAtual, $hoje));
 $receitaAtual = (float)$stR1->fetchColumn();
 
 $stR2 = $pdo->prepare("SELECT COALESCE(SUM(valor_pago),0) FROM honorarios_cobranca_historico WHERE etapa IN ('pagamento_parcial','pagamento_total') AND DATE(created_at) BETWEEN ? AND ?");
-$stR2->execute(array($inicioAnterior, $inicioAtual));
+$stR2->execute(array($inicioAnterior, $fimAnterior));
 $receitaAnterior = (float)$stR2->fetchColumn();
 
 $receitaAberto = (float)$pdo->query("SELECT COALESCE(SUM(valor_total - valor_pago),0) FROM honorarios_cobranca WHERE status NOT IN ('pago','cancelado')")->fetchColumn();
@@ -76,7 +81,7 @@ $stL1->execute(array($inicioAtual, $hoje));
 $leadsAtual = (int)$stL1->fetchColumn();
 
 $stL2 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE DATE(created_at) BETWEEN ? AND ?");
-$stL2->execute(array($inicioAnterior, $inicioAtual));
+$stL2->execute(array($inicioAnterior, $fimAnterior));
 $leadsAnterior = (int)$stL2->fetchColumn();
 
 // Conversões (lead → contrato_assinado) no período
@@ -85,7 +90,7 @@ $stC1->execute(array($inicioAtual, $hoje));
 $conversoesAtual = (int)$stC1->fetchColumn();
 
 $stC2 = $pdo->prepare("SELECT COUNT(*) FROM pipeline_leads WHERE stage IN ('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado') AND DATE(converted_at) BETWEEN ? AND ?");
-$stC2->execute(array($inicioAnterior, $inicioAtual));
+$stC2->execute(array($inicioAnterior, $fimAnterior));
 $conversoesAnterior = (int)$stC2->fetchColumn();
 
 $taxaConvAtual    = $leadsAtual > 0    ? round(($conversoesAtual    / $leadsAtual)    * 100, 1) : 0;
@@ -99,7 +104,7 @@ $stCN1->execute(array($inicioAtual, $hoje));
 $casosNovosAtual = (int)$stCN1->fetchColumn();
 
 $stCN2 = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE DATE(created_at) BETWEEN ? AND ?");
-$stCN2->execute(array($inicioAnterior, $inicioAtual));
+$stCN2->execute(array($inicioAnterior, $fimAnterior));
 $casosNovosAnterior = (int)$stCN2->fetchColumn();
 
 $stCC1 = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE status = 'concluido' AND DATE(closed_at) BETWEEN ? AND ?");
@@ -107,7 +112,7 @@ $stCC1->execute(array($inicioAtual, $hoje));
 $casosConcAtual = (int)$stCC1->fetchColumn();
 
 $stCC2 = $pdo->prepare("SELECT COUNT(*) FROM cases WHERE status = 'concluido' AND DATE(closed_at) BETWEEN ? AND ?");
-$stCC2->execute(array($inicioAnterior, $inicioAtual));
+$stCC2->execute(array($inicioAnterior, $fimAnterior));
 $casosConcAnterior = (int)$stCC2->fetchColumn();
 
 $casosAtivos = (int)$pdo->query("SELECT COUNT(*) FROM cases WHERE status NOT IN ('arquivado','concluido','cancelado','renunciamos') AND COALESCE(kanban_oculto,0) = 0")->fetchColumn();
@@ -418,7 +423,7 @@ $alertas = array(
 
 <p style="font-size:.72rem;color:#9ca3af;margin-top:1.5rem;">
     Período atual: <?= date('d/m/Y', strtotime($inicioAtual)) ?> a <?= date('d/m/Y', strtotime($hoje)) ?> ·
-    Período anterior: <?= date('d/m/Y', strtotime($inicioAnterior)) ?> a <?= date('d/m/Y', strtotime($inicioAtual)) ?>
+    Período anterior: <?= date('d/m/Y', strtotime($inicioAnterior)) ?> a <?= date('d/m/Y', strtotime($fimAnterior)) ?>
 </p>
 
 </div>
