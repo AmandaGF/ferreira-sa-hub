@@ -338,11 +338,11 @@ if ($voltarCaso > 0): ?>
         <div class="ag-fr" id="agDtFields">
             <div class="ag-fg">
                 <label class="ag-fl" id="agDtInicioLbl">Data/hora início</label>
-                <input type="datetime-local" class="ag-fi" id="agDtInicio">
+                <input type="datetime-local" class="ag-fi" id="agDtInicio" title="Data e horário de início do compromisso (formato dd/mm/aaaa hh:mm)">
             </div>
             <div class="ag-fg" id="agDtFimWrap">
                 <label class="ag-fl" id="agDtFimLbl">Data/hora término</label>
-                <input type="datetime-local" class="ag-fi" id="agDtFim">
+                <input type="datetime-local" class="ag-fi" id="agDtFim" title="Data e horário em que o compromisso termina">
             </div>
         </div>
 
@@ -439,6 +439,15 @@ if ($voltarCaso > 0): ?>
                     <option value="<?= $u['id'] ?>" <?= (int)$u['id'] === current_user_id() ? 'selected' : '' ?>><?= e($u['name']) ?></option>
                 <?php endforeach; ?>
             </select>
+        </div>
+
+        <!-- Aviso de conflito de horário (Nilce r8 31/05/2026). Apenas informativo —
+             a regra de negócio "nunca alterar horário" significa que o sistema NUNCA
+             remaneja; só alerta pra o usuário decidir. -->
+        <div id="agConflitoAviso" style="display:none;margin:0 24px 10px;padding:10px 14px;background:#fff7ed;border-left:4px solid #f59e0b;border-radius:6px;font-size:.8rem;color:#92400e;">
+            <strong>⚠️ Possível conflito de horário</strong>
+            <div id="agConflitoLista" style="margin-top:4px;font-size:.75rem;color:#78350f;"></div>
+            <div style="margin-top:4px;font-size:.68rem;color:#a16207;">Compromisso pode ser criado mesmo assim — esta é só uma sinalização.</div>
         </div>
 
         <!-- Participantes da reunião — obrigatório pra tipos reuniao_cliente e reuniao_interna -->
@@ -1039,6 +1048,7 @@ function abrirModal(dataStr) {
     atualizarPreview();
 
     document.getElementById('agOverlay').classList.add('aberto');
+    setTimeout(checarConflitoAgenda, 50); // re-checa apos abrir modal
 }
 
 function abrirModalEditar(id) {
@@ -1184,12 +1194,85 @@ function abrirModalEditar(id) {
             atalhos.style.display = atHtml ? 'flex' : 'none';
 
             document.getElementById('agOverlay').classList.add('aberto');
+            setTimeout(checarConflitoAgenda, 50);
         } catch(ex) { alert('Erro ao carregar evento'); }
     };
     xhr.send();
 }
 
-function fecharModal() { document.getElementById('agOverlay').classList.remove('aberto'); }
+function fecharModal() {
+    document.getElementById('agOverlay').classList.remove('aberto');
+    var av = document.getElementById('agConflitoAviso');
+    if (av) av.style.display = 'none';
+}
+
+// Detector de conflito de horario (Nilce r8 31/05/2026). Apenas informativo —
+// memoria: 'nunca alterar horario agenda' exige que sistema NUNCA remaneje;
+// so alerta pra o usuario decidir.
+function checarConflitoAgenda() {
+    var aviso = document.getElementById('agConflitoAviso');
+    var lista = document.getElementById('agConflitoLista');
+    if (!aviso || !lista || typeof eventos === 'undefined' || !eventos.length) {
+        if (aviso) aviso.style.display = 'none';
+        return;
+    }
+    var iniInput = document.getElementById('agDtInicio');
+    var fimInput = document.getElementById('agDtFim');
+    if (!iniInput || !iniInput.value) { aviso.style.display = 'none'; return; }
+
+    var diaTodoEl = document.getElementById('agDiaTodo');
+    var diaTodo = diaTodoEl && diaTodoEl.checked;
+    var respSelect = document.getElementById('agResponsavel');
+    var respId = respSelect ? respSelect.value : '';
+    var meuIdEl = document.getElementById('agEvId');
+    var meuId = meuIdEl ? meuIdEl.value : '0';
+
+    var iniStr, fimStr;
+    if (diaTodo) {
+        iniStr = iniInput.value.substring(0,10) + 'T00:00';
+        fimStr = (fimInput.value || iniInput.value).substring(0,10) + 'T23:59';
+    } else {
+        iniStr = iniInput.value;
+        fimStr = fimInput.value || iniStr;
+    }
+    var iniMs = new Date(iniStr).getTime();
+    var fimMs = new Date(fimStr).getTime();
+    if (isNaN(iniMs) || isNaN(fimMs)) { aviso.style.display = 'none'; return; }
+
+    var conflitos = eventos.filter(function(ev) {
+        if (String(ev.id) === String(meuId)) return false;
+        if (respId && String(ev.responsavel_id) !== String(respId)) return false;
+        if (ev.status === 'cancelado' || ev.status === 'concluido' || ev.status === 'nao_compareceu' || ev.status === 'remarcado') return false;
+        if (!ev.data_inicio) return false;
+        var evIni = new Date(ev.data_inicio.replace(' ', 'T')).getTime();
+        var evFim = ev.data_fim ? new Date(ev.data_fim.replace(' ', 'T')).getTime() : (evIni + 3600000);
+        if (ev.dia_todo == 1) {
+            // Dia todo casa quando datas se sobrepõem
+            var evIniDia = ev.data_inicio.substring(0,10);
+            var iniDia = iniStr.substring(0,10);
+            var fimDia = fimStr.substring(0,10);
+            return evIniDia >= iniDia && evIniDia <= fimDia;
+        }
+        return iniMs < evFim && fimMs > evIni;
+    });
+
+    if (conflitos.length === 0) { aviso.style.display = 'none'; return; }
+
+    var respNome = '';
+    if (respSelect && respSelect.selectedIndex >= 0) respNome = respSelect.options[respSelect.selectedIndex].text;
+    lista.innerHTML = conflitos.slice(0,3).map(function(ev) {
+        var hr = ev.dia_todo == 1 ? 'dia todo' : ev.data_inicio.substring(11,16);
+        var data = ev.data_inicio.substring(0,10).split('-').reverse().join('/');
+        return '<div>• <strong>' + (ev.titulo || 'Sem título') + '</strong> em ' + data + ' às ' + hr + (respNome ? ' (' + respNome + ')' : '') + '</div>';
+    }).join('') + (conflitos.length > 3 ? '<div style="margin-top:2px;font-style:italic;">…e mais ' + (conflitos.length - 3) + '</div>' : '');
+    aviso.style.display = 'block';
+}
+
+// Listeners pros campos do form de compromisso (ligam o detector de conflito).
+['agDtInicio','agDtFim','agResponsavel'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener('change', checarConflitoAgenda);
+});
 
 // Antes: clique no overlay (fora do modal) fechava — perdia o trabalho.
 // Agora só fecha pelo botão ✕, botão Cancelar, ou tecla ESC. Se o usuário
@@ -1543,13 +1626,19 @@ document.getElementById('agDiaTodo').addEventListener('change', function() {
         if (labelFim) labelFim.textContent = 'Data fim (opcional)';
         if (wrapFim) wrapFim.style.display = 'none'; // pra prazo nao precisa de data fim
     } else {
+        // Nilce r8 31/05/2026: ler o valor ANTES de mudar o type — trocar pra datetime-local
+        // limpa o value imediatamente, sumindo a data preenchida quando o usuario desmarca.
+        var prevIni = ini.value || ini.dataset.prevDt || '';
+        var prevFim = fim.value || fim.dataset.prevDt || '';
         ini.type = 'datetime-local'; fim.type = 'datetime-local';
-        ini.value = ini.dataset.prevDt || (ini.value ? ini.value + 'T09:00' : '');
-        fim.value = fim.dataset.prevDt || (ini.value ? ini.value.substring(0,10) + 'T10:00' : '');
+        if (prevIni) ini.value = prevIni.length === 10 ? prevIni + 'T09:00' : prevIni;
+        if (prevFim) fim.value = prevFim.length === 10 ? prevFim + 'T10:00' : prevFim;
+        else if (ini.value) fim.value = ini.value.substring(0,10) + 'T10:00';
         if (labelIni) labelIni.textContent = 'Data/hora início';
         if (labelFim) labelFim.textContent = 'Data/hora término';
         if (wrapFim) wrapFim.style.display = '';
     }
+    if (typeof checarConflitoAgenda === 'function') checarConflitoAgenda();
 });
 
 // Mostra/esconde o checkbox 'Cliente comparece presencialmente' conforme modalidade.
@@ -2213,6 +2302,11 @@ function marcarNaoCompareceu(id, btn) {
     xhr.send(fd);
 }
 
+function _hojeISORemarcar() {
+    var d = new Date();
+    var p = function(n){return (n<10?'0':'')+n;};
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate());
+}
 function abrirRemarcar(id) {
     // Buscar dados do evento original
     var evOriginal = eventos.find(function(e) { return e.id == id; });
@@ -2234,10 +2328,10 @@ function abrirRemarcar(id) {
     modal.innerHTML = '<h3 style="margin:0 0 .5rem;font-size:1rem;color:#052228;">Remarcar compromisso</h3>'
         + '<p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">' + (tituloOriginal || 'Evento #' + id) + '</p>'
         + balcaoHintHtml
-        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Nova data</label>'
-        + '<input type="date" id="remarcarData" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;" />'
-        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Novo hor\u00e1rio</label>'
-        + '<input type="time" id="remarcarHora"' + (isBalcaoRemarcar ? ' min="11:00" max="17:00"' : '') + ' style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;" />'
+        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Nova data <span style="color:#dc2626;">*</span></label>'
+        + '<input type="date" id="remarcarData" required min="' + _hojeISORemarcar() + '" title="Escolha a nova data (n\u00e3o permite datas passadas)" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:.75rem;" />'
+        + '<label style="font-size:.75rem;font-weight:600;color:#374151;display:block;margin-bottom:.3rem;">Novo hor\u00e1rio <span style="color:#dc2626;">*</span></label>'
+        + '<input type="time" id="remarcarHora" required' + (isBalcaoRemarcar ? ' min="11:00" max="17:00"' : '') + ' title="Escolha o novo hor\u00e1rio" style="width:100%;padding:.5rem;border:1px solid #d1d5db;border-radius:8px;font-size:.85rem;margin-bottom:1rem;" />'
         + '<div style="display:flex;gap:.5rem;justify-content:flex-end;">'
         + '<button onclick="document.getElementById(\'remarcarOverlay\').remove()" style="padding:.45rem 1rem;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:.8rem;">Cancelar</button>'
         + '<button id="btnConfirmarRemarcar" style="padding:.45rem 1rem;border:none;border-radius:8px;background:#7c3aed;color:#fff;cursor:pointer;font-weight:700;font-size:.8rem;">Remarcar</button>'
@@ -2258,6 +2352,11 @@ function abrirRemarcar(id) {
         var novaData = document.getElementById('remarcarData').value;
         var novaHora = document.getElementById('remarcarHora').value;
         if (!novaData || !novaHora) { alert('Preencha data e hor\u00e1rio.'); return; }
+        if (novaData < _hojeISORemarcar()) {
+            alert('\u26a0\ufe0f N\u00e3o \u00e9 poss\u00edvel remarcar para uma data passada (' + novaData.split('-').reverse().join('/') + ').');
+            document.getElementById('remarcarData').focus();
+            return;
+        }
         if (isBalcaoRemarcar && !_balcaoHorarioValido(novaData + 'T' + novaHora)) {
             document.getElementById('remarcarHora').focus();
             return;
