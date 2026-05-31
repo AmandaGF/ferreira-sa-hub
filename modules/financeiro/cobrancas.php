@@ -239,11 +239,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <div class="cobr-fld">
         <label>De</label>
-        <input type="date" name="dt_ini" value="<?= e($dtIni) ?>">
+        <input type="date" name="dt_ini" value="<?= e($dtIni) ?>" title="Data inicial do filtro (campo: vencimento ou pagamento — escolhido em 'Data base')">
     </div>
     <div class="cobr-fld">
         <label>Até</label>
-        <input type="date" name="dt_fim" value="<?= e($dtFim) ?>">
+        <input type="date" name="dt_fim" value="<?= e($dtFim) ?>" title="Data final do filtro (campo: vencimento ou pagamento — escolhido em 'Data base')">
     </div>
     <div class="cobr-fld">
         <label>Status</label>
@@ -301,11 +301,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- Totais do filtro -->
 <div class="cobr-kpis">
-    <div class="cobr-kpi"><div class="v" style="color:#3b82f6;"><?= number_format($totais['qtd']) ?></div><div class="l">📦 Cobranças (total)</div></div>
-    <div class="cobr-kpi"><div class="v">R$ <?= number_format($totais['total_valor'], 2, ',', '.') ?></div><div class="l">💰 Valor total</div></div>
-    <div class="cobr-kpi"><div class="v" style="color:#059669;">R$ <?= number_format($totais['total_pago'], 2, ',', '.') ?></div><div class="l">✓ Pago</div></div>
-    <div class="cobr-kpi"><div class="v" style="color:#f59e0b;">R$ <?= number_format($totais['total_pendente'], 2, ',', '.') ?></div><div class="l">⏳ Pendente</div></div>
-    <div class="cobr-kpi"><div class="v" style="color:#dc2626;">R$ <?= number_format($totais['total_vencido'], 2, ',', '.') ?></div><div class="l">⚠ Vencido</div></div>
+    <?php
+    // Nilce r10 31/05/2026: KPIs nao fechavam aritmeticamente (pago+pendente+vencido != total)
+    // porque cobrancas com status REFUNDED/CHARGEBACK/CANCELLED etc nao apareciam em nenhum card.
+    // Calcula 'outros' como residuo pra deixar claro pro usuario.
+    $_outrosVal = $totais['total_valor'] - $totais['total_pago'] - $totais['total_pendente'] - $totais['total_vencido'];
+    if ($_outrosVal < 0.01) $_outrosVal = 0; // arredondamento
+    ?>
+    <div class="cobr-kpi" title="Quantidade total de cobranças que entraram no filtro"><div class="v" style="color:#3b82f6;"><?= number_format($totais['qtd']) ?></div><div class="l">📦 Cobranças (total)</div></div>
+    <div class="cobr-kpi" title="Soma de TODAS as cobranças (qualquer status, inclusive canceladas/estornadas)"><div class="v">R$ <?= number_format($totais['total_valor'], 2, ',', '.') ?></div><div class="l">💰 Valor total</div></div>
+    <div class="cobr-kpi" title="Cobranças com status RECEIVED, CONFIRMED ou RECEIVED_IN_CASH"><div class="v" style="color:#059669;">R$ <?= number_format($totais['total_pago'], 2, ',', '.') ?></div><div class="l">✓ Pago</div></div>
+    <div class="cobr-kpi" title="Cobranças com status PENDING (aguardando pagamento, ainda no prazo)"><div class="v" style="color:#f59e0b;">R$ <?= number_format($totais['total_pendente'], 2, ',', '.') ?></div><div class="l">⏳ Pendente</div></div>
+    <div class="cobr-kpi" title="Cobranças com status OVERDUE (passou do vencimento sem pagamento)"><div class="v" style="color:#dc2626;">R$ <?= number_format($totais['total_vencido'], 2, ',', '.') ?></div><div class="l">⚠ Vencido</div></div>
+    <?php if ($_outrosVal > 0): ?>
+    <div class="cobr-kpi" title="Diferença entre total e (pago+pendente+vencido) — geralmente cobranças canceladas, estornadas (REFUNDED/CHARGEBACK) ou em revisão"><div class="v" style="color:#6b7280;">R$ <?= number_format($_outrosVal, 2, ',', '.') ?></div><div class="l">🚫 Cancelado/Estornado</div></div>
+    <?php endif; ?>
 </div>
 
 <!-- Tabela -->
@@ -314,8 +324,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
         Nenhuma cobrança encontrada com esses filtros.
     </div>
 <?php else: ?>
-<!-- DEBUG v25: cobrancas.php — rendered at <?= date('Y-m-d H:i:s') ?> -->
-<div style="background:#eef2ff;padding:.35rem .6rem;border-radius:6px;font-size:.66rem;color:#3730a3;margin-bottom:.5rem;display:inline-block;">🔧 versão v25 · <?= date('H:i:s') ?> · se os botões não funcionarem: abra F12 e me mande o erro</div>
 <div style="overflow-x:auto;">
 <table class="cobr-tbl">
     <thead>
@@ -347,7 +355,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <span style="color:var(--text-muted);"><?= e($r['cli_name'] ?: '(sem cliente)') ?></span>
                 <?php endif; ?>
             </td>
-            <td style="font-family:monospace;font-size:.72rem;color:var(--text-muted);"><?= e($r['cli_cpf'] ?? '—') ?></td>
+            <?php
+            // Nilce r10 31/05/2026: LGPD - CPF cru na listagem geral expoe dado sensivel.
+            // Mascara 070.123.456-78 -> 070.***.**6-78 (mantem 3 primeiros + 1 antes do hifen + 2 finais).
+            $_cpfRaw = (string)($r['cli_cpf'] ?? '');
+            $_cpfDigit = preg_replace('/\D/', '', $_cpfRaw);
+            if (strlen($_cpfDigit) === 11) {
+                $_cpfMask = substr($_cpfDigit,0,3) . '.***.**' . substr($_cpfDigit,8,1) . '-' . substr($_cpfDigit,9,2);
+            } else {
+                $_cpfMask = $_cpfRaw ?: '—';
+            }
+            ?>
+            <td style="font-family:monospace;font-size:.72rem;color:var(--text-muted);" title="CPF parcialmente oculto (LGPD). Acesse 'Cliente' pra ver completo."><?= e($_cpfMask) ?></td>
             <td style="font-size:.72rem;max-width:180px;">
                 <?php if ($r['cs_id']): ?>
                     <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$r['cs_id']) ?>" style="color:var(--petrol-900);text-decoration:none;">

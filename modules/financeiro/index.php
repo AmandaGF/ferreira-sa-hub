@@ -212,7 +212,21 @@ echo voltar_ao_processo_html();
     </div>
     <div class="fin-section">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
-            <h4 style="margin:0;">⚠️ Inadimplentes (<?= count($listaInadimplentes) ?>)<?php if ($mesInadSel): $mn = (int)substr($mesInadSel,5,2); $ma = substr($mesInadSel,0,4); ?><span style="font-weight:400;color:var(--text-muted);font-size:.82rem;"> em <?= ($ML[$mn] ?? '') . '/' . $ma ?></span><?php endif; ?></h4>
+            <?php
+            // Nilce r10 31/05/2026: divergencia visivel - KPI 'Vencido' contava todos os
+            // OVERDUE mas a lista tem LIMIT 50. Agora deixa explicito 'X de Y'.
+            $_listaMostrada = count($listaInadimplentes);
+            $_listaTotal = $mesInadSel ? $_listaMostrada : $inadimplentes;
+            ?>
+            <h4 style="margin:0;">⚠️ Inadimplentes
+                (<?= $_listaTotal > $_listaMostrada ? "$_listaMostrada de $_listaTotal" : $_listaMostrada ?>)
+                <?php if ($_listaTotal > $_listaMostrada): ?>
+                    <span style="font-size:.7rem;font-weight:600;color:#b45309;background:#fef3c7;padding:1px 6px;border-radius:4px;margin-left:4px;" title="Mostrando os <?= $_listaMostrada ?> casos mais críticos (por dias de atraso ou valor). Use 'Todas as Cobranças' pra ver os <?= $_listaTotal - $_listaMostrada ?> restantes.">topo</span>
+                <?php endif; ?>
+                <?php if ($mesInadSel): $mn = (int)substr($mesInadSel,5,2); $ma = substr($mesInadSel,0,4); ?>
+                    <span style="font-weight:400;color:var(--text-muted);font-size:.82rem;"> em <?= ($ML[$mn] ?? '') . '/' . $ma ?></span>
+                <?php endif; ?>
+            </h4>
             <form method="GET" style="margin:0;display:flex;gap:.35rem;flex-wrap:wrap;">
                 <?php foreach ($_GET as $k => $v): ?>
                     <?php if ($k !== 'ordem' && $k !== 'mes_inad' && is_scalar($v)): ?>
