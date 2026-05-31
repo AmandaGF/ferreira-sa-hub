@@ -33,6 +33,17 @@ if (!empty($user['email'])) {
     } catch (Exception $e) {}
 }
 
+// Contagens pra badges do menu (relatorio Nilce 31/05): chamados abertos + prazos urgentes
+$_helpdeskAbertos = 0;
+$_prazosUrgentes = 0;
+try {
+    $_helpdeskAbertos = (int)db()->query("SELECT COUNT(*) FROM tickets WHERE status NOT IN ('resolvido','cancelado') AND (origem IS NULL OR origem != 'salavip')")->fetchColumn();
+} catch (Exception $e) {}
+try {
+    // Prazos vencidos + dos proximos 3 dias nao concluidos (mesmo criterio do banner global)
+    $_prazosUrgentes = (int)db()->query("SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)")->fetchColumn();
+} catch (Exception $e) {}
+
 // Módulos de treinamento pendentes pro perfil do usuário
 $_treinaPendentes = 0;
 try {
@@ -78,7 +89,7 @@ $menuItems = array(
     array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/central.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
 
     array('section' => 'Atendimento'),
-    array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all),
+    array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all, 'badge' => $_helpdeskAbertos, 'badgeCor' => '#f59e0b'),
 
     array('label' => 'Agenda',          'icon' => '📅', 'href' => url('modules/agenda/'),           'id' => 'agenda',          'roles' => $all),
 
@@ -107,7 +118,7 @@ $menuItems = array(
     array('label' => 'Cobrança Honor.', 'icon' => '⚠️', 'href' => url('modules/cobranca_honorarios/'), 'id' => 'cobranca_honorarios', 'roles' => array('admin','gestao')),
 
     array('section' => 'Controle'),
-    array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => $_rolesEquipe),
+    array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => $_rolesEquipe, 'badge' => $_prazosUrgentes, 'badgeCor' => '#dc2626'),
     array('label' => 'Ofícios',         'icon' => '📬', 'href' => url('modules/oficios/'),          'id' => 'oficios',         'roles' => $_rolesEquipe),
     array('label' => 'Alvarás',         'icon' => '💰', 'href' => url('modules/alvaras/'),          'id' => 'alvaras',         'roles' => $_rolesEquipe),
     array('label' => 'Parceiros',       'icon' => '🤝', 'href' => url('modules/parceiros/'),        'id' => 'parceiros',       'roles' => array('admin','gestao')),

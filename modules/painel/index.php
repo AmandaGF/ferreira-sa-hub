@@ -268,8 +268,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-postit-titulo{font-size:.95rem;font-weight:600;color:#1f2937;word-wrap:break-word;cursor:pointer;flex:1;}
 .pd-postit-meta{font-size:.7rem;color:#374151;opacity:.8;font-family:inherit;}
 .pd-postit-acoes{display:flex;gap:.3rem;justify-content:flex-end;margin-top:.2rem;font-family:system-ui;}
-.pd-postit-acoes button{background:rgba(255,255,255,.6);border:none;cursor:pointer;font-size:.75rem;padding:2px 6px;border-radius:4px;transition:background .15s;}
+.pd-postit-acoes button{background:rgba(255,255,255,.6);border:none;cursor:pointer;font-size:.75rem;padding:2px 6px;border-radius:4px;transition:background .15s;position:relative;}
 .pd-postit-acoes button:hover{background:rgba(255,255,255,.95);}
+/* Tooltip CSS instantaneo (title HTML demora 1s) -- relatorio Nilce 31/05 */
+.pd-postit-acoes button[title]:hover::after{content:attr(title);position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#052228;color:#fff;padding:4px 8px;border-radius:4px;font-size:.65rem;font-weight:600;white-space:nowrap;z-index:100;box-shadow:0 4px 12px rgba(0,0,0,.2);pointer-events:none;font-family:system-ui;}
+.pd-postit-acoes button[title]:hover::before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:#052228;z-index:100;pointer-events:none;}
 .pd-postit-pri{position:absolute;top:-6px;right:8px;font-size:.55rem;padding:1px 6px;border-radius:99px;font-weight:700;letter-spacing:.5px;color:#fff;}
 .pd-postit-pri.urgente{background:#dc2626;}
 .pd-postit-pri.fatal{background:#7c2d12;}

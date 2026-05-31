@@ -561,6 +561,27 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
             stickyBar.classList.toggle('is-stuck', !entries[0].isIntersecting);
         }, { threshold: 0 }).observe(sentinela);
     }
+
+    // Botao flutuante 'Voltar ao topo' (relatorio Nilce 31/05): pasta e
+    // longa demais; agora aparece no canto inferior direito apos rolar 600px.
+    var btnTopo = document.createElement('button');
+    btnTopo.id = 'btnVoltarTopo';
+    btnTopo.type = 'button';
+    btnTopo.title = 'Voltar ao topo';
+    btnTopo.innerHTML = '↑';
+    btnTopo.style.cssText = 'position:fixed;bottom:20px;right:20px;width:44px;height:44px;border-radius:50%;border:none;background:#052228;color:#fff;font-size:1.2rem;font-weight:700;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);display:none;z-index:90;transition:opacity .2s, transform .15s;line-height:1;';
+    btnTopo.addEventListener('mouseenter', function(){ this.style.transform='scale(1.08)'; });
+    btnTopo.addEventListener('mouseleave', function(){ this.style.transform='scale(1)'; });
+    btnTopo.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+    document.body.appendChild(btnTopo);
+    var _btnTopoVisivel = false;
+    window.addEventListener('scroll', function(){
+        var deveAparecer = (window.scrollY || document.documentElement.scrollTop) > 600;
+        if (deveAparecer !== _btnTopoVisivel) {
+            btnTopo.style.display = deveAparecer ? 'block' : 'none';
+            _btnTopoVisivel = deveAparecer;
+        }
+    }, { passive: true });
 })();
 </script>
 
@@ -3548,7 +3569,7 @@ foreach ($tarefasReais as $_t) {
                     <option value="diligencia">Diligência</option>
                     <option value="observacao">Observação interna</option>
                 </select>
-                <button type="submit" class="btn btn-primary btn-sm">+ Adicionar</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="btnAdicionarAnd" disabled title="Digite o andamento abaixo antes de adicionar" style="opacity:.55;cursor:not-allowed;">+ Adicionar</button>
                 <label style="display:flex;align-items:center;gap:4px;font-size:.75rem;color:var(--text-muted);cursor:pointer;margin-left:.5rem;" title="Se marcado, o cliente NÃO verá este andamento na Central VIP">
                     <input type="checkbox" name="interno" value="1" style="width:15px;height:15px;">
                     <span>&#128274; Interno</span>
@@ -3635,7 +3656,21 @@ foreach ($tarefasReais as $_t) {
                     return m.atalho.indexOf(t) !== -1 || m.titulo.toLowerCase().indexOf(t) !== -1 || m.texto.toLowerCase().indexOf(t) !== -1;
                 });
             }
+            // Habilita/desabilita o botao + Adicionar baseado no conteudo
+            // (relatorio Nilce 31/05: 'comportamento nao obvio se clicar com
+            // campo vazio'). Botao comeca disabled e habilita quando ha texto.
+            var btnAddAnd = document.getElementById('btnAdicionarAnd');
+            function _atualizarBtnAdd() {
+                if (!btnAddAnd) return;
+                var temTexto = textarea.value.trim().length > 0;
+                btnAddAnd.disabled = !temTexto;
+                btnAddAnd.style.opacity = temTexto ? '' : '.55';
+                btnAddAnd.style.cursor = temTexto ? '' : 'not-allowed';
+                btnAddAnd.title = temTexto ? '' : 'Digite o andamento antes de adicionar';
+            }
+
             textarea.addEventListener('input', function() {
+                _atualizarBtnAdd();
                 var v = this.value;
                 if (v.length && v.charAt(0) === '/') {
                     var termo = v.substring(1);
