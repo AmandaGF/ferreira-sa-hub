@@ -137,12 +137,19 @@ foreach ($allCases as $cs) {
     $byStatus[$status][] = $cs;
 }
 
-// KPIs
-$totalAtivos = count($allCases);
-$urgentes = 0; $docsFaltantes = count($byStatus['doc_faltante']);
-foreach ($allCases as $cs) {
-    if ($cs['priority'] === 'urgente') $urgentes++;
+// KPIs — conta APENAS o que efetivamente entrou nas colunas (audit Nilce r3
+// 31/05/2026): cases com kanban_prev=1 de meses ANTERIORES sao pulados no
+// loop acima (continue na linha 133) entao nao aparecem no Kanban; antes
+// continuavam contando em totalAtivos, gerando inconsistencia 'X ativos /
+// 0 cards' quando a busca pegava so um caso PREV de outro mes.
+$totalAtivos = 0; $urgentes = 0;
+foreach ($byStatus as $colCases) {
+    $totalAtivos += count($colCases);
+    foreach ($colCases as $cs) {
+        if (($cs['priority'] ?? '') === 'urgente') $urgentes++;
+    }
 }
+$docsFaltantes = count($byStatus['doc_faltante']);
 
 // Documentos pendentes (para banner de alerta)
 $docsPendentes = array();
@@ -2101,18 +2108,26 @@ setTimeout(function() {
 })();
 </script>
 <script>
-// Tooltip auto pra <td> truncadas na Tabela (relatorio Nilce 31/05/2026):
-// detecta scrollWidth > clientWidth, seta title + flag data-truncated pra
-// CSS ativar pseudo-elemento de tooltip no hover.
+// Tooltip auto pra <td> truncadas na Tabela.
+// 1a versao (31/05 manha) confiava em scrollWidth > clientWidth, mas Nilce
+// confirmou na auditoria r3 que <td> com display:table-cell + overflow:hidden
+// nem sempre reporta scrollWidth direito -- title nao era setado.
+// Agora: seta title em TODA celula com texto >= 12 chars (heuristica simples,
+// abrange casos longos onde truncamento e provavel) + checa scrollWidth como
+// bonus pra marcar visualmente quem realmente esta cortado.
 (function(){
     function checarTruncamento() {
         document.querySelectorAll('.tbl-grid td').forEach(function(td) {
-            // Skip se ja tem title manual ou esta vazio
-            if (td.dataset.titleManual === '1' || !td.textContent.trim()) return;
-            // scrollWidth > clientWidth = conteudo cortado por overflow:hidden
-            if (td.scrollWidth > td.clientWidth + 1) {
-                var txt = td.textContent.trim();
+            if (td.dataset.titleManual === '1') return;
+            var txt = td.textContent.trim();
+            if (!txt) return;
+            // Heuristica: textos com >=12 chars provavelmente cortam em td
+            // padrao da Tabela (max-width:250px). Garante title sempre.
+            if (txt.length >= 12 && !td.getAttribute('title')) {
                 td.setAttribute('title', txt);
+            }
+            // Marca visualmente os realmente truncados (CSS ::after no hover)
+            if (td.scrollWidth > td.clientWidth + 1) {
                 td.setAttribute('data-truncated', '1');
             } else {
                 td.removeAttribute('data-truncated');
