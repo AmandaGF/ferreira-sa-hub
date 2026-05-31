@@ -13,7 +13,7 @@ $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
 $outorgante = $_GET['outorgante'] ?? 'proprio';
 
-$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes', 'desistencia_acao');
+$validTypes = array('procuracao', 'contrato', 'substabelecimento', 'hipossuficiencia', 'isencao_ir', 'residencia', 'acordo', 'juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'renuncia_poderes', 'desistencia_acao', 'gratuidade');
 if (!in_array($tipo, $validTypes) || !$clientId) {
     flash_set('error', 'Selecione tipo e cliente.');
     redirect(module_url('documentos'));
@@ -43,6 +43,7 @@ $typeLabels = array(
     'averbacao_sentenca' => 'Averbação de Sentença — Divórcio',
     'renuncia_poderes' => 'Renúncia aos Poderes Outorgados',
     'desistencia_acao' => 'Pedido de Desistência da Ação',
+    'gratuidade' => 'Petição de Concessão da Gratuidade de Justiça',
 );
 
 $acaoLabels = array(
@@ -286,6 +287,9 @@ $gratuidadeAvb = $_POST['gratuidade_avb'] ?? 'sim';
 $motivoRenuncia = $_POST['motivo_renuncia'] ?? 'razões particulares';
 $reuRenuncia = $_POST['reu_renuncia'] ?? '';
 
+// Gratuidade de Justiça (peça intercorrente — 31/05/2026 Amanda)
+$contextoGratuidade = trim($_POST['contexto_gratuidade'] ?? '');
+
 // Desistencia da acao
 $cenarioDesistencia = $_POST['cenario_desistencia'] ?? 'sem_contestacao';
 $reuDesistencia = $_POST['reu_desistencia'] ?? '';
@@ -304,7 +308,7 @@ $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
 $isMenor = ($outorgante === 'menor');
 $isDefesa = ($outorgante === 'defesa');
-$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca'));
+$isIntercorrente = in_array($tipo, array('juntada', 'ciencia', 'prevjud', 'citacao_whatsapp', 'habilitacao', 'habilitacao_desarquivamento', 'audiencia_remota', 'mandado_pagamento', 'averbacao_sentenca', 'gratuidade'));
 $logoUrl = url('assets/img/logo.png');
 
 // Auto-atualizar cadastro do cliente com dados preenchidos no formulário
@@ -873,6 +877,21 @@ if (!$showEditor) {
             procEls.forEach(function(el) { if (el.value) mascaraProcesso(el); });
         });
         </script>
+        <?php endif; ?>
+
+        <?php if ($tipo === 'gratuidade'): ?>
+        <div class="section">
+            <h4>Dados da Gratuidade de Justiça</h4>
+            <div class="row">
+                <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
+                <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
+            </div>
+            <div style="margin-bottom:.75rem;">
+                <label>Contexto (opcional) <span style="font-size:.7rem;color:#6b7280;">— se vazio, usa o texto padrão de hipossuficiência</span></label>
+                <textarea name="contexto_gratuidade" rows="3" placeholder="Ex: tendo em vista que a parte autora foi recentemente desempregada, atualmente percebe rendimento mensal inferior a 3 salários mínimos e tem 2 filhos menores sob sua guarda"><?= e($contextoGratuidade) ?></textarea>
+                <small style="color:#6b7280;font-size:.72rem;">Esse texto entra como complemento ao fundamento legal. Sem ele, o template usa o argumento padrão de não dispor de recursos sem prejuízo do sustento da família.</small>
+            </div>
+        </div>
         <?php endif; ?>
 
         <?php if ($tipo === 'juntada'): ?>
@@ -1479,6 +1498,7 @@ if (!$showEditor) {
         'pagina_procuracao' => $paginaProcuracao,
         'qtd_menores' => $qtdMenores,
         'gratuidade_avb' => $gratuidadeAvb,
+        'contexto_gratuidade' => $contextoGratuidade,
         'motivo_renuncia' => $motivoRenuncia,
         'reu_renuncia' => $reuRenuncia,
         'cenario_desistencia' => $cenarioDesistencia,
@@ -1508,6 +1528,7 @@ if (!$showEditor) {
     elseif ($tipo === 'citacao_whatsapp') echo template_citacao_whatsapp($d);
     elseif ($tipo === 'habilitacao') echo template_habilitacao($d);
     elseif ($tipo === 'habilitacao_desarquivamento') { $d['incluir_desarquivamento'] = true; echo template_habilitacao($d); }
+    elseif ($tipo === 'gratuidade') echo template_gratuidade($d);
     elseif ($tipo === 'audiencia_remota') {
         // Salva o(s) menor(es) como parte do processo automaticamente.
         // Roda uma única vez por (case_id + nome). Idempotente.

@@ -740,6 +740,55 @@ function template_juntada($d) {
 }
 
 // ═══════════════════════════════════════════════════════
+// PETIÇÃO DE CONCESSÃO DE GRATUIDADE DE JUSTIÇA
+// (intercorrente - apresentada no processo já em andamento)
+// Pedida pela Amanda 31/05/2026.
+// ═══════════════════════════════════════════════════════
+function template_gratuidade($d) {
+    $esc = escritorioData();
+    $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
+    // Contexto opcional (ex: "tendo em vista alteração da situação econômica, ...")
+    $contexto = isset($d['contexto_gratuidade']) ? trim((string)$d['contexto_gratuidade']) : '';
+
+    $html = '<div class="doc-title" style="margin-bottom:.7rem;">PETIÇÃO DE CONCESSÃO DA GRATUIDADE DE JUSTIÇA</div>';
+
+    // Endereçamento
+    $html .= enderecamento($d);
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;margin-bottom:.4rem;">Autos n. ' . f($numProcesso) . '</p>';
+
+    // Qualificação curta (reaproveita helper) + verbo
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">'
+           . qualificacao_legitimidade($d)
+           . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve, com escritório profissional indicado no rodapé, requerer a</p>';
+
+    // BOX
+    $html .= '<div style="background:#052228;color:#fff;margin:12px 0;padding:7px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;border-left:6px solid #B87333;">CONCESSÃO DA GRATUIDADE DE JUSTIÇA</div>';
+
+    // Parágrafo de fundamentação + contexto opcional
+    $abertura = 'com fundamento nos arts. 98 e seguintes do Código de Processo Civil e no art. 5º, inciso LXXIV, da Constituição Federal';
+    if ($contexto !== '') {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">' . $abertura . ', ' . f($contexto) . '.</p>';
+    } else {
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">' . $abertura . ', uma vez que a parte não dispõe de recursos para arcar com custas, despesas processuais e honorários advocatícios sem prejuízo do próprio sustento e de sua família.</p>';
+    }
+
+    // Presunção legal (Art. 99 §3º CPC) — explica o porquê da declaração bastar
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">Nos termos do art. 99, §3º, do Código de Processo Civil, presume-se verdadeira a alegação de insuficiência deduzida exclusivamente por pessoa natural, militando em favor da parte requerente, portanto, a presunção juris tantum estabelecida em lei.</p>';
+
+    // Pedido
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">Ante o exposto, requer-se a Vossa Excelência o <strong>deferimento da gratuidade de justiça</strong>, com a consequente isenção de pagamento de custas, despesas processuais e honorários advocatícios sucumbenciais, na forma do art. 98, §1º, do Código de Processo Civil.</p>';
+
+    // Fecho compactado
+    $html .= '<p style="text-align:center;margin-top:.9rem;margin-bottom:.3rem;line-height:1.4;">Nestes termos, pede deferimento.</p>';
+    $html .= '<div class="local-data" style="margin-top:.8rem;line-height:1.4;">' . f($d['cidade_data']) . '</div>';
+    $html .= '<div style="margin-top:1.2rem;text-align:center;">';
+    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;margin-top:0;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+// ═══════════════════════════════════════════════════════
 // PETIÇÃO DE CIÊNCIA
 // ═══════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════
@@ -911,17 +960,22 @@ function template_habilitacao($d) {
     // adiciona pedido de desarquivamento + fundamentação + reordena pedidos
     $incluirDesarq = !empty($d['incluir_desarquivamento']);
 
+    // Quando inclui desarquivamento, comprime line-height/margens pra caber em 1 página.
+    // Pedido Amanda 31/05/2026: assinatura sozinha na pág 2 — reduzir.
+    $lh = $incluirDesarq ? '1.5' : '2';
+    $tituloMb = $incluirDesarq ? 'margin-bottom:.7rem;' : '';
+
     $tituloDoc = $incluirDesarq ? 'PETIÇÃO DE HABILITAÇÃO E DESARQUIVAMENTO' : 'PETIÇÃO DE HABILITAÇÃO';
-    $html = '<div class="doc-title">' . $tituloDoc . '</div>';
+    $html = '<div class="doc-title" style="' . $tituloMb . '">' . $tituloDoc . '</div>';
 
     // Endereçamento
     $html .= enderecamento($d);
-    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;margin-bottom:.4rem;">Autos n. ' . f($numProcesso) . '</p>';
 
     // Qualificação
     $pleiteante = isset($d['pleiteante_hab']) ? $d['pleiteante_hab'] : ($isRepLegal ? 'menor' : 'proprio');
 
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:' . $lh . ';">';
 
     // Detecta múltiplos pela vírgula no nome (mais confiável que qtd_menores)
     $qtdMenHab = isset($d['qtd_menores']) ? (int)$d['qtd_menores'] : 0;
@@ -961,18 +1015,16 @@ function template_habilitacao($d) {
 
     // Destaque
     $boxLabel = $incluirDesarq ? 'DESARQUIVAMENTO E A HABILITAÇÃO NOS AUTOS' : 'HABILITAÇÃO NOS AUTOS';
-    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">' . $boxLabel . '</div>';
+    $boxMargin = $incluirDesarq ? 'margin:12px 0;padding:7px 20px;' : 'margin:20px 0;padding:10px 20px;';
+    $html .= '<div style="background:#052228;color:#fff;' . $boxMargin . 'text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;border-left:6px solid #B87333;">' . $boxLabel . '</div>';
 
     $tipoHabProc = isset($d['tipo_hab_proc']) ? $d['tipo_hab_proc'] : 'plena';
     $isAnalise = ($tipoHabProc === 'analise');
 
     if ($incluirDesarq) {
-        // Versao ENXUTA pedida pela Amanda 11/05/2026: parágrafo curto pós-box
-        // + "Em tempo..." + fecha. Sem polo da parte / nome da parte contrária /
-        // tipo de ação no corpo (já constam no "Autos n." do cabeçalho), sem
-        // seção DA FUNDAMENTAÇÃO extensa, sem pedidos numerados.
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">para atuar como advogada constituída da parte, conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Em tempo, considerando que o feito encontra-se arquivado, pleiteia-se também seu desarquivamento, para requerer e/ou extrair as competentes cópias.</p>';
+        // Versao ENXUTA (Amanda 11/05/2026) com line-height comprimido (31/05/2026) pra caber em 1 página
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">para atuar como advogada constituída da parte, conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">Em tempo, considerando que o feito encontra-se arquivado, pleiteia-se também seu desarquivamento, para requerer e/ou extrair as competentes cópias.</p>';
     } else {
         // Versao completa original: polo do cliente, parte contrária, fundamentação,
         // pedidos numerados — usada pela habilitacao "pura" (sem desarquivamento).
@@ -1029,12 +1081,20 @@ function template_habilitacao($d) {
         $html .= '</div>';
     }
 
-    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
-    $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
-
-    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
-    $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
-    $html .= '</div>';
+    if ($incluirDesarq) {
+        // Final compactado pra caber em 1 página: margens menores, line-height padrão
+        $html .= '<p style="text-align:center;margin-top:.9rem;margin-bottom:.3rem;line-height:1.4;">Nestes termos, pede deferimento.</p>';
+        $html .= '<div class="local-data" style="margin-top:.8rem;line-height:1.4;">' . f($d['cidade_data']) . '</div>';
+        $html .= '<div style="margin-top:1.2rem;text-align:center;">';
+        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;margin-top:0;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+        $html .= '</div>';
+    } else {
+        $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
+        $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
+        $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+        $html .= '</div>';
+    }
 
     return $html;
 }
