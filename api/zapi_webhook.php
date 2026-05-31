@@ -606,18 +606,24 @@ try {
             // ── EXECUTOR DE FLUXOS (motor zapi_fluxo*) ──
             // Plugado em 31/05/2026 apos validacao end-to-end via seed_fluxo_demo.
             // Default OFF (killswitch em configuracoes.zapi_fluxo_executor_ativo).
-            // Se houver execucao 'em_andamento'/'aguardando' pra essa conv, o helper
-            // avanca o fluxo passando $conteudo como entrada do usuario. Quando consome,
-            // SUPRIME o bot Haiku no mesmo turno (evita o bot e o fluxo brigando pelo
-            // mesmo input).
+            //
+            // fluxo_processar_webhook() faz 2 coisas:
+            //  1. Se ha execucao viva pra essa conv, avanca passando $conteudo como entrada
+            //  2. Senao, avalia se algum fluxo ATIVO tem gatilho automatico que casa
+            //     (primeira_msg | palavra_chave) e inicia + avanca
+            //
+            // Quando consome (true), SUPRIME o bot Haiku no mesmo turno (evita briga
+            // pelo mesmo input).
             //
             // NUNCA bloqueia o webhook: erro do executor e silencioso (log + segue).
             $fluxoConsumiu = false;
             if (zapi_auto_cfg('zapi_fluxo_executor_ativo', '0') === '1') {
                 require_once APP_ROOT . '/core/functions_fluxos.php';
                 try {
-                    $fluxoConsumiu = fluxo_processar_msg_recebida((int)$conv['id'], (string)$conteudo);
-                    if ($fluxoConsumiu) $log("[{$numero}] FLUXO consumiu msg conv#{$conv['id']}");
+                    $fluxoConsumiu = fluxo_processar_webhook(
+                        (int)$conv['id'], (string)$numero, (string)$conteudo, (bool)$ehPrimeira
+                    );
+                    if ($fluxoConsumiu) $log("[{$numero}] FLUXO consumiu msg conv#{$conv['id']} (ehPrimeira=" . ($ehPrimeira ? '1' : '0') . ")");
                 } catch (Exception $e) {
                     $log("[{$numero}] FLUXO ERRO conv#{$conv['id']}: " . $e->getMessage());
                 }

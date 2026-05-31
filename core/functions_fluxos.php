@@ -241,13 +241,13 @@ function fluxo_avancar($execId, $entradaUsuario = null) {
 }
 
 /**
- * Helper pra plug futuro no webhook: se a conversa tem execução AGUARDANDO,
+ * Helper pra plug no webhook: se a conversa tem execução AGUARDANDO,
  * trata a msg recebida como entrada do fluxo e avança. Retorna true se houve
  * fluxo processado, false se não havia execução viva.
  *
- * Esta função NÃO é chamada por nenhum lugar ainda — fica pronta pra ser
- * plugada no api/zapi_webhook.php numa rodada futura, quando o vocabulário
- * de gatilhos estiver decidido.
+ * Versão minimal (sem gatilhos automáticos). Pra uso geral fora do webhook,
+ * preferir esta. O webhook usa fluxo_processar_webhook() que também avalia
+ * gatilhos automáticos.
  */
 function fluxo_processar_msg_recebida($conversaId, $textoMsg) {
     $pdo = db();
@@ -263,6 +263,101 @@ function fluxo_processar_msg_recebida($conversaId, $textoMsg) {
 
     fluxo_avancar($execId, $textoMsg);
     return true;
+}
+
+/**
+ * Avalia se algum fluxo ATIVO deve auto-disparar pra essa mensagem.
+ * Critérios suportados (gatilho_tipo):
+ *   manual         → nunca auto-dispara
+ *   primeira_msg   → dispara se $ehPrimeira === true e canal bate
+ *   palavra_chave  → dispara se uma palavra de gatilho_config["palavras"]
+ *                    aparece em $textoMsg (case-insensitive, busca substring)
+ *
+ * Compatibilidade de canal: fluxo com canal NULL = qualquer canal.
+ *
+ * Em caso de múltiplos fluxos elegíveis, escolhe o ID MENOR (primeiro criado).
+ * Retorna o ID do fluxo a disparar, ou null se nenhum bate.
+ */
+function fluxo_buscar_gatilho_automatico($canal, $textoMsg, $ehPrimeira) {
+    $pdo = db();
+    $textoMsg = (string)$textoMsg;
+    $textoLower = mb_strtolower($textoMsg, 'UTF-8');
+
+    // Busca fluxos ativos com gatilho automático compatível com canal
+    $st = $pdo->prepare(
+        "SELECT id, gatilho_tipo, gatilho_config, canal
+           FROM zapi_fluxo
+          WHERE ativo = 1
+            AND gatilho_tipo IN ('primeira_msg','palavra_chave')
+            AND (canal IS NULL OR canal = '' OR canal = ?)
+          ORDER BY id ASC"
+    );
+    $st->execute(array((string)$canal));
+    foreach ($st->fetchAll() as $f) {
+        $tipo = (string)$f['gatilho_tipo'];
+
+        if ($tipo === 'primeira_msg') {
+            if ($ehPrimeira) return (int)$f['id'];
+            continue;
+        }
+
+        if ($tipo === 'palavra_chave') {
+            $cfg = json_decode((string)$f['gatilho_config'], true) ?: array();
+            $palavras = isset($cfg['palavras']) && is_array($cfg['palavras']) ? $cfg['palavras'] : array();
+            foreach ($palavras as $p) {
+                $p = trim(mb_strtolower((string)$p, 'UTF-8'));
+                if ($p === '') continue;
+                if (mb_strpos($textoLower, $p) !== false) return (int)$f['id'];
+            }
+            continue;
+        }
+    }
+    return null;
+}
+
+/**
+ * Helper completo pra chamada do webhook: processa fluxo numa conversa
+ * considerando execução viva E gatilhos automáticos.
+ *
+ * Ordem de avaliação:
+ *   1. Já existe execução viva pra essa conv? → avança ela (entradaUsuario = msg)
+ *   2. Senão, algum fluxo ativo tem gatilho que casa? → inicia e avança
+ *   3. Senão, retorna false (nada a fazer — webhook segue pro bot Haiku, etc.)
+ *
+ * Retorna true se houve qualquer processamento, false se passou batido.
+ * NÃO levanta exceção — caller deve fazer try/catch como segurança extra.
+ */
+function fluxo_processar_webhook($conversaId, $canal, $textoMsg, $ehPrimeira) {
+    $pdo = db();
+    $conversaId = (int)$conversaId;
+    if ($conversaId <= 0) return false;
+
+    // 1. Execução viva tem prioridade
+    $st = $pdo->prepare(
+        "SELECT id FROM zapi_fluxo_execucao
+         WHERE conversa_id = ? AND estado IN ('em_andamento','aguardando')
+         ORDER BY id DESC LIMIT 1"
+    );
+    $st->execute(array($conversaId));
+    $execId = (int)$st->fetchColumn();
+    if ($execId) {
+        fluxo_avancar($execId, $textoMsg);
+        return true;
+    }
+
+    // 2. Tenta gatilho automático
+    $fluxoId = fluxo_buscar_gatilho_automatico($canal, $textoMsg, $ehPrimeira);
+    if ($fluxoId) {
+        $novoExecId = fluxo_iniciar($fluxoId, $conversaId);
+        if ($novoExecId) {
+            // Avança passando a msg como entrada (útil pra fluxos que querem
+            // capturar/condicionar logo no primeiro bloco)
+            fluxo_avancar($novoExecId, $textoMsg);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 // ─────────────────────────────────────────────────────────
