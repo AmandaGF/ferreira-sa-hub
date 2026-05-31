@@ -513,6 +513,12 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
                     <div style="font-size:.7rem;color:#888;">vincular este a um processo principal</div>
                 </div>
             </button>
+            <button type="button" onclick="abrirMesclarPasta()" class="cv-item" style="color:#dc2626;">
+                🔗 <div>
+                    <strong>Mesclar com outra pasta</strong>
+                    <div style="font-size:.7rem;color:#888;">unifica 2 pastas duplicadas do mesmo processo</div>
+                </div>
+            </button>
             <?php endif; ?>
             <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Duplicar esta pasta para uma nova ação do mesmo cliente?');">
                 <?= csrf_input() ?>
@@ -827,6 +833,120 @@ function abrirMergeDuplicata(outroId, outroTitulo, outroCriadoEm) {
     addH('action', 'merge_cases');
     // Os names tem que bater com o que api.php le ($_POST['case_principal']/['case_absorvido']),
     // senao backend recebe 0/0 e devolve 'Dados invalidos para unificacao'.
+    addH('case_principal', principalId);
+    addH('case_absorvido', absorvidoId);
+    addH('novo_titulo', '');
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+<?php endif; ?>
+
+<?php
+// ── Modal: Mesclar com outra pasta (disponivel SEMPRE, nao depende de duplicidade
+// detectada automaticamente). Amanda 31/05/2026: pediu opcao no menu Acoes pra
+// mesclar quando ela criou 2 pastas pro mesmo processo manualmente.
+$_outrasPastasMerge = array();
+if (has_min_role('gestao')) {
+    try {
+        if (!empty($case['client_id'])) {
+            $stOMP = $pdo->prepare(
+                "SELECT id, title, case_number, status, created_at
+                 FROM cases
+                 WHERE client_id = ? AND id != ?
+                 ORDER BY created_at DESC LIMIT 60"
+            );
+            $stOMP->execute(array($case['client_id'], $caseId));
+            $_outrasPastasMerge = $stOMP->fetchAll();
+        }
+    } catch (Exception $e) {}
+}
+?>
+<?php if (has_min_role('gestao')): ?>
+<div id="mesclarPastaOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1000;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:14px;max-width:640px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);">
+        <div style="background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fff;padding:1rem 1.2rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:1rem;">🔗 Mesclar com outra pasta</h3>
+            <button onclick="fecharMesclarPasta()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;">×</button>
+        </div>
+        <div style="padding:1.2rem;">
+            <div style="background:#fef3c7;color:#92400e;padding:.6rem .8rem;border-radius:8px;font-size:.78rem;margin-bottom:.9rem;border-left:4px solid #f59e0b;">
+                ⚠️ <strong>Atenção:</strong> uma das pastas será absorvida pela outra (arquivada com tag "Unificado ao caso #X"). Tarefas, andamentos, partes, prazos e cobranças migram para a pasta que você manter.
+            </div>
+
+            <label style="font-size:.78rem;font-weight:700;color:#052228;display:block;margin-bottom:.35rem;">
+                Pasta a mesclar:
+                <span style="font-weight:400;color:#6b7280;font-size:.72rem;">(do mesmo cliente)</span>
+            </label>
+            <?php if (empty($_outrasPastasMerge)): ?>
+                <div style="padding:.6rem;background:#f3f4f6;color:#6b7280;border-radius:8px;font-size:.82rem;">
+                    Este cliente não tem outras pastas. Se a duplicata é de outro cliente, mescle os clientes primeiro em <a href="<?= module_url('crm') ?>" target="_blank">CRM</a>.
+                </div>
+            <?php else: ?>
+                <select id="mesclarOutraId" class="form-select" style="font-size:.85rem;width:100%;">
+                    <option value="">— escolha a outra pasta —</option>
+                    <?php foreach ($_outrasPastasMerge as $op): ?>
+                        <option value="<?= (int)$op['id'] ?>" data-created="<?= e($op['created_at'] ? date('d/m/Y', strtotime($op['created_at'])) : '?') ?>" data-title="<?= e($op['title']) ?>">
+                            #<?= (int)$op['id'] ?> · <?= e($op['title']) ?>
+                            <?php if ($op['case_number']): ?> · CNJ <?= e($op['case_number']) ?><?php endif; ?>
+                            · <?= e($op['status']) ?>
+                            · <?= e($op['created_at'] ? date('d/m/Y', strtotime($op['created_at'])) : '?') ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <div style="margin-top:1rem;background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.7rem .9rem;">
+                    <div style="font-size:.78rem;font-weight:700;color:#052228;margin-bottom:.4rem;">Qual pasta deve ser MANTIDA?</div>
+                    <label style="display:block;font-size:.85rem;margin-bottom:.35rem;cursor:pointer;">
+                        <input type="radio" name="mesclarManter" value="esta" checked>
+                        <strong>Esta pasta</strong> (<?= e($case['title']) ?>)
+                        <span style="color:#6b7280;font-size:.75rem;">— cadastrada em <?= e($_caseCriadoEm ?? ($case['created_at'] ? date('d/m/Y', strtotime($case['created_at'])) : '?')) ?></span>
+                    </label>
+                    <label style="display:block;font-size:.85rem;cursor:pointer;">
+                        <input type="radio" name="mesclarManter" value="outra">
+                        <strong>A outra pasta</strong> (selecionada acima)
+                    </label>
+                </div>
+
+                <div style="margin-top:1rem;display:flex;gap:.5rem;justify-content:flex-end;">
+                    <button onclick="fecharMesclarPasta()" class="btn btn-outline btn-sm">Cancelar</button>
+                    <button onclick="executarMesclarPasta()" class="btn btn-sm" style="background:#991b1b;color:#fff;border:none;font-weight:700;">🔗 Mesclar agora</button>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+
+<script>
+function abrirMesclarPasta() {
+    var ov = document.getElementById('mesclarPastaOverlay');
+    if (ov) ov.style.display = 'flex';
+}
+function fecharMesclarPasta() {
+    var ov = document.getElementById('mesclarPastaOverlay');
+    if (ov) ov.style.display = 'none';
+}
+function executarMesclarPasta() {
+    var sel = document.getElementById('mesclarOutraId');
+    if (!sel || !sel.value) { alert('Selecione a outra pasta.'); return; }
+    var outroId = parseInt(sel.value, 10);
+    var outroTitulo = sel.options[sel.selectedIndex].getAttribute('data-title') || '';
+    var manter = document.querySelector('input[name="mesclarManter"]:checked');
+    if (!manter) { alert('Escolha qual pasta deve ser mantida.'); return; }
+
+    var principalId = manter.value === 'esta' ? <?= (int)$caseId ?> : outroId;
+    var absorvidoId = manter.value === 'esta' ? outroId : <?= (int)$caseId ?>;
+    var msgQual = manter.value === 'esta'
+        ? 'Esta pasta sera mantida. "' + outroTitulo + '" sera ARQUIVADA.'
+        : '"' + outroTitulo + '" sera mantida. ESTA pasta sera ARQUIVADA.';
+    if (!confirm('Mesclar pastas?\n\n' + msgQual + '\n\nTodos os dados serao migrados. Acao IRREVERSIVEL.')) return;
+
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '<?= module_url("operacional", "api.php") ?>';
+    function addH(n, v) { var i = document.createElement('input'); i.type='hidden'; i.name=n; i.value=v; form.appendChild(i); }
+    addH('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+    addH('action', 'merge_cases');
     addH('case_principal', principalId);
     addH('case_absorvido', absorvidoId);
     addH('novo_titulo', '');
