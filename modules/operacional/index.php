@@ -661,7 +661,18 @@ $opTipos = array();
 foreach ($allCasesFlat as $cs) { if ($cs['case_type'] && $cs['case_type'] !== 'outro' && !in_array($cs['case_type'], $opTipos)) $opTipos[] = $cs['case_type']; }
 sort($opTipos);
 ?>
+<?php if (!empty($filterSearch) || !empty($filterUser) || !empty($filterTipo)): ?>
+<!-- Banner indicando filtros vindos do Kanban (relatorio Nilce 31/05) -->
+<div style="background:#eff6ff;border:1px solid #93c5fd;color:#1e40af;padding:.5rem .85rem;border-radius:8px;margin-bottom:.5rem;font-size:.78rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+    <span>🔍 <strong>Filtros aplicados (vêm do Kanban):</strong></span>
+    <?php if (!empty($filterSearch)): ?><span style="background:#fff;padding:1px 8px;border-radius:10px;font-weight:600;">busca: <?= e($filterSearch) ?></span><?php endif; ?>
+    <?php if (!empty($filterUser)): ?><span style="background:#fff;padding:1px 8px;border-radius:10px;font-weight:600;">responsável</span><?php endif; ?>
+    <?php if (!empty($filterTipo)): ?><span style="background:#fff;padding:1px 8px;border-radius:10px;font-weight:600;">tipo: <?= e($filterTipo) ?></span><?php endif; ?>
+    <a href="<?= module_url('operacional') ?>" style="margin-left:auto;color:#1e40af;text-decoration:underline;font-weight:600;">↺ limpar todos</a>
+</div>
+<?php endif; ?>
 <div class="tbl-toolbar">
+    <span style="font-size:.7rem;color:#6b7280;font-weight:600;border-right:1px solid #e5e7eb;padding-right:.6rem;margin-right:.2rem;" title="Estes filtros refinam o resultado da busca acima — independentes do Kanban">Refinar:</span>
     <select id="filterOpMes" onchange="filterOpByMes(this.value)" class="tbl-filter" title="Filtrar por mês de cadastro do caso">
         <option value="">📅 Todos os meses</option>
         <?php foreach ($opMesesDisponiveis as $ym):

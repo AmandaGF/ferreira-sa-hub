@@ -3580,7 +3580,7 @@ foreach ($tarefasReais as $_t) {
                 <!-- Dropdown de modelos rápidos (ativado com / no início) -->
                 <div id="andSlashDrop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #052228;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;max-height:300px;overflow-y:auto;margin-top:2px;"></div>
             </div>
-            <div style="font-size:.68rem;color:var(--text-muted);margin-top:3px;">💡 Dica: digite <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">/</code> no início do campo pra ver modelos rápidos de andamento.</div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:3px;">💡 Dica: <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">/</code> abre modelos · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Alt+A</code> foca aqui · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Ctrl+Enter</code> envia</div>
         </form>
         <script>
         (function(){
@@ -3656,6 +3656,28 @@ foreach ($tarefasReais as $_t) {
                     return m.atalho.indexOf(t) !== -1 || m.titulo.toLowerCase().indexOf(t) !== -1 || m.texto.toLowerCase().indexOf(t) !== -1;
                 });
             }
+            // Atalhos teclado (relatorio Nilce 31/05):
+            //   Alt+A -> foca o textarea de novo andamento
+            //   Ctrl+Enter (dentro do textarea) -> submete o form
+            document.addEventListener('keydown', function(ev) {
+                if (ev.altKey && (ev.key === 'a' || ev.key === 'A')) {
+                    var t = document.getElementById('andDescricaoNova');
+                    if (t) {
+                        ev.preventDefault();
+                        t.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        setTimeout(function(){ t.focus(); }, 300);
+                    }
+                }
+            });
+            if (textarea) {
+                textarea.addEventListener('keydown', function(ev) {
+                    if (ev.ctrlKey && ev.key === 'Enter') {
+                        var btn = document.getElementById('btnAdicionarAnd');
+                        if (btn && !btn.disabled) { ev.preventDefault(); btn.closest('form').requestSubmit ? btn.closest('form').requestSubmit() : btn.click(); }
+                    }
+                });
+            }
+
             // Habilita/desabilita o botao + Adicionar baseado no conteudo
             // (relatorio Nilce 31/05: 'comportamento nao obvio se clicar com
             // campo vazio'). Botao comeca disabled e habilita quando ha texto.
@@ -3714,12 +3736,54 @@ foreach ($tarefasReais as $_t) {
 
         <!-- Filtros da timeline -->
         <div class="filtro-andamentos" id="filtroAndamentos">
-            <button class="ativo" onclick="filtrarTimeline('todos', this)">Todos (<?= count($andamentos) + count($publicacoes) ?>)</button>
-            <button onclick="filtrarTimeline('andamentos', this)">Andamentos (<?= count($andamentos) ?>)</button>
-            <button class="<?= count($publicacoes) > 0 ? 'tem-pub' : '' ?>" onclick="filtrarTimeline('publicacoes', this)">
+            <button class="ativo" data-filtro-tipo="todos" onclick="filtrarTimeline('todos', this)">Todos (<?= count($andamentos) + count($publicacoes) ?>)</button>
+            <button data-filtro-tipo="andamentos" onclick="filtrarTimeline('andamentos', this)">Andamentos (<?= count($andamentos) ?>)</button>
+            <button class="<?= count($publicacoes) > 0 ? 'tem-pub' : '' ?>" data-filtro-tipo="publicacoes" onclick="filtrarTimeline('publicacoes', this)">
                 Publicações (<?= count($publicacoes) ?>)
             </button>
         </div>
+        <?php
+        // Filtros extras (Nilce 31/05): por responsavel + range de data.
+        // Lista responsaveis distintos que aparecem nos andamentos.
+        $_filtroResps = array();
+        try {
+            $_respIds = array();
+            foreach ($andamentos as $_a) { if (!empty($_a['created_by'])) $_respIds[(int)$_a['created_by']] = true; }
+            if ($_respIds) {
+                $_phResp = implode(',', array_fill(0, count($_respIds), '?'));
+                $_qResp = $pdo->prepare("SELECT id, name FROM users WHERE id IN ($_phResp) ORDER BY name");
+                $_qResp->execute(array_keys($_respIds));
+                $_filtroResps = $_qResp->fetchAll();
+            }
+        } catch (Exception $e) {}
+        // Range de datas: pega min/max das datas dos andamentos
+        $_minData = ''; $_maxData = '';
+        foreach ($andamentos as $_a) {
+            $_d = $_a['data_andamento'] ?? '';
+            if (!$_d) continue;
+            $_d = date('Y-m-d', strtotime($_d));
+            if (!$_minData || $_d < $_minData) $_minData = $_d;
+            if (!$_maxData || $_d > $_maxData) $_maxData = $_d;
+        }
+        ?>
+        <?php if (count($andamentos) >= 5): ?>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.7rem;font-size:.78rem;background:#f8fafc;padding:.5rem .75rem;border-radius:8px;border:1px solid #e5e7eb;">
+            <span style="color:#6b7280;font-weight:600;">🔍 Filtrar por:</span>
+            <?php if (!empty($_filtroResps)): ?>
+            <select id="filtroAndResp" onchange="filtrarTimelineExtras()" style="font-size:.78rem;padding:.25rem .5rem;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">
+                <option value="">Responsável (todos)</option>
+                <?php foreach ($_filtroResps as $_r): ?>
+                    <option value="<?= (int)$_r['id'] ?>"><?= e($_r['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <?php endif; ?>
+            <input type="date" id="filtroAndDataIni" onchange="filtrarTimelineExtras()" min="<?= e($_minData) ?>" max="<?= e($_maxData) ?>" style="font-size:.78rem;padding:.25rem .4rem;border:1px solid #e5e7eb;border-radius:6px;" placeholder="De" title="Data inicial">
+            <span style="color:#9ca3af;">a</span>
+            <input type="date" id="filtroAndDataFim" onchange="filtrarTimelineExtras()" min="<?= e($_minData) ?>" max="<?= e($_maxData) ?>" style="font-size:.78rem;padding:.25rem .4rem;border:1px solid #e5e7eb;border-radius:6px;" placeholder="Até" title="Data final">
+            <button type="button" onclick="document.getElementById('filtroAndResp').value='';document.getElementById('filtroAndDataIni').value='';document.getElementById('filtroAndDataFim').value='';filtrarTimelineExtras();" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:.7rem;text-decoration:underline;">↺ limpar</button>
+            <span id="filtroAndContador" style="margin-left:auto;color:#6b7280;font-size:.72rem;"></span>
+        </div>
+        <?php endif; ?>
 
         <!-- Publicacoes na timeline -->
         <?php if (!empty($publicacoes)): ?>
@@ -3863,7 +3927,7 @@ foreach ($tarefasReais as $_t) {
                 }
                 $sortDateAnd = date('Y-m-d', strtotime($and['data_andamento'])) . ' ' . $horaOrdAnd;
                 ?>
-                <div class="andamento-item" data-tipo="andamento" data-sort-date="<?= e($sortDateAnd) ?>" style="position:relative;margin-bottom:16px;padding-left:20px;">
+                <div class="andamento-item" data-tipo="andamento" data-sort-date="<?= e($sortDateAnd) ?>" data-and-resp="<?= (int)($and['created_by'] ?? 0) ?>" data-and-data="<?= e(date('Y-m-d', strtotime($and['data_andamento']))) ?>" style="position:relative;margin-bottom:16px;padding-left:20px;">
                     <!-- Bolinha da timeline -->
                     <div style="position:absolute;left:-20px;top:6px;width:18px;height:18px;border-radius:50%;background:<?= $cor ?>;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:1;"><?= $icon ?></div>
 
@@ -4716,14 +4780,49 @@ var _fsaSave = {
             if (b) b.innerHTML = '';
             if (el.style && el.style.borderColor !== undefined) el.style.borderColor = el.dataset.fsaBorder || '';
         }, 1800);
+        // Toast flutuante no canto sup direito (relatorio Nilce 31/05:
+        // confirmacao visual depois de save inline -- badge no campo era
+        // discreto demais)
+        _fsaToast.ok('Salvo');
     },
     erro: function(el, msg) {
         var b = this._badge(el);
         var t = (msg || 'Erro ao salvar').replace(/"/g, '&quot;');
         if (b) b.innerHTML = '<span style="color:#dc2626;font-weight:700;font-size:.95rem;cursor:help;" title="' + t + '">✕</span>';
         if (el.style && el.style.borderColor !== undefined) el.style.borderColor = '#dc2626';
+        _fsaToast.erro(msg || 'Erro ao salvar');
     }
 };
+
+// Toast generico pra feedback de save -- aparece canto sup direito por ~2.5s
+var _fsaToast = {
+    _container: null,
+    _ensure: function() {
+        if (!this._container) {
+            this._container = document.createElement('div');
+            this._container.id = 'fsa-toast-wrap';
+            this._container.style.cssText = 'position:fixed;top:80px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;';
+            document.body.appendChild(this._container);
+        }
+    },
+    _show: function(html, bg, ms) {
+        this._ensure();
+        var t = document.createElement('div');
+        t.style.cssText = 'background:' + bg + ';color:#fff;padding:.55rem .9rem;border-radius:8px;font-size:.85rem;font-weight:600;box-shadow:0 6px 18px rgba(0,0,0,.18);opacity:0;transform:translateX(10px);transition:opacity .18s, transform .18s;';
+        t.innerHTML = html;
+        this._container.appendChild(t);
+        // Trigger transition
+        requestAnimationFrame(function(){ t.style.opacity = '1'; t.style.transform = 'translateX(0)'; });
+        setTimeout(function(){
+            t.style.opacity = '0'; t.style.transform = 'translateX(10px)';
+            setTimeout(function(){ if (t.parentNode) t.parentNode.removeChild(t); }, 220);
+        }, ms || 2500);
+    },
+    ok: function(msg) { this._show('✅ ' + (msg || 'Salvo'), '#059669', 2200); },
+    erro: function(msg) { this._show('⚠️ ' + (msg || 'Erro ao salvar'), '#dc2626', 4000); },
+    info: function(msg) { this._show('ℹ️ ' + msg, '#0e7490', 2500); }
+};
+window._fsaToast = _fsaToast;
 
 // Fila de saves por caseId pra evitar race condition: 2+ saves do mesmo caso
 // disparados em sequência (ex: usuário troca status e logo segredo) competem
@@ -4822,12 +4921,40 @@ function filtrarTimeline(filtro, btn) {
     btns.forEach(function(b) { b.classList.remove('ativo', 'ativo-pub'); });
     if (filtro === 'publicacoes') { btn.classList.add('ativo-pub'); }
     else { btn.classList.add('ativo'); }
+    window._tlFiltroTipo = filtro;
+    filtrarTimelineExtras();
+}
 
-    var andItems = document.querySelectorAll('.andamento-item:not(.pub-item)');
-    var pubItems = document.querySelectorAll('.andamento-item.pub-item');
-
-    andItems.forEach(function(el) { el.style.display = (filtro === 'publicacoes') ? 'none' : ''; });
-    pubItems.forEach(function(el) { el.style.display = (filtro === 'andamentos') ? 'none' : ''; });
+// Filtros combinados (relatorio Nilce 31/05): tipo + responsavel + range data.
+// Aplica visibilidade no client. Atualiza contador 'X de Y visíveis'.
+function filtrarTimelineExtras() {
+    var tipo = window._tlFiltroTipo || 'todos';
+    var resp = (document.getElementById('filtroAndResp') || {}).value || '';
+    var ini  = (document.getElementById('filtroAndDataIni') || {}).value || '';
+    var fim  = (document.getElementById('filtroAndDataFim') || {}).value || '';
+    var todos = document.querySelectorAll('.andamento-item');
+    var visiveis = 0, total = todos.length;
+    todos.forEach(function(el) {
+        var ehPub = el.classList.contains('pub-item');
+        var elTipo = ehPub ? 'publicacoes' : 'andamentos';
+        var mostra = (tipo === 'todos' || tipo === elTipo);
+        if (mostra && resp) {
+            var rEl = el.getAttribute('data-and-resp') || '';
+            if (rEl !== resp) mostra = false;
+        }
+        if (mostra && (ini || fim)) {
+            var dEl = el.getAttribute('data-and-data') || (el.getAttribute('data-sort-date') || '').substring(0,10);
+            if (ini && dEl < ini) mostra = false;
+            if (fim && dEl > fim) mostra = false;
+        }
+        el.style.display = mostra ? '' : 'none';
+        if (mostra) visiveis++;
+    });
+    var cnt = document.getElementById('filtroAndContador');
+    if (cnt) {
+        if (visiveis === total) cnt.textContent = total + ' itens';
+        else cnt.innerHTML = '<strong>' + visiveis + '</strong> de ' + total + ' itens';
+    }
 }
 
 // Merge + ordena cronologicamente: move as publicacoes do #blocoPublicacoes
