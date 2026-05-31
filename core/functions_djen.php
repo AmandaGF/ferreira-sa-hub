@@ -7,6 +7,46 @@
  */
 
 /**
+ * Insere uma task de prazo_publicacao com dedupe (Nilce r19 31/05/2026).
+ *
+ * Antes desta funcao, 3 lugares diferentes inseriam tasks de prazo_publicacao
+ * sem checar duplicata. Quando a mesma publicacao DJEN era re-importada ou
+ * processada por mais de uma rota (cron + import manual + relancamento), a
+ * mesma tarefa aparecia 2-3x no Kanban com mesmo (case_id, due_date).
+ *
+ * Estrategia: se ja existe task ativa (nao concluida/cancelada) com
+ * (case_id, due_date, subtipo='prazo_publicacao'), retorna o id existente
+ * em vez de inserir. Tasks concluidas nao bloqueiam (caso real: prazo cumprido
+ * antes, mas nova publicacao do mesmo tipo no mesmo dia precisa de task nova).
+ *
+ * Retorna o ID da task (existente ou recem-criada).
+ */
+function djen_inserir_task_prazo_publicacao($pdo, $caseId, $title, $descricao, $dueDate, $prazoAlerta, $responsavel) {
+    // Checa duplicata ativa
+    $st = $pdo->prepare(
+        "SELECT id FROM case_tasks
+         WHERE case_id = ? AND tipo = 'prazo' AND subtipo = 'prazo_publicacao'
+           AND due_date = ?
+           AND (status IS NULL OR status NOT IN ('concluido','feito','cancelado'))
+         ORDER BY id DESC LIMIT 1"
+    );
+    $st->execute(array($caseId, $dueDate));
+    $existing = $st->fetchColumn();
+    if ($existing) {
+        return (int)$existing;
+    }
+
+    // Sem duplicata - insere
+    $pdo->prepare(
+        "INSERT INTO case_tasks
+         (case_id, title, descricao, tipo, subtipo, due_date, prazo_alerta,
+          status, prioridade, assigned_to, created_at)
+         VALUES (?, ?, ?, 'prazo', 'prazo_publicacao', ?, ?, 'a_fazer', 'alta', ?, NOW())"
+    )->execute(array($caseId, $title, $descricao, $dueDate, $prazoAlerta, $responsavel));
+    return (int)$pdo->lastInsertId();
+}
+
+/**
  * Parseia o texto bruto do DJen. Separa blocos por "Processo NNNNNNN-NN.AAAA.X.XX.XXXX".
  * Extrai campos opcionais "Resumo:" e "Orientação:" quando presentes no texto.
  */
@@ -213,18 +253,12 @@ function djen_importar_publicacao($pdo, $pub, $caseId, $userId) {
         $lbl = isset($tipoLbl[$tipoPub]) ? $tipoLbl[$tipoPub] : 'PUBLICAÇÃO';
         $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
 
-        $pdo->prepare(
-            "INSERT INTO case_tasks
-             (case_id, title, descricao, tipo, subtipo, due_date, prazo_alerta,
-              status, prioridade, assigned_to, created_at)
-             VALUES (?,?,?,'prazo','prazo_publicacao',?,?,'a_fazer','alta',?,NOW())"
-        )->execute(array(
-            $caseId,
+        $taskId = djen_inserir_task_prazo_publicacao(
+            $pdo, $caseId,
             'PRAZO - ' . $lbl . ' | ' . $tituloCase,
             'Prazo de ' . $prazoDias . 'du a partir de ' . date('d/m/Y', strtotime($dataDisp)) . '. Vence: ' . date('d/m/Y', strtotime($dataFim)),
             $dataFim, $prazoAlerta, $responsavel
-        ));
-        $taskId = (int)$pdo->lastInsertId();
+        );
         $pdo->prepare("UPDATE case_publicacoes SET task_id = ? WHERE id = ?")->execute(array($taskId, $pubId));
 
         $pdo->prepare(

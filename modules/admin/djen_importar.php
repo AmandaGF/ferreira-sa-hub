@@ -338,18 +338,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
 
-                    $pdo->prepare(
-                        "INSERT INTO case_tasks
-                         (case_id, title, descricao, tipo, subtipo, due_date,
-                          prazo_alerta, status, prioridade, assigned_to, created_at)
-                         VALUES (?,?,?,'prazo','prazo_publicacao',?,?,'a_fazer','alta',?,NOW())"
-                    )->execute(array(
-                        $caseId,
+                    $taskId = djen_inserir_task_prazo_publicacao(
+                        $pdo, $caseId,
                         'PRAZO - ' . $lbl . ' | ' . $tituloCase,
                         'Prazo de ' . $prazoDias . 'du a partir de ' . date('d/m/Y', strtotime($dataDisp)) . '. Vence: ' . date('d/m/Y', strtotime($dataFim)),
                         $dataFim, $prazoAlerta, $responsavel
-                    ));
-                    $taskId = (int)$pdo->lastInsertId();
+                    );
 
                     $pdo->prepare("UPDATE case_publicacoes SET task_id = ? WHERE id = ?")->execute(array($taskId, $pubId));
 

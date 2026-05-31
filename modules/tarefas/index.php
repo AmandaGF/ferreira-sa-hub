@@ -305,7 +305,18 @@ function renderCard(t, hoje) {
     var tipoCor = TIPO_CORES[t.tipo] || '#94a3b8';
     var tipoLabel = TIPO_LABELS[t.tipo] || t.tipo || '';
     var prioCor = PRIO_CORES[t.prioridade] || '';
-    var initials = t.assigned_name ? t.assigned_name.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase() : '?';
+    // Nilce r19 31/05/2026: avatar '?' confundia (parecia 'incerto'). Quando nao
+    // ha responsavel, mostra '—' (em-dash) e tooltip explicito 'Sem responsavel'.
+    var initials, avatarTitle, avatarBg;
+    if (t.assigned_name) {
+        initials = t.assigned_name.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase();
+        avatarTitle = t.assigned_name;
+        avatarBg = '';
+    } else {
+        initials = '—';
+        avatarTitle = 'Sem responsável atribuído';
+        avatarBg = 'background:#9ca3af;';
+    }
 
     // Prazo
     var prazoHtml = '';
@@ -344,7 +355,7 @@ function renderCard(t, hoje) {
         + '<div style="display:flex;gap:6px;align-items:start">'
         + checkBtn
         + '<div style="flex:1"><div class="tk-card-titulo" style="'+(isDone?'text-decoration:line-through;color:#94a3b8':'')+'">'+esc(t.title)+'</div></div>'
-        + '<div class="tk-avatar" title="'+(t.assigned_name||'')+'">'+initials+'</div>'
+        + '<div class="tk-avatar" style="'+avatarBg+'" title="'+avatarTitle+'">'+initials+'</div>'
         + '</div>'
         + '<div class="tk-card-meta">'
         + (tipoLabel ? '<span class="tk-badge" style="background:'+tipoCor+'">'+tipoLabel+'</span>' : '')

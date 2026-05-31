@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_djen.php';
 require_login();
 
 $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
@@ -2225,11 +2226,9 @@ switch ($action) {
                 // Alerta 3 dias antes
                 $prazoAlerta = date('Y-m-d', strtotime($dataFim . ' -3 days'));
 
-                $pdo->prepare(
-                    "INSERT INTO case_tasks (case_id, title, descricao, tipo, subtipo, due_date, prazo_alerta, status, prioridade, assigned_to, created_at)
-                     VALUES (?,?,?,'prazo','prazo_publicacao',?,?,'a_fazer','alta',?,NOW())"
-                )->execute(array($caseId, $tituloTask, $descTask, $dataFim, $prazoAlerta, $responsavel));
-                $taskId = (int)$pdo->lastInsertId();
+                $taskId = djen_inserir_task_prazo_publicacao(
+                    $pdo, $caseId, $tituloTask, $descTask, $dataFim, $prazoAlerta, $responsavel
+                );
 
                 $pdo->prepare("UPDATE case_publicacoes SET task_id = ? WHERE id = ?")
                     ->execute(array($taskId, $pubId));
