@@ -78,6 +78,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash_set('success', 'Template excluído.');
         redirect(module_url('whatsapp', 'templates.php'));
     }
+
+    // Nilce r13 31/05/2026: 'Proposta' tinha U+FFFD (replacement char) que iria
+    // pro cliente. Botão limpa o U+FFFD do nome e conteúdo do template indicado.
+    if ($action === 'sanitizar') {
+        $id = (int)($_POST['id'] ?? 0);
+        $st = $pdo->prepare("SELECT nome, conteudo FROM zapi_templates WHERE id = ?");
+        $st->execute(array($id));
+        $row = $st->fetch();
+        if ($row) {
+            $nomeLimpo     = str_replace("\xEF\xBF\xBD", '', $row['nome']);
+            $conteudoLimpo = str_replace("\xEF\xBF\xBD", '', $row['conteudo']);
+            $pdo->prepare("UPDATE zapi_templates SET nome = ?, conteudo = ? WHERE id = ?")
+                ->execute(array($nomeLimpo, $conteudoLimpo, $id));
+            audit_log('zapi_tpl_sanitizar', 'zapi_templates', $id, 'removeu U+FFFD');
+            flash_set('success', 'Caractere corrompido removido. Revise se o template ainda faz sentido.');
+        }
+        redirect(module_url('whatsapp', 'templates.php'));
+    }
+}
+
+// Detector de chars corrompidos em produção (Nilce r13).
+function _tpl_tem_replacement_char($texto) {
+    return is_string($texto) && strpos($texto, "\xEF\xBF\xBD") !== false;
 }
 
 // ── Carregar edição? ────────────────────────────────────
@@ -120,6 +143,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="?novo=1" class="btn btn-primary btn-sm">+ Novo Template</a>
     </div>
 </div>
+
+<?php
+// Detecta templates com U+FFFD pra alertar logo no topo (Nilce r13)
+$_tplCorrompidos = 0;
+foreach ($templates as $_t) {
+    if (_tpl_tem_replacement_char($_t['nome']) || _tpl_tem_replacement_char($_t['conteudo'])) $_tplCorrompidos++;
+}
+if ($_tplCorrompidos > 0):
+?>
+<div style="background:#fef2f2;border:2px solid #dc2626;border-radius:10px;padding:.85rem 1.15rem;margin-bottom:1rem;">
+    <strong style="color:#991b1b;">⚠️ <?= $_tplCorrompidos ?> template(s) com caractere corrompido (U+FFFD)</strong>
+    <p style="margin:.3rem 0 0;font-size:.78rem;color:#7f1d1d;">
+        Esses templates têm um símbolo "�" no texto — geralmente um emoji que se perdeu na codificação UTF-8.
+        Se forem enviados ao cliente, o "�" aparece na mensagem. Localize abaixo (borda vermelha) e clique
+        em <strong>🧹 Sanitizar</strong> pra remover, depois revise o texto.
+    </p>
+</div>
+<?php endif; ?>
 
 <p class="text-sm text-muted">Estes templates aparecem no botão 📋 dentro de cada conversa. Os nomes especiais <strong>"Fora do horário"</strong> e <strong>"Confirmação de documentos"</strong> também são usados nas automações.</p>
 
@@ -183,19 +224,32 @@ foreach ($templates as $t) {
     <div class="card"><div class="card-body"><p class="text-muted text-sm">Nenhum template cadastrado. Clique em <strong>+ Novo Template</strong> para começar.</p></div></div>
 <?php else: foreach ($grupos as $cat => $items): ?>
     <h3 style="margin:1.2rem 0 .5rem;font-size:.95rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;"><?= e($cat) ?> (<?= count($items) ?>)</h3>
-    <?php foreach ($items as $t): ?>
-        <div class="tpl-card <?= !$t['ativo'] ? 'tpl-inactive' : '' ?>">
+    <?php foreach ($items as $t):
+        $_temCorrompido = _tpl_tem_replacement_char($t['nome']) || _tpl_tem_replacement_char($t['conteudo']);
+    ?>
+        <div class="tpl-card <?= !$t['ativo'] ? 'tpl-inactive' : '' ?>" style="<?= $_temCorrompido ? 'border:2px solid #dc2626;background:#fef2f2;' : '' ?>">
             <div class="tpl-head">
                 <span class="tpl-nome"><?= e($t['nome']) ?></span>
                 <span class="tpl-canal tpl-canal-<?= e($t['canal']) ?>">
                     <?= $t['canal'] === 'ambos' ? 'AMBOS' : 'DDD ' . e($t['canal']) ?>
                 </span>
                 <?php if (!$t['ativo']): ?><span class="tpl-cat" style="background:#fee2e2;color:#991b1b;">INATIVO</span><?php endif; ?>
+                <?php if ($_temCorrompido): ?>
+                    <span class="tpl-cat" style="background:#dc2626;color:#fff;" title="Detectado U+FFFD (caractere corrompido). Provavelmente um emoji que se perdeu na codificação. NÃO ENVIAR ao cliente até sanitizar.">⚠ CARACTERE CORROMPIDO</span>
+                <?php endif; ?>
                 <span class="tpl-meta">criado <?= date('d/m/Y', strtotime($t['created_at'])) ?></span>
             </div>
             <div class="tpl-content"><?= e($t['conteudo']) ?></div>
             <div class="tpl-actions">
                 <a href="?editar=<?= $t['id'] ?>" class="btn btn-outline btn-sm">✏️ Editar</a>
+                <?php if ($_temCorrompido): ?>
+                    <form method="POST" style="display:inline;" onsubmit="return confirm('Remover o caractere corrompido (U+FFFD) do template &quot;<?= e($t['nome']) ?>&quot;?\n\nO texto vai perder o char inválido. Edite depois pra colocar o emoji correto se quiser.');">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="sanitizar">
+                        <input type="hidden" name="id" value="<?= $t['id'] ?>">
+                        <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:700;">🧹 Sanitizar</button>
+                    </form>
+                <?php endif; ?>
                 <form method="POST" style="display:inline;" onsubmit="event.preventDefault();toggleAtivo(<?= $t['id'] ?>);">
                     <?= csrf_input() ?>
                     <button type="submit" class="btn btn-outline btn-sm">

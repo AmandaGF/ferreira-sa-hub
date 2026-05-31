@@ -316,6 +316,23 @@ if ($action === 'listar_conversas') {
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
 
+    // Nilce r13 31/05/2026: badge ficava travado em (200) em filtros com muitas
+    // conversas (ex: 'Aguardando'). Causa: LIMIT 200 + frontend usando .length da
+    // lista. Agora calcula COUNT real com o mesmo WHERE pra mostrar 'X de Y'.
+    $totalReal = count($rows);
+    if (count($rows) >= 200) {
+        try {
+            $countSql = "SELECT COUNT(*) FROM zapi_conversas co
+                         LEFT JOIN clients cl ON cl.id = co.client_id
+                         LEFT JOIN pipeline_leads pl ON pl.id = co.lead_id
+                         {$joinEtq}
+                         WHERE " . implode(' AND ', $where);
+            $stC = $pdo->prepare($countSql);
+            $stC->execute($params);
+            $totalReal = (int)$stC->fetchColumn();
+        } catch (Exception $e) {}
+    }
+
     // Parse etiquetas: "id|nome|cor§id|nome|cor" → array de {id,nome,cor}
     // + substitui atendente_name pelo display name curto (custom ou primeiro+último)
     foreach ($rows as &$r) {
@@ -346,7 +363,7 @@ if ($action === 'listar_conversas') {
         );
     }
 
-    echo json_encode(array('ok' => true, 'conversas' => $rows, 'instancias' => $inst));
+    echo json_encode(array('ok' => true, 'conversas' => $rows, 'total' => $totalReal, 'instancias' => $inst));
     exit;
 }
 

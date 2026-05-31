@@ -599,7 +599,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fetch(url).then(function(r){ return r.json(); }).then(function(d){
             if (!d.ok) return;
             var list = document.getElementById('waList');
-            document.getElementById('waCount').textContent = '(' + d.conversas.length + ')';
+            // Nilce r13 31/05/2026: usa o total real (count(*) sem LIMIT) — antes o badge
+            // ficava preso em (200) quando o filtro tinha >= 200 matches.
+            var _totalReal = (typeof d.total === 'number') ? d.total : d.conversas.length;
+            var _mostradas = d.conversas.length;
+            document.getElementById('waCount').textContent = (_totalReal > _mostradas)
+                ? '(' + _mostradas + ' de ' + _totalReal + ')'
+                : '(' + _totalReal + ')';
             if (d.conversas.length === 0) {
                 list.innerHTML = '<div class="wa-empty">Nenhuma conversa.</div>';
                 return;
