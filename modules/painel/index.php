@@ -879,7 +879,8 @@ window._esfriAdiarDoModal = function(clientId, btn) {
         <input type="hidden" id="lembreteId" value="">
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">O que precisa lembrar? *</label>
-            <input type="text" id="lembreteTitulo" class="form-input" required placeholder="Ex: Ligar para cliente às 14h">
+            <input type="text" id="lembreteTitulo" class="form-input" required placeholder="Ex: Ligar para cliente às 14h" oninvalid="this.setCustomValidity('⚠️ Informe o que precisa lembrar'); document.getElementById('lembreteTituloErro').style.display='block';" oninput="this.setCustomValidity(''); document.getElementById('lembreteTituloErro').style.display='none';">
+            <div id="lembreteTituloErro" style="display:none;color:#dc2626;font-size:.7rem;margin-top:.2rem;font-weight:600;">⚠️ Informe o que precisa lembrar.</div>
         </div>
         <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;">
             <div style="flex:1;min-width:120px;">

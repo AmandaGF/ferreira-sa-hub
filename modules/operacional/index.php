@@ -303,7 +303,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button onclick="toggleOpView('tabela')" id="btnOpTabela" style="padding:7px 18px;font-size:.82rem;font-weight:700;border:none;cursor:pointer;background:#fff;color:var(--petrol-900);transition:all .2s;">📊 Tabela</button>
         </div>
         <form method="GET" class="op-filters" style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
-            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="🔎 Buscar nome, tipo, nº..." class="op-filter-select" style="min-width:200px;" onkeydown="if(event.key==='Enter')this.form.submit()">
+            <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="🔎 Buscar nome, tipo, nº... (↵ Enter)" class="op-filter-select" style="min-width:240px;" onkeydown="if(event.key==='Enter')this.form.submit()" title="Digite e pressione Enter para filtrar">
             <input type="month" name="mes" value="<?= e($filterMonth) ?>" class="op-filter-select" style="min-width:120px;" onchange="this.form.submit()">
             <select name="priority" class="op-filter-select" onchange="this.form.submit()">
                 <option value="">Prioridade</option>
@@ -583,6 +583,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tbl-grid th:hover { background:var(--petrol-500); }
 .tbl-grid th:last-child { border-right:none; }
 .tbl-grid td { padding:8px 12px;border-bottom:1px solid #eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:250px; }
+.tbl-grid td[data-truncated="1"] { cursor:help; }
+.tbl-grid td[data-truncated="1"]:hover { text-overflow:clip; overflow:visible; position:relative; }
+.tbl-grid td[data-truncated="1"]:hover::after { content:attr(title); position:absolute; left:0; top:100%; background:#052228; color:#fff; padding:5px 10px; border-radius:6px; white-space:nowrap; z-index:50; font-size:.75rem; font-weight:500; box-shadow:0 4px 12px rgba(0,0,0,.2); margin-top:2px; }
 .tbl-grid tbody tr { cursor:pointer;transition:background .15s; }
 .tbl-grid tbody tr:nth-child(even) { background:#fafbfc; }
 .tbl-grid tbody tr:hover { background:rgba(215,171,144,.15); }
@@ -2084,6 +2087,44 @@ setTimeout(function() {
   // restaura assim que possível e de novo no load (caso layout mude)
   restaurar();
   window.addEventListener('load', restaurar);
+})();
+</script>
+<script>
+// Tooltip auto pra <td> truncadas na Tabela (relatorio Nilce 31/05/2026):
+// detecta scrollWidth > clientWidth, seta title + flag data-truncated pra
+// CSS ativar pseudo-elemento de tooltip no hover.
+(function(){
+    function checarTruncamento() {
+        document.querySelectorAll('.tbl-grid td').forEach(function(td) {
+            // Skip se ja tem title manual ou esta vazio
+            if (td.dataset.titleManual === '1' || !td.textContent.trim()) return;
+            // scrollWidth > clientWidth = conteudo cortado por overflow:hidden
+            if (td.scrollWidth > td.clientWidth + 1) {
+                var txt = td.textContent.trim();
+                td.setAttribute('title', txt);
+                td.setAttribute('data-truncated', '1');
+            } else {
+                td.removeAttribute('data-truncated');
+            }
+        });
+    }
+    // Roda no carregamento + reage a mudancas dinamicas (filtro, ordenacao)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checarTruncamento);
+    } else {
+        checarTruncamento();
+    }
+    window.addEventListener('load', checarTruncamento);
+    window.addEventListener('resize', checarTruncamento);
+    // Observador pra quando a tabela re-renderiza (filtros)
+    var tabela = document.querySelector('.tbl-grid');
+    if (tabela && window.MutationObserver) {
+        var obs = new MutationObserver(function(){
+            clearTimeout(window._tblTooltipTimer);
+            window._tblTooltipTimer = setTimeout(checarTruncamento, 100);
+        });
+        obs.observe(tabela, { childList: true, subtree: true });
+    }
 })();
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

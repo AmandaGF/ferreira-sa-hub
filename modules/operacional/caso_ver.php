@@ -386,7 +386,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 input.fsa-erro, select.fsa-erro, textarea.fsa-erro { border-color:#dc2626 !important; }
 /* Toolbar sticky: usa IntersectionObserver pra aplicar sombra só quando "stuck".
    Truque do top:-1px + sentinela é overkill — basta sombra suave permanente. */
-.cv-toolbar-sticky { box-shadow: 0 4px 8px -6px rgba(0,0,0,.15); }
+.cv-toolbar-sticky { box-shadow: 0 4px 8px -6px rgba(0,0,0,.15); transition: box-shadow .2s, padding .2s; }
+.cv-toolbar-sticky.is-stuck { box-shadow: 0 6px 16px -6px rgba(0,0,0,.25); border-bottom-color: rgba(184,115,51,.3) !important; padding-top:.9rem !important; padding-bottom:.9rem !important; }
 body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !important; box-shadow: 0 4px 12px -6px rgba(0,0,0,.4); }
 /* Publicacoes processuais */
 .pub-item { border-left-color: #dc2626 !important; background: #fff8f8 !important; }
@@ -450,7 +451,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     </div>
 </div>
 <?php endif; ?>
-<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 32px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:5;border-bottom:1px solid transparent;">
+<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 36px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:30;border-bottom:1px solid transparent;">
     <?php
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
     $fromProcessos = (strpos($referer, '/processos') !== false);
@@ -546,6 +547,20 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
             }
         });
     });
+
+    // Detecta quando a toolbar sticky 'cola' no topo e adiciona classe
+    // pra dar feedback visual (sombra + borda). Relatorio Nilce 31/05/2026:
+    // 'a barra de acoes some' -- na verdade nao some, fica grudada, mas
+    // sem feedback visual usuario nao percebe. Agora visual reforca.
+    var stickyBar = document.querySelector('.cv-toolbar-sticky');
+    if (stickyBar && 'IntersectionObserver' in window) {
+        var sentinela = document.createElement('div');
+        sentinela.style.cssText = 'height:1px;';
+        stickyBar.parentNode.insertBefore(sentinela, stickyBar);
+        new IntersectionObserver(function(entries){
+            stickyBar.classList.toggle('is-stuck', !entries[0].isIntersecting);
+        }, { threshold: 0 }).observe(sentinela);
+    }
 })();
 </script>
 
@@ -3583,9 +3598,21 @@ foreach ($tarefasReais as $_t) {
                 });
                 dropdown.innerHTML = h;
                 // Click handlers
+                // 31/05/2026 (Nilce relatorio UX): antes o mouseover chamava render()
+                // que reescrevia innerHTML inteiro -> handlers de mousedown morriam no
+                // meio do gesto e clique nao aplicava o modelo. Agora mouseover so muda
+                // o fundo do item ativo (sem destruir DOM). E click serve de fallback
+                // pra mousedown (cobre browsers que disparam click sem mousedown).
                 dropdown.querySelectorAll('.and-slash-item').forEach(function(el) {
-                    el.addEventListener('mousedown', function(ev){ ev.preventDefault(); aplicar(parseInt(el.dataset.idx)); });
-                    el.addEventListener('mouseover', function() { idxSel = parseInt(el.dataset.idx); render(filtrados); });
+                    var i = parseInt(el.dataset.idx, 10);
+                    el.addEventListener('mousedown', function(ev){ ev.preventDefault(); aplicar(i); });
+                    el.addEventListener('click', function(ev){ ev.preventDefault(); aplicar(i); });
+                    el.addEventListener('mouseover', function() {
+                        idxSel = i;
+                        dropdown.querySelectorAll('.and-slash-item').forEach(function(e2, j) {
+                            e2.style.background = (j === i) ? '#fef3c7' : '';
+                        });
+                    });
                 });
             }
             function escAND(s) { return (s||'').replace(/[&<>"]/g, function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }

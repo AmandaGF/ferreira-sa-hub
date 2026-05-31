@@ -239,7 +239,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- Status -->
     <div class="hd-filter-row">
         <span class="hd-filter-label">Status</span>
-        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('origem'=>$filterOrigem,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= !$filterStatus ? 'active' : '' ?>">Todos <span class="cnt"><?= $totalTickets ?></span></a>
+        <?php
+        // Relatorio Nilce 31/05/2026: 'Todos 4' mostrava lista vazia porque
+        // o default escondia resolvidos/cancelados. Agora pill 'Todos' envia
+        // arquivados=1 explicitamente -> mostra TUDO, batendo com o contador.
+        $_paramsTodos = array_filter(array('origem'=>$filterOrigem,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee,'arquivados'=>'1'));
+        ?>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query($_paramsTodos) ?>" class="hd-pill <?= (!$filterStatus && $showArquivados) ? 'active' : '' ?>" title="Mostra TODOS os chamados (incluindo resolvidos e cancelados)">Todos <span class="cnt"><?= $totalTickets ?></span></a>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('origem'=>$filterOrigem,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= (!$filterStatus && !$showArquivados) ? 'active' : '' ?>" title="Esconde resolvidos e cancelados (padrão)">Ativos <span class="cnt"><?= ($totalTickets - ($statusCounts['resolvido'] ?? 0) - ($statusCounts['cancelado'] ?? 0)) ?></span></a>
         <?php foreach ($statusLabels as $sk => $sv): ?>
             <?php $cnt = $statusCounts[$sk] ?? 0; if ($cnt === 0 && $sk !== $filterStatus) continue; ?>
             <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('origem'=>$filterOrigem,'status'=>$sk,'q'=>$search,'priority'=>$filterPriority,'category'=>$filterCategory,'assignee'=>$filterAssignee))) ?>" class="hd-pill <?= $filterStatus === $sk ? 'active' : '' ?>"><?= $statusIcons[$sk] ?? '' ?> <?= $sv ?> <span class="cnt"><?= $cnt ?></span></a>
