@@ -603,8 +603,29 @@ try {
                 }
             }
 
+            // ── EXECUTOR DE FLUXOS (motor zapi_fluxo*) ──
+            // Plugado em 31/05/2026 apos validacao end-to-end via seed_fluxo_demo.
+            // Default OFF (killswitch em configuracoes.zapi_fluxo_executor_ativo).
+            // Se houver execucao 'em_andamento'/'aguardando' pra essa conv, o helper
+            // avanca o fluxo passando $conteudo como entrada do usuario. Quando consome,
+            // SUPRIME o bot Haiku no mesmo turno (evita o bot e o fluxo brigando pelo
+            // mesmo input).
+            //
+            // NUNCA bloqueia o webhook: erro do executor e silencioso (log + segue).
+            $fluxoConsumiu = false;
+            if (zapi_auto_cfg('zapi_fluxo_executor_ativo', '0') === '1') {
+                require_once APP_ROOT . '/core/functions_fluxos.php';
+                try {
+                    $fluxoConsumiu = fluxo_processar_msg_recebida((int)$conv['id'], (string)$conteudo);
+                    if ($fluxoConsumiu) $log("[{$numero}] FLUXO consumiu msg conv#{$conv['id']}");
+                } catch (Exception $e) {
+                    $log("[{$numero}] FLUXO ERRO conv#{$conv['id']}: " . $e->getMessage());
+                }
+            }
+
             // ── BOT IA (DDD 21 apenas, se bot_ativo nessa conversa) ──
-            if ($numero === '21' && (int)$conv['bot_ativo'] === 1 && zapi_auto_cfg('zapi_bot_ia_ativo', '0') === '1') {
+            // Pulado se um fluxo do executor consumiu a msg neste turno.
+            if (!$fluxoConsumiu && $numero === '21' && (int)$conv['bot_ativo'] === 1 && zapi_auto_cfg('zapi_bot_ia_ativo', '0') === '1') {
                 require_once APP_ROOT . '/core/functions_bot_ia.php';
                 try { bot_ia_processar($conv['id'], $conteudo); }
                 catch (Exception $e) { $log("[{$numero}] BOT_IA ERRO: " . $e->getMessage()); }
