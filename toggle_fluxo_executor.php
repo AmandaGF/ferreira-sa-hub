@@ -44,10 +44,23 @@ function get_estado($pdo, $chave) {
 }
 
 function set_estado($pdo, $chave, $valor) {
-    $pdo->prepare(
-        "INSERT INTO configuracoes (chave, valor) VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE valor = VALUES(valor), atualizado_em = NOW()"
-    )->execute(array($chave, $valor));
+    // UPDATE primeiro - se a chave ja existe, atualiza e retorna rowCount>=1
+    try {
+        $upd = $pdo->prepare("UPDATE configuracoes SET valor = ? WHERE chave = ?");
+        $upd->execute(array($valor, $chave));
+        if ($upd->rowCount() > 0) return true;
+    } catch (Exception $e) {
+        echo "[ERRO UPDATE] " . $e->getMessage() . "\n";
+    }
+    // Senao, INSERT. Tenta com colunas (chave, valor) e ignora se tabela tem outras.
+    try {
+        $ins = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)");
+        $ins->execute(array($chave, $valor));
+        return true;
+    } catch (Exception $e) {
+        echo "[ERRO INSERT] " . $e->getMessage() . "\n";
+    }
+    return false;
 }
 
 if (isset($_GET['on'])) {
