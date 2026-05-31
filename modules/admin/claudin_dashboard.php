@@ -281,7 +281,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr data-id="<?= (int)$r['id'] ?>">
                         <td class="left"><?= htmlspecialchars(date('d/m/Y H:i:s', strtotime($r['executado_em'])), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><?= htmlspecialchars(date('d/m/Y', strtotime($r['data_alvo'])), ENT_QUOTES, 'UTF-8') ?></td>
-                        <td><span class="cl-badge horario"><?= htmlspecialchars($r['horario'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                        <?php
+                        $_h = (string)$r['horario'];
+                        $_hint = ($_h === '08' || $_h === '8') ? 'Turno das 08h (rodada matinal)'
+                                : (($_h === '19') ? 'Turno das 19h (rodada noturna)'
+                                : ('Turno das ' . $_h . 'h'));
+                        ?>
+                        <td><span class="cl-badge horario" title="<?= htmlspecialchars($_hint, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($_h, ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td><?= (int)$r['total_parsed'] ?></td>
                         <td style="color:#15803d;font-weight:600;"><?= (int)$r['imported'] ?></td>
                         <td><?= (int)$r['duplicated'] ?></td>
@@ -289,7 +295,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <td style="color:<?= $r['errors']>0 ? '#b91c1c;font-weight:700' : '#64748b' ?>;"><?= (int)$r['errors'] ?></td>
                         <td><?= htmlspecialchars(number_format((float)$r['tempo_execucao_segundos'], 1, ',', ''), ENT_QUOTES, 'UTF-8') ?></td>
                         <td><span class="cl-badge <?= htmlspecialchars($r['status'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars(strtoupper($r['status']), ENT_QUOTES, 'UTF-8') ?></span></td>
-                        <td><button class="cl-btn-log" onclick="clVerLog(<?= (int)$r['id'] ?>)">📄</button></td>
+                        <td><button class="cl-btn-log" onclick="clVerLog(<?= (int)$r['id'] ?>)" title="Ver log completo desta execução" aria-label="Ver log da execução #<?= (int)$r['id'] ?>">📄</button></td>
                     </tr>
                 <?php endforeach; endif; ?>
             </tbody>
@@ -436,7 +442,7 @@ function clRenderizar(rows) {
         html += '<tr data-id="' + r.id + '">'
              + '<td class="left">' + clEsc(clFmtDt(r.executado_em)) + '</td>'
              + '<td>' + clEsc(clFmtD(r.data_alvo)) + '</td>'
-             + '<td><span class="cl-badge horario">' + clEsc(r.horario) + '</span></td>'
+             + '<td><span class="cl-badge horario" title="' + (r.horario === '08' || r.horario === '8' ? 'Turno das 08h (rodada matinal)' : (r.horario === '19' ? 'Turno das 19h (rodada noturna)' : 'Turno das ' + clEsc(r.horario) + 'h')) + '">' + clEsc(r.horario) + '</span></td>'
              + '<td>' + clEsc(r.total_parsed) + '</td>'
              + '<td style="color:#15803d;font-weight:600;">' + clEsc(r.imported) + '</td>'
              + '<td>' + clEsc(r.duplicated) + '</td>'
@@ -444,7 +450,7 @@ function clRenderizar(rows) {
              + '<td style="color:' + corErr + ';">' + clEsc(r.errors) + '</td>'
              + '<td>' + clEsc(parseFloat(r.tempo_execucao_segundos).toFixed(1)) + '</td>'
              + '<td><span class="cl-badge ' + clEsc(r.status) + '">' + clEsc(r.status.toUpperCase()) + '</span></td>'
-             + '<td><button class="cl-btn-log" onclick="clVerLog(' + r.id + ')">📄</button></td>'
+             + '<td><button class="cl-btn-log" onclick="clVerLog(' + r.id + ')" title="Ver log completo desta execução" aria-label="Ver log da execução #' + r.id + '">📄</button></td>'
              + '</tr>';
     });
     tb.innerHTML = html;

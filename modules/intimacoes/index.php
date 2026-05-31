@@ -293,7 +293,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php else: ?>
                     Todas as publicações do DJEN — importadas e aguardando vinculação.
                 <?php endif; ?>
-                Mostrando: <strong><?= $total ?></strong>
+                <?php
+                $_inicio = $total ? ($offset + 1) : 0;
+                $_fim    = min($offset + $perPage, $total);
+                ?>
+                Mostrando <strong><?= $_inicio ?>–<?= $_fim ?></strong> de <strong><?= $total ?></strong>
+                <?php if ($totalPag > 1): ?>
+                    <span style="color:#0f7c66;font-weight:700;">(página <?= $pageNum ?> de <?= $totalPag ?>)</span>
+                <?php endif; ?>
             </p>
         </div>
         <div style="display:flex;gap:.4rem;">
@@ -310,6 +317,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         return ($fStatus === $status && $fFiltro === $filtro) ? ' ativo' : '';
     };
     ?>
+    <div style="font-size:.7rem;color:#64748b;margin:0 0 .35rem;display:flex;align-items:center;gap:.4rem;">
+        <span title="Os números abaixo são o panorama geral da Central — clique em qualquer card pra filtrar a lista por essa categoria. Eles não somam aos filtros aplicados em busca/tipo/OAB.">ℹ️ Painel geral (não reflete busca/tipo/OAB):</span>
+    </div>
     <div class="ci-painel">
         <a href="?aba=a_tratar&status=pendente" class="ci-painel-card destaque<?= $_cardAtivo('pendente', '') ?>">
             <div class="ci-painel-num"><?= (int)$contadores['pendente'] ?></div>
@@ -425,6 +435,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </form>
     </div>
 
+    <!-- Helper de paginacao reaproveitado no topo e no rodape da tabela (Nilce r6 31/05/2026) -->
+    <?php
+    $_pagBloco = function($pos) use ($pageNum, $totalPag, $total, $perPage, $offset) {
+        if ($totalPag <= 1) return;
+        $qsBase = $_GET;
+        $prev = max(1, $pageNum - 1);
+        $next = min($totalPag, $pageNum + 1);
+        $ini  = $offset + 1;
+        $fim  = min($offset + $perPage, $total);
+        $css  = 'padding:6px 12px;border-radius:5px;text-decoration:none;font-size:.78rem;font-weight:600;border:1px solid var(--border);';
+        $mb   = $pos === 'topo' ? 'margin:.4rem 0 .9rem;' : 'margin:1rem 0 .4rem;';
+        echo '<div class="ci-paginacao" style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap;align-items:center;'.$mb.'">';
+        echo '<span style="font-size:.75rem;color:#475569;margin-right:.5rem;">Página <strong>'.$pageNum.'</strong> de <strong>'.$totalPag.'</strong> · itens '.$ini.'–'.$fim.' de '.$total.'</span>';
+        $qsBase['page'] = $prev;
+        $offPrev = $pageNum === 1 ? 'opacity:.4;pointer-events:none;' : '';
+        echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.'background:#fff;color:#052228;'.$offPrev.'" title="Página anterior">« Anterior</a>';
+        for ($p = 1; $p <= $totalPag; $p++) {
+            if ($p > 1 && $p < $totalPag && abs($p - $pageNum) > 2) continue;
+            $qsBase['page'] = $p;
+            $ativo = $p === $pageNum ? 'background:#052228;color:#fff;' : 'background:#fff;color:#052228;';
+            echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.$ativo.'">'.$p.'</a>';
+        }
+        $qsBase['page'] = $next;
+        $offNext = $pageNum === $totalPag ? 'opacity:.4;pointer-events:none;' : '';
+        echo '<a href="?'.htmlspecialchars(http_build_query($qsBase)).'" style="'.$css.'background:#fff;color:#052228;'.$offNext.'" title="Próxima página">Próxima »</a>';
+        echo '</div>';
+    };
+    $_pagBloco('topo');
+    ?>
+
     <!-- Tabela -->
     <div style="overflow-x:auto;">
         <table class="ci-table">
@@ -528,20 +568,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </table>
     </div>
 
-    <!-- Paginação -->
-    <?php if ($totalPag > 1): ?>
-    <div style="display:flex;justify-content:center;gap:4px;margin-top:1rem;flex-wrap:wrap;">
-        <?php
-        $qsBase = $_GET;
-        for ($p = 1; $p <= $totalPag; $p++):
-            if ($p > 1 && $p < $totalPag && abs($p - $pageNum) > 2 && $p !== 1 && $p !== $totalPag) continue;
-            $qsBase['page'] = $p;
-            $ativo = $p === $pageNum ? 'background:#052228;color:#fff;' : 'background:#fff;color:#052228;';
-        ?>
-            <a href="?<?= http_build_query($qsBase) ?>" style="padding:4px 10px;border-radius:5px;text-decoration:none;font-size:.75rem;font-weight:600;border:1px solid var(--border);<?= $ativo ?>"><?= $p ?></a>
-        <?php endfor; ?>
-    </div>
-    <?php endif; ?>
+    <!-- Paginação (mesma do topo, garante visibilidade depois da tabela) -->
+    <?php $_pagBloco('rodape'); ?>
 </div>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
