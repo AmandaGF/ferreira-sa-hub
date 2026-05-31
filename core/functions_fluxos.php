@@ -27,6 +27,61 @@ require_once __DIR__ . '/database.php';
 require_once __DIR__ . '/functions_zapi.php';
 
 // ─────────────────────────────────────────────────────────
+// AUTENTICAÇÃO DOS ENDPOINTS ADMIN (chave dedicada)
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Retorna a chave dedicada ao motor de fluxos (cronjob, killswitch, etc).
+ * Auto-gerada na primeira chamada e armazenada em /files/.fluxo_admin_key
+ * (fora do git, com permissões restritas).
+ *
+ * Existe pra evitar que a chave global 'fsa-hub-deploy-2026' (compartilhada
+ * com deploy2.php) circule em cronjobs e logs.
+ */
+function _fluxo_admin_key() {
+    static $cache = null;
+    if ($cache !== null) return $cache;
+
+    $file = dirname(__DIR__) . '/files/.fluxo_admin_key';
+    if (file_exists($file)) {
+        $k = trim((string)@file_get_contents($file));
+        if (strlen($k) >= 32) {
+            $cache = $k;
+            return $cache;
+        }
+    }
+
+    // Gera 24 bytes random = 48 chars hex
+    try {
+        $novo = bin2hex(random_bytes(24));
+    } catch (Exception $e) {
+        // Fallback (PHP < 7 ou /dev/urandom indisponível)
+        $novo = bin2hex(openssl_random_pseudo_bytes(24) ?: hash('sha256', uniqid('', true) . microtime(true), true));
+        $novo = substr($novo, 0, 48);
+    }
+    @file_put_contents($file, $novo);
+    @chmod($file, 0600);
+    $cache = $novo;
+    return $cache;
+}
+
+/**
+ * Valida se a chave passada autoriza endpoint admin do motor.
+ * Aceita a chave dedicada do motor OU a chave legacy (transição).
+ *
+ * A chave legacy ('fsa-hub-deploy-2026') continua aceita pra não quebrar
+ * cronjobs existentes durante a migração. Remover quando todos os
+ * consumidores usarem a chave nova.
+ */
+function _fluxo_admin_check_key($input) {
+    $input = trim((string)$input);
+    if ($input === '') return false;
+    if (hash_equals(_fluxo_admin_key(), $input)) return true;
+    if (hash_equals('fsa-hub-deploy-2026', $input)) return true; // LEGACY — remover depois
+    return false;
+}
+
+// ─────────────────────────────────────────────────────────
 // LEITURA DO GRAFO
 // ─────────────────────────────────────────────────────────
 

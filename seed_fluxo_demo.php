@@ -19,11 +19,12 @@
  * Disparar via: curl -s "https://ferreiraesa.com.br/conecta/seed_fluxo_demo.php?key=fsa-hub-deploy-2026"
  */
 
-if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
-header('Content-Type: text/plain; charset=utf-8');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 require_once __DIR__ . '/core/functions_fluxos.php';
+
+if (!_fluxo_admin_check_key($_GET['key'] ?? '')) { die('Acesso negado.'); }
+header('Content-Type: text/plain; charset=utf-8');
 
 $pdo = db();
 $NOME_DEMO = 'DEMO Motor de Fluxos';

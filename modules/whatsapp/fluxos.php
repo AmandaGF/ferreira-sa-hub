@@ -94,6 +94,9 @@ try {
     $killswitchAtivo = ((string)$st->fetchColumn() === '1');
 } catch (Exception $e) {}
 
+// Chave dedicada do motor (gerada e armazenada em /files/.fluxo_admin_key)
+$_fluxoAdminKey = _fluxo_admin_key();
+
 // Status do cron tick
 $cronLastFile = APP_ROOT . '/files/zapi_fluxo_tick.last';
 $cronLastTs = file_exists($cronLastFile) ? (string)@file_get_contents($cronLastFile) : '';
@@ -144,13 +147,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <div style="display:flex;gap:.4rem;">
             <?php if ($killswitchAtivo): ?>
-                <a href="<?= url('toggle_fluxo_executor.php?key=fsa-hub-deploy-2026&off') ?>" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;" onclick="return confirm('Desligar o executor? Webhook volta a ignorar fluxos.');">⏸ Desligar</a>
+                <a href="<?= url('toggle_fluxo_executor.php?key=' . urlencode($_fluxoAdminKey) . '&off') ?>" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;" onclick="return confirm('Desligar o executor? Webhook volta a ignorar fluxos.');">⏸ Desligar</a>
             <?php else: ?>
-                <a href="<?= url('toggle_fluxo_executor.php?key=fsa-hub-deploy-2026&on') ?>" class="btn btn-primary btn-sm" onclick="return confirm('Ligar o executor? Mensagens de clientes vão começar a disparar fluxos ativos. Recomendado testar antes via curl.');">▶ Ligar</a>
+                <a href="<?= url('toggle_fluxo_executor.php?key=' . urlencode($_fluxoAdminKey) . '&on') ?>" class="btn btn-primary btn-sm" onclick="return confirm('Ligar o executor? Mensagens de clientes vão começar a disparar fluxos ativos. Recomendado testar antes via curl.');">▶ Ligar</a>
             <?php endif; ?>
         </div>
     </div>
 </div>
+
+<!-- Chave admin (só admin vê) -->
+<?php if (has_role('admin')): ?>
+<div class="fxl-card" style="background:#f9fafb;border-color:#e5e7eb;">
+    <details>
+        <summary style="cursor:pointer;font-weight:700;color:#374151;font-size:.85rem;">🔐 Chave admin do motor (clique pra ver)</summary>
+        <div style="margin-top:.5rem;padding:.65rem .85rem;background:#fff;border-radius:6px;border:1px solid var(--border);">
+            <p style="margin:0 0 .4rem;font-size:.78rem;color:#475569;">
+                Chave dedicada do motor de fluxos (substitui a antiga <code>fsa-hub-deploy-2026</code> nos endpoints do motor).
+                A antiga ainda é aceita durante transição.
+            </p>
+            <pre style="background:#0f172a;color:#e2e8f0;padding:.55rem .65rem;border-radius:5px;font-size:.78rem;overflow-x:auto;margin:0;user-select:all;"><?= htmlspecialchars($_fluxoAdminKey) ?></pre>
+            <p style="margin:.4rem 0 0;font-size:.7rem;color:#6b7280;">
+                Armazenada em <code>/files/.fluxo_admin_key</code> (fora do git, permissão 0600).
+            </p>
+        </div>
+    </details>
+</div>
+<?php endif; ?>
 
 <!-- Status do cron tick -->
 <?php
@@ -174,7 +196,7 @@ $cronTxt = array(
             <summary style="cursor:pointer;font-size:.78rem;color:#0d9488;">📋 Como configurar</summary>
             <div style="margin-top:.5rem;padding:.6rem;background:#fff;border-radius:6px;border:1px solid var(--border);font-size:.78rem;">
                 <p style="margin:0 0 .4rem;">No cPanel → <strong>Cron Jobs</strong>, adicionar entrada:</p>
-                <pre style="background:#0f172a;color:#e2e8f0;padding:.55rem .65rem;border-radius:5px;font-size:.72rem;overflow-x:auto;margin:0;">* * * * * curl -s "https://ferreiraesa.com.br/conecta/cron/zapi_fluxo_tick.php?key=fsa-hub-deploy-2026" &gt; /dev/null</pre>
+                <pre style="background:#0f172a;color:#e2e8f0;padding:.55rem .65rem;border-radius:5px;font-size:.72rem;overflow-x:auto;margin:0;">* * * * * curl -s "https://ferreiraesa.com.br/conecta/cron/zapi_fluxo_tick.php?key=<?= htmlspecialchars($_fluxoAdminKey) ?>" &gt; /dev/null</pre>
                 <p style="margin:.4rem 0 0;font-size:.72rem;color:#6b7280;">Roda a cada 1 min, varre execuções com timeout vencido. Sem isso, blocos <code>esperar</code> só destravam quando o cliente responder.</p>
             </div>
         </details>

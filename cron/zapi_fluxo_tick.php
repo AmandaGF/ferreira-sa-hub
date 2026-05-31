@@ -15,12 +15,12 @@
  */
 
 $isCli = php_sapi_name() === 'cli';
-if (!$isCli && ($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
-if (!$isCli) { header('Content-Type: text/plain; charset=utf-8'); }
-
 require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions_fluxos.php';
+
+if (!$isCli && !_fluxo_admin_check_key($_GET['key'] ?? '')) { die('Acesso negado.'); }
+if (!$isCli) { header('Content-Type: text/plain; charset=utf-8'); }
 
 $pdo = db();
 $inicio = microtime(true);
