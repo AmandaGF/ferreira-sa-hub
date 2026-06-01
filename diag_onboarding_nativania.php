@@ -13,6 +13,23 @@ $pdo = db();
 
 echo "=== Diag onboarding Nativania ===\n\n";
 
+// ── Acao: reativar cadastro arquivado (idempotente)
+if (isset($_GET['reativar'])) {
+    $alvoId = (int)$_GET['reativar'];
+    $st = $pdo->prepare("SELECT id, nome_completo, status FROM colaboradores_onboarding WHERE id = ?");
+    $st->execute(array($alvoId));
+    $row = $st->fetch();
+    if (!$row) {
+        echo "[REATIVAR] id=$alvoId NAO existe na tabela.\n\n";
+    } elseif ($row['status'] !== 'arquivado') {
+        echo "[REATIVAR] id=$alvoId '" . $row['nome_completo'] . "' ja esta status='" . $row['status'] . "' (nao precisa reativar)\n\n";
+    } else {
+        $pdo->prepare("UPDATE colaboradores_onboarding SET status = 'ativo' WHERE id = ?")->execute(array($alvoId));
+        echo "[REATIVAR] id=$alvoId '" . $row['nome_completo'] . "' status arquivado -> ativo. OK.\n\n";
+    }
+}
+
+
 // Conta por status (sem filtro)
 echo "[1] Distribuicao de status na tabela colaboradores_onboarding:\n";
 $st = $pdo->query("SELECT status, COUNT(*) as qtd FROM colaboradores_onboarding GROUP BY status ORDER BY qtd DESC");
