@@ -225,6 +225,7 @@ textarea{resize:vertical;min-height:70px}
     <div class="kpiCard"><span class="kpiIcon">🎮</span><div><div class="kpiLabel">Lazer</div><div class="kpiVal" id="kpi_lazer">R$ 0,00</div></div></div>
     <div class="kpiCard"><span class="kpiIcon">💻</span><div><div class="kpiLabel">Tecnologia</div><div class="kpiVal" id="kpi_tech">R$ 0,00</div></div></div>
     <div class="kpiCard"><span class="kpiIcon">🧸</span><div><div class="kpiLabel">Cuidados</div><div class="kpiVal" id="kpi_care">R$ 0,00</div></div></div>
+    <div class="kpiCard"><span class="kpiIcon">📅</span><div><div class="kpiLabel">Eventuais (÷12)</div><div class="kpiVal" id="kpi_event">R$ 0,00</div></div></div>
     <div class="kpiCard"><span class="kpiIcon">📦</span><div><div class="kpiLabel">Outros</div><div class="kpiVal" id="kpi_outros">R$ 0,00</div></div></div>
   </div>
 
@@ -272,6 +273,7 @@ textarea{resize:vertical;min-height:70px}
     </div>
   </div>
 
+  <div id="blocoFilhoExtra">
   <div class="row">
     <div class="col-6">
       <label>O filho(a) possui TEA ou necessidades especiais?</label>
@@ -317,6 +319,7 @@ textarea{resize:vertical;min-height:70px}
       <small style="color:#6b7280;font-size:.72rem;">Importante: se o filho só visita, preencha apenas os gastos que efetivamente acontecem com ele (alimentação dos dias de visita, presentes, etc.). Não preencha moradia, escola ou plano de saúde se ele não usa esses recursos com você.</small>
     </div>
   </div>
+  </div><!-- /blocoFilhoExtra -->
 
   <div class="row">
     <div class="col-6">
@@ -778,6 +781,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMoneyMasks();
   initTextMasks();
   initSemFilhos();
+  initRecalcTriggers();
   loadFromStorage();
   updateSummaryKPIs();
   try{ buildReview(); }catch(e){}   // não pode derrubar o init se falhar
@@ -868,6 +872,18 @@ function handleMoneyInput(e){
   updateSummaryKPIs();
 }
 
+/* ========== TRIGGERS EXTRAS DE RECALCULO (Amanda 01/06/2026) ========== */
+// Bug 1: mudar moradores nao recalculava Moradia rateada ate mexer em outro campo.
+// Agora qualquer mudanca em [name="moradores"] dispara updateSummaryKPIs (que ja
+// recalcula KPIs + tabela de Revisao via buildReview interno).
+function initRecalcTriggers(){
+  const m=document.querySelector('[name="moradores"]');
+  if(m){
+    m.addEventListener('input',updateSummaryKPIs);
+    m.addEventListener('change',updateSummaryKPIs);
+  }
+}
+
 function formatBRL(cents){
   const neg=cents<0;
   const abs=Math.abs(cents);
@@ -906,16 +922,27 @@ function initSemFilhos(){
   const inp=document.getElementById('nomeFilhoInput');
   const note=document.getElementById('semFilhosNote');
   if(!cb||!inp) return;
+  const blocoExtra=document.getElementById('blocoFilhoExtra');
   cb.addEventListener('change',()=>{
     if(cb.checked){
       inp.style.display='none';
       inp.classList.remove('requiredField');
       inp.value='';
       note.style.display='block';
+      // Sem filhos: TEA, qtd_filhos, gastos_iguais e convivencia nao fazem sentido
+      if(blocoExtra){
+        blocoExtra.style.display='none';
+        // Zera os valores tambem pra nao ir pro envio
+        blocoExtra.querySelectorAll('input,select').forEach(el=>{
+          if(el.type==='checkbox'||el.type==='radio') el.checked=false;
+          else el.value='';
+        });
+      }
     } else {
       inp.style.display='';
       inp.classList.add('requiredField');
       note.style.display='none';
+      if(blocoExtra) blocoExtra.style.display='';
     }
   });
 }
@@ -974,7 +1001,7 @@ function updateSummaryKPIs(){
   const moradores=Math.max(1,+(document.querySelector('[name="moradores"]')?.value||1));
   let grandTotal=0;
   const catTotals=[];
-  const kpiIdMap={moradia:'kpi_moradia',alim:'kpi_alim',saude:'kpi_saude',educ:'kpi_edu',transp:'kpi_transp',vest:'kpi_vest',lazer:'kpi_lazer',tech:'kpi_tech',cuid:'kpi_care',outros:'kpi_outros'};
+  const kpiIdMap={moradia:'kpi_moradia',alim:'kpi_alim',saude:'kpi_saude',educ:'kpi_edu',transp:'kpi_transp',vest:'kpi_vest',lazer:'kpi_lazer',tech:'kpi_tech',cuid:'kpi_care',eventual:'kpi_event',outros:'kpi_outros'};
 
   CATEGORIES.forEach(cat=>{
     let total=0;
@@ -997,6 +1024,10 @@ function updateSummaryKPIs(){
 
   // Update summary chart
   buildSummaryChart(catTotals);
+
+  // Bug 2 fix: mantem a tabela de Revisao sincronizada com cada digitada
+  // (antes so era construida no DOMContentLoaded e ficava defasada)
+  try{ buildReview(); }catch(e){}
 }
 
 function buildSummaryChart(catTotals){
