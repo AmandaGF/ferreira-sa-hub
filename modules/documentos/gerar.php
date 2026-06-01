@@ -901,14 +901,10 @@ if (!$showEditor) {
                 <div><label>Nº do processo</label><input name="numero_processo" value="<?= e($numeroProcesso) ?>" placeholder="0000000-00.0000.0.00.0000" oninput="mascaraProcesso(this)" maxlength="25"></div>
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Barra Mansa"></div>
             </div>
-            <div style="margin-bottom:.75rem;">
-                <label>Lista dos documentos (um por linha)</label>
-                <textarea name="lista_documentos" rows="5" placeholder="Ex:&#10;Certidão de nascimento atualizada&#10;Comprovante de residência&#10;Declaração de IR 2025"><?= e($listaDocumentos) ?></textarea>
-            </div>
-            <div style="margin-bottom:.75rem;">
-                <label>Justificativa da juntada</label>
-                <textarea name="justificativa_juntada" rows="3" placeholder="Por que esses documentos são relevantes?"><?= e($justificativaJuntada) ?></textarea>
-            </div>
+            <p style="font-size:.72rem;color:#6b7280;margin-top:.5rem;line-height:1.4;">
+                💡 A peça sai enxuta (cabeçalho + BOX "JUNTADA DE DOCUMENTOS" + "em anexo." + fecho).
+                Os documentos vão como anexos no protocolo, sem listagem na petição (modelo Amanda 01/06/2026).
+            </p>
         </div>
         <?php endif; ?>
 

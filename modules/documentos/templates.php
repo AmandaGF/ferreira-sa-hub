@@ -684,55 +684,32 @@ function template_acordo($d) {
 // ═══════════════════════════════════════════════════════
 function template_juntada($d) {
     $esc = escritorioData();
-    $html = '<div class="doc-title">PETIÇÃO DE JUNTADA DE DOCUMENTOS</div>';
-
     $numProcesso = isset($d['numero_processo']) && $d['numero_processo'] ? $d['numero_processo'] : '_______________';
 
+    // Versao enxuta (Amanda 01/06/2026): sem listagem de documentos, sem
+    // justificativa, sem fundamentacao CF — so cabecalho + qualificacao + BOX
+    // 'JUNTADA DE DOCUMENTOS' + 'em anexo.' + fecho.
+    $html = '';
+
+    // Endereçamento (sem doc-title acima — o BOX faz esse papel)
     $html .= enderecamento($d);
-    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;">Autos n. ' . f($numProcesso) . '</p>';
+    $html .= '<p style="text-align:right;font-style:italic;text-indent:0;margin-bottom:.4rem;">Autos n. ' . f($numProcesso) . '</p>';
 
-    $html .= '<p>' . qualificacao_legitimidade($d) . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve, com escritório profissional indicado no rodapé, requerer a</p>';
+    // Qualificação + transição pro BOX
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.6;margin-bottom:.5rem;">'
+           . qualificacao_legitimidade($d)
+           . ' do processo em epígrafe, vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve, com escritório profissional indicado no rodapé, requerer a</p>';
 
-    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:20px 0;border-left:6px solid #B87333;">JUNTADA DE DOCUMENTOS</div>';
+    // BOX
+    $html .= '<div style="background:#052228;color:#fff;padding:10px 20px;text-align:center;font-weight:700;font-size:13px;letter-spacing:3px;text-transform:uppercase;margin:14px 0;border-left:6px solid #B87333;">JUNTADA DE DOCUMENTOS</div>';
 
-    $html .= '<p>pelos motivos de fato e de direito a seguir expostos.</p>';
+    // Fecho curto
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.6;margin-bottom:.5rem;">em anexo.</p>';
 
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DOS DOCUMENTOS</p>';
-    $html .= '<p>A parte requer a juntada dos seguintes documentos, imprescindíveis ao regular andamento do feito:</p>';
-
-    $docs = isset($d['lista_documentos']) && $d['lista_documentos'] ? $d['lista_documentos'] : '';
-    if ($docs) {
-        $linhas = preg_split('/\r?\n/', $docs);
-        $letra = ord('a');
-        $html .= '<div style="margin:12px 0;">';
-        foreach ($linhas as $linha) {
-            $linha = trim($linha);
-            if (!$linha) continue;
-            $html .= '<p style="text-indent:0;margin:4px 0;"><strong>' . chr($letra) . ')</strong> ' . f($linha) . ';</p>';
-            $letra++;
-        }
-        $html .= '</div>';
-    } else {
-        $html .= '<p style="text-indent:0;">a) ________________________________;</p>';
-        $html .= '<p style="text-indent:0;">b) ________________________________;</p>';
-        $html .= '<p style="text-indent:0;">c) ________________________________.</p>';
-    }
-
-    $justificativa = isset($d['justificativa']) && $d['justificativa'] ? $d['justificativa'] : '';
-    if ($justificativa) {
-        $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DA JUSTIFICATIVA</p>';
-        $html .= '<p>' . f($justificativa) . '</p>';
-    }
-
-    $html .= '<p>A juntada dos referidos documentos faz-se necessária para a instrução processual adequada e a garantia do direito ao contraditório e à ampla defesa, nos termos do art. 5º, LV, da Constituição Federal.</p>';
-
-    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DO PEDIDO</p>';
-    $html .= '<p>Ante o exposto, requer a Vossa Excelência que se digne a receber e determinar a juntada dos documentos que acompanham esta petição, dando-se ciência à parte contrária, na forma da lei.</p>';
-
-    $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
+    $html .= '<p style="text-align:center;margin-top:1.5rem;">Nestes termos, pede deferimento.</p>';
     $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
 
-    $html .= '<div style="margin-top:2.5rem;text-align:center;">';
+    $html .= '<div style="margin-top:2rem;text-align:center;">';
     $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
     $html .= '</div>';
 
