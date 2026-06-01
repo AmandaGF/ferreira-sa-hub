@@ -557,17 +557,19 @@ try {
             $ehPrimeira = ($totalMsgs === 1);
 
             // Atualiza resumo da conversa.
-            // Se a conversa estava 'resolvido', REABRE automaticamente — cliente
-            // voltou a falar, precisa ser atendido de novo. Volta pra em_atendimento
-            // se tinha atendente, ou pra aguardando se não tinha.
+            // Se a conversa estava 'resolvido' OU 'arquivado', REABRE automaticamente -
+            // cliente voltou a falar, precisa ser atendido de novo. Volta pra
+            // em_atendimento se tinha atendente, ou pra aguardando se nao tinha.
+            // (caso Tamires 01/06/2026: arquivada ficou presa, 10 msgs nao lidas
+            // acumuladas, sumia do hub. Antes so resolvido reabria - arquivado nao.)
             $ultMsg = $conteudo ?: ('[' . $tipo . ']');
             $pdo->prepare(
                 "UPDATE zapi_conversas SET ultima_mensagem = ?, ultima_msg_em = NOW(),
                  nao_lidas = nao_lidas + 1,
                  nome_contato = COALESCE(NULLIF(nome_contato,''), ?),
                  status = CASE
-                     WHEN status = 'resolvido' AND atendente_id IS NOT NULL THEN 'em_atendimento'
-                     WHEN status = 'resolvido' THEN 'aguardando'
+                     WHEN status IN ('resolvido','arquivado') AND atendente_id IS NOT NULL THEN 'em_atendimento'
+                     WHEN status IN ('resolvido','arquivado') THEN 'aguardando'
                      ELSE status
                  END
                  WHERE id = ?"
