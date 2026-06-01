@@ -304,6 +304,7 @@ try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN emite_nf TINYI
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN escopo_servicos TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_inicio_contrato DATE NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN data_termino_contrato DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE colaboradores_onboarding ADD COLUMN email_pessoal VARCHAR(150) NULL"); } catch (Exception $e) {}
 
 // Self-heal: tabela de documentos vinculados a cada colaborador.
 // Aceita qualquer tipo de documento (Termo de Compromisso, Confidencialidade,
@@ -386,6 +387,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'data_nascimento'      => trim($_POST['data_nascimento'] ?? ''),
             'cpf'                  => $cpfInput,
             'email_institucional'  => trim($_POST['email_institucional'] ?? ''),
+            'email_pessoal'        => trim($_POST['email_pessoal'] ?? '') ?: null,
             'senha_inicial'        => $senhaInput,
             'kit_descricao'        => trim($_POST['kit_descricao'] ?? ''),
             'modalidade'           => trim($_POST['modalidade'] ?? ''),
@@ -779,6 +781,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <label>Senha inicial <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(auto: CPF completo + @)</span></label>
                 <input name="senha_inicial" id="senhaInicialInput" value="<?= e($reg['senha_inicial'] ?? '') ?>" placeholder="Preenche sozinha pelo CPF completo (11 dígitos) + @">
+            </div>
+            <div style="grid-column:1 / -1;">
+                <label>E-mail pessoal <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(opcional — uso pessoal da colaboradora, recuperação de acesso, contato fora do trabalho)</span></label>
+                <input name="email_pessoal" type="email" value="<?= e($reg['email_pessoal'] ?? '') ?>" placeholder="seuemail@gmail.com">
             </div>
         </div>
 
