@@ -11,15 +11,16 @@ $tels = array('24999242710','5524999242710','24 99924-2710','24999242710@c.us');
 $padroes = array('%24999242710%', '%999242710%');
 
 echo "=== 1) CONVERSAS EM zapi_conversas (busca por telefone) ===\n";
-$st = $pdo->prepare("SELECT id, contato_nome, contato_telefone, canal, status, atendente_id, nao_lidas, ultima_msg_em, ultima_msg_preview, criada_em FROM zapi_conversas WHERE contato_telefone LIKE ? OR contato_telefone LIKE ? ORDER BY id DESC");
+$st = $pdo->prepare("SELECT * FROM zapi_conversas WHERE contato_telefone LIKE ? OR contato_telefone LIKE ? ORDER BY id DESC LIMIT 10");
 $st->execute($padroes);
 $convs = $st->fetchAll(PDO::FETCH_ASSOC);
 if (!$convs) echo "  Nenhuma conversa encontrada por padroes: " . implode(' / ', $padroes) . "\n";
 foreach ($convs as $c) {
-    echo "  CONV id={$c['id']} tel={$c['contato_telefone']} canal={$c['canal']} status={$c['status']} atendente={$c['atendente_id']} nao_lidas={$c['nao_lidas']}\n";
-    echo "    nome: {$c['contato_nome']}\n";
-    echo "    ultima_em: {$c['ultima_msg_em']}\n";
-    echo "    preview: " . substr($c['ultima_msg_preview'] ?? '', 0, 80) . "\n";
+    echo "  --- CONV id={$c['id']} ---\n";
+    foreach ($c as $k => $v) {
+        if (is_string($v) && strlen($v) > 100) $v = substr($v, 0, 100) . '...';
+        echo "    $k = " . var_export($v, true) . "\n";
+    }
 }
 
 echo "\n=== 2) MENSAGENS ULTIMAS 7 DIAS contendo 24999242710 ou variantes ===\n";
