@@ -2813,15 +2813,20 @@ switch ($action) {
     case 'concluir_prazo':
         $prazoId = (int)($_POST['prazo_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        // Pedido Amanda 31/05/2026: ao dar baixa, perguntar o que foi feito
+        // e gravar como andamento do processo. Vazio = só baixa (comportamento antigo).
+        $descricaoCumprimento = trim($_POST['descricao_cumprimento'] ?? '');
         if ($prazoId) {
             try {
                 // 1. Concluir o prazo
                 $pdo->prepare("UPDATE prazos_processuais SET concluido = 1, concluido_em = NOW() WHERE id = ?")->execute(array($prazoId));
 
-                // 2. Buscar descrição do prazo para encontrar tarefa e evento vinculados
-                $stmtPz = $pdo->prepare("SELECT descricao_acao FROM prazos_processuais WHERE id = ?");
+                // 2. Buscar descrição do prazo + case_id (banner global passa case_id=0)
+                $stmtPz = $pdo->prepare("SELECT descricao_acao, case_id FROM prazos_processuais WHERE id = ?");
                 $stmtPz->execute(array($prazoId));
-                $descPrazo = $stmtPz->fetchColumn() ?: '';
+                $rowPz = $stmtPz->fetch();
+                $descPrazo = $rowPz ? ($rowPz['descricao_acao'] ?: '') : '';
+                if ($caseId === 0 && $rowPz) $caseId = (int)($rowPz['case_id'] ?? 0);
 
                 // 3. Concluir tarefa vinculada (título contém "PRAZO: <descricao>")
                 if ($caseId && $descPrazo) {
@@ -2835,8 +2840,25 @@ switch ($action) {
                         ->execute(array($caseId, '%PRAZO:%' . mb_substr($descPrazo, 0, 50, 'UTF-8') . '%'));
                 }
 
-                audit_log('PRAZO_CONCLUIDO', 'case', $caseId, 'prazo_id=' . $prazoId);
-                flash_set('success', 'Prazo concluído. Tarefa e evento atualizados.');
+                // 5. NOVO (Amanda 31/05/2026): se informou o que foi feito, grava como andamento
+                $registrouAndamento = false;
+                if ($caseId && $descricaoCumprimento !== '') {
+                    $descAndamento = "✅ PRAZO CUMPRIDO" . ($descPrazo ? ': ' . $descPrazo : '') . "\n\n" . $descricaoCumprimento;
+                    try {
+                        $pdo->prepare(
+                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                             VALUES (?, CURDATE(), 'andamento', ?, 0, ?, NOW())"
+                        )->execute(array($caseId, $descAndamento, current_user_id()));
+                        $registrouAndamento = true;
+                    } catch (Exception $eA) {
+                        @error_log('[concluir_prazo andamento] ' . $eA->getMessage());
+                    }
+                }
+
+                audit_log('PRAZO_CONCLUIDO', 'case', $caseId, 'prazo_id=' . $prazoId . ($registrouAndamento ? ' [com andamento]' : ''));
+                $msgSucesso = 'Prazo concluído. Tarefa e evento atualizados';
+                if ($registrouAndamento) $msgSucesso .= '. Andamento registrado no processo';
+                flash_set('success', $msgSucesso . '.');
             } catch (Exception $e) {
                 flash_set('error', 'Erro ao concluir prazo.');
             }

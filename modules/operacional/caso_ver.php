@@ -1045,6 +1045,21 @@ function executarMesclarPasta() {
 </div>
 
 <script>
+// Dar baixa em prazo: pergunta se cumpriu + o que fez. Texto vira andamento (Amanda 31/05/2026)
+function darBaixaPrazo(form, nomePrazo) {
+    if (!confirm('✅ Já cumpriu esse prazo?\n\n"' + (nomePrazo || 'Prazo') + '"')) return false;
+    var oque = prompt(
+        '🟢 Ótimo! Em poucas palavras, o que foi feito?\n\n' +
+        'Esse texto vai ser registrado como ANDAMENTO INTERNO do processo ' +
+        '(invisível ao cliente). Pode deixar em branco se quiser só dar baixa sem registrar.',
+        ''
+    );
+    if (oque === null) return false; // clicou Cancelar
+    var inp = form.querySelector('input[name="descricao_cumprimento"]');
+    if (inp) inp.value = oque.trim();
+    return true;
+}
+
 var _remarcarEventoId = 0;
 function abrirRemarcar(comp) {
     _remarcarEventoId = comp.id;
@@ -3166,11 +3181,12 @@ $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['c
                 elseif ($diasFalta <= 3) { $corPrazo = '#d97706'; $bgPrazo = '#fef3c7'; }
             ?>
             <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .8rem;border-bottom:1px solid var(--border);">
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return darBaixaPrazo(this, <?= e(json_encode($pz['tipo'] ?: $pz['descricao_acao'] ?: 'Prazo')) ?>)">
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="concluir_prazo">
                     <input type="hidden" name="prazo_id" value="<?= $pz['id'] ?>">
                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                    <input type="hidden" name="descricao_cumprimento" value="">
                     <button type="submit" title="Marcar como concluído" style="width:20px;height:20px;border-radius:50%;border:2px solid <?= $corPrazo ?>;background:transparent;cursor:pointer;flex-shrink:0;"></button>
                 </form>
                 <div style="flex:1;min-width:0;">

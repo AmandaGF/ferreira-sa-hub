@@ -555,7 +555,7 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
         if (!empty($__pz['comarca'])) $__localTxt .= ($__localTxt ? ' — ' : '') . $__pz['comarca'] . (!empty($__pz['comarca_uf']) ? '/' . $__pz['comarca_uf'] : '');
     ?>
     <div class="urg-row<?= $__rowExtra ?>" data-prazo-id="<?= (int)$__pz['id'] ?>" style="display:flex;align-items:center;gap:.55rem;padding:.45rem .55rem;border-top:1px solid rgba(255,255,255,.15);">
-        <button type="button" class="urg-fechar-btn" data-prazo-id="<?= (int)$__pz['id'] ?>" data-csrf="<?= e(generate_csrf_token()) ?>" title="Marcar este prazo como cumprido / não tem o que fazer" style="background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:2px 8px;border-radius:50%;cursor:pointer;font-weight:700;font-size:.9rem;line-height:1;flex-shrink:0;">✓</button>
+        <button type="button" class="urg-fechar-btn" data-prazo-id="<?= (int)$__pz['id'] ?>" data-prazo-nome="<?= e($__pz['descricao_acao'] ?: ($__pz['descricao'] ?? 'Prazo')) ?>" data-csrf="<?= e(generate_csrf_token()) ?>" title="Marcar este prazo como cumprido / não tem o que fazer" style="background:rgba(255,255,255,.18);border:1.5px solid rgba(255,255,255,.4);color:#fff;padding:2px 8px;border-radius:50%;cursor:pointer;font-weight:700;font-size:.9rem;line-height:1;flex-shrink:0;">✓</button>
         <a href="<?= e($__caseHref) ?>" title="Abrir pasta do processo" style="display:flex;flex:1;align-items:center;gap:.55rem;text-decoration:none;color:#fff;">
         <span class="urg-label"><?= $__urgLabel ?></span>
         <div class="urg-meio">
@@ -585,7 +585,16 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
     document.querySelectorAll('.urg-fechar-btn').forEach(function(btn){
         btn.addEventListener('click', function(e){
             e.preventDefault(); e.stopPropagation();
-            if (!confirm('Marcar este prazo como cumprido (não tem o que fazer)?')) return;
+            // Pedido Amanda 31/05/2026: pergunta se cumpriu + o que fez (vira andamento)
+            var nomePrazo = btn.getAttribute('data-prazo-nome') || 'esse prazo';
+            if (!confirm('✅ Já cumpriu esse prazo?\n\n"' + nomePrazo + '"')) return;
+            var oque = prompt(
+                '🟢 Ótimo! Em poucas palavras, o que foi feito?\n\n' +
+                'Esse texto vai ser registrado como ANDAMENTO INTERNO do processo ' +
+                '(invisível ao cliente). Pode deixar em branco se quiser só dar baixa sem registrar.',
+                ''
+            );
+            if (oque === null) return; // clicou Cancelar no prompt
             var pid = btn.getAttribute('data-prazo-id');
             var csrf = btn.getAttribute('data-csrf');
             btn.disabled = true; btn.style.opacity = '.4';
@@ -593,6 +602,7 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
             fd.append('action', 'concluir_prazo');
             fd.append('prazo_id', pid);
             fd.append('case_id', '0');
+            fd.append('descricao_cumprimento', (oque || '').trim());
             fd.append('csrf_token', csrf);
             fetch('<?= url("modules/operacional/api.php") ?>', { method: 'POST', body: fd, credentials: 'same-origin' })
                 .then(function(){
