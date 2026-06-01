@@ -542,6 +542,7 @@ function render_contrato_prestacao_marketing($colaborador, $dadosAdmin, $dadosCo
     $emiteNF      = !empty($colaborador['emite_nf']);
     $escopo       = trim((string)($colaborador['escopo_servicos'] ?? ''));
     $dadosBanc    = trim((string)($colaborador['dados_bancarios'] ?? ''));
+    $beneficios   = trim((string)($colaborador['beneficios'] ?? '')); // Amanda 01/06/2026
     $dataInicio   = _onb_data_br($colaborador['data_inicio_contrato'] ?? '');
     $dataTermino  = _onb_data_br($colaborador['data_termino_contrato'] ?? '');
 
@@ -679,6 +680,10 @@ function render_contrato_prestacao_marketing($colaborador, $dadosAdmin, $dadosCo
         $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.3</div><div class="doc-clausula-corpo">A ' . $rotuloParte . ' fornecerá recibo de prestação de serviços (RPA) a cada parcela paga, observando os tributos retidos na fonte aplicáveis ao caso.</div></div>';
     }
     $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.4</div><div class="doc-clausula-corpo">O atraso no pagamento por mais de 10 (dez) dias úteis sujeita a CONTRATANTE à incidência de multa moratória de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA/IBGE.</div></div>';
+    // Beneficios (sem natureza salarial - protecao contra alegacao de vinculo) - Amanda 01/06/2026
+    if ($beneficios !== '') {
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.5</div><div class="doc-clausula-corpo">Sem natureza salarial e a título de mera liberalidade, a CONTRATANTE concederá à ' . $rotuloParte . ' os seguintes benefícios, que poderão ser revistos ou suprimidos a qualquer tempo, mediante comunicação escrita, sem que tal alteração caracterize redução de remuneração ou vínculo empregatício:<br><br><em>' . nl2br(htmlspecialchars($beneficios)) . '</em></div></div>';
+    }
 
     // 5. OBRIGAÇÕES DA PRESTADORA
     $h .= '<div class="doc-clausula-titulo-h">CLÁUSULA 5ª — DAS OBRIGAÇÕES DA ' . $rotuloParte . '</div>';
@@ -804,6 +809,7 @@ function render_contrato_prestacao_comercial($colaborador, $dadosAdmin, $dadosCo
     $emiteNF      = !empty($colaborador['emite_nf']);
     $escopo       = trim((string)($colaborador['escopo_servicos'] ?? ''));
     $dadosBanc    = trim((string)($colaborador['dados_bancarios'] ?? ''));
+    $beneficios   = trim((string)($colaborador['beneficios'] ?? '')); // Amanda 01/06/2026
     $dataInicio   = _onb_data_br($colaborador['data_inicio_contrato'] ?? '');
     $dataTermino  = _onb_data_br($colaborador['data_termino_contrato'] ?? '');
 
@@ -957,6 +963,11 @@ function render_contrato_prestacao_comercial($colaborador, $dadosAdmin, $dadosCo
         $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.6</div><div class="doc-clausula-corpo">O atraso no pagamento por mais de 10 (dez) dias úteis sujeita a CONTRATANTE à incidência de multa moratória de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA/IBGE.</div></div>';
     } else {
         $h .= '<div class="doc-clausula"><div class="doc-clausula-num">4.4</div><div class="doc-clausula-corpo">O atraso no pagamento por mais de 10 (dez) dias úteis sujeita a CONTRATANTE à incidência de multa moratória de 2% (dois por cento) sobre o valor em atraso, juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA/IBGE.</div></div>';
+    }
+    // Beneficios (sem natureza salarial - protecao contra alegacao de vinculo) - Amanda 01/06/2026
+    if ($beneficios !== '') {
+        $numBenComercial = ($formaPag !== 'mensal_fixo') ? '4.7' : '4.5';
+        $h .= '<div class="doc-clausula"><div class="doc-clausula-num">' . $numBenComercial . '</div><div class="doc-clausula-corpo">Sem natureza salarial e a título de mera liberalidade, a CONTRATANTE concederá à ' . $rotuloParte . ' os seguintes benefícios, que poderão ser revistos ou suprimidos a qualquer tempo, mediante comunicação escrita, sem que tal alteração caracterize redução de remuneração ou vínculo empregatício:<br><br><em>' . nl2br(htmlspecialchars($beneficios)) . '</em></div></div>';
     }
 
     // 5. OBRIGAÇÕES
