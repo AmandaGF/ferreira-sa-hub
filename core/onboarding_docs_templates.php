@@ -839,6 +839,13 @@ function render_contrato_prestacao_comercial($colaborador, $dadosAdmin, $dadosCo
     $diaPag       = (int)($dadosAdmin['dia_pagamento'] ?? 5);
     if ($diaPag < 1 || $diaPag > 28) $diaPag = 5;
     $formaPag     = (string)($dadosAdmin['forma_pagamento'] ?? 'fixo_mais_comis');
+    // Toggle Amanda 01/06/2026: se admin escolheu nao incluir clausula de comissao,
+    // forca a remuneracao a mensal_fixo (omite 4.1 com %, 4.4 comissao e 4.5 conduzido-por).
+    // Fallback default 'sim' mantem contratos antigos com comportamento original.
+    $incluirComissao = (string)($dadosAdmin['incluir_clausula_comissao'] ?? 'sim');
+    if ($incluirComissao === 'nao') {
+        $formaPag = 'mensal_fixo';
+    }
     $formaPagMap  = array(
         'mensal_fixo'     => 'valor mensal fixo',
         'comissao_pura'   => 'comissão variável por contrato efetivamente celebrado',

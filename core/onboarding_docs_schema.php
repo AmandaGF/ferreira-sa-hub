@@ -292,6 +292,16 @@ $ONBOARDING_DOC_SCHEMAS = array(
                 'default' => 5,
                 'placeholder' => 'Ex: 5',
             ),
+            'incluir_clausula_comissao' => array(
+                'label' => 'Incluir cláusula de comissão no contrato?',
+                'tipo' => 'select',
+                'opcoes' => array(
+                    'sim' => 'Sim — incluir cláusulas de comissão (4.1 com %, 4.4 e 4.5)',
+                    'nao' => 'Não — contrato apenas com remuneração fixa (ignora forma/% abaixo)',
+                ),
+                'obrigatorio' => true,
+                'default' => 'sim',
+            ),
             'forma_pagamento' => array(
                 'label' => 'Forma de remuneração',
                 'tipo' => 'select',
