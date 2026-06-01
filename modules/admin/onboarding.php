@@ -1108,15 +1108,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button type="submit" class="btn btn-primary">💾 <?= $reg ? 'Atualizar cadastro' : 'Cadastrar e gerar link' ?></button>
             <?php if ($reg): ?>
                 <a href="<?= module_url('admin', 'onboarding.php') ?>" class="btn btn-outline">Novo cadastro</a>
-                <form method="POST" style="display:inline;margin-left:auto;" onsubmit="return confirm('Arquivar este cadastro?');">
-                    <?= csrf_input() ?>
-                    <input type="hidden" name="action" value="arquivar">
-                    <input type="hidden" name="id" value="<?= (int)$reg['id'] ?>">
-                    <button type="submit" class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5;">🗄 Arquivar</button>
-                </form>
+                <!-- BUG critico Amanda 01/06/2026: aqui antes tinha <form> aninhado dentro do form de salvar (HTML invalido).
+                     Browsers serializam os <input name=action> em ordem e o ultimo vence. Resultado: clicar em 'Atualizar
+                     cadastro' submetia action=arquivar e o cadastro sumia. Caso da Nativania, repetido. Solucao: botao
+                     simples que aciona um form externo, posicionado FORA do form principal (logo apos </form>). -->
+                <button type="button" onclick="arquivarCadastroOnb(<?= (int)$reg['id'] ?>)" class="btn btn-outline" style="color:#dc2626;border-color:#fca5a5;margin-left:auto;">🗄 Arquivar</button>
             <?php endif; ?>
         </div>
     </form>
+    <?php if ($reg): ?>
+    <form method="POST" id="formArquivarOnb" style="display:none;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="arquivar">
+        <input type="hidden" name="id" value="<?= (int)$reg['id'] ?>">
+    </form>
+    <script>
+    function arquivarCadastroOnb(id) {
+        if (!confirm('Arquivar este cadastro? Ele sai da lista de ativos.')) return;
+        document.getElementById('formArquivarOnb').submit();
+    }
+    </script>
+    <?php endif; ?>
 </div>
 
 <div class="ob-card">
