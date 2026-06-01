@@ -783,6 +783,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSemFilhos();
   initRecalcTriggers();
   loadFromStorage();
+  initAutoSaveOnChange(); // depois do load pra nao salvar valores antes de carregar
   updateSummaryKPIs();
   try{ buildReview(); }catch(e){}   // não pode derrubar o init se falhar
   autoSaveLoop();
@@ -882,6 +883,27 @@ function initRecalcTriggers(){
     m.addEventListener('input',updateSummaryKPIs);
     m.addEventListener('change',updateSummaryKPIs);
   }
+}
+
+/* ========== AUTOSAVE EM CADA DIGITADA (Amanda 01/06/2026) ========== */
+// Bug 3 (Nilce): o autosave so rodava em setInterval(15s) e ao navegar entre
+// pilulas. Se o usuario preenchesse um campo e recarregasse em <15s sem ter
+// clicado em nenhuma pilula, o valor se perdia. Aconteceu com "Nome do filho",
+// mas o bug era geral - qualquer texto/select estava sujeito.
+// Fix: cada [data-store] agora dispara saveToStorage debounced em 500ms apos
+// a ultima tecla. Reduz ticks pra storage mas garante persistencia.
+function initAutoSaveOnChange(){
+  let _saveT=null;
+  function scheduleSave(){
+    if(_saveT) clearTimeout(_saveT);
+    _saveT=setTimeout(saveToStorage,500);
+  }
+  document.querySelectorAll('[data-store]').forEach(el=>{
+    el.addEventListener('input',scheduleSave);
+    el.addEventListener('change',scheduleSave);
+  });
+  const cb=document.getElementById('semFilhosCheck');
+  if(cb) cb.addEventListener('change',scheduleSave);
 }
 
 function formatBRL(cents){
