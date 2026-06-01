@@ -699,6 +699,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 } else if (+c.bot_ativo) {
                     html += '<span class="wa-bot-badge">🤖 BOT</span>';
                 }
+                // Nome do atendente AO LADO da pill (Amanda 01/06/2026)
+                // Pill compacto com primeiro nome — fica visível no card da lista
+                if (c.atendente_name) {
+                    var _at = (c.atendente_name || '').split(' ')[0];
+                    var _del = !!(+c.delegada);
+                    var _icone = _del ? '🎯' : '👤';
+                    var _cor = _del ? '#7c3aed' : '#0d9488';
+                    var _bg  = _del ? '#ede9fe' : '#ccfbf1';
+                    html += ' <span class="wa-conv-atendente" title="' + escapeHtml(c.atendente_name) + (_del ? ' (delegada)' : '') + '"'
+                          + ' style="display:inline-block;background:' + _bg + ';color:' + _cor
+                          + ';font-size:.58rem;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;vertical-align:middle;letter-spacing:.3px;">'
+                          + _icone + ' ' + escapeHtml(_at)
+                          + '</span>';
+                }
                 html += '</div>';
                 html += '    <div class="wa-conv-preview">' + escapeHtml((c.ultima_mensagem||'').substr(0,60)) + '</div>';
                 if (c.etiquetas && c.etiquetas.length) {
