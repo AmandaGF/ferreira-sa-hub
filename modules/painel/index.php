@@ -162,6 +162,84 @@ try {
     }
 } catch (Exception $e) {}
 
+// Tarefas ATRASADAS - top 10 mais antigas + contador real (Amanda 01/06/2026)
+// Antes so 'due_date = hoje' aparecia, escondendo 50+ atrasadas. Agora puxa
+// as 10 mais velhas com badge vermelho + banner com total se passar de 10.
+$_qtdTarefasAtrasadas = 0;
+try {
+    $filtroTA = !$isGestao ? " AND ct.assigned_to = $viewUserId" : '';
+    $stTAc = $pdo->prepare("SELECT COUNT(*) FROM case_tasks ct WHERE ct.due_date < ? AND ct.status != 'concluido' AND ct.tipo IS NOT NULL AND ct.tipo != ''" . $filtroTA);
+    $stTAc->execute(array($hoje));
+    $_qtdTarefasAtrasadas = (int)$stTAc->fetchColumn();
+    if ($_qtdTarefasAtrasadas > 0) {
+        $stTA = $pdo->prepare(
+            "SELECT ct.id, ct.case_id, ct.title, ct.due_date, cs.title as case_title, cs.case_number,
+                    DATEDIFF(?, ct.due_date) AS dias_atraso
+             FROM case_tasks ct LEFT JOIN cases cs ON cs.id = ct.case_id
+             WHERE ct.due_date < ? AND ct.status != 'concluido' AND ct.tipo IS NOT NULL AND ct.tipo != ''" . $filtroTA . "
+             ORDER BY ct.due_date ASC LIMIT 10"
+        );
+        $stTA->execute(array($hoje, $hoje));
+        foreach ($stTA->fetchAll() as $t) {
+            $diasAtr = (int)$t['dias_atraso'];
+            $agendaHoje[] = array(
+                'hora' => '🚨',
+                'titulo' => 'ATRASADA há ' . $diasAtr . 'd — ' . $t['title'],
+                'tipo' => 'tarefa_atrasada',
+                'badge' => '⚠️',
+                'cor' => '#7f1d1d',
+                'detalhe' => $t['case_title'] ?: '',
+                'link' => null,
+                'processo' => $t['case_number'] ?: '',
+                'concluido' => false,
+                'id' => 'tka_' . $t['id'],
+                'case_id' => (int)($t['case_id'] ?? 0),
+                'dias_atraso' => $diasAtr,
+                'atrasado' => true,
+            );
+        }
+    }
+} catch (Exception $e) {}
+
+// Eventos ATRASADOS (agenda) - top 10 mais antigos + contador
+$_qtdEventosAtrasados = 0;
+try {
+    $filtroEA = (!$isGestao || $viewUserId !== $userId) ? " AND e.responsavel_id = $viewUserId" : '';
+    $stEAc = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos e WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado')" . $filtroEA);
+    $stEAc->execute(array($hoje));
+    $_qtdEventosAtrasados = (int)$stEAc->fetchColumn();
+    if ($_qtdEventosAtrasados > 0) {
+        $stEA = $pdo->prepare(
+            "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.case_id, c.name as client_name, cs.title as case_title, cs.case_number,
+                    DATEDIFF(?, DATE(e.data_inicio)) AS dias_atraso
+             FROM agenda_eventos e
+             LEFT JOIN clients c ON c.id = e.client_id
+             LEFT JOIN cases cs ON cs.id = e.case_id
+             WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado')" . $filtroEA . "
+             ORDER BY e.data_inicio ASC LIMIT 10"
+        );
+        $stEA->execute(array($hoje, $hoje));
+        foreach ($stEA->fetchAll() as $ev) {
+            $diasAtr = (int)$ev['dias_atraso'];
+            $agendaHoje[] = array(
+                'hora' => '🚨',
+                'titulo' => strtoupper($ev['tipo']) . ' ATRASADO ' . $diasAtr . 'd — ' . $ev['titulo'],
+                'tipo' => 'evento_atrasado',
+                'badge' => '⚠️',
+                'cor' => '#7f1d1d',
+                'detalhe' => ($ev['client_name'] ? $ev['client_name'] . ' · ' : '') . ($ev['case_title'] ?: ''),
+                'link' => null,
+                'processo' => $ev['case_number'] ?: '',
+                'concluido' => false,
+                'id' => 'eva_' . $ev['id'],
+                'case_id' => (int)($ev['case_id'] ?? 0),
+                'dias_atraso' => $diasAtr,
+                'atrasado' => true,
+            );
+        }
+    }
+} catch (Exception $e) {}
+
 // Lembretes pessoais
 try {
     $stmtL = $pdo->prepare("SELECT * FROM eventos_dia WHERE usuario_id = ? AND data_evento = ? ORDER BY hora_inicio ASC, criado_em ASC");
@@ -184,8 +262,14 @@ try {
     }
 } catch (Exception $e) {}
 
-// Ordenar por hora
+// Ordenar: atrasados em cima (mais antigos primeiro), depois itens de hoje por hora
 usort($agendaHoje, function($a, $b) {
+    $aAtr = !empty($a['atrasado']) ? 0 : 1;
+    $bAtr = !empty($b['atrasado']) ? 0 : 1;
+    if ($aAtr !== $bAtr) return $aAtr - $bAtr;
+    if (!empty($a['atrasado']) && !empty($b['atrasado'])) {
+        return ((int)($b['dias_atraso'] ?? 0)) - ((int)($a['dias_atraso'] ?? 0));
+    }
     $ha = preg_replace('/[^0-9:]/', '99:99', $a['hora']);
     $hb = preg_replace('/[^0-9:]/', '99:99', $b['hora']);
     return strcmp($ha, $hb);
@@ -475,6 +559,29 @@ else brfRestore();
     <!-- COLUNA 1: Agenda -->
     <div class="pd-card">
         <h3>📅 Agenda de Hoje (<?= count($agendaHoje) ?>)</h3>
+        <?php
+        // Banner com total real de atrasadas (Amanda 01/06/2026)
+        $_qTA = isset($_qtdTarefasAtrasadas) ? (int)$_qtdTarefasAtrasadas : 0;
+        $_qEA = isset($_qtdEventosAtrasados) ? (int)$_qtdEventosAtrasados : 0;
+        if ($_qTA + $_qEA > 0):
+        ?>
+        <div style="background:#fee2e2;border-left:3px solid #dc2626;border-radius:6px;padding:.45rem .65rem;margin-bottom:.7rem;font-size:.76rem;color:#7f1d1d;">
+            <div style="font-weight:700;margin-bottom:.25rem;">⚠ Atrasadas: <?= $_qTA + $_qEA ?> no total</div>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;font-size:.7rem;">
+                <?php if ($_qTA > 0): ?>
+                    <span>📋 <?= $_qTA ?> tarefa<?= $_qTA > 1 ? 's' : '' ?></span>
+                    <a href="<?= module_url('tarefas') ?>" style="color:#991b1b;font-weight:700;text-decoration:underline;">Ver Kanban →</a>
+                <?php endif; ?>
+                <?php if ($_qEA > 0): ?>
+                    <span>📅 <?= $_qEA ?> evento<?= $_qEA > 1 ? 's' : '' ?></span>
+                    <a href="<?= module_url('agenda') ?>" style="color:#991b1b;font-weight:700;text-decoration:underline;">Ver Agenda →</a>
+                <?php endif; ?>
+                <?php if (($_qTA + $_qEA) > 20): ?>
+                    <span style="opacity:.85;font-style:italic;">(top 20 abaixo)</span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
         <?php if (empty($agendaHoje)): ?>
             <div class="pd-empty">
                 <div class="big"><?= $msgVazia['emoji'] ?></div>
