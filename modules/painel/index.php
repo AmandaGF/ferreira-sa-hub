@@ -323,8 +323,57 @@ if ($_briefMostrar) {
         $_briefHoje = $stB->fetch(PDO::FETCH_ASSOC);
     } catch (Exception $e) {}
 }
+// Helper: parseia o briefing em itens clicaveis (Amanda 01/06/2026)
+// Itens (linhas com '- ' ou '* ') viram <li> clicaveis que toggle .done
+// no localStorage. Linhas comuns viram <div> normais. Hash MD5 truncado
+// identifica cada item pra persistir estado entre reloads (ate IA atualizar).
+if (!function_exists('_briefing_render_html')) {
+function _briefing_render_html($texto) {
+    $texto = htmlspecialchars((string)$texto, ENT_QUOTES, 'UTF-8');
+    $texto = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $texto);
+    $linhas = preg_split('/\r?\n/', $texto);
+    $html = '';
+    $emLista = false;
+    foreach ($linhas as $linha) {
+        $linhaTrim = trim($linha);
+        if (preg_match('/^[-*]\s+(.+)$/u', $linhaTrim, $m)) {
+            if (!$emLista) { $html .= '<ul class="brief-list">'; $emLista = true; }
+            $textoItem = trim($m[1]);
+            $key = substr(md5($textoItem), 0, 12);
+            $html .= '<li class="brief-item" data-key="' . $key . '" onclick="brfToggle(this)" title="Clique pra riscar (já feito) ou desmarcar">'
+                  . $textoItem . '</li>';
+        } else {
+            if ($emLista) { $html .= '</ul>'; $emLista = false; }
+            if ($linhaTrim === '') $html .= '<div class="brief-blank"></div>';
+            else $html .= '<div class="brief-text">' . $linha . '</div>';
+        }
+    }
+    if ($emLista) $html .= '</ul>';
+    return $html;
+}
+}
 if ($_briefMostrar):
 ?>
+<style>
+#briefingConteudo .brief-text { margin:.15rem 0; }
+#briefingConteudo .brief-blank { height:.45rem; }
+#briefingConteudo .brief-list { list-style:none; padding-left:0; margin:.35rem 0; }
+#briefingConteudo .brief-item {
+    cursor:pointer; padding:.4rem .55rem; margin:.2rem 0; border-radius:6px;
+    transition:background .15s, opacity .15s, text-decoration-color .15s;
+    border-left:3px solid transparent;
+}
+#briefingConteudo .brief-item:hover { background:rgba(217,119,6,.08); border-left-color:#d97706; }
+#briefingConteudo .brief-item.done {
+    text-decoration:line-through; text-decoration-color:#92400e; text-decoration-thickness:2px;
+    opacity:.55; background:rgba(146,64,14,.05);
+}
+#briefingConteudo .brief-item.done:hover { opacity:.75; }
+#briefingConteudo .brief-item::before {
+    content:'☐ '; color:#92400e; font-weight:700; margin-right:.15rem;
+}
+#briefingConteudo .brief-item.done::before { content:'✅ '; }
+</style>
 <div id="briefingCard" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #d97706;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;color:#1f2937;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.55rem;gap:.5rem;flex-wrap:wrap;">
         <strong style="font-size:.95rem;color:#92400e;">🌅 Briefing matinal por IA</strong>
@@ -339,7 +388,7 @@ if ($_briefMostrar):
     </div>
     <div id="briefingConteudo" style="font-size:.88rem;line-height:1.55;">
         <?php if ($_briefHoje): ?>
-            <?= nl2br(preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', e($_briefHoje['conteudo']))) ?>
+            <?= _briefing_render_html($_briefHoje['conteudo']) ?>
         <?php else: ?>
             <span style="color:#92400e;">Toque em <strong>✨ Gerar agora</strong> pra ver as 5 coisas mais importantes do seu dia. <span style="font-size:.7rem;opacity:.7;">(custa cerca de R$ 0,05 · sem IA esse painel mostra dados crus, sem priorização)</span></span>
         <?php endif; ?>
@@ -376,7 +425,9 @@ window.gerarBriefing = function(forcar) {
                 alvo.innerHTML = html;
                 alvo.style.opacity = '1';
             }
-            // Recarrega só pra atualizar o "gerado em XX:XX" e trocar botão de "Gerar" pra "Atualizar"
+            // Recarrega so pra atualizar o "gerado em XX:XX" e trocar botao de "Gerar" pra "Atualizar"
+            // Limpa risca antigos: briefing novo = todos os itens voltam pra "a fazer"
+            try { localStorage.removeItem(brfStorageKey()); } catch(e){}
             setTimeout(function(){ location.reload(); }, 600);
         })
         .catch(function(e){
@@ -386,6 +437,37 @@ window.gerarBriefing = function(forcar) {
             alert('Erro: ' + e.message);
         });
 };
+
+// Checklist do briefing: clique = riscar, clique de novo = desmarcar (Amanda 01/06/2026)
+// Persiste em localStorage por usuario+dia. Quando IA gera briefing novo, estado zera.
+function brfStorageKey() {
+    return 'fsa-brief-done-<?= (int)current_user_id() ?>-<?= date('Ymd') ?>';
+}
+function brfGetDone() {
+    try { var v = localStorage.getItem(brfStorageKey()); return v ? JSON.parse(v) : []; }
+    catch(e) { return []; }
+}
+function brfSaveDone(arr) {
+    try { localStorage.setItem(brfStorageKey(), JSON.stringify(arr)); } catch(e) {}
+}
+window.brfToggle = function(el) {
+    if (!el || !el.dataset || !el.dataset.key) return;
+    var k = el.dataset.key;
+    var done = brfGetDone();
+    var idx = done.indexOf(k);
+    if (idx >= 0) { done.splice(idx, 1); el.classList.remove('done'); }
+    else { done.push(k); el.classList.add('done'); }
+    brfSaveDone(done);
+};
+function brfRestore() {
+    var done = brfGetDone();
+    if (!done.length) return;
+    document.querySelectorAll('#briefingConteudo .brief-item').forEach(function(el){
+        if (done.indexOf(el.dataset.key) >= 0) el.classList.add('done');
+    });
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', brfRestore);
+else brfRestore();
 </script>
 <?php endif; ?>
 
