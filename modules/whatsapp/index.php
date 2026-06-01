@@ -403,9 +403,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="wa-wrap" id="waWrap">
     <!-- ── Coluna esquerda: Inbox ────────────────────────── -->
     <div class="wa-pane">
-        <div class="wa-head">
-            Conversas <span class="wa-head-sub" id="waCount"></span>
+        <div class="wa-head" style="display:flex;align-items:center;justify-content:space-between;gap:.4rem;">
+            <div>Conversas <span class="wa-head-sub" id="waCount"></span></div>
+            <button id="waBtnSom" onclick="waToggleSom()" type="button"
+                title="Som ativo — clique pra silenciar"
+                style="background:#ecfdf5;color:#065f46;border:1px solid #d1fae5;border-radius:6px;padding:3px 9px;font-size:.95rem;cursor:pointer;line-height:1;flex-shrink:0;">🔔</button>
         </div>
+        <script>
+        // Sincroniza estado visual do botao com localStorage no load
+        (function(){
+            var b = document.getElementById('waBtnSom'); if (!b) return;
+            var on = localStorage.getItem('waSomNotif') !== '0';
+            b.textContent = on ? '🔔' : '🔕';
+            b.title = on ? 'Som ativo — clique pra silenciar' : 'Som silenciado — clique pra ativar';
+            b.style.background = on ? '#ecfdf5' : '#fef2f2';
+            b.style.color = on ? '#065f46' : '#991b1b';
+        })();
+        </script>
         <div class="wa-toolbar">
             <input type="text" class="wa-search" id="waSearch" placeholder="🔍 Buscar por nome ou telefone...">
             <div class="wa-filters">
@@ -592,6 +606,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
         carregarLista();
     };
 
+    // Som de notificacao ao receber msg nova (Amanda 01/06/2026).
+    // Web Audio API — sem arquivo, 2 tons agudos curtos.
+    // Toggle persistido em localStorage. Default ON. Pode falhar antes
+    // da 1a interacao do user (autoplay policy do browser).
+    var _waUltimoTotalNaoLidas = null; // null = 1a chamada, nao toca
+    function waSomLigado() { return localStorage.getItem('waSomNotif') !== '0'; }
+    function waTocarSom() {
+        if (!waSomLigado()) return;
+        try {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) return;
+            var ctx = new AC();
+            [{f:880,t:0,d:0.10}, {f:1320,t:0.12,d:0.14}].forEach(function(n){
+                var o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = n.f;
+                g.gain.setValueAtTime(0.18, ctx.currentTime + n.t);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.t + n.d);
+                o.connect(g); g.connect(ctx.destination);
+                o.start(ctx.currentTime + n.t);
+                o.stop(ctx.currentTime + n.t + n.d);
+            });
+        } catch(e) {}
+    }
+    window.waToggleSom = function() {
+        var ligar = !waSomLigado();
+        localStorage.setItem('waSomNotif', ligar ? '1' : '0');
+        var btn = document.getElementById('waBtnSom');
+        if (btn) {
+            btn.textContent = ligar ? '🔔' : '🔕';
+            btn.title = ligar ? 'Som ativo — clique pra silenciar' : 'Som silenciado — clique pra ativar';
+            btn.style.background = ligar ? '#ecfdf5' : '#fef2f2';
+            btn.style.color = ligar ? '#065f46' : '#991b1b';
+        }
+        if (ligar) waTocarSom(); // toca pra confirmar
+    };
+
     function carregarLista() {
         var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual);
         if (atendenteFiltro !== '') url += '&atendente=' + encodeURIComponent(atendenteFiltro);
@@ -606,6 +656,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
             document.getElementById('waCount').textContent = (_totalReal > _mostradas)
                 ? '(' + _mostradas + ' de ' + _totalReal + ')'
                 : '(' + _totalReal + ')';
+
+            // Soma de nao_lidas + toca som se aumentou (Amanda 01/06/2026).
+            // Skip primeira chamada pra nao tocar ao abrir a pagina.
+            var _totalNaoLidas = 0;
+            d.conversas.forEach(function(c){ _totalNaoLidas += (+c.nao_lidas || 0); });
+            if (_waUltimoTotalNaoLidas !== null && _totalNaoLidas > _waUltimoTotalNaoLidas) {
+                waTocarSom();
+            }
+            _waUltimoTotalNaoLidas = _totalNaoLidas;
             if (d.conversas.length === 0) {
                 list.innerHTML = '<div class="wa-empty">Nenhuma conversa.</div>';
                 return;
@@ -845,10 +904,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     + '</a>';
         }
 
+        // Chip do atendente ao lado do nome do lead (Amanda 01/06/2026).
+        // Pill compacto com primeiro nome. Cor diferente se delegada.
+        var atendenteChipHtml = '';
+        if (c.atendente_name) {
+            var primNomeAt = (c.atendente_name || '').split(' ')[0];
+            var ehDelegada = !!(+c.delegada);
+            var corAt = ehDelegada ? '#7c3aed' : '#0d9488';
+            var bgAt  = ehDelegada ? '#ede9fe' : '#ccfbf1';
+            var icone = ehDelegada ? '🎯' : '👤';
+            atendenteChipHtml = '<span title="' + escapeHtml(c.atendente_name) + (ehDelegada ? ' (delegada)' : ' atende esta conversa') + '"'
+                              + ' style="background:' + bgAt + ';color:' + corAt + ';font-size:.7rem;font-weight:700;padding:2px 9px;border-radius:11px;border:1px solid ' + corAt + '40;white-space:nowrap;flex-shrink:0;">'
+                              + icone + ' ' + escapeHtml(primNomeAt)
+                              + '</span>';
+        }
+
         head.innerHTML =
             '<div style="display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;">' +
-                '<div style="display:flex;align-items:center;gap:6px;">' +
+                '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
                     '<span class="wa-name-display" onclick="waEditarNome()" id="waNomeDisplay" title="Clique para editar">' + escapeHtml(nome) + '</span>' +
+                    atendenteChipHtml +
                 '</div>' +
                 '<span class="wa-head-sub" style="margin-left:0;">' + escapeHtml(subTxt) + '</span>' +
                 etqHtml +
