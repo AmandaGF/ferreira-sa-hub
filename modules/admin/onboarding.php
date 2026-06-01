@@ -375,6 +375,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $action = $_POST['action'] ?? '';
     $id = (int)($_POST['id'] ?? 0);
 
+    // Parser de valor monetario que entende tanto BR quanto US (Amanda 01/06/2026):
+    // - "1500"       -> 1500.00
+    // - "1500,00"    -> 1500.00 (BR decimal)
+    // - "1.500,00"   -> 1500.00 (BR milhar + decimal)
+    // - "1.500"      -> 1500.00 (BR milhar puro - heuristica: 3 digitos apos ponto)
+    // - "1500.00"    -> 1500.00 (US decimal)
+    // - "R$ 1.500,00"-> 1500.00 (com prefixo)
+    // Bug antigo: usava preg_replace mantendo todos os pontos. "1.000" virava
+    // (float)1.000 = 1.0. Amanda perdia 3 zeros toda vez que usava formato BR.
+    if (!function_exists('_onb_parse_money')) {
+    function _onb_parse_money($raw) {
+        $s = preg_replace('/[^\d.,]/', '', trim((string)$raw));
+        if ($s === '') return null;
+        if (strpos($s, ',') !== false) {
+            $s = str_replace('.', '', $s);    // pontos = milhar
+            $s = str_replace(',', '.', $s);   // virgula = decimal
+        } else {
+            $pontos = substr_count($s, '.');
+            if ($pontos > 1) {
+                $s = str_replace('.', '', $s); // ex: "1.500.000" sem virgula
+            } elseif ($pontos === 1) {
+                $depois = explode('.', $s)[1];
+                if (strlen($depois) === 3) $s = str_replace('.', '', $s); // "1.500" = milhar
+                // 1 ou 2 digitos apos = decimal mesmo ("1.5" / "1.50")
+            }
+        }
+        if (!is_numeric($s)) return null;
+        return number_format((float)$s, 2, '.', '');
+    }
+    }
+
     if ($action === 'salvar') {
         $cpfInput = trim($_POST['cpf'] ?? '');
         $senhaInput = trim($_POST['senha_inicial'] ?? '');
@@ -397,7 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             'setor'                => trim($_POST['setor'] ?? ''),
             'cargo'                => trim($_POST['cargo'] ?? ''),
             'tipo_remuneracao'     => trim($_POST['tipo_remuneracao'] ?? ''),
-            'valor_remuneracao'    => preg_replace('/[^\d.]/', '', str_replace(',', '.', $_POST['valor_remuneracao'] ?? '')) ?: null,
+            'valor_remuneracao'    => _onb_parse_money($_POST['valor_remuneracao'] ?? ''),
             'data_pagamento'       => trim($_POST['data_pagamento'] ?? ''),
             'beneficios'           => trim($_POST['beneficios'] ?? ''),
             'mensagem_pessoal'     => trim($_POST['mensagem_pessoal'] ?? ''),
@@ -879,8 +910,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </select>
             </div>
             <div>
-                <label>Valor (R$)</label>
-                <input name="valor_remuneracao" value="<?= e($reg['valor_remuneracao'] ?? '') ?>" placeholder="1500.00">
+                <label>Valor (R$) <span style="color:#6a3c2c;font-size:.7rem;font-weight:400;">(aceita 1500 / 1.500,00 / 1500.00)</span></label>
+                <input name="valor_remuneracao" value="<?= e(!empty($reg['valor_remuneracao']) ? number_format((float)$reg['valor_remuneracao'], 2, ',', '.') : '') ?>" placeholder="Ex: 1.500,00">
             </div>
             <div>
                 <label>Data de pagamento</label>
