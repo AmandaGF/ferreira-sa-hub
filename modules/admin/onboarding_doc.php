@@ -44,13 +44,20 @@ $dadosAdmin = $doc['dados_admin_json'] ? json_decode($doc['dados_admin_json'], t
 if (!is_array($dadosAdmin)) $dadosAdmin = array();
 
 /**
- * Pré-preenchimento dos campos admin a partir do cadastro do colaborador.
- * Só usado quando o admin AINDA NÃO preencheu o campo no documento (valor vazio).
- * Evita re-digitação de valores que já estão no cadastro.
+ * Pré-preenchimento dos campos admin.
+ *
+ * Separado em 2 grupos:
+ *   $autofillCadastro — vêm do cadastro do colaborador (mutável). Usado tanto na
+ *                       1ª visualização QUANTO pelo botão "🔄 Re-puxar do cadastro".
+ *   $autofillSchema   — defaults estáticos do schema (forma_pagamento, multa, etc.).
+ *                       Só usados na 1ª visualização — botão re-puxar não mexe.
+ *
+ * Quando Amanda atualiza o cadastro do colaborador e quer propagar pro contrato,
+ * usa o botão re-puxar (sobrescreve só o que vem do cadastro).
  */
-$autofill = array();
+$autofillCadastro = array();
 if (!empty($doc['valor_remuneracao'])) {
-    $autofill['valor_bolsa'] = number_format((float)$doc['valor_remuneracao'], 2, '.', '');
+    $autofillCadastro['valor_bolsa'] = number_format((float)$doc['valor_remuneracao'], 2, '.', '');
 }
 // Parse benefícios buscando vale-transporte → extrai valor
 if (!empty($doc['beneficios'])) {
@@ -59,30 +66,57 @@ if (!empty($doc['beneficios'])) {
             && preg_match('/R?\$?\s*([\d.]+,\d{2}|\d+)/', $linha, $m)) {
             $valor = (float)str_replace(',', '.', str_replace('.', '', $m[1]));
             if ($valor > 0) {
-                $autofill['valor_aux_transporte'] = number_format($valor, 2, '.', '');
+                $autofillCadastro['valor_aux_transporte'] = number_format($valor, 2, '.', '');
             }
             break;
         }
     }
 }
 // Dados especificos do estagio cadastrados na ficha do colaborador
-if (!empty($doc['modalidade_estagio']))   $autofill['modalidade'] = $doc['modalidade_estagio'];
-if (!empty($doc['data_inicio_estagio']))  $autofill['data_inicio'] = $doc['data_inicio_estagio'];
-if (!empty($doc['data_termino_estagio'])) $autofill['data_termino'] = $doc['data_termino_estagio'];
-if (!empty($doc['seguro_num_apolice']))   $autofill['num_apolice'] = $doc['seguro_num_apolice'];
-if (!empty($doc['seguro_seguradora']))    $autofill['seguradora'] = $doc['seguro_seguradora'];
+if (!empty($doc['modalidade_estagio']))   $autofillCadastro['modalidade'] = $doc['modalidade_estagio'];
+if (!empty($doc['data_inicio_estagio']))  $autofillCadastro['data_inicio'] = $doc['data_inicio_estagio'];
+if (!empty($doc['data_termino_estagio'])) $autofillCadastro['data_termino'] = $doc['data_termino_estagio'];
+if (!empty($doc['seguro_num_apolice']))   $autofillCadastro['num_apolice'] = $doc['seguro_num_apolice'];
+if (!empty($doc['seguro_seguradora']))    $autofillCadastro['seguradora'] = $doc['seguro_seguradora'];
 
 // Dia de pagamento — extrai número do campo "data_pagamento" do cadastro (ex.: "5º dia útil" → 5)
 if (!empty($doc['data_pagamento']) && preg_match('/(\d{1,2})/', $doc['data_pagamento'], $m)) {
     $dia = (int)$m[1];
-    if ($dia >= 1 && $dia <= 28) $autofill['dia_pagamento'] = (string)$dia;
+    if ($dia >= 1 && $dia <= 28) $autofillCadastro['dia_pagamento'] = (string)$dia;
+}
+
+// Botão "🔄 Re-puxar dados do cadastro" — sobrescreve só campos do cadastro,
+// preservando edições manuais em campos de schema (forma_pagamento, multa, etc.).
+// Pedido Amanda 01/06/2026: atualizou cadastro mas contrato ficou desatualizado.
+if (isset($_GET['repuxar']) && !empty($autofillCadastro)) {
+    $dadosAtualizado = $dadosAdmin;
+    $sobrescritos = array();
+    foreach ($autofillCadastro as $k => $v) {
+        if (!isset($dadosAtualizado[$k]) || (string)$dadosAtualizado[$k] !== (string)$v) {
+            $sobrescritos[] = $k;
+        }
+        $dadosAtualizado[$k] = $v;
+    }
+    try {
+        $pdo->prepare("UPDATE colaboradores_documentos SET dados_admin_json = ? WHERE id = ?")
+            ->execute(array(json_encode($dadosAtualizado, JSON_UNESCAPED_UNICODE), $docId));
+        if (!empty($sobrescritos)) {
+            flash_set('success', '🔄 Re-puxado do cadastro: ' . count($sobrescritos) . ' campo(s) atualizado(s) (' . implode(', ', $sobrescritos) . ').');
+        } else {
+            flash_set('success', '✓ Tudo já está atualizado com o cadastro.');
+        }
+    } catch (Exception $e) {
+        flash_set('error', 'Erro ao re-puxar: ' . $e->getMessage());
+    }
+    redirect(module_url('admin', 'onboarding_doc.php?id=' . $docId));
 }
 
 // Defaults do schema (forma_pagamento, multa, tempo_resposta_lead etc) entram como sugestão
-// SE o admin ainda não tocou no campo. Assim a Amanda vê o que vai pro contrato sem precisar preencher tudo.
+// SE o admin ainda não tocou no campo. Botão "Re-puxar" NÃO mexe nesses.
+$autofill = $autofillCadastro;
 foreach ($schema['campos_admin'] as $_k => $_def) {
     if (!isset($_def['default'])) continue;
-    if (isset($autofill[$_k])) continue; // já sugerido por outra regra (ex.: data_pagamento)
+    if (isset($autofill[$_k])) continue; // já sugerido por outra regra
     $autofill[$_k] = (string)$_def['default'];
 }
 
@@ -172,8 +206,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             Esses dados serão usados para preencher o documento automaticamente. A colaboradora só visualiza (não pode editar).
         </p>
         <?php if (!empty($autofill) || $doc['tipo'] === 'compromisso_estagio'): ?>
-            <div style="background:#ecfdf5;border:1px solid #34d399;color:#065f46;padding:.65rem .9rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;">
-                ✨ <strong>Pré-preenchimento automático:</strong> os dados abaixo já vêm do cadastro do colaborador. Os <em>demais campos do termo</em> (carga horária, dias de trabalho, horários, local presencial, modalidade Presencial/Remoto/Híbrido) também são puxados direto do cadastro — não precisa preencher aqui.
+            <div style="background:#ecfdf5;border:1px solid #34d399;color:#065f46;padding:.65rem .9rem;border-radius:8px;font-size:.8rem;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+                <div style="flex:1;min-width:280px;">
+                    ✨ <strong>Pré-preenchimento automático:</strong> os dados abaixo já vêm do cadastro do colaborador. Os <em>demais campos do termo</em> (carga horária, dias de trabalho, horários, local presencial, modalidade) também são puxados direto do cadastro — não precisa preencher aqui.
+                </div>
+                <?php if (!empty($autofillCadastro)): ?>
+                <a href="<?= module_url('admin', 'onboarding_doc.php?id=' . $docId . '&repuxar=1') ?>"
+                   onclick="return confirm('Re-puxar os dados que vêm do cadastro do colaborador?\n\nVai sobrescrever os campos: valor da bolsa, vale-transporte, modalidade, datas do estágio, apólice/seguradora, dia de pagamento.\n\nNÃO mexe em campos que você editou manualmente (forma de pagamento, multa, etc).');"
+                   style="background:#065f46;color:#fff;padding:.45rem .75rem;border-radius:6px;font-size:.75rem;font-weight:700;text-decoration:none;white-space:nowrap;">
+                    🔄 Re-puxar do cadastro
+                </a>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
         <?php
