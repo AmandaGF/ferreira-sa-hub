@@ -88,14 +88,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// Puxa dados do cadastro de colaborador (Amanda 02/06/2026): se vier ?colab_id=N,
+// busca o registro de colaboradores_onboarding e usa como pre-preenchimento.
+// Util pra criar conta de quem ja foi onboardado e nao ter que redigitar tudo.
+$colab = null;
+if (!$editId && (int)($_GET['colab_id'] ?? 0) > 0) {
+    try {
+        $stC = $pdo->prepare("SELECT id, nome_completo, email_institucional, email_pessoal, telefone_whatsapp, setor, cargo, perfil_cargo FROM colaboradores_onboarding WHERE id = ?");
+        $stC->execute(array((int)$_GET['colab_id']));
+        $colab = $stC->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Exception $e) {}
+}
+// Mapeia perfil_cargo do onboarding -> role do hub. Se nao mapear, fica null e
+// o select fica no default 'colaborador'.
+function _colab_role_default($colab) {
+    if (!$colab) return null;
+    $cargoLower = mb_strtolower((string)($colab['cargo'] ?? ''), 'UTF-8');
+    $setorLower = mb_strtolower((string)($colab['setor'] ?? ''), 'UTF-8');
+    if (mb_strpos($cargoLower, 'estagi') !== false || mb_strpos($setorLower, 'estagi') !== false) return 'estagiario';
+    if (mb_strpos($setorLower, 'comercial') !== false) return 'comercial';
+    if (mb_strpos($setorLower, 'cx') !== false || mb_strpos($setorLower, 'atendimento') !== false) return 'cx';
+    if (mb_strpos($setorLower, 'operacional') !== false || mb_strpos($setorLower, 'juridico') !== false || mb_strpos($setorLower, 'jurídico') !== false) return 'operacional';
+    return 'colaborador';
+}
+$_roleFromColab = _colab_role_default($colab);
+
 // Valores para o formulário
 $f = [
-    'name'  => $_POST['name']  ?? ($user['name']  ?? ''),
-    'email' => $_POST['email'] ?? ($user['email'] ?? ''),
-    'phone' => $_POST['phone'] ?? ($user['phone'] ?? ''),
-    'setor' => $_POST['setor'] ?? ($user['setor'] ?? ''),
-    'role'  => $_POST['role']  ?? ($user['role']  ?? 'colaborador'),
+    'name'  => $_POST['name']  ?? ($user['name']  ?? ($colab['nome_completo'] ?? '')),
+    'email' => $_POST['email'] ?? ($user['email'] ?? ($colab['email_institucional'] ?: ($colab['email_pessoal'] ?? '') ?? '')),
+    'phone' => $_POST['phone'] ?? ($user['phone'] ?? ($colab['telefone_whatsapp'] ?? '')),
+    'setor' => $_POST['setor'] ?? ($user['setor'] ?? ($colab['setor'] ?? '')),
+    'role'  => $_POST['role']  ?? ($user['role']  ?? ($_roleFromColab ?? 'colaborador')),
 ];
+
+// Lista de cadastros do onboarding pra seletor "puxar de" (so em modo novo)
+$colabsList = array();
+if (!$editId) {
+    try {
+        $colabsList = $pdo->query("SELECT id, nome_completo FROM colaboradores_onboarding WHERE status != 'arquivado' ORDER BY nome_completo")->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -108,6 +141,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <span class="alert-icon">✕</span>
             <div><?= implode('<br>', array_map('e', $errors)) ?></div>
         </div>
+    <?php endif; ?>
+
+    <?php if (!$editId && !empty($colabsList)): ?>
+    <div style="background:#fff7ed;border:1.5px dashed #d7ab90;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;font-size:.85rem;color:#6a3c2c;">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+            <strong>💡 Já tem cadastro no onboarding?</strong>
+            <select onchange="if(this.value) location.href='?colab_id='+this.value;" style="font-size:.82rem;padding:.4rem .6rem;border:1.5px solid #d7ab90;border-radius:6px;background:#fff;color:#052228;flex:1;min-width:240px;">
+                <option value="">Puxar dados de um cadastro existente...</option>
+                <?php foreach ($colabsList as $c): ?>
+                    <option value="<?= (int)$c['id'] ?>" <?= ($colab && $colab['id'] == $c['id']) ? 'selected' : '' ?>><?= e($c['nome_completo']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($colab): ?>
+    <div style="background:#ecfdf5;border:1px solid #34d399;border-radius:8px;padding:.55rem .85rem;margin-bottom:1rem;font-size:.82rem;color:#065f46;">
+        ✓ Dados puxados do cadastro de <strong><?= e($colab['nome_completo']) ?></strong>. Revise antes de criar.
+    </div>
     <?php endif; ?>
 
     <div class="card">
@@ -168,6 +221,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <button type="submit" class="btn btn-primary"><?= $editId ? 'Salvar' : 'Criar Usuário' ?></button>
                 </div>
             </form>
+
+            <?php if ($editId && $user && !empty($user['email'])): ?>
+            <!-- Botao Enviar email de acesso (Amanda 02/06/2026): gera senha temp e envia via Brevo -->
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1.5px dashed #d7ab90;">
+                <form method="POST" action="<?= module_url('usuarios', 'api.php') ?>" onsubmit="return confirm('Enviar e-mail de acesso para <?= e($user['email']) ?>?\n\nIsso vai gerar uma nova SENHA TEMPORÁRIA e enviar por e-mail com link para entrar. A senha atual sera substituida.');">
+                    <?= csrf_input() ?>
+                    <input type="hidden" name="action" value="enviar_email_acesso">
+                    <input type="hidden" name="user_id" value="<?= $editId ?>">
+                    <button type="submit" class="btn btn-outline" style="background:#fff7ed;border-color:#d7ab90;color:#6a3c2c;font-weight:700;">
+                        ✉️ Enviar e-mail de acesso (gera senha temporária)
+                    </button>
+                    <span style="font-size:.72rem;color:#6b7280;margin-left:.5rem;">A senha atual será substituída por uma nova de 8 caracteres.</span>
+                </form>
+            </div>
+            <?php endif; ?>
         </div>
     </div>
 

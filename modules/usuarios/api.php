@@ -140,6 +140,30 @@ switch ($action) {
         redirect(module_url('usuarios', 'form.php?id=' . $userId));
         exit;
 
+    case 'enviar_email_acesso':
+        // Amanda 02/06/2026: gera senha temp + envia email com instrucoes de acesso ao Hub.
+        require_once APP_ROOT . '/core/functions_users_email.php';
+        $stmt = $pdo->prepare('SELECT id, name, email FROM users WHERE id = ? AND is_active = 1');
+        $stmt->execute(array($userId));
+        $u = $stmt->fetch();
+        if (!$u) { flash_set('error', 'Usuário não encontrado ou desativado.'); break; }
+        if (!$u['email']) { flash_set('error', 'Usuário sem e-mail cadastrado.'); break; }
+        $senhaTemp = gerar_senha_temp_hub();
+        $pdo->prepare('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?')
+            ->execute(array(password_hash($senhaTemp, PASSWORD_DEFAULT), $userId));
+        // Monta URL absoluta do hub
+        $proto = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on') ? 'https' : 'http';
+        $urlLogin = $proto . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname(dirname(dirname($_SERVER['PHP_SELF']))), '/') . '/';
+        $ok = enviar_email_acesso_hub($u['email'], $u['name'], $senhaTemp, $urlLogin);
+        if ($ok) {
+            audit_log('email_acesso_enviado', 'user', $userId, "Senha temporaria gerada e email enviado para {$u['email']}");
+            flash_set('success', '✉️ E-mail de acesso enviado para ' . $u['email'] . '. Senha temporária gerada.');
+        } else {
+            flash_set('error', 'Não foi possível enviar o e-mail. Verifique a chave Brevo em configurações.');
+        }
+        redirect(module_url('usuarios', 'form.php?id=' . $userId));
+        exit;
+
     default:
         flash_set('error', 'Ação inválida.');
 }
