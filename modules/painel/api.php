@@ -327,7 +327,7 @@ if ($action === 'baixar_atrasada') {
             $st = $pdo->prepare($sql); $st->execute($params);
             if ($st->rowCount() === 0) { echo json_encode(array('error' => 'Tarefa nao encontrada, sem permissao ou ja concluida')); exit; }
         } elseif ($tipo === 'evento') {
-            $sql = "UPDATE agenda_eventos SET status='realizado' WHERE id=? AND status NOT IN ('cancelado','remarcado','realizado')";
+            $sql = "UPDATE agenda_eventos SET status='realizado' WHERE id=? AND status NOT IN ('cancelado','remarcado','realizado','nao_compareceu')";
             $params = array($id);
             if (!$isGestao) { $sql .= " AND responsavel_id=?"; $params[] = $userId; }
             $st = $pdo->prepare($sql); $st->execute($params);

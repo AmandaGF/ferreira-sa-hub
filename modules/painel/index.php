@@ -78,7 +78,7 @@ try {
             LEFT JOIN clients c ON c.id = e.client_id
             LEFT JOIN cases cs ON cs.id = e.case_id
             LEFT JOIN users u ON u.id = e.responsavel_id
-            WHERE DATE(e.data_inicio) = ? AND e.status NOT IN ('cancelado','remarcado')";
+            WHERE DATE(e.data_inicio) = ? AND e.status NOT IN ('cancelado','remarcado','nao_compareceu')";
     if (!$isGestao || $viewUserId !== $userId) {
         $sql .= " AND e.responsavel_id = ?";
         $stmt = $pdo->prepare($sql . " ORDER BY e.data_inicio ASC");
@@ -206,7 +206,7 @@ try {
 $_qtdEventosAtrasados = 0;
 try {
     $filtroEA = (!$isGestao || $viewUserId !== $userId) ? " AND e.responsavel_id = $viewUserId" : '';
-    $stEAc = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos e WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado')" . $filtroEA);
+    $stEAc = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos e WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado','nao_compareceu')" . $filtroEA);
     $stEAc->execute(array($hoje));
     $_qtdEventosAtrasados = (int)$stEAc->fetchColumn();
     if ($_qtdEventosAtrasados > 0) {
@@ -216,7 +216,7 @@ try {
              FROM agenda_eventos e
              LEFT JOIN clients c ON c.id = e.client_id
              LEFT JOIN cases cs ON cs.id = e.case_id
-             WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado')" . $filtroEA . "
+             WHERE DATE(e.data_inicio) < ? AND e.status NOT IN ('cancelado','remarcado','realizado','nao_compareceu')" . $filtroEA . "
              ORDER BY e.data_inicio ASC LIMIT 10"
         );
         $stEA->execute(array($hoje, $hoje));
