@@ -707,6 +707,55 @@ if ($action === 'salvar') {
                     } catch (Exception $eN) {}
                 }
             }
+
+            // AUDIENCIA PRESENCIAL: cria lembrete automatico 15d antes (Amanda 02/06/2026).
+            // Pendencia: confirmar quem do escritorio vai presencialmente OU contratar audiencista.
+            // Atribui Amanda + Luiz Eduardo como participantes. Pula se faltar <15d (data ja passou).
+            if ($tipo === 'audiencia' && $modalidade === 'presencial' && $dataInicio) {
+                try {
+                    $dtAviso = strtotime($dataInicio . ' -15 days');
+                    if ($dtAviso > time()) {
+                        $stU = $pdo->prepare("SELECT id FROM users WHERE (email = ? OR LOWER(name) LIKE ?) AND is_active = 1 ORDER BY id LIMIT 1");
+                        $stU->execute(array('amandaguedesferreira@gmail.com', '%amanda guedes%'));
+                        $amandaId = (int)$stU->fetchColumn();
+                        $stU->execute(array('luizeduardo.sa.adv@gmail.com', '%luiz eduardo%'));
+                        $luizId = (int)$stU->fetchColumn();
+                        $partAviso = array();
+                        if ($amandaId) $partAviso[] = $amandaId;
+                        if ($luizId && $luizId !== $amandaId) $partAviso[] = $luizId;
+                        $partAvisoJson = !empty($partAviso) ? json_encode($partAviso) : null;
+                        $respAviso = $amandaId ?: current_user_id();
+
+                        $tituloAviso = '🏛 Confirmar audiência presencial + audiencista — ' . $titulo;
+                        $descAviso = "Audiência presencial em " . date('d/m/Y \à\s H:i', strtotime($dataInicio)) . "\n\n"
+                                   . "PENDÊNCIAS (15 dias antes):\n"
+                                   . "1. Confirmar se Amanda OU Luiz Eduardo comparecerá presencialmente\n"
+                                   . "2. Se ninguém do escritório for, contratar audiencista local\n"
+                                   . "3. Confirmar presença com o cliente";
+                        $dtAvisoIni = date('Y-m-d H:i:s', $dtAviso);
+                        $dtAvisoFim = date('Y-m-d H:i:s', $dtAviso + 1800); // 30min
+                        $pdo->prepare(
+                            "INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo,
+                                descricao, client_id, case_id, responsavel_id, participantes_ids,
+                                visivel_cliente, status, created_by)
+                             VALUES (?, 'reuniao_interna', 'nao_aplicavel', ?, ?, 0, ?, ?, ?, ?, ?, 0, 'agendado', ?)"
+                        )->execute(array(
+                            $tituloAviso, $dtAvisoIni, $dtAvisoFim, $descAviso,
+                            $clientId, $caseId, $respAviso, $partAvisoJson, current_user_id()
+                        ));
+                        $avisoId = (int)$pdo->lastInsertId();
+                        // Notifica participantes (no momento da criacao)
+                        foreach ($partAviso as $pid) {
+                            if ($pid === current_user_id()) continue;
+                            try {
+                                notify($pid, '🏛 Audiência presencial agendada',
+                                    'Lembrete 15d antes p/ confirmar presença ou contratar audiencista — ' . $titulo,
+                                    'info', url('modules/agenda/?evento=' . $avisoId), '🏛');
+                            } catch (Exception $eN2) {}
+                        }
+                    }
+                } catch (Exception $eAud) { @error_log('[audiencia auto-lembrete] ' . $eAud->getMessage()); }
+            }
         } catch (Exception $e) {
             echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
             exit;
