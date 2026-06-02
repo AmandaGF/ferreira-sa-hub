@@ -69,12 +69,22 @@ function _agenda_sync_lembrete_audiencia(PDO $pdo, $audienciaId, $tipo, $modalid
                . "2. Se ninguém do escritório for, contratar audiencista local\n"
                . "3. Confirmar presença com o cliente";
 
-    // Resolve Amanda e Luiz como participantes
-    $stU = $pdo->prepare("SELECT id FROM users WHERE (email = ? OR LOWER(name) LIKE ?) AND is_active = 1 ORDER BY id LIMIT 1");
-    $stU->execute(array('amandaguedesferreira@gmail.com', '%amanda guedes%'));
-    $amandaId = (int)$stU->fetchColumn();
-    $stU->execute(array('luizeduardo.sa.adv@gmail.com', '%luiz eduardo%'));
-    $luizId = (int)$stU->fetchColumn();
+    // Resolve Amanda e Luiz como participantes - uma query so com fetchAll pra
+    // garantir que o cursor seja esgotado (senao INSERT abaixo da
+    // 'Cannot execute queries while other unbuffered queries are active').
+    $stU = $pdo->prepare("SELECT id, email, LOWER(name) AS lname FROM users
+                          WHERE is_active = 1 AND (
+                              email IN ('amandaguedesferreira@gmail.com','luizeduardo.sa.adv@gmail.com')
+                              OR LOWER(name) LIKE '%amanda guedes%'
+                              OR LOWER(name) LIKE '%luiz eduardo%'
+                          )");
+    $stU->execute();
+    $allUsers = $stU->fetchAll(PDO::FETCH_ASSOC);
+    $amandaId = 0; $luizId = 0;
+    foreach ($allUsers as $u) {
+        if (!$amandaId && ($u['email'] === 'amandaguedesferreira@gmail.com' || strpos($u['lname'], 'amanda guedes') !== false)) $amandaId = (int)$u['id'];
+        if (!$luizId && ($u['email'] === 'luizeduardo.sa.adv@gmail.com' || strpos($u['lname'], 'luiz eduardo') !== false)) $luizId = (int)$u['id'];
+    }
     $partAviso = array();
     if ($amandaId) $partAviso[] = $amandaId;
     if ($luizId && $luizId !== $amandaId) $partAviso[] = $luizId;

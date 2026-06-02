@@ -28,14 +28,16 @@ p("PASSO 3: calcula data aviso");
 $dtAviso = strtotime($aud['data_inicio'] . ' -15 days');
 p("  dtAviso = " . date('Y-m-d H:i:s', $dtAviso));
 
-p("PASSO 4: busca users Amanda e Luiz");
-$stU = $pdo->prepare("SELECT id FROM users WHERE email = ? AND is_active = 1 LIMIT 1");
-$stU->execute(array('amandaguedesferreira@gmail.com'));
-$amandaId = (int)$stU->fetchColumn();
-p("  amandaId=$amandaId");
-$stU->execute(array('luizeduardo.sa.adv@gmail.com'));
-$luizId = (int)$stU->fetchColumn();
-p("  luizId=$luizId");
+p("PASSO 4: busca users Amanda e Luiz (uma query, fetchAll)");
+$stU = $pdo->prepare("SELECT id, email FROM users WHERE email IN ('amandaguedesferreira@gmail.com','luizeduardo.sa.adv@gmail.com') AND is_active = 1");
+$stU->execute();
+$allUsers = $stU->fetchAll(PDO::FETCH_ASSOC);
+$amandaId = 0; $luizId = 0;
+foreach ($allUsers as $u) {
+    if ($u['email'] === 'amandaguedesferreira@gmail.com') $amandaId = (int)$u['id'];
+    if ($u['email'] === 'luizeduardo.sa.adv@gmail.com') $luizId = (int)$u['id'];
+}
+p("  amandaId=$amandaId luizId=$luizId");
 
 p("PASSO 5: monta participantes");
 $partAviso = array();
