@@ -1104,6 +1104,33 @@ if ($action === 'status') {
 
     $pdo->prepare("UPDATE agenda_eventos SET status=?, updated_at=NOW() WHERE id=?")->execute(array($status, $id));
     audit_log('AGENDA_STATUS', 'agenda', $id, 'Status: ' . $status . ' (uid=' . current_user_id() . ')');
+
+    // Grava andamento aberto ao realizar audiencia/mediacao/reuniao (Amanda 02/06/2026).
+    // Pega case_id+tipo+titulo do evento e monta texto descritivo.
+    $observacao = trim($_POST['observacao_realizado'] ?? '');
+    if ($status === 'realizado' && $observacao !== '') {
+        try {
+            $stEv = $pdo->prepare("SELECT case_id, tipo, titulo, data_inicio FROM agenda_eventos WHERE id = ?");
+            $stEv->execute(array($id));
+            $evRow = $stEv->fetch(PDO::FETCH_ASSOC);
+            $caseIdRow = (int)($evRow['case_id'] ?? 0);
+            $tipoEv = (string)($evRow['tipo'] ?? '');
+            $tiposComObs = array('audiencia','mediacao_cejusc','reuniao_cliente');
+            if ($caseIdRow > 0 && in_array($tipoEv, $tiposComObs, true)) {
+                $rotulos = array('audiencia'=>'Audiência','mediacao_cejusc'=>'Mediação/CEJUSC','reuniao_cliente'=>'Reunião com cliente');
+                $rotulo = $rotulos[$tipoEv] ?? 'Compromisso';
+                $dataHum = $evRow['data_inicio'] ? date('d/m/Y H:i', strtotime($evRow['data_inicio'])) : '';
+                $descAnd = "✓ {$rotulo} REALIZADA — " . ($evRow['titulo'] ?? '');
+                if ($dataHum) $descAnd .= "\n🗓 {$dataHum}";
+                $descAnd .= "\n\n" . $observacao;
+                // tipo='audiencia' pra audiencia, 'observacao' pros demais
+                $tipoAnd = ($tipoEv === 'audiencia') ? 'audiencia' : 'observacao';
+                $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?, CURDATE(), ?, ?, 1, ?, NOW())")
+                    ->execute(array($caseIdRow, $tipoAnd, $descAnd, current_user_id()));
+            }
+        } catch (Exception $eAnd) { @error_log('[agenda realizado andamento] ' . $eAnd->getMessage()); }
+    }
+
     echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
     exit;
 }

@@ -1973,12 +1973,25 @@ function marcarRealizadoModal(id, tipo, caseId, clientId) {
         abrirModalBalcaoProva(id, null, caseId || 0, clientId || 0);
         return;
     }
-    if (!confirm('Marcar este compromisso como realizado?')) return;
+    var observacao = '';
+    if (window._tiposComObsRealizado && window._tiposComObsRealizado.indexOf(tipo) >= 0 && caseId) {
+        observacao = prompt(
+            'O que aconteceu neste compromisso?\n\n' +
+            '(Texto sera gravado como andamento ABERTO no processo - visivel ao cliente.\n' +
+            'Deixe em branco se preferir nao registrar agora.)',
+            ''
+        );
+        if (observacao === null) return;
+        observacao = (observacao || '').trim();
+    } else {
+        if (!confirm('Marcar este compromisso como realizado?')) return;
+    }
     var fd = new FormData();
     fd.append('action', 'status');
     fd.append('csrf_token', CSRF);
     fd.append('id', id);
     fd.append('status', 'realizado');
+    if (observacao) fd.append('observacao_realizado', observacao);
     fetch(API, { method:'POST', body: fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
         .then(function(r){ return r.json().catch(function(){ return {}; }); })
         .then(function(j){
@@ -2033,17 +2046,34 @@ function remarcarEventoModal(id) {
 }
 
 // ── AÇÕES ───────────────────────────────────────────────────
+// Tipos que perguntam "o que aconteceu" ao marcar realizado, e gravam
+// como andamento aberto no processo (Amanda 02/06/2026).
+window._tiposComObsRealizado = ['audiencia','mediacao_cejusc','reuniao_cliente'];
+
 function marcarRealizado(id, btn, tipo, caseId, clientId) {
     // Balcão virtual: exige upload da prova
     if (tipo === 'balcao_virtual') {
         abrirModalBalcaoProva(id, btn, caseId || 0, clientId || 0);
         return;
     }
+    // Audiencia/mediacao/reuniao: pergunta o que aconteceu e grava como andamento
+    var observacao = '';
+    if (window._tiposComObsRealizado.indexOf(tipo) >= 0 && caseId) {
+        observacao = prompt(
+            'O que aconteceu neste compromisso?\n\n' +
+            '(Texto sera gravado como andamento ABERTO no processo - visivel ao cliente.\n' +
+            'Deixe em branco se preferir nao registrar agora.)',
+            ''
+        );
+        if (observacao === null) return; // cancelou
+        observacao = (observacao || '').trim();
+    }
     var fd = new FormData();
     fd.append('action', 'status');
     fd.append('csrf_token', CSRF);
     fd.append('id', id);
     fd.append('status', 'realizado');
+    if (observacao) fd.append('observacao_realizado', observacao);
     var xhr = new XMLHttpRequest();
     xhr.open('POST', API);
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
