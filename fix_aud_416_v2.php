@@ -44,11 +44,7 @@ if ($luizId && $luizId !== $amandaId) $partAviso[] = $luizId;
 $partAvisoJson = !empty($partAviso) ? json_encode($partAviso) : null;
 p("  json=" . $partAvisoJson);
 
-p("PASSO 6: verifica colunas que vou usar");
-foreach (array('referencia_evento_id','dia_todo','visivel_cliente') as $c) {
-    $r = $pdo->query("SHOW COLUMNS FROM agenda_eventos LIKE '$c'")->fetch();
-    p("  $c " . ($r ? 'OK' : 'FALTANDO'));
-}
+p("PASSO 6: pulado");
 
 p("PASSO 7: INSERT do lembrete");
 try {
