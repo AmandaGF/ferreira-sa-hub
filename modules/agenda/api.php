@@ -382,6 +382,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt->execute($params);
         $resultados = $stmt->fetchAll();
 
+        // Enriquece com nomes dos participantes (Amanda 02/06/2026): quando o evento
+        // tem participantes_ids (JSON), busca os nomes correspondentes em users.
+        // Frontend mostra como '👤 Amanda · Luiz' (responsavel + outros).
+        $idsParticipantesGlobal = array();
+        foreach ($resultados as $r) {
+            if (empty($r['participantes_ids'])) continue;
+            $p = json_decode($r['participantes_ids'], true);
+            if (is_array($p)) foreach ($p as $pid) { $pid = (int)$pid; if ($pid > 0) $idsParticipantesGlobal[$pid] = true; }
+        }
+        $mapaNomes = array();
+        if (!empty($idsParticipantesGlobal)) {
+            $idsList = array_keys($idsParticipantesGlobal);
+            $place = implode(',', array_fill(0, count($idsList), '?'));
+            $stN = $pdo->prepare("SELECT id, name FROM users WHERE id IN ($place)");
+            $stN->execute($idsList);
+            foreach ($stN->fetchAll(PDO::FETCH_ASSOC) as $u) $mapaNomes[(int)$u['id']] = $u['name'];
+        }
+        foreach ($resultados as $i => $r) {
+            $resultados[$i]['participantes_names'] = array();
+            if (!empty($r['participantes_ids'])) {
+                $p = json_decode($r['participantes_ids'], true);
+                if (is_array($p)) {
+                    foreach ($p as $pid) {
+                        $pid = (int)$pid;
+                        if (isset($mapaNomes[$pid])) $resultados[$i]['participantes_names'][] = $mapaNomes[$pid];
+                    }
+                }
+            }
+        }
+
         // Incluir tarefas (case_tasks) na agenda
         $incluirTarefas = ($_GET['incluir_tarefas'] ?? '1') !== '0';
         if ($incluirTarefas) { try {

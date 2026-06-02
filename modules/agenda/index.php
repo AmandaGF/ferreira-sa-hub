@@ -911,7 +911,17 @@ function renderLista() {
             '<div class="ag-lc-info">' +
             (ev.dia_todo != 1 ? '<span>\uD83D\uDD50 ' + hr + (durStr ? ' \u00b7 ' + durStr : '') + '</span>' : '') +
             (ev.meet_link ? '<span>\uD83C\uDFA5 Google Meet</span>' : '') +
-            (ev.responsavel_name ? '<span>\uD83D\uDC64 ' + esc(ev.responsavel_name) + '</span>' : '') +
+            (function(){
+                // Mostra responsavel + participantes dedupados como "Amanda \u00B7 Luiz"
+                // (Amanda 02/06/2026: lembrete de audiencia presencial tem ambos como
+                // responsaveis efetivos, mas a FK responsavel_id so aceita um).
+                var nomes = [];
+                if (ev.responsavel_name) nomes.push(ev.responsavel_name);
+                if (ev.participantes_names && ev.participantes_names.length) {
+                    ev.participantes_names.forEach(function(n){ if (n && nomes.indexOf(n) < 0) nomes.push(n); });
+                }
+                return nomes.length ? '<span>\uD83D\uDC64 ' + esc(nomes.join(' \u00B7 ')) + '</span>' : '';
+            })() +
             (ev.client_name ? '<span>\uD83D\uDCCB ' + esc(ev.client_name) + '</span>' : '') +
             (ev.case_title ? '<span>\uD83D\uDCC2 ' + esc(ev.case_title) + (ev.case_number ? ' — ' + esc(ev.case_number) : '') + '</span>' : '') +
             (ev.local ? '<span>📍 ' + esc(ev.local) + '</span>' : (ev.case_comarca ? '<span>📍 Comarca: ' + esc(ev.case_comarca) + '</span>' : '')) +
