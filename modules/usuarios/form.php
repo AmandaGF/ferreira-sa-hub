@@ -122,12 +122,34 @@ $f = [
     'role'  => $_POST['role']  ?? ($user['role']  ?? ($_roleFromColab ?? 'colaborador')),
 ];
 
-// Lista de cadastros do onboarding pra seletor "puxar de" (so em modo novo)
+// Lista de cadastros do onboarding pra seletor "puxar de" (em modo novo OU edit)
 $colabsList = array();
-if (!$editId) {
-    try {
-        $colabsList = $pdo->query("SELECT id, nome_completo FROM colaboradores_onboarding WHERE status != 'arquivado' ORDER BY nome_completo")->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {}
+try {
+    $colabsList = $pdo->query("SELECT id, nome_completo FROM colaboradores_onboarding WHERE status != 'arquivado' ORDER BY nome_completo")->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+// Sugestao automatica: tenta achar 1 cadastro que combine com o user atual
+// por email exato ou nome muito parecido. Se achar, mostra "Puxar de X" em destaque.
+$colabSugerido = null;
+if ($editId && $user && !empty($colabsList)) {
+    foreach ($colabsList as $c) {
+        // Match por email institucional eh o mais forte
+        $stMatch = $pdo->prepare("SELECT id, email_institucional, email_pessoal FROM colaboradores_onboarding WHERE id = ?");
+        $stMatch->execute(array($c['id']));
+        $colabFull = $stMatch->fetch(PDO::FETCH_ASSOC);
+        if ($colabFull && ($colabFull['email_institucional'] === $user['email'] || $colabFull['email_pessoal'] === $user['email'])) {
+            $colabSugerido = $c; break;
+        }
+    }
+    if (!$colabSugerido) {
+        // Fallback: match por nome (3+ palavras iguais)
+        $palavrasUser = array_filter(explode(' ', mb_strtolower($user['name'], 'UTF-8')), function($p){ return mb_strlen($p) > 2; });
+        foreach ($colabsList as $c) {
+            $palavrasC = array_filter(explode(' ', mb_strtolower($c['nome_completo'], 'UTF-8')), function($p){ return mb_strlen($p) > 2; });
+            $iguais = count(array_intersect($palavrasUser, $palavrasC));
+            if ($iguais >= 2) { $colabSugerido = $c; break; }
+        }
+    }
 }
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -144,6 +166,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 
     <?php if (!$editId && !empty($colabsList)): ?>
+    <!-- Modo Novo: redireciona pra ?colab_id=X que preenche os campos via GET -->
     <div style="background:#fff7ed;border:1.5px dashed #d7ab90;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;font-size:.85rem;color:#6a3c2c;">
         <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
             <strong>💡 Já tem cadastro no onboarding?</strong>
@@ -160,6 +183,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($colab): ?>
     <div style="background:#ecfdf5;border:1px solid #34d399;border-radius:8px;padding:.55rem .85rem;margin-bottom:1rem;font-size:.82rem;color:#065f46;">
         ✓ Dados puxados do cadastro de <strong><?= e($colab['nome_completo']) ?></strong>. Revise antes de criar.
+    </div>
+    <?php endif; ?>
+
+    <?php if ($editId && !empty($colabsList)): ?>
+    <!-- Modo Edit: POST direto pra api.php action=puxar_do_cadastro que faz UPDATE em users -->
+    <div style="background:#fff7ed;border:1.5px dashed #d7ab90;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;font-size:.85rem;color:#6a3c2c;">
+        <form method="POST" action="<?= module_url('usuarios', 'api.php') ?>" onsubmit="var s=this.querySelector('select[name=colab_id]'); if(!s.value){alert('Escolha um cadastro primeiro.');return false;} return confirm('Sobrescrever telefone, setor e nome com dados do cadastro escolhido?\n\nO e-mail (login) e a senha NAO sao alterados.');">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="puxar_do_cadastro">
+            <input type="hidden" name="user_id" value="<?= $editId ?>">
+            <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+                <strong>🔄 Puxar dados do cadastro do onboarding:</strong>
+                <select name="colab_id" style="font-size:.82rem;padding:.4rem .6rem;border:1.5px solid #d7ab90;border-radius:6px;background:#fff;color:#052228;flex:1;min-width:240px;">
+                    <option value="">Escolha um cadastro...</option>
+                    <?php foreach ($colabsList as $c): ?>
+                        <option value="<?= (int)$c['id'] ?>" <?= ($colabSugerido && $colabSugerido['id'] == $c['id']) ? 'selected' : '' ?>><?= e($c['nome_completo']) ?><?= ($colabSugerido && $colabSugerido['id'] == $c['id']) ? ' ✨ (sugerido)' : '' ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit" class="btn btn-outline btn-sm" style="background:#fff;border-color:#6a3c2c;color:#6a3c2c;font-weight:700;">Puxar</button>
+            </div>
+            <div style="font-size:.7rem;color:#9ca3af;margin-top:.4rem;">Sobrescreve telefone, setor e nome. E-mail (login) preservado.</div>
+        </form>
     </div>
     <?php endif; ?>
 

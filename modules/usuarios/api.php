@@ -140,6 +140,29 @@ switch ($action) {
         redirect(module_url('usuarios', 'form.php?id=' . $userId));
         exit;
 
+    case 'puxar_do_cadastro':
+        // Amanda 02/06/2026: UPDATE em users com dados do colaboradores_onboarding.
+        // Sobrescreve nome, telefone, setor. NAO mexe em email (login) nem senha nem role.
+        $colabId = (int)($_POST['colab_id'] ?? 0);
+        if (!$userId || !$colabId) { flash_set('error', 'Parametros invalidos.'); break; }
+        $stU = $pdo->prepare('SELECT id, name, email FROM users WHERE id = ?');
+        $stU->execute(array($userId));
+        $u = $stU->fetch();
+        if (!$u) { flash_set('error', 'Usuario nao encontrado.'); break; }
+        $stC = $pdo->prepare('SELECT nome_completo, telefone_whatsapp, setor FROM colaboradores_onboarding WHERE id = ?');
+        $stC->execute(array($colabId));
+        $c = $stC->fetch();
+        if (!$c) { flash_set('error', 'Cadastro do onboarding nao encontrado.'); break; }
+        $novoNome = trim($c['nome_completo'] ?: $u['name']);
+        $novoTel = trim($c['telefone_whatsapp'] ?? '');
+        $novoSetor = trim($c['setor'] ?? '');
+        $pdo->prepare('UPDATE users SET name = ?, phone = ?, setor = ?, updated_at = NOW() WHERE id = ?')
+            ->execute(array($novoNome, $novoTel ?: null, $novoSetor ?: null, $userId));
+        audit_log('user_puxado_do_cadastro', 'user', $userId, "colab_id=$colabId | nome=$novoNome tel=$novoTel setor=$novoSetor");
+        flash_set('success', '✓ Dados sincronizados com o cadastro do onboarding.');
+        redirect(module_url('usuarios', 'form.php?id=' . $userId));
+        exit;
+
     case 'enviar_email_acesso':
         // Amanda 02/06/2026: gera senha temp + envia email com instrucoes de acesso ao Hub.
         require_once APP_ROOT . '/core/functions_users_email.php';
