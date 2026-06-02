@@ -414,7 +414,41 @@ if ($_briefMostrar) {
 // no localStorage. Linhas comuns viram <div> normais. Hash MD5 truncado
 // identifica cada item pra persistir estado entre reloads (ate IA atualizar).
 if (!function_exists('_briefing_render_html')) {
+// Resolve [ID:tipo_NN] (Amanda 02/06/2026): retorna array com href (caso/tarefa/agenda),
+// id_real e tipo amigavel. Tipos: tka_=tarefa, pz_=prazo, ev_=evento agenda, int_=intimacao.
+function _briefing_resolve_id($tipo, $id, $pdo) {
+    $id = (int)$id;
+    if (!$id) return null;
+    try {
+        if ($tipo === 'tka') {
+            $st = $pdo->prepare("SELECT case_id FROM case_tasks WHERE id = ?");
+            $st->execute(array($id));
+            $cid = (int)$st->fetchColumn();
+            return $cid > 0 ? array('href' => url('modules/operacional/caso_ver.php?id=' . $cid . '#tarefas'), 'label' => 'Ver tarefa', 'tipo_baixa' => 'tarefa') : null;
+        } elseif ($tipo === 'pz') {
+            $st = $pdo->prepare("SELECT case_id FROM prazos_processuais WHERE id = ?");
+            $st->execute(array($id));
+            $cid = (int)$st->fetchColumn();
+            return $cid > 0 ? array('href' => url('modules/operacional/caso_ver.php?id=' . $cid . '#prazos'), 'label' => 'Ver prazo', 'tipo_baixa' => 'prazo') : null;
+        } elseif ($tipo === 'ev') {
+            $st = $pdo->prepare("SELECT case_id, client_id FROM agenda_eventos WHERE id = ?");
+            $st->execute(array($id));
+            $r = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$r) return null;
+            if ((int)$r['case_id'] > 0) return array('href' => url('modules/operacional/caso_ver.php?id=' . (int)$r['case_id']), 'label' => 'Ver caso', 'tipo_baixa' => 'evento');
+            if ((int)$r['client_id'] > 0) return array('href' => url('modules/clientes/ver.php?id=' . (int)$r['client_id']), 'label' => 'Ver cliente', 'tipo_baixa' => 'evento');
+            return array('href' => url('modules/agenda/'), 'label' => 'Ver agenda', 'tipo_baixa' => 'evento');
+        } elseif ($tipo === 'int') {
+            $st = $pdo->prepare("SELECT case_id FROM case_publicacoes WHERE id = ?");
+            $st->execute(array($id));
+            $cid = (int)$st->fetchColumn();
+            return $cid > 0 ? array('href' => url('modules/operacional/caso_ver.php?id=' . $cid . '#publicacoes'), 'label' => 'Ver intimacao', 'tipo_baixa' => null) : null;
+        }
+    } catch (Exception $e) {}
+    return null;
+}
 function _briefing_render_html($texto) {
+    $pdo = db();
     $texto = htmlspecialchars((string)$texto, ENT_QUOTES, 'UTF-8');
     $texto = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $texto);
     $linhas = preg_split('/\r?\n/', $texto);
@@ -425,9 +459,25 @@ function _briefing_render_html($texto) {
         if (preg_match('/^[-*]\s+(.+)$/u', $linhaTrim, $m)) {
             if (!$emLista) { $html .= '<ul class="brief-list">'; $emLista = true; }
             $textoItem = trim($m[1]);
+            // Extrai [ID:tipo_NN] do INICIO do item (a IA foi instruida a colocar ali)
+            $idTipo = null; $idReal = null; $resolve = null;
+            if (preg_match('/^\[ID:(tka|pz|ev|int|ua)_(\d+)\]\s*/', $textoItem, $mid)) {
+                $idTipo = $mid[1]; $idReal = (int)$mid[2];
+                $textoItem = preg_replace('/^\[ID:(tka|pz|ev|int|ua)_(\d+)\]\s*/', '', $textoItem);
+                $resolve = _briefing_resolve_id($idTipo, $idReal, $pdo);
+            }
             $key = substr(md5($textoItem), 0, 12);
+            $btns = '';
+            if ($resolve) {
+                $btns .= '<a href="' . $resolve['href'] . '" class="brief-item-btn brief-item-ver" onclick="event.stopPropagation();" title="' . htmlspecialchars($resolve['label']) . '">🔍</a>';
+                if ($resolve['tipo_baixa']) {
+                    $btns .= '<span class="brief-item-btn brief-item-baixar" onclick="event.stopPropagation();briefBaixarItem(this,\'' . $resolve['tipo_baixa'] . '\',' . $idReal . ')" title="Dar baixa (marcar como cumprido)">✓</span>';
+                }
+            }
             $html .= '<li class="brief-item" data-key="' . $key . '" onclick="brfToggle(this)" title="Clique pra riscar (já feito) ou desmarcar">'
-                  . $textoItem . '</li>';
+                  . '<span class="brief-item-texto">' . $textoItem . '</span>'
+                  . ($btns ? '<span class="brief-item-acoes">' . $btns . '</span>' : '')
+                  . '</li>';
         } else {
             if ($emLista) { $html .= '</ul>'; $emLista = false; }
             if ($linhaTrim === '') $html .= '<div class="brief-blank"></div>';
@@ -459,6 +509,19 @@ if ($_briefMostrar):
     content:'☐ '; color:#92400e; font-weight:700; margin-right:.15rem;
 }
 #briefingConteudo .brief-item.done::before { content:'✅ '; }
+#briefingConteudo .brief-item { display:flex; align-items:flex-start; gap:.5rem; }
+#briefingConteudo .brief-item-texto { flex:1; }
+#briefingConteudo .brief-item-acoes { display:flex; gap:.3rem; flex-shrink:0; align-items:center; }
+#briefingConteudo .brief-item-btn {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:24px; height:24px; border-radius:50%; font-size:.72rem; font-weight:700;
+    cursor:pointer; text-decoration:none; transition:transform .12s, background .12s;
+    user-select:none;
+}
+#briefingConteudo .brief-item-ver { background:#dbeafe; color:#1e40af; border:1px solid #93c5fd; }
+#briefingConteudo .brief-item-ver:hover { background:#bfdbfe; transform:scale(1.12); }
+#briefingConteudo .brief-item-baixar { background:#d1fae5; color:#065f46; border:1px solid #34d399; }
+#briefingConteudo .brief-item-baixar:hover { background:#a7f3d0; transform:scale(1.12); }
 </style>
 <div id="briefingCard" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border-left:4px solid #d97706;border-radius:10px;padding:.85rem 1.1rem;margin-bottom:1rem;color:#1f2937;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.55rem;gap:.5rem;flex-wrap:wrap;">
@@ -536,6 +599,35 @@ function brfGetDone() {
 function brfSaveDone(arr) {
     try { localStorage.setItem(brfStorageKey(), JSON.stringify(arr)); } catch(e) {}
 }
+// Baixa item direto pelo card do briefing (Amanda 02/06/2026) - reusa baixar_atrasada
+window.briefBaixarItem = function(btnEl, tipo, id) {
+    var nomes = { tarefa: 'tarefa', evento: 'evento', prazo: 'prazo' };
+    if (!confirm('Dar baixa nesta ' + nomes[tipo] + '? Marca como cumprida.')) return;
+    var item = btnEl.closest('.brief-item');
+    btnEl.textContent = '⏳'; btnEl.style.pointerEvents = 'none';
+    var fd = new FormData();
+    fd.append('action', 'baixar_atrasada');
+    fd.append('tipo', tipo);
+    fd.append('id', id);
+    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+    fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) { btnEl.textContent = '✓'; btnEl.style.pointerEvents = ''; alert('Não foi possível: ' + d.error); return; }
+            if (item) {
+                item.classList.add('done');
+                btnEl.textContent = '✅'; btnEl.style.pointerEvents = '';
+                // Persiste o "feito" tambem no toggle visual local
+                var done = brfGetDone();
+                if (item.dataset.key && done.indexOf(item.dataset.key) < 0) {
+                    done.push(item.dataset.key);
+                    brfSaveDone(done);
+                }
+            }
+        })
+        .catch(function(e){ btnEl.textContent = '✓'; btnEl.style.pointerEvents = ''; alert('Erro: ' + e.message); });
+};
+
 window.brfToggle = function(el) {
     if (!el || !el.dataset || !el.dataset.key) return;
     var k = el.dataset.key;

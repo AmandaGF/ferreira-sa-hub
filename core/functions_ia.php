@@ -379,14 +379,22 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
     $ctx = "Usuário: " . $usr['name'] . " (perfil " . $usr['role'] . ")\n";
     $ctx .= "Hoje: " . date('d/m/Y (l)') . " · " . date('H:i') . "\n\n";
 
+    // ═══ NOVO FORMATO (Amanda 02/06/2026) ═══
+    // Cada item recebe ID literal [ID:tipo_NN] que a IA DEVE preservar no bullet.
+    // O frontend parseia esses IDs e vira links clicaveis + botoes ver/baixar.
+    // Tipos: ev (evento), pz (prazo processual), int (intimacao), ua (andamento urgente),
+    // tka (tarefa atrasada), esf (esfriando).
+    // Tambem inclui nº processo (case_number) pra a IA citar e a Amanda saber qual eh.
+
     // Agenda de hoje
     try {
         $stAg = $pdo->prepare(
-            "SELECT titulo, tipo, data_inicio, modalidade, local, cliente_presencial
-             FROM agenda_eventos
-             WHERE (responsavel_id = ? OR participantes_ids LIKE ?)
-               AND DATE(data_inicio) = CURDATE() AND status NOT IN ('cancelado','realizado')
-             ORDER BY data_inicio ASC LIMIT 10"
+            "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.modalidade, e.local, e.cliente_presencial, cs.case_number
+             FROM agenda_eventos e
+             LEFT JOIN cases cs ON cs.id = e.case_id
+             WHERE (e.responsavel_id = ? OR e.participantes_ids LIKE ?)
+               AND DATE(e.data_inicio) = CURDATE() AND e.status NOT IN ('cancelado','realizado')
+             ORDER BY e.data_inicio ASC LIMIT 10"
         );
         $stAg->execute(array($userId, '%"' . $userId . '"%'));
         $agenda = $stAg->fetchAll(PDO::FETCH_ASSOC);
@@ -395,16 +403,17 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
             foreach ($agenda as $e) {
                 $hr = date('H:i', strtotime($e['data_inicio']));
                 $cp = !empty($e['cliente_presencial']) ? ' [cliente comparece presencialmente]' : '';
-                $ctx .= "  • {$hr} [{$e['tipo']}] {$e['titulo']}" . ($e['local'] ? " — {$e['local']}" : '') . $cp . "\n";
+                $proc = !empty($e['case_number']) ? " (proc {$e['case_number']})" : '';
+                $ctx .= "  • [ID:ev_{$e['id']}] {$hr} [{$e['tipo']}] {$e['titulo']}" . ($e['local'] ? " — {$e['local']}" : '') . $cp . $proc . "\n";
             }
             $ctx .= "\n";
         }
     } catch (Exception $e) {}
 
-    // Prazos críticos (próximos 5 dias)
+    // Prazos críticos (próximos 5 dias) - prazos_processuais ATIVOS (concluido=0)
     try {
         $stPz = $pdo->prepare(
-            "SELECT p.descricao_acao, p.prazo_fatal, cs.title, cs.id AS case_id
+            "SELECT p.id, p.descricao_acao, p.prazo_fatal, cs.title, cs.id AS case_id, cs.case_number
              FROM prazos_processuais p
              LEFT JOIN cases cs ON cs.id = p.case_id
              WHERE p.concluido = 0
@@ -415,11 +424,12 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
         $stPz->execute(array($userId));
         $prazos = $stPz->fetchAll(PDO::FETCH_ASSOC);
         if ($prazos) {
-            $ctx .= "🚨 PRAZOS NOS PRÓXIMOS 5 DIAS:\n";
+            $ctx .= "🚨 PRAZOS NOS PRÓXIMOS 5 DIAS (ATIVOS em prazos_processuais):\n";
             foreach ($prazos as $p) {
                 $dias = (int)((strtotime($p['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
                 $when = $dias === 0 ? 'HOJE' : ($dias === 1 ? 'AMANHÃ' : 'em ' . $dias . 'd');
-                $ctx .= "  • {$when} ({$p['prazo_fatal']}): {$p['descricao_acao']} — " . ($p['title'] ?? '?') . "\n";
+                $proc = !empty($p['case_number']) ? " (proc {$p['case_number']})" : '';
+                $ctx .= "  • [ID:pz_{$p['id']}] {$when} ({$p['prazo_fatal']}): {$p['descricao_acao']} — " . ($p['title'] ?? '?') . $proc . "\n";
             }
             $ctx .= "\n";
         }
@@ -428,7 +438,7 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
     // Intimações pendentes (novidades pra revisar)
     try {
         $stI = $pdo->query(
-            "SELECT cp.tipo_publicacao, cp.resumo_ia, cs.title, cp.data_disponibilizacao
+            "SELECT cp.id, cp.tipo_publicacao, cp.resumo_ia, cs.title, cs.id AS case_id, cs.case_number, cp.data_disponibilizacao
              FROM case_publicacoes cp
              INNER JOIN cases cs ON cs.id = cp.case_id
              WHERE cp.status_prazo = 'pendente'
@@ -439,34 +449,19 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
             $ctx .= "📢 INTIMAÇÕES PENDENTES NO ESCRITÓRIO:\n";
             foreach ($intim as $i) {
                 $tx = mb_substr(trim(preg_replace('/\s+/', ' ', (string)$i['resumo_ia'])), 0, 130);
-                $ctx .= "  • {$i['data_disponibilizacao']} [{$i['tipo_publicacao']}] {$i['title']}: {$tx}\n";
+                $proc = !empty($i['case_number']) ? " (proc {$i['case_number']})" : '';
+                $ctx .= "  • [ID:int_{$i['id']}] {$i['data_disponibilizacao']} [{$i['tipo_publicacao']}] {$i['title']}: {$tx}{$proc}\n";
             }
             $ctx .= "\n";
         }
     } catch (Exception $e) {}
 
-    // Andamentos URGENTES (classificados pela IA na última varredura)
-    try {
-        $stU2 = $pdo->prepare(
-            "SELECT ca.data_andamento, ca.descricao, cs.title
-             FROM case_andamentos ca
-             INNER JOIN cases cs ON cs.id = ca.case_id
-             WHERE ca.urgencia_ia = 'urgente'
-               AND ca.created_at >= DATE_SUB(NOW(), INTERVAL 2 DAY)
-               AND (cs.responsible_user_id = ? OR cs.responsible_user_id IS NULL)
-             ORDER BY ca.created_at DESC LIMIT 6"
-        );
-        $stU2->execute(array($userId));
-        $urgs = $stU2->fetchAll(PDO::FETCH_ASSOC);
-        if ($urgs) {
-            $ctx .= "🔴 ANDAMENTOS URGENTES (últimas 48h):\n";
-            foreach ($urgs as $u) {
-                $tx = mb_substr(trim(preg_replace('/\s+/', ' ', (string)$u['descricao'])), 0, 130);
-                $ctx .= "  • {$u['data_andamento']} {$u['title']}: {$tx}\n";
-            }
-            $ctx .= "\n";
-        }
-    } catch (Exception $e) {}
+    // ANDAMENTOS URGENTES REMOVIDOS do briefing (Amanda 02/06/2026).
+    // Razao: andamentos sao HISTORICO do processo. Briefing fala de PENDENCIAS
+    // (o que falta fazer agora). Misturar gerava conflito - tinha andamento
+    // 'manifestamos em 28/05' e ai a IA achava que faltava manifestar.
+    // Pendencias reais ficam em: prazos_processuais (concluido=0) + case_tasks
+    // (status!=concluido) + agenda_eventos + case_publicacoes (pendente).
 
     // Clientes esfriando (só pra admin/gestão)
     if (in_array($usr['role'], array('admin','gestao'), true)) {
@@ -491,7 +486,7 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
     // Tarefas atrasadas
     try {
         $stT = $pdo->prepare(
-            "SELECT t.title, t.due_date, cs.title AS case_title
+            "SELECT t.id, t.title, t.due_date, t.case_id, cs.title AS case_title, cs.case_number
              FROM case_tasks t
              INNER JOIN cases cs ON cs.id = t.case_id
              WHERE t.tipo IS NOT NULL AND t.status != 'concluido'
@@ -502,10 +497,11 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
         $stT->execute(array($userId, $userId));
         $tar = $stT->fetchAll(PDO::FETCH_ASSOC);
         if ($tar) {
-            $ctx .= "📋 SUAS TAREFAS ATRASADAS:\n";
+            $ctx .= "📋 SUAS TAREFAS ATRASADAS (case_tasks - NÃO sao prazos processuais):\n";
             foreach ($tar as $t) {
                 $dias = (int)((time() - strtotime($t['due_date'])) / 86400);
-                $ctx .= "  • atrasada {$dias}d: {$t['title']} ({$t['case_title']})\n";
+                $proc = !empty($t['case_number']) ? " (proc {$t['case_number']})" : '';
+                $ctx .= "  • [ID:tka_{$t['id']}] atrasada {$dias}d: {$t['title']} ({$t['case_title']}){$proc}\n";
             }
             $ctx .= "\n";
         }
@@ -517,33 +513,40 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
 
     // === Prompt ===
     // Reforço anti-alucinação (Amanda 02/06/2026 - IA inventou "3 prazos vencidos 28/05" pra
-    // clientes que nao existiam nos dados. Agora regras explicitas + temperature 0).
+    // clientes que nao existiam nos dados. Agora cada item tem [ID:tipo_NN] que deve ser
+    // copiado no bullet - o frontend usa pra linkar).
     $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
             . "Sua missão é dar um BRIEFING MATINAL PERSONALIZADO em até 5 bullets pra essa pessoa começar o dia já sabendo o que importa. "
             . "Receba o estado da agenda+prazos+intimações+andamentos urgentes+clientes em risco+tarefas atrasadas e produza:\n\n"
-            . "FORMATO:\n"
-            . "**Bom dia, {primeiroNome}!** Aqui está o que você precisa olhar hoje:\n\n"
-            . "- 🔴/🟡/🟢/📅/📋 [bullet com ação direta + contexto curto. Use o emoji que melhor classifica a prioridade]\n"
-            . "- ...\n\n"
+            . "FORMATO OBRIGATÓRIO de cada bullet:\n"
+            . "- [ID:tipo_NN] 🔴/🟡/🟢/📅/📋 frase de até 25 palavras citando cliente+ação+processo\n\n"
+            . "EXEMPLO BOM:\n"
+            . "- [ID:tka_850] 📋 **Geyza x Alimentos** (proc 0809544-96.2024.8.19.0045): cobrar planilha de gastos, atrasada 57d.\n"
+            . "- [ID:pz_123] 🔴 **João da Silva x Banco** (proc 0001234-56.2024.8.19.0001): manifestar até HOJE sobre contestação.\n\n"
             . "═══ REGRAS CRÍTICAS — LEIA COM ATENÇÃO ═══\n\n"
-            . "1. ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):\n"
-            . "   - **Cada nome, data, processo, valor, tipo de ação que você citar PRECISA aparecer LITERALMENTE no contexto fornecido**. \n"
-            . "   - Se um item não está no contexto, ELE NÃO EXISTE. Não invente.\n"
-            . "   - Não agregue itens parecidos numa frase só (ex: 'três prazos pra X, Y e Z') a menos que os TRÊS apareçam separados no contexto.\n"
-            . "   - Não 'preencha lacunas' com nomes plausíveis. Não 'arredonde' datas. Não tente parecer útil inventando.\n"
-            . "   - Se tiver dúvida se um item está no contexto, NÃO CITE. Prefira menos bullets verdadeiros do que mais bullets inventados.\n\n"
-            . "2. DISTINÇÃO TAREFA × PRAZO PROCESSUAL:\n"
-            . "   - PRAZO = só o que vem na seção '🚨 PRAZOS NOS PRÓXIMOS 5 DIAS' (prazos_processuais).\n"
-            . "   - TAREFA = só o que vem na seção '📋 SUAS TAREFAS ATRASADAS' (case_tasks).\n"
-            . "   - NUNCA chame tarefa de prazo nem vice-versa. NUNCA misture as duas seções num mesmo bullet.\n\n"
-            . "3. FORMATAÇÃO:\n"
-            . "   - Máximo 5 bullets, priorize por urgência (prazos vencendo > intimações > andamentos urgentes > tarefas atrasadas > esfriando).\n"
+            . "1. ID OBRIGATÓRIO:\n"
+            . "   - **TODO bullet COMEÇA com [ID:tipo_NN] copiado LITERALMENTE de um item do contexto**.\n"
+            . "   - Se você quer falar de algo, copie o ID exato (ex: [ID:pz_123]) do contexto onde aparece.\n"
+            . "   - SEM ID válido = SEM bullet. Não invente IDs.\n\n"
+            . "2. ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):\n"
+            . "   - **1 bullet = 1 item do contexto**. Não combine 2+ items num bullet só.\n"
+            . "   - Cada nome, data, número de processo, descrição PRECISA estar copiado do item específico do contexto. \n"
+            . "   - Se o item NÃO TEM número de processo no contexto, não invente um. Apenas omita.\n"
+            . "   - Não 'preencha lacunas' com nomes plausíveis. Não 'arredonde' datas.\n"
+            . "   - Se tiver dúvida, NÃO CITE. Prefira menos bullets verdadeiros do que mais bullets inventados.\n\n"
+            . "3. DISTINÇÃO CRÍTICA — PRAZO × TAREFA:\n"
+            . "   - PRAZO PROCESSUAL ATIVO = só itens da seção '🚨 PRAZOS NOS PRÓXIMOS 5 DIAS (ATIVOS)' (tipo pz_).\n"
+            . "   - TAREFA = só itens da seção '📋 SUAS TAREFAS ATRASADAS' (tipo tka_).\n"
+            . "   - NUNCA chame tarefa de prazo nem vice-versa. NUNCA misture seções num mesmo bullet.\n"
+            . "   - O briefing fala de PENDÊNCIAS (o que está em aberto). Não fala de andamentos do tribunal.\n\n"
+            . "4. FORMATAÇÃO:\n"
+            . "   - Cabeçalho fixo: '**Bom dia, {primeiroNome}!** Aqui está o que você precisa olhar hoje:' (linha em branco depois)\n"
+            . "   - Máximo 5 bullets, prioridade por urgência: agenda hoje > prazos vencendo > intimações pendentes > tarefas atrasadas > esfriando.\n"
             . "   - Cada bullet em 1 frase de até 25 palavras.\n"
-            . "   - Use o nome do cliente quando ajudar a identificar — COPIE EXATAMENTE como está no contexto.\n"
-            . "   - Tom direto, profissional, sem floreio.\n"
-            . "   - Se contexto está vazio ou só tem '(Sem eventos críticos...)', diga: 'Sua manhã está tranquila — sem prazos críticos nem intimações pendentes.'\n"
-            . "   - NÃO repita 'urgente' em todo bullet — use só onde realmente é urgente.\n"
-            . "   - Use markdown leve (**negrito** em nomes de cliente e prazos).";
+            . "   - Use o nome do cliente em **negrito**, copie do contexto.\n"
+            . "   - SEMPRE inclua nº do processo entre parênteses (proc XXXX-XX.YYYY...) se estiver no contexto.\n"
+            . "   - Tom direto, profissional, sem floreio. Não repita 'urgente' em todo bullet.\n"
+            . "   - Se contexto vazio: 'Sua manhã está tranquila — sem prazos críticos nem intimações pendentes.'";
 
     $r = ia_chamar(
         'briefing',
