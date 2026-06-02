@@ -44,7 +44,7 @@ if ($luizId && $luizId !== $amandaId) $partAviso[] = $luizId;
 $partAvisoJson = !empty($partAviso) ? json_encode($partAviso) : null;
 p("  json=" . $partAvisoJson);
 
-p("PASSO 6: pulado");
+p("PASSO 6: pulado (era fetch sem closeCursor - bug)");
 
 p("PASSO 7: INSERT do lembrete");
 try {

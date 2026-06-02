@@ -31,8 +31,10 @@ function _agenda_sync_lembrete_audiencia(PDO $pdo, $audienciaId, $tipo, $modalid
     // mas a Amanda via "Erro BD" na tela)
     $colunaOk = false;
     try {
-        $r = $pdo->query("SHOW COLUMNS FROM agenda_eventos LIKE 'referencia_evento_id'")->fetch(PDO::FETCH_ASSOC);
-        $colunaOk = !empty($r);
+        // fetchAll esgota o cursor - SEM isso o proximo INSERT falha com
+        // 'Cannot execute queries while other unbuffered queries are active'.
+        $rows = $pdo->query("SHOW COLUMNS FROM agenda_eventos LIKE 'referencia_evento_id'")->fetchAll(PDO::FETCH_ASSOC);
+        $colunaOk = !empty($rows);
     } catch (Exception $e) {}
     if (!$colunaOk) {
         @error_log('[audiencia auto-lembrete] coluna referencia_evento_id nao disponivel - lembrete nao criado');
