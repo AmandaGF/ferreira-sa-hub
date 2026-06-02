@@ -516,6 +516,8 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
     }
 
     // === Prompt ===
+    // Reforço anti-alucinação (Amanda 02/06/2026 - IA inventou "3 prazos vencidos 28/05" pra
+    // clientes que nao existiam nos dados. Agora regras explicitas + temperature 0).
     $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
             . "Sua missão é dar um BRIEFING MATINAL PERSONALIZADO em até 5 bullets pra essa pessoa começar o dia já sabendo o que importa. "
             . "Receba o estado da agenda+prazos+intimações+andamentos urgentes+clientes em risco+tarefas atrasadas e produza:\n\n"
@@ -523,14 +525,25 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
             . "**Bom dia, {primeiroNome}!** Aqui está o que você precisa olhar hoje:\n\n"
             . "- 🔴/🟡/🟢/📅/📋 [bullet com ação direta + contexto curto. Use o emoji que melhor classifica a prioridade]\n"
             . "- ...\n\n"
-            . "REGRAS:\n"
-            . "- Máximo 5 bullets, priorize por urgência (prazos vencendo > intimações > andamentos urgentes > tarefas atrasadas > esfriando).\n"
-            . "- Cada bullet em 1 frase de até 25 palavras.\n"
-            . "- Use o nome do cliente quando ajudar a identificar.\n"
-            . "- Tom direto, profissional, sem floreio.\n"
-            . "- Não invente. Se contexto está vazio, diga 'Sua manhã está tranquila — sem prazos críticos nem intimações pendentes.'\n"
-            . "- NÃO repita 'urgente' em todo bullet — use só onde realmente é urgente.\n"
-            . "- Use markdown leve (**negrito** em nomes de cliente e prazos).";
+            . "═══ REGRAS CRÍTICAS — LEIA COM ATENÇÃO ═══\n\n"
+            . "1. ANTI-ALUCINAÇÃO (PRIORIDADE MÁXIMA):\n"
+            . "   - **Cada nome, data, processo, valor, tipo de ação que você citar PRECISA aparecer LITERALMENTE no contexto fornecido**. \n"
+            . "   - Se um item não está no contexto, ELE NÃO EXISTE. Não invente.\n"
+            . "   - Não agregue itens parecidos numa frase só (ex: 'três prazos pra X, Y e Z') a menos que os TRÊS apareçam separados no contexto.\n"
+            . "   - Não 'preencha lacunas' com nomes plausíveis. Não 'arredonde' datas. Não tente parecer útil inventando.\n"
+            . "   - Se tiver dúvida se um item está no contexto, NÃO CITE. Prefira menos bullets verdadeiros do que mais bullets inventados.\n\n"
+            . "2. DISTINÇÃO TAREFA × PRAZO PROCESSUAL:\n"
+            . "   - PRAZO = só o que vem na seção '🚨 PRAZOS NOS PRÓXIMOS 5 DIAS' (prazos_processuais).\n"
+            . "   - TAREFA = só o que vem na seção '📋 SUAS TAREFAS ATRASADAS' (case_tasks).\n"
+            . "   - NUNCA chame tarefa de prazo nem vice-versa. NUNCA misture as duas seções num mesmo bullet.\n\n"
+            . "3. FORMATAÇÃO:\n"
+            . "   - Máximo 5 bullets, priorize por urgência (prazos vencendo > intimações > andamentos urgentes > tarefas atrasadas > esfriando).\n"
+            . "   - Cada bullet em 1 frase de até 25 palavras.\n"
+            . "   - Use o nome do cliente quando ajudar a identificar — COPIE EXATAMENTE como está no contexto.\n"
+            . "   - Tom direto, profissional, sem floreio.\n"
+            . "   - Se contexto está vazio ou só tem '(Sem eventos críticos...)', diga: 'Sua manhã está tranquila — sem prazos críticos nem intimações pendentes.'\n"
+            . "   - NÃO repita 'urgente' em todo bullet — use só onde realmente é urgente.\n"
+            . "   - Use markdown leve (**negrito** em nomes de cliente e prazos).";
 
     $r = ia_chamar(
         'briefing',
@@ -540,7 +553,7 @@ function ia_gerar_briefing_usuario(PDO $pdo, $userId, $forcar = false) {
         array(
             'user_id'      => $userId,
             'max_tokens'   => 600,
-            'temperature'  => 0.3,
+            'temperature'  => 0.0, // determinístico - reduz alucinação
             'contexto'     => 'briefing user#' . $userId,
             'cache_system' => true,
         )
