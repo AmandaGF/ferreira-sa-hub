@@ -73,7 +73,7 @@ $agendaHoje = array();
 // Eventos da agenda
 try {
     $sql = "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.data_fim, e.local, e.meet_link, e.status,
-                   e.case_id, c.name as client_name, cs.title as case_title, cs.case_number, u.name as resp_name
+                   e.case_id, e.client_id, c.name as client_name, cs.title as case_title, cs.case_number, u.name as resp_name
             FROM agenda_eventos e
             LEFT JOIN clients c ON c.id = e.client_id
             LEFT JOIN cases cs ON cs.id = e.case_id
@@ -100,6 +100,7 @@ try {
             'concluido' => ($ev['status'] === 'realizado'),
             'id' => 'ev_' . $ev['id'],
             'case_id' => (int)($ev['case_id'] ?? 0),
+            'client_id' => (int)($ev['client_id'] ?? 0),
         );
     }
 } catch (Exception $e) {}
@@ -210,7 +211,7 @@ try {
     $_qtdEventosAtrasados = (int)$stEAc->fetchColumn();
     if ($_qtdEventosAtrasados > 0) {
         $stEA = $pdo->prepare(
-            "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.case_id, c.name as client_name, cs.title as case_title, cs.case_number,
+            "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.case_id, e.client_id, c.name as client_name, cs.title as case_title, cs.case_number,
                     DATEDIFF(?, DATE(e.data_inicio)) AS dias_atraso
              FROM agenda_eventos e
              LEFT JOIN clients c ON c.id = e.client_id
@@ -233,6 +234,7 @@ try {
                 'concluido' => false,
                 'id' => 'eva_' . $ev['id'],
                 'case_id' => (int)($ev['case_id'] ?? 0),
+                'client_id' => (int)($ev['client_id'] ?? 0),
                 'dias_atraso' => $diasAtr,
                 'atrasado' => true,
             );
@@ -592,7 +594,6 @@ else brfRestore();
             <div class="pd-timeline">
                 <?php foreach ($agendaHoje as $ev):
                     $_cid = (int)($ev['case_id'] ?? 0);
-                    $_href = $_cid > 0 ? url('modules/operacional/caso_ver.php?id=' . $_cid) : null;
                     // Decide tipo + id_real pra acao "baixar" do botao Amanda 01/06/2026
                     $_tipoBaixa = null; $_idReal = null;
                     if (strpos($ev['id'], 'tka_') === 0) { $_tipoBaixa = 'tarefa'; $_idReal = (int)substr($ev['id'], 4); }
@@ -600,9 +601,26 @@ else brfRestore();
                     elseif (strpos($ev['id'], 'eva_') === 0) { $_tipoBaixa = 'evento'; $_idReal = (int)substr($ev['id'], 4); }
                     elseif (strpos($ev['id'], 'ev_') === 0) { $_tipoBaixa = 'evento'; $_idReal = (int)substr($ev['id'], 3); }
                     elseif (strpos($ev['id'], 'pz_') === 0) { $_tipoBaixa = 'prazo'; $_idReal = (int)substr($ev['id'], 3); }
+                    // Decide DESTINO do clique no card (Amanda 01/06/2026): sempre prefere
+                    // o caso quando tem case_id; depois ficha do cliente; fallback por tipo.
+                    $_clid = (int)($ev['client_id'] ?? 0);
+                    $_href = null; $_hrefTitle = '';
+                    if ($_cid > 0) {
+                        $_href = url('modules/operacional/caso_ver.php?id=' . $_cid);
+                        $_hrefTitle = 'Abrir processo #' . $_cid;
+                    } elseif ($_clid > 0) {
+                        $_href = url('modules/clientes/ver.php?id=' . $_clid);
+                        $_hrefTitle = 'Abrir ficha do cliente';
+                    } elseif ($_tipoBaixa === 'tarefa') {
+                        $_href = url('modules/tarefas/');
+                        $_hrefTitle = 'Abrir Kanban de tarefas';
+                    } elseif ($_tipoBaixa === 'evento' || $_tipoBaixa === 'prazo') {
+                        $_href = url('modules/agenda/');
+                        $_hrefTitle = 'Abrir agenda';
+                    }
                 ?>
                 <?php if ($_href): ?>
-                <a href="<?= e($_href) ?>" class="pd-ev pd-ev-clickable <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;text-decoration:none;color:inherit;display:block;padding-right:<?= $_tipoBaixa ? '34px' : '14px' ?>;" title="Abrir processo #<?= $_cid ?>">
+                <a href="<?= e($_href) ?>" class="pd-ev pd-ev-clickable <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;text-decoration:none;color:inherit;display:block;padding-right:<?= $_tipoBaixa ? '34px' : '14px' ?>;" title="<?= e($_hrefTitle) ?>">
                 <?php else: ?>
                 <div class="pd-ev <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;padding-right:<?= $_tipoBaixa ? '34px' : '14px' ?>;">
                 <?php endif; ?>
