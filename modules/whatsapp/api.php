@@ -2240,4 +2240,76 @@ if ($action === 'debug_ultima_midia' && has_min_role('gestao')) {
     exit;
 }
 
+// Retorna texto formatado COMPLETO da conversa pra copiar pro clipboard
+// (Amanda 02/06/2026). Sem limite de 500 - puxa tudo da conversa.
+if ($action === 'copiar_conversa_texto') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatorio')); exit; }
+    $stConv = $pdo->prepare("SELECT co.id, co.telefone, co.nome_contato, co.canal, co.created_at, cl.name as client_name
+                             FROM zapi_conversas co LEFT JOIN clients cl ON cl.id = co.client_id WHERE co.id = ?");
+    $stConv->execute(array($convId));
+    $conv = $stConv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv) { echo json_encode(array('error' => 'Conversa nao encontrada')); exit; }
+
+    // Defesa Simone (igual abrir_conversa) - nao pode copiar conv de Gisele
+    if ($userId === 5 && !empty($conv['nome_contato']) && stripos($conv['nome_contato'], 'gisele') !== false) {
+        echo json_encode(array('error' => 'Conversa nao encontrada')); exit;
+    }
+
+    $stMsgs = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.created_at, m.status, m.transcricao, m.arquivo_nome, u.name as enviado_por_name
+                             FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
+                             WHERE m.conversa_id = ?
+                             ORDER BY COALESCE(m.momment_ms, UNIX_TIMESTAMP(m.created_at)*1000) ASC, m.id ASC");
+    $stMsgs->execute(array($convId));
+    $msgs = $stMsgs->fetchAll(PDO::FETCH_ASSOC);
+
+    $nome = $conv['client_name'] ?: ($conv['nome_contato'] ?: 'Contato sem nome');
+    $tel = $conv['telefone'] ?: '?';
+    $canal = $conv['canal'] === '21' ? 'WhatsApp 21 (Comercial)' : 'WhatsApp 24 (CX/Operacional)';
+
+    $linhas = array();
+    $linhas[] = 'Conversa com ' . $nome . ' (' . $tel . ')';
+    $linhas[] = 'Canal: ' . $canal;
+    $linhas[] = 'Iniciada em: ' . ($conv['created_at'] ? date('d/m/Y H:i', strtotime($conv['created_at'])) : '?');
+    $linhas[] = 'Exportada em: ' . date('d/m/Y H:i');
+    $linhas[] = 'Total de mensagens: ' . count($msgs);
+    $linhas[] = str_repeat('=', 60);
+    $linhas[] = '';
+
+    foreach ($msgs as $m) {
+        $hora = date('d/m H:i', strtotime($m['created_at']));
+        if ($m['direcao'] === 'recebida') {
+            $autor = $nome;
+        } else {
+            $autor = $m['enviado_por_name'] ?: 'Equipe';
+        }
+        $corpo = '';
+        $tipo = (string)$m['tipo'];
+        if ($m['status'] === 'deletada') {
+            $corpo = '[mensagem apagada]';
+        } elseif ($tipo === 'texto') {
+            $corpo = (string)$m['conteudo'];
+        } elseif ($tipo === 'audio') {
+            $corpo = '[áudio]';
+            if (!empty($m['transcricao'])) $corpo .= ' (transcricao: ' . $m['transcricao'] . ')';
+        } elseif ($tipo === 'imagem') {
+            $corpo = '[imagem]' . (!empty($m['conteudo']) && $m['conteudo'] !== '[imagem]' ? ' ' . $m['conteudo'] : '');
+        } elseif ($tipo === 'video') {
+            $corpo = '[vídeo]' . (!empty($m['conteudo']) && $m['conteudo'] !== '[video]' ? ' ' . $m['conteudo'] : '');
+        } elseif ($tipo === 'documento') {
+            $corpo = '[documento' . (!empty($m['arquivo_nome']) ? ': ' . $m['arquivo_nome'] : '') . ']';
+        } elseif ($tipo === 'sticker') {
+            $corpo = '[figurinha]';
+        } elseif ($tipo === 'localizacao') {
+            $corpo = '[localização]';
+        } else {
+            $corpo = (string)($m['conteudo'] ?: '[' . $tipo . ']');
+        }
+        $linhas[] = '[' . $hora . '] ' . $autor . ': ' . $corpo;
+    }
+
+    echo json_encode(array('ok' => true, 'texto' => implode("\n", $linhas), 'total' => count($msgs)));
+    exit;
+}
+
 echo json_encode(array('error' => 'Ação inválida'));

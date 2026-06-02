@@ -808,6 +808,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Liberado para todos os usuarios — qualquer atendente pode unir duplicatas.
         actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
         actions += '<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora (sem F5) — caso desconfie que esta atrasado">🔄</button>';
+        actions += '<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard - pra colar onde quiser (chamado, email, doc...)">📋 Copiar conversa</button>';
         // Fixar/desfixar conversa no topo da lista
         if (+c.fixada) {
             actions += '<button onclick="waPinConversa()" style="background:#B87333;color:#fff;border-color:#B87333;" title="Desfixar conversa do topo">📌 Fixada</button>';
@@ -3724,6 +3725,58 @@ require_once APP_ROOT . '/templates/layout_start.php';
         carregarLista();
         recarregarConvAtiva();
     };
+
+    // Copia toda a conversa atual em texto pro clipboard (Amanda 02/06/2026).
+    // Chama nova action 'copiar_conversa_texto' que retorna texto formatado com
+    // todas as msgs. Util pra colar em chamado/email/doc.
+    window.waCopiarConversa = function() {
+        if (!convAtiva) { alert('Abra uma conversa primeiro.'); return; }
+        var btn = document.querySelector('button[onclick="waCopiarConversa()"]');
+        var txtOrig = btn ? btn.textContent : '';
+        if (btn) { btn.disabled = true; btn.textContent = '⏳ Preparando...'; }
+        var fd = new FormData();
+        fd.append('action', 'copiar_conversa_texto');
+        fd.append('conversa_id', convAtiva);
+        fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+        fetch('<?= module_url('whatsapp', 'api.php') ?>', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert(d.error); if (btn) { btn.disabled = false; btn.textContent = txtOrig; } return; }
+                var texto = d.texto || '';
+                var ok = false;
+                // Tenta API moderna primeiro
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(texto).then(function(){
+                        ok = true;
+                        if (btn) { btn.disabled = false; btn.textContent = '✅ Copiado!'; setTimeout(function(){ btn.textContent = txtOrig; }, 2200); }
+                    }, function(){
+                        // Fallback textarea
+                        _waCopiarFallback(texto, btn, txtOrig);
+                    });
+                } else {
+                    _waCopiarFallback(texto, btn, txtOrig);
+                }
+            })
+            .catch(function(e){
+                if (btn) { btn.disabled = false; btn.textContent = txtOrig; }
+                alert('Erro ao buscar conversa: ' + e.message);
+            });
+    };
+    function _waCopiarFallback(texto, btn, txtOrig) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = texto;
+            ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (btn) { btn.disabled = false; btn.textContent = '✅ Copiado!'; setTimeout(function(){ btn.textContent = txtOrig; }, 2200); }
+        } catch (err) {
+            if (btn) { btn.disabled = false; btn.textContent = txtOrig; }
+            alert('Não foi possível copiar automaticamente. Copie manualmente:\n\n' + texto.substring(0, 500) + '...');
+        }
+    }
 
     pollTimer = setInterval(function(){
         if (document.hidden) return;
