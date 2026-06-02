@@ -593,13 +593,20 @@ else brfRestore();
                 <?php foreach ($agendaHoje as $ev):
                     $_cid = (int)($ev['case_id'] ?? 0);
                     $_href = $_cid > 0 ? url('modules/operacional/caso_ver.php?id=' . $_cid) : null;
+                    // Decide tipo + id_real pra acao "baixar" do botao Amanda 01/06/2026
+                    $_tipoBaixa = null; $_idReal = null;
+                    if (strpos($ev['id'], 'tka_') === 0) { $_tipoBaixa = 'tarefa'; $_idReal = (int)substr($ev['id'], 4); }
+                    elseif (strpos($ev['id'], 'tk_') === 0) { $_tipoBaixa = 'tarefa'; $_idReal = (int)substr($ev['id'], 3); }
+                    elseif (strpos($ev['id'], 'eva_') === 0) { $_tipoBaixa = 'evento'; $_idReal = (int)substr($ev['id'], 4); }
+                    elseif (strpos($ev['id'], 'ev_') === 0) { $_tipoBaixa = 'evento'; $_idReal = (int)substr($ev['id'], 3); }
+                    elseif (strpos($ev['id'], 'pz_') === 0) { $_tipoBaixa = 'prazo'; $_idReal = (int)substr($ev['id'], 3); }
                 ?>
                 <?php if ($_href): ?>
-                <a href="<?= e($_href) ?>" class="pd-ev pd-ev-clickable <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;text-decoration:none;color:inherit;display:block;" title="Abrir processo #<?= $_cid ?>">
+                <a href="<?= e($_href) ?>" class="pd-ev pd-ev-clickable <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;text-decoration:none;color:inherit;display:block;padding-right:<?= $_tipoBaixa ? '34px' : '14px' ?>;" title="Abrir processo #<?= $_cid ?>">
                 <?php else: ?>
-                <div class="pd-ev <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;">
+                <div class="pd-ev <?= $ev['concluido'] ? 'concluido' : '' ?>" style="--dot-color:<?= $ev['cor'] ?>;padding-right:<?= $_tipoBaixa ? '34px' : '14px' ?>;">
                 <?php endif; ?>
-                    <style>.pd-ev::before{background:var(--dot-color,#888);} .pd-ev-clickable{transition:background .15s;} .pd-ev-clickable:hover{background:rgba(215,171,144,.12);}</style>
+                    <style>.pd-ev::before{background:var(--dot-color,#888);} .pd-ev-clickable{transition:background .15s;} .pd-ev-clickable:hover{background:rgba(215,171,144,.12);} .pd-ev-baixar{position:absolute;right:4px;top:4px;background:#d1fae5;color:#065f46;border:1px solid #34d399;border-radius:50%;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:800;cursor:pointer;line-height:1;user-select:none;transition:transform .12s, background .12s;} .pd-ev-baixar:hover{background:#a7f3d0;transform:scale(1.12);}</style>
                     <div class="pd-ev-hora"><?= $ev['badge'] ?> <?= $ev['hora'] ?> <?php if ($ev['processo']): ?><span style="font-family:monospace;font-size:.6rem;opacity:.7;"><?= e($ev['processo']) ?></span><?php endif; ?></div>
                     <div class="pd-ev-titulo">
                         <?= e($ev['titulo']) ?>
@@ -608,12 +615,47 @@ else brfRestore();
                         <?php endif; ?>
                     </div>
                     <?php if ($ev['detalhe']): ?><div class="pd-ev-detalhe"><?= e($ev['detalhe']) ?></div><?php endif; ?>
+                    <?php if ($_tipoBaixa && empty($ev['concluido'])): ?>
+                    <span class="pd-ev-baixar" onclick="event.stopPropagation();event.preventDefault();baixarAtrasada(this, '<?= $_tipoBaixa ?>', <?= $_idReal ?>)" title="Dar baixa (marcar como cumprido)">✓</span>
+                    <?php endif; ?>
                 <?php if ($_href): ?>
                 </a>
                 <?php else: ?>
                 </div>
                 <?php endif; ?>
                 <?php endforeach; ?>
+                <script>
+                window.baixarAtrasada = function(btnEl, tipo, id) {
+                    var nomes = { tarefa: 'tarefa', evento: 'evento', prazo: 'prazo' };
+                    if (!confirm('Dar baixa nesta ' + nomes[tipo] + '? Marca como cumprida.')) return;
+                    var card = btnEl.closest('.pd-ev');
+                    btnEl.textContent = '⏳'; btnEl.style.pointerEvents = 'none';
+                    var fd = new FormData();
+                    fd.append('action', 'baixar_atrasada');
+                    fd.append('tipo', tipo);
+                    fd.append('id', id);
+                    fd.append('csrf_token', (window._FSA_CSRF || '<?= e(generate_csrf_token()) ?>'));
+                    fetch('<?= module_url('painel', 'api.php') ?>', { method:'POST', body:fd, credentials:'same-origin' })
+                        .then(function(r){ return r.json(); })
+                        .then(function(d){
+                            if (d.error) {
+                                btnEl.textContent = '✓'; btnEl.style.pointerEvents = '';
+                                alert('Não foi possível: ' + d.error); return;
+                            }
+                            // Anima: risca + esmaece + colapsa
+                            if (card) {
+                                card.style.transition = 'opacity .4s, max-height .4s';
+                                card.style.opacity = '.25';
+                                card.style.textDecoration = 'line-through';
+                                setTimeout(function(){ if (card.parentNode) card.parentNode.removeChild(card); }, 450);
+                            }
+                        })
+                        .catch(function(e){
+                            btnEl.textContent = '✓'; btnEl.style.pointerEvents = '';
+                            alert('Erro: ' + e.message);
+                        });
+                };
+                </script>
             </div>
         <?php endif; ?>
     </div>

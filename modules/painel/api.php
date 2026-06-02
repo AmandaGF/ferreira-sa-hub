@@ -309,4 +309,47 @@ if ($action === 'excluir_lembrete') {
     exit;
 }
 
+// ── Dar baixa em item atrasado direto do card Agenda de Hoje ──
+// (Amanda 01/06/2026) Recebe tipo (tarefa|evento|prazo) + id e marca como cumprido.
+// Respeita filtro de responsavel: gestao baixa qualquer, demais so o que e seu.
+if ($action === 'baixar_atrasada') {
+    $tipo = (string)($_POST['tipo'] ?? '');
+    $id = (int)($_POST['id'] ?? 0);
+    if (!$id || !in_array($tipo, array('tarefa','evento','prazo'), true)) {
+        echo json_encode(array('error' => 'Parametros invalidos')); exit;
+    }
+    $isGestao = in_array(current_user_role(), array('admin','gestao'), true);
+    try {
+        if ($tipo === 'tarefa') {
+            $sql = "UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=? AND status != 'concluido'";
+            $params = array($id);
+            if (!$isGestao) { $sql .= " AND assigned_to=?"; $params[] = $userId; }
+            $st = $pdo->prepare($sql); $st->execute($params);
+            if ($st->rowCount() === 0) { echo json_encode(array('error' => 'Tarefa nao encontrada, sem permissao ou ja concluida')); exit; }
+        } elseif ($tipo === 'evento') {
+            $sql = "UPDATE agenda_eventos SET status='realizado' WHERE id=? AND status NOT IN ('cancelado','remarcado','realizado')";
+            $params = array($id);
+            if (!$isGestao) { $sql .= " AND responsavel_id=?"; $params[] = $userId; }
+            $st = $pdo->prepare($sql); $st->execute($params);
+            if ($st->rowCount() === 0) { echo json_encode(array('error' => 'Evento nao encontrado, sem permissao ou ja realizado')); exit; }
+        } else { // prazo - replica logica resumida de modules/operacional/api.php concluir_prazo
+            $stPz = $pdo->prepare("SELECT descricao_acao, case_id FROM prazos_processuais WHERE id=? AND concluido=0");
+            $stPz->execute(array($id));
+            $rowPz = $stPz->fetch(PDO::FETCH_ASSOC);
+            if (!$rowPz) { echo json_encode(array('error' => 'Prazo nao encontrado ou ja concluido')); exit; }
+            $pdo->prepare("UPDATE prazos_processuais SET concluido=1, concluido_em=NOW() WHERE id=?")->execute(array($id));
+            $descPrazo = $rowPz['descricao_acao'] ?: '';
+            $caseId = (int)($rowPz['case_id'] ?? 0);
+            if ($caseId && $descPrazo) {
+                try { $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE case_id=? AND title LIKE ? AND status != 'concluido'")->execute(array($caseId, '%PRAZO: ' . $descPrazo . '%')); } catch (Exception $e) {}
+                try { $pdo->prepare("UPDATE agenda_eventos SET status='realizado' WHERE case_id=? AND tipo='prazo' AND titulo LIKE ? AND status NOT IN ('cancelado','realizado')")->execute(array($caseId, '%PRAZO:%' . mb_substr($descPrazo, 0, 50, 'UTF-8') . '%')); } catch (Exception $e) {}
+            }
+        }
+        echo json_encode(array('ok' => true));
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage())); exit;
+    }
+}
+
 echo json_encode(array('error' => 'Ação inválida'));
