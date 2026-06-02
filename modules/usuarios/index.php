@@ -90,7 +90,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <tr><td colspan="7" class="text-center text-muted" style="padding: 2rem;">Nenhum usuário cadastrado.</td></tr>
                 <?php else: ?>
                     <?php foreach ($users as $u): ?>
-                    <tr>
+                    <?php $_editHref = module_url('usuarios', 'form.php?id=' . $u['id']); ?>
+                    <tr class="usr-row" data-href="<?= e($_editHref) ?>" style="cursor:pointer;transition:background .12s;" onclick="if(!event.target.closest('button,a,form,input,select')) location.href=this.dataset.href;" onmouseover="this.style.background='rgba(215,171,144,.10)'" onmouseout="this.style.background=''">
                         <td>
                             <div class="flex items-center gap-1">
                                 <div style="width:32px;height:32px;border-radius:50%;background:var(--rose-light);color:var(--brown);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.7rem;flex-shrink:0;">
