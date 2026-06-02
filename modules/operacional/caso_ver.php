@@ -1201,6 +1201,30 @@ try {
     $stmtComp->execute(array($caseId));
     $compromissosCaso = $stmtComp->fetchAll();
 
+    // Enriquece com nomes dos participantes (Amanda 02/06/2026): pra mostrar
+    // 'Amanda · Luiz' em vez de so 'Amanda' nos cards. 1 query batched, sem N+1.
+    $_idsPartGlob = array();
+    foreach ($compromissosCaso as $_c) {
+        if (empty($_c['participantes_ids'])) continue;
+        $_p = json_decode($_c['participantes_ids'], true);
+        if (is_array($_p)) foreach ($_p as $_pid) { $_pid = (int)$_pid; if ($_pid > 0) $_idsPartGlob[$_pid] = true; }
+    }
+    $_mapaNomesPart = array();
+    if (!empty($_idsPartGlob)) {
+        $_ids = array_keys($_idsPartGlob);
+        $_place = implode(',', array_fill(0, count($_ids), '?'));
+        $_stN = $pdo->prepare("SELECT id, name FROM users WHERE id IN ($_place)");
+        $_stN->execute($_ids);
+        foreach ($_stN->fetchAll(PDO::FETCH_ASSOC) as $_u) $_mapaNomesPart[(int)$_u['id']] = $_u['name'];
+    }
+    foreach ($compromissosCaso as $_i => $_c) {
+        $compromissosCaso[$_i]['participantes_names'] = array();
+        if (!empty($_c['participantes_ids'])) {
+            $_p = json_decode($_c['participantes_ids'], true);
+            if (is_array($_p)) foreach ($_p as $_pid) { $_pid = (int)$_pid; if (isset($_mapaNomesPart[$_pid])) $compromissosCaso[$_i]['participantes_names'][] = $_mapaNomesPart[$_pid]; }
+        }
+    }
+
     $stmtCompR = $pdo->prepare(
         "SELECT e.*, u.name as responsavel_name
          FROM agenda_eventos e
@@ -1235,11 +1259,13 @@ $tipoCompCores = array(
     'audiencia'=>'#e67e22','reuniao_cliente'=>'#B87333','prazo'=>'#CC0000',
     'onboarding'=>'#2D7A4F','reuniao_interna'=>'#1a3a7a','mediacao_cejusc'=>'#6B4C9A',
     'balcao_virtual'=>'#0d9488','ligacao'=>'#888880','publicacao'=>'#dc2626',
+    'preparacao_audiencia'=>'#7c3aed',
 );
 $tipoCompLabels = array(
     'audiencia'=>'Audiência','reuniao_cliente'=>'Reunião','prazo'=>'Prazo',
     'onboarding'=>'Onboarding','reuniao_interna'=>'R. Interna','mediacao_cejusc'=>'Mediação',
     'balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','publicacao'=>'Publicação',
+    'preparacao_audiencia'=>'Preparação',
 );
 
 if (!empty($compromissosCaso)): ?>
@@ -1286,7 +1312,17 @@ if (!empty($compromissosCaso)): ?>
                 ?>
                 <?= date('d/m/Y', strtotime($dtInicio)) ?> (<?= $_diaSemComp ?>)
                 <?php if ($comp['local']): ?> &middot; <?= e($comp['local']) ?><?php endif; ?>
-                <?php if ($comp['responsavel_name']): ?> &middot; <?= e(explode(' ', $comp['responsavel_name'])[0]) ?><?php endif; ?>
+                <?php
+                // Responsavel + participantes dedupados (Amanda 02/06/2026)
+                $_nomesComp = array();
+                if (!empty($comp['responsavel_name'])) $_nomesComp[] = explode(' ', $comp['responsavel_name'])[0];
+                if (!empty($comp['participantes_names'])) {
+                    foreach ($comp['participantes_names'] as $_n) {
+                        $_primeiro = explode(' ', $_n)[0];
+                        if (!in_array($_primeiro, $_nomesComp, true)) $_nomesComp[] = $_primeiro;
+                    }
+                }
+                if ($_nomesComp): ?> &middot; <?= e(implode(' · ', $_nomesComp)) ?><?php endif; ?>
             </div>
         </div>
         <div style="display:flex;gap:.3rem;flex-shrink:0;">

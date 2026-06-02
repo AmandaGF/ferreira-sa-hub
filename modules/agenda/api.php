@@ -41,7 +41,8 @@ function _agenda_sync_lembrete_audiencia(PDO $pdo, $audienciaId, $tipo, $modalid
         return 'sem_acao';
     }
     // Procura lembrete existente pra essa audiencia
-    $stExist = $pdo->prepare("SELECT id, data_inicio FROM agenda_eventos WHERE referencia_evento_id = ? AND tipo='reuniao_interna' AND status NOT IN ('cancelado','realizado') LIMIT 1");
+    // Aceita tipo legado (reuniao_interna) E novo (preparacao_audiencia) - migracao soft
+    $stExist = $pdo->prepare("SELECT id, data_inicio FROM agenda_eventos WHERE referencia_evento_id = ? AND tipo IN ('preparacao_audiencia','reuniao_interna') AND status NOT IN ('cancelado','realizado') LIMIT 1");
     $stExist->execute(array($audienciaId));
     $existente = $stExist->fetch(PDO::FETCH_ASSOC);
 
@@ -92,13 +93,13 @@ function _agenda_sync_lembrete_audiencia(PDO $pdo, $audienciaId, $tipo, $modalid
     $respAviso = $amandaId ?: $createdBy;
 
     if ($existente) {
-        // UPDATE: ajusta data + titulo + descricao (caso a audiencia tenha mudado de data ou titulo)
-        $pdo->prepare("UPDATE agenda_eventos SET titulo=?, data_inicio=?, data_fim=?, descricao=?, client_id=?, case_id=?, responsavel_id=?, participantes_ids=?, updated_at=NOW() WHERE id=?")
+        // UPDATE: ajusta data + titulo + descricao + tipo (migra legado pra preparacao_audiencia)
+        $pdo->prepare("UPDATE agenda_eventos SET titulo=?, tipo='preparacao_audiencia', data_inicio=?, data_fim=?, descricao=?, client_id=?, case_id=?, responsavel_id=?, participantes_ids=?, updated_at=NOW() WHERE id=?")
             ->execute(array($tituloAviso, $dtAvisoIni, $dtAvisoFim, $descAviso, $clientId, $caseId, $respAviso, $partAvisoJson, $existente['id']));
         return 'atualizado';
     } else {
         // INSERT novo
-        $pdo->prepare("INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo, descricao, client_id, case_id, responsavel_id, participantes_ids, visivel_cliente, status, referencia_evento_id, created_by) VALUES (?, 'reuniao_interna', 'nao_aplicavel', ?, ?, 0, ?, ?, ?, ?, ?, 0, 'agendado', ?, ?)")
+        $pdo->prepare("INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo, descricao, client_id, case_id, responsavel_id, participantes_ids, visivel_cliente, status, referencia_evento_id, created_by) VALUES (?, 'preparacao_audiencia', 'nao_aplicavel', ?, ?, 0, ?, ?, ?, ?, ?, 0, 'agendado', ?, ?)")
             ->execute(array($tituloAviso, $dtAvisoIni, $dtAvisoFim, $descAviso, $clientId, $caseId, $respAviso, $partAvisoJson, $audienciaId, $createdBy));
         $avisoId = (int)$pdo->lastInsertId();
         // Notifica participantes (so na criacao - update nao notifica de novo)
@@ -651,7 +652,7 @@ if ($action === 'salvar') {
     $participantesIds = array_filter($participantesIds, function($v){ return $v > 0; });
     $participantesJson = !empty($participantesIds) ? json_encode(array_values($participantesIds)) : null;
 
-    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal','pericia_inss');
+    $tiposValidos = array('audiencia','reuniao_cliente','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal','pericia_inss','preparacao_audiencia');
     $modalidadesValidas = array('presencial','online','hibrida','nao_aplicavel');
     $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 

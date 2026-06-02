@@ -23,6 +23,7 @@ $tiposMapa = array(
     'ligacao'          => array('cor' => '#888880', 'icon' => "\u{1F4DE}", 'label' => 'Ligação / Retorno'),
     'pericia_inss'     => array('cor' => '#be185d', 'icon' => "\u{1FA7A}", 'label' => 'Perícia INSS'),
     'tarefa'           => array('cor' => '#6366f1', 'icon' => "\u{2705}", 'label' => 'Tarefa'),
+    'preparacao_audiencia' => array('cor' => '#7c3aed', 'icon' => "\u{1F3DB}", 'label' => 'Preparação de Audiência'),
 );
 
 require_once APP_ROOT . '/templates/layout_start.php';
