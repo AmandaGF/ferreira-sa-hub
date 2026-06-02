@@ -24,6 +24,20 @@ try { $pdo->exec("ALTER TABLE agenda_eventos ADD INDEX idx_referencia (referenci
 if (!function_exists('_agenda_sync_lembrete_audiencia')) {
 function _agenda_sync_lembrete_audiencia(PDO $pdo, $audienciaId, $tipo, $modalidade, $dataInicio, $titulo, $caseId, $clientId, $createdBy) {
     if (!$audienciaId) return 'sem_acao';
+    // Self-heal defensivo (caso o ALTER no inicio do api.php tenha falhado por timing)
+    try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN referencia_evento_id INT NULL"); } catch (Exception $e) {}
+    // Confirma de fato que a coluna existe agora (defesa para casos onde o ALTER
+    // ainda nao propagou - sem isso, o INSERT do lembrete falhava silencioso
+    // mas a Amanda via "Erro BD" na tela)
+    $colunaOk = false;
+    try {
+        $r = $pdo->query("SHOW COLUMNS FROM agenda_eventos LIKE 'referencia_evento_id'")->fetch(PDO::FETCH_ASSOC);
+        $colunaOk = !empty($r);
+    } catch (Exception $e) {}
+    if (!$colunaOk) {
+        @error_log('[audiencia auto-lembrete] coluna referencia_evento_id nao disponivel - lembrete nao criado');
+        return 'sem_acao';
+    }
     // Procura lembrete existente pra essa audiencia
     $stExist = $pdo->prepare("SELECT id, data_inicio FROM agenda_eventos WHERE referencia_evento_id = ? AND tipo='reuniao_interna' AND status NOT IN ('cancelado','realizado') LIMIT 1");
     $stExist->execute(array($audienciaId));
@@ -683,7 +697,7 @@ if ($action === 'salvar') {
         // - deixou de ser audiencia presencial (mudou tipo/modalidade) -> CANCELA lembrete
         // O helper detecta sozinho qual acao tomar baseado em referencia_evento_id.
         try { _agenda_sync_lembrete_audiencia($pdo, $id, $tipo, $modalidade, $dataInicio, $titulo, $clientId, $caseId, current_user_id()); }
-        catch (Exception $eAud2) { @error_log('[audiencia auto-lembrete UPDATE] ' . $eAud2->getMessage()); }
+        catch (Throwable $eAud2) { @error_log('[audiencia auto-lembrete UPDATE] ' . $eAud2->getMessage()); }
 
         // Andamento de ALTERAÇÃO: quando data/hora/local/modalidade/link mudam
         // num evento vinculado a caso, registra no timeline pra ficar trilha
@@ -790,8 +804,9 @@ if ($action === 'salvar') {
             }
 
             // AUDIENCIA PRESENCIAL: helper centralizado cria lembrete 15d antes.
+            // Throwable em vez de Exception pra pegar fatal errors (TypeError, etc).
             try { _agenda_sync_lembrete_audiencia($pdo, $newId, $tipo, $modalidade, $dataInicio, $titulo, $clientId, $caseId, current_user_id()); }
-            catch (Exception $eAud) { @error_log('[audiencia auto-lembrete INSERT] ' . $eAud->getMessage()); }
+            catch (Throwable $eAud) { @error_log('[audiencia auto-lembrete INSERT] ' . $eAud->getMessage()); }
         } catch (Exception $e) {
             echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
             exit;
