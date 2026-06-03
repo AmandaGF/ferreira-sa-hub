@@ -17,7 +17,7 @@ $atualizado = '16/05/2026';
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="site.css?v=2026051602">
+<link rel="stylesheet" href="site.css?v=2026060312">
 <style>
 .doc{max-width:820px;margin:0 auto;padding:8rem 1.5rem 5rem}
 .doc h1{font-family:var(--serif);font-size:clamp(2rem,4vw,2.8rem);color:var(--petrol);font-weight:600;margin-bottom:.4rem}

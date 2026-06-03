@@ -300,3 +300,72 @@ section{position:relative}
   .tc{flex-direction:column;align-items:center;text-align:center}
   .hero-trust{gap:1.8rem}
 }
+
+/* === RESPONSIVO V2 (Amanda 03/06/2026) - sobrepoe breakpoints antigos ===
+   Resolve: nav nao virava burger no Galaxy/Android padrao (~750px viewport),
+   areas/dif/grev/cta ainda em multiplas colunas em tablet, tipografia hero
+   estourando, form do cta sobreposto no texto. */
+html,body{overflow-x:hidden}
+
+/* >= tablet pequeno / android grande (~980px) - vira mobile menu, grids principais 1-2 col */
+@media(max-width:980px){
+  .nav-links{display:none}
+  .burger{display:block}
+  .nav{padding:.95rem 1.2rem}
+  .nav.solid{padding:.6rem 1.2rem}
+  .areas-grid{grid-template-columns:repeat(2,1fr)}
+  .dif-grid{grid-template-columns:repeat(2,1fr);gap:2.4rem 1.5rem}
+  .quotes-grid{grid-template-columns:1fr}
+  .grev-grid{grid-template-columns:repeat(2,1fr)}
+  .about-grid{grid-template-columns:1fr;gap:2.4rem}
+  .map-grid{grid-template-columns:1fr;gap:2.6rem}
+  .map-vis{max-width:440px;margin:0 auto}
+  .cta-grid{grid-template-columns:1fr;gap:2.4rem}
+  .acontent{grid-template-columns:1fr;gap:2.4rem}
+  .aside-form{position:static}
+  .steps{grid-template-columns:1fr;gap:1.8rem}
+  .team-grid{grid-template-columns:1fr;max-width:560px}
+  .foot-grid{grid-template-columns:1fr;gap:2rem}
+  .sec{padding:4.5rem 0}
+  .hero{padding:6rem 0 4rem}
+}
+
+/* Celular medio (~720px) - tudo em 1 coluna, tipografia menor, hero mais compacto */
+@media(max-width:720px){
+  .areas-grid{grid-template-columns:1fr}
+  .dif-grid{grid-template-columns:repeat(2,1fr);gap:1.8rem 1.2rem}
+  .grev-grid{grid-template-columns:1fr}
+  .tc{flex-direction:column;align-items:center;text-align:center;padding:2rem 1.4rem;gap:1.1rem}
+  .tc .av{width:92px;height:92px}
+  .hero{min-height:auto;padding:5.5rem 0 3.8rem}
+  .hero p.lead{font-size:1rem;margin-bottom:2rem}
+  .hero-btns{flex-direction:column;align-items:stretch}
+  .hero-btns .btn{justify-content:center;font-size:.88rem;padding:.95rem 1.2rem}
+  .hero-trust{gap:1.6rem;margin-top:2.8rem;padding-top:1.8rem}
+  .sec-head{margin-bottom:2.4rem}
+  .lead-form{padding:1.6rem}
+  .wrap{padding:0 1.1rem}
+  .nav-logo{font-size:.95rem;letter-spacing:.04em}
+  .nav-logo img{height:32px}
+  .step{padding-top:2.6rem}
+  .step .n{font-size:2.6rem}
+  .foot-grid{gap:1.6rem}
+  .foot{padding:3rem 0 1.8rem}
+  .wpp{width:50px;height:50px;right:1rem;bottom:1rem}
+  .nav-cta{padding:.45rem 1rem;font-size:.78rem}
+  .area{padding:2rem 1.4rem}
+}
+
+/* Celular pequeno (~480px) - aperto maximo, stats vertical, dif 1col */
+@media(max-width:480px){
+  .dif-grid{grid-template-columns:1fr;gap:1.6rem}
+  .hero-trust{flex-direction:column;align-items:flex-start;gap:1.2rem}
+  .hero-trust div .t-num{font-size:1.8rem}
+  .map-vis{padding:1.4rem}
+  .grev{padding:1.4rem}
+  .q{padding:1.6rem}
+  .cov{gap:.85rem}
+  .cov b{font-size:.92rem}
+  .nav-cta{display:none}
+  .lead-form h3{font-size:1.2rem}
+}
