@@ -2299,12 +2299,19 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
         window._gedWaHubListener = true;
     }
 
+    // Monta a mensagem personalizada pro cliente (Amanda 03/06/2026).
+    // 'Olá <PrimeiroNome>, tudo bem?!\nAcabamos de subir um documento na Central Vip:\n<URL>\n\nQualquer dúvida, pode falar com a gente!'
+    function _gedMsgPraCliente(nomeCompleto, url) {
+        var primeiro = (String(nomeCompleto || '').trim().split(/\s+/)[0] || '');
+        var saud = primeiro ? ('Olá ' + primeiro + ', tudo bem?!') : 'Olá, tudo bem?!';
+        return saud + '\nAcabamos de subir um documento na Central Vip:\n' + url + '\n\nQualquer dúvida, pode falar com a gente!';
+    }
+
     // Monta botao 'Abrir WhatsApp' que chama waSenderOpen (hub) com a msg pronta
     // baseado nos clientes vinculados ao caso. Se 1 cliente: botao direto. Se 2+:
     // botao que abre dropdown. Se 0: avisa que precisa cadastrar telefone.
     window._gedBotaoWaHub = function(url) {
         var clientes = (window.__casoClientesPraWa || []);
-        var msg = 'Olá! Segue o documento: ' + url;
         if (clientes.length === 0) {
             return '<button type="button" disabled style="background:#9ca3af;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:not-allowed;font-size:.85rem;" title="Nenhum cliente com telefone cadastrado">💬 Sem telefone</button>';
         }
@@ -2314,16 +2321,16 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
                  + ' data-tel="' + _hesc(c.phone) + '"'
                  + ' data-nome="' + _hesc(c.name) + '"'
                  + ' data-cid="' + (c.id || 0) + '"'
-                 + ' data-msg="' + _hesc(msg) + '"'
+                 + ' data-msg="' + _hesc(_gedMsgPraCliente(c.name, url)) + '"'
                  + ' style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">💬 Abrir no Hub — ' + _hesc((c.name||'').split(' ')[0]) + '</button>';
         }
-        // Multiplos clientes: gera dropdown
+        // Multiplos clientes: gera dropdown - cada item com mensagem personalizada
         var opts = clientes.map(function(c){
             return '<a href="javascript:void(0)" class="waHubBtn"'
                  + ' data-tel="' + _hesc(c.phone) + '"'
                  + ' data-nome="' + _hesc(c.name) + '"'
                  + ' data-cid="' + (c.id || 0) + '"'
-                 + ' data-msg="' + _hesc(msg) + '"'
+                 + ' data-msg="' + _hesc(_gedMsgPraCliente(c.name, url)) + '"'
                  + ' style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.82rem;border-bottom:1px solid #f1f5f9;">💬 ' + _hesc(c.name) + '</a>';
         }).join('');
         return '<div class="gedWaDrop" style="position:relative;">'
