@@ -374,8 +374,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $params = array($fim . ' 23:59:59', $inicio . ' 00:00:00', $inicio . ' 00:00:00');
 
         if ($responsavel) {
-            $sql .= " AND e.responsavel_id = ?";
+            // Inclui eventos onde a pessoa eh responsavel OU participante (Amanda 03/06/2026)
+            // Onboardings tem responsavel da CX (user#8) mas Amanda costuma ser participante.
+            // Sem isso, ela filtrava 'Amanda' e os onboardings dela sumiam.
+            $sql .= " AND (e.responsavel_id = ? OR e.participantes_ids LIKE ?)";
             $params[] = $responsavel;
+            $params[] = '%"' . (int)$responsavel . '"%';
         }
 
         $sql .= " ORDER BY e.data_inicio ASC";
