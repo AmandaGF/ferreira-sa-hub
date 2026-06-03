@@ -2398,49 +2398,158 @@ switch ($action) {
         exit;
 
     case 'evento_realizado':
-        // Marca um evento da agenda como realizado (remove da lista de compromissos do processo).
-        // Usado quando a publicação vinculada já foi resolvida mas o evento legado ficou na lista.
-        // Amanda 02/06/2026: pra audiencia/mediacao/reuniao_cliente, aceita observacao_realizado
-        // (texto livre do que aconteceu) e grava como andamento ABERTO no processo.
+        // Marca um evento da agenda como realizado.
+        // Amanda 03/06/2026 v2: pra audiencia/mediacao recebe modal estruturado:
+        // - hipotese (autora_nao_compareceu / re_nao_compareceu / med_com_acordo /
+        //   med_sem_acordo / aij_sem_prazo / aij_com_prazo / outro)
+        // - prazos automaticos (alegacoes_finais 15d, juntada 5d) contados da data audiencia
+        // - nova audiencia opcional (data/hora/modalidade) -> cria evento+andamento
+        // - se nova audiencia presencial, cria tarefa pra Amanda peticionar hibrida
         if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
         $eventoId = (int)($_POST['evento_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
         $observacao = trim($_POST['observacao_realizado'] ?? '');
+        $hipotese = trim($_POST['hipotese'] ?? '');
+        $prazoAleg = ($_POST['prazo_alegacoes_finais'] ?? '') === '1';
+        $prazoJunt = ($_POST['prazo_juntada'] ?? '') === '1';
+        $novaAudData = trim($_POST['nova_aud_data'] ?? '');
+        $novaAudHora = trim($_POST['nova_aud_hora'] ?? '');
+        $novaAudMod = trim($_POST['nova_aud_modalidade'] ?? '');
+        $dataAudRef = trim($_POST['data_audiencia_ref'] ?? '');
         $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
         if ($eventoId && $caseId) {
             try {
                 $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW() WHERE id = ? AND case_id = ?")
                     ->execute(array($eventoId, $caseId));
-                audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId);
+                audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId . ($hipotese ? ' hip=' . $hipotese : ''));
 
-                // Grava andamento aberto se a Amanda preencheu observacao + tipo qualifica
+                // Lê dados do evento pra montar descricoes
+                $stEv = $pdo->prepare("SELECT tipo, titulo, data_inicio, client_id, responsavel_id, case_id FROM agenda_eventos WHERE id = ?");
+                $stEv->execute(array($eventoId));
+                $evRow = $stEv->fetch(PDO::FETCH_ASSOC);
+                $tipoEv = (string)($evRow['tipo'] ?? '');
+                $tituloEv = (string)($evRow['titulo'] ?? 'Compromisso');
+                $dataHum = $evRow['data_inicio'] ? date('d/m/Y H:i', strtotime($evRow['data_inicio'])) : '';
+                $dataAudYmd = $evRow['data_inicio'] ? date('Y-m-d', strtotime($evRow['data_inicio'])) : ($dataAudRef ?: date('Y-m-d'));
+
                 $msgFlash = 'Compromisso marcado como realizado.';
-                if ($observacao !== '') {
+                $extras = array();
+
+                // Constrói o texto do andamento baseado na hipotese (ou observacao livre)
+                $obsTexto = '';
+                if ($hipotese !== '') {
+                    $textosHip = array(
+                        'autora_nao_compareceu' => 'A parte AUTORA não compareceu à audiência.',
+                        're_nao_compareceu'     => 'A parte RÉ não compareceu à audiência.',
+                        'med_com_acordo'        => 'Realizada audiência de Mediação/Conciliação. AS PARTES ENTRARAM EM ACORDO.',
+                        'med_sem_acordo'        => 'Realizada audiência de Mediação/Conciliação. NÃO houve acordo entre as partes.',
+                        'aij_sem_prazo'         => 'Audiência de Instrução e Julgamento (AIJ) realizada. Sem prazos pendentes.',
+                        'aij_com_prazo'         => 'Audiência de Instrução e Julgamento (AIJ) realizada.',
+                        'outro'                 => $observacao,
+                    );
+                    $obsTexto = $textosHip[$hipotese] ?? $observacao;
+                    if ($hipotese === 'aij_com_prazo') {
+                        $prz = array();
+                        if ($prazoAleg) $prz[] = 'Alegações Finais (15 dias)';
+                        if ($prazoJunt) $prz[] = 'Juntada de Documentos (5 dias)';
+                        if ($prz) $obsTexto .= "\n\nPrazos abertos:\n- " . implode("\n- ", $prz);
+                    }
+                } else {
+                    $obsTexto = $observacao;
+                }
+
+                // Andamento aberto pro processo
+                $tiposComAndamento = array('audiencia','mediacao_cejusc','reuniao_cliente','balcao_virtual');
+                if ($obsTexto !== '' && in_array($tipoEv, $tiposComAndamento, true)) {
                     try {
-                        $stEv = $pdo->prepare("SELECT tipo, titulo, data_inicio FROM agenda_eventos WHERE id = ?");
-                        $stEv->execute(array($eventoId));
-                        $evRow = $stEv->fetch(PDO::FETCH_ASSOC);
-                        $tipoEv = (string)($evRow['tipo'] ?? '');
-                        $tiposComObs = array('audiencia','mediacao_cejusc','reuniao_cliente','balcao_virtual');
-                        if (in_array($tipoEv, $tiposComObs, true)) {
-                            $rotulos = array(
-                                'audiencia' => 'Audiência',
-                                'mediacao_cejusc' => 'Mediação/CEJUSC',
-                                'reuniao_cliente' => 'Reunião com cliente',
-                                'balcao_virtual' => 'Balcão Virtual',
-                            );
-                            $rotulo = $rotulos[$tipoEv] ?? 'Compromisso';
-                            $dataHum = $evRow['data_inicio'] ? date('d/m/Y H:i', strtotime($evRow['data_inicio'])) : '';
-                            $descAnd = "✓ {$rotulo} REALIZADA — " . ($evRow['titulo'] ?? '');
-                            if ($dataHum) $descAnd .= "\n🗓 {$dataHum}";
-                            $descAnd .= "\n\n" . $observacao;
-                            $tipoAnd = ($tipoEv === 'audiencia') ? 'audiencia' : 'observacao';
-                            $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?, CURDATE(), ?, ?, 1, ?, NOW())")
-                                ->execute(array($caseId, $tipoAnd, $descAnd, current_user_id()));
-                            $msgFlash = 'Compromisso realizado e andamento gravado no processo.';
-                        }
+                        $rotulos = array(
+                            'audiencia' => 'Audiência',
+                            'mediacao_cejusc' => 'Mediação/CEJUSC',
+                            'reuniao_cliente' => 'Reunião com cliente',
+                            'balcao_virtual' => 'Balcão Virtual',
+                        );
+                        $rotulo = $rotulos[$tipoEv] ?? 'Compromisso';
+                        $descAnd = "✓ {$rotulo} REALIZADA — {$tituloEv}";
+                        if ($dataHum) $descAnd .= "\n🗓 {$dataHum}";
+                        $descAnd .= "\n\n" . $obsTexto;
+                        $tipoAnd = ($tipoEv === 'audiencia') ? 'audiencia' : 'observacao';
+                        $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?, CURDATE(), ?, ?, 1, ?, NOW())")
+                            ->execute(array($caseId, $tipoAnd, $descAnd, current_user_id()));
+                        $extras[] = 'andamento';
                     } catch (Exception $eAnd) { @error_log('[evento_realizado andamento] ' . $eAnd->getMessage()); }
                 }
+
+                // Prazos automaticos contados da data da audiencia
+                if ($hipotese === 'aij_com_prazo' && ($prazoAleg || $prazoJunt)) {
+                    try {
+                        $stCs = $pdo->prepare("SELECT case_number FROM cases WHERE id = ?");
+                        $stCs->execute(array($caseId));
+                        $caseNum = (string)$stCs->fetchColumn();
+                        $prazosCriar = array();
+                        if ($prazoAleg) $prazosCriar[] = array('Alegações Finais', 15);
+                        if ($prazoJunt) $prazosCriar[] = array('Juntada de documentos', 5);
+                        foreach ($prazosCriar as $p) {
+                            $dataFatal = date('Y-m-d', strtotime($dataAudYmd . ' +' . $p[1] . ' days'));
+                            $pdo->prepare("INSERT INTO prazos_processuais (case_id, descricao_acao, prazo_fatal, numero_processo, concluido, created_by, created_at) VALUES (?, ?, ?, ?, 0, ?, NOW())")
+                                ->execute(array($caseId, $p[0], $dataFatal, $caseNum ?: null, current_user_id()));
+                        }
+                        $extras[] = count($prazosCriar) . ' prazo(s)';
+                    } catch (Exception $ePz) { @error_log('[evento_realizado prazos] ' . $ePz->getMessage()); }
+                }
+
+                // Nova audiencia marcada
+                if ($novaAudData && $novaAudHora && in_array($novaAudMod, array('presencial','online'), true)) {
+                    try {
+                        $novaIni = $novaAudData . ' ' . $novaAudHora . ':00';
+                        $novaFim = date('Y-m-d H:i:s', strtotime($novaIni) + 3600);
+                        $novoTitulo = 'Nova Audiência — ' . preg_replace('/^Audi.ncia\s*[—-]?\s*/iu', '', $tituloEv);
+                        $pdo->prepare("INSERT INTO agenda_eventos (titulo, tipo, modalidade, data_inicio, data_fim, dia_todo, case_id, client_id, responsavel_id, status, visivel_cliente, created_by) VALUES (?, 'audiencia', ?, ?, ?, 0, ?, ?, ?, 'agendado', 1, ?)")
+                            ->execute(array(
+                                $novoTitulo,
+                                $novaAudMod,
+                                $novaIni,
+                                $novaFim,
+                                $caseId,
+                                (int)($evRow['client_id'] ?? 0) ?: null,
+                                (int)($evRow['responsavel_id'] ?? 0) ?: current_user_id(),
+                                current_user_id(),
+                            ));
+                        $novaAudId = (int)$pdo->lastInsertId();
+                        // Andamento contando a nova audiencia
+                        $descNova = "📅 NOVA AUDIÊNCIA designada\n🗓 " . date('d/m/Y H:i', strtotime($novaIni)) . "\n📍 Modalidade: " . ($novaAudMod === 'presencial' ? 'Presencial' : 'Remota');
+                        $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?, CURDATE(), 'audiencia', ?, 1, ?, NOW())")
+                            ->execute(array($caseId, $descNova, current_user_id()));
+                        $extras[] = 'nova audiência marcada';
+
+                        // Dispara helper de lembrete 15d antes (cria evento preparacao_audiencia)
+                        if ($novaAudMod === 'presencial') {
+                            try {
+                                require_once APP_ROOT . '/modules/agenda/api.php';
+                            } catch (Throwable $e) { /* arquivo ja inclui logica diretamente, mas evita problema */ }
+                            if (function_exists('_agenda_sync_lembrete_audiencia')) {
+                                try { _agenda_sync_lembrete_audiencia($pdo, $novaAudId, 'audiencia', $novaAudMod, $novaIni, $novoTitulo, $caseId, (int)($evRow['client_id'] ?? 0) ?: null, current_user_id()); }
+                                catch (Throwable $e) { @error_log('[evento_realizado lembrete] ' . $e->getMessage()); }
+                            }
+
+                            // Tarefa pra Amanda peticionar pedido de audiencia hibrida
+                            try {
+                                // user_id da Amanda (mesma logica do helper de lembrete)
+                                $stU = $pdo->prepare("SELECT id FROM users WHERE email IN ('amandaguedesferreira@gmail.com') AND is_active = 1 LIMIT 1");
+                                $stU->execute();
+                                $amandaId = (int)$stU->fetchColumn();
+                                if ($amandaId) {
+                                    $dueDate = date('Y-m-d', strtotime('+3 days'));
+                                    $tituloT = '🏛 Peticionar pedido de audiência híbrida — ' . $novoTitulo;
+                                    $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, status, due_date, prioridade, assigned_to, created_at) VALUES (?, ?, 'peticionar', 'a_fazer', ?, 'alta', ?, NOW())")
+                                        ->execute(array($caseId, $tituloT, $dueDate, $amandaId));
+                                    $extras[] = 'tarefa híbrida criada';
+                                }
+                            } catch (Exception $eT) { @error_log('[evento_realizado tarefa hibrida] ' . $eT->getMessage()); }
+                        }
+                    } catch (Exception $eNov) { @error_log('[evento_realizado nova_aud] ' . $eNov->getMessage()); }
+                }
+
+                if (!empty($extras)) $msgFlash = 'Audiência realizada. Registrado: ' . implode(' + ', $extras) . '.';
                 flash_set('success', $msgFlash);
             } catch (Exception $e) {
                 flash_set('error', 'Erro: ' . $e->getMessage());

@@ -1388,20 +1388,40 @@ if (!empty($compromissosCaso)): ?>
             if (!$_pubPendente && (has_min_role('operacional') || has_min_role('gestao'))):
                 $_backPasta = htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8');
                 $_btnLabel = ($comp['tipo'] === 'prazo') ? '✓ Cumprir' : '✓ Realizado';
-                // Tipos que perguntam "o que aconteceu" e gravam como andamento aberto
-                $_tiposObs = array('audiencia','mediacao_cejusc','reuniao_cliente');
-                $_pedeObs = in_array($comp['tipo'] ?? '', $_tiposObs, true);
+                // Tipos que abrem modal estruturado (com opcoes de hipotese + prazo automatico + nova audiencia)
+                $_tiposModalAud = array('audiencia','mediacao_cejusc');
+                // Tipos que so abrem prompt simples (sem estrutura especifica)
+                $_tiposPromptSimples = array('reuniao_cliente');
+                $_abreModalAud = in_array($comp['tipo'] ?? '', $_tiposModalAud, true);
+                $_pedePrompt = in_array($comp['tipo'] ?? '', $_tiposPromptSimples, true);
                 $_confirmMsg = ($comp['tipo'] === 'prazo') ? 'Cumprir este prazo? (vai marcar como realizado)' : 'Marcar este compromisso como realizado?';
                 $_formId = 'frmEvtReal_' . (int)$comp['id'];
+                $_dataAudJs = date('Y-m-d', strtotime($comp['data_inicio']));
+                $_tituloEv = $comp['titulo'] ?? 'Compromisso';
+                $_onsubmit = ' onsubmit="return confirm(' . json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) . ');"';
+                if ($_abreModalAud) {
+                    $_onsubmit = ' onsubmit="return abrirModalRealizarAud(this,' . (int)$comp['id'] . ',' . json_encode($_dataAudJs) . ',' . json_encode($_tituloEv, JSON_UNESCAPED_UNICODE) . ',' . json_encode($comp['tipo']) . ')"';
+                } elseif ($_pedePrompt) {
+                    $_onsubmit = ' onsubmit="return pedirObsRealizado(this)"';
+                }
             ?>
-                <form method="POST" id="<?= $_formId ?>" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;"<?= $_pedeObs ? ' onsubmit="return pedirObsRealizado(this)"' : ' onsubmit="return confirm(' . json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) . ');"' ?>>
+                <form method="POST" id="<?= $_formId ?>" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;"<?= $_onsubmit ?>>
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="evento_realizado">
                     <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
-                    <?php if ($_pedeObs): ?><input type="hidden" name="observacao_realizado" value=""><?php endif; ?>
-                    <button type="submit" title="Marcar como realizado<?= $_pedeObs ? ' (vai perguntar o que aconteceu)' : '' ?>" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
+                    <?php if ($_abreModalAud || $_pedePrompt): ?>
+                    <input type="hidden" name="observacao_realizado" value="">
+                    <input type="hidden" name="hipotese" value="">
+                    <input type="hidden" name="prazo_alegacoes_finais" value="">
+                    <input type="hidden" name="prazo_juntada" value="">
+                    <input type="hidden" name="nova_aud_data" value="">
+                    <input type="hidden" name="nova_aud_hora" value="">
+                    <input type="hidden" name="nova_aud_modalidade" value="">
+                    <input type="hidden" name="data_audiencia_ref" value="<?= e($_dataAudJs) ?>">
+                    <?php endif; ?>
+                    <button type="submit" title="Marcar como realizado<?= $_abreModalAud ? ' (vai abrir janela com opcoes)' : ($_pedePrompt ? ' (vai perguntar o que aconteceu)' : '') ?>" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
                 <?php if ($comp['tipo'] !== 'prazo'): // 'cancelar'/'remarcar' so fazem sentido pra compromissos ?>
                 <button type="button" onclick='abrirRemarcar(<?= htmlspecialchars(json_encode(array("id"=>(int)$comp["id"],"titulo"=>$comp["titulo"]??"","tipo"=>$comp["tipo"]??"","dt"=>$dtInicio,"local"=>$comp["local"]??"","meet_link"=>$comp["meet_link"]??"","modalidade"=>$comp["modalidade"]??"")), ENT_QUOTES, "UTF-8") ?>)' title="Remarcar para outra data/hora (gera andamento + atualiza agenda)" style="font-size:.7rem;background:#dbeafe;color:#1e40af;padding:3px 8px;border:1px solid #93c5fd;border-radius:5px;cursor:pointer;font-weight:600;">🔄 Remarcar</button>
@@ -6524,20 +6544,175 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
 </script>
 <?php endif; ?>
 
+<!-- Modal: Realizar audiencia/mediacao (Amanda 03/06/2026 v2 - com hipoteses + prazos + nova audiencia) -->
+<div id="modalRealAud" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:14px;max-width:600px;width:100%;max-height:92vh;overflow-y:auto;padding:1.4rem 1.6rem;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem;">
+            <h3 style="margin:0;font-size:1.05rem;color:#052228;">📋 O que aconteceu na audiência?</h3>
+            <button type="button" onclick="fecharModalRealAud()" style="background:#f3f4f6;border:none;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+        </div>
+        <div style="font-size:.75rem;color:#6b7280;margin-bottom:1rem;padding-bottom:.8rem;border-bottom:1px solid #e5e7eb;">
+            <span id="modalRealAud_titulo" style="font-weight:600;color:#052228;"></span> · <span id="modalRealAud_data" style="color:#6a3c2c;"></span>
+        </div>
+
+        <label style="display:block;font-size:.75rem;font-weight:700;color:#374151;margin-bottom:.4rem;">Hipótese (escolha uma):</label>
+        <div id="modalRealAud_opcoes" style="display:flex;flex-direction:column;gap:.35rem;margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="autora_nao_compareceu"> Parte autora não compareceu
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="re_nao_compareceu"> Parte ré não compareceu
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="med_com_acordo"> Mediação/Conciliação: <strong style="color:#059669;">COM acordo</strong>
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="med_sem_acordo"> Mediação/Conciliação: <strong style="color:#dc2626;">SEM acordo</strong>
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="aij_sem_prazo"> AIJ realizada — sem nada para fazer
+            </label>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="aij_com_prazo"> AIJ realizada — COM prazo
+            </label>
+            <div id="modalRealAud_subPrazo" style="display:none;margin:-.2rem 0 .2rem 1.8rem;padding:.7rem .85rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px;font-size:.82rem;">
+                <div style="font-weight:700;color:#92400e;margin-bottom:.45rem;">Qual prazo? (marca um ou os dois — começa a contar no dia da audiência)</div>
+                <label style="display:block;margin-bottom:.3rem;cursor:pointer;">
+                    <input type="checkbox" id="modalRealAud_alegFinais"> Alegações Finais <span style="color:#92400e;font-weight:600;">(15 dias)</span>
+                </label>
+                <label style="display:block;cursor:pointer;">
+                    <input type="checkbox" id="modalRealAud_juntada"> Juntada de documentos <span style="color:#92400e;font-weight:600;">(5 dias)</span>
+                </label>
+            </div>
+            <label style="display:flex;align-items:center;gap:.5rem;padding:.45rem .65rem;border:1px solid #e5e7eb;border-radius:6px;cursor:pointer;font-size:.85rem;" class="opt-aud">
+                <input type="radio" name="hipotese" value="outro"> 🖊 Outra hipótese (escrever)
+            </label>
+            <textarea id="modalRealAud_textoOutro" style="display:none;width:100%;min-height:90px;padding:.6rem .75rem;border:1px solid #e5e7eb;border-radius:6px;font-family:inherit;font-size:.85rem;margin-top:.3rem;" placeholder="Descreva o que aconteceu..."></textarea>
+        </div>
+
+        <div style="border-top:1px solid #e5e7eb;padding-top:.9rem;margin-top:.5rem;">
+            <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.88rem;font-weight:700;color:#052228;background:#eff6ff;padding:.55rem .75rem;border-radius:6px;border:1px solid #93c5fd;">
+                <input type="checkbox" id="modalRealAud_chkNova"> 📅 Foi marcada NOVA AUDIÊNCIA?
+            </label>
+            <div id="modalRealAud_camposNova" style="display:none;margin-top:.6rem;padding:.7rem .85rem;background:#eff6ff;border-radius:6px;font-size:.82rem;">
+                <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:.5rem;">
+                    <div style="flex:1;min-width:140px;">
+                        <label style="display:block;font-size:.72rem;font-weight:700;color:#1e40af;margin-bottom:.2rem;">Data</label>
+                        <input type="date" id="modalRealAud_novaData" style="width:100%;padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:5px;font-size:.85rem;">
+                    </div>
+                    <div style="flex:1;min-width:100px;">
+                        <label style="display:block;font-size:.72rem;font-weight:700;color:#1e40af;margin-bottom:.2rem;">Hora</label>
+                        <input type="time" id="modalRealAud_novaHora" style="width:100%;padding:.45rem .6rem;border:1px solid #cbd5e1;border-radius:5px;font-size:.85rem;">
+                    </div>
+                </div>
+                <div>
+                    <label style="display:block;font-size:.72rem;font-weight:700;color:#1e40af;margin-bottom:.25rem;">Modalidade</label>
+                    <div style="display:flex;gap:.4rem;">
+                        <label style="flex:1;display:flex;align-items:center;gap:.3rem;padding:.45rem .65rem;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;font-size:.82rem;background:#fff;">
+                            <input type="radio" name="modalRealAud_novaMod" value="presencial"> 🏛 Presencial
+                        </label>
+                        <label style="flex:1;display:flex;align-items:center;gap:.3rem;padding:.45rem .65rem;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;font-size:.82rem;background:#fff;">
+                            <input type="radio" name="modalRealAud_novaMod" value="online"> 💻 Remota
+                        </label>
+                    </div>
+                </div>
+                <div style="font-size:.7rem;color:#6b7280;margin-top:.5rem;font-style:italic;">
+                    Se PRESENCIAL: o sistema vai abrir uma tarefa pra Amanda peticionar pedido de audiência híbrida.
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1.2rem;padding-top:1rem;border-top:1px solid #e5e7eb;">
+            <button type="button" onclick="fecharModalRealAud()" style="background:#f3f4f6;border:1px solid #d1d5db;padding:.55rem 1.2rem;border-radius:6px;cursor:pointer;">Cancelar</button>
+            <button type="button" onclick="confirmarModalRealAud()" style="background:#059669;color:#fff;border:none;padding:.55rem 1.4rem;border-radius:6px;cursor:pointer;font-weight:700;">✓ Confirmar</button>
+        </div>
+    </div>
+</div>
+
 <script>
-// Pergunta "o que aconteceu" antes de submeter o form de "Realizado" de
-// audiencia/mediacao/reuniao_cliente. Texto vai pra observacao_realizado
-// que o handler grava como andamento ABERTO no processo (Amanda 02/06/2026,
-// fix do caso_ver 03/06/2026 - estava chamando outro endpoint que nao tinha
-// essa logica).
+// Modal de Realizar audiencia/mediacao - estruturado com hipoteses + prazo automatico + nova audiencia (Amanda 03/06/2026)
+window._modalRealAudForm = null;
+
+window.abrirModalRealizarAud = function(form, eventoId, dataAud, titulo, tipo) {
+    window._modalRealAudForm = form;
+    document.getElementById('modalRealAud_titulo').textContent = titulo || 'Audiência';
+    document.getElementById('modalRealAud_data').textContent = dataAud ? dataAud.split('-').reverse().join('/') : '';
+    // Reset
+    document.querySelectorAll('#modalRealAud input[type=radio], #modalRealAud input[type=checkbox]').forEach(function(i){ i.checked = false; });
+    document.getElementById('modalRealAud_textoOutro').value = '';
+    document.getElementById('modalRealAud_textoOutro').style.display = 'none';
+    document.getElementById('modalRealAud_subPrazo').style.display = 'none';
+    document.getElementById('modalRealAud_camposNova').style.display = 'none';
+    document.getElementById('modalRealAud_novaData').value = '';
+    document.getElementById('modalRealAud_novaHora').value = '';
+    document.getElementById('modalRealAud').style.display = 'flex';
+    return false; // suspende o submit do form
+};
+
+window.fecharModalRealAud = function() {
+    document.getElementById('modalRealAud').style.display = 'none';
+    window._modalRealAudForm = null;
+};
+
+// Listeners dinamicos
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('#modalRealAud input[name="hipotese"]').forEach(function(r){
+        r.addEventListener('change', function(){
+            document.getElementById('modalRealAud_subPrazo').style.display = (r.value === 'aij_com_prazo' && r.checked) ? 'block' : (document.querySelector('#modalRealAud input[name=hipotese]:checked')?.value === 'aij_com_prazo' ? 'block' : 'none');
+            document.getElementById('modalRealAud_textoOutro').style.display = (document.querySelector('#modalRealAud input[name=hipotese]:checked')?.value === 'outro') ? 'block' : 'none';
+        });
+    });
+    var chkNova = document.getElementById('modalRealAud_chkNova');
+    if (chkNova) chkNova.addEventListener('change', function(){
+        document.getElementById('modalRealAud_camposNova').style.display = chkNova.checked ? 'block' : 'none';
+    });
+});
+
+window.confirmarModalRealAud = function() {
+    var form = window._modalRealAudForm;
+    if (!form) { alert('Erro: form perdido'); return; }
+    var hip = document.querySelector('#modalRealAud input[name=hipotese]:checked');
+    if (!hip) { alert('Escolha uma hipótese.'); return; }
+    var hipVal = hip.value;
+    var obs = '';
+    if (hipVal === 'outro') {
+        obs = (document.getElementById('modalRealAud_textoOutro').value || '').trim();
+        if (!obs) { alert('Descreva o que aconteceu no campo de texto.'); return; }
+    }
+    var prazoAleg = document.getElementById('modalRealAud_alegFinais').checked ? '1' : '';
+    var prazoJunt = document.getElementById('modalRealAud_juntada').checked ? '1' : '';
+    if (hipVal === 'aij_com_prazo' && !prazoAleg && !prazoJunt) {
+        alert('Selecione pelo menos UM prazo (Alegações Finais ou Juntada).'); return;
+    }
+    var chkNova = document.getElementById('modalRealAud_chkNova').checked;
+    var novaData = '', novaHora = '', novaMod = '';
+    if (chkNova) {
+        novaData = document.getElementById('modalRealAud_novaData').value;
+        novaHora = document.getElementById('modalRealAud_novaHora').value;
+        var rMod = document.querySelector('#modalRealAud input[name=modalRealAud_novaMod]:checked');
+        novaMod = rMod ? rMod.value : '';
+        if (!novaData || !novaHora || !novaMod) {
+            alert('Preencha data, hora e modalidade da nova audiência.'); return;
+        }
+    }
+    // Preenche os hidden do form e submete
+    form.querySelector('input[name=hipotese]').value = hipVal;
+    form.querySelector('input[name=observacao_realizado]').value = obs;
+    form.querySelector('input[name=prazo_alegacoes_finais]').value = prazoAleg;
+    form.querySelector('input[name=prazo_juntada]').value = prazoJunt;
+    form.querySelector('input[name=nova_aud_data]').value = novaData;
+    form.querySelector('input[name=nova_aud_hora]').value = novaHora;
+    form.querySelector('input[name=nova_aud_modalidade]').value = novaMod;
+    fecharModalRealAud();
+    // Tira o onsubmit pra evitar loop e submete
+    form.onsubmit = null;
+    form.submit();
+};
+
+// Prompt simples (reuniao_cliente, balcao virtual etc.) - mantido pra compatibilidade
 window.pedirObsRealizado = function(form) {
-    var obs = prompt(
-        'O que aconteceu neste compromisso?\n\n' +
-        '(Texto sera gravado como andamento ABERTO no processo - visivel ao cliente.\n' +
-        'Deixe em branco se preferir nao registrar agora.)',
-        ''
-    );
-    if (obs === null) return false; // cancelou
+    var obs = prompt('O que aconteceu neste compromisso?\n\n(Texto sera gravado como andamento ABERTO no processo - visivel ao cliente.\nDeixe em branco se preferir nao registrar agora.)', '');
+    if (obs === null) return false;
     var inp = form.querySelector('input[name="observacao_realizado"]');
     if (inp) inp.value = (obs || '').trim();
     return true;
