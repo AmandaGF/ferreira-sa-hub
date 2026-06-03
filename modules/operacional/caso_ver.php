@@ -2270,8 +2270,35 @@ function confirmarMarcarIncidental() {
 <script>
 // Link público compartilhável do GED (Amanda 26/05/2026): mesmo modal
 // usado em /modules/salavip/ged.php, replicado aqui pra ficha do caso.
+// Amanda 03/06/2026: botao 'Abrir WhatsApp' agora chama waSenderOpen (hub)
+// em vez de wa.me/?text=... (web externa).
+window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientesVinculados, function($c){ return !empty($c['phone']); })), JSON_UNESCAPED_UNICODE) ?>;
 (function(){
     var GED_URL = '<?= module_url('salavip', 'ged.php') ?>';
+
+    // Monta botao 'Abrir WhatsApp' que chama waSenderOpen (hub) com a msg pronta
+    // baseado nos clientes vinculados ao caso. Se 1 cliente: botao direto. Se 2+:
+    // botao que abre dropdown. Se 0: avisa que precisa cadastrar telefone.
+    window._gedBotaoWaHub = function(url) {
+        var clientes = (window.__casoClientesPraWa || []);
+        var msg = 'Olá! Segue o documento: ' + url;
+        var esc = function(s){ return String(s||'').replace(/[<>"]/g, function(c){ return {'<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
+        if (clientes.length === 0) {
+            return '<button type="button" disabled style="background:#9ca3af;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:not-allowed;font-size:.85rem;" title="Nenhum cliente com telefone cadastrado">💬 Sem telefone</button>';
+        }
+        if (clientes.length === 1) {
+            var c = clientes[0];
+            return '<button type="button" onclick="waSenderOpen({telefone:' + JSON.stringify(c.phone) + ',nome:' + JSON.stringify(c.name) + ',clientId:' + (c.id || 0) + ',mensagem:' + JSON.stringify(msg) + '})" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">💬 Abrir no Hub — ' + esc((c.name||'').split(' ')[0]) + '</button>';
+        }
+        // Multiplos clientes: gera dropdown
+        var opts = clientes.map(function(c){
+            return '<a href="javascript:void(0)" onclick="waSenderOpen({telefone:' + JSON.stringify(c.phone) + ',nome:' + JSON.stringify(c.name) + ',clientId:' + (c.id || 0) + ',mensagem:' + JSON.stringify(msg) + '});this.closest(\'.gedWaDrop\').querySelector(\'.gedWaMenu\').style.display=\'none\';" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.82rem;border-bottom:1px solid #f1f5f9;">💬 ' + esc(c.name) + '</a>';
+        }).join('');
+        return '<div class="gedWaDrop" style="position:relative;">'
+             + '<button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\';" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;width:100%;">💬 Abrir no Hub ▾</button>'
+             + '<div class="gedWaMenu" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);margin-top:4px;z-index:10;max-height:240px;overflow-y:auto;">'
+             + opts + '</div></div>';
+    };
 
     window.gedAbrirLink = function(docId, btn) {
         if (btn) { btn.disabled = true; var _txt = btn.innerHTML; btn.innerHTML = '⏳'; }
@@ -2310,7 +2337,7 @@ function confirmarMarcarIncidental() {
             + '</div>'
             + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.8rem;">'
             + '<button id="gedCopiarLink" style="background:#0e7490;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">📋 Copiar link</button>'
-            + '<a id="gedWhatsLink" href="https://wa.me/?text=' + encodeURIComponent('Olá! Segue o documento: ' + url) + '" target="_blank" rel="noopener" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;text-align:center;text-decoration:none;font-size:.85rem;">💬 Abrir WhatsApp</a>'
+            + _gedBotaoWaHub(url)
             + '</div>'
             + '<div style="display:flex;justify-content:space-between;align-items:center;padding-top:.7rem;border-top:1px solid #e5e7eb;font-size:.78rem;color:#6b7280;">'
             + '<div>👁 <strong>' + (acessos || 0) + '</strong> acesso' + ((acessos === 1) ? '' : 's') + ' · último: ' + ultStr + '</div>'
