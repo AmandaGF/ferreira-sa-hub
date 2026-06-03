@@ -69,7 +69,7 @@ echo '<script type="application/ld+json">' . json_encode($ld, JSON_UNESCAPED_SLA
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/conecta/lp/site.css?v=2026060312">
+<link rel="stylesheet" href="/conecta/lp/site.css?v=2026060313">
 </head>
 <body>
 
