@@ -2276,23 +2276,55 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
 (function(){
     var GED_URL = '<?= module_url('salavip', 'ged.php') ?>';
 
+    // Escape pra atributos HTML (incl aspas duplas)
+    var _hesc = function(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+
+    // Listener delegado global (registra 1x): qualquer .waHubBtn dispara waSenderOpen
+    // com os data-* attributes. Evita problema de aspas no onclick inline.
+    if (!window._gedWaHubListener) {
+        document.addEventListener('click', function(ev){
+            var t = ev.target.closest('.waHubBtn');
+            if (!t) return;
+            ev.preventDefault();
+            var dd = t.closest('.gedWaDrop');
+            if (dd) { var menu = dd.querySelector('.gedWaMenu'); if (menu) menu.style.display = 'none'; }
+            if (typeof window.waSenderOpen !== 'function') { alert('Modal do WhatsApp do Hub nao carregou. Recarregue a pagina.'); return; }
+            window.waSenderOpen({
+                telefone: t.getAttribute('data-tel'),
+                nome: t.getAttribute('data-nome'),
+                clientId: parseInt(t.getAttribute('data-cid') || '0', 10),
+                mensagem: t.getAttribute('data-msg')
+            });
+        });
+        window._gedWaHubListener = true;
+    }
+
     // Monta botao 'Abrir WhatsApp' que chama waSenderOpen (hub) com a msg pronta
     // baseado nos clientes vinculados ao caso. Se 1 cliente: botao direto. Se 2+:
     // botao que abre dropdown. Se 0: avisa que precisa cadastrar telefone.
     window._gedBotaoWaHub = function(url) {
         var clientes = (window.__casoClientesPraWa || []);
         var msg = 'Olá! Segue o documento: ' + url;
-        var esc = function(s){ return String(s||'').replace(/[<>"]/g, function(c){ return {'<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); };
         if (clientes.length === 0) {
             return '<button type="button" disabled style="background:#9ca3af;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:not-allowed;font-size:.85rem;" title="Nenhum cliente com telefone cadastrado">💬 Sem telefone</button>';
         }
         if (clientes.length === 1) {
             var c = clientes[0];
-            return '<button type="button" onclick="waSenderOpen({telefone:' + JSON.stringify(c.phone) + ',nome:' + JSON.stringify(c.name) + ',clientId:' + (c.id || 0) + ',mensagem:' + JSON.stringify(msg) + '})" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">💬 Abrir no Hub — ' + esc((c.name||'').split(' ')[0]) + '</button>';
+            return '<button type="button" class="waHubBtn"'
+                 + ' data-tel="' + _hesc(c.phone) + '"'
+                 + ' data-nome="' + _hesc(c.name) + '"'
+                 + ' data-cid="' + (c.id || 0) + '"'
+                 + ' data-msg="' + _hesc(msg) + '"'
+                 + ' style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;">💬 Abrir no Hub — ' + _hesc((c.name||'').split(' ')[0]) + '</button>';
         }
         // Multiplos clientes: gera dropdown
         var opts = clientes.map(function(c){
-            return '<a href="javascript:void(0)" onclick="waSenderOpen({telefone:' + JSON.stringify(c.phone) + ',nome:' + JSON.stringify(c.name) + ',clientId:' + (c.id || 0) + ',mensagem:' + JSON.stringify(msg) + '});this.closest(\'.gedWaDrop\').querySelector(\'.gedWaMenu\').style.display=\'none\';" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.82rem;border-bottom:1px solid #f1f5f9;">💬 ' + esc(c.name) + '</a>';
+            return '<a href="javascript:void(0)" class="waHubBtn"'
+                 + ' data-tel="' + _hesc(c.phone) + '"'
+                 + ' data-nome="' + _hesc(c.name) + '"'
+                 + ' data-cid="' + (c.id || 0) + '"'
+                 + ' data-msg="' + _hesc(msg) + '"'
+                 + ' style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.82rem;border-bottom:1px solid #f1f5f9;">💬 ' + _hesc(c.name) + '</a>';
         }).join('');
         return '<div class="gedWaDrop" style="position:relative;">'
              + '<button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display===\'block\'?\'none\':\'block\';" style="background:#25d366;color:#fff;border:none;padding:.55rem;border-radius:8px;font-weight:700;cursor:pointer;font-size:.85rem;width:100%;">💬 Abrir no Hub ▾</button>'
