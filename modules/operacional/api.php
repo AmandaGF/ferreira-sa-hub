@@ -2400,16 +2400,48 @@ switch ($action) {
     case 'evento_realizado':
         // Marca um evento da agenda como realizado (remove da lista de compromissos do processo).
         // Usado quando a publicação vinculada já foi resolvida mas o evento legado ficou na lista.
+        // Amanda 02/06/2026: pra audiencia/mediacao/reuniao_cliente, aceita observacao_realizado
+        // (texto livre do que aconteceu) e grava como andamento ABERTO no processo.
         if (!has_min_role('operacional') && !has_min_role('gestao')) { flash_set('error', 'Sem permissao.'); redirect(module_url('operacional')); exit; }
         $eventoId = (int)($_POST['evento_id'] ?? 0);
         $caseId = (int)($_POST['case_id'] ?? 0);
+        $observacao = trim($_POST['observacao_realizado'] ?? '');
         $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
         if ($eventoId && $caseId) {
             try {
                 $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW() WHERE id = ? AND case_id = ?")
                     ->execute(array($eventoId, $caseId));
                 audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId);
-                flash_set('success', 'Compromisso marcado como realizado.');
+
+                // Grava andamento aberto se a Amanda preencheu observacao + tipo qualifica
+                $msgFlash = 'Compromisso marcado como realizado.';
+                if ($observacao !== '') {
+                    try {
+                        $stEv = $pdo->prepare("SELECT tipo, titulo, data_inicio FROM agenda_eventos WHERE id = ?");
+                        $stEv->execute(array($eventoId));
+                        $evRow = $stEv->fetch(PDO::FETCH_ASSOC);
+                        $tipoEv = (string)($evRow['tipo'] ?? '');
+                        $tiposComObs = array('audiencia','mediacao_cejusc','reuniao_cliente','balcao_virtual');
+                        if (in_array($tipoEv, $tiposComObs, true)) {
+                            $rotulos = array(
+                                'audiencia' => 'Audiência',
+                                'mediacao_cejusc' => 'Mediação/CEJUSC',
+                                'reuniao_cliente' => 'Reunião com cliente',
+                                'balcao_virtual' => 'Balcão Virtual',
+                            );
+                            $rotulo = $rotulos[$tipoEv] ?? 'Compromisso';
+                            $dataHum = $evRow['data_inicio'] ? date('d/m/Y H:i', strtotime($evRow['data_inicio'])) : '';
+                            $descAnd = "✓ {$rotulo} REALIZADA — " . ($evRow['titulo'] ?? '');
+                            if ($dataHum) $descAnd .= "\n🗓 {$dataHum}";
+                            $descAnd .= "\n\n" . $observacao;
+                            $tipoAnd = ($tipoEv === 'audiencia') ? 'audiencia' : 'observacao';
+                            $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at) VALUES (?, CURDATE(), ?, ?, 1, ?, NOW())")
+                                ->execute(array($caseId, $tipoAnd, $descAnd, current_user_id()));
+                            $msgFlash = 'Compromisso realizado e andamento gravado no processo.';
+                        }
+                    } catch (Exception $eAnd) { @error_log('[evento_realizado andamento] ' . $eAnd->getMessage()); }
+                }
+                flash_set('success', $msgFlash);
             } catch (Exception $e) {
                 flash_set('error', 'Erro: ' . $e->getMessage());
             }

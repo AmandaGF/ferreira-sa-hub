@@ -1388,15 +1388,20 @@ if (!empty($compromissosCaso)): ?>
             if (!$_pubPendente && (has_min_role('operacional') || has_min_role('gestao'))):
                 $_backPasta = htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8');
                 $_btnLabel = ($comp['tipo'] === 'prazo') ? '✓ Cumprir' : '✓ Realizado';
+                // Tipos que perguntam "o que aconteceu" e gravam como andamento aberto
+                $_tiposObs = array('audiencia','mediacao_cejusc','reuniao_cliente');
+                $_pedeObs = in_array($comp['tipo'] ?? '', $_tiposObs, true);
                 $_confirmMsg = ($comp['tipo'] === 'prazo') ? 'Cumprir este prazo? (vai marcar como realizado)' : 'Marcar este compromisso como realizado?';
+                $_formId = 'frmEvtReal_' . (int)$comp['id'];
             ?>
-                <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm(<?= json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) ?>);">
+                <form method="POST" id="<?= $_formId ?>" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;"<?= $_pedeObs ? ' onsubmit="return pedirObsRealizado(this)"' : ' onsubmit="return confirm(' . json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) . ');"' ?>>
                     <?= csrf_input() ?>
                     <input type="hidden" name="action" value="evento_realizado">
                     <input type="hidden" name="evento_id" value="<?= (int)$comp['id'] ?>">
                     <input type="hidden" name="case_id" value="<?= $caseId ?>">
                     <input type="hidden" name="_back" value="<?= $_backPasta ?>">
-                    <button type="submit" title="Marcar como realizado" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
+                    <?php if ($_pedeObs): ?><input type="hidden" name="observacao_realizado" value=""><?php endif; ?>
+                    <button type="submit" title="Marcar como realizado<?= $_pedeObs ? ' (vai perguntar o que aconteceu)' : '' ?>" style="font-size:.7rem;background:#dcfce7;color:#15803d;padding:3px 8px;border:1px solid #86efac;border-radius:5px;cursor:pointer;font-weight:600;"><?= $_btnLabel ?></button>
                 </form>
                 <?php if ($comp['tipo'] !== 'prazo'): // 'cancelar'/'remarcar' so fazem sentido pra compromissos ?>
                 <button type="button" onclick='abrirRemarcar(<?= htmlspecialchars(json_encode(array("id"=>(int)$comp["id"],"titulo"=>$comp["titulo"]??"","tipo"=>$comp["tipo"]??"","dt"=>$dtInicio,"local"=>$comp["local"]??"","meet_link"=>$comp["meet_link"]??"","modalidade"=>$comp["modalidade"]??"")), ENT_QUOTES, "UTF-8") ?>)' title="Remarcar para outra data/hora (gera andamento + atualiza agenda)" style="font-size:.7rem;background:#dbeafe;color:#1e40af;padding:3px 8px;border:1px solid #93c5fd;border-radius:5px;cursor:pointer;font-weight:600;">🔄 Remarcar</button>
@@ -6519,4 +6524,23 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
 </script>
 <?php endif; ?>
 
+<script>
+// Pergunta "o que aconteceu" antes de submeter o form de "Realizado" de
+// audiencia/mediacao/reuniao_cliente. Texto vai pra observacao_realizado
+// que o handler grava como andamento ABERTO no processo (Amanda 02/06/2026,
+// fix do caso_ver 03/06/2026 - estava chamando outro endpoint que nao tinha
+// essa logica).
+window.pedirObsRealizado = function(form) {
+    var obs = prompt(
+        'O que aconteceu neste compromisso?\n\n' +
+        '(Texto sera gravado como andamento ABERTO no processo - visivel ao cliente.\n' +
+        'Deixe em branco se preferir nao registrar agora.)',
+        ''
+    );
+    if (obs === null) return false; // cancelou
+    var inp = form.querySelector('input[name="observacao_realizado"]');
+    if (inp) inp.value = (obs || '').trim();
+    return true;
+};
+</script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
