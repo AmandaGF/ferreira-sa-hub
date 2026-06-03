@@ -59,7 +59,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="max-width:1200px;margin:0 auto;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;">
-        <h2 style="margin:0;font-size:1.2rem;color:var(--petrol-900);">🔐 Códigos 2FA — Tribunais</h2>
+        <h2 style="margin:0;font-size:1.2rem;color:var(--petrol-900);">🔐 Códigos 2FA e Senhas — Sistemas</h2>
         <?php if ($isAdmin): ?>
         <button onclick="c2AbrirNovo()" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Adicionar sistema</button>
         <?php endif; ?>
@@ -91,7 +91,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php foreach ($sistemas as $s):
                 $icone = $s['icone'] ?: '⚖';
             ?>
-            <div class="c2-card" data-sistema-id="<?= (int)$s['id'] ?>">
+            <?php
+            $_tem2fa = !empty($s['chave_encrypted']);
+            $_temLogin = !empty($s['login']);
+            $_temSenha = !empty($s['senha_encrypted']);
+            $_temEmail = !empty($s['email']);
+            ?>
+            <div class="c2-card" data-sistema-id="<?= (int)$s['id'] ?>" data-tem-2fa="<?= $_tem2fa ? '1' : '0' ?>">
                 <div class="c2-card-head">
                     <div class="c2-card-title">
                         <span class="c2-card-icon"><?= e($icone) ?></span>
@@ -104,15 +110,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                     <?php endif; ?>
                 </div>
+                <?php if ($_tem2fa): ?>
                 <div class="c2-code" id="c2Code<?= (int)$s['id'] ?>" onclick="c2Copiar(<?= (int)$s['id'] ?>)" title="Clique pra copiar">- - -   - - -</div>
                 <div class="c2-timer-wrap"><div class="c2-timer-bar" id="c2Bar<?= (int)$s['id'] ?>" style="width:100%;"></div></div>
                 <div class="c2-timer-text" id="c2Timer<?= (int)$s['id'] ?>">Renova em <span>30</span>s</div>
-                <div class="c2-card-buttons">
-                    <button class="c2-btn-copy" onclick="c2Copiar(<?= (int)$s['id'] ?>, this)">📋 Copiar</button>
+                <?php else: ?>
+                <div style="text-align:center;padding:1.2rem 0 .5rem;color:#6b7280;font-size:.85rem;">
+                    <div style="font-size:1.6rem;margin-bottom:.3rem;">🔓</div>
+                    <div style="font-weight:600;color:#374151;">Acesso sem 2FA</div>
+                    <div style="font-size:.72rem;">Use login e senha abaixo</div>
+                </div>
+                <?php endif; ?>
+                <div class="c2-card-buttons" style="flex-wrap:wrap;">
+                    <?php if ($_tem2fa): ?>
+                    <button class="c2-btn-copy" onclick="c2Copiar(<?= (int)$s['id'] ?>, this)">📋 Código</button>
+                    <?php endif; ?>
                     <?php if ($s['url_login']): ?>
                     <a class="c2-btn-open" href="<?= e($s['url_login']) ?>" target="_blank">🌐 Abrir login</a>
                     <?php endif; ?>
                 </div>
+                <?php if ($_temLogin || $_temSenha || $_temEmail): ?>
+                <div style="margin-top:.6rem;padding-top:.55rem;border-top:1px solid #f3f4f6;display:flex;flex-direction:column;gap:.3rem;">
+                    <?php if ($_temLogin): ?>
+                    <button onclick="c2CopiarTextoSimples(<?= htmlspecialchars(json_encode($s['login']), ENT_QUOTES) ?>, this)" style="display:flex;align-items:center;gap:.5rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.72rem;color:#374151;text-align:left;">
+                        <span style="font-weight:700;color:#6b7280;min-width:48px;">👤 Login</span>
+                        <span style="flex:1;font-family:monospace;"><?= e($s['login']) ?></span>
+                        <span style="color:#9ca3af;font-size:.7rem;">copiar</span>
+                    </button>
+                    <?php endif; ?>
+                    <?php if ($_temSenha): ?>
+                    <button onclick="c2CopiarSenha(<?= (int)$s['id'] ?>, this)" style="display:flex;align-items:center;gap:.5rem;background:#fef3c7;border:1px solid #fcd34d;padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.72rem;color:#92400e;text-align:left;">
+                        <span style="font-weight:700;min-width:48px;">🔑 Senha</span>
+                        <span style="flex:1;font-family:monospace;letter-spacing:.2em;">••••••••</span>
+                        <span style="font-size:.7rem;">copiar</span>
+                    </button>
+                    <?php endif; ?>
+                    <?php if ($_temEmail): ?>
+                    <button onclick="c2CopiarTextoSimples(<?= htmlspecialchars(json_encode($s['email']), ENT_QUOTES) ?>, this)" style="display:flex;align-items:center;gap:.5rem;background:#f9fafb;border:1px solid #e5e7eb;padding:.35rem .55rem;border-radius:6px;cursor:pointer;font-size:.72rem;color:#374151;text-align:left;">
+                        <span style="font-weight:700;color:#6b7280;min-width:48px;">📧 E-mail</span>
+                        <span style="flex:1;font-family:monospace;"><?= e($s['email']) ?></span>
+                        <span style="color:#9ca3af;font-size:.7rem;">copiar</span>
+                    </button>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
                 <?php if ($s['notas']): ?>
                 <div style="margin-top:.5rem;padding-top:.5rem;border-top:1px solid #f3f4f6;font-size:.7rem;color:#6b7280;"><?= nl2br(e($s['notas'])) ?></div>
                 <?php endif; ?>
@@ -147,11 +188,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
             </div>
             <div style="margin-bottom:.75rem;">
-                <label style="font-size:.72rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem;">Chave secreta (Base32, do QR code) *</label>
-                <input id="c2Chave" class="form-input" style="font-size:.85rem;font-family:monospace;" placeholder="JBSWY3DPEHPK3PXP..." autocomplete="off">
+                <label style="font-size:.72rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem;">Chave secreta 2FA (Base32, do QR code)</label>
+                <input id="c2Chave" class="form-input" style="font-size:.85rem;font-family:monospace;" placeholder="JBSWY3DPEHPK3PXP... — deixe em branco se o sistema não tem 2FA" autocomplete="off">
                 <small style="color:#94a3b8;font-size:.68rem;display:block;margin-top:.2rem;">
-                    No tribunal, ative o 2FA. Quando aparecer o QR code, geralmente tem um link "Não consigo escanear" ou "Mostrar chave em texto" — copie a string e cole aqui.
+                    Opcional. Se o sistema tem 2FA, ative no tribunal e copie a chave Base32 (link "Não consigo escanear" / "Mostrar chave"). Se for só login+senha sem 2FA, deixe em branco.
                 </small>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;margin-bottom:.75rem;">
+                <div style="font-size:.72rem;font-weight:700;color:#374151;margin-bottom:.5rem;">🔑 Credenciais de acesso (opcional)</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:.5rem;">
+                    <div>
+                        <label style="font-size:.68rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.15rem;">Login / usuário</label>
+                        <input id="c2Login" class="form-input" style="font-size:.82rem;font-family:monospace;" placeholder="Ex: RJ163260 ou CPF" autocomplete="off">
+                    </div>
+                    <div>
+                        <label style="font-size:.68rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.15rem;">Senha</label>
+                        <input id="c2Senha" type="password" class="form-input" style="font-size:.82rem;font-family:monospace;" placeholder="Senha do sistema" autocomplete="off">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:.68rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.15rem;">E-mail (se aplicável)</label>
+                    <input id="c2Email" class="form-input" style="font-size:.82rem;" placeholder="contato@ferreiraesa.com.br" autocomplete="off">
+                </div>
+                <small style="color:#94a3b8;font-size:.68rem;display:block;margin-top:.4rem;">A senha é criptografada antes de salvar. Cada vez que alguém visualizar, fica registrado no log de auditoria.</small>
             </div>
             <div style="margin-bottom:.75rem;">
                 <label style="font-size:.72rem;font-weight:600;color:#6b7280;display:block;margin-bottom:.2rem;">Notas (opcional)</label>
@@ -202,7 +261,7 @@ function c2BuscarCodigo(id, cb) {
 }
 
 function c2AtualizarUI() {
-    var cards = document.querySelectorAll('.c2-card[data-sistema-id]');
+    var cards = document.querySelectorAll('.c2-card[data-sistema-id][data-tem-2fa="1"]');
     cards.forEach(function(card) {
         var id = card.getAttribute('data-sistema-id');
         var codeEl = document.getElementById('c2Code' + id);
@@ -263,6 +322,26 @@ function c2FeedbackCopia(btn) {
     setTimeout(function(){ btn.classList.remove('copied'); btn.innerHTML = original; }, 1800);
 }
 
+// Copia texto simples (login, email) - sem audit log (e dado nao secreto)
+window.c2CopiarTextoSimples = function(texto, btn) {
+    c2CopiarTexto(String(texto || ''), btn);
+};
+
+// Copia senha (decifra no servidor + audit log)
+window.c2CopiarSenha = function(sistemaId, btn) {
+    var fd = new FormData();
+    fd.append('action', 'revelar_senha');
+    fd.append('sistema_id', sistemaId);
+    fd.append('csrf_token', C2_CSRF);
+    fetch(C2_API, { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+            if (j.csrf) C2_CSRF = j.csrf;
+            if (j.ok) { c2CopiarTexto(j.senha, btn); }
+            else { alert('Não foi possível obter a senha: ' + (j.erro || 'erro')); }
+        });
+};
+
 // Polling: atualiza a UI a cada segundo (recalcula timer + busca novo codigo quando expira)
 setInterval(c2AtualizarUI, 1000);
 c2AtualizarUI(); // primeira execucao imediata
@@ -271,7 +350,7 @@ c2AtualizarUI(); // primeira execucao imediata
 function c2AbrirNovo() {
     document.getElementById('c2ModalTit').textContent = 'Adicionar sistema';
     document.getElementById('c2Id').value = '0';
-    ['c2Nome','c2Icone','c2Url','c2Chave','c2Notas'].forEach(function(id){ document.getElementById(id).value = ''; });
+    ['c2Nome','c2Icone','c2Url','c2Chave','c2Notas','c2Login','c2Senha','c2Email'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
     document.getElementById('c2Preview').style.display = 'none';
     document.getElementById('c2Modal').style.display = 'flex';
     document.getElementById('c2Nome').focus();
@@ -294,6 +373,9 @@ function c2Editar(id) {
             document.getElementById('c2Url').value = j.sistema.url_login || '';
             document.getElementById('c2Chave').value = j.sistema.chave || '';
             document.getElementById('c2Notas').value = j.sistema.notas || '';
+            document.getElementById('c2Login').value = j.sistema.login || '';
+            document.getElementById('c2Senha').value = j.sistema.senha || '';
+            document.getElementById('c2Email').value = j.sistema.email || '';
             document.getElementById('c2Preview').style.display = 'none';
             document.getElementById('c2Modal').style.display = 'flex';
         });
@@ -330,6 +412,9 @@ function c2Salvar() {
     fd.append('url_login', document.getElementById('c2Url').value);
     fd.append('chave', document.getElementById('c2Chave').value);
     fd.append('notas', document.getElementById('c2Notas').value);
+    fd.append('login', document.getElementById('c2Login').value);
+    fd.append('senha', document.getElementById('c2Senha').value);
+    fd.append('email', document.getElementById('c2Email').value);
     fd.append('csrf_token', C2_CSRF);
     fetch(C2_API, { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
         .then(function(r){ return r.json(); })
