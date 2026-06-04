@@ -128,22 +128,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="rs-step">
         <h3><span class="n">6</span> Cole as credenciais aqui</h3>
         <p style="font-size:.85rem;color:#374151;margin-bottom:.8rem;">Depois que o App estiver criado, copia daqui:</p>
-        <form id="rsConfigForm" onsubmit="event.preventDefault(); rsSalvarConfig();">
+        <form id="rsConfigForm" autocomplete="off" onsubmit="event.preventDefault(); rsSalvarConfig();">
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="salvar_config">
+            <!-- Honeypot pra Chrome jogar autofill aqui em vez de nos campos reais (off-screen) -->
+            <input type="text" name="username_fake" autocomplete="username" style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
+            <input type="password" name="password_fake" autocomplete="current-password" style="position:absolute;left:-9999px;top:-9999px;opacity:0;pointer-events:none;" tabindex="-1" aria-hidden="true">
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem;">
                 <div>
                     <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">App ID</label>
-                    <input name="meta_app_id" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_app_id']) ?>" placeholder="123456789012345">
+                    <input name="meta_app_id" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_app_id']) ?>" placeholder="123456789012345"
+                           autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                           data-form-type="other" data-lpignore="true" data-1p-ignore>
                 </div>
                 <div>
                     <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">App Secret</label>
-                    <input name="meta_app_secret" type="password" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_app_secret']) ?>" placeholder="••••••••••••••••••••">
+                    <input name="meta_app_secret" type="password" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_app_secret']) ?>" placeholder="••••••••••••••••••••"
+                           autocomplete="new-password" data-form-type="other" data-lpignore="true" data-1p-ignore
+                           readonly onfocus="this.removeAttribute('readonly')">
                 </div>
             </div>
             <div style="margin-bottom:.7rem;">
                 <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.2rem;">Verify Token (mesma string usada no Webhook)</label>
-                <input name="meta_verify_token" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_verify_token']) ?>" placeholder="Cola aqui a string que você colocou no Webhook">
+                <input name="meta_verify_token" class="form-input" style="font-size:.85rem;font-family:monospace;" value="<?= htmlspecialchars($cfg['meta_verify_token']) ?>" placeholder="Cola aqui a string que você colocou no Webhook"
+                       autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                       data-form-type="other" data-lpignore="true" data-1p-ignore>
             </div>
             <div style="margin-bottom:1rem;">
                 <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.85rem;color:#374151;">
