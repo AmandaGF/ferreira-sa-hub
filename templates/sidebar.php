@@ -88,6 +88,12 @@ $menuItems = array(
     array('label' => 'Dashboard WhatsApp', 'icon' => '📊', 'href' => url('modules/whatsapp/dashboard.php'), 'id' => 'whatsapp_dashboard', 'roles' => array('admin','gestao')),
     array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/central.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
 
+    array('section' => '📲 Redes Sociais'),
+    array('label' => 'Inbox Instagram',  'icon' => '📷', 'href' => url('modules/redes_sociais/inbox_instagram.php'),   'id' => 'redes_sociais_instagram', 'roles' => $all),
+    array('label' => 'Inbox Facebook',   'icon' => '📘', 'href' => url('modules/redes_sociais/inbox_facebook.php'),    'id' => 'redes_sociais_facebook',  'roles' => $all),
+    array('label' => 'Comentários FB',   'icon' => '💬', 'href' => url('modules/redes_sociais/comentarios_facebook.php'), 'id' => 'redes_sociais_comentarios', 'roles' => $all),
+    array('label' => 'Configuração',     'icon' => '⚙️', 'href' => url('modules/redes_sociais/setup.php'), 'id' => 'redes_sociais_config', 'roles' => array('admin','gestao')),
+
     array('section' => 'Atendimento'),
     array('label' => 'Helpdesk',        'icon' => '🎫', 'href' => url('modules/helpdesk/'),        'id' => 'helpdesk',        'roles' => $all, 'badge' => $_helpdeskAbertos, 'badgeCor' => '#f59e0b'),
 

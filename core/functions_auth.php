@@ -71,6 +71,14 @@ function _permission_defaults()
         'whatsapp_dashboard'  => array('admin','gestao'),
         'whatsapp_templates'  => array('admin','gestao'),
         'whatsapp_config'     => array('admin','gestao'),
+        // Redes Sociais (Frente A - Amanda 04/06/2026): Inbox IG + Inbox FB +
+        // Comentarios FB. Acesso default igual ao WhatsApp - todos exceto
+        // configuracoes (admin/gestao).
+        'redes_sociais'           => $todos,
+        'redes_sociais_instagram' => $todos,
+        'redes_sociais_facebook'  => $todos,
+        'redes_sociais_comentarios' => $todos,
+        'redes_sociais_config'    => array('admin','gestao'),
         // Módulos adicionais — adicionados aqui pra que o sidebar filtre via
         // can_access (permite override individual em user_permissions).
         // Comportamento default mantido (quem tinha acesso continua tendo).
