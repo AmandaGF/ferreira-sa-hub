@@ -14,7 +14,7 @@ $_cdCsrf = generate_csrf_token();
 $_cdCsrfName = CSRF_TOKEN_NAME;
 ?>
 
-<div id="cdOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:998;" onclick="cdFechar()"></div>
+<div id="cdOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:998;"></div>
 <div id="cdPanel" style="position:fixed;top:0;right:-520px;width:510px;max-width:95vw;height:100vh;background:#fff;z-index:999;box-shadow:-8px 0 30px rgba(0,0,0,.15);transition:right .3s;overflow:hidden;flex-direction:column;display:none;">
   <div id="cdHead" style="background:linear-gradient(135deg,#052228,#0d3640);color:#fff;padding:1rem 1.25rem;flex-shrink:0;">
     <div style="display:flex;justify-content:space-between;"><div><div id="cdNome" style="font-size:1.05rem;font-weight:800;"></div><div id="cdMeta" style="font-size:.75rem;color:rgba(255,255,255,.6);margin-top:.2rem;"></div></div><button onclick="cdFechar()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;">X</button></div>
@@ -510,6 +510,43 @@ document.addEventListener('click', function(e) {
         return;
     }
 }, true);
+
+// Handler INTELIGENTE do overlay (Amanda 04/06/2026):
+// Antes era onclick="cdFechar()" inline - fechava SEMPRE. Bug: ao clicar
+// em outro card com drawer aberto, o overlay cobria o card e fechava o
+// drawer (parecendo que "so abre o primeiro").
+// Agora: detecta se ha card abaixo do ponto do click. Se sim, ABRE esse
+// card (troca de card no drawer aberto). Se nao, fecha o drawer normal.
+document.getElementById('cdOverlay').addEventListener('click', function(e) {
+    var ov = this;
+    // Esconde overlay temporariamente pra elementFromPoint achar o que esta abaixo
+    var prevPE = ov.style.pointerEvents;
+    ov.style.pointerEvents = 'none';
+    var elBaixo = document.elementFromPoint(e.clientX, e.clientY);
+    ov.style.pointerEvents = prevPE;
+    if (!elBaixo) { cdFechar(); return; }
+    // Verifica se eh card de operacional, lead ou prev
+    var op = elBaixo.closest && elBaixo.closest('.op-card[data-case-id]');
+    if (op && !elBaixo.closest('select,form,.op-card-move,a,button')) {
+        console.log('[CardDrawer] click no overlay sobre op-card', op.getAttribute('data-case-id'));
+        cdAbrir('case_id=' + op.getAttribute('data-case-id'));
+        return;
+    }
+    var lc = elBaixo.closest && elBaixo.closest('.lead-card[data-lead-id]');
+    if (lc && !elBaixo.closest('.lead-actions,select,form,a')) {
+        console.log('[CardDrawer] click no overlay sobre lead-card', lc.getAttribute('data-lead-id'));
+        cdAbrir('lead_id=' + lc.getAttribute('data-lead-id'));
+        return;
+    }
+    var pv = elBaixo.closest && elBaixo.closest('.pv-card[data-case-id]');
+    if (pv && !elBaixo.closest('select,form,.pv-card-move,a,button')) {
+        console.log('[CardDrawer] click no overlay sobre pv-card', pv.getAttribute('data-case-id'));
+        cdAbrir('case_id=' + pv.getAttribute('data-case-id'));
+        return;
+    }
+    // Click em area vazia -> fecha drawer
+    cdFechar();
+});
 
 console.log('[CardDrawer] OK');
 </script>
