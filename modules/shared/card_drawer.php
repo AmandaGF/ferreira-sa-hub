@@ -48,25 +48,47 @@ var _cdActUrl = '<?php echo $_cdActUrl; ?>';
 var _cdOpApi = '<?php echo $_cdOpApiUrl; ?>';
 var _cdCsrf = '<?php echo $_cdCsrfName; ?>=<?php echo $_cdCsrf; ?>';
 
+// Token monotonico pra detectar XHRs em out-of-order (race condition):
+// se um XHR antigo chega DEPOIS do novo, ignora o antigo. Senao o drawer
+// 'desfaz' a renderizacao boa por uma antiga (Amanda 04/06/2026).
+var _cdToken = 0;
+
 function cdAbrir(params) {
     console.log('[CardDrawer] Abrindo:', params);
+    var meuToken = ++_cdToken;
     document.getElementById('cdOverlay').style.display = 'block';
     var p = document.getElementById('cdPanel');
     p.style.display = 'flex';
     setTimeout(function(){ p.style.right = '0'; }, 10);
-    document.getElementById('cdLoading').style.display = 'block';
+    // LIMPA cabecalho + tabs (antes nao limpava - bug Amanda 04/06: dados
+    // antigos persistiam ate XHR retornar, dando impressao 'nao trocou').
+    _cd = null;
+    _cdTab = 'geral';
+    document.getElementById('cdNome').textContent = 'Carregando...';
+    document.getElementById('cdMeta').textContent = '';
+    document.getElementById('cdBadges').innerHTML = '';
+    document.getElementById('cdBtns').innerHTML = '';
+    document.getElementById('cdTabs').innerHTML = '';
     document.getElementById('cdBody').innerHTML = '<div id="cdLoading" style="text-align:center;padding:3rem;color:#94a3b8;">Carregando...</div>';
 
     var xhr = new XMLHttpRequest();
-    xhr.open('GET', _cdApiUrl + '?' + params);
+    // Cache-buster pra browser/proxy nao reusar resposta antiga
+    var sep = params.indexOf('?') >= 0 ? '&' : '&';
+    xhr.open('GET', _cdApiUrl + '?' + params + '&_t=' + Date.now());
+    xhr.setRequestHeader('Cache-Control', 'no-cache');
     xhr.onload = function() {
+        // Se ja houve outro cdAbrir depois desse XHR, ignora a resposta antiga
+        if (meuToken !== _cdToken) { console.log('[CardDrawer] XHR obsoleto ignorado', meuToken, 'vs', _cdToken); return; }
         try {
             _cd = JSON.parse(xhr.responseText);
-            if (_cd.error) { document.getElementById('cdLoading').textContent = _cd.error; return; }
+            if (_cd.error) { document.getElementById('cdBody').innerHTML = '<div style="padding:2rem;color:#dc2626;text-align:center;">' + _cd.error + '</div>'; return; }
             cdRender();
-        } catch(e) { document.getElementById('cdLoading').textContent = 'Erro: ' + e.message; console.error(e); }
+        } catch(e) { document.getElementById('cdBody').innerHTML = '<div style="padding:2rem;color:#dc2626;text-align:center;">Erro: ' + e.message + '</div>'; console.error(e); }
     };
-    xhr.onerror = function() { document.getElementById('cdLoading').textContent = 'Erro de rede'; };
+    xhr.onerror = function() {
+        if (meuToken !== _cdToken) return;
+        document.getElementById('cdBody').innerHTML = '<div style="padding:2rem;color:#dc2626;text-align:center;">Erro de rede</div>';
+    };
     xhr.send();
 }
 
