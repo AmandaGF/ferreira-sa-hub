@@ -1285,7 +1285,8 @@ if ($action === 'salvar_drive') {
     $msg = $msg->fetch();
     if (!$msg) { echo json_encode(array('error' => 'Mensagem nao encontrada')); exit; }
     if (!$msg['arquivo_url']) { echo json_encode(array('error' => 'Mensagem sem arquivo')); exit; }
-    if ($msg['arquivo_salvo_drive']) { echo json_encode(array('error' => 'Arquivo ja salvo no Drive')); exit; }
+    // Amanda 07/06/2026: removida a trava de "ja salvo" — mesmo arquivo pode ser
+    // salvo varias vezes (case A + case B, ou tipo errado/certo, etc).
 
     $case = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ? AND client_id = ?");
     $case->execute(array($caseId, $msg['client_id']));

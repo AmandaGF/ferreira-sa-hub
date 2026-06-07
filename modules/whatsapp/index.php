@@ -1083,13 +1083,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
                 if (+m.enviado_por_bot) html += '<div class="wa-msg-tag" style="color:#7c3aed;">🤖 BOT</div>';
                 else if (m.direcao === 'enviada' && m.enviado_por_name && mostrarNomeAtendente) html += '<div class="wa-msg-tag" style="color:#6b7280;">' + escapeHtml(m.enviado_por_name) + '</div>';
-                // Botão "Salvar no Drive" pra arquivos RECEBIDOS (tem arquivo_url e não foi salvo ainda)
+                // Botão "Salvar no Drive" pra arquivos RECEBIDOS (tem arquivo_url)
+                // Amanda 07/06/2026: mesmo arquivo pode ser salvo varias vezes (case A + case B,
+                // ou tipo errado/certo). Botao "Salvar novamente" sempre aparece.
                 if (m.direcao === 'recebida' && m.arquivo_url && m.tipo !== 'texto') {
+                    var _nomeArq = m.arquivo_nome || '';
                     if (+m.arquivo_salvo_drive) {
-                        html += '<div style="font-size:.68rem;color:#22c55e;font-weight:700;margin-bottom:3px;">✅ Salvo no Drive</div>';
+                        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">';
+                        html += '<span style="font-size:.68rem;color:#22c55e;font-weight:700;">✅ Salvo no Drive</span>';
+                        html += '<button onclick="waSalvarDrive('+m.id+')" data-nome="'+escapeHtml(_nomeArq)+'" style="background:#fff;color:#4285f4;border:1px solid #4285f4;padding:2px 6px;border-radius:4px;font-size:.65rem;cursor:pointer;">📁 Salvar novamente</button>';
+                        html += '</div>';
                     } else {
-                        // data-nome serve de sugestão no prompt de renomeação (waConfirmarDrive)
-                        var _nomeArq = m.arquivo_nome || '';
                         html += '<button onclick="waSalvarDrive('+m.id+')" data-nome="'+escapeHtml(_nomeArq)+'" style="background:#4285f4;color:#fff;border:none;padding:3px 8px;border-radius:5px;font-size:.7rem;cursor:pointer;margin-bottom:5px;display:block;">📁 Salvar no Drive</button>';
                     }
                 }
