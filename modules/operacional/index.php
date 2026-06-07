@@ -30,6 +30,7 @@ $filterEsfriando = !empty($_GET['esfriando']) ? 1 : 0;
 $columns = array(
     'aguardando_docs'        => array('label' => 'Contrato — Aguardando Docs', 'color' => '#f59e0b', 'icon' => '📄'),
     'em_elaboracao'          => array('label' => 'Pasta Apta',                  'color' => '#059669', 'icon' => '✔️'),
+    'para_execucao_ia'       => array('label' => 'Para Execução — IA',          'color' => '#7c3aed', 'icon' => '🤖', 'note' => 'Movimento automático pela IA — não mover pastas aqui de forma manual'),
     'em_andamento'           => array('label' => 'Em Execução',                 'color' => '#0ea5e9', 'icon' => '⚙️'),
     'doc_faltante'           => array('label' => 'Doc Faltante',                'color' => '#dc2626', 'icon' => '⚠️'),
     'suspenso'               => array('label' => 'Suspenso',                   'color' => '#5B2D8E', 'icon' => '⏸️'),
@@ -425,6 +426,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <span><?= $col['icon'] ?> <?= $col['label'] ?></span>
             <span class="count"><?= count($byStatus[$colKey]) ?></span>
         </div>
+        <?php if (!empty($col['note'])): ?>
+            <div style="background:#f3e8ff;border-left:3px solid <?= $col['color'] ?>;color:#5b21b6;font-size:.68rem;padding:.45rem .6rem;line-height:1.35;font-weight:600;">⚠️ <?= e($col['note']) ?></div>
+        <?php endif; ?>
         <?php if ($colKey === 'para_arquivar' && (has_min_role('gestao') || has_min_role('admin'))): ?>
             <button type="button" onclick="arquivarTodosParaArquivar()" style="margin:.4rem .5rem;padding:.45rem .6rem;background:#dc2626;color:#fff;border:none;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;width:calc(100% - 1rem);">📦 Arquivar TODOS desta coluna</button>
         <?php endif; ?>
