@@ -1265,7 +1265,7 @@ if ($action === 'casos_do_cliente') {
 }
 
 // ── SALVAR ARQUIVO NO DRIVE ──────────────────────────────
-// Amanda 07/06/2026: reescrita pra: (1) subpasta "00 - PARA DISTRIBUIR" dentro
+// Amanda 07/06/2026: reescrita pra: (1) subpasta "01 - PARA DISTRIBUIR" dentro
 // do caso; (2) select de tipo de documento com auto-numeracao (renda_1, _2, _3);
 // (3) conversao JPG/PNG/WEBP -> PDF antes de subir; (4) audio/video/PDF sobem
 // como estao.
@@ -1377,8 +1377,8 @@ if ($action === 'salvar_drive') {
             $extFinal = $extOriginal ?: 'bin';
         }
 
-        // Cria/pega subpasta "00 - PARA DISTRIBUIR"
-        $subResult = drive_get_or_create_subfolder($caseRow['drive_folder_url'], '00 - PARA DISTRIBUIR');
+        // Cria/pega subpasta "01 - PARA DISTRIBUIR"
+        $subResult = drive_get_or_create_subfolder($caseRow['drive_folder_url'], '01 - PARA DISTRIBUIR');
         if (empty($subResult['success'])) {
             echo json_encode(array('error' => 'Falha ao criar/localizar subpasta: ' . ($subResult['error'] ?? '?')));
             exit;
@@ -1423,7 +1423,7 @@ if ($action === 'salvar_drive') {
             'ok'         => true,
             'fileUrl'    => $r['fileUrl'] ?? null,
             'nome_final' => $nomeFinal,
-            'subpasta'   => '00 - PARA DISTRIBUIR',
+            'subpasta'   => '01 - PARA DISTRIBUIR',
             'convertido' => $vaiConverter,
         ));
         exit;

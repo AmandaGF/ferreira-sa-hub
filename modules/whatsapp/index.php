@@ -2378,7 +2378,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
         var html = '<div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:560px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">';
         html += '<h3 style="margin:0 0 .4rem;color:#0f2140;">📁 Salvar no Drive — escolha o tipo</h3>';
-        html += '<p style="font-size:.78rem;color:#6b7280;margin:0 0 .8rem;">Vai pra subpasta <strong>00 - PARA DISTRIBUIR</strong> dentro da pasta do caso. O nome do arquivo será padronizado automaticamente (auto-numerado se já existir).</p>';
+        html += '<p style="font-size:.78rem;color:#6b7280;margin:0 0 .8rem;">Vai pra subpasta <strong>01 - PARA DISTRIBUIR</strong> dentro da pasta do caso. O nome do arquivo será padronizado automaticamente (auto-numerado se já existir).</p>';
         html += avisoConversao;
         html += '<label style="display:block;font-size:.78rem;color:#374151;font-weight:700;margin-bottom:.3rem;">Tipo de documento:</label>';
         html += '<select id="waDriveTipoSelect" onchange="waDriveAtualizarPreview()" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;margin-bottom:.8rem;">';
@@ -2394,7 +2394,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         html += '</div>';
         html += '<div id="waDrivePreview" style="background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;padding:.7rem;font-size:.8rem;color:#166534;margin-bottom:1rem;display:none;">';
         html += '<strong>Nome final:</strong> <span id="waDrivePreviewNome">—</span><br>';
-        html += '<strong>Caminho:</strong> Pasta do caso → 00 - PARA DISTRIBUIR/ → <span id="waDrivePreviewNome2">—</span>';
+        html += '<strong>Caminho:</strong> Pasta do caso → 01 - PARA DISTRIBUIR/ → <span id="waDrivePreviewNome2">—</span>';
         html += '</div>';
         html += '<div style="display:flex;justify-content:space-between;gap:.5rem;">';
         html += '<button onclick="document.getElementById(\'waDriveModal\').remove()" style="background:#f3f4f6;border:1px solid #d1d5db;padding:.6rem 1.2rem;border-radius:8px;cursor:pointer;font-size:.85rem;">Cancelar</button>';
