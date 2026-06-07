@@ -1265,23 +1265,28 @@ if ($action === 'casos_do_cliente') {
 }
 
 // ── SALVAR ARQUIVO NO DRIVE ──────────────────────────────
+// Amanda 07/06/2026: reescrita pra: (1) subpasta "01 - PARA DISTRIBUIR" dentro
+// do caso; (2) select de tipo de documento com auto-numeracao (renda_1, _2, _3);
+// (3) conversao JPG/PNG/WEBP -> PDF antes de subir; (4) audio/video/PDF sobem
+// como estao.
+//
+// Compatibilidade: aceita 'nome_personalizado' (legado) OU 'tipo_doc' (novo).
+// Se 'tipo_doc' enviado, usa fluxo novo (subpasta + auto-num + conversao).
 if ($action === 'salvar_drive') {
     require_once APP_ROOT . '/core/google_drive.php';
     $msgId = (int)($_POST['mensagem_id'] ?? 0);
     $caseId = (int)($_POST['case_id'] ?? 0);
-    if (!$msgId || !$caseId) { echo json_encode(array('error' => 'Parâmetros obrigatórios')); exit; }
+    if (!$msgId || !$caseId) { echo json_encode(array('error' => 'Parametros obrigatorios')); exit; }
 
-    // Buscar a mensagem
     $msg = $pdo->prepare("SELECT m.*, co.client_id FROM zapi_mensagens m
                           JOIN zapi_conversas co ON co.id = m.conversa_id
                           WHERE m.id = ?");
     $msg->execute(array($msgId));
     $msg = $msg->fetch();
-    if (!$msg) { echo json_encode(array('error' => 'Mensagem não encontrada')); exit; }
+    if (!$msg) { echo json_encode(array('error' => 'Mensagem nao encontrada')); exit; }
     if (!$msg['arquivo_url']) { echo json_encode(array('error' => 'Mensagem sem arquivo')); exit; }
-    if ($msg['arquivo_salvo_drive']) { echo json_encode(array('error' => 'Arquivo já salvo no Drive')); exit; }
+    if ($msg['arquivo_salvo_drive']) { echo json_encode(array('error' => 'Arquivo ja salvo no Drive')); exit; }
 
-    // Pegar a pasta do Drive do caso escolhido
     $case = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ? AND client_id = ?");
     $case->execute(array($caseId, $msg['client_id']));
     $caseRow = $case->fetch();
@@ -1290,24 +1295,148 @@ if ($action === 'salvar_drive') {
         exit;
     }
 
-    // Nome do arquivo:
-    // 1. Se Amanda renomeou no prompt (nome_personalizado), usa esse (sanitizado)
-    // 2. Senao, nome original do anexo do WhatsApp (arquivo_nome)
-    // 3. Senao, deriva de "whatsapp_<data>_<msgId>"
-    // Em qualquer caso, garante extensao baseada no MIME.
+    $tipoDoc = trim((string)($_POST['tipo_doc'] ?? ''));
     $nomePersonalizado = trim((string)($_POST['nome_personalizado'] ?? ''));
+
+    // ─── FLUXO NOVO: tipo_doc preenchido ──────────────────────────────
+    if ($tipoDoc !== '') {
+        require_once APP_ROOT . '/core/functions_doc_converter.php';
+
+        // Mapa de tipos -> { prefixo, forcar_numeracao }
+        // forcar_numeracao=true: sempre adiciona _N (mesmo no primeiro). Pra tipos
+        // que naturalmente tem multiplas instancias (renda, contracheque, laudos).
+        // forcar_numeracao=false: primeiro fica sem _N, segundos em diante ganham _2, _3.
+        $tiposMap = array(
+            'comprovante_residencia' => array('prefixo' => 'comprovante_residencia', 'forcar' => false),
+            'comprovante_renda'      => array('prefixo' => 'comprovante_renda',      'forcar' => true),
+            'contracheque'           => array('prefixo' => 'contracheque',           'forcar' => true),
+            'identidade_CPF'         => array('prefixo' => 'identidade_CPF',         'forcar' => false),
+            'cnh'                    => array('prefixo' => 'cnh',                    'forcar' => false),
+            'ctps'                   => array('prefixo' => 'ctps',                   'forcar' => true),
+            'cert_nascimento'        => array('prefixo' => 'cert_nascimento',        'forcar' => false),
+            'cert_casamento'         => array('prefixo' => 'cert_casamento',         'forcar' => false),
+            'cert_obito'             => array('prefixo' => 'cert_obito',             'forcar' => false),
+            'procuracao'             => array('prefixo' => 'procuracao',             'forcar' => false),
+            'processo_anterior'      => array('prefixo' => 'processo_anterior',      'forcar' => true),
+            'laudo_medico'           => array('prefixo' => 'laudo_medico',           'forcar' => true),
+            'atestado_medico'        => array('prefixo' => 'atestado_medico',        'forcar' => true),
+            'BO'                     => array('prefixo' => 'BO',                     'forcar' => true),
+            'contrato'               => array('prefixo' => 'contrato',               'forcar' => true),
+            'print'                  => array('prefixo' => 'print',                  'forcar' => true),
+            'docs_probatorios'       => array('prefixo' => 'docs_probatorios',       'forcar' => true),
+            'outro'                  => array('prefixo' => null,                     'forcar' => false), // usa nome_personalizado
+        );
+
+        if (!isset($tiposMap[$tipoDoc])) {
+            echo json_encode(array('error' => 'Tipo de documento invalido: ' . $tipoDoc));
+            exit;
+        }
+
+        $config = $tiposMap[$tipoDoc];
+        $prefixo = $config['prefixo'];
+
+        // Pra tipo "outro", o prefixo vem do nome_personalizado (sanitizado)
+        if ($tipoDoc === 'outro') {
+            if ($nomePersonalizado === '') {
+                echo json_encode(array('error' => 'Para tipo "Outro", informe um nome personalizado.'));
+                exit;
+            }
+            // Sanitiza: so letras, numeros, _ - .
+            $prefixo = preg_replace('/[^A-Za-z0-9_\.\-]/u', '_', $nomePersonalizado);
+            $prefixo = trim($prefixo, '_');
+            $prefixo = preg_replace('/_{2,}/', '_', $prefixo);
+            // Remove extensao se usuario digitou
+            $prefixo = preg_replace('/\.(pdf|jpg|jpeg|png|gif|webp|mp3|mp4|ogg|opus)$/i', '', $prefixo);
+            if ($prefixo === '') {
+                echo json_encode(array('error' => 'Nome personalizado invalido apos sanitizacao.'));
+                exit;
+            }
+            $prefixo = mb_substr($prefixo, 0, 80);
+        }
+
+        // Decide extensao + se precisa converter
+        $vaiConverter = false;
+        $extFinal = 'pdf';
+        $mimeOriginal = strtolower((string)$msg['arquivo_mime']);
+        $tipoMsg = $msg['tipo'];
+
+        if ($tipoMsg === 'imagem' || strpos($mimeOriginal, 'image/') === 0) {
+            $vaiConverter = true;
+            $extFinal = 'pdf';
+        } elseif (strpos($mimeOriginal, 'application/pdf') !== false || pathinfo((string)$msg['arquivo_nome'], PATHINFO_EXTENSION) === 'pdf') {
+            $extFinal = 'pdf';
+        } elseif ($tipoMsg === 'video' || strpos($mimeOriginal, 'video/') === 0) {
+            $extFinal = 'mp4';
+        } elseif ($tipoMsg === 'audio' || strpos($mimeOriginal, 'audio/') === 0) {
+            // Audio do WA vem em ogg/opus - salva como ogg (Amanda escolheu nao converter)
+            $extFinal = 'ogg';
+        } else {
+            // Tipo desconhecido: salva extensao original do arquivo_nome
+            $extOriginal = pathinfo((string)$msg['arquivo_nome'], PATHINFO_EXTENSION);
+            $extFinal = $extOriginal ?: 'bin';
+        }
+
+        // Cria/pega subpasta "01 - PARA DISTRIBUIR"
+        $subResult = drive_get_or_create_subfolder($caseRow['drive_folder_url'], '01 - PARA DISTRIBUIR');
+        if (empty($subResult['success'])) {
+            echo json_encode(array('error' => 'Falha ao criar/localizar subpasta: ' . ($subResult['error'] ?? '?')));
+            exit;
+        }
+        $subfolderId = $subResult['folderId'];
+
+        // Calcula nome final com auto-numeracao
+        $nomeFinal = drive_calcular_nome_disponivel($subfolderId, $prefixo, $extFinal, $config['forcar']);
+
+        // Upload: 2 caminhos diferentes dependendo se vamos converter ou nao
+        if ($vaiConverter) {
+            // Baixa imagem + converte pra PDF localmente + upload via base64
+            $conv = baixar_e_converter_imagem_para_pdf($msg['arquivo_url']);
+            if (empty($conv['success'])) {
+                echo json_encode(array('error' => 'Falha na conversao para PDF: ' . ($conv['error'] ?? '?')));
+                exit;
+            }
+            $pdfBytes = file_get_contents($conv['caminho_pdf']);
+            @unlink($conv['caminho_pdf']);
+            if (!$pdfBytes) {
+                echo json_encode(array('error' => 'Falha ao ler PDF gerado'));
+                exit;
+            }
+            $r = upload_file_to_drive_base64($subfolderId, $nomeFinal, base64_encode($pdfBytes), 'application/pdf');
+        } else {
+            // Upload direto via URL (Apps Script baixa a URL publica do WA)
+            // Precisamos passar folderId via URL forjada que a regex do upload_file_to_drive
+            // consiga parsear. Truque: monta uma URL valida do Drive com o subfolderId.
+            $fakeFolderUrl = 'https://drive.google.com/drive/folders/' . $subfolderId;
+            $r = upload_file_to_drive($fakeFolderUrl, $nomeFinal, $msg['arquivo_url'], $mimeOriginal);
+        }
+
+        if (empty($r['success'])) {
+            echo json_encode(array('error' => 'Falha no upload: ' . ($r['error'] ?? '?')));
+            exit;
+        }
+
+        $pdo->prepare("UPDATE zapi_mensagens SET arquivo_salvo_drive = 1, drive_file_id = ? WHERE id = ?")
+            ->execute(array($r['fileId'] ?? '', $msgId));
+        audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId tipo=$tipoDoc nome=$nomeFinal subpasta=$subfolderId file={$r['fileId']}");
+        echo json_encode(array(
+            'ok'         => true,
+            'fileUrl'    => $r['fileUrl'] ?? null,
+            'nome_final' => $nomeFinal,
+            'subpasta'   => '01 - PARA DISTRIBUIR',
+            'convertido' => $vaiConverter,
+        ));
+        exit;
+    }
+
+    // ─── FLUXO LEGADO: nome_personalizado (mantido pra compatibilidade) ──
     if ($nomePersonalizado !== '') {
-        // Sanitiza: remove caracteres perigosos pra Drive/filesystem
         $nomePersonalizado = preg_replace('/[\/\\\\\\x00-\\x1F<>:"|?*]/', '', $nomePersonalizado);
-        // Bloqueia path traversal
         $nomePersonalizado = str_replace(array('..', '~'), '', $nomePersonalizado);
-        // Limita tamanho
         $nomePersonalizado = mb_substr($nomePersonalizado, 0, 200);
         $nomeFinal = $nomePersonalizado;
     } else {
         $nomeFinal = $msg['arquivo_nome'] ?: ('whatsapp_' . date('Ymd_His') . '_' . $msgId);
     }
-
     if (!pathinfo($nomeFinal, PATHINFO_EXTENSION)) {
         $ext = 'bin';
         if ($msg['arquivo_mime']) {
@@ -1324,15 +1453,10 @@ if ($action === 'salvar_drive') {
         echo json_encode(array('error' => 'Falha no upload: ' . ($r['error'] ?? '?')));
         exit;
     }
-
     $pdo->prepare("UPDATE zapi_mensagens SET arquivo_salvo_drive = 1, drive_file_id = ? WHERE id = ?")
         ->execute(array($r['fileId'] ?? '', $msgId));
-    audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']} nome={$nomeFinal}");
-    echo json_encode(array(
-        'ok' => true,
-        'fileUrl' => $r['fileUrl'] ?? null,
-        'nome_final' => $nomeFinal,
-    ));
+    audit_log('zapi_salvar_drive', 'zapi_mensagens', $msgId, "case=$caseId file={$r['fileId']} nome=$nomeFinal (legado)");
+    echo json_encode(array('ok' => true, 'fileUrl' => $r['fileUrl'] ?? null, 'nome_final' => $nomeFinal));
     exit;
 }
 

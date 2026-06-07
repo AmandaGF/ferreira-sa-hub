@@ -2320,41 +2320,166 @@ require_once APP_ROOT . '/templates/layout_start.php';
             modal.innerHTML = html;
         });
     };
+    // Tipos de documento (17 + Outro). Mapa de chave -> { label legivel pro select, padrao_arquivo (info pro usuario) }
+    // Amanda 07/06/2026: padronizacao de nomes pra Drive.
+    window.waTiposDocumento = [
+        { key: 'comprovante_residencia', label: 'Comprovante de Residência',     pattern: 'comprovante_residencia.pdf' },
+        { key: 'comprovante_renda',      label: 'Comprovante de Renda',          pattern: 'comprovante_renda_N.pdf'    },
+        { key: 'contracheque',           label: 'Contracheque',                  pattern: 'contracheque_N.pdf'         },
+        { key: 'identidade_CPF',         label: 'Identidade / CPF',              pattern: 'identidade_CPF.pdf'         },
+        { key: 'cnh',                    label: 'CNH',                           pattern: 'cnh.pdf'                    },
+        { key: 'ctps',                   label: 'CTPS (Carteira de Trabalho)',   pattern: 'ctps_N.pdf'                 },
+        { key: 'cert_nascimento',        label: 'Certidão de Nascimento',        pattern: 'cert_nascimento.pdf'        },
+        { key: 'cert_casamento',         label: 'Certidão de Casamento',         pattern: 'cert_casamento.pdf'         },
+        { key: 'cert_obito',             label: 'Certidão de Óbito',             pattern: 'cert_obito.pdf'             },
+        { key: 'procuracao',             label: 'Procuração',                    pattern: 'procuracao.pdf'             },
+        { key: 'processo_anterior',      label: 'Documentos de Processo Anterior', pattern: 'processo_anterior_N.pdf'  },
+        { key: 'laudo_medico',           label: 'Laudo Médico',                  pattern: 'laudo_medico_N.pdf'         },
+        { key: 'atestado_medico',        label: 'Receita / Atestado Médico',     pattern: 'atestado_medico_N.pdf'      },
+        { key: 'BO',                     label: 'Boletim de Ocorrência',         pattern: 'BO_N.pdf'                   },
+        { key: 'contrato',               label: 'Contrato',                      pattern: 'contrato_N.pdf'             },
+        { key: 'print',                  label: 'Foto / Print de Conversa',      pattern: 'print_N.pdf'                },
+        { key: 'docs_probatorios',       label: 'Outros Documentos Probatórios', pattern: 'docs_probatorios_N.pdf'     },
+        { key: 'outro',                  label: 'Outro (digitar nome)',          pattern: '(você digita)'              }
+    ];
+
     window.waConfirmarDrive = function(msgId, caseId) {
-        // Antes de subir, pedir confirmação/edição do nome do arquivo. Backend
-        // usa o que vier (sanitizado) ou cai no original se vazio.
+        // Substitui o prompt() simples por modal completo com select de tipo + previa
+        // do nome final. Modal substitui o conteudo do mesmo waDriveModal que ja
+        // foi montado pelo waSalvarDrive (com lista de cases).
         var modal = document.getElementById('waDriveModal');
-        // Tenta achar o nome original do anexo na bolha (data-nome no botão).
-        // Se não achou, deixa em branco — backend usa o original do banco.
-        var sugestao = '';
+        if (!modal) return;
+
+        // Detecta o tipo da midia pra mostrar info ao usuario sobre conversao
+        var tipoMidia = '';
         try {
             var btn = document.querySelector('button[onclick*="waSalvarDrive(' + msgId + ')"]');
-            if (btn && btn.dataset && btn.dataset.nome) sugestao = btn.dataset.nome;
+            if (btn) {
+                var bolha = btn.closest('.wa-msg, .wa-bubble, [data-msg-id]');
+                if (bolha) {
+                    if (bolha.querySelector('img')) tipoMidia = 'imagem';
+                    else if (bolha.querySelector('video')) tipoMidia = 'video';
+                    else if (bolha.querySelector('audio')) tipoMidia = 'audio';
+                    else tipoMidia = 'documento';
+                }
+            }
         } catch(e){}
-        var nome = prompt(
-            'Renomear antes de salvar no Drive?\n\n' +
-            'Use só letras, números, espaços e _ - . ( )\n' +
-            '(A extensão é preservada automaticamente se você não digitar uma)\n\n' +
-            'Deixe em branco pra manter o nome original do arquivo.',
-            sugestao
-        );
-        if (nome === null) { // cancelou
-            if (modal) modal.remove();
+
+        var avisoConversao = '';
+        if (tipoMidia === 'imagem') {
+            avisoConversao = '<div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:.5rem .7rem;font-size:.72rem;color:#92400e;margin-bottom:.8rem;">📄 Esta imagem será <strong>convertida pra PDF</strong> antes de salvar (padrão do escritório).</div>';
+        } else if (tipoMidia === 'audio') {
+            avisoConversao = '<div style="background:#e0f2fe;border:1px solid #38bdf8;border-radius:6px;padding:.5rem .7rem;font-size:.72rem;color:#075985;margin-bottom:.8rem;">🎵 Áudio salvo como <strong>.ogg</strong> (formato original do WhatsApp — abre no Drive).</div>';
+        }
+
+        var html = '<div style="background:#fff;border-radius:14px;padding:1.5rem;max-width:560px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;">';
+        html += '<h3 style="margin:0 0 .4rem;color:#0f2140;">📁 Salvar no Drive — escolha o tipo</h3>';
+        html += '<p style="font-size:.78rem;color:#6b7280;margin:0 0 .8rem;">Vai pra subpasta <strong>01 - PARA DISTRIBUIR</strong> dentro da pasta do caso. O nome do arquivo será padronizado automaticamente (auto-numerado se já existir).</p>';
+        html += avisoConversao;
+        html += '<label style="display:block;font-size:.78rem;color:#374151;font-weight:700;margin-bottom:.3rem;">Tipo de documento:</label>';
+        html += '<select id="waDriveTipoSelect" onchange="waDriveAtualizarPreview()" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;margin-bottom:.8rem;">';
+        html += '<option value="">— Selecione —</option>';
+        waTiposDocumento.forEach(function(t) {
+            html += '<option value="'+t.key+'">'+escapeHtml(t.label)+'</option>';
+        });
+        html += '</select>';
+        html += '<div id="waDriveNomeCustomWrap" style="display:none;margin-bottom:.8rem;">';
+        html += '<label style="display:block;font-size:.78rem;color:#374151;font-weight:700;margin-bottom:.3rem;">Nome personalizado (sem extensão):</label>';
+        html += '<input type="text" id="waDriveNomeCustomInput" placeholder="ex: declaracao_uniao_estavel" oninput="waDriveAtualizarPreview()" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;">';
+        html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">Use só letras, números, _ e -. Acentos e espaços viram _.</div>';
+        html += '</div>';
+        html += '<div id="waDrivePreview" style="background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;padding:.7rem;font-size:.8rem;color:#166534;margin-bottom:1rem;display:none;">';
+        html += '<strong>Nome final:</strong> <span id="waDrivePreviewNome">—</span><br>';
+        html += '<strong>Caminho:</strong> Pasta do caso → 01 - PARA DISTRIBUIR/ → <span id="waDrivePreviewNome2">—</span>';
+        html += '</div>';
+        html += '<div style="display:flex;justify-content:space-between;gap:.5rem;">';
+        html += '<button onclick="document.getElementById(\'waDriveModal\').remove()" style="background:#f3f4f6;border:1px solid #d1d5db;padding:.6rem 1.2rem;border-radius:8px;cursor:pointer;font-size:.85rem;">Cancelar</button>';
+        html += '<button id="waDriveBtnSalvar" disabled onclick="waExecutarSalvarDrive('+msgId+','+caseId+',\''+tipoMidia+'\')" style="background:#4285f4;color:#fff;border:none;padding:.6rem 1.2rem;border-radius:8px;cursor:not-allowed;font-size:.85rem;font-weight:700;opacity:.5;">📁 Salvar no Drive</button>';
+        html += '</div>';
+        html += '</div>';
+        modal.innerHTML = html;
+    };
+
+    window.waDriveAtualizarPreview = function() {
+        var sel = document.getElementById('waDriveTipoSelect');
+        var preview = document.getElementById('waDrivePreview');
+        var previewNome1 = document.getElementById('waDrivePreviewNome');
+        var previewNome2 = document.getElementById('waDrivePreviewNome2');
+        var btn = document.getElementById('waDriveBtnSalvar');
+        var wrapCustom = document.getElementById('waDriveNomeCustomWrap');
+        var inputCustom = document.getElementById('waDriveNomeCustomInput');
+        if (!sel || !preview || !btn) return;
+
+        var tipo = sel.value;
+        if (!tipo) {
+            preview.style.display = 'none';
+            wrapCustom.style.display = 'none';
+            btn.disabled = true;
+            btn.style.cursor = 'not-allowed';
+            btn.style.opacity = '.5';
             return;
         }
 
-        if (modal) modal.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;"><strong>Salvando no Drive...</strong></div>';
+        if (tipo === 'outro') {
+            wrapCustom.style.display = 'block';
+            var nomeCustom = (inputCustom.value || '').trim();
+            if (!nomeCustom) {
+                preview.style.display = 'none';
+                btn.disabled = true;
+                btn.style.cursor = 'not-allowed';
+                btn.style.opacity = '.5';
+                return;
+            }
+            // Sanitiza preview client-side (espelha backend)
+            var sanitizado = nomeCustom.replace(/[^A-Za-z0-9_\.\-]/gu, '_').replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '');
+            sanitizado = sanitizado.replace(/\.(pdf|jpg|jpeg|png|gif|webp|mp3|mp4|ogg|opus)$/i, '');
+            previewNome1.textContent = sanitizado + '.pdf (sufixo _N se já existir)';
+            previewNome2.textContent = sanitizado + '.pdf';
+        } else {
+            wrapCustom.style.display = 'none';
+            var t = waTiposDocumento.find(function(x){ return x.key === tipo; });
+            if (t) {
+                previewNome1.textContent = t.pattern;
+                previewNome2.textContent = t.pattern;
+            }
+        }
+        preview.style.display = 'block';
+        btn.disabled = false;
+        btn.style.cursor = 'pointer';
+        btn.style.opacity = '1';
+    };
+
+    window.waExecutarSalvarDrive = function(msgId, caseId, tipoMidia) {
+        var sel = document.getElementById('waDriveTipoSelect');
+        var inputCustom = document.getElementById('waDriveNomeCustomInput');
+        if (!sel || !sel.value) { alert('Escolha um tipo de documento.'); return; }
+        var tipo = sel.value;
+        var nomeCustom = (inputCustom && inputCustom.value) ? inputCustom.value.trim() : '';
+        if (tipo === 'outro' && !nomeCustom) { alert('Digite o nome personalizado.'); return; }
+
+        var modal = document.getElementById('waDriveModal');
+        modal.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;text-align:center;"><strong>📤 Salvando no Drive...</strong><div style="font-size:.78rem;color:#6b7280;margin-top:.5rem;">'+(tipoMidia==='imagem' ? 'Convertendo imagem pra PDF...' : 'Enviando arquivo...')+'</div></div>';
+
         var fd = new FormData();
         fd.append('action', 'salvar_drive');
         fd.append('mensagem_id', msgId);
         fd.append('case_id', caseId);
-        fd.append('nome_personalizado', nome.trim());
+        fd.append('tipo_doc', tipo);
+        if (tipo === 'outro') fd.append('nome_personalizado', nomeCustom);
         fd.append('csrf_token', csrf);
+
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){
             if (modal) modal.remove();
             if (d.error) { alert('⚠️ Falha: ' + d.error); return; }
-            alert('✅ Arquivo salvo no Drive como: ' + (d.nome_final || '(nome original)') + (d.fileUrl ? '\n\nURL: ' + d.fileUrl : ''));
+            var msg = '✅ Salvo no Drive!\n\nNome: ' + (d.nome_final || '?');
+            if (d.subpasta) msg += '\nSubpasta: ' + d.subpasta;
+            if (d.convertido) msg += '\n📄 Convertido pra PDF';
+            if (d.fileUrl) msg += '\n\nAbrir: ' + d.fileUrl;
+            alert(msg);
             window.waAbrir(convAtiva);
+        }).catch(function(e){
+            if (modal) modal.remove();
+            alert('⚠️ Erro de rede: ' + e.message);
         });
     };
 
