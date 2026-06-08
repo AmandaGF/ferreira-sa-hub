@@ -327,7 +327,7 @@ echo voltar_ao_processo_html();
 <div id="modalNovaCob" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:450px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
     <h3 style="font-size:1rem;margin-bottom:1rem;">💰 Nova Cobrança — <?= e($client['name']) ?></h3>
-    <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>">
+    <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>" onsubmit="return travarSubmitCob2(this);">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="criar_cobranca">
         <input type="hidden" name="client_id" value="<?= $clientId ?>">
@@ -443,9 +443,35 @@ echo voltar_ao_processo_html();
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;">Descrição</label><input type="text" name="descricao" class="form-input" value="<?= e($preFill['descricao']) ?>"></div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalNovaCob').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
-            <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Criar</button>
+            <button type="submit" id="btnCriarCobranca2" class="btn btn-primary btn-sm" style="background:#B87333;">Criar</button>
         </div>
     </form>
+    <script>
+    // Amanda 08/06/2026: trava contra double-submit (clicar 2x criava 2 cobrancas no Asaas)
+    var _cobSubmitting2 = false;
+    function travarSubmitCob2(form) {
+        if (_cobSubmitting2) return false;
+        _cobSubmitting2 = true;
+        var btn = form.querySelector('button[type=submit]');
+        if (btn) {
+            btn.disabled = true;
+            btn.dataset.origText = btn.textContent;
+            btn.textContent = '⏳ Criando no Asaas...';
+            btn.style.opacity = '.6';
+            btn.style.cursor = 'wait';
+        }
+        setTimeout(function(){
+            if (btn && btn.disabled) {
+                btn.disabled = false;
+                btn.textContent = btn.dataset.origText || 'Criar';
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+                _cobSubmitting2 = false;
+            }
+        }, 30000);
+        return true;
+    }
+    </script>
 </div></div>
 
 <script>

@@ -316,7 +316,7 @@ echo voltar_ao_processo_html();
 <div id="modalCobranca" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:500px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;">
     <h3 style="font-size:1rem;margin-bottom:1rem;color:var(--petrol-900);">💰 Nova Cobrança</h3>
-    <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>">
+    <form method="POST" action="<?= module_url('financeiro', 'api.php') ?>" onsubmit="return travarSubmitCob(this);">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="criar_cobranca">
 
@@ -545,9 +545,36 @@ echo voltar_ao_processo_html();
 
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalCobranca').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
-            <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Criar Cobrança</button>
+            <button type="submit" id="btnCriarCobranca1" class="btn btn-primary btn-sm" style="background:#B87333;">Criar Cobrança</button>
         </div>
     </form>
+    <script>
+    // Amanda 08/06/2026: trava contra double-submit (clicar 2x criava 2 cobrancas no Asaas)
+    var _cobSubmitting = false;
+    function travarSubmitCob(form) {
+        if (_cobSubmitting) return false;
+        _cobSubmitting = true;
+        var btn = form.querySelector('button[type=submit]');
+        if (btn) {
+            btn.disabled = true;
+            btn.dataset.origText = btn.textContent;
+            btn.textContent = '⏳ Criando no Asaas...';
+            btn.style.opacity = '.6';
+            btn.style.cursor = 'wait';
+        }
+        // Safety net: se algo falhar em 30s e a tela nao redirecionar, reabilita pra retry
+        setTimeout(function(){
+            if (btn && btn.disabled) {
+                btn.disabled = false;
+                btn.textContent = btn.dataset.origText || 'Criar Cobrança';
+                btn.style.opacity = '';
+                btn.style.cursor = '';
+                _cobSubmitting = false;
+            }
+        }, 30000);
+        return true;
+    }
+    </script>
 </div></div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
