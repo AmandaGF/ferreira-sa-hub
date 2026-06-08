@@ -25,6 +25,80 @@ function _api_fail($msg, $code = 400) {
 if (!is_logged_in()) _api_fail('Sua sessão expirou. Recarregue a página (F5).', 401);
 if (!can_view_pipeline()) _api_fail('Sem permissão.', 403);
 
+// Amanda 08/06/2026: export CSV de leads pendentes de cadastro no Asaas.
+// Aceito como GET (window.location download). Respeita mesmos filtros da
+// tabela vigente (q, mes, resp). Permissao: gestao+ (mesma da Tabela).
+if (($_GET['action'] ?? '') === 'export_asaas_csv' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    if (!has_min_role('gestao')) { http_response_code(403); exit('Sem permissão.'); }
+    $pdo = db();
+    $busca = trim($_GET['q'] ?? '');
+    $mes   = $_GET['mes'] ?? '';
+    $resp  = (int)($_GET['resp'] ?? 0);
+
+    // Mesmo filtro da Tabela (planilha de contratos fechados) + filtro de pendentes
+    $where = "pl.converted_at IS NOT NULL AND pl.stage NOT IN ('arquivado')";
+    $where .= " AND (pl.cadastro_asaas IS NULL OR pl.cadastro_asaas = '' OR pl.cadastro_asaas = 'Pendente')";
+    $params = array();
+    if ($busca !== '') {
+        $where .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";
+        $s = "%$busca%";
+        $params[] = $s; $params[] = $s; $params[] = $s;
+    }
+    if ($mes !== '' && preg_match('/^\d{4}-\d{2}$/', $mes)) {
+        $where .= " AND DATE_FORMAT(pl.converted_at, '%Y-%m') = ?";
+        $params[] = $mes;
+    }
+    if ($resp > 0) {
+        $where .= " AND pl.assigned_to = ?";
+        $params[] = $resp;
+    }
+
+    $stmt = $pdo->prepare(
+        "SELECT pl.name, pl.phone, pl.email AS lead_email,
+                pl.case_type, pl.honorarios_cents, pl.num_parcelas,
+                pl.vencimento_parcela, pl.forma_pagamento, pl.valor_acao,
+                c.cpf, c.email AS client_email, c.endereco, c.cidade, c.uf
+         FROM pipeline_leads pl
+         LEFT JOIN clients c ON c.id = pl.client_id
+         WHERE $where
+         ORDER BY pl.converted_at DESC"
+    );
+    $stmt->execute($params);
+
+    $nomeArq = 'leads_pendentes_asaas_' . date('Ymd_His') . '.csv';
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $nomeArq . '"');
+    $out = fopen('php://output', 'w');
+    fputs($out, "\xEF\xBB\xBF"); // BOM utf-8 (abre certo no Excel BR)
+    fputcsv($out, array('Nome','CPF','Telefone','Email','Tipo de Ação','Valor Honorários (R$)','Vlr Parcela (R$)','Nº Parcelas','1º Vencto','Forma Pgto','Valor da Ação','Endereço','Cidade','UF'), ';');
+    while ($r = $stmt->fetch()) {
+        $totalCents = (int)($r['honorarios_cents'] ?? 0);
+        $parc = max(1, (int)($r['num_parcelas'] ?? 1));
+        $valorH  = $totalCents > 0 ? number_format($totalCents / 100, 2, ',', '.') : '';
+        $vlrParc = $totalCents > 0 ? number_format(($totalCents / 100) / $parc, 2, ',', '.') : '';
+        $email = $r['lead_email'] ?: ($r['client_email'] ?? '');
+        fputcsv($out, array(
+            $r['name'] ?? '',
+            $r['cpf'] ?? '',
+            $r['phone'] ?? '',
+            $email,
+            $r['case_type'] ?? '',
+            $valorH,
+            $vlrParc,
+            $parc,
+            $r['vencimento_parcela'] ?? '',
+            $r['forma_pagamento'] ?? '',
+            $r['valor_acao'] ?? '',
+            $r['endereco'] ?? '',
+            $r['cidade'] ?? '',
+            $r['uf'] ?? '',
+        ), ';');
+    }
+    fclose($out);
+    audit_log('export_asaas_csv', 'pipeline', 0, "filtros mes=$mes resp=$resp q=$busca user=" . current_user_id());
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') { redirect(module_url('pipeline')); }
 if (!validate_csrf()) _api_fail('Token CSRF inválido — sessão pode ter expirado. Recarregue a página (F5).', 419);
 

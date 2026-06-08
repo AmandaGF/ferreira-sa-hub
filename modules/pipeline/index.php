@@ -600,6 +600,12 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
         <?php if ($totalPages > 1): ?><span style="color:#0f7c66;font-weight:700;">(pág <?= $tabelaPage ?>/<?= $totalPages ?>)</span><?php endif; ?>
         <?= $filterMonth ? ' em ' . e(($mesesBR[substr($filterMonth,5,2)] ?? '') . '/' . substr($filterMonth,0,4)) : '' ?>
     </span>
+    <label style="display:inline-flex;align-items:center;gap:.3rem;font-size:.72rem;cursor:pointer;padding:3px 8px;border:1px solid #fcd34d;background:#fef3c7;border-radius:6px;font-weight:600;color:#92400e;">
+        <input type="checkbox" id="filtroPendentesAsaas" onchange="filtrarPendentesAsaas(this.checked)" style="margin:0;">
+        <span>🎯 Só pendentes Asaas</span>
+        <span id="contadorPendentesAsaas" style="font-size:.65rem;opacity:.7;"></span>
+    </label>
+    <button onclick="exportarAsaasCSV()" class="tbl-csv" title="Exporta CSV com leads pendentes de cadastro no Asaas (nome, CPF, telefone, valor, parcelas, etc)" style="background:#B87333;">📥 Export Asaas</button>
     <button onclick="exportTableCSV('pipelineTableBody','comercial')" class="tbl-csv">Exportar CSV</button>
 </div>
 <?php if ($respStats && $respStats['total_contratos'] > 0):
@@ -657,6 +663,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <th style="width:160px;"><?= $_sortLink('pgto', 'Pgto') ?></th>
     <th style="width:110px;"><?= $_sortLink('responsavel', 'Responsável') ?></th>
     <th style="width:120px;"><?= $_sortLink('asaas', 'Asaas') ?></th>
+    <th style="width:78px;cursor:default;" title="Marcação manual: pendente / já cadastrei / não precisa. Use o filtro pra ver só pendentes.">Marcar</th>
     <th style="width:90px;"><?= $_sortLink('urgencia', 'Urgência') ?></th>
     <th style="width:180px;"><?= $_sortLink('observacoes', 'Observações') ?></th>
     <th style="width:130px;"><?= $_sortLink('estado', 'Estado') ?></th>
@@ -671,7 +678,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     $si = isset($stages[$sk]) ? $stages[$sk] : (isset($stagesHistorico[$sk]) ? $stagesHistorico[$sk] : array('label' => ucfirst($sk), 'color' => '#6b7280', 'icon' => '•'));
     $lid = (int)$lead['id'];
 ?>
-<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>">
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" data-cadasaas="<?= e($lead['cadastro_asaas'] ?? '') ?>">
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
@@ -767,6 +774,17 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
                     title="<?= e($_btnTitle) ?>"
                     style="background:<?= $_hasClient ? '#B87333' : '#cbd5e1' ?>;color:#fff;border:none;padding:1px 6px;border-radius:8px;font-size:.6rem;font-weight:700;cursor:pointer;margin-left:3px;<?= $_hasClient ? '' : 'opacity:.7;' ?>">R$</button>
         <?php endif; ?>
+    </td>
+    <td style="text-align:center;" data-marcar-asaas="<?= e($lead['cadastro_asaas'] ?? '') ?>">
+        <?php
+            $_cad = $lead['cadastro_asaas'] ?? '';
+            if ($_cad === 'Sim')      { $_e='✅'; $_t='Já';      $_c='#166534'; $_b='#dcfce7'; }
+            elseif ($_cad === 'Não')  { $_e='🚫'; $_t='N/Pr.';   $_c='#991b1b'; $_b='#fee2e2'; }
+            else                      { $_e='⏳'; $_t='Pendente'; $_c='#92400e'; $_b='#fef3c7'; }
+        ?>
+        <button type="button" onclick="event.stopPropagation();ciclarCadAsaas(this,<?= $lid ?>)"
+                title="Click pra alternar: Pendente → Já cadastrei → Não precisa → Pendente"
+                style="background:<?= $_b ?>;color:<?= $_c ?>;border:1px solid <?= $_c ?>33;padding:2px 7px;border-radius:8px;font-size:.62rem;font-weight:700;cursor:pointer;white-space:nowrap;"><?= $_e ?> <?= $_t ?></button>
     </td>
     <td class="editable" style="min-width:60px;"><input value="<?= e($lead['urgencia'] ?? '') ?>" data-id="<?= $lid ?>" data-field="urgencia" onchange="saveCell(this)"></td>
     <td class="editable" style="min-width:120px;max-width:180px;"><input value="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>" data-id="<?= $lid ?>" data-field="observacoes" onchange="saveCell(this)" title="<?= e($lead['observacoes'] ?? $lead['notes'] ?? '') ?>"></td>
@@ -1358,6 +1376,79 @@ function saveCell(el) {
     };
     xhr.send(formData);
 }
+
+// Amanda 08/06/2026: marcacao manual de cadastro Asaas (Pendente -> Sim -> Nao -> ciclo)
+function ciclarCadAsaas(btn, leadId) {
+    var tr = btn.closest('tr');
+    var atual = (tr && tr.dataset.cadasaas) || '';
+    var proximo = '';
+    if (atual === '' || atual === 'Pendente') proximo = 'Sim';
+    else if (atual === 'Sim') proximo = 'Não';
+    else proximo = ''; // Nao -> Pendente
+
+    var formData = new FormData();
+    formData.append('action', 'inline_edit');
+    formData.append('lead_id', leadId);
+    formData.append('field', 'cadastro_asaas');
+    formData.append('value', proximo);
+    formData.append('csrf_token', '<?= generate_csrf_token() ?>');
+
+    fetch('<?= module_url("pipeline", "api.php") ?>', {
+        method: 'POST', body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.error) { alert('⚠️ ' + d.error); return; }
+        if (tr) tr.dataset.cadasaas = proximo;
+        var e, t, c, b;
+        if (proximo === 'Sim')      { e='✅'; t='Já';       c='#166534'; b='#dcfce7'; }
+        else if (proximo === 'Não') { e='🚫'; t='N/Pr.';    c='#991b1b'; b='#fee2e2'; }
+        else                        { e='⏳'; t='Pendente'; c='#92400e'; b='#fef3c7'; }
+        btn.innerHTML = e + ' ' + t;
+        btn.style.background = b;
+        btn.style.color = c;
+        btn.style.borderColor = c + '33';
+        var chk = document.getElementById('filtroPendentesAsaas');
+        if (chk) filtrarPendentesAsaas(chk.checked);
+    }).catch(function(err){ alert('⚠️ Falha de rede: ' + err.message); });
+}
+
+// Filtra linhas mostrando apenas pendentes de Asaas (cadastro_asaas vazio)
+function filtrarPendentesAsaas(checked) {
+    var rows = document.querySelectorAll('#pipelineTableBody tbody tr');
+    if (!rows.length) return;
+    var visiveis = 0, pendentes = 0;
+    rows.forEach(function(tr){
+        var cad = tr.dataset.cadasaas || '';
+        var ehPendente = (cad === '' || cad === 'Pendente');
+        if (checked && !ehPendente) {
+            tr.style.display = 'none';
+        } else {
+            tr.style.display = '';
+            visiveis++;
+        }
+        if (ehPendente) pendentes++;
+    });
+    var cnt = document.getElementById('contadorPendentesAsaas');
+    if (cnt) {
+        cnt.textContent = checked ? '— ' + visiveis + ' visíveis' : '— ' + pendentes + ' pendentes';
+    }
+}
+
+// Exporta CSV server-side com TODOS os pendentes (não só da página atual),
+// respeitando filtros da URL (mes, resp, q).
+function exportarAsaasCSV() {
+    var qs = window.location.search;
+    var url = '<?= module_url("pipeline", "api.php") ?>?action=export_asaas_csv';
+    if (qs && qs.length > 1) url += '&' + qs.substring(1);
+    window.location = url;
+}
+
+// Inicializa contador no load
+document.addEventListener('DOMContentLoaded', function(){
+    var chk = document.getElementById('filtroPendentesAsaas');
+    if (chk) filtrarPendentesAsaas(chk.checked);
+});
+
 function saveHonorarios(el) {
     // Formatar como moeda BR e salvar via valor_acao (sync automático no backend)
     var raw = el.value.replace(/[^\d.,]/g, '');
