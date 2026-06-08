@@ -342,6 +342,32 @@ if ($action === 'criar_cobranca_lead') {
     if ($valorCents <= 0) { echo json_encode(array('error' => 'Valor dos honorários não informado — preencha a coluna "Honorários (R$)".')); exit; }
     $valor = $valorCents / 100;
 
+    // ─── Defesa em profundidade contra double-submit (Amanda 08/06/2026) ───
+    // Bloqueia criacao duplicada do mesmo cliente nos ultimos 30s. Cobre cenarios
+    // onde o frontend foi burlado (refresh, JS off, POST direto, etc).
+    // Como criar_cobranca_lead nao tem case_id explicito, checa por client_id apenas.
+    $janelaSegs = 30;
+    $clientIdLead = (int)$lead['client_id_real'];
+    $userIdAtual  = current_user_id();
+    $stDup = $pdo->prepare(
+        "SELECT id, 'contrato' AS origem FROM contratos_financeiros
+         WHERE client_id = ? AND created_by = ?
+           AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)
+         UNION ALL
+         SELECT id, 'cobranca' AS origem FROM asaas_cobrancas
+         WHERE client_id = ?
+           AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)
+         LIMIT 1"
+    );
+    $stDup->execute(array($clientIdLead, $userIdAtual, $janelaSegs, $clientIdLead, $janelaSegs));
+    if ($dup = $stDup->fetch()) {
+        audit_log('cobranca_duplicada_bloqueada', 'lead', $leadId,
+            "client=$clientIdLead origem={$dup['origem']} user=$userIdAtual janela={$janelaSegs}s (via criar_cobranca_lead)");
+        @error_log('[criar_cobranca_lead] BLOQUEADA duplicata client=' . $clientIdLead . ' lead=' . $leadId);
+        echo json_encode(array('error' => 'Já existe uma cobrança recém-criada para este cliente (menos de ' . $janelaSegs . 's atrás). Aguarde alguns segundos e confira na lista antes de tentar de novo.'));
+        exit;
+    }
+
     $venc = $lead['vencimento_parcela'] ?? '';
     // Aceita YYYY-MM-DD ou DD/MM/YYYY
     if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $venc)) { $vencIso = $venc; }
@@ -462,6 +488,39 @@ switch ($action) {
         $chkCase->execute(array($caseId, $clientId));
         if (!$chkCase->fetchColumn()) {
             flash_set('error', 'Processo não pertence a este cliente. Selecione um válido.');
+            redirect(module_url('financeiro', 'cliente.php?id=' . $clientId));
+        }
+
+        // ─── Defesa em profundidade contra double-submit ─────────────
+        // Amanda 08/06/2026: alem da trava no frontend (onsubmit disable do
+        // botao), tambem rejeitar no backend se houve criacao do mesmo
+        // (cliente+caso) nos ultimos 30s. Cobre cenarios em que o frontend
+        // foi burlado (refresh, JS off, POST direto via curl, refresh durante
+        // processamento, etc).
+        $janelaSegs = 30;
+        $userIdAtual = current_user_id();
+        $stDup = $pdo->prepare(
+            "SELECT id, 'contrato' AS origem FROM contratos_financeiros
+             WHERE client_id = ?
+               AND COALESCE(case_id, 0) = COALESCE(?, 0)
+               AND created_by = ?
+               AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)
+             UNION ALL
+             SELECT id, 'cobranca' AS origem FROM asaas_cobrancas
+             WHERE client_id = ?
+               AND COALESCE(case_id, 0) = COALESCE(?, 0)
+               AND created_at >= DATE_SUB(NOW(), INTERVAL ? SECOND)
+             LIMIT 1"
+        );
+        $stDup->execute(array(
+            $clientId, $caseId, $userIdAtual, $janelaSegs,
+            $clientId, $caseId, $janelaSegs
+        ));
+        if ($dup = $stDup->fetch()) {
+            audit_log('cobranca_duplicada_bloqueada', 'cobranca', (int)$dup['id'],
+                "client=$clientId case=$caseId origem={$dup['origem']} user=$userIdAtual janela={$janelaSegs}s");
+            @error_log('[criar_cobranca] BLOQUEADA duplicata client=' . $clientId . ' case=' . $caseId . ' user=' . $userIdAtual);
+            flash_set('error', '⚠️ Já existe uma cobrança recém-criada para este cliente/caso (menos de ' . $janelaSegs . 's atrás). Aguarde alguns segundos e confira a lista antes de tentar de novo.');
             redirect(module_url('financeiro', 'cliente.php?id=' . $clientId));
         }
 
