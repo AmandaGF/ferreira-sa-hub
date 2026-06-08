@@ -391,7 +391,7 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                            style="font-size:.6rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.15rem;">📂 Pasta Drive</a>
                     <?php endif; ?>
                     <?php if (!empty($lead['case_number'])): ?>
-                        <div title="Número do processo" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;">⚖️ <?= e($lead['case_number']) ?></div>
+                        <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($lead['case_number']) ?>',this)" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($lead['case_number']) ?></div>
                     <?php endif; ?>
                     <?php if ($stageKey === 'doc_faltante' && $lead['doc_faltante_motivo']): ?>
                         <div class="lead-doc-alert">⚠️ <?= e($lead['doc_faltante_motivo']) ?></div>
@@ -871,6 +871,33 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 <script>
 var _pendingForm = null;
 var _pendingDragData = null;
+
+// Amanda 08/06/2026: clique no CNJ copia pro clipboard com feedback temporario
+function copiarCNJ(ev, numero, btn) {
+    ev.stopPropagation();
+    ev.preventDefault();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(numero).then(function(){
+            var orig = btn.innerHTML;
+            var origBg = btn.style.background;
+            btn.innerHTML = '✅ Copiado!';
+            btn.style.background = '#dcfce7';
+            btn.style.padding = '1px 6px';
+            btn.style.borderRadius = '4px';
+            setTimeout(function(){
+                btn.innerHTML = orig;
+                btn.style.background = origBg;
+                btn.style.padding = '';
+                btn.style.borderRadius = '';
+            }, 1500);
+        }).catch(function(){
+            window.prompt('Copie o número CNJ:', numero);
+        });
+    } else {
+        window.prompt('Copie o número CNJ:', numero);
+    }
+    return false;
+}
 
 // Redireciona pra ficha financeira do cliente com modal já aberto e pré-preenchido.
 // Amanda REVISA valor, parcelas, vencimento, forma e processo antes de confirmar.

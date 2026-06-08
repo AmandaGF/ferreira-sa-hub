@@ -459,6 +459,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                     </div>
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
+                    <?php if (!empty($cs['case_number'])): ?>
+                        <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($cs['case_number']) ?>',this)" style="font-size:.62rem;color:#15803d;font-weight:600;margin:.15rem 0;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($cs['case_number']) ?></div>
+                    <?php endif; ?>
                     <div class="op-card-badges">
                         <?php if ($_isAcompExt): ?>
                             <span class="op-card-badge" style="background:#475569;" title="Processo de outro escritorio — apenas acompanhamento">👁️ Acompanhamento</span>
@@ -1319,6 +1322,34 @@ function submitDistConfirm() {
 }
 
 function esc(s) { if (!s) return ''; var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+// Amanda 08/06/2026: clique no CNJ copia pro clipboard com feedback temporario
+function copiarCNJ(ev, numero, btn) {
+    ev.stopPropagation();
+    ev.preventDefault();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(numero).then(function(){
+            var orig = btn.innerHTML;
+            var origBg = btn.style.background;
+            btn.innerHTML = '✅ Copiado!';
+            btn.style.background = '#dcfce7';
+            btn.style.padding = '1px 6px';
+            btn.style.borderRadius = '4px';
+            setTimeout(function(){
+                btn.innerHTML = orig;
+                btn.style.background = origBg;
+                btn.style.padding = '';
+                btn.style.borderRadius = '';
+            }, 1500);
+        }).catch(function(){
+            window.prompt('Copie o número CNJ:', numero);
+        });
+    } else {
+        // Fallback pra browser velho
+        window.prompt('Copie o número CNJ:', numero);
+    }
+    return false;
+}
 
 function arquivarCard(caseId) {
     if (!confirm('Ocultar este processo do Kanban?\nO processo continua inalterado, só sai desta visualização.')) return;
