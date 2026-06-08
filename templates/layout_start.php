@@ -106,12 +106,22 @@ require_once APP_ROOT . '/templates/sidebar.php';
                             total += list.length;
                             html += '<div class="bg-grupo">' + labels[k] + '</div>';
                             list.forEach(function(it){
-                                html += '<a class="bg-item" href="' + base + '/' + it.url + '">'
-                                     +  '<span class="bg-item-ico">' + it.icon + '</span>'
-                                     +  '<div style="min-width:0;flex:1;">'
-                                     +  '<div class="bg-item-tit">' + bgEsc(it.titulo) + '</div>'
-                                     +  (it.subtitulo ? '<div class="bg-item-sub">' + bgEsc(it.subtitulo) + '</div>' : '')
-                                     +  '</div></a>';
+                                // Item 'truncado' (aviso de + resultados) tem visual diferente
+                                if (it.tipo === 'truncado') {
+                                    html += '<a class="bg-item" href="' + base + '/' + it.url + '" style="background:#fef3c7;border-top:1px dashed #f59e0b;">'
+                                         +  '<span class="bg-item-ico" style="opacity:.7;">' + it.icon + '</span>'
+                                         +  '<div style="min-width:0;flex:1;">'
+                                         +  '<div class="bg-item-tit" style="color:#92400e;font-weight:700;">' + bgEsc(it.titulo) + '</div>'
+                                         +  (it.subtitulo ? '<div class="bg-item-sub" style="color:#a16207;">' + bgEsc(it.subtitulo) + '</div>' : '')
+                                         +  '</div></a>';
+                                } else {
+                                    html += '<a class="bg-item" href="' + base + '/' + it.url + '">'
+                                         +  '<span class="bg-item-ico">' + it.icon + '</span>'
+                                         +  '<div style="min-width:0;flex:1;">'
+                                         +  '<div class="bg-item-tit">' + bgEsc(it.titulo) + '</div>'
+                                         +  (it.subtitulo ? '<div class="bg-item-sub">' + bgEsc(it.subtitulo) + '</div>' : '')
+                                         +  '</div></a>';
+                                }
                             });
                         });
                         if (!total) html = '<div class="bg-empty">Nenhum resultado encontrado.</div>';

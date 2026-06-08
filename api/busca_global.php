@@ -51,18 +51,24 @@ try {
     }
     $clauseNomeStr = '(' . implode(' AND ', $clauseNome) . ')';
 
+    // 08/06/2026 (Amanda): 'buscar Maria nao mostra todos os cadastros'.
+    // LIMIT subiu 15 -> 50 (escritorio com 5000+ clientes tem dezenas de Marias,
+    // Joaos, etc). Truque do +1: peco 51 e se vier 51, sei que ha mais -- mostro
+    // mensagem 'refine a busca' sem precisar fazer COUNT(*) pesado.
     $sql = "SELECT id, name AS titulo, cpf AS subtitulo, phone
             FROM clients
             WHERE $clauseNomeStr
                OR REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),'/','') LIKE ?
                OR REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-','') LIKE ?
             ORDER BY (name LIKE ?) DESC, name
-            LIMIT 15";
+            LIMIT 51";
     $stmt = $pdo->prepare($sql);
     $params = array_merge($paramsNome, array($likeDoc, $likeDoc, $q . '%'));
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
     if ($rows) {
+        $truncadoClientes = count($rows) > 50;
+        if ($truncadoClientes) array_pop($rows); // descarta o 51 que veio so pra detectar truncamento
         $grupos['clientes'] = array();
         foreach ($rows as $r) {
             $grupos['clientes'][] = array(
@@ -71,6 +77,17 @@ try {
                 'subtitulo' => $r['subtitulo'] ? 'CPF ' . $r['subtitulo'] : ($r['phone'] ? 'Tel ' . $r['phone'] : ''),
                 'url'       => 'modules/clientes/ver.php?id=' . (int)$r['id'],
                 'icon'      => '👤',
+            );
+        }
+        if ($truncadoClientes) {
+            // Item-aviso no fim do grupo. Frontend renderiza diferente (cor cinza + clique vai pra clientes/?busca=q)
+            $grupos['clientes'][] = array(
+                'id'        => 0,
+                'titulo'    => '+ Mais resultados — refine a busca pra ver todos',
+                'subtitulo' => '50 mostrados • clique pra abrir lista completa',
+                'url'       => 'modules/clientes/?q=' . urlencode($q),
+                'icon'      => '🔎',
+                'tipo'      => 'truncado',
             );
         }
     }
