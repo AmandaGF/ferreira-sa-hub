@@ -67,7 +67,7 @@ if ($searchPipeline) {
 $stmt = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
-     cs.drive_folder_url
+     cs.drive_folder_url, cs.case_number, cs.court
      FROM pipeline_leads pl
      LEFT JOIN users u ON u.id = pl.assigned_to
      LEFT JOIN clients c ON c.id = pl.client_id
@@ -389,6 +389,9 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                         <a href="<?= e($lead['drive_folder_url']) ?>" target="_blank"
                            onclick="if(window._dragging){event.preventDefault();return false;}event.stopPropagation();"
                            style="font-size:.6rem;color:#0ea5e9;font-weight:600;text-decoration:none;display:block;margin-top:.15rem;">📂 Pasta Drive</a>
+                    <?php endif; ?>
+                    <?php if (!empty($lead['case_number'])): ?>
+                        <div title="Número do processo" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;">⚖️ <?= e($lead['case_number']) ?></div>
                     <?php endif; ?>
                     <?php if ($stageKey === 'doc_faltante' && $lead['doc_faltante_motivo']): ?>
                         <div class="lead-doc-alert">⚠️ <?= e($lead['doc_faltante_motivo']) ?></div>
