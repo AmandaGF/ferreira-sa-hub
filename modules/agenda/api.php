@@ -202,6 +202,11 @@ function _balcao_valida_horario($datetime_str) {
 // muda horário. Conflito gera apenas alerta/notificação pra equipe.
 function _agenda_checar_conflitos($pdo, $dataInicio, $dataFim, $excludeId = 0) {
     if (!$dataInicio || !$dataFim) return array();
+    // Amanda 08/06/2026: filtro extra DATE(...) BETWEEN evita falsos positivos
+    // de eventos com data_fim estendida (ex: onboarding que abrange varios dias
+    // como periodo de processo, e ficava casando overlap com qualquer compromisso
+    // nesse range). Pra agenda de escritorio, conflito so faz sentido se ambos
+    // eventos estao no mesmo dia (ou conjunto curto de dias do novo evento).
     $sql = "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.data_fim, e.responsavel_id,
                    c.name AS client_name, u.name AS responsavel_name
             FROM agenda_eventos e
@@ -210,8 +215,9 @@ function _agenda_checar_conflitos($pdo, $dataInicio, $dataFim, $excludeId = 0) {
             WHERE e.status != 'cancelado'
               AND COALESCE(e.dia_todo, 0) = 0
               AND e.data_inicio < ?
-              AND e.data_fim    > ?";
-    $params = array($dataFim, $dataInicio);
+              AND e.data_fim    > ?
+              AND DATE(e.data_inicio) BETWEEN DATE(?) AND DATE(?)";
+    $params = array($dataFim, $dataInicio, $dataInicio, $dataFim);
     if ((int)$excludeId > 0) {
         $sql .= " AND e.id != ?";
         $params[] = (int)$excludeId;
