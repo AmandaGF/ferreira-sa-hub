@@ -373,7 +373,12 @@ echo voltar_ao_processo_html();
         <script>
         function atualizarCobUI2(){
             var tipo = document.getElementById('tipoCob2').value;
-            var valor = parseFloat((document.getElementById('valorCob2').value || '').replace(/[^\d,]/g,'').replace(',','.')) || 0;
+            // Amanda 08/06/2026: parse SEMPRE como centavos (mesma logica do
+            // formatarReais). Antes parseFloat falhava em valores intermediarios
+            // tipo '47,900' (interpretava 47.9 em vez de 479). Ver index.php.
+            var _vl2 = (document.getElementById('valorCob2').value || '');
+            var _digits2 = _vl2.replace(/\D/g, '');
+            var valor = _digits2 ? (parseInt(_digits2, 10) / 100) : 0;
             var parc = parseInt(document.getElementById('parcelasCob2').value, 10) || 1;
             var mostrar = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('parcCob2').style.display = mostrar ? 'flex' : 'none';

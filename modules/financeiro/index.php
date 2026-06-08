@@ -468,18 +468,15 @@ echo voltar_ao_processo_html();
         function atualizarCobUI1(){
             var tipo = document.getElementById('tipoCobranca').value;
             var vl = document.getElementById('valorCob1').value || '';
-            // Parse robusto: se tem vírgula é BR, senão usa parseFloat puro.
-            // Antes: parseFloat(vl.replace(/[^\d,]/g,'').replace(',','.')) — falhava em
-            // certos casos de formatação intermediária (ex: '442,80' lido como 442.8 quando
-            // o input mostrava '4.428,00' por descompasso entre máscara e leitor).
-            var valor;
-            if (vl.indexOf(',') >= 0) {
-                valor = parseFloat(vl.replace(/\./g, '').replace(',', '.')) || 0;
-            } else {
-                // Sem vírgula: aplicar inverso da máscara formatarReais (digits / 100)
-                var digits = vl.replace(/\D/g, '');
-                valor = digits ? (parseInt(digits, 10) / 100) : 0;
-            }
+            // Amanda 08/06/2026: parse SEMPRE como centavos (mesma logica que
+            // formatarReais aplica no helpers.js). Bug anterior: 'atualizarCobUI'
+            // rodava ANTES do listener de formatarReais (ordem dos event listeners),
+            // entao via valor intermediario tipo '47,900' e parseFloat retornava
+            // 47.9 em vez de 479. Resultado: preview mostrava 'R$ 47,90' embora
+            // input final ficasse '479,00'. Lendo sempre como centavos elimina
+            // o problema -- '47,900' -> digits '47900' -> 47900/100 = 479. ✓
+            var digits = vl.replace(/\D/g, '');
+            var valor = digits ? (parseInt(digits, 10) / 100) : 0;
             var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
             var mostrarParcelas = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('camposParcelas').style.display = mostrarParcelas ? 'block' : 'none';
