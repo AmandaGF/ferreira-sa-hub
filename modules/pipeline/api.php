@@ -468,7 +468,7 @@ switch ($action) {
         $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']);
         $allowed = array('name','phone','email','case_type','notes','estimated_value_cents','assigned_to',
             'valor_acao','exito_percentual','vencimento_parcela','forma_pagamento','urgencia','cadastro_asaas','observacoes','nome_pasta','pendencias',
-            'data_agendamento','onboard_realizado','origem_lead','converted_at','num_parcelas');
+            'data_agendamento','onboard_realizado','onboard_nao_precisa','origem_lead','converted_at','num_parcelas');
         if (!$leadId) _api_fail('lead_id inválido.');
         if (!in_array($field, $allowed, true)) _api_fail("Campo '{$field}' não autorizado.");
 

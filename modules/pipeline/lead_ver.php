@@ -328,12 +328,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <span class="sv" id="save-data_agendamento">Salvo!</span>
                 </div>
                 <div>
-                    <span class="fl">Onboard realizado</span>
+                    <span class="fl">Onboarding</span>
                     <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.88rem;padding:5px 0;">
-                        <input type="checkbox" <?= ($lead['onboard_realizado'] ?? 0) ? 'checked' : '' ?> onchange="saveField('onboard_realizado',this.checked?1:0,<?= $leadId ?>)" style="width:18px;height:18px;">
-                        <?= ($lead['onboard_realizado'] ?? 0) ? '<span style="color:var(--success);font-weight:700;">Sim ✓</span>' : '<span style="color:var(--text-muted);">Não</span>' ?>
+                        <input type="checkbox" <?= ($lead['onboard_realizado'] ?? 0) ? 'checked' : '' ?> onchange="saveField('onboard_realizado',this.checked?1:0,<?= $leadId ?>);if(this.checked){var c=document.getElementById('chk_onb_nao_precisa');if(c&&c.checked){c.checked=false;saveField('onboard_nao_precisa',0,<?= $leadId ?>);}}" style="width:18px;height:18px;">
+                        <?= ($lead['onboard_realizado'] ?? 0) ? '<span style="color:var(--success);font-weight:700;">Realizado ✓</span>' : '<span style="color:var(--text-muted);">Realizado</span>' ?>
+                    </label>
+                    <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.88rem;padding:5px 0;" title="Marque se este cliente não precisa de processo de onboarding">
+                        <input type="checkbox" id="chk_onb_nao_precisa" <?= ($lead['onboard_nao_precisa'] ?? 0) ? 'checked' : '' ?> onchange="saveField('onboard_nao_precisa',this.checked?1:0,<?= $leadId ?>);if(this.checked){var c=document.querySelector('input[onchange*=onboard_realizado]');if(c&&c.checked){c.checked=false;saveField('onboard_realizado',0,<?= $leadId ?>);}}" style="width:18px;height:18px;">
+                        <?= ($lead['onboard_nao_precisa'] ?? 0) ? '<span style="color:#b91c1c;font-weight:700;">🚫 Não precisa de onboarding</span>' : '<span style="color:var(--text-muted);">🚫 Não precisa de onboarding</span>' ?>
                     </label>
                     <span class="sv" id="save-onboard_realizado">Salvo!</span>
+                    <span class="sv" id="save-onboard_nao_precisa">Salvo!</span>
                 </div>
                 <div>
                     <span class="fl">Origem do lead</span>

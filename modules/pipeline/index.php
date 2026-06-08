@@ -393,6 +393,9 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                     <?php if (!empty($lead['case_number'])): ?>
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($lead['case_number']) ?>',this)" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($lead['case_number']) ?></div>
                     <?php endif; ?>
+                    <?php if (!empty($lead['onboard_nao_precisa'])): ?>
+                        <div title="Equipe marcou que este cliente não precisa de onboarding" style="display:inline-block;font-size:.58rem;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;font-weight:700;margin-top:.2rem;padding:1px 6px;border-radius:8px;">🚫 Sem onboarding</div>
+                    <?php endif; ?>
                     <?php if ($stageKey === 'doc_faltante' && $lead['doc_faltante_motivo']): ?>
                         <div class="lead-doc-alert">⚠️ <?= e($lead['doc_faltante_motivo']) ?></div>
                     <?php endif; ?>
