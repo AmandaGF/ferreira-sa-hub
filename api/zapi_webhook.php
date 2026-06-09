@@ -466,6 +466,35 @@ try {
                 $log("[{$numero}] TIPO_OUTRO payload=" . substr(json_encode($payload), 0, 2000));
             }
 
+            // ─── DEFESA contra mensagens "fantasma" (Amanda 08/06/2026) ─────
+            // Quando cliente APAGA mensagem no WhatsApp dele, a Z-API dispara
+            // eventos de sistema (protocolMessage/REVOKE, messageStub, etc) que
+            // chegavam como tipo='outro' sem conteúdo e viravam linhas "[outro]"
+            // poluindo o chat. Aqui detectamos esses eventos e NÃO criamos
+            // mensagem nova — apenas logamos pra forense.
+            //
+            // REGRA CRÍTICA: NÃO mexer em mensagens já gravadas. O hub é
+            // histórico forense — mensagens antigas (incluindo as que o cliente
+            // apagou no WhatsApp dele) PERMANECEM intactas no banco. Aqui
+            // apenas evitamos CRIAR novas entradas fantasmas.
+            $ehEventoSistema = (
+                isset($payload['protocolMessage'])
+                || isset($payload['messageStubType'])
+                || isset($payload['senderKeyDistributionMessage'])
+                || isset($payload['stickerSyncRMR'])
+                || ($tipo === 'outro' && empty($conteudo) && empty($arquivo['url']))
+            );
+            if ($ehEventoSistema) {
+                $motivo = isset($payload['protocolMessage']) ? 'protocolMessage'
+                        : (isset($payload['messageStubType']) ? 'messageStubType'
+                        : (isset($payload['senderKeyDistributionMessage']) ? 'senderKey'
+                        : (isset($payload['stickerSyncRMR']) ? 'stickerSync'
+                        : 'tipo_outro_vazio')));
+                $log("[{$numero}] EVENTO_SISTEMA_IGNORADO motivo={$motivo} tipo={$tipo} payload=" . substr(json_encode($payload), 0, 800));
+                echo json_encode(array('status' => 'system_event_ignored', 'motivo' => $motivo));
+                break;
+            }
+
             // REAÇÃO: associa à mensagem original em vez de criar msg nova.
             // - fromMe=false (contato reagiu): atualiza reacao_cliente
             // - fromMe=true  (atendente reagiu pelo celular): atualiza minha_reacao
