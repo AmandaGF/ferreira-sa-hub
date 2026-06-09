@@ -22,7 +22,20 @@
 
     window.waSenderOpen = function(opts) {
         opts = opts || {};
-        var tel      = (opts.telefone || '').toString().replace(/\D/g, '');
+        // Amanda 08/06/2026: respeitar '+' internacional. Antes estripava com
+        // replace(/\D/g, '') e depois prefixava 55 (Brasil), quebrando envios
+        // pra clientes do exterior (Renata na Espanha, etc).
+        var telRaw = (opts.telefone || '').toString().trim();
+        var tel;
+        var ehInternacional = (telRaw.charAt(0) === '+');
+        if (ehInternacional) {
+            // Internacional: preserva o '+' e so' digitos depois (formato E.164)
+            tel = '+' + telRaw.substring(1).replace(/\D/g, '');
+        } else {
+            // BR (sem prefixo): limpa tudo e garante DDI 55
+            tel = telRaw.replace(/\D/g, '');
+            if (tel.length < 12 && !tel.startsWith('55')) tel = '55' + tel;
+        }
         var nome     = opts.nome || '';
         var mensagem = opts.mensagem || '';
         var canal    = opts.canal || '24';
@@ -30,18 +43,14 @@
         var leadId   = opts.leadId || 0;
         var onSuccess = typeof opts.onSuccess === 'function' ? opts.onSuccess : null;
 
-        if (!tel) { alert('Telefone não informado.'); return; }
+        if (!tel || tel === '+') { alert('Telefone não informado.'); return; }
 
-        // Garante DDI 55 se faltar (BR)
-        if (tel.length < 12 && !tel.startsWith('55')) tel = '55' + tel;
-
-        // Aviso: telefone com formato anomalo (nao BR padrao 55 + 10/11 digitos).
-        // Caso classico — Ailanda 11/05: ID Multi-Device 25301820162246 passava
-        // pela validacao de tamanho (14 digitos) mas msgs nao chegavam no celular.
-        // Decisao da Amanda: avisar sem bloquear (alguns clientes podem ter num
-        // estrangeiro legitimo).
+        // Aviso: telefone com formato anomalo. Internacional valido (+ seguido de
+        // 10-15 digitos) NAO emite aviso. So' BR fora do padrao (55+10/11 dig).
         var telSuspeitoHtml = '';
-        if (!/^55\d{10,11}$/.test(tel)) {
+        var ehBrValido = /^55\d{10,11}$/.test(tel);
+        var ehIntlValido = /^\+\d{10,15}$/.test(tel);
+        if (!ehBrValido && !ehIntlValido) {
             telSuspeitoHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:8px 12px;margin-bottom:.75rem;font-size:.78rem;color:#92400e;">'
                 + '<strong>⚠ Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — Z-API aceita mas a mensagem pode nao chegar no celular. Confira o numero antes de enviar.'
                 + '</div>';
