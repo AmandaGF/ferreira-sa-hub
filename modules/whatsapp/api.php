@@ -191,7 +191,7 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
                   'salvar_drive',
-                  'fila_marcar_enviada', 'fila_descartar', 'fila_editar',
+                  'fila_marcar_enviada', 'fila_descartar', 'fila_editar', 'fila_bulk_descartar',
                   'gerar_link_salavip', 'gerar_link_salavip_por_cliente',
                   'delegar_conversa', 'remover_delegacao',
                   'enviar_sticker', 'enviar_reacao',
@@ -2298,6 +2298,25 @@ if ($action === 'fila_descartar') {
     $pdo->prepare("UPDATE zapi_fila_envio SET status='descartada', descartada_por=?, descartada_em=NOW() WHERE id=? AND status='pendente'")
         ->execute(array($userId, $fid));
     echo json_encode(array('ok' => true));
+    exit;
+}
+
+// ── FILA DE ENVIOS: descartar em lote (Amanda 08/06/2026) ──
+if ($action === 'fila_bulk_descartar') {
+    $idsIn = $_POST['fila_ids'] ?? array();
+    if (!is_array($idsIn)) $idsIn = array($idsIn);
+    $ids = array_values(array_unique(array_filter(array_map('intval', $idsIn), function($v){ return $v > 0; })));
+    if (empty($ids)) { echo json_encode(array('error' => 'Nenhum ID válido informado.')); exit; }
+    if (count($ids) > 500) { echo json_encode(array('error' => 'Máximo 500 itens por lote.')); exit; }
+
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $sql = "UPDATE zapi_fila_envio SET status='descartada', descartada_por=?, descartada_em=NOW()
+            WHERE status='pendente' AND id IN ($ph)";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(array_merge(array($userId), $ids));
+    $afetadas = $stmt->rowCount();
+    audit_log('fila_bulk_descartar', 'zapi_fila_envio', 0, "user=$userId pedidos=" . count($ids) . " descartadas=$afetadas");
+    echo json_encode(array('ok' => true, 'descartadas' => $afetadas, 'ids_processados' => $ids));
     exit;
 }
 

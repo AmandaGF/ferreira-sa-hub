@@ -93,6 +93,24 @@ function _fila_link($status, $clientFilter) {
     <a href="<?= _fila_link('todas', $clientFilter) ?>" class="fila-tab <?= $statusSel === 'todas' ? 'active' : '' ?>">Todas</a>
 </div>
 
+<?php if ($statusSel === 'pendente' && !empty($rows)): ?>
+<!-- Barra de marcacao em lote (Amanda 08/06/2026) -->
+<div style="background:#fff;border:1px solid var(--border);border-radius:8px;padding:.5rem .9rem;margin-bottom:.6rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;">
+    <label style="display:flex;align-items:center;gap:.4rem;cursor:pointer;font-size:.8rem;color:var(--text);">
+        <input type="checkbox" id="filaMarcarTodos" onchange="filaToggleTodos(this.checked)" style="width:16px;height:16px;cursor:pointer;">
+        <span>Marcar todas as pendentes desta página</span>
+    </label>
+    <span style="font-size:.72rem;color:var(--text-muted);margin-left:auto;">💡 Selecione múltiplas e descarte em lote</span>
+</div>
+<div id="filaBulkBar" style="display:none;background:#fef3c7;border:1.5px solid #f59e0b;border-radius:8px;padding:.7rem 1rem;margin-bottom:.75rem;align-items:center;gap:.6rem;flex-wrap:wrap;position:sticky;top:6px;z-index:30;box-shadow:0 4px 12px rgba(245,158,11,.2);">
+    <span style="font-size:.88rem;font-weight:700;color:#92400e;">
+        <span id="filaBulkCount">0</span> selecionada(s)
+    </span>
+    <button type="button" onclick="filaBulkDescartar()" style="background:#dc2626;color:#fff;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:.82rem;font-weight:700;">🗑 Descartar selecionadas</button>
+    <button type="button" onclick="filaBulkClear()" style="background:#fff;border:1px solid #d1d5db;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:.78rem;color:#374151;">Limpar seleção</button>
+</div>
+<?php endif; ?>
+
 <?php if (empty($rows)): ?>
     <div style="text-align:center;padding:3rem;color:var(--text-muted);background:#fff;border-radius:10px;">
         Nenhuma mensagem com status "<?= e($statusSel) ?>" 🎉
@@ -102,7 +120,10 @@ function _fila_link($status, $clientFilter) {
         $origem = $origemLabels[$r['origem']] ?? $origemLabels['outro'];
         $nome = $r['client_name_real'] ?: $r['nome_contato'] ?: '(sem nome)';
     ?>
-    <div class="fila-item <?= e($r['status']) ?>" id="fila_<?= (int)$r['id'] ?>">
+    <div class="fila-item <?= e($r['status']) ?>" id="fila_<?= (int)$r['id'] ?>" style="<?= $r['status'] === 'pendente' ? 'padding-left:2.6rem;position:relative;' : '' ?>">
+        <?php if ($r['status'] === 'pendente'): ?>
+        <input type="checkbox" class="fila-check" data-fila-id="<?= (int)$r['id'] ?>" onchange="filaCheckChange()" style="position:absolute;top:1.1rem;left:.95rem;width:18px;height:18px;cursor:pointer;" title="Selecionar pra ação em lote">
+        <?php endif; ?>
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap;">
             <div>
                 <span class="fila-badge" style="background:<?= $origem[1] ?>;"><?= $origem[0] ?></span>
@@ -249,6 +270,62 @@ function filaDescartar(filaId) {
                 _filaRemoverCard(filaId, 'pendente', 'descartada');
             } else alert('Falha: ' + (d.error || '?'));
         });
+}
+
+// ─── BULK DESCARTAR (Amanda 08/06/2026) ──────────────────────────────
+function filaCheckChange() {
+    var checks = document.querySelectorAll('.fila-check:checked');
+    var n = checks.length;
+    var bar = document.getElementById('filaBulkBar');
+    var cnt = document.getElementById('filaBulkCount');
+    if (cnt) cnt.textContent = n;
+    if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+
+    // Sincroniza o checkbox "marcar todos" se TODOS estiverem marcados
+    var total = document.querySelectorAll('.fila-check').length;
+    var todos = document.getElementById('filaMarcarTodos');
+    if (todos && total > 0) {
+        todos.checked = (n === total);
+        todos.indeterminate = (n > 0 && n < total);
+    }
+}
+
+function filaToggleTodos(checked) {
+    document.querySelectorAll('.fila-check').forEach(function(c){ c.checked = checked; });
+    filaCheckChange();
+}
+
+function filaBulkClear() {
+    var todos = document.getElementById('filaMarcarTodos');
+    if (todos) { todos.checked = false; todos.indeterminate = false; }
+    document.querySelectorAll('.fila-check').forEach(function(c){ c.checked = false; });
+    filaCheckChange();
+}
+
+function filaBulkDescartar() {
+    var ids = Array.from(document.querySelectorAll('.fila-check:checked'))
+                   .map(function(c){ return c.dataset.filaId; });
+    if (!ids.length) { alert('Nada selecionado.'); return; }
+    if (!confirm('Descartar ' + ids.length + ' mensagem(ns) selecionada(s)?\n\nElas vão sair da lista de Pendentes e ir pra Descartadas. Reversível só pela aba Descartadas.')) return;
+
+    var fd = new FormData();
+    fd.append('action', 'fila_bulk_descartar');
+    fd.append('csrf_token', window.FSA_CSRF);
+    ids.forEach(function(id){ fd.append('fila_ids[]', id); });
+
+    fetch(window.FSA_WHATSAPP_API_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.error) { alert('⚠️ ' + d.error); return; }
+            if (d && d.ok) {
+                // Anima remoção dos cards e atualiza contadores
+                ids.forEach(function(id){ _filaRemoverCard(id, 'pendente', 'descartada'); });
+                filaBulkClear();
+                var n = d.descartadas || ids.length;
+                console.log('[fila bulk] ' + n + ' descartada(s)');
+            }
+        })
+        .catch(function(e){ alert('⚠️ Falha de rede: ' + e.message); });
 }
 </script>
 
