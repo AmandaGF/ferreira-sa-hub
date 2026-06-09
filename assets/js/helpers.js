@@ -208,7 +208,15 @@ document.addEventListener('DOMContentLoaded', function() {
 // MÁSCARA TELEFONE (00) 00000-0000
 // ═══════════════════════════════════════
 function formatarTelefone(el) {
-    var v = el.value.replace(/\D/g, '');
+    var raw = el.value;
+    // Amanda 08/06/2026: respeitar '+' inicial pra clientes internacionais
+    if (raw.charAt(0) === '+') {
+        var digits = raw.substring(1).replace(/\D/g, '');
+        if (digits.length > 15) digits = digits.substring(0, 15); // E.164 max
+        el.value = '+' + digits;
+        return;
+    }
+    var v = raw.replace(/\D/g, '');
     if (v.length > 11) v = v.substring(0, 11);
     if (v.length > 6) v = '(' + v.substring(0,2) + ') ' + v.substring(2,7) + '-' + v.substring(7);
     else if (v.length > 2) v = '(' + v.substring(0,2) + ') ' + v.substring(2);
