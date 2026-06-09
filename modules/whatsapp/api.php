@@ -563,8 +563,11 @@ if ($action === 'abrir_conversa') {
 
     // Self-heal pra coluna gender_pulado (usada quando atendente "Pular" no banner)
     try { $pdo->exec("ALTER TABLE clients ADD COLUMN gender_pulado TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+    // Self-heal is_internacional (Amanda 08/06/2026 — suprime aviso "numero estranho" pra clientes do exterior)
+    try { $pdo->exec("ALTER TABLE clients ADD COLUMN is_internacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, cl.gender AS client_gender,
                                   COALESCE(cl.gender_pulado, 0) AS client_gender_pulado,
+                                  COALESCE(cl.is_internacional, 0) AS client_is_internacional,
                                   pl.name AS lead_name,
                                   u.name AS atendente_name, u.wa_display_name AS atendente_display_name,
                                   un.name AS nota_fixa_por_name

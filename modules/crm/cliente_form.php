@@ -10,6 +10,9 @@ $pdo = db();
 $errors = [];
 $client = null;
 
+// Self-heal coluna is_internacional (Amanda 08/06/2026 — clientes do exterior)
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN is_internacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
 $editId = (int)($_GET['id'] ?? 0);
 if ($editId) {
     $stmt = $pdo->prepare('SELECT * FROM clients WHERE id = ?');
@@ -54,6 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nacionalidade'  => clean_str($_POST['nacionalidade'] ?? '', 50),
         'source'         => $_POST['source'] ?? 'outro',
         'notes'          => clean_str($_POST['notes'] ?? '', 2000),
+        // Amanda 08/06/2026: flag cliente fora do Brasil. Auto-marca se o
+        // telefone comeca com '+' (E.164 internacional), OU se Amanda
+        // marcou o checkbox manualmente. Suprime aviso 'numero estranho'
+        // no header do WhatsApp do Hub.
+        'is_internacional' => (
+            !empty($_POST['is_internacional'])
+            || (isset($_POST['phone']) && substr(ltrim((string)$_POST['phone']), 0, 1) === '+')
+        ) ? 1 : 0,
     ];
 
     if (empty($f['name'])) $errors[] = 'Nome é obrigatório.';
@@ -100,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'UPDATE clients SET name=?, cpf=?, rg=?, birth_date=?, email=?, phone=?, phone2=?,
                  address_street=?, address_city=?, address_state=?, address_zip=?,
                  profession=?, marital_status=?, gender=?, has_children=?, children_names=?,
-                 children_json=?, pix_key=?, nacionalidade=?, source=?, notes=?, updated_at=NOW() WHERE id=?'
+                 children_json=?, pix_key=?, nacionalidade=?, source=?, notes=?, is_internacional=?, updated_at=NOW() WHERE id=?'
             );
             $stmtUpd->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
@@ -110,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
                 $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
                 $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
-                $f['source'], $f['notes'] ?: null, $editId
+                $f['source'], $f['notes'] ?: null, $f['is_internacional'], $editId
             ]);
             $rows = $stmtUpd->rowCount();
 
@@ -159,8 +170,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'INSERT INTO clients (name, cpf, rg, birth_date, email, phone, phone2,
                  address_street, address_city, address_state, address_zip,
                  profession, marital_status, gender, has_children, children_names,
-                 children_json, pix_key, nacionalidade, source, notes, created_by)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+                 children_json, pix_key, nacionalidade, source, notes, is_internacional, created_by)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
             )->execute([
                 $f['name'], $f['cpf'] ?: null, $f['rg'] ?: null, $f['birth_date'],
                 $f['email'] ?: null, $f['phone'] ?: null, $f['phone2'] ?: null,
@@ -169,7 +180,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $f['profession'] ?: null, $f['marital_status'] ?: null,
                 $f['gender'] ?: null, $f['has_children'], $f['children_names'] ?: null,
                 $f['children_json'], $f['pix_key'] ?: null, $f['nacionalidade'] ?: null,
-                $f['source'], $f['notes'] ?: null, current_user_id()
+                $f['source'], $f['notes'] ?: null, $f['is_internacional'], current_user_id()
             ]);
             $newId = (int)$pdo->lastInsertId();
             audit_log('client_created', 'client', $newId);
@@ -215,6 +226,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'nacionalidade'  => $client['nacionalidade'] ?? '',
         'source'         => $client['source'] ?? 'outro',
         'notes'          => $client['notes'] ?? '',
+        'is_internacional' => (int)($client['is_internacional'] ?? 0),
     ];
 }
 
@@ -261,6 +273,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label class="form-label">Telefone / WhatsApp</label>
                         <input type="text" name="phone" class="form-input" value="<?= e($f['phone']) ?>" placeholder="(00) 00000-0000 ou +1 305 555 1234">
                         <small style="font-size:.68rem;color:#6b7280;display:block;margin-top:.2rem;">🌍 <strong>Cliente internacional:</strong> use <strong>+</strong> seguido do DDI (ex: <code>+1 305 555 1234</code> EUA, <code>+351 912 345 678</code> Portugal). Sem <code>+</code>, o sistema assume Brasil.</small>
+                        <label style="display:flex;align-items:center;gap:.4rem;margin-top:.4rem;cursor:pointer;font-size:.75rem;color:#374151;background:#eff6ff;border:1px solid #bfdbfe;padding:.35rem .6rem;border-radius:6px;">
+                            <input type="checkbox" name="is_internacional" value="1" <?= !empty($f['is_internacional']) ? 'checked' : '' ?> style="width:14px;height:14px;cursor:pointer;">
+                            <span>🌍 Cliente fora do Brasil (não mostrar aviso de "número estranho" no WhatsApp do Hub)</span>
+                        </label>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Telefone 2</label>

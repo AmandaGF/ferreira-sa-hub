@@ -850,16 +850,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // pela Z-API mas nunca chegar no celular do cliente. Caso classico
         // visto na Ailanda 11/05/2026 (telefone 25301820162246 — ID Multi-Device).
         // Nao bloqueia o envio (decisao da Amanda) — so avisa.
+        // Amanda 08/06/2026: suprime aviso quando cliente esta marcado como
+        // internacional (cl.is_internacional=1). Auto-detectado quando telefone
+        // do cadastro comeca com '+'.
         var telDigits = String(c.telefone||'').replace(/\D/g, '');
         var telEhLid = String(c.telefone||'').indexOf('@lid') !== -1;
         var telEhGrupo = String(c.telefone||'').indexOf('@g.us') !== -1 || String(c.telefone||'').indexOf('@broadcast') !== -1;
         var telBRvalido = /^55\d{10,11}$/.test(telDigits);
-        var telSuspeito = !telEhGrupo && (telEhLid || !telBRvalido);
+        var ehClienteInternacional = !!(+c.client_is_internacional);
+        var telSuspeito = !telEhGrupo && !ehClienteInternacional && (telEhLid || !telBRvalido);
         var avisoTelHtml = '';
         if (telSuspeito) {
             avisoTelHtml = '<div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;padding:6px 10px;margin-top:6px;font-size:.72rem;color:#92400e;display:flex;align-items:center;gap:6px;">'
                 + '<span style="font-size:1rem;">⚠️</span>'
                 + '<span><strong>Telefone com formato estranho.</strong> Pode ser ID interno do WhatsApp (Multi-Device) ou numero invalido — mensagens podem ser aceitas mas nao chegar no celular. Use <strong>✏️ N°</strong> no menu pra corrigir.</span>'
+                + '</div>';
+        } else if (ehClienteInternacional) {
+            avisoTelHtml = '<div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:6px;padding:4px 10px;margin-top:6px;font-size:.7rem;color:#1e40af;display:flex;align-items:center;gap:6px;">'
+                + '<span>🌍</span><span>Cliente internacional (fora do Brasil)</span>'
                 + '</div>';
         }
 
