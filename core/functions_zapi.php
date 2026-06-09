@@ -733,7 +733,22 @@ function _zapi_post($url, $headers, $body) {
 function zapi_normaliza_telefone($telefone) {
     $raw = (string)$telefone;
     $ehGrupo = strpos($raw, '@g.us') !== false || strpos($raw, '@broadcast') !== false;
+    // Amanda 08/06/2026: detectar telefone INTERNACIONAL antes de remover
+    // caracteres. Se vier com '+' ou '00' no início (E.164 / formato europeu),
+    // o número JA tem o DDI -- nao prefixar 55 (Brasil). Caso da Renata e
+    // outros clientes do exterior.
+    $rawTrim = ltrim($raw);
+    $temPrefixoInternacional = (substr($rawTrim, 0, 1) === '+' || substr($rawTrim, 0, 2) === '00');
     $num = preg_replace('/[^0-9]/', '', $raw);
+    if ($temPrefixoInternacional && strlen($num) >= 10) {
+        // Remove '00' inicial se foi assim que veio (formato Europa)
+        if (substr($rawTrim, 0, 2) === '00') {
+            $num = preg_replace('/^00/', '', $num);
+        }
+        // Aceita o numero como esta -- ja tem DDI internacional (ex: 13055551234 EUA,
+        // 351912345678 PT, 4915123456789 DE, etc). Nao prefixar 55.
+        return $num;
+    }
     if (!$ehGrupo) {
         // Se começa com 0, remove
         if (strlen($num) > 11 && substr($num, 0, 1) === '0') $num = ltrim($num, '0');

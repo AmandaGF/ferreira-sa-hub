@@ -234,7 +234,7 @@ echo voltar_ao_processo_html();
                     <?php if ($phone): ?>
                         <?php $_hdClientId = (int)($linkedClient['id'] ?? $ticket['client_id'] ?? 0); ?>
                         <?php $_hdNome = $linkedClient ? $linkedClient['name'] : ($ticket['client_name'] ?: ''); ?>
-                        <a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $phone) ?>',nome:<?= e(json_encode($_hdNome)) ?>,clientId:<?= $_hdClientId ?>})" style="color:#25D366;font-weight:600;">
+                        <a href="javascript:void(0)" onclick="waSenderOpen({telefone:'<?= preg_replace('/[^0-9+]/', '', $phone) ?>',nome:<?= e(json_encode($_hdNome)) ?>,clientId:<?= $_hdClientId ?>})" style="color:#25D366;font-weight:600;">
                             📱 <?= e($phone) ?>
                         </a>
                     <?php endif; ?>

@@ -259,7 +259,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label">Telefone / WhatsApp</label>
-                        <input type="text" name="phone" class="form-input" value="<?= e($f['phone']) ?>" placeholder="(00) 00000-0000">
+                        <input type="text" name="phone" class="form-input" value="<?= e($f['phone']) ?>" placeholder="(00) 00000-0000 ou +1 305 555 1234">
+                        <small style="font-size:.68rem;color:#6b7280;display:block;margin-top:.2rem;">🌍 <strong>Cliente internacional:</strong> use <strong>+</strong> seguido do DDI (ex: <code>+1 305 555 1234</code> EUA, <code>+351 912 345 678</code> Portugal). Sem <code>+</code>, o sistema assume Brasil.</small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Telefone 2</label>
