@@ -273,6 +273,90 @@ switch ($action) {
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
         break;
 
+    // ─── Amanda 08/06/2026: pega processos do cliente do ticket + 3 andamentos ───
+    case 'processos_do_chamado':
+        header('Content-Type: application/json; charset=utf-8');
+        $ticketId = (int)($_POST['ticket_id'] ?? 0);
+        if (!$ticketId) { echo json_encode(array('error' => 'ticket_id obrigatório')); exit; }
+
+        $tk = $pdo->prepare("SELECT id, client_id FROM tickets WHERE id = ?");
+        $tk->execute(array($ticketId));
+        $tkRow = $tk->fetch();
+        if (!$tkRow) { echo json_encode(array('error' => 'Chamado não encontrado.')); exit; }
+        $clientId = (int)($tkRow['client_id'] ?? 0);
+        if (!$clientId) { echo json_encode(array('error' => 'Chamado sem cliente vinculado. Vincule um cliente ao chamado primeiro.')); exit; }
+
+        // Cliente
+        $cl = $pdo->prepare("SELECT id, name FROM clients WHERE id = ?");
+        $cl->execute(array($clientId));
+        $clRow = $cl->fetch();
+        if (!$clRow) { echo json_encode(array('error' => 'Cliente não encontrado.')); exit; }
+
+        // Cases ativos do cliente
+        $stCases = $pdo->prepare(
+            "SELECT id, title, case_number, court, status
+             FROM cases
+             WHERE client_id = ?
+               AND status NOT IN ('arquivado','cancelado','concluido')
+             ORDER BY updated_at DESC"
+        );
+        $stCases->execute(array($clientId));
+        $cases = $stCases->fetchAll();
+
+        $stAnd = $pdo->prepare(
+            "SELECT id, data_andamento, descricao, traducao_leiga, created_at
+             FROM case_andamentos
+             WHERE case_id = ? AND visivel_cliente = 1
+             ORDER BY data_andamento DESC, created_at DESC
+             LIMIT 3"
+        );
+
+        $out = array();
+        foreach ($cases as $c) {
+            $stAnd->execute(array($c['id']));
+            $andamentos = $stAnd->fetchAll();
+            $andOut = array();
+            foreach ($andamentos as $a) {
+                $andOut[] = array(
+                    'id'             => (int)$a['id'],
+                    'data'           => $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '',
+                    'descricao'      => (string)$a['descricao'],
+                    'traducao_leiga' => $a['traducao_leiga'] ? (string)$a['traducao_leiga'] : null,
+                );
+            }
+            $out[] = array(
+                'id'           => (int)$c['id'],
+                'titulo'       => (string)$c['title'],
+                'case_number'  => (string)($c['case_number'] ?? ''),
+                'court'        => (string)($c['court'] ?? ''),
+                'status'       => (string)($c['status'] ?? ''),
+                'andamentos'   => $andOut,
+            );
+        }
+        echo json_encode(array(
+            'ok'      => true,
+            'client'  => array('id' => $clientId, 'nome' => $clRow['name']),
+            'cases'   => $out,
+        ));
+        exit;
+
+    // ─── Tradução IA do andamento (uso interno, força override do killswitch) ───
+    case 'helpdesk_traduzir_andamento':
+        header('Content-Type: application/json; charset=utf-8');
+        $andamentoId = (int)($_POST['andamento_id'] ?? 0);
+        if (!$andamentoId) { echo json_encode(array('error' => 'andamento_id obrigatório')); exit; }
+
+        $stA = $pdo->prepare("SELECT a.descricao, a.case_id FROM case_andamentos a WHERE a.id = ?");
+        $stA->execute(array($andamentoId));
+        $andRow = $stA->fetch();
+        if (!$andRow) { echo json_encode(array('error' => 'Andamento não encontrado.')); exit; }
+
+        require_once APP_ROOT . '/core/functions_ia.php';
+        // forcar=true: bypassa killswitch geral pra uso interno controlado
+        $resp = ia_traduzir_andamento_leigo($andamentoId, (string)$andRow['descricao'], current_user_id(), true);
+        echo json_encode($resp);
+        exit;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('helpdesk'));

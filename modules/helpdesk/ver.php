@@ -387,11 +387,194 @@ echo voltar_ao_processo_html();
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.35rem;gap:.5rem;flex-wrap:wrap;">
                 <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
                     <button type="button" onclick="document.getElementById('hdFileInput').click()" class="btn btn-outline btn-sm" title="Anexar printscreen, PDF ou documento (máx 5 arquivos, 10MB cada)">📎 Anexar</button>
+                    <?php if (!empty($ticket['client_id'])): ?>
+                    <button type="button" onclick="abrirInserirProcessos(<?= (int)$ticket['id'] ?>)" class="btn btn-outline btn-sm" style="border-color:#0ea5e9;color:#0369a1;" title="Inserir resumo dos processos do cliente (com últimos 3 andamentos e opção de tradução IA pra linguagem leiga)">📊 Inserir status dos processos</button>
+                    <?php endif; ?>
                     <span style="font-size:.68rem;color:var(--text-muted);">💡 <strong>@</strong> menciona · Ctrl+V cola imagem direto</span>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
             </div>
         </form>
+
+<!-- Modal: Inserir status dos processos (Amanda 08/06/2026) -->
+<div id="modalProcessos" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:#fff;border-radius:14px;padding:1.4rem;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 14px 40px rgba(0,0,0,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+            <h3 style="margin:0;color:var(--petrol-900);">📊 Inserir status dos processos</h3>
+            <button onclick="document.getElementById('modalProcessos').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">✕</button>
+        </div>
+        <div id="mpAviso" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.5rem .7rem;font-size:.78rem;color:#92400e;margin-bottom:.8rem;"></div>
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#166534;margin-bottom:.8rem;">
+            💡 <strong>Como funciona:</strong> selecione os processos que quer incluir na resposta. Pra cada um, mostramos os 3 últimos andamentos visíveis ao cliente. Marque o toggle pra usar IA traduzir em linguagem comum (custo: ~R$ 0,02 por andamento traduzido).
+        </div>
+        <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;font-size:.84rem;font-weight:700;margin-bottom:.7rem;padding:.5rem;background:#fafafa;border-radius:6px;">
+            <input type="checkbox" id="mpUsarIA" style="width:16px;height:16px;cursor:pointer;">
+            <span>✨ Usar IA pra traduzir andamentos em linguagem leiga</span>
+            <span style="font-size:.7rem;color:#6b7280;font-weight:400;margin-left:auto;">(Haiku, ~R$ 0,02 por chamada)</span>
+        </label>
+        <div id="mpCorpo" style="min-height:120px;">
+            <div style="text-align:center;padding:2rem;color:#6b7280;">Carregando processos...</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:.5rem;margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--border);">
+            <button onclick="document.getElementById('modalProcessos').style.display='none'" class="btn btn-outline btn-sm">Cancelar</button>
+            <button id="mpBtnInserir" onclick="mpInserirNaResposta()" class="btn btn-primary btn-sm" style="background:#0ea5e9;">📥 Inserir resumo na resposta</button>
+        </div>
+    </div>
+</div>
+
+<script>
+window.mpDados = null;
+
+function abrirInserirProcessos(ticketId) {
+    var modal = document.getElementById('modalProcessos');
+    var corpo = document.getElementById('mpCorpo');
+    var aviso = document.getElementById('mpAviso');
+    aviso.style.display = 'none';
+    corpo.innerHTML = '<div style="text-align:center;padding:2rem;color:#6b7280;">Carregando processos...</div>';
+    modal.style.display = 'flex';
+
+    var fd = new FormData();
+    fd.append('action', 'processos_do_chamado');
+    fd.append('ticket_id', ticketId);
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url("helpdesk", "api.php") ?>', {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d.error) {
+            aviso.style.display = 'block';
+            aviso.textContent = '⚠️ ' + d.error;
+            corpo.innerHTML = '';
+            return;
+        }
+        if (!d.cases || !d.cases.length) {
+            corpo.innerHTML = '<div style="text-align:center;padding:2rem;color:#6b7280;">Este cliente não tem processos ativos cadastrados.</div>';
+            return;
+        }
+        window.mpDados = d;
+        mpRender();
+    });
+}
+
+function mpRender() {
+    var d = window.mpDados;
+    if (!d) return;
+    var html = '';
+    d.cases.forEach(function(c, idx) {
+        html += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:.8rem;margin-bottom:.7rem;background:#fff;">';
+        html += '<label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer;">';
+        html += '<input type="checkbox" class="mp-case" data-case-idx="'+idx+'" checked style="width:18px;height:18px;cursor:pointer;margin-top:2px;">';
+        html += '<div style="flex:1;">';
+        html += '<div style="font-weight:700;color:var(--petrol-900);font-size:.92rem;">' + mpEsc(c.titulo) + '</div>';
+        html += '<div style="font-size:.72rem;color:#6b7280;margin-top:.15rem;">';
+        if (c.case_number) html += '⚖️ ' + mpEsc(c.case_number);
+        if (c.court) html += (c.case_number ? ' · ' : '') + '🏛️ ' + mpEsc(c.court);
+        if (c.status) html += ' · 📊 ' + mpEsc(c.status.replace(/_/g,' '));
+        html += '</div>';
+        if (!c.andamentos.length) {
+            html += '<div style="font-size:.74rem;color:#9ca3af;font-style:italic;margin-top:.4rem;">Sem andamentos visíveis ao cliente</div>';
+        } else {
+            html += '<div style="margin-top:.5rem;">';
+            c.andamentos.forEach(function(a, aidx) {
+                html += '<div style="background:#f9fafb;border-left:3px solid #0ea5e9;padding:.4rem .6rem;margin-bottom:.3rem;border-radius:4px;font-size:.78rem;">';
+                html += '<div style="font-weight:600;color:#0369a1;">📅 ' + mpEsc(a.data) + '</div>';
+                html += '<div id="mp_orig_'+idx+'_'+aidx+'" style="color:#374151;margin-top:.15rem;">' + mpEsc(a.descricao) + '</div>';
+                html += '<div id="mp_trad_'+idx+'_'+aidx+'" data-and-id="'+a.id+'" style="display:none;color:#15803d;margin-top:.3rem;padding-top:.3rem;border-top:1px dashed #d1d5db;"><strong>✨ Tradução:</strong> <span class="trad-texto">' + (a.traducao_leiga ? mpEsc(a.traducao_leiga) : '<em>...carregando...</em>') + '</span></div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        }
+        html += '</div></label></div>';
+    });
+    document.getElementById('mpCorpo').innerHTML = html;
+
+    // Toggle IA: mostra/esconde tradução em todos
+    document.getElementById('mpUsarIA').onchange = function(){
+        var ativo = this.checked;
+        document.querySelectorAll('[id^="mp_trad_"]').forEach(function(el){
+            el.style.display = ativo ? 'block' : 'none';
+            if (ativo) {
+                // Se não tem tradução carregada e ainda não buscou, dispara
+                var span = el.querySelector('.trad-texto');
+                var andId = el.dataset.andId;
+                if (span && span.innerHTML.indexOf('carregando') !== -1) {
+                    mpBuscarTraducao(andId, span);
+                }
+            }
+        });
+    };
+}
+
+function mpBuscarTraducao(andId, spanEl) {
+    var fd = new FormData();
+    fd.append('action', 'helpdesk_traduzir_andamento');
+    fd.append('andamento_id', andId);
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url("helpdesk", "api.php") ?>', {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok && d.traducao) {
+            spanEl.innerHTML = mpEsc(d.traducao);
+        } else {
+            spanEl.innerHTML = '<em style="color:#dc2626;">' + mpEsc(d.erro || 'falha na tradução') + '</em>';
+        }
+    });
+}
+
+function mpInserirNaResposta() {
+    var d = window.mpDados;
+    if (!d) return;
+    var usarIA = document.getElementById('mpUsarIA').checked;
+    var selecionados = document.querySelectorAll('.mp-case:checked');
+    if (!selecionados.length) { alert('Selecione ao menos 1 processo.'); return; }
+
+    var texto = '📋 Atualizamos o status dos seus processos:\n\n';
+    selecionados.forEach(function(chk, i){
+        var c = d.cases[parseInt(chk.dataset.caseIdx, 10)];
+        texto += '━━━━━━━━━━━━━━━━━━━━━━━\n';
+        texto += '🔹 ' + c.titulo + '\n';
+        if (c.case_number) texto += '⚖️ Nº ' + c.case_number + '\n';
+        if (c.court) texto += '🏛️ ' + c.court + '\n';
+        if (c.status) texto += '📊 Status: ' + c.status.replace(/_/g,' ') + '\n';
+        if (!c.andamentos.length) {
+            texto += '\n(sem movimentações visíveis recentes)\n';
+        } else {
+            texto += '\nÚltimos andamentos:\n';
+            c.andamentos.forEach(function(a, aidx){
+                texto += '\n📅 ' + a.data + '\n';
+                if (usarIA) {
+                    var spanEl = document.querySelector('#mp_trad_'+chk.dataset.caseIdx+'_'+aidx+' .trad-texto');
+                    var tradTxt = spanEl ? spanEl.textContent.trim() : '';
+                    if (tradTxt && tradTxt !== '' && tradTxt.indexOf('carregando') === -1 && tradTxt.indexOf('falha') === -1) {
+                        texto += '   ' + tradTxt + '\n';
+                    } else {
+                        texto += '   ' + a.descricao + '\n';
+                    }
+                } else {
+                    texto += '   ' + a.descricao + '\n';
+                }
+            });
+        }
+        texto += '\n';
+    });
+    texto += '━━━━━━━━━━━━━━━━━━━━━━━\n\nQualquer dúvida, é só responder por aqui.\nAtenciosamente,\nEquipe Ferreira & Sá Advocacia';
+
+    var ta = document.getElementById('msgTextarea');
+    if (ta) {
+        ta.value = (ta.value ? ta.value + '\n\n' : '') + texto;
+        ta.focus();
+        // Scrolla pro fim
+        ta.scrollTop = ta.scrollHeight;
+    }
+    document.getElementById('modalProcessos').style.display = 'none';
+}
+
+function mpEsc(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
 
 <script>
 // Nilce r7 31/05/2026: clicar Enviar com mensagem E anexos vazios passava

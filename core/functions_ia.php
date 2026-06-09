@@ -612,7 +612,12 @@ function ia_orcamento_mes() {
  * @param int    $userId       Usuario solicitante (0 = cliente da sala VIP)
  * @return array ['ok'=>bool, 'traducao'=>string, 'cached'=>bool, 'erro'=>?string]
  */
-function ia_traduzir_andamento_leigo($andamentoId, $descricao, $userId = 0) {
+/**
+ * @param bool $forcarMesmoSemKillswitch (Amanda 08/06/2026) — bypass do killswitch
+ *   pra uso interno controlado (ex: helpdesk respondendo cliente). Default false
+ *   preserva o comportamento original na Central VIP.
+ */
+function ia_traduzir_andamento_leigo($andamentoId, $descricao, $userId = 0, $forcarMesmoSemKillswitch = false) {
     $pdo = db();
     $andamentoId = (int)$andamentoId;
     $descricao = trim((string)$descricao);
@@ -635,7 +640,8 @@ function ia_traduzir_andamento_leigo($andamentoId, $descricao, $userId = 0) {
     } catch (Exception $e) { /* tabela ainda sem a coluna, segue pra criacao */ }
 
     // 2. Killswitch — se feature desativada, devolve a propria descricao (graceful)
-    if (!ia_feature_ativa('traducao_leiga')) {
+    // $forcarMesmoSemKillswitch=true bypassa o check (uso interno helpdesk)
+    if (!$forcarMesmoSemKillswitch && !ia_feature_ativa('traducao_leiga')) {
         return array('ok' => false, 'traducao' => $descricao, 'cached' => false,
                      'erro' => 'Tradução por IA está desativada no momento.');
     }
