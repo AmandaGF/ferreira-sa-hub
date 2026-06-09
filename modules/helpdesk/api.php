@@ -310,7 +310,10 @@ switch ($action) {
         $tkRow = $tk->fetch();
         if (!$tkRow) { echo json_encode(array('error' => 'Chamado não encontrado.')); exit; }
         $clientId = (int)($tkRow['client_id'] ?? 0);
-        if (!$clientId) { echo json_encode(array('error' => 'Chamado sem cliente vinculado. Vincule um cliente ao chamado primeiro.')); exit; }
+        if (!$clientId) {
+            echo json_encode(array('error' => '⚠️ Este chamado ainda não tem cliente vinculado. Vincule o cliente (campo "Cliente") na ficha do chamado pra usar esta função. Sem cliente, o sistema não consegue identificar os processos a listar.'));
+            exit;
+        }
 
         $cl = $pdo->prepare("SELECT id, name FROM clients WHERE id = ?");
         $cl->execute(array($clientId));

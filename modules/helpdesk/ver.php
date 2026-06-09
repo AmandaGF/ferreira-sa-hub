@@ -387,9 +387,7 @@ echo voltar_ao_processo_html();
             <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.35rem;gap:.5rem;flex-wrap:wrap;">
                 <div style="display:flex; gap:.5rem; align-items:center; flex-wrap:wrap;">
                     <button type="button" onclick="document.getElementById('hdFileInput').click()" class="btn btn-outline btn-sm" title="Anexar printscreen, PDF ou documento (máx 5 arquivos, 10MB cada)">📎 Anexar</button>
-                    <?php if (!empty($ticket['client_id'])): ?>
-                    <button type="button" onclick="abrirInserirProcessos(<?= (int)$ticket['id'] ?>)" class="btn btn-outline btn-sm" style="border-color:#0ea5e9;color:#0369a1;" title="Inserir resumo dos processos do cliente (com últimos 3 andamentos e opção de tradução IA pra linguagem leiga)">📊 Inserir status dos processos</button>
-                    <?php endif; ?>
+                    <button type="button" onclick="abrirInserirProcessos(<?= (int)$ticket['id'] ?>)" class="btn btn-outline btn-sm" style="border-color:#0ea5e9;color:#0369a1;" title="Inserir resumo executivo dos processos do cliente (com resumo IA cacheado + tracking de já enviados)">📊 Inserir status dos processos</button>
                     <span style="font-size:.68rem;color:var(--text-muted);">💡 <strong>@</strong> menciona · Ctrl+V cola imagem direto</span>
                 </div>
                 <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
