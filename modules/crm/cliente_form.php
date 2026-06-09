@@ -446,10 +446,19 @@ if (cpfField) {
     });
 }
 
-// ══ Máscara de Telefone ══
+// ══ Máscara de Telefone (Amanda 08/06/2026: preserva '+' internacional) ══
 document.querySelectorAll('[name=phone],[name=phone2]').forEach(function(el) {
     el.addEventListener('input', function() {
-        var v = this.value.replace(/\D/g, '');
+        var raw = this.value;
+        // Se começa com '+', e' INTERNACIONAL -> preserva + e so digitos depois (max 15)
+        if (raw.charAt(0) === '+') {
+            var digits = raw.substring(1).replace(/\D/g, '');
+            if (digits.length > 15) digits = digits.substring(0, 15);
+            this.value = '+' + digits;
+            return;
+        }
+        // BR: mascara padrao (00) 00000-0000
+        var v = raw.replace(/\D/g, '');
         if (v.length > 11) v = v.substr(0, 11);
         if (v.length > 10) v = v.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
         else if (v.length > 6) v = v.replace(/(\d{2})(\d{4})(\d{1,4})/, '($1) $2-$3');
