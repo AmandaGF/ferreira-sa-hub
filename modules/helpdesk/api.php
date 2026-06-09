@@ -12,6 +12,20 @@ if (!validate_csrf()) { flash_set('error', 'Token inválido.'); redirect(module_
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// Self-heal: tabela de tracking de processos resumidos por ticket (Amanda 08/06/2026)
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_processos_enviados (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        ticket_id INT UNSIGNED NOT NULL,
+        case_id INT UNSIGNED NOT NULL,
+        message_id INT UNSIGNED NULL,
+        enviado_por INT UNSIGNED NOT NULL,
+        enviado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_tk (ticket_id),
+        INDEX idx_case (case_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
 // Self-heal: tabela de anexos dos chamados (print screen / PDF / doc / imagem)
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS ticket_attachments (
@@ -174,6 +188,18 @@ switch ($action) {
                 ->execute([$ticketId, current_user_id(), current_user_id(), $msgContent]);
             $msgId = (int)$pdo->lastInsertId();
 
+            // Amanda 08/06/2026: tracking dos processos incluidos via "Inserir status dos processos"
+            // (hidden field cases_incluidos[]). Permite o modal saber quais ja foram enviados nesse chamado.
+            $casesInc = $_POST['cases_incluidos'] ?? array();
+            if (!is_array($casesInc)) $casesInc = array($casesInc);
+            $casesInc = array_values(array_unique(array_filter(array_map('intval', $casesInc), function($v){ return $v > 0; })));
+            if (!empty($casesInc)) {
+                $stIns = $pdo->prepare("INSERT INTO ticket_processos_enviados (ticket_id, case_id, message_id, enviado_por) VALUES (?,?,?,?)");
+                foreach ($casesInc as $cid) {
+                    try { $stIns->execute(array($ticketId, $cid, $msgId, current_user_id())); } catch (Exception $e) {}
+                }
+            }
+
             // Persiste anexos vinculados à mensagem
             if (!empty($anexos)) {
                 $stmtAnexo = $pdo->prepare("INSERT INTO ticket_attachments (ticket_id, message_id, user_id, arquivo_nome, arquivo_path, arquivo_mime, arquivo_tamanho) VALUES (?,?,?,?,?,?,?)");
@@ -273,7 +299,7 @@ switch ($action) {
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
         break;
 
-    // ─── Amanda 08/06/2026: pega processos do cliente do ticket + 3 andamentos ───
+    // ─── Amanda 08/06/2026: cases do cliente + resumo IA + tracking de envio ───
     case 'processos_do_chamado':
         header('Content-Type: application/json; charset=utf-8');
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
@@ -286,15 +312,14 @@ switch ($action) {
         $clientId = (int)($tkRow['client_id'] ?? 0);
         if (!$clientId) { echo json_encode(array('error' => 'Chamado sem cliente vinculado. Vincule um cliente ao chamado primeiro.')); exit; }
 
-        // Cliente
         $cl = $pdo->prepare("SELECT id, name FROM clients WHERE id = ?");
         $cl->execute(array($clientId));
         $clRow = $cl->fetch();
         if (!$clRow) { echo json_encode(array('error' => 'Cliente não encontrado.')); exit; }
 
-        // Cases ativos do cliente
+        // Cases ativos do cliente — agora trazemos ia_resumo e ia_resumo_em
         $stCases = $pdo->prepare(
-            "SELECT id, title, case_number, court, status
+            "SELECT id, title, case_number, court, status, ia_resumo, ia_resumo_em
              FROM cases
              WHERE client_id = ?
                AND status NOT IN ('arquivado','cancelado','concluido')
@@ -303,34 +328,57 @@ switch ($action) {
         $stCases->execute(array($clientId));
         $cases = $stCases->fetchAll();
 
-        $stAnd = $pdo->prepare(
-            "SELECT id, data_andamento, descricao, traducao_leiga, created_at
+        // Último andamento visível ao cliente (fallback quando não tem resumo IA)
+        $stUlt = $pdo->prepare(
+            "SELECT id, data_andamento, descricao
              FROM case_andamentos
              WHERE case_id = ? AND visivel_cliente = 1
              ORDER BY data_andamento DESC, created_at DESC
-             LIMIT 3"
+             LIMIT 1"
+        );
+
+        // Detecta se há andamento novo após o resumo (desatualizado)
+        $stMaxAnd = $pdo->prepare("SELECT MAX(created_at) FROM case_andamentos WHERE case_id = ?");
+
+        // Já enviado neste chamado?
+        $stEnviado = $pdo->prepare(
+            "SELECT MAX(enviado_em) FROM ticket_processos_enviados
+             WHERE ticket_id = ? AND case_id = ?"
         );
 
         $out = array();
         foreach ($cases as $c) {
-            $stAnd->execute(array($c['id']));
-            $andamentos = $stAnd->fetchAll();
-            $andOut = array();
-            foreach ($andamentos as $a) {
-                $andOut[] = array(
-                    'id'             => (int)$a['id'],
-                    'data'           => $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '',
-                    'descricao'      => (string)$a['descricao'],
-                    'traducao_leiga' => $a['traducao_leiga'] ? (string)$a['traducao_leiga'] : null,
-                );
+            $stUlt->execute(array($c['id']));
+            $ult = $stUlt->fetch();
+            $ultimoAndamento = $ult ? array(
+                'id'        => (int)$ult['id'],
+                'data'      => $ult['data_andamento'] ? date('d/m/Y', strtotime($ult['data_andamento'])) : '',
+                'descricao' => (string)$ult['descricao'],
+            ) : null;
+
+            $resumoDesatualizado = false;
+            if (!empty($c['ia_resumo']) && !empty($c['ia_resumo_em'])) {
+                $stMaxAnd->execute(array($c['id']));
+                $maxAnd = (string)$stMaxAnd->fetchColumn();
+                if ($maxAnd && strtotime($maxAnd) > strtotime($c['ia_resumo_em'])) {
+                    $resumoDesatualizado = true;
+                }
             }
+
+            $stEnviado->execute(array($ticketId, $c['id']));
+            $envEm = (string)$stEnviado->fetchColumn();
+
             $out[] = array(
-                'id'           => (int)$c['id'],
-                'titulo'       => (string)$c['title'],
-                'case_number'  => (string)($c['case_number'] ?? ''),
-                'court'        => (string)($c['court'] ?? ''),
-                'status'       => (string)($c['status'] ?? ''),
-                'andamentos'   => $andOut,
+                'id'                  => (int)$c['id'],
+                'titulo'              => (string)$c['title'],
+                'case_number'         => (string)($c['case_number'] ?? ''),
+                'court'               => (string)($c['court'] ?? ''),
+                'status'              => (string)($c['status'] ?? ''),
+                'ia_resumo'           => !empty($c['ia_resumo']) ? (string)$c['ia_resumo'] : null,
+                'ia_resumo_em'        => !empty($c['ia_resumo_em']) ? date('d/m/Y H:i', strtotime($c['ia_resumo_em'])) : null,
+                'ia_resumo_desatualizado' => $resumoDesatualizado,
+                'ultimo_andamento'    => $ultimoAndamento,
+                'ja_enviado_em'       => $envEm ? date('d/m/Y H:i', strtotime($envEm)) : null,
             );
         }
         echo json_encode(array(
@@ -340,21 +388,108 @@ switch ($action) {
         ));
         exit;
 
-    // ─── Tradução IA do andamento (uso interno, força override do killswitch) ───
-    case 'helpdesk_traduzir_andamento':
+    // ─── Gera resumo IA do caso (uso interno, mesma logica do operacional) ───
+    case 'helpdesk_gerar_resumo_caso':
         header('Content-Type: application/json; charset=utf-8');
-        $andamentoId = (int)($_POST['andamento_id'] ?? 0);
-        if (!$andamentoId) { echo json_encode(array('error' => 'andamento_id obrigatório')); exit; }
-
-        $stA = $pdo->prepare("SELECT a.descricao, a.case_id FROM case_andamentos a WHERE a.id = ?");
-        $stA->execute(array($andamentoId));
-        $andRow = $stA->fetch();
-        if (!$andRow) { echo json_encode(array('error' => 'Andamento não encontrado.')); exit; }
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
 
         require_once APP_ROOT . '/core/functions_ia.php';
-        // forcar=true: bypassa killswitch geral pra uso interno controlado
-        $resp = ia_traduzir_andamento_leigo($andamentoId, (string)$andRow['descricao'], current_user_id(), true);
-        echo json_encode($resp);
+        $uid = current_user_id();
+
+        // Caso
+        $stC = $pdo->prepare("SELECT * FROM cases WHERE id = ?");
+        $stC->execute(array($caseId));
+        $caso = $stC->fetch(PDO::FETCH_ASSOC);
+        if (!$caso) { echo json_encode(array('error' => 'Caso não encontrado.')); exit; }
+
+        // Contexto: ultimos 30 andamentos + tarefas + docs pendentes (mesma logica do operacional)
+        $stAnd = $pdo->prepare(
+            "SELECT data_andamento, hora_andamento, tipo, descricao
+             FROM case_andamentos WHERE case_id = ? ORDER BY data_andamento DESC, id DESC LIMIT 30"
+        );
+        $stAnd->execute(array($caseId));
+        $ands = $stAnd->fetchAll(PDO::FETCH_ASSOC);
+
+        $stTar = $pdo->prepare(
+            "SELECT title, due_date FROM case_tasks
+             WHERE case_id = ? AND tipo IS NOT NULL AND status != 'concluido' ORDER BY due_date ASC LIMIT 20"
+        );
+        $stTar->execute(array($caseId));
+        $tarefas = $stTar->fetchAll(PDO::FETCH_ASSOC);
+
+        $stDoc = $pdo->prepare(
+            "SELECT descricao FROM documentos_pendentes WHERE case_id = ? AND status = 'pendente' ORDER BY id"
+        );
+        $stDoc->execute(array($caseId));
+        $docsP = $stDoc->fetchAll(PDO::FETCH_COLUMN);
+
+        $ctx = "PROCESSO: " . (($caso['title'] ?? '') ?: 'sem título') . "\n";
+        if (!empty($caso['case_number'])) $ctx .= "CNJ: " . $caso['case_number'] . "\n";
+        $ctx .= "Tipo: " . (($caso['case_type'] ?? '') ?: '—') . " | Status: " . (($caso['status'] ?? '') ?: '—') . "\n\n";
+        $ctx .= "ANDAMENTOS (mais recentes primeiro):\n";
+        if (!$ands) $ctx .= "  (sem andamentos registrados)\n";
+        foreach ($ands as $a) {
+            $dt = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+            $tx = trim(preg_replace('/\s+/', ' ', (string)$a['descricao']));
+            if (mb_strlen($tx) > 250) $tx = mb_substr($tx,0,250) . '…';
+            $ctx .= "  • {$dt} [{$a['tipo']}] {$tx}\n";
+        }
+        $ctx .= "\nTAREFAS PENDENTES:\n";
+        if (!$tarefas) $ctx .= "  (nenhuma)\n";
+        foreach ($tarefas as $t) {
+            $dl = $t['due_date'] ? ' (até ' . date('d/m', strtotime($t['due_date'])) . ')' : '';
+            $ctx .= "  • {$t['title']}{$dl}\n";
+        }
+        $ctx .= "\nDOCUMENTOS FALTANTES:\n";
+        if (!$docsP) $ctx .= "  (nenhum)\n";
+        foreach ($docsP as $d) $ctx .= "  • {$d}\n";
+
+        $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
+                . "Vai receber o estado de um processo (andamentos recentes, tarefas, documentos) "
+                . "e deve produzir um RESUMO EXECUTIVO em 4 parágrafos curtos, na seguinte ordem:\n"
+                . "1. **Situação atual**: onde o processo está hoje (1 frase direta).\n"
+                . "2. **Último movimento relevante**: o que mais importa nos últimos andamentos (1-2 frases).\n"
+                . "3. **Próximo passo previsto**: o que esperar ou o que o escritório precisa fazer (1-2 frases).\n"
+                . "4. **Alertas**: prazo crítico, documento pendente, ponto de atenção (1 frase OU 'Nenhum alerta no momento').\n\n"
+                . "REGRAS:\n"
+                . "- Linguagem objetiva, jurídica mas clara, em português brasileiro.\n"
+                . "- NÃO invente fatos que não estão nos andamentos.\n"
+                . "- Use markdown (**negrito** nos rótulos como acima).\n"
+                . "- Total: no máximo 12 linhas. Cada parágrafo: máximo 2 frases.";
+
+        $r = ia_chamar(
+            'resumo_caso',
+            'claude-haiku-4-5',
+            $system,
+            array(array('role' => 'user', 'content' => $ctx)),
+            array(
+                'user_id'      => $uid,
+                'max_tokens'   => 600,
+                'temperature'  => 0.2,
+                'contexto'     => 'case#' . $caseId . ' (via helpdesk)',
+                'cache_system' => true,
+                'bypass_user_whitelist' => true,  // uso interno autorizado pela Amanda
+                'bypass_killswitch'     => true,  // helpdesk respondendo cliente
+            )
+        );
+
+        if (!$r['ok']) {
+            echo json_encode(array('error' => $r['erro'] ?: 'Falha na IA'));
+            exit;
+        }
+
+        $pdo->prepare("UPDATE cases SET ia_resumo = ?, ia_resumo_em = NOW() WHERE id = ?")
+            ->execute(array($r['texto'], $caseId));
+
+        audit_log('IA_RESUMO_CASO', 'case', $caseId, 'via helpdesk tokens=' . $r['input_tokens'] . '/' . $r['output_tokens'] . ' R$' . $r['custo_brl']);
+
+        echo json_encode(array(
+            'ok'        => true,
+            'texto'     => $r['texto'],
+            'em'        => date('d/m/Y H:i'),
+            'custo_brl' => $r['custo_brl'],
+        ));
         exit;
 
     default:

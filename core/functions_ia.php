@@ -114,14 +114,17 @@ function ia_chamar($feature, $modelo, $system, $messages, $opts = array()) {
     $temp     = isset($opts['temperature']) ? (float)$opts['temperature'] : 0.3;
     $contexto = isset($opts['contexto']) ? (string)$opts['contexto'] : null;
     $cacheSys = !empty($opts['cache_system']);
+    // Amanda 08/06/2026: bypass opcional pra uso interno controlado (ex: helpdesk)
+    $bypassKillswitch = !empty($opts['bypass_killswitch']);
+    $bypassWhitelist  = !empty($opts['bypass_user_whitelist']);
 
     // 1) Killswitch da feature
-    if (!ia_feature_ativa($feature)) {
+    if (!$bypassKillswitch && !ia_feature_ativa($feature)) {
         return array('ok' => false, 'erro' => 'Feature IA "' . $feature . '" desativada.', 'texto' => null,
                      'input_tokens' => 0, 'output_tokens' => 0, 'custo_brl' => 0);
     }
     // 2) Whitelist (se userId foi passado)
-    if ($userId !== null && !ia_user_autorizado($userId)) {
+    if (!$bypassWhitelist && $userId !== null && !ia_user_autorizado($userId)) {
         return array('ok' => false, 'erro' => 'Usuário não autorizado a usar IA.', 'texto' => null,
                      'input_tokens' => 0, 'output_tokens' => 0, 'custo_brl' => 0);
     }

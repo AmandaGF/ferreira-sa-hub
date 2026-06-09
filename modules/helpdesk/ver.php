@@ -396,21 +396,20 @@ echo voltar_ao_processo_html();
             </div>
         </form>
 
-<!-- Modal: Inserir status dos processos (Amanda 08/06/2026) -->
+<!-- Modal: Inserir status dos processos (Amanda 08/06/2026 v2 — resumo IA + tracking) -->
 <div id="modalProcessos" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:1rem;">
-    <div style="background:#fff;border-radius:14px;padding:1.4rem;max-width:780px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 14px 40px rgba(0,0,0,.3);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
-            <h3 style="margin:0;color:var(--petrol-900);">📊 Inserir status dos processos</h3>
+    <div style="background:#fff;border-radius:14px;padding:1.4rem;max-width:820px;width:100%;max-height:92vh;overflow-y:auto;box-shadow:0 14px 40px rgba(0,0,0,.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;">
+            <h3 style="margin:0;color:var(--petrol-900);">📊 Inserir resumo dos processos</h3>
             <button onclick="document.getElementById('modalProcessos').style.display='none'" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#6b7280;">✕</button>
         </div>
         <div id="mpAviso" style="display:none;background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:.5rem .7rem;font-size:.78rem;color:#92400e;margin-bottom:.8rem;"></div>
-        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#166534;margin-bottom:.8rem;">
-            💡 <strong>Como funciona:</strong> selecione os processos que quer incluir na resposta. Pra cada um, mostramos os 3 últimos andamentos visíveis ao cliente. Marque o toggle pra usar IA traduzir em linguagem comum (custo: ~R$ 0,02 por andamento traduzido).
+        <div style="background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#1e40af;margin-bottom:.8rem;">
+            💡 Mostramos o <strong>resumo executivo gerado pela IA</strong> de cada processo. Se ainda não foi gerado, você pode gerar pelo botão "✨ Gerar agora". Processos já enviados neste chamado aparecem com ✅ e ficam desmarcados por padrão.
         </div>
-        <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;font-size:.84rem;font-weight:700;margin-bottom:.7rem;padding:.5rem;background:#fafafa;border-radius:6px;">
-            <input type="checkbox" id="mpUsarIA" style="width:16px;height:16px;cursor:pointer;">
-            <span>✨ Usar IA pra traduzir andamentos em linguagem leiga</span>
-            <span style="font-size:.7rem;color:#6b7280;font-weight:400;margin-left:auto;">(Haiku, ~R$ 0,02 por chamada)</span>
+        <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;font-size:.8rem;font-weight:600;margin-bottom:.7rem;padding:.45rem .6rem;background:#fafafa;border-radius:6px;border:1px solid #e5e7eb;">
+            <input type="checkbox" id="mpSoPendentes" onchange="mpRender()" style="width:16px;height:16px;cursor:pointer;">
+            <span>🎯 Esconder processos já enviados neste chamado</span>
         </label>
         <div id="mpCorpo" style="min-height:120px;">
             <div style="text-align:center;padding:2rem;color:#6b7280;">Carregando processos...</div>
@@ -424,6 +423,7 @@ echo voltar_ao_processo_html();
 
 <script>
 window.mpDados = null;
+window.mpTicketId = null;
 
 function abrirInserirProcessos(ticketId) {
     var modal = document.getElementById('modalProcessos');
@@ -432,6 +432,7 @@ function abrirInserirProcessos(ticketId) {
     aviso.style.display = 'none';
     corpo.innerHTML = '<div style="text-align:center;padding:2rem;color:#6b7280;">Carregando processos...</div>';
     modal.style.display = 'flex';
+    window.mpTicketId = ticketId;
 
     var fd = new FormData();
     fd.append('action', 'processos_do_chamado');
@@ -459,102 +460,133 @@ function abrirInserirProcessos(ticketId) {
 function mpRender() {
     var d = window.mpDados;
     if (!d) return;
+    var soPendentes = document.getElementById('mpSoPendentes').checked;
     var html = '';
+    var nVisiveis = 0;
     d.cases.forEach(function(c, idx) {
-        html += '<div style="border:1px solid #e5e7eb;border-radius:10px;padding:.8rem;margin-bottom:.7rem;background:#fff;">';
-        html += '<label style="display:flex;align-items:flex-start;gap:.5rem;cursor:pointer;">';
-        html += '<input type="checkbox" class="mp-case" data-case-idx="'+idx+'" checked style="width:18px;height:18px;cursor:pointer;margin-top:2px;">';
+        if (soPendentes && c.ja_enviado_em) return;
+        nVisiveis++;
+        var jaEnviado = !!c.ja_enviado_em;
+        var defaultChecked = !jaEnviado;
+        var bgCard = jaEnviado ? '#f9fafb' : '#fff';
+        var borderCard = jaEnviado ? '#d1d5db' : '#e5e7eb';
+
+        html += '<div style="border:1px solid '+borderCard+';border-radius:10px;padding:.85rem;margin-bottom:.7rem;background:'+bgCard+';">';
+        html += '<label style="display:flex;align-items:flex-start;gap:.55rem;cursor:pointer;">';
+        html += '<input type="checkbox" class="mp-case" data-case-idx="'+idx+'" data-case-id="'+c.id+'" '+(defaultChecked?'checked':'')+' style="width:18px;height:18px;cursor:pointer;margin-top:2px;">';
         html += '<div style="flex:1;">';
-        html += '<div style="font-weight:700;color:var(--petrol-900);font-size:.92rem;">' + mpEsc(c.titulo) + '</div>';
+
+        // Badge de "já enviado"
+        if (jaEnviado) {
+            html += '<div style="background:#dcfce7;border:1px solid #86efac;color:#166534;display:inline-block;padding:2px 10px;border-radius:10px;font-size:.66rem;font-weight:700;margin-bottom:.35rem;">✅ Já enviado neste chamado em '+mpEsc(c.ja_enviado_em)+'</div>';
+        }
+
+        // Header com info do processo
+        html += '<div style="font-weight:700;color:var(--petrol-900);font-size:.94rem;">' + mpEsc(c.titulo) + '</div>';
         html += '<div style="font-size:.72rem;color:#6b7280;margin-top:.15rem;">';
         if (c.case_number) html += '⚖️ ' + mpEsc(c.case_number);
         if (c.court) html += (c.case_number ? ' · ' : '') + '🏛️ ' + mpEsc(c.court);
         if (c.status) html += ' · 📊 ' + mpEsc(c.status.replace(/_/g,' '));
         html += '</div>';
-        if (!c.andamentos.length) {
-            html += '<div style="font-size:.74rem;color:#9ca3af;font-style:italic;margin-top:.4rem;">Sem andamentos visíveis ao cliente</div>';
-        } else {
-            html += '<div style="margin-top:.5rem;">';
-            c.andamentos.forEach(function(a, aidx) {
-                html += '<div style="background:#f9fafb;border-left:3px solid #0ea5e9;padding:.4rem .6rem;margin-bottom:.3rem;border-radius:4px;font-size:.78rem;">';
-                html += '<div style="font-weight:600;color:#0369a1;">📅 ' + mpEsc(a.data) + '</div>';
-                html += '<div id="mp_orig_'+idx+'_'+aidx+'" style="color:#374151;margin-top:.15rem;">' + mpEsc(a.descricao) + '</div>';
-                html += '<div id="mp_trad_'+idx+'_'+aidx+'" data-and-id="'+a.id+'" style="display:none;color:#15803d;margin-top:.3rem;padding-top:.3rem;border-top:1px dashed #d1d5db;"><strong>✨ Tradução:</strong> <span class="trad-texto">' + (a.traducao_leiga ? mpEsc(a.traducao_leiga) : '<em>...carregando...</em>') + '</span></div>';
-                html += '</div>';
-            });
+
+        // Conteúdo principal: resumo IA OU fallback
+        if (c.ia_resumo) {
+            var corResumo = c.ia_resumo_desatualizado ? '#92400e' : '#0369a1';
+            var bgResumo = c.ia_resumo_desatualizado ? '#fef3c7' : '#eff6ff';
+            var borderResumo = c.ia_resumo_desatualizado ? '#fbbf24' : '#bfdbfe';
+            html += '<div id="mp_resumo_'+idx+'" style="background:'+bgResumo+';border:1px solid '+borderResumo+';border-radius:8px;padding:.55rem .75rem;margin-top:.55rem;font-size:.8rem;color:#1f2937;white-space:pre-wrap;line-height:1.45;">';
+            html += '<div style="font-size:.66rem;color:'+corResumo+';font-weight:700;margin-bottom:.3rem;">✨ RESUMO EXECUTIVO IA <span style="font-weight:400;opacity:.8;">· gerado em '+mpEsc(c.ia_resumo_em || '—')+'</span>';
+            if (c.ia_resumo_desatualizado) html += ' <span style="background:#f59e0b;color:#fff;padding:1px 6px;border-radius:6px;margin-left:6px;font-size:.62rem;">DESATUALIZADO</span>';
             html += '</div>';
+            html += mpEsc(c.ia_resumo);
+            html += '</div>';
+            if (c.ia_resumo_desatualizado) {
+                html += '<button type="button" onclick="event.preventDefault();event.stopPropagation();mpGerarResumo('+c.id+','+idx+')" style="margin-top:.4rem;background:#0ea5e9;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer;">🔄 Atualizar resumo (há andamento novo)</button>';
+            }
+        } else if (c.ultimo_andamento) {
+            html += '<div style="background:#fafafa;border:1px dashed #d1d5db;border-radius:8px;padding:.55rem .75rem;margin-top:.55rem;font-size:.78rem;color:#374151;">';
+            html += '<div style="font-size:.66rem;color:#6b7280;font-weight:700;margin-bottom:.25rem;">📅 ÚLTIMO ANDAMENTO (sem resumo IA gerado)</div>';
+            html += '<div style="font-weight:600;color:#0369a1;">' + mpEsc(c.ultimo_andamento.data) + '</div>';
+            html += '<div style="margin-top:.15rem;">' + mpEsc(c.ultimo_andamento.descricao) + '</div>';
+            html += '</div>';
+            html += '<button type="button" onclick="event.preventDefault();event.stopPropagation();mpGerarResumo('+c.id+','+idx+')" style="margin-top:.4rem;background:#0ea5e9;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer;">✨ Gerar resumo IA agora (~20s)</button>';
+        } else {
+            html += '<div style="background:#fafafa;border:1px dashed #d1d5db;border-radius:8px;padding:.55rem .75rem;margin-top:.55rem;font-size:.78rem;color:#9ca3af;font-style:italic;">Sem resumo IA e sem andamentos visíveis ao cliente.</div>';
+            html += '<button type="button" onclick="event.preventDefault();event.stopPropagation();mpGerarResumo('+c.id+','+idx+')" style="margin-top:.4rem;background:#0ea5e9;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer;">✨ Gerar resumo IA mesmo assim</button>';
         }
         html += '</div></label></div>';
     });
-    document.getElementById('mpCorpo').innerHTML = html;
 
-    // Toggle IA: mostra/esconde tradução em todos
-    document.getElementById('mpUsarIA').onchange = function(){
-        var ativo = this.checked;
-        document.querySelectorAll('[id^="mp_trad_"]').forEach(function(el){
-            el.style.display = ativo ? 'block' : 'none';
-            if (ativo) {
-                // Se não tem tradução carregada e ainda não buscou, dispara
-                var span = el.querySelector('.trad-texto');
-                var andId = el.dataset.andId;
-                if (span && span.innerHTML.indexOf('carregando') !== -1) {
-                    mpBuscarTraducao(andId, span);
-                }
-            }
-        });
-    };
+    if (nVisiveis === 0) {
+        html = '<div style="text-align:center;padding:2rem;color:#6b7280;">Nenhum processo pendente (todos já foram enviados neste chamado). Desmarque o filtro acima pra ver os já enviados.</div>';
+    }
+    document.getElementById('mpCorpo').innerHTML = html;
 }
 
-function mpBuscarTraducao(andId, spanEl) {
+function mpGerarResumo(caseId, idx) {
+    // Trava o botão clicado
+    var btn = event.target;
+    var textoOrig = btn.innerHTML;
+    btn.innerHTML = '⏳ Gerando... (até 30s)';
+    btn.disabled = true;
+    btn.style.opacity = '.6';
+    btn.style.cursor = 'wait';
+
     var fd = new FormData();
-    fd.append('action', 'helpdesk_traduzir_andamento');
-    fd.append('andamento_id', andId);
+    fd.append('action', 'helpdesk_gerar_resumo_caso');
+    fd.append('case_id', caseId);
     fd.append('csrf_token', '<?= generate_csrf_token() ?>');
     fetch('<?= module_url("helpdesk", "api.php") ?>', {
         method: 'POST', body: fd,
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
     }).then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok && d.traducao) {
-            spanEl.innerHTML = mpEsc(d.traducao);
-        } else {
-            spanEl.innerHTML = '<em style="color:#dc2626;">' + mpEsc(d.erro || 'falha na tradução') + '</em>';
+        if (d.error) {
+            alert('⚠️ ' + d.error);
+            btn.innerHTML = textoOrig;
+            btn.disabled = false;
+            btn.style.opacity = '';
+            btn.style.cursor = '';
+            return;
         }
+        // Atualiza o resumo no objeto local + re-renderiza
+        window.mpDados.cases[idx].ia_resumo = d.texto;
+        window.mpDados.cases[idx].ia_resumo_em = d.em;
+        window.mpDados.cases[idx].ia_resumo_desatualizado = false;
+        mpRender();
+    }).catch(function(e){
+        alert('⚠️ Falha de rede: ' + e.message);
+        btn.innerHTML = textoOrig;
+        btn.disabled = false;
+        btn.style.opacity = '';
+        btn.style.cursor = '';
     });
 }
 
 function mpInserirNaResposta() {
     var d = window.mpDados;
     if (!d) return;
-    var usarIA = document.getElementById('mpUsarIA').checked;
     var selecionados = document.querySelectorAll('.mp-case:checked');
     if (!selecionados.length) { alert('Selecione ao menos 1 processo.'); return; }
 
     var texto = '📋 Atualizamos o status dos seus processos:\n\n';
-    selecionados.forEach(function(chk, i){
+    var idsIncluidos = [];
+    selecionados.forEach(function(chk){
         var c = d.cases[parseInt(chk.dataset.caseIdx, 10)];
+        idsIncluidos.push(c.id);
         texto += '━━━━━━━━━━━━━━━━━━━━━━━\n';
         texto += '🔹 ' + c.titulo + '\n';
         if (c.case_number) texto += '⚖️ Nº ' + c.case_number + '\n';
         if (c.court) texto += '🏛️ ' + c.court + '\n';
-        if (c.status) texto += '📊 Status: ' + c.status.replace(/_/g,' ') + '\n';
-        if (!c.andamentos.length) {
-            texto += '\n(sem movimentações visíveis recentes)\n';
+        texto += '\n';
+        if (c.ia_resumo) {
+            // Remove negritos markdown (**X**) pra ficar legível no chat
+            var resumoLimpo = c.ia_resumo.replace(/\*\*(.+?)\*\*/g, '$1');
+            texto += resumoLimpo + '\n';
+        } else if (c.ultimo_andamento) {
+            texto += 'Último andamento (' + c.ultimo_andamento.data + '):\n';
+            texto += c.ultimo_andamento.descricao + '\n';
         } else {
-            texto += '\nÚltimos andamentos:\n';
-            c.andamentos.forEach(function(a, aidx){
-                texto += '\n📅 ' + a.data + '\n';
-                if (usarIA) {
-                    var spanEl = document.querySelector('#mp_trad_'+chk.dataset.caseIdx+'_'+aidx+' .trad-texto');
-                    var tradTxt = spanEl ? spanEl.textContent.trim() : '';
-                    if (tradTxt && tradTxt !== '' && tradTxt.indexOf('carregando') === -1 && tradTxt.indexOf('falha') === -1) {
-                        texto += '   ' + tradTxt + '\n';
-                    } else {
-                        texto += '   ' + a.descricao + '\n';
-                    }
-                } else {
-                    texto += '   ' + a.descricao + '\n';
-                }
-            });
+            texto += '(sem movimentações recentes registradas)\n';
         }
         texto += '\n';
     });
@@ -564,9 +596,22 @@ function mpInserirNaResposta() {
     if (ta) {
         ta.value = (ta.value ? ta.value + '\n\n' : '') + texto;
         ta.focus();
-        // Scrolla pro fim
         ta.scrollTop = ta.scrollHeight;
     }
+
+    // Limpa hiddens antigos e adiciona os novos (cases_incluidos[])
+    var form = document.getElementById('formMsgHelpdesk');
+    if (form) {
+        form.querySelectorAll('input[name="cases_incluidos[]"]').forEach(function(el){ el.remove(); });
+        idsIncluidos.forEach(function(id){
+            var inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = 'cases_incluidos[]';
+            inp.value = id;
+            form.appendChild(inp);
+        });
+    }
+
     document.getElementById('modalProcessos').style.display = 'none';
 }
 
