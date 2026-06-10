@@ -1,11 +1,18 @@
 <?php
-if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
+if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
+
+// Mostra colunas reais da case_partes pra confirmar nomes
+echo "=== Colunas reais de case_partes ===\n";
+foreach ($pdo->query("SHOW COLUMNS FROM case_partes") as $col) {
+    echo "  {$col['Field']} ({$col['Type']})\n";
+}
+echo "\n";
 
 $nome = $_GET['nome'] ?? 'Gabrielle';
 
