@@ -84,10 +84,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             redirect(module_url('salavip', 'acessos.php'));
         }
 
+        // FIX CRITICO Amanda 10/06/2026: tava regenerando o token mas NAO
+        // atualizando token_expira. Como a data antiga ja estava vencida, o
+        // token novo nascia expirado e o cliente via 'Link invalido ou expirado'.
+        // Agora renova a expiracao em +72h (padrao usado em crm/api.php).
         $newToken = bin2hex(random_bytes(32));
+        $newExpira = date('Y-m-d H:i:s', strtotime('+72 hours'));
         $pdo->prepare(
-            "UPDATE salavip_usuarios SET token_ativacao = ?, atualizado_em = NOW() WHERE id = ?"
-        )->execute(array($newToken, $id));
+            "UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, atualizado_em = NOW() WHERE id = ?"
+        )->execute(array($newToken, $newExpira, $id));
 
         $linkAtivacao = 'https://www.ferreiraesa.com.br/salavip/ativar_conta.php?token=' . $newToken;
 
