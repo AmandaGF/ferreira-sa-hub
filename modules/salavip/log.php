@@ -18,6 +18,8 @@ $pdo = db();
 $filterUser  = (int)($_GET['user_id'] ?? 0);
 $filterFrom  = $_GET['date_from'] ?? '';
 $filterTo    = $_GET['date_to'] ?? '';
+// Amanda 10/06/2026: busca textual por nome (escrevendo)
+$filterQ     = trim($_GET['q'] ?? '');
 
 $where = '1=1';
 $params = array();
@@ -33,6 +35,20 @@ if ($filterFrom) {
 if ($filterTo) {
     $where .= ' AND DATE(la.criado_em) <= ?';
     $params[] = $filterTo;
+}
+if ($filterQ) {
+    // Quebra em palavras pra casar nome composto fora de ordem
+    $palavras = preg_split('/\s+/', $filterQ);
+    $palavras = array_filter($palavras, function($p){ return mb_strlen($p) >= 2; });
+    if ($palavras) {
+        foreach ($palavras as $p) {
+            $where .= ' AND c.name LIKE ?';
+            $params[] = '%' . $p . '%';
+        }
+    } else {
+        $where .= ' AND c.name LIKE ?';
+        $params[] = '%' . $filterQ . '%';
+    }
 }
 
 $logs = $pdo->prepare(
@@ -69,8 +85,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="card mb-2">
     <div class="card-body">
         <form method="GET" class="log-filters">
+            <div style="flex:1;min-width:220px;">
+                <label class="form-label">Buscar por nome</label>
+                <input type="text" name="q" value="<?= e($filterQ) ?>" placeholder="Digite o nome do cliente..."
+                       class="form-control" style="font-size:.82rem;width:100%;"
+                       autocomplete="off" oninput="logFiltrarClientside(this.value)">
+            </div>
             <div>
-                <label class="form-label">Usuario</label>
+                <label class="form-label">Usuário (lista)</label>
                 <select name="user_id" class="form-control" style="font-size:.78rem;width:200px;">
                     <option value="">Todos</option>
                     <?php foreach ($usuarios as $u): ?>
@@ -83,12 +105,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <input type="date" name="date_from" value="<?= e($filterFrom) ?>" class="form-control" style="font-size:.78rem;">
             </div>
             <div>
-                <label class="form-label">Ate</label>
+                <label class="form-label">Até</label>
                 <input type="date" name="date_to" value="<?= e($filterTo) ?>" class="form-control" style="font-size:.78rem;">
             </div>
             <div>
                 <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
-                <?php if ($filterUser || $filterFrom || $filterTo): ?>
+                <?php if ($filterUser || $filterFrom || $filterTo || $filterQ): ?>
                     <a href="<?= module_url('salavip', 'log.php') ?>" class="btn btn-outline btn-sm">Limpar</a>
                 <?php endif; ?>
             </div>
@@ -99,7 +121,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- Log Table -->
 <div class="card">
     <div class="card-header">
-        <h3>Ultimos 100 Acessos</h3>
+        <h3>Últimos 100 Acessos <span id="logCnt" style="color:#94a3b8;font-size:.85rem;font-weight:400;"></span></h3>
     </div>
     <div class="card-body" style="padding:0;overflow-x:auto;">
         <?php if (empty($logs)): ?>
@@ -110,8 +132,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <table class="log-table">
                 <thead>
                     <tr>
-                        <th>Usuario</th>
-                        <th>Acao</th>
+                        <th>Usuário</th>
+                        <th>Ação</th>
                         <th>IP</th>
                         <th>Data/Hora</th>
                     </tr>
@@ -130,5 +152,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+// Amanda 10/06/2026: filtro instantaneo enquanto digita (sem reload). Enter ainda
+// submete o form pra busca server-side (alarga alem das 100 ultimas).
+function logFiltrarClientside(termo) {
+    var t = (termo || '').toLowerCase().trim();
+    var rows = document.querySelectorAll('table.log-table tbody tr');
+    var visiveis = 0;
+    rows.forEach(function(tr) {
+        if (!t) { tr.style.display = ''; visiveis++; return; }
+        // Casa cada palavra do termo (nome composto fora de ordem)
+        var palavras = t.split(/\s+/).filter(function(p){ return p.length >= 2; });
+        var txt = tr.textContent.toLowerCase();
+        var bate = palavras.length ? palavras.every(function(p){ return txt.indexOf(p) !== -1; })
+                                   : (txt.indexOf(t) !== -1);
+        tr.style.display = bate ? '' : 'none';
+        if (bate) visiveis++;
+    });
+    var cnt = document.getElementById('logCnt');
+    if (cnt) cnt.textContent = t ? '— ' + visiveis + ' de ' + rows.length + ' (digite e pressione Filtrar pra ampliar)' : '';
+}
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
