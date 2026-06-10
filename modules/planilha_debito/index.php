@@ -26,6 +26,8 @@ try {
 
 // Buscar casos para select
 $cases = $pdo->query("SELECT id, title, case_number, client_id FROM cases WHERE status NOT IN ('cancelado','arquivado') ORDER BY title")->fetchAll();
+// Amanda 10/06/2026: clientes pra vincular calculo direto (quando nao tem processo cadastrado)
+$clientesLista = $pdo->query("SELECT id, name FROM clients ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -88,17 +90,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <button type="button" class="btn btn-primary" style="margin-top:.5rem;" onclick="iniciarProcessamento('txt')">⚡ Processar texto</button>
     </div>
 
-    <!-- Caso vinculado (opcional) -->
+    <!-- Caso/cliente vinculado (opcional) -->
     <div id="pdOpcoes" style="display:none;margin-bottom:1rem;">
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:end;">
             <div style="flex:1;min-width:200px;">
                 <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular a processo (opcional)</label>
-                <select id="pdCaseId" class="form-select" style="font-size:.85rem;">
+                <select id="pdCaseId" class="form-select" style="font-size:.85rem;" onchange="pdAtualizarClienteDoCase(this)">
                     <option value="">— Nenhum —</option>
                     <?php foreach ($cases as $c): ?>
                         <option value="<?= $c['id'] ?>" data-client="<?= (int)($c['client_id'] ?? 0) ?>"><?= e($c['title']) ?><?= $c['case_number'] ? ' — ' . e($c['case_number']) : '' ?></option>
                     <?php endforeach; ?>
                 </select>
+            </div>
+            <div style="flex:1;min-width:200px;">
+                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular ao cliente (quando não tem processo)</label>
+                <input type="text" id="pdClientBusca" list="pdClientList" class="form-input" style="font-size:.85rem;" placeholder="Digite o nome do cliente..." oninput="pdSelecionarCliente()">
+                <datalist id="pdClientList">
+                    <?php foreach ($clientesLista as $cl): ?>
+                        <option data-id="<?= (int)$cl['id'] ?>" value="<?= e($cl['name']) ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <input type="hidden" id="pdClientId" value="">
             </div>
             <div style="min-width:200px;">
                 <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Título da planilha</label>
@@ -121,11 +133,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="card pd-list" style="margin-top:1.5rem;">
         <div class="card-header"><h3>Cálculos Gerados</h3></div>
         <table>
-            <thead><tr><th>Título</th><th>Processo</th><th>Gerada por</th><th>Data</th><th>Ações</th></tr></thead>
+            <thead><tr><th>Título</th><th>Cliente</th><th>Processo</th><th>Gerada por</th><th>Data</th><th>Ações</th></tr></thead>
             <tbody>
             <?php foreach ($planilhas as $pl): ?>
             <tr>
                 <td style="font-weight:600;"><?= e($pl['titulo'] ?: 'Planilha #' . $pl['id']) ?></td>
+                <td style="font-size:.78rem;"><?= e($pl['client_name'] ?: '—') ?></td>
                 <td style="font-size:.78rem;"><?= e($pl['case_title'] ?: '—') ?></td>
                 <td style="font-size:.78rem;"><?= e($pl['user_name'] ?: '—') ?></td>
                 <td style="font-size:.78rem;"><?= date('d/m/Y H:i', strtotime($pl['created_at'])) ?></td>
@@ -155,6 +168,37 @@ function pdTrocarTab(t) {
         if (pane) pane.style.display = (k === t) ? '' : 'none';
         if (tab) tab.classList.toggle('pd-tab-ativa', k === t);
     });
+}
+
+// Amanda 10/06/2026: pega o ID do cliente a partir do nome digitado (datalist)
+function pdSelecionarCliente() {
+    var nome = (document.getElementById('pdClientBusca').value || '').trim().toLowerCase();
+    var opts = document.querySelectorAll('#pdClientList option');
+    var achouId = '';
+    for (var i = 0; i < opts.length; i++) {
+        if ((opts[i].value || '').toLowerCase() === nome) {
+            achouId = opts[i].dataset.id || '';
+            break;
+        }
+    }
+    document.getElementById('pdClientId').value = achouId;
+}
+
+// Quando escolher um processo, preenche o cliente automaticamente
+function pdAtualizarClienteDoCase(sel) {
+    var opt = sel.options[sel.selectedIndex];
+    var clientId = opt && opt.dataset ? (opt.dataset.client || '') : '';
+    if (clientId && clientId !== '0') {
+        document.getElementById('pdClientId').value = clientId;
+        // Tenta achar o nome no datalist pra refletir na busca
+        var opts = document.querySelectorAll('#pdClientList option');
+        for (var i = 0; i < opts.length; i++) {
+            if (opts[i].dataset.id === clientId) {
+                document.getElementById('pdClientBusca').value = opts[i].value;
+                break;
+            }
+        }
+    }
 }
 
 // Drag & drop PDF
@@ -222,6 +266,7 @@ function iniciarProcessamento(tipo) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
     fd.append('case_id', document.getElementById('pdCaseId').value);
+    fd.append('client_id', document.getElementById('pdClientId').value || '0');
 
     if (tipo === 'pdf') {
         var file = document.getElementById('pdfInput').files[0];

@@ -620,9 +620,17 @@ function expandirSidebarSection(slug) {
     } catch(e) {}
 }
 
+// Amanda 10/06/2026: normaliza pra remover acentos — 'calculo' acha 'Cálculo'
+function sbNorm(s) {
+    // ̀-ͯ = bloco "Combining Diacritical Marks" (cedilha + acentos separados pelo NFD)
+    return (s || '').toString().toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
 // ── Busca no menu lateral ──
 function sidebarFiltrar(q) {
     q = (q || '').trim().toLowerCase();
+    var qNorm = sbNorm(q);
     var nav = document.getElementById('sidebarNav');
     var btnClear = document.getElementById('sidebarSearchClear');
     if (btnClear) btnClear.style.display = q ? 'inline-block' : 'none';
@@ -653,13 +661,28 @@ function sidebarFiltrar(q) {
         if (!label) return;
         if (!label.dataset.original) label.dataset.original = label.textContent;
         var texto = label.dataset.original.toLowerCase();
-        var bate = texto.indexOf(q) !== -1;
+        var textoNorm = sbNorm(label.dataset.original);
+        // Casa COM ou SEM acentos: 'cal' acha 'Cálculo', 'cál' tambem
+        var bate = texto.indexOf(q) !== -1 || textoNorm.indexOf(qNorm) !== -1;
         row.style.display = bate ? '' : 'none';
         if (bate) {
             totalVisiveis++;
-            // Highlight do termo
-            var re = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
-            label.innerHTML = label.dataset.original.replace(re, '<span class="sidebar-highlight">$1</span>');
+            // Highlight: tenta com o termo original primeiro, senao casa por posicao no normalizado
+            var reOrig = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+            if (texto.indexOf(q) !== -1) {
+                label.innerHTML = label.dataset.original.replace(reOrig, '<span class="sidebar-highlight">$1</span>');
+            } else {
+                // Match foi por normalizacao — pega a posicao e marca a fatia equivalente do original
+                var pos = textoNorm.indexOf(qNorm);
+                if (pos !== -1) {
+                    var antes = label.dataset.original.slice(0, pos);
+                    var meio  = label.dataset.original.slice(pos, pos + qNorm.length);
+                    var depois = label.dataset.original.slice(pos + qNorm.length);
+                    label.innerHTML = antes + '<span class="sidebar-highlight">' + meio + '</span>' + depois;
+                } else {
+                    label.innerHTML = label.dataset.original;
+                }
+            }
         }
     });
 

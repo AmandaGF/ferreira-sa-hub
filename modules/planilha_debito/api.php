@@ -92,12 +92,15 @@ if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_text
     $caseId = (int)($_POST['case_id'] ?? 0) ?: null;
     $titulo = clean_str($_POST['titulo'] ?? '', 200) ?: 'Cálculo ' . date('d/m/Y H:i');
 
-    // Buscar client_id pelo case
-    $clientId = null;
+    // Amanda 10/06/2026: aceita client_id direto (quando nao tem processo)
+    $clientIdInput = (int)($_POST['client_id'] ?? 0) ?: null;
+
+    // Buscar client_id pelo case (precedencia: do case quando ha case)
+    $clientId = $clientIdInput;
     if ($caseId) {
         $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
         $stmtC->execute(array($caseId));
-        $clientId = (int)$stmtC->fetchColumn() ?: null;
+        $clientId = (int)$stmtC->fetchColumn() ?: $clientIdInput;
     }
 
     $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
