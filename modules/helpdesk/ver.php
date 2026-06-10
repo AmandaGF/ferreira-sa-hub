@@ -119,9 +119,26 @@ if ($ticket['due_date'] && !in_array($ticket['status'], array('resolvido', 'canc
 }
 
 // Helper: destacar @menções no texto (já HTML-escapado)
-function highlight_mentions($text) {
-    return preg_replace('/@([A-Za-zÀ-ÿ]+(?:\s[A-Za-zÀ-ÿ]+)?)/', '<span class="mention">@$1</span>', $text);
+// Amanda 08/06/2026: regex antiga era GREEDY e capturava 2 palavras virando
+// "@Luiz verifica" uma pill so. Agora valida contra primeiros nomes dos users
+// ativos: so vira pill se o nome existe no banco. "@Luiz verifica" -> pill no
+// "@Luiz", "verifica" fica texto normal.
+function highlight_mentions($text, $userFirstNames = array()) {
+    if (empty($userFirstNames)) {
+        // Fallback: comportamento antigo so 1 palavra
+        return preg_replace('/@([A-Za-zÀ-ÿ]+)/', '<span class="mention">@$1</span>', $text);
+    }
+    $namesLower = array_map(function($n){ return mb_strtolower($n, 'UTF-8'); }, $userFirstNames);
+    return preg_replace_callback('/@([A-Za-zÀ-ÿ]+)/u', function($m) use ($namesLower) {
+        $nomeCapturado = mb_strtolower($m[1], 'UTF-8');
+        if (in_array($nomeCapturado, $namesLower, true)) {
+            return '<span class="mention">@' . htmlspecialchars($m[1], ENT_QUOTES, 'UTF-8') . '</span>';
+        }
+        return $m[0]; // não bate com user real, deixa texto normal
+    }, $text);
 }
+// Lista de primeiros nomes ativos pra validar pills (Amanda 08/06/2026)
+$_firstNamesAtivos = array_map(function($u){ return explode(' ', (string)$u['name'])[0]; }, $users);
 
 require_once APP_ROOT . '/templates/layout_start.php';
 echo voltar_ao_processo_html();
@@ -338,7 +355,7 @@ echo voltar_ao_processo_html();
                             <?php endif; ?>
                         </span>
                     </div>
-                    <div class="msg-text"><?= nl2br(highlight_mentions(e($msg['message']))) ?></div>
+                    <div class="msg-text"><?= nl2br(highlight_mentions(e($msg['message']), $_firstNamesAtivos)) ?></div>
                     <?php
                     $anexosMsg = $anexosPorMsg[(int)$msg['id']] ?? array();
                     if (!empty($anexosMsg)): ?>
