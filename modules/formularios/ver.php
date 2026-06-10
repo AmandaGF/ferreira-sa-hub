@@ -411,6 +411,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php
 // ═══════════════════════════════════════════════════════
 // Normaliza payload (snake_case lowercase pra match no mapping)
+// Amanda 08/06/2026: alem disso, ACHATA o sub-objeto 'answers' / 'Answers'
+// que contem as respostas reais aninhadas. Sem isso, $normPayload tinha
+// so client_name/phone/email + child_name/child_age (vazios) na raiz e
+// nada das respostas reais aparecia.
 // ═══════════════════════════════════════════════════════
 $normPayload = array();
 foreach ($payload as $k => $v) {
@@ -419,9 +423,23 @@ foreach ($payload as $k => $v) {
         foreach ($v as $sk => $sv) {
             $normPayload['total_' . str_replace('_cents', '', $sk) . '_cents'] = $sv;
         }
+    } elseif ($nk === 'answers' && is_array($v)) {
+        // Achata as respostas aninhadas na raiz (sem sobrescrever keys ja existentes)
+        foreach ($v as $sk => $sv) {
+            $nsk = normalize_key($sk);
+            if (!isset($normPayload[$nsk]) || $normPayload[$nsk] === '' || $normPayload[$nsk] === null) {
+                $normPayload[$nsk] = $sv;
+            }
+        }
     } else {
         $normPayload[$nk] = $v;
     }
+}
+
+// Decode children se vier como string JSON
+if (isset($normPayload['children']) && is_string($normPayload['children'])) {
+    $tmp = json_decode($normPayload['children'], true);
+    if (is_array($tmp)) $normPayload['children'] = $tmp;
 }
 
 $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds', 'client_name', 'client_phone', 'client_email', 'form_type', 'protocol_original', 'protocol', 'protocolo', 'answers');
