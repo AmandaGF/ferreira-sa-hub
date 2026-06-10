@@ -54,14 +54,40 @@ if ($filterStatus) {
 if ($filterType) { $where[] = "cs.case_type = ?"; $params[] = $filterType; }
 if ($filterUser && !$isColaborador) { $where[] = "cs.responsible_user_id = ?"; $params[] = (int)$filterUser; }
 if ($search) {
-    // Busca tambem em case_partes.nome — pega autor secundario, reu, representante legal.
-    // Resolve: caso com 2 clientes, busca pelo nome do 2o nao achava (Amanda 24/05/2026).
+    // Amanda 10/06/2026: ampliada — quebra nome em palavras (AND parcial) E busca
+    // em todos os campos de nome/doc da parte (nome, razao_social, representante, cpf, cnpj).
+    // Antes: 'Gabrielle Rodrigues Beltrane' so achava no LIKE exato.
+    $palavrasSearch = preg_split('/\s+/', trim($search));
+    $palavrasSearch = array_filter($palavrasSearch, function($p){ return mb_strlen($p) >= 2; });
+    $searchDig = preg_replace('/\D/', '', $search);
+    $likeDig   = $searchDig ? "%$searchDig%" : '%__nada__%';
+
+    if (count($palavrasSearch) > 1) {
+        $clauseParteAnd = array();
+        $paramsParteAnd = array();
+        foreach ($palavrasSearch as $p) { $clauseParteAnd[] = "cp.nome LIKE ?"; $paramsParteAnd[] = "%$p%"; }
+        $clauseParteStr = '(' . implode(' AND ', $clauseParteAnd) . ')';
+    } else {
+        $clauseParteStr = 'cp.nome LIKE ?';
+        $paramsParteAnd = array("%$search%");
+    }
+
     $where[] = "(cs.title LIKE ?
                  OR cs.case_number LIKE ?
                  OR c.name LIKE ?
                  OR cs.court LIKE ?
-                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND cp.nome LIKE ?))";
-    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND (
+                        $clauseParteStr
+                        OR cp.razao_social LIKE ?
+                        OR cp.representante_nome LIKE ?
+                        OR cp.nome_fantasia LIKE ?
+                        OR REPLACE(REPLACE(REPLACE(cp.cpf,'.',''),'-',''),'/','') LIKE ?
+                        OR REPLACE(REPLACE(REPLACE(cp.cnpj,'.',''),'-',''),'/','') LIKE ?
+                 )))";
+    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    foreach ($paramsParteAnd as $pp) $params[] = $pp;
+    $params[] = "%$search%"; $params[] = "%$search%"; $params[] = "%$search%";
+    $params[] = $likeDig; $params[] = $likeDig;
 }
 $filterVinculo = isset($_GET['vinculo']) ? $_GET['vinculo'] : '';
 if ($filterVinculo === 'principais') { $where[] = "(cs.is_incidental = 0 OR cs.is_incidental IS NULL)"; }

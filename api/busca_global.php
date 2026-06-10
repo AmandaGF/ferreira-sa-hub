@@ -94,30 +94,68 @@ try {
 } catch (Exception $e) {}
 
 // ── PROCESSOS ── (busca também por nome do cliente e partes)
+// Amanda 10/06/2026: quebrar nome em palavras (AND parcial) e buscar em
+// TODOS os campos de nome de case_partes (nome, razao_social, representante_nome,
+// nome_fantasia, cpf, cnpj). Subtitulo mostra a parte adversa quando o match foi por la.
 try {
-    $stmt = $pdo->prepare(
-        "SELECT DISTINCT c.id, c.title AS titulo, c.case_number AS subtitulo, cl.name AS cliente_nome, c.updated_at
-         FROM cases c
-         LEFT JOIN clients cl ON cl.id = c.client_id
-         LEFT JOIN case_partes cp ON cp.case_id = c.id
-         WHERE c.title LIKE ?
-            OR c.case_number LIKE ?
-            OR REPLACE(REPLACE(REPLACE(c.case_number,'-',''),'.',''),'/','') LIKE ?
-            OR cl.name LIKE ?
-            OR cp.nome LIKE ?
-         ORDER BY (c.title LIKE ?) DESC, c.updated_at DESC
-         LIMIT 8"
-    );
-    // CNJ digitado com ou sem formatação — normaliza só dígitos pro match
+    // Quebra em palavras pra busca em partes — 'Gabrielle Rodrigues' acha 'Gabrielle Rodrigues Beltrane'
+    $palavrasProc = preg_split('/\s+/', trim($q));
+    $palavrasProc = array_filter($palavrasProc, function($p){ return mb_strlen($p) >= 2; });
+    $clauseParteNome = array();
+    $paramsParteNome = array();
+    if (!empty($palavrasProc) && count($palavrasProc) > 1) {
+        foreach ($palavrasProc as $p) {
+            $clauseParteNome[] = "cp.nome LIKE ?";
+            $paramsParteNome[] = '%' . $p . '%';
+        }
+        $clauseParteNomeStr = '(' . implode(' AND ', $clauseParteNome) . ')';
+    } else {
+        $clauseParteNomeStr = 'cp.nome LIKE ?';
+        $paramsParteNome[] = $like;
+    }
+
     $qNumProc = preg_replace('/\D/', '', $q);
     $likeNumProc = $qNumProc ? '%' . $qNumProc . '%' : '%zzzzz%';
-    $stmt->execute(array($like, $like, $likeNumProc, $like, $like, $q . '%'));
+
+    $sqlProc = "SELECT DISTINCT c.id, c.title AS titulo, c.case_number, cl.name AS cliente_nome, c.updated_at,
+                       (SELECT GROUP_CONCAT(DISTINCT
+                            COALESCE(NULLIF(cp2.nome,''), NULLIF(cp2.razao_social,''), NULLIF(cp2.representante_nome,''))
+                            SEPARATOR ' / ')
+                        FROM case_partes cp2
+                        WHERE cp2.case_id = c.id
+                          AND (cp2.nome LIKE ? OR cp2.razao_social LIKE ? OR cp2.representante_nome LIKE ? OR cp2.nome_fantasia LIKE ?)
+                       ) AS parte_match
+                FROM cases c
+                LEFT JOIN clients cl ON cl.id = c.client_id
+                LEFT JOIN case_partes cp ON cp.case_id = c.id
+                WHERE c.title LIKE ?
+                   OR c.case_number LIKE ?
+                   OR REPLACE(REPLACE(REPLACE(c.case_number,'-',''),'.',''),'/','') LIKE ?
+                   OR cl.name LIKE ?
+                   OR $clauseParteNomeStr
+                   OR cp.razao_social LIKE ?
+                   OR cp.representante_nome LIKE ?
+                   OR cp.nome_fantasia LIKE ?
+                   OR REPLACE(REPLACE(REPLACE(cp.cpf,'.',''),'-',''),'/','') LIKE ?
+                   OR REPLACE(REPLACE(REPLACE(cp.cnpj,'.',''),'-',''),'/','') LIKE ?
+                ORDER BY (c.title LIKE ?) DESC, c.updated_at DESC
+                LIMIT 8";
+    $paramsExec = array_merge(
+        array($like, $like, $like, $like),                  // subquery parte_match
+        array($like, $like, $likeNumProc, $like),           // title, CNJ, CNJ_norm, cliente
+        $paramsParteNome,                                    // clauseParteNomeStr (1 ou N params)
+        array($like, $like, $like, $likeDoc, $likeDoc),     // razao_social/repr/fantasia/cpf/cnpj
+        array($q . '%')                                      // ORDER BY relevance
+    );
+    $stmt = $pdo->prepare($sqlProc);
+    $stmt->execute($paramsExec);
     $rows = $stmt->fetchAll();
     if ($rows) {
         $grupos['processos'] = array();
         foreach ($rows as $r) {
-            $sub = $r['subtitulo'] ?: '';
-            if ($r['cliente_nome']) $sub = ($sub ? $sub . ' • ' : '') . $r['cliente_nome'];
+            $sub = $r['case_number'] ?: '';
+            if ($r['cliente_nome']) $sub = ($sub ? $sub . ' • ' : '') . '👤 ' . $r['cliente_nome'];
+            if ($r['parte_match']) $sub = ($sub ? $sub . ' • ' : '') . '⚖️ parte: ' . $r['parte_match'];
             $grupos['processos'][] = array(
                 'id'        => (int)$r['id'],
                 'titulo'    => $r['titulo'] ?: 'Processo #' . $r['id'],

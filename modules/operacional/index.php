@@ -59,15 +59,40 @@ if ($filterUser && !$isColaborador) {
     $params[] = (int)$filterUser;
 }
 if ($filterSearch) {
-    // Busca tambem em case_partes.nome — pega autor secundario, reu, representante legal, etc.
-    // Resolve a dor: caso com 2 clientes, busca pelo nome do 2o nao achava (Amanda 24/05/2026).
+    // Amanda 10/06/2026: ampliada — quebra nome em palavras (AND parcial) E busca
+    // em todos os campos de nome/doc da parte (razao_social, representante, cpf, cnpj).
+    $palavrasSearch = preg_split('/\s+/', trim($filterSearch));
+    $palavrasSearch = array_filter($palavrasSearch, function($p){ return mb_strlen($p) >= 2; });
+    $s = "%$filterSearch%";
+    $sDig = preg_replace('/\D/', '', $filterSearch);
+    $sLikeDig = $sDig ? "%$sDig%" : '%__nada__%';
+
+    if (count($palavrasSearch) > 1) {
+        $clauseParteAnd = array();
+        $paramsParteAnd = array();
+        foreach ($palavrasSearch as $p) { $clauseParteAnd[] = "cp.nome LIKE ?"; $paramsParteAnd[] = "%$p%"; }
+        $clauseParteStr = '(' . implode(' AND ', $clauseParteAnd) . ')';
+    } else {
+        $clauseParteStr = 'cp.nome LIKE ?';
+        $paramsParteAnd = array($s);
+    }
+
     $where[] = "(cs.title LIKE ?
                  OR c.name LIKE ?
                  OR cs.case_type LIKE ?
                  OR cs.case_number LIKE ?
-                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND cp.nome LIKE ?))";
-    $s = "%$filterSearch%";
-    $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
+                 OR EXISTS (SELECT 1 FROM case_partes cp WHERE cp.case_id = cs.id AND (
+                        $clauseParteStr
+                        OR cp.razao_social LIKE ?
+                        OR cp.representante_nome LIKE ?
+                        OR cp.nome_fantasia LIKE ?
+                        OR REPLACE(REPLACE(REPLACE(cp.cpf,'.',''),'-',''),'/','') LIKE ?
+                        OR REPLACE(REPLACE(REPLACE(cp.cnpj,'.',''),'-',''),'/','') LIKE ?
+                 )))";
+    $params[] = $s; $params[] = $s; $params[] = $s; $params[] = $s;
+    foreach ($paramsParteAnd as $pp) $params[] = $pp;
+    $params[] = $s; $params[] = $s; $params[] = $s;
+    $params[] = $sLikeDig; $params[] = $sLikeDig;
 }
 if ($filterMonth) {
     $where[] = "DATE_FORMAT(cs.created_at, '%Y-%m') = ?";
