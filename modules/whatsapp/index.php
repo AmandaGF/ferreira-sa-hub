@@ -220,6 +220,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
     .wa-chat-head { flex-wrap:wrap; }
 }
 .wa-chat-body { flex:1;overflow-y:auto;padding:1rem;background:#faf8f5; }
+/* Amanda 10/06/2026: barra de filtros de midia (imagens/audios/videos/PDFs/docs) */
+.wa-filtro-midia { display:flex;gap:.3rem;padding:.4rem .75rem;background:#f8fafc;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;align-items:center; }
+.wa-fm-btn { background:#fff;border:1px solid #d1d5db;border-radius:14px;padding:.2rem .65rem;font-size:.72rem;font-weight:600;color:#475569;cursor:pointer;display:inline-flex;gap:4px;align-items:center;transition:all .15s; }
+.wa-fm-btn:hover { background:#f1f5f9;border-color:#94a3b8; }
+.wa-fm-btn.wa-fm-ativa { background:#052228;color:#fff;border-color:#052228; }
+.wa-fm-cnt { background:rgba(0,0,0,.12);color:inherit;border-radius:8px;padding:0 5px;font-size:.65rem;font-weight:700;min-width:14px;text-align:center; }
+.wa-fm-btn.wa-fm-ativa .wa-fm-cnt { background:rgba(255,255,255,.22); }
 .wa-msg-row { display:flex;margin-bottom:.4rem; }
 .wa-msg-row.left { justify-content:flex-start; }
 .wa-msg-row.right { justify-content:flex-end; }
@@ -461,6 +468,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 style="display:none;align-items:center;gap:4px;background:#f1f5f9;border:1px solid #cbd5e1;cursor:pointer;font-size:1.3rem;color:#052228;padding:4px 10px;margin-right:6px;border-radius:8px;line-height:1;">←</button>
             <strong id="waChatTitle">Selecione uma conversa</strong>
             <span class="wa-head-sub" id="waChatSub"></span>
+        </div>
+        <!-- Amanda 10/06/2026: barra de filtros de midia (ex: ver so PDFs, so audios, etc) -->
+        <div id="waFiltroMidia" class="wa-filtro-midia" style="display:none;">
+            <button type="button" class="wa-fm-btn wa-fm-ativa" data-tipo="todos" onclick="waFiltrarMidia('todos')">Tudo</button>
+            <button type="button" class="wa-fm-btn" data-tipo="imagem" onclick="waFiltrarMidia('imagem')">🖼️ Imagens <span class="wa-fm-cnt" id="waFmCntImg">0</span></button>
+            <button type="button" class="wa-fm-btn" data-tipo="audio" onclick="waFiltrarMidia('audio')">🎵 Áudios <span class="wa-fm-cnt" id="waFmCntAud">0</span></button>
+            <button type="button" class="wa-fm-btn" data-tipo="video" onclick="waFiltrarMidia('video')">🎬 Vídeos <span class="wa-fm-cnt" id="waFmCntVid">0</span></button>
+            <button type="button" class="wa-fm-btn" data-tipo="pdf" onclick="waFiltrarMidia('pdf')">📕 PDFs <span class="wa-fm-cnt" id="waFmCntPdf">0</span></button>
+            <button type="button" class="wa-fm-btn" data-tipo="documento" onclick="waFiltrarMidia('documento')">📄 Outros docs <span class="wa-fm-cnt" id="waFmCntDoc">0</span></button>
         </div>
         <div id="waChatBody" class="wa-chat-body">
             <div class="wa-chat-empty">
@@ -1058,7 +1074,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 if (m.direcao === 'enviada') cls += ' sent';
                 if (+m.enviado_por_bot) cls += ' bot';
                 if (m.status === 'deletada') cls += ' deleted';
-                html += '<div class="wa-msg-row '+dir+'" data-msg-id="'+m.id+'">';
+                // Amanda 10/06/2026: data-tipo pra barra de filtros (imagens/audios/videos/pdfs/docs)
+                var _tipoMidia = m.tipo || 'texto';
+                if (_tipoMidia === 'documento' && m.arquivo_nome && /\.pdf$/i.test(m.arquivo_nome)) {
+                    _tipoMidia = 'pdf';
+                }
+                html += '<div class="wa-msg-row '+dir+'" data-msg-id="'+m.id+'" data-tipo="'+_tipoMidia+'">';
                 html += '<div class="'+cls+'" style="position:relative;">';
                 // Botões hover (apagar/editar/responder) só pra mensagens enviadas pelo Hub e não deletadas
                 if (m.direcao === 'enviada' && m.status !== 'deletada' && m.zapi_message_id) {
@@ -1157,6 +1178,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             body.innerHTML = html;
             body.scrollTop = body.scrollHeight;
         }
+
+        // Amanda 10/06/2026: atualiza contadores da barra de filtros de midia
+        waAtualizarFiltroMidia();
 
         // Mostrar input de mensagem
         var input = document.getElementById('waChatInput');
@@ -2248,6 +2272,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
 
     // ── SALVAR ARQUIVO NO DRIVE ──────────────────────────
+    // ════════════════════════════════════════════════════════
+    // Amanda 10/06/2026: filtro de midia na conversa
+    // ════════════════════════════════════════════════════════
+    window._waFiltroMidiaAtivo = 'todos';
+    window.waFiltrarMidia = function(tipo) {
+        window._waFiltroMidiaAtivo = tipo;
+        var rows = document.querySelectorAll('#waChatBody .wa-msg-row');
+        rows.forEach(function(row){
+            var t = row.dataset.tipo || 'texto';
+            row.style.display = (tipo === 'todos' || t === tipo) ? '' : 'none';
+        });
+        // Atualiza visual dos botoes
+        document.querySelectorAll('#waFiltroMidia .wa-fm-btn').forEach(function(b){
+            b.classList.toggle('wa-fm-ativa', b.dataset.tipo === tipo);
+        });
+        // Sobe pra topo do chat ao filtrar (ou rola pra ultimo quando "Tudo")
+        var body = document.getElementById('waChatBody');
+        if (tipo === 'todos') body.scrollTop = body.scrollHeight;
+        else body.scrollTop = 0;
+    };
+    window.waAtualizarFiltroMidia = function() {
+        var rows = document.querySelectorAll('#waChatBody .wa-msg-row');
+        var bar = document.getElementById('waFiltroMidia');
+        if (!bar) return;
+        var cnt = { imagem:0, audio:0, video:0, pdf:0, documento:0 };
+        rows.forEach(function(row){
+            var t = row.dataset.tipo;
+            if (cnt[t] !== undefined) cnt[t]++;
+        });
+        var totMidia = cnt.imagem + cnt.audio + cnt.video + cnt.pdf + cnt.documento;
+        bar.style.display = (rows.length > 0 && totMidia > 0) ? 'flex' : 'none';
+        var setCnt = function(id, n) { var el = document.getElementById(id); if (el) el.textContent = n; };
+        setCnt('waFmCntImg', cnt.imagem);
+        setCnt('waFmCntAud', cnt.audio);
+        setCnt('waFmCntVid', cnt.video);
+        setCnt('waFmCntPdf', cnt.pdf);
+        setCnt('waFmCntDoc', cnt.documento);
+        // Sempre reseta o filtro pra "Tudo" ao trocar de conversa
+        window._waFiltroMidiaAtivo = 'todos';
+        document.querySelectorAll('#waFiltroMidia .wa-fm-btn').forEach(function(b){
+            b.classList.toggle('wa-fm-ativa', b.dataset.tipo === 'todos');
+        });
+    };
+
     window.waTranscrever = function(msgId, btn) {
         var original = btn.textContent;
         btn.disabled = true;
