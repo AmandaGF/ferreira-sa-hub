@@ -51,6 +51,16 @@ $pdo->exec(
         KEY idx_executado_em (executado_em)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 );
+// Amanda 10/06/2026: tabela de tracking de andamentos visualizados por user
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS email_monitor_visualizados (
+        andamento_id int unsigned NOT NULL,
+        user_id int unsigned NOT NULL,
+        viewed_at datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (andamento_id, user_id),
+        KEY idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+);
 $pdo->exec(
     "CREATE TABLE IF NOT EXISTS email_monitor_pendentes (
         id int unsigned NOT NULL AUTO_INCREMENT,
@@ -90,6 +100,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $afetado = $stmtUpd->rowCount();
         $stmtUpd->closeCursor();
         echo json_encode(array('ok' => true, 'afetado' => (int)$afetado));
+    } catch (Throwable $e) {
+        echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
+    }
+    exit;
+}
+
+// ── POST: marcar andamento como visualizado (Amanda 10/06/2026) ──
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'marcar_visualizado') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf()) {
+        echo json_encode(array('ok' => false, 'erro' => 'CSRF inválido.'));
+        exit;
+    }
+    $andId = isset($_POST['andamento_id']) ? (int)$_POST['andamento_id'] : 0;
+    if ($andId <= 0) { echo json_encode(array('ok' => false, 'erro' => 'ID inválido.')); exit; }
+    try {
+        $pdo->prepare("INSERT IGNORE INTO email_monitor_visualizados (andamento_id, user_id, viewed_at) VALUES (?, ?, NOW())")
+            ->execute(array($andId, current_user_id()));
+        echo json_encode(array('ok' => true));
     } catch (Throwable $e) {
         echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
     }
@@ -169,11 +198,15 @@ $totalAndamentos = (int)$pdo->query(
     "SELECT COUNT(*) FROM case_andamentos WHERE tipo_origem = 'email_pje'"
 )->fetchColumn();
 
+// Amanda 10/06/2026: trazer flag se este user já visualizou o andamento
+$_uid = (int)current_user_id();
 $stmtAnd = $pdo->prepare(
     "SELECT a.id, a.data_andamento, a.hora_andamento, a.descricao, a.created_at,
-            c.id AS case_id, c.title AS case_title, c.case_number
+            c.id AS case_id, c.title AS case_title, c.case_number,
+            CASE WHEN ev.andamento_id IS NOT NULL THEN 1 ELSE 0 END AS ja_visualizado
      FROM case_andamentos a
      INNER JOIN cases c ON c.id = a.case_id
+     LEFT JOIN email_monitor_visualizados ev ON ev.andamento_id = a.id AND ev.user_id = $_uid
      WHERE a.tipo_origem = 'email_pje'
      ORDER BY " . $ordensValidas[$ordemAndamentos] . "
      LIMIT " . (int)$limiteAndamentos
@@ -256,6 +289,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .em-and-link { color: #b87333; font-weight: 600; text-decoration: none; }
 .em-and-link:hover { text-decoration: underline; }
 .em-and-cnj  { font-family: ui-monospace, monospace; font-size: .76rem; color: var(--text-muted); }
+/* Amanda 10/06/2026: linha que ja foi analisada (clicada) ganha visual cinza esmaecido */
+.em-and-row.em-visto { background:#f3f4f6; opacity:.62; }
+.em-and-row.em-visto td { color:#6b7280; }
+.em-and-row.em-visto .em-and-link { color:#9ca3af; font-weight:500; }
+.em-and-row.em-visto::after { content:''; }
+.em-and-row.em-visto td:first-child::before { content:'✓ '; color:#10b981; font-weight:700; margin-right:2px; }
 
 /* Botão Recuperar histórico (aba Pendentes) */
 .em-btn-recover { background: #0369a1; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; font-size: .74rem; font-weight: 600; cursor: pointer; }
@@ -650,10 +689,11 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
                             <?php
                                 $hHora = !empty($and['hora_andamento']) ? substr($and['hora_andamento'], 0, 5) : '';
                                 $urlCaso = url('modules/operacional/caso_ver.php') . '?id=' . (int)$and['case_id'];
+                                $emVisto = !empty($and['ja_visualizado']);
                             ?>
-                            <tr class="em-and-row">
+                            <tr class="em-and-row<?= $emVisto ? ' em-visto' : '' ?>" data-and-id="<?= (int)$and['id'] ?>">
                                 <td>
-                                    <a class="em-and-link" href="<?= e($urlCaso) ?>" target="_blank" rel="noopener">
+                                    <a class="em-and-link" href="<?= e($urlCaso) ?>" target="_blank" rel="noopener" onclick="emMarcarVisto(<?= (int)$and['id'] ?>)">
                                         <?= e($and['case_title'] ?: ('Caso #' . (int)$and['case_id'])) ?>
                                     </a>
                                 </td>
@@ -760,6 +800,26 @@ body.dark-mode .em-pend-row td span[style*="background:#fef3c7"] { background: r
         var el = document.getElementById('emDet' + id);
         if (!el) return;
         el.style.display = (el.style.display === 'none' || el.style.display === '') ? 'block' : 'none';
+    };
+
+    // ──── Amanda 10/06/2026: marcar andamento como visualizado (cinza esmaecido + ✓) ────
+    window.emMarcarVisto = function(andId) {
+        var tr = document.querySelector('tr.em-and-row[data-and-id="' + andId + '"]');
+        if (tr && !tr.classList.contains('em-visto')) {
+            tr.classList.add('em-visto'); // feedback visual imediato
+        }
+        try {
+            var fd = new FormData();
+            fd.append('action', 'marcar_visualizado');
+            fd.append('andamento_id', andId);
+            fd.append('csrf_token', EM_CSRF);
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.pathname, true);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('X-Csrf-Token', EM_CSRF);
+            xhr.send(fd); // fire & forget — abre o caso em outra aba mesmo se falhar
+        } catch (e) { /* ignora */ }
+        return true; // não bloqueia o href do link
     };
 
     // ──── Ordenação clicável da tabela de Pendentes ────
