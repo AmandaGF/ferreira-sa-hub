@@ -307,6 +307,21 @@ if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_text
     $tokensIn = isset($apiData['usage']['input_tokens']) ? (int)$apiData['usage']['input_tokens'] : 0;
     $tokensOut = isset($apiData['usage']['output_tokens']) ? (int)$apiData['usage']['output_tokens'] : 0;
 
+    // Amanda 10/06/2026: confirma vinculo salvo pra mostrar na tela
+    $vincTxt = '';
+    if ($caseId) {
+        $stmtVT = $pdo->prepare("SELECT cs.title, cl.name FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?");
+        $stmtVT->execute(array($caseId));
+        $vt = $stmtVT->fetch();
+        if ($vt) $vincTxt = '⚖️ ' . $vt['title'] . ($vt['name'] ? ' · 👤 ' . $vt['name'] : '');
+    } elseif ($clientId) {
+        $stmtCV = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $stmtCV->execute(array($clientId));
+        $cnm = $stmtCV->fetchColumn();
+        if ($cnm) $vincTxt = '👤 ' . $cnm;
+    }
+    if (!$vincTxt) $vincTxt = '⚠️ Sem vínculo (processo e cliente vazios)';
+
     echo json_encode(array(
         'ok' => true,
         'id' => $planilhaId,
@@ -316,6 +331,9 @@ if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_text
         'gerado_em' => date('d/m/Y H:i'),
         'tokens' => $tokensIn + $tokensOut,
         'csrf' => $newCsrf,
+        'case_id_salvo' => $caseId,
+        'client_id_salvo' => $clientId,
+        'vinculo_txt' => $vincTxt,
     ));
     exit;
 }

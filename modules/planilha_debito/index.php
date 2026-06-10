@@ -270,8 +270,36 @@ document.addEventListener('paste', function(e) {
 function iniciarProcessamento(tipo) {
     var fd = new FormData();
     fd.append('csrf_token', CSRF);
-    fd.append('case_id', document.getElementById('pdCaseId').value);
-    fd.append('client_id', document.getElementById('pdClientId').value || '0');
+    // Amanda 10/06/2026: pega snapshot de vinculo + log + warn se ambos vazios
+    var caseIdVal = document.getElementById('pdCaseId').value || '';
+    var clientIdVal = document.getElementById('pdClientId').value || '';
+    var clientBuscaVal = (document.getElementById('pdClientBusca').value || '').trim();
+
+    // Defesa: cliente digitou nome mas datalist nao bateu — tenta achar parcial
+    if (!clientIdVal && clientBuscaVal) {
+        var opts = document.querySelectorAll('#pdClientList option');
+        for (var i = 0; i < opts.length; i++) {
+            if ((opts[i].value || '').toLowerCase() === clientBuscaVal.toLowerCase()) {
+                clientIdVal = opts[i].dataset.id || '';
+                document.getElementById('pdClientId').value = clientIdVal;
+                break;
+            }
+        }
+    }
+
+    fd.append('case_id', caseIdVal);
+    fd.append('client_id', clientIdVal || '0');
+
+    // Avisa se nada foi vinculado (a Amanda pode confirmar antes de gastar IA)
+    if (!caseIdVal && !clientIdVal) {
+        var ok = confirm('Você não vinculou a um processo NEM a um cliente — a planilha vai ficar solta (PROCESSO=—). Deseja continuar mesmo assim?');
+        if (!ok) return;
+    } else if (clientBuscaVal && !clientIdVal) {
+        alert('Atenção: o nome "' + clientBuscaVal + '" não bateu com nenhum cliente cadastrado. Clique numa opção da lista (datalist) ou deixe em branco.');
+        return;
+    }
+
+    console.log('[planilha_calculo] enviando', { tipo: tipo, case_id: caseIdVal, client_id: clientIdVal, client_nome: clientBuscaVal });
 
     if (tipo === 'pdf') {
         var file = document.getElementById('pdfInput').files[0];
@@ -369,6 +397,9 @@ function setProgress(pct, msg) {
 }
 
 function mostrarResultado(r) {
+    var vincStyle = (r.case_id_salvo || r.client_id_salvo)
+        ? 'background:#dcfce7;border-left:3px solid #10b981;color:#14532d;'
+        : 'background:#fef3c7;border-left:3px solid #f59e0b;color:#7c2d12;';
     var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">'
         + '<h3>Cálculo Gerado</h3>'
         + '<div style="display:flex;gap:.5rem;">'
@@ -377,6 +408,9 @@ function mostrarResultado(r) {
         + '<button onclick="location.reload()" class="btn btn-outline btn-sm">Novo cálculo</button>'
         + '</div></div>'
         + '<div class="card-body">'
+        + '<div style="' + vincStyle + 'padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;font-size:.8rem;font-weight:600;">'
+        + (r.vinculo_txt || '—')
+        + '</div>'
         + '<p style="font-size:.82rem;color:var(--text-muted);">Total: <strong style="color:var(--petrol-900);font-size:1rem;">R$ ' + (r.total || '—') + '</strong></p>'
         + '<p style="font-size:.75rem;color:var(--text-muted);">Itens: ' + (r.parcelas || '—') + ' · Gerado em ' + (r.gerado_em || '') + '</p>'
         + '</div></div>';
