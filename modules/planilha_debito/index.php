@@ -52,6 +52,40 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <div style="max-width:900px;">
+    <!-- Bloco "vinculo" no topo (Amanda 10/06/2026: dica visivel) -->
+    <div style="font-size:.78rem;color:#0c4a6e;background:#e0f2fe;border:1px solid #7dd3fc;border-radius:8px;padding:.5rem .85rem;margin-bottom:.6rem;">
+        💡 <strong>1º passo</strong> (opcional): preencha o processo ou cliente abaixo. <strong>2º passo</strong>: envie o PDF/imagem/texto e a IA processa.
+    </div>
+
+    <!-- Caso/cliente vinculado — AGORA NO TOPO pra a Amanda preencher antes do upload -->
+    <div id="pdOpcoes" style="margin-bottom:1rem;background:#fff;border:1px solid var(--border);border-radius:10px;padding:.75rem 1rem;">
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:end;">
+            <div style="flex:1;min-width:200px;">
+                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular a processo (opcional)</label>
+                <select id="pdCaseId" class="form-select" style="font-size:.85rem;" onchange="pdAtualizarClienteDoCase(this)">
+                    <option value="">— Nenhum —</option>
+                    <?php foreach ($cases as $c): ?>
+                        <option value="<?= $c['id'] ?>" data-client="<?= (int)($c['client_id'] ?? 0) ?>"><?= e($c['title']) ?><?= $c['case_number'] ? ' — ' . e($c['case_number']) : '' ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div style="flex:1;min-width:200px;">
+                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular ao cliente (quando não tem processo)</label>
+                <input type="text" id="pdClientBusca" list="pdClientList" class="form-input" style="font-size:.85rem;" placeholder="Digite o nome do cliente..." oninput="pdSelecionarCliente()">
+                <datalist id="pdClientList">
+                    <?php foreach ($clientesLista as $cl): ?>
+                        <option data-id="<?= (int)$cl['id'] ?>" value="<?= e($cl['name']) ?>"></option>
+                    <?php endforeach; ?>
+                </datalist>
+                <input type="hidden" id="pdClientId" value="">
+            </div>
+            <div style="min-width:200px;">
+                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Título da planilha</label>
+                <input type="text" id="pdTitulo" class="form-input" style="font-size:.85rem;" placeholder="Ex: Débito alimentar Jan/2024 a Mar/2026">
+            </div>
+        </div>
+    </div>
+
     <!-- Tabs de entrada -->
     <div style="display:flex;gap:.3rem;border-bottom:2px solid var(--border);margin-bottom:1rem;">
         <button type="button" onclick="pdTrocarTab('pdf')" id="pdTabPdf" class="pd-tab pd-tab-ativa">📄 PDF</button>
@@ -88,35 +122,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
             style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;padding:.75rem;"
             placeholder="Cole aqui o texto da planilha do DrCalc, Jusfy ou outro sistema. Ex:&#10;&#10;PLANILHA DE DÉBITOS JUDICIAIS&#10;Data de atualização: junho/2026&#10;Indexador: IPCA (IBGE)&#10;Juros: Taxa Legal-art 406...&#10;&#10;ITEM  DESCRIÇÃO  DATA       VALOR SINGELO  VALOR ATUALIZADO  JUROS  PERÍODO            TOTAL&#10;1               20/04/2026  20.000,00      20.134,00         1.999,16  22/05/2025 a 10/06/2026  22.133,16&#10;TOTAIS         20.000,00      20.134,00         1.999,16            22.133,16"></textarea>
         <button type="button" class="btn btn-primary" style="margin-top:.5rem;" onclick="iniciarProcessamento('txt')">⚡ Processar texto</button>
-    </div>
-
-    <!-- Caso/cliente vinculado (opcional) -->
-    <div id="pdOpcoes" style="display:none;margin-bottom:1rem;">
-        <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:end;">
-            <div style="flex:1;min-width:200px;">
-                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular a processo (opcional)</label>
-                <select id="pdCaseId" class="form-select" style="font-size:.85rem;" onchange="pdAtualizarClienteDoCase(this)">
-                    <option value="">— Nenhum —</option>
-                    <?php foreach ($cases as $c): ?>
-                        <option value="<?= $c['id'] ?>" data-client="<?= (int)($c['client_id'] ?? 0) ?>"><?= e($c['title']) ?><?= $c['case_number'] ? ' — ' . e($c['case_number']) : '' ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div style="flex:1;min-width:200px;">
-                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular ao cliente (quando não tem processo)</label>
-                <input type="text" id="pdClientBusca" list="pdClientList" class="form-input" style="font-size:.85rem;" placeholder="Digite o nome do cliente..." oninput="pdSelecionarCliente()">
-                <datalist id="pdClientList">
-                    <?php foreach ($clientesLista as $cl): ?>
-                        <option data-id="<?= (int)$cl['id'] ?>" value="<?= e($cl['name']) ?>"></option>
-                    <?php endforeach; ?>
-                </datalist>
-                <input type="hidden" id="pdClientId" value="">
-            </div>
-            <div style="min-width:200px;">
-                <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Título da planilha</label>
-                <input type="text" id="pdTitulo" class="form-input" style="font-size:.85rem;" placeholder="Ex: Débito alimentar Jan/2024 a Mar/2026">
-            </div>
-        </div>
     </div>
 
     <!-- Progresso -->
@@ -325,7 +330,7 @@ function iniciarProcessamento(tipo) {
 }
 
 function prepararUI() {
-    document.getElementById('pdOpcoes').style.display = '';
+    // pdOpcoes ja fica sempre visivel no topo (Amanda 10/06/2026)
     document.getElementById('pdProgress').style.display = '';
     document.getElementById('pdResultado').style.display = 'none';
 }
