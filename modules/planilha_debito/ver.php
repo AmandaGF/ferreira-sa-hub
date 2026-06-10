@@ -1,6 +1,6 @@
 <?php
 /**
- * Planilha de Débito — Visualização para impressão/PDF
+ * Planilha de Cálculo — Visualização para impressão/PDF
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -60,7 +60,7 @@ function sanitizaObservacoes($obs) {
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Planilha de Débito — <?= e($pl['titulo']) ?></title>
+    <title>Planilha de Cálculo — <?= e($pl['titulo']) ?></title>
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
         body { font-family: 'Segoe UI', Arial, sans-serif; font-size:10px; color:#222; padding:15px 25px; }
@@ -117,7 +117,7 @@ function sanitizaObservacoes($obs) {
     <div class="header-left">
         <img src="<?= url('assets/img/logo-sidebar.png') ?>" alt="Logo" style="width:42px;height:42px;border-radius:8px;object-fit:cover;" onerror="this.style.display='none'">
         <div>
-            <h1>PLANILHA DE DÉBITO</h1>
+            <h1>PLANILHA DE CÁLCULO</h1>
             <p>Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ</p>
         </div>
     </div>

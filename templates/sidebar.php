@@ -117,7 +117,7 @@ $menuItems = array(
     array('label' => 'Extrajudicial',   'icon' => '📝', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => $_rolesEquipe),
     array('label' => 'Pré-Processual',  'icon' => '📂', 'href' => url('modules/pre_processual/'),  'id' => 'pre_processual',  'roles' => $_rolesEquipe),
     array('label' => 'Fáb. Petições',  'icon' => '📝', 'href' => url('modules/peticoes/'),         'id' => 'peticoes',        'roles' => $_rolesEquipe),
-    array('label' => 'Planilha Débito','icon' => '📊', 'href' => url('modules/planilha_debito/'), 'id' => 'planilha_debito', 'roles' => $_rolesEquipe),
+    array('label' => 'Planilha de Cálculo','icon' => '📊', 'href' => url('modules/planilha_debito/'), 'id' => 'planilha_debito', 'roles' => $_rolesEquipe),
 
     array('section' => '📇 Cadastros'),
     array('label' => 'Agenda de Contatos','icon' => '👥', 'href' => url('modules/clientes/'),       'id' => 'clientes',        'roles' => $all),

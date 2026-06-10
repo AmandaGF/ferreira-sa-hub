@@ -1,7 +1,8 @@
 <?php
 /**
- * Planilha de Débito — API
- * Recebe PDF → Claude AI extrai dados → Gera XLSX com layout FeS
+ * Planilha de Cálculo — API
+ * Aceita PDF, imagem (PNG/JPG, inclui paste Ctrl+V) ou texto colado.
+ * Claude AI extrai dados → Gera XLSX com layout FeS.
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
@@ -17,62 +18,37 @@ if (!validate_csrf()) { echo json_encode(array('error' => 'Token inválido', 'cs
 $newCsrf = generate_csrf_token();
 $action = $_POST['action'] ?? '';
 
-if ($action === 'processar_pdf') {
-    $pdfBase64 = $_POST['pdf_base64'] ?? '';
-    $pdfName = clean_str($_POST['pdf_name'] ?? 'planilha.pdf', 200);
-    $caseId = (int)($_POST['case_id'] ?? 0) ?: null;
-    $titulo = clean_str($_POST['titulo'] ?? '', 200) ?: $pdfName;
+// Prompt unificado pros 3 modos. Detalha formato DrCalc.net E Jusfy.
+$systemPrompt = 'Você é um assistente especializado em cálculos judiciais (planilhas de débito). '
+    . 'Você recebe um cálculo em PDF, imagem ou texto — geralmente do DrCalc.net, Jusfy ou similar — e deve extrair TODOS os dados em JSON estruturado. '
+    . 'Retorne APENAS o JSON, sem markdown, sem explicações, sem ```json```. '
+    . 'FORMATOS COMUNS: '
+    . '(A) DrCalc.net: cabeçalho com "PLANILHA DE DÉBITOS JUDICIAIS", "Data de atualização", "Indexador utilizado", "Juros moratórios", "Acréscimo de X% referente a multa", "Honorários advocatícios de X%". Tabela com colunas ITEM, DESCRIÇÃO, DATA, VALOR SINGELO, VALOR ATUALIZADO, JUROS MORATÓRIOS TAXA LEGAL, PERÍODO DO JUROS, TOTAL. Mapeie: valor_nominal=VALOR SINGELO, valor_atualizado=VALOR ATUALIZADO, juros=JUROS, total da linha=TOTAL. correcao_monetaria = VALOR ATUALIZADO - VALOR SINGELO. '
+    . '(B) Jusfy: tabela com parcelas, valor nominal, correção, juros, atualizado, pago. Mapeie direto. '
+    . 'IMPORTANTE: NÃO inclua nas "observacoes" qualquer dado sobre "Escritório", "Endereço", endereço pessoal de partes, telefones ou rodapé do PDF. O sistema injeta o cabeçalho/rodapé do escritório automaticamente. As observações devem conter APENAS notas técnicas do cálculo: período do atraso, base de cálculo, índice usado, fundamentação legal, multa, honorários. '
+    . 'Se você não conseguir identificar o "processo", "autor" ou "réu" no input, deixe esses campos como string vazia "" — não invente. '
+    . 'O JSON deve ter esta estrutura exata: '
+    . '{"meta":{"titulo":"...","processo":"nº do processo","vara":"...","autor":"...","reu":"...","indice_correcao":"IPCA (IBGE) ou INPC ou IPCA-E etc","juros":"Taxa Legal art 406 ou 1% ao mês etc","data_calculo":"dd/mm/yyyy","observacoes":"APENAS notas do cálculo, sem endereços/telefones"},'
+    . '"parcelas":[{"numero":1,"descricao":"Jan/2024","vencimento":"01/01/2024","valor_nominal":1500.00,"correcao_monetaria":150.30,"juros":45.20,"valor_atualizado":1695.50,"pago":0,"observacao":""}],'
+    . '"subtotais":{"total_nominal":0,"total_correcao":0,"total_juros":0,"total_atualizado":0,"total_pago":0},'
+    . '"debito_total":0,"honorarios_pct":0,"honorarios_valor":0,"total_execucao":0}';
 
-    if (!$pdfBase64) {
-        echo json_encode(array('error' => 'PDF não enviado', 'csrf' => $newCsrf));
-        exit;
-    }
-
-    // Buscar client_id pelo case
-    $clientId = null;
-    if ($caseId) {
-        $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
-        $stmtC->execute(array($caseId));
-        $clientId = (int)$stmtC->fetchColumn() ?: null;
-    }
-
-    // ── 1. Enviar PDF para Claude AI extrair dados ──
-    $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
-    if (!$apiKey) {
-        echo json_encode(array('error' => 'ANTHROPIC_API_KEY não configurada', 'csrf' => $newCsrf));
-        exit;
-    }
-
-    $systemPrompt = 'Você é um assistente especializado em cálculos judiciais e planilhas de débito. '
-        . 'Você recebe um PDF de uma planilha de débito (geralmente do sistema Jusfy ou similar) e deve extrair TODOS os dados em formato JSON estruturado. '
-        . 'Retorne APENAS o JSON, sem markdown, sem explicações, sem ```json```. '
-        . 'IMPORTANTE: NÃO inclua nas "observacoes" qualquer dado sobre o "Escritório:", "Endereço do exequente", endereço pessoal de partes, telefones de contato ou rodapé do PDF. O sistema adiciona o cabeçalho/rodapé do escritório automaticamente. As observações devem conter APENAS notas sobre o cálculo: período do atraso, base de cálculo, índice usado, fundamentação legal — nada sobre escritório/endereço. '
-        . 'O JSON deve ter esta estrutura exata: '
-        . '{"meta":{"titulo":"...","processo":"nº do processo","vara":"...","autor":"...","reu":"...","indice_correcao":"INPC ou IPCA-E etc","juros":"1% ao mês etc","data_calculo":"dd/mm/yyyy","observacoes":"APENAS notas do cálculo, sem endereços/telefones"},'
-        . '"parcelas":[{"numero":1,"descricao":"Jan/2024","vencimento":"01/01/2024","valor_nominal":1500.00,"correcao_monetaria":150.30,"juros":45.20,"valor_atualizado":1695.50,"pago":0,"observacao":""}],'
-        . '"subtotais":{"total_nominal":0,"total_correcao":0,"total_juros":0,"total_atualizado":0,"total_pago":0},'
-        . '"debito_total":0,"honorarios_pct":0,"honorarios_valor":0,"total_execucao":0}';
-
+/**
+ * Chama Claude API com um array de content blocks (document/image/text) e retorna [textContent, apiData].
+ * Bate em $apiKey via closure pra evitar global.
+ */
+function pc_chamar_claude($apiKey, $systemPrompt, $contentBlocks) {
     $payload = json_encode(array(
         'model' => 'claude-sonnet-4-6',
         'max_tokens' => 16384,
         'temperature' => 0,
         'system' => $systemPrompt,
         'messages' => array(
-            array('role' => 'user', 'content' => array(
-                array('type' => 'document', 'source' => array(
-                    'type' => 'base64',
-                    'media_type' => 'application/pdf',
-                    'data' => $pdfBase64,
-                )),
-                array('type' => 'text', 'text' => 'Extraia todos os dados desta planilha de débito e retorne em JSON. Inclua TODAS as parcelas, valores, correções, juros e totais. Se houver pagamentos parciais, inclua como valor negativo ou no campo "pago". Retorne APENAS o JSON.'),
-            )),
+            array('role' => 'user', 'content' => $contentBlocks),
         ),
     ), JSON_UNESCAPED_UNICODE);
 
-    // Chamar Claude API
-    $response = '';
-    $httpCode = 0;
+    $response = ''; $httpCode = 0; $curlErr = '';
     for ($tentativa = 0; $tentativa < 3; $tentativa++) {
         $ch = curl_init('https://api.anthropic.com/v1/messages');
         curl_setopt_array($ch, array(
@@ -91,23 +67,15 @@ if ($action === 'processar_pdf') {
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlErr = curl_error($ch);
         curl_close($ch);
-
-        if ($curlErr) {
-            if ($tentativa < 2) { sleep(2); continue; }
-            echo json_encode(array('error' => 'Erro de rede: ' . $curlErr, 'csrf' => $newCsrf));
-            exit;
-        }
+        if ($curlErr) { if ($tentativa < 2) { sleep(2); continue; } return array(null, null, 'Erro de rede: ' . $curlErr); }
         if ($httpCode !== 529 && $httpCode !== 429) break;
         sleep(pow(2, $tentativa) * 2);
     }
-
     if ($httpCode >= 400) {
         $errData = json_decode($response, true);
         $errMsg = isset($errData['error']['message']) ? $errData['error']['message'] : 'HTTP ' . $httpCode;
-        echo json_encode(array('error' => 'Claude API: ' . $errMsg, 'csrf' => $newCsrf));
-        exit;
+        return array(null, null, 'Claude API: ' . $errMsg);
     }
-
     $apiData = json_decode($response, true);
     $textContent = '';
     if (isset($apiData['content'])) {
@@ -115,9 +83,61 @@ if ($action === 'processar_pdf') {
             if ($block['type'] === 'text') { $textContent .= $block['text']; break; }
         }
     }
+    if (!$textContent) return array(null, null, 'Claude não retornou dados');
+    return array($textContent, $apiData, null);
+}
 
-    if (!$textContent) {
-        echo json_encode(array('error' => 'Claude não retornou dados', 'csrf' => $newCsrf));
+// Ações suportadas: processar_pdf, processar_imagem, processar_texto
+if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_texto'), true)) {
+    $caseId = (int)($_POST['case_id'] ?? 0) ?: null;
+    $titulo = clean_str($_POST['titulo'] ?? '', 200) ?: 'Cálculo ' . date('d/m/Y H:i');
+
+    // Buscar client_id pelo case
+    $clientId = null;
+    if ($caseId) {
+        $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+        $stmtC->execute(array($caseId));
+        $clientId = (int)$stmtC->fetchColumn() ?: null;
+    }
+
+    $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
+    if (!$apiKey) {
+        echo json_encode(array('error' => 'ANTHROPIC_API_KEY não configurada', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Monta content blocks conforme o tipo
+    $contentBlocks = array();
+    if ($action === 'processar_pdf') {
+        $pdfBase64 = $_POST['pdf_base64'] ?? '';
+        if (!$pdfBase64) { echo json_encode(array('error' => 'PDF não enviado', 'csrf' => $newCsrf)); exit; }
+        $contentBlocks[] = array('type' => 'document', 'source' => array(
+            'type' => 'base64', 'media_type' => 'application/pdf', 'data' => $pdfBase64,
+        ));
+        $contentBlocks[] = array('type' => 'text', 'text' => 'Extraia todos os dados desta planilha em JSON. Inclua TODAS as parcelas/itens. Retorne APENAS o JSON.');
+    } elseif ($action === 'processar_imagem') {
+        $imgBase64 = $_POST['img_base64'] ?? '';
+        $imgMime = $_POST['img_mime'] ?? 'image/png';
+        if (!$imgBase64) { echo json_encode(array('error' => 'Imagem não enviada', 'csrf' => $newCsrf)); exit; }
+        if (!in_array($imgMime, array('image/png','image/jpeg','image/jpg','image/webp'), true)) {
+            $imgMime = 'image/png';
+        }
+        $contentBlocks[] = array('type' => 'image', 'source' => array(
+            'type' => 'base64', 'media_type' => $imgMime, 'data' => $imgBase64,
+        ));
+        $contentBlocks[] = array('type' => 'text', 'text' => 'Esta imagem é um print de uma planilha de cálculo judicial (provavelmente DrCalc.net). Leia TODOS os números e datas com atenção e extraia em JSON. Atenção a vírgulas decimais brasileiras. Retorne APENAS o JSON.');
+    } elseif ($action === 'processar_texto') {
+        $texto = trim((string)($_POST['texto'] ?? ''));
+        if (mb_strlen($texto) < 50) { echo json_encode(array('error' => 'Texto muito curto', 'csrf' => $newCsrf)); exit; }
+        if (mb_strlen($texto) > 80000) $texto = mb_substr($texto, 0, 80000, 'UTF-8');
+        $contentBlocks[] = array('type' => 'text', 'text' =>
+            "Abaixo está o texto colado de uma planilha de cálculo judicial. Extraia os dados em JSON:\n\n---\n" . $texto . "\n---\n\nRetorne APENAS o JSON.");
+    }
+
+    // Chamar Claude
+    list($textContent, $apiData, $errClaude) = pc_chamar_claude($apiKey, $systemPrompt, $contentBlocks);
+    if ($errClaude) {
+        echo json_encode(array('error' => $errClaude, 'csrf' => $newCsrf));
         exit;
     }
 
@@ -152,7 +172,7 @@ if ($action === 'processar_pdf') {
     $colHeaders = array('Nº', 'Descrição', 'Vencimento', 'Valor Nominal', 'Correção', 'Juros', 'Valor Atualizado', 'Pago', 'Obs.');
     $widths = array(6, 20, 14, 16, 16, 16, 18, 16, 20);
 
-    $writer->writeSheetHeader('Planilha de Débito', array(
+    $writer->writeSheetHeader('Planilha de Cálculo', array(
         'Nº' => 'string', 'Descrição' => 'string', 'Vencimento' => 'string',
         'Valor Nominal' => 'money', 'Correção' => 'money', 'Juros' => 'money',
         'Valor Atualizado' => 'money', 'Pago' => 'money', 'Obs.' => 'string'
@@ -160,14 +180,14 @@ if ($action === 'processar_pdf') {
 
     // Metadados como linhas iniciais
     $metaStyle = array('font-style' => 'bold', 'font-size' => 10);
-    if (isset($meta['titulo'])) $writer->writeSheetRow('Planilha de Débito', array('PLANILHA DE DÉBITO: ' . $meta['titulo']), $metaStyle);
-    if (isset($meta['processo'])) $writer->writeSheetRow('Planilha de Débito', array('Processo: ' . $meta['processo']), $metaStyle);
-    if (isset($meta['autor'])) $writer->writeSheetRow('Planilha de Débito', array('Autor: ' . $meta['autor'] . '  |  Réu: ' . ($meta['reu'] ?? '')), $metaStyle);
-    if (isset($meta['indice_correcao'])) $writer->writeSheetRow('Planilha de Débito', array('Índice: ' . $meta['indice_correcao'] . '  |  Juros: ' . ($meta['juros'] ?? '') . '  |  Data cálculo: ' . ($meta['data_calculo'] ?? '')), $metaStyle);
-    $writer->writeSheetRow('Planilha de Débito', array(''));
+    if (isset($meta['titulo'])) $writer->writeSheetRow('Planilha de Cálculo', array('PLANILHA DE CÁLCULO: ' . $meta['titulo']), $metaStyle);
+    if (isset($meta['processo'])) $writer->writeSheetRow('Planilha de Cálculo', array('Processo: ' . $meta['processo']), $metaStyle);
+    if (isset($meta['autor'])) $writer->writeSheetRow('Planilha de Cálculo', array('Autor: ' . $meta['autor'] . '  |  Réu: ' . ($meta['reu'] ?? '')), $metaStyle);
+    if (isset($meta['indice_correcao'])) $writer->writeSheetRow('Planilha de Cálculo', array('Índice: ' . $meta['indice_correcao'] . '  |  Juros: ' . ($meta['juros'] ?? '') . '  |  Data cálculo: ' . ($meta['data_calculo'] ?? '')), $metaStyle);
+    $writer->writeSheetRow('Planilha de Cálculo', array(''));
 
     // Cabeçalho da tabela
-    $writer->writeSheetRow('Planilha de Débito', $colHeaders, $headerStyle);
+    $writer->writeSheetRow('Planilha de Cálculo', $colHeaders, $headerStyle);
 
     // Parcelas
     foreach ($dados['parcelas'] as $p) {
@@ -191,12 +211,12 @@ if ($action === 'processar_pdf') {
             $rowStyle = array_merge($normalStyle, array('font-style' => 'italic', 'color' => '#DC2626'));
         }
 
-        $writer->writeSheetRow('Planilha de Débito', $row, $rowStyle);
+        $writer->writeSheetRow('Planilha de Cálculo', $row, $rowStyle);
     }
 
     // Subtotais
     $sub = isset($dados['subtotais']) ? $dados['subtotais'] : array();
-    $writer->writeSheetRow('Planilha de Débito', array(
+    $writer->writeSheetRow('Planilha de Cálculo', array(
         '', '', 'SUBTOTAIS',
         isset($sub['total_nominal']) ? (float)$sub['total_nominal'] : 0,
         isset($sub['total_correcao']) ? (float)$sub['total_correcao'] : 0,
@@ -208,17 +228,17 @@ if ($action === 'processar_pdf') {
 
     // Débito total
     $debitoTotal = isset($dados['debito_total']) ? (float)$dados['debito_total'] : 0;
-    $writer->writeSheetRow('Planilha de Débito', array('', '', 'DÉBITO TOTAL', '', '', '', $debitoTotal, '', ''), $grandTotalStyle);
+    $writer->writeSheetRow('Planilha de Cálculo', array('', '', 'DÉBITO TOTAL', '', '', '', $debitoTotal, '', ''), $grandTotalStyle);
 
     // Honorários
     if (isset($dados['honorarios_valor']) && $dados['honorarios_valor'] > 0) {
-        $writer->writeSheetRow('Planilha de Débito', array(
+        $writer->writeSheetRow('Planilha de Cálculo', array(
             '', '', 'Honorários (' . ($dados['honorarios_pct'] ?? '10') . '%)',
             '', '', '', (float)$dados['honorarios_valor'], '', ''
         ), $subHeaderStyle);
     }
     if (isset($dados['total_execucao']) && $dados['total_execucao'] > 0) {
-        $writer->writeSheetRow('Planilha de Débito', array(
+        $writer->writeSheetRow('Planilha de Cálculo', array(
             '', '', 'TOTAL PARA EXECUÇÃO', '', '', '', (float)$dados['total_execucao'], '', ''
         ), $grandTotalStyle);
     }
@@ -237,17 +257,17 @@ if ($action === 'processar_pdf') {
         }
     }
     $obsParts[] = 'Escritório: Ferreira & Sá Advocacia — Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ — Tel: (24) 99205-0096';
-    $writer->writeSheetRow('Planilha de Débito', array(''));
-    $writer->writeSheetRow('Planilha de Débito', array('Observações: ' . implode(' | ', $obsParts)), $metaStyle);
+    $writer->writeSheetRow('Planilha de Cálculo', array(''));
+    $writer->writeSheetRow('Planilha de Cálculo', array('Observações: ' . implode(' | ', $obsParts)), $metaStyle);
 
     // Rodapé
-    $writer->writeSheetRow('Planilha de Débito', array(''));
-    $writer->writeSheetRow('Planilha de Débito', array('Ferreira & Sá Advocacia — Portal Ferreira & Sá HUB — Gerado em ' . date('d/m/Y H:i')), array('font-size' => 8, 'color' => '#999999'));
+    $writer->writeSheetRow('Planilha de Cálculo', array(''));
+    $writer->writeSheetRow('Planilha de Cálculo', array('Ferreira & Sá Advocacia — Portal Ferreira & Sá HUB — Gerado em ' . date('d/m/Y H:i')), array('font-size' => 8, 'color' => '#999999'));
 
     // Salvar arquivo
     $tempDir = APP_ROOT . '/temp';
     if (!is_dir($tempDir)) mkdir($tempDir, 0755, true);
-    $fileName = 'planilha_debito_' . date('YmdHis') . '_' . current_user_id() . '.xlsx';
+    $fileName = 'planilha_calculo_' . date('YmdHis') . '_' . current_user_id() . '.xlsx';
     $filePath = $tempDir . '/' . $fileName;
     $writer->writeToFile($filePath);
 
@@ -278,7 +298,7 @@ if ($action === 'processar_pdf') {
     ));
     $planilhaId = (int)$pdo->lastInsertId();
 
-    audit_log('planilha_debito_gerada', 'planilha_debito', $planilhaId, $titulo);
+    audit_log('planilha_calculo_gerada', 'planilha_debito', $planilhaId, $titulo);
 
     // Tokens
     $tokensIn = isset($apiData['usage']['input_tokens']) ? (int)$apiData['usage']['input_tokens'] : 0;

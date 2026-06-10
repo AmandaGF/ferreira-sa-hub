@@ -1,13 +1,14 @@
 <?php
 /**
- * Ferreira & Sá Hub — Planilha de Débito
- * Upload PDF (Jusfy) → Claude AI extrai dados → Gera XLSX/PDF com layout FeS
+ * Ferreira & Sá Hub — Planilha de Cálculo
+ * Aceita PDF (Jusfy/DrCalc), imagem (paste Ctrl+V ou upload) ou texto colado.
+ * Claude AI extrai dados → Gera XLSX/PDF com layout FeS.
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
-$pageTitle = 'Planilha de Débito';
+$pageTitle = 'Planilha de Cálculo';
 $pdo = db();
 
 // Buscar planilhas geradas
@@ -43,15 +44,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-list table { width:100%; border-collapse:collapse; font-size:.82rem; }
 .pd-list th { background:var(--petrol-900); color:#fff; padding:.5rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; }
 .pd-list td { padding:.5rem .75rem; border-bottom:1px solid var(--border); }
+.pd-tab { background:transparent; border:none; padding:.55rem .9rem; font-size:.82rem; font-weight:600; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; }
+.pd-tab.pd-tab-ativa { color:#B87333; border-bottom-color:#B87333; background:rgba(184,115,51,.05); border-radius:6px 6px 0 0; }
+.pd-tab:hover:not(.pd-tab-ativa) { color:#052228; background:rgba(0,0,0,.03); }
 </style>
 
-<div style="max-width:800px;">
-    <!-- Upload -->
-    <div class="pd-upload" id="uploadZone" onclick="document.getElementById('pdfInput').click()">
-        <div class="pd-upload-icon">📄</div>
-        <div class="pd-upload-text">Arraste o PDF da planilha (Jusfy) ou clique para selecionar</div>
-        <div class="pd-upload-hint">O sistema vai extrair os dados com IA e gerar a planilha no layout do escritório</div>
-        <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="iniciarProcessamento()">
+<div style="max-width:900px;">
+    <!-- Tabs de entrada -->
+    <div style="display:flex;gap:.3rem;border-bottom:2px solid var(--border);margin-bottom:1rem;">
+        <button type="button" onclick="pdTrocarTab('pdf')" id="pdTabPdf" class="pd-tab pd-tab-ativa">📄 PDF</button>
+        <button type="button" onclick="pdTrocarTab('img')" id="pdTabImg" class="pd-tab">🖼️ Imagem (Ctrl+V ou upload)</button>
+        <button type="button" onclick="pdTrocarTab('txt')" id="pdTabTxt" class="pd-tab">📋 Colar texto</button>
+    </div>
+
+    <!-- Tab PDF -->
+    <div id="pdPaneP" class="pd-pane">
+        <div class="pd-upload" id="uploadZone" onclick="document.getElementById('pdfInput').click()">
+            <div class="pd-upload-icon">📄</div>
+            <div class="pd-upload-text">Arraste o PDF da planilha (Jusfy / DrCalc / etc) ou clique para selecionar</div>
+            <div class="pd-upload-hint">A IA extrai os dados e gera o XLSX/PDF no layout do escritório</div>
+            <input type="file" id="pdfInput" accept=".pdf" style="display:none" onchange="iniciarProcessamento('pdf')">
+        </div>
+    </div>
+
+    <!-- Tab Imagem -->
+    <div id="pdPaneI" class="pd-pane" style="display:none;">
+        <div class="pd-upload" id="imgZone" onclick="document.getElementById('imgInput').click()">
+            <div class="pd-upload-icon">🖼️</div>
+            <div class="pd-upload-text">Cole (Ctrl+V) o print da planilha do DrCalc/site, arraste a imagem ou clique para selecionar</div>
+            <div class="pd-upload-hint">Aceita PNG/JPG/JPEG (máx 10MB). Tira print da tela e cola aqui — a IA lê e converte.</div>
+            <input type="file" id="imgInput" accept="image/png,image/jpeg,image/jpg" style="display:none" onchange="iniciarProcessamento('img')">
+        </div>
+        <div id="imgPreview" style="display:none;margin-top:.75rem;text-align:center;">
+            <img id="imgPreviewEl" style="max-width:100%;max-height:300px;border:1px solid var(--border);border-radius:8px;">
+        </div>
+    </div>
+
+    <!-- Tab Texto -->
+    <div id="pdPaneT" class="pd-pane" style="display:none;">
+        <textarea id="txtColado" class="form-input" rows="14"
+            style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;padding:.75rem;"
+            placeholder="Cole aqui o texto da planilha do DrCalc, Jusfy ou outro sistema. Ex:&#10;&#10;PLANILHA DE DÉBITOS JUDICIAIS&#10;Data de atualização: junho/2026&#10;Indexador: IPCA (IBGE)&#10;Juros: Taxa Legal-art 406...&#10;&#10;ITEM  DESCRIÇÃO  DATA       VALOR SINGELO  VALOR ATUALIZADO  JUROS  PERÍODO            TOTAL&#10;1               20/04/2026  20.000,00      20.134,00         1.999,16  22/05/2025 a 10/06/2026  22.133,16&#10;TOTAIS         20.000,00      20.134,00         1.999,16            22.133,16"></textarea>
+        <button type="button" class="btn btn-primary" style="margin-top:.5rem;" onclick="iniciarProcessamento('txt')">⚡ Processar texto</button>
     </div>
 
     <!-- Caso vinculado (opcional) -->
@@ -85,7 +119,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- Planilhas geradas -->
     <?php if (!empty($planilhas)): ?>
     <div class="card pd-list" style="margin-top:1.5rem;">
-        <div class="card-header"><h3>Planilhas Geradas</h3></div>
+        <div class="card-header"><h3>Cálculos Gerados</h3></div>
         <table>
             <thead><tr><th>Título</th><th>Processo</th><th>Gerada por</th><th>Data</th><th>Ações</th></tr></thead>
             <tbody>
@@ -112,85 +146,171 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <script>
 var CSRF = '<?= generate_csrf_token() ?>';
 var API = '<?= module_url("planilha_debito", "api.php") ?>';
+var imgPasted = null; // {base64, name} quando colado por Ctrl+V
 
-// Drag & drop
-var zone = document.getElementById('uploadZone');
-zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
-zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
-zone.addEventListener('drop', function(e) {
-    e.preventDefault();
-    zone.classList.remove('dragover');
-    var files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type === 'application/pdf') {
-        document.getElementById('pdfInput').files = files;
-        iniciarProcessamento();
-    } else {
-        alert('Selecione um arquivo PDF.');
+function pdTrocarTab(t) {
+    ['pdf','img','txt'].forEach(function(k){
+        var pane = document.getElementById('pdPane' + k.charAt(0).toUpperCase());
+        var tab  = document.getElementById('pdTab' + k.charAt(0).toUpperCase() + k.slice(1));
+        if (pane) pane.style.display = (k === t) ? '' : 'none';
+        if (tab) tab.classList.toggle('pd-tab-ativa', k === t);
+    });
+}
+
+// Drag & drop PDF
+(function(){
+    var zone = document.getElementById('uploadZone');
+    if (!zone) return;
+    zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        var files = e.dataTransfer.files;
+        if (files.length > 0 && files[0].type === 'application/pdf') {
+            document.getElementById('pdfInput').files = files;
+            iniciarProcessamento('pdf');
+        } else { alert('Selecione um arquivo PDF.'); }
+    });
+})();
+
+// Drag & drop Imagem
+(function(){
+    var zone = document.getElementById('imgZone');
+    if (!zone) return;
+    zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', function() { zone.classList.remove('dragover'); });
+    zone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        var files = e.dataTransfer.files;
+        if (files.length > 0 && /^image\/(png|jpe?g)$/i.test(files[0].type)) {
+            document.getElementById('imgInput').files = files;
+            iniciarProcessamento('img');
+        } else { alert('Solte uma imagem PNG ou JPG.'); }
+    });
+})();
+
+// Ctrl+V global: detecta imagem na area de transferencia
+document.addEventListener('paste', function(e) {
+    if (!e.clipboardData || !e.clipboardData.items) return;
+    // ignora paste em textarea/input que nao seja o nosso txtColado
+    var alvo = e.target;
+    if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT')) return;
+    for (var i = 0; i < e.clipboardData.items.length; i++) {
+        var it = e.clipboardData.items[i];
+        if (it.type && it.type.indexOf('image/') === 0) {
+            var blob = it.getAsFile();
+            if (!blob) continue;
+            e.preventDefault();
+            pdTrocarTab('img');
+            var fr = new FileReader();
+            fr.onload = function(){
+                imgPasted = { base64: fr.result.split(',')[1], name: 'colado_' + Date.now() + '.png', mime: blob.type };
+                var prev = document.getElementById('imgPreviewEl');
+                prev.src = fr.result;
+                document.getElementById('imgPreview').style.display = '';
+                iniciarProcessamento('img');
+            };
+            fr.readAsDataURL(blob);
+            return;
+        }
     }
 });
 
-function iniciarProcessamento() {
-    var file = document.getElementById('pdfInput').files[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') { alert('Selecione um arquivo PDF.'); return; }
-    if (file.size > 10 * 1024 * 1024) { alert('Arquivo muito grande (máx 10MB).'); return; }
+function iniciarProcessamento(tipo) {
+    var fd = new FormData();
+    fd.append('csrf_token', CSRF);
+    fd.append('case_id', document.getElementById('pdCaseId').value);
 
-    // Mostrar opções e progresso
+    if (tipo === 'pdf') {
+        var file = document.getElementById('pdfInput').files[0];
+        if (!file) return;
+        if (file.type !== 'application/pdf') { alert('Selecione um arquivo PDF.'); return; }
+        if (file.size > 10 * 1024 * 1024) { alert('Arquivo muito grande (máx 10MB).'); return; }
+        fd.append('action', 'processar_pdf');
+        fd.append('pdf_name', file.name);
+        fd.append('titulo', document.getElementById('pdTitulo').value || file.name.replace('.pdf', ''));
+        var rd = new FileReader();
+        rd.onload = function(){ fd.append('pdf_base64', rd.result.split(',')[1]); enviarFD(fd, 'PDF'); };
+        rd.readAsDataURL(file);
+        prepararUI(); setProgress(10, 'Lendo PDF...');
+        return;
+    }
+
+    if (tipo === 'img') {
+        var file = document.getElementById('imgInput').files[0];
+        if (!file && !imgPasted) { alert('Selecione, arraste ou cole uma imagem (Ctrl+V).'); return; }
+        prepararUI(); setProgress(10, 'Lendo imagem...');
+        fd.append('action', 'processar_imagem');
+        if (imgPasted) {
+            fd.append('img_base64', imgPasted.base64);
+            fd.append('img_mime', imgPasted.mime || 'image/png');
+            fd.append('img_name', imgPasted.name);
+            fd.append('titulo', document.getElementById('pdTitulo').value || 'Cálculo colado ' + new Date().toLocaleDateString('pt-BR'));
+            enviarFD(fd, 'Imagem');
+            imgPasted = null;
+        } else {
+            if (file.size > 10 * 1024 * 1024) { alert('Imagem muito grande (máx 10MB).'); return; }
+            var rd2 = new FileReader();
+            rd2.onload = function(){
+                fd.append('img_base64', rd2.result.split(',')[1]);
+                fd.append('img_mime', file.type || 'image/png');
+                fd.append('img_name', file.name);
+                fd.append('titulo', document.getElementById('pdTitulo').value || file.name.replace(/\.(png|jpe?g)$/i, ''));
+                document.getElementById('imgPreviewEl').src = rd2.result;
+                document.getElementById('imgPreview').style.display = '';
+                enviarFD(fd, 'Imagem');
+            };
+            rd2.readAsDataURL(file);
+        }
+        return;
+    }
+
+    if (tipo === 'txt') {
+        var txt = (document.getElementById('txtColado').value || '').trim();
+        if (txt.length < 50) { alert('Cole o texto da planilha (mínimo 50 caracteres).'); return; }
+        prepararUI(); setProgress(20, 'Enviando texto para IA...');
+        fd.append('action', 'processar_texto');
+        fd.append('texto', txt);
+        fd.append('titulo', document.getElementById('pdTitulo').value || 'Cálculo colado ' + new Date().toLocaleDateString('pt-BR'));
+        enviarFD(fd, 'Texto');
+        return;
+    }
+}
+
+function prepararUI() {
     document.getElementById('pdOpcoes').style.display = '';
     document.getElementById('pdProgress').style.display = '';
     document.getElementById('pdResultado').style.display = 'none';
-    document.getElementById('uploadZone').style.display = 'none';
+}
 
-    setProgress(10, 'Lendo PDF...');
-
-    // Converter para base64
-    var reader = new FileReader();
-    reader.onload = function() {
-        var base64 = reader.result.split(',')[1];
-        setProgress(20, 'Enviando para IA (Claude)... pode levar até 1 minuto');
-
-        // Enviar para API
-        var fd = new FormData();
-        fd.append('action', 'processar_pdf');
-        fd.append('csrf_token', CSRF);
-        fd.append('pdf_base64', base64);
-        fd.append('pdf_name', file.name);
-        fd.append('case_id', document.getElementById('pdCaseId').value);
-        fd.append('titulo', document.getElementById('pdTitulo').value || file.name.replace('.pdf', ''));
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', API);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.timeout = 180000; // 3 min
-
-        xhr.upload.onprogress = function(e) {
-            if (e.lengthComputable) {
-                var pct = Math.round((e.loaded / e.total) * 30) + 20;
-                setProgress(pct, 'Enviando...');
-            }
-        };
-
-        xhr.onload = function() {
-            try {
-                var r = JSON.parse(xhr.responseText);
-                if (r.csrf) CSRF = r.csrf;
-                if (r.error) {
-                    setProgress(0, 'Erro: ' + r.error);
-                    document.getElementById('uploadZone').style.display = '';
-                    return;
-                }
-                setProgress(100, 'Planilha gerada com sucesso!');
-                mostrarResultado(r);
-            } catch(e) {
-                setProgress(0, 'Erro ao processar: ' + (xhr.responseText || '').substring(0, 200));
-                document.getElementById('uploadZone').style.display = '';
-            }
-        };
-        xhr.onerror = function() { setProgress(0, 'Erro de rede.'); document.getElementById('uploadZone').style.display = ''; };
-        xhr.ontimeout = function() { setProgress(0, 'Timeout — a IA demorou demais.'); document.getElementById('uploadZone').style.display = ''; };
-        xhr.send(fd);
+function enviarFD(fd, qual) {
+    setProgress(30, 'Enviando ' + qual.toLowerCase() + ' para IA (Claude)... pode levar até 1 minuto');
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.timeout = 180000;
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            var pct = Math.round((e.loaded / e.total) * 30) + 30;
+            setProgress(pct, 'Enviando ' + qual.toLowerCase() + '...');
+        }
     };
-    reader.readAsDataURL(file);
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.csrf) CSRF = r.csrf;
+            if (r.error) { setProgress(0, 'Erro: ' + r.error); return; }
+            setProgress(100, 'Cálculo gerado com sucesso!');
+            mostrarResultado(r);
+        } catch(e) {
+            setProgress(0, 'Erro ao processar: ' + (xhr.responseText || '').substring(0, 200));
+        }
+    };
+    xhr.onerror = function() { setProgress(0, 'Erro de rede.'); };
+    xhr.ontimeout = function() { setProgress(0, 'Timeout — a IA demorou demais.'); };
+    xhr.send(fd);
 }
 
 function setProgress(pct, msg) {
@@ -200,15 +320,15 @@ function setProgress(pct, msg) {
 
 function mostrarResultado(r) {
     var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">'
-        + '<h3>Planilha Gerada</h3>'
+        + '<h3>Cálculo Gerado</h3>'
         + '<div style="display:flex;gap:.5rem;">'
         + (r.xlsx_url ? '<a href="' + r.xlsx_url + '" class="btn btn-primary btn-sm" style="background:#059669;" download>📥 Baixar XLSX</a>' : '')
         + (r.id ? '<a href="' + API.replace('api.php', 'ver.php?id=' + r.id) + '" class="btn btn-outline btn-sm" target="_blank">🖨️ Ver/Imprimir PDF</a>' : '')
-        + '<button onclick="location.reload()" class="btn btn-outline btn-sm">Nova planilha</button>'
+        + '<button onclick="location.reload()" class="btn btn-outline btn-sm">Novo cálculo</button>'
         + '</div></div>'
         + '<div class="card-body">'
-        + '<p style="font-size:.82rem;color:var(--text-muted);">Débito total: <strong style="color:var(--petrol-900);font-size:1rem;">R$ ' + (r.total || '—') + '</strong></p>'
-        + '<p style="font-size:.75rem;color:var(--text-muted);">Parcelas: ' + (r.parcelas || '—') + ' · Gerado em ' + (r.gerado_em || '') + '</p>'
+        + '<p style="font-size:.82rem;color:var(--text-muted);">Total: <strong style="color:var(--petrol-900);font-size:1rem;">R$ ' + (r.total || '—') + '</strong></p>'
+        + '<p style="font-size:.75rem;color:var(--text-muted);">Itens: ' + (r.parcelas || '—') + ' · Gerado em ' + (r.gerado_em || '') + '</p>'
         + '</div></div>';
     document.getElementById('pdResultado').innerHTML = html;
     document.getElementById('pdResultado').style.display = '';
