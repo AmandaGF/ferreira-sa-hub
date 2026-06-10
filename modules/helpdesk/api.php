@@ -401,6 +401,7 @@ switch ($action) {
         foreach ($cases as $c) {
             $stUlt->execute(array($c['id']));
             $ult = $stUlt->fetch();
+            $stUlt->closeCursor(); // Amanda 08/06/2026: SQLSTATE[HY000] 2014 sem closeCursor
             $ultimoAndamento = $ult ? array(
                 'id'        => (int)$ult['id'],
                 'data'      => $ult['data_andamento'] ? date('d/m/Y', strtotime($ult['data_andamento'])) : '',
@@ -411,6 +412,7 @@ switch ($action) {
             if (!empty($c['ia_resumo']) && !empty($c['ia_resumo_em'])) {
                 $stMaxAnd->execute(array($c['id']));
                 $maxAnd = (string)$stMaxAnd->fetchColumn();
+                $stMaxAnd->closeCursor();
                 if ($maxAnd && strtotime($maxAnd) > strtotime($c['ia_resumo_em'])) {
                     $resumoDesatualizado = true;
                 }
@@ -418,6 +420,7 @@ switch ($action) {
 
             $stEnviado->execute(array($ticketId, $c['id']));
             $envEm = (string)$stEnviado->fetchColumn();
+            $stEnviado->closeCursor();
 
             $out[] = array(
                 'id'                  => (int)$c['id'],
