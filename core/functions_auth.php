@@ -157,7 +157,7 @@ function can_access_dashboard()
  * Códigos 2FA centralizados (tribunais com duplo fator).
  * Whitelist por NOME (não user_id) pra ser robusta a remanejamentos —
  * Amanda + Luiz Eduardo (administradores: criam/editam sistemas) +
- * Naiara + Carina (só leem os códigos).
+ * Naiara + Carina + Maria Vitória (só leem os códigos).
  * Admin do sistema (current_user_id() === 1) sempre passa.
  */
 function can_access_codigos_2fa()
@@ -172,7 +172,8 @@ function can_access_codigos_2fa()
         $nome = (string)$stmt->fetchColumn();
         if (!$nome) return false;
         $nomeLow = mb_strtolower($nome, 'UTF-8');
-        foreach (array('amanda', 'luiz eduardo', 'naiara', 'carina') as $aut) {
+        // Amanda 10/06/2026: liberada Maria Vitoria (estagiaria)
+        foreach (array('amanda', 'luiz eduardo', 'naiara', 'carina', 'maria vit') as $aut) {
             if (mb_strpos($nomeLow, $aut) !== false) return true;
         }
     } catch (Exception $e) {}
