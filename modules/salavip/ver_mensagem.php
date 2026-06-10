@@ -14,6 +14,9 @@ if (!has_min_role('gestao')) {
 $pdo = db();
 $threadId = (int)($_GET['thread_id'] ?? 0);
 
+// Self-heal: editada_em pra rastrear edicoes de msg da equipe (Amanda 08/06/2026)
+try { $pdo->exec("ALTER TABLE salavip_mensagens ADD COLUMN editada_em DATETIME NULL"); } catch (Exception $e) {}
+
 // Self-heal: tabela de tracking de processos resumidos por thread VIP (Amanda 08/06/2026)
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS salavip_processos_enviados (
@@ -276,6 +279,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('salavip', 'ver_mensagem.php?thread_id=' . $threadId));
     }
 
+    // ── AJAX: editar mensagem da equipe (Amanda 08/06/2026) ──
+    if ($action === 'editar_msg') {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $msgId = (int)($_POST['msg_id'] ?? 0);
+            $novaMensagem = trim((string)($_POST['nova_mensagem'] ?? ''));
+            if (!$msgId || $novaMensagem === '') {
+                echo json_encode(array('error' => 'msg_id e nova_mensagem obrigatorios.'));
+                exit;
+            }
+            $stmt = $pdo->prepare(
+                "UPDATE salavip_mensagens SET mensagem = ?, editada_em = NOW()
+                 WHERE id = ? AND thread_id = ? AND origem = 'conecta'"
+            );
+            $stmt->execute(array($novaMensagem, $msgId, $threadId));
+            $rows = $stmt->rowCount();
+            if ($rows === 0) {
+                echo json_encode(array('error' => 'Mensagem nao encontrada ou nao e da equipe.'));
+                exit;
+            }
+            audit_log('salavip_msg_editar', 'salavip_mensagens', $msgId, 'editado por user=' . current_user_id());
+            echo json_encode(array('ok' => true, 'mensagem' => $novaMensagem, 'editada_em' => date('d/m/Y H:i')));
+            exit;
+        } catch (Throwable $e) {
+            @error_log('[salavip editar_msg] ' . $e->getMessage());
+            echo json_encode(array('error' => 'Erro servidor: ' . $e->getMessage()));
+            exit;
+        }
+    }
+
+    // ── AJAX: editar resumo IA do caso (Amanda 08/06/2026) ──
+    if ($action === 'editar_resumo_caso') {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            $caseId = (int)($_POST['case_id'] ?? 0);
+            $novoTexto = trim((string)($_POST['novo_texto'] ?? ''));
+            if (!$caseId || $novoTexto === '') {
+                echo json_encode(array('error' => 'case_id e novo_texto obrigatorios.'));
+                exit;
+            }
+            $pdo->prepare("UPDATE cases SET ia_resumo = ?, ia_resumo_em = NOW() WHERE id = ?")
+                ->execute(array($novoTexto, $caseId));
+            audit_log('IA_RESUMO_EDITADO', 'case', $caseId, 'editado manualmente por user=' . current_user_id() . ' via salavip');
+            echo json_encode(array(
+                'ok'    => true,
+                'texto' => $novoTexto,
+                'em'    => date('d/m/Y H:i'),
+            ));
+            exit;
+        } catch (Throwable $e) {
+            @error_log('[salavip editar_resumo_caso] ' . $e->getMessage());
+            echo json_encode(array('error' => 'Erro servidor: ' . $e->getMessage()));
+            exit;
+        }
+    }
+
     if ($action === 'alterar_status') {
         $novoStatus = $_POST['novo_status'] ?? '';
         $validos = array('aberta','respondida','aguardando','fechada');
@@ -482,22 +543,25 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
                 <p class="text-muted text-sm" style="text-align:center;">Nenhuma mensagem nesta conversa.</p>
             <?php else: ?>
                 <?php foreach ($mensagens as $m): ?>
-                    <div class="msg-bubble <?= $m['origem'] === 'conecta' ? 'equipe' : 'cliente' ?>" style="position:relative;">
+                    <div class="msg-bubble <?= $m['origem'] === 'conecta' ? 'equipe' : 'cliente' ?>" style="position:relative;" id="msg_<?= $m['id'] ?>">
                         <div class="msg-sender">
                             <?= e($m['remetente_nome']) ?>
                             <span style="font-weight:400;color:var(--text-muted);font-size:.7rem;">
                                 (<?= $m['origem'] === 'conecta' ? 'Equipe' : 'Cliente' ?>)
                             </span>
                             <?php if ($m['origem'] === 'conecta'): ?>
-                                <form method="POST" style="display:inline;float:right;" onsubmit="return confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.');">
-                                    <?= csrf_input() ?>
-                                    <input type="hidden" name="action" value="apagar_msg">
-                                    <input type="hidden" name="msg_id" value="<?= $m['id'] ?>">
-                                    <button type="submit" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:.8rem;padding:2px 6px;" title="Apagar mensagem">🗑</button>
-                                </form>
+                                <span style="float:right;display:inline-flex;gap:2px;">
+                                    <button type="button" onclick="salavipEditarMsg(<?= $m['id'] ?>)" style="background:transparent;border:none;color:#0ea5e9;cursor:pointer;font-size:.8rem;padding:2px 6px;" title="Editar mensagem">✏️</button>
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.');">
+                                        <?= csrf_input() ?>
+                                        <input type="hidden" name="action" value="apagar_msg">
+                                        <input type="hidden" name="msg_id" value="<?= $m['id'] ?>">
+                                        <button type="submit" style="background:transparent;border:none;color:#ef4444;cursor:pointer;font-size:.8rem;padding:2px 6px;" title="Apagar mensagem">🗑</button>
+                                    </form>
+                                </span>
                             <?php endif; ?>
                         </div>
-                        <div><?= nl2br(e($m['mensagem'])) ?></div>
+                        <div id="msg_corpo_<?= $m['id'] ?>"><?= nl2br(e($m['mensagem'])) ?></div>
                         <?php if (!empty($m['anexo_path'])): ?>
                             <div class="msg-anexo">
                                 &#128206; <a href="<?= url('salavip/uploads/mensagens/' . $m['anexo_path']) ?>" target="_blank"><?= e($m['anexo_nome'] ?: $m['anexo_path']) ?></a>
@@ -505,6 +569,9 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
                         <?php endif; ?>
                         <div class="msg-meta">
                             <span><?= date('d/m/Y H:i', strtotime($m['criado_em'])) ?></span>
+                            <?php if (!empty($m['editada_em'])): ?>
+                                <span style="color:#6b7280;font-size:.68rem;margin-left:.4rem;" title="Editada em <?= date('d/m/Y H:i', strtotime($m['editada_em'])) ?>">(editada)</span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -778,11 +845,13 @@ function vpRender() {
             var corResumo = c.ia_resumo_desatualizado ? '#92400e' : '#0369a1';
             var bgResumo = c.ia_resumo_desatualizado ? '#fef3c7' : '#eff6ff';
             var borderResumo = c.ia_resumo_desatualizado ? '#fbbf24' : '#bfdbfe';
-            html += '<div style="background:'+bgResumo+';border:1px solid '+borderResumo+';border-radius:8px;padding:.55rem .75rem;margin-top:.55rem;font-size:.8rem;color:#1f2937;white-space:pre-wrap;line-height:1.45;">';
-            html += '<div style="font-size:.66rem;color:'+corResumo+';font-weight:700;margin-bottom:.3rem;">✨ RESUMO EXECUTIVO IA <span style="font-weight:400;opacity:.8;">· gerado em '+vpEsc(c.ia_resumo_em || '—')+'</span>';
-            if (c.ia_resumo_desatualizado) html += ' <span style="background:#f59e0b;color:#fff;padding:1px 6px;border-radius:6px;margin-left:6px;font-size:.62rem;">DESATUALIZADO</span>';
+            html += '<div id="resumo_box_'+idx+'" style="background:'+bgResumo+';border:1px solid '+borderResumo+';border-radius:8px;padding:.55rem .75rem;margin-top:.55rem;font-size:.8rem;color:#1f2937;white-space:pre-wrap;line-height:1.45;">';
+            html += '<div style="font-size:.66rem;color:'+corResumo+';font-weight:700;margin-bottom:.3rem;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+            html += '<span>✨ RESUMO EXECUTIVO IA · gerado em '+vpEsc(c.ia_resumo_em || '—')+'</span>';
+            if (c.ia_resumo_desatualizado) html += '<span style="background:#f59e0b;color:#fff;padding:1px 6px;border-radius:6px;font-size:.62rem;">DESATUALIZADO</span>';
+            html += '<button type="button" onclick="event.preventDefault();event.stopPropagation();vpEditarResumo('+c.id+','+idx+')" style="margin-left:auto;background:#fff;color:'+corResumo+';border:1px solid '+corResumo+';padding:1px 8px;border-radius:6px;font-size:.65rem;font-weight:600;cursor:pointer;">✏️ Editar</button>';
             html += '</div>';
-            html += vpEsc(c.ia_resumo);
+            html += '<div id="resumo_texto_'+idx+'">' + vpEsc(c.ia_resumo) + '</div>';
             html += '</div>';
             if (c.ia_resumo_desatualizado) {
                 html += '<button type="button" onclick="event.preventDefault();event.stopPropagation();vpGerarResumo('+c.id+','+idx+',this)" style="margin-top:.4rem;background:#0ea5e9;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer;">🔄 Atualizar resumo (há andamento novo)</button>';
@@ -899,6 +968,120 @@ function vpEsc(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// ──────────────────────────────────────────────────────────
+// Amanda 08/06/2026: Editar resumo IA inline
+// ──────────────────────────────────────────────────────────
+window.vpEditarResumo = function(caseId, idx) {
+    var textoEl = document.getElementById('resumo_texto_' + idx);
+    if (!textoEl) return;
+    var atual = window.vpDados.cases[idx].ia_resumo || textoEl.textContent;
+    var ta = document.createElement('textarea');
+    ta.value = atual;
+    ta.style.cssText = 'width:100%;min-height:140px;padding:.5rem;border:1.5px solid #0ea5e9;border-radius:6px;font-size:.78rem;font-family:inherit;line-height:1.45;resize:vertical;';
+    var acoes = document.createElement('div');
+    acoes.style.cssText = 'display:flex;gap:.4rem;margin-top:.4rem;';
+    var btnSalvar = document.createElement('button');
+    btnSalvar.type = 'button';
+    btnSalvar.textContent = '💾 Salvar';
+    btnSalvar.style.cssText = 'background:#0ea5e9;color:#fff;border:none;padding:5px 12px;border-radius:6px;font-size:.74rem;font-weight:600;cursor:pointer;';
+    var btnCancelar = document.createElement('button');
+    btnCancelar.type = 'button';
+    btnCancelar.textContent = 'Cancelar';
+    btnCancelar.style.cssText = 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:5px 12px;border-radius:6px;font-size:.74rem;cursor:pointer;';
+    acoes.appendChild(btnSalvar);
+    acoes.appendChild(btnCancelar);
+
+    var textoOriginalHtml = textoEl.innerHTML;
+    textoEl.innerHTML = '';
+    textoEl.appendChild(ta);
+    textoEl.appendChild(acoes);
+    ta.focus();
+
+    btnCancelar.onclick = function(){ textoEl.innerHTML = textoOriginalHtml; };
+    btnSalvar.onclick = function(){
+        var novo = ta.value.trim();
+        if (!novo) { alert('Resumo nao pode ficar vazio.'); return; }
+        btnSalvar.disabled = true; btnSalvar.textContent = '⏳ Salvando...';
+        var fd = new FormData();
+        fd.append('action', 'editar_resumo_caso');
+        fd.append('case_id', caseId);
+        fd.append('novo_texto', novo);
+        fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+        fetch(window.vpUrl, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('⚠️ ' + d.error); btnSalvar.disabled = false; btnSalvar.textContent = '💾 Salvar'; return; }
+                window.vpDados.cases[idx].ia_resumo = d.texto;
+                window.vpDados.cases[idx].ia_resumo_em = d.em;
+                window.vpDados.cases[idx].ia_resumo_desatualizado = false;
+                vpRender();
+            })
+            .catch(function(e){ alert('Erro de rede: ' + e.message); btnSalvar.disabled = false; btnSalvar.textContent = '💾 Salvar'; });
+    };
+};
+
+// Amanda 08/06/2026: Editar mensagem da equipe inline
+window.salavipEditarMsg = function(msgId) {
+    var corpoEl = document.getElementById('msg_corpo_' + msgId);
+    if (!corpoEl) return;
+    // texto puro a partir do innerHTML (preserva quebras de linha)
+    var atual = corpoEl.innerHTML.replace(/<br\s*\/?>/gi, '\n');
+    var tmp = document.createElement('div'); tmp.innerHTML = atual;
+    var atualText = tmp.textContent || tmp.innerText || '';
+
+    var originalHtml = corpoEl.innerHTML;
+    var ta = document.createElement('textarea');
+    ta.value = atualText;
+    ta.style.cssText = 'width:100%;min-height:90px;padding:.45rem;border:1.5px solid #0ea5e9;border-radius:6px;font-size:.88rem;font-family:inherit;line-height:1.5;resize:vertical;margin-top:.2rem;';
+    var acoes = document.createElement('div');
+    acoes.style.cssText = 'display:flex;gap:.4rem;margin-top:.35rem;';
+    var btnSalvar = document.createElement('button');
+    btnSalvar.type = 'button';
+    btnSalvar.textContent = '💾 Salvar edição';
+    btnSalvar.style.cssText = 'background:#0ea5e9;color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;';
+    var btnCancelar = document.createElement('button');
+    btnCancelar.type = 'button';
+    btnCancelar.textContent = 'Cancelar';
+    btnCancelar.style.cssText = 'background:#f3f4f6;color:#374151;border:1px solid #d1d5db;padding:4px 10px;border-radius:6px;font-size:.72rem;cursor:pointer;';
+    acoes.appendChild(btnSalvar); acoes.appendChild(btnCancelar);
+
+    corpoEl.innerHTML = '';
+    corpoEl.appendChild(ta);
+    corpoEl.appendChild(acoes);
+    ta.focus();
+
+    btnCancelar.onclick = function(){ corpoEl.innerHTML = originalHtml; };
+    btnSalvar.onclick = function(){
+        var nova = ta.value.trim();
+        if (!nova) { alert('Mensagem nao pode ficar vazia.'); return; }
+        btnSalvar.disabled = true; btnSalvar.textContent = '⏳ Salvando...';
+        var fd = new FormData();
+        fd.append('action', 'editar_msg');
+        fd.append('msg_id', msgId);
+        fd.append('nova_mensagem', nova);
+        fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+        fetch(window.location.pathname + window.location.search, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('⚠️ ' + d.error); btnSalvar.disabled = false; btnSalvar.textContent = '💾 Salvar edição'; return; }
+                // Refresh inline: substitui texto + adiciona "(editada)" se nao existir
+                corpoEl.innerHTML = vpEsc(nova).replace(/\n/g, '<br>');
+                var bubble = document.getElementById('msg_' + msgId);
+                if (bubble) {
+                    var meta = bubble.querySelector('.msg-meta');
+                    if (meta && meta.querySelector('span:nth-child(2)') === null) {
+                        var span = document.createElement('span');
+                        span.style.cssText = 'color:#6b7280;font-size:.68rem;margin-left:.4rem;';
+                        span.title = 'Editada em ' + d.editada_em;
+                        span.textContent = '(editada)';
+                        meta.appendChild(span);
+                    }
+                }
+            })
+            .catch(function(e){ alert('Erro de rede: ' + e.message); btnSalvar.disabled = false; btnSalvar.textContent = '💾 Salvar edição'; });
+    };
+};
 </script>
     </div>
 </div>
