@@ -15,6 +15,7 @@ foreach ($users as $u) { if ($u['role'] === 'cx') $cxUserIds[] = (int)$u['id']; 
 $tiposMapa = array(
     'audiencia'        => array('cor' => '#e67e22', 'icon' => "\u{2696}", 'label' => 'Audiência'),
     'reuniao_cliente'  => array('cor' => '#B87333', 'icon' => "\u{1F464}", 'label' => 'Reunião com cliente'),
+    'reuniao_lead'     => array('cor' => '#0ea5e9', 'icon' => "\u{1F3AF}", 'label' => 'Reunião lead'),
     'prazo'            => array('cor' => '#CC0000', 'icon' => "\u{23F0}", 'label' => 'Prazo processual'),
     'onboarding'       => array('cor' => '#2D7A4F', 'icon' => "\u{1F3AF}", 'label' => 'Onboarding'),
     'reuniao_interna'  => array('cor' => '#1a3a7a', 'icon' => "\u{1F465}", 'label' => 'Reunião interna'),
@@ -284,8 +285,8 @@ if ($voltarCaso > 0): ?>
             <label class="ag-fl">Tipo de compromisso</label>
             <div class="ag-tipo-grid">
                 <?php
-                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}",'pericia_inss'=>"\u{1FA7A}",'pessoal'=>"\u{1F4CC}");
-                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','pericia_inss'=>'Perícia INSS','pessoal'=>'Pessoal');
+                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'reuniao_lead'=>"\u{1F3AF}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}",'pericia_inss'=>"\u{1FA7A}",'pessoal'=>"\u{1F4CC}");
+                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','reuniao_lead'=>'Reunião lead','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','pericia_inss'=>'Perícia INSS','pessoal'=>'Pessoal');
                 foreach ($labels as $k => $lb): ?>
                 <button type="button" class="ag-tipo-btn" data-t="<?= $k ?>" onclick="selTipo('<?= $k ?>',this)">
                     <span class="te"><?= $emojis[$k] ?></span><?= $lb ?>
@@ -383,12 +384,51 @@ if ($voltarCaso > 0): ?>
 
         <div class="ag-fg">
             <label class="ag-fl">Modalidade</label>
-            <select class="ag-fi" id="agModalidade" onchange="toggleMeet();toggleClientePresencial();">
+            <select class="ag-fi" id="agModalidade" onchange="toggleMeet();toggleClientePresencial();agToggleLeadLocal();">
                 <option value="presencial">Presencial</option>
                 <option value="online">Online (Google Meet)</option>
                 <option value="hibrida">🔀 Híbrida (parte remota, parte presencial)</option>
                 <option value="nao_aplicavel">Não se aplica</option>
             </select>
+        </div>
+
+        <!-- Amanda 10/06/2026: bloco extra pra REUNIÃO LEAD (telefone obrigatorio + cidade quando presencial) -->
+        <div class="ag-fg" id="agLeadBox" style="display:none;background:#eff6ff;border:1px solid #93c5fd;border-radius:8px;padding:.85rem 1rem;">
+            <div style="font-size:.78rem;font-weight:700;color:#1e40af;margin-bottom:.5rem;">📌 Dados do Lead</div>
+
+            <div class="ag-fg" style="margin-bottom:.6rem;">
+                <label class="ag-fl">Telefone do lead <span style="color:#dc2626;">*</span></label>
+                <input type="text" class="ag-fi" id="agLeadTelefone" placeholder="(24) 99999-9999 ou WhatsApp com DDD" autocomplete="off">
+                <label style="display:flex;align-items:center;gap:6px;margin-top:.4rem;cursor:pointer;font-size:.78rem;color:#475569;">
+                    <input type="checkbox" id="agLeadSemTel" onchange="agToggleSemTel()" style="width:16px;height:16px;cursor:pointer;">
+                    <span>Sem telefone (justificar por quê)</span>
+                </label>
+                <textarea class="ag-fi" id="agLeadJustifSemTel" rows="2" placeholder="Justifique por que não temos o telefone do lead..." style="display:none;margin-top:.4rem;font-size:.82rem;"></textarea>
+            </div>
+
+            <div class="ag-fg" id="agLeadCidadeWrap" style="display:none;margin-bottom:0;">
+                <label class="ag-fl">Cidade da reunião presencial <span style="color:#dc2626;">*</span></label>
+                <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+                    <?php
+                    $cidades = array(
+                        'barra_mansa' => array('🏢 Barra Mansa — Sede', 'Rua Dr. Aldrovando de Oliveira, 140 — Ano Bom — Barra Mansa/RJ'),
+                        'volta_redonda' => array('📍 Volta Redonda', ''),
+                        'resende' => array('📍 Resende', ''),
+                        'rio' => array('🏙️ Rio de Janeiro (capital)', ''),
+                        'sp' => array('🏙️ São Paulo — Av. Paulista', 'Av. Paulista — São Paulo/SP'),
+                        'outro' => array('📍 Outro', ''),
+                    );
+                    foreach ($cidades as $key => $info): ?>
+                        <button type="button" class="ag-lead-cidade" data-cidade="<?= $key ?>" data-endereco="<?= e($info[1]) ?>" data-label="<?= e($info[0]) ?>"
+                                onclick="agSelCidadeLead('<?= $key ?>', this)"
+                                style="flex:1;min-width:160px;padding:8px 12px;border:1.5px solid var(--border);background:#fff;border-radius:8px;cursor:pointer;font-size:.78rem;font-weight:600;color:var(--text);">
+                            <?= $info[0] ?>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+                <input type="hidden" id="agLeadCidade" value="">
+                <input type="text" class="ag-fi" id="agLeadEndereco" placeholder="Endereço completo (se Volta Redonda/Resende/RJ/Outro)" style="display:none;margin-top:.5rem;font-size:.82rem;" oninput="document.getElementById('agLocal').value=this.value;">
+            </div>
         </div>
 
         <!-- Checkbox 'Cliente comparece presencialmente' — aparece quando modalidade
@@ -500,9 +540,9 @@ var meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agos
 var diasSem = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
 
 var CX_USER_IDS = <?= json_encode($cxUserIds) ?>;
-var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1',pessoal:'#a855f7',pericia_inss:'#be185d'};
-var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa',pessoal:'Pessoal',pericia_inss:'Perícia INSS'};
-var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705",pessoal:"\u{1F4CC}",pericia_inss:"\u{1FA7A}"};
+var CORES = {audiencia:'#e67e22',reuniao_cliente:'#B87333',reuniao_lead:'#0ea5e9',prazo:'#CC0000',onboarding:'#2D7A4F',reuniao_interna:'#1a3a7a',mediacao_cejusc:'#6B4C9A',balcao_virtual:'#0d9488',ligacao:'#888880',tarefa:'#6366f1',pessoal:'#a855f7',pericia_inss:'#be185d'};
+var LABELS = {audiencia:'Audiência',reuniao_cliente:'Reunião cliente',reuniao_lead:'Reunião lead',prazo:'Prazo',onboarding:'Onboarding',reuniao_interna:'R. interna',mediacao_cejusc:'Mediação',balcao_virtual:'Balcão Virtual',ligacao:'Ligação',tarefa:'Tarefa',pessoal:'Pessoal',pericia_inss:'Perícia INSS'};
+var EMOJIS = {audiencia:"\u2696\uFE0F",reuniao_cliente:"\u{1F464}",reuniao_lead:"\u{1F3AF}",prazo:"\u23F0",onboarding:"\u{1F3AF}",reuniao_interna:"\u{1F465}",mediacao_cejusc:"\u{1F91D}",balcao_virtual:"\u{1F3DB}\u{FE0F}",ligacao:"\u{1F4DE}",tarefa:"\u2705",pessoal:"\u{1F4CC}",pericia_inss:"\u{1FA7A}"};
 
 // ── INIT ────────────────────────────────────────────────────
 mesAtual = hoje.getMonth();
@@ -997,6 +1037,7 @@ var tipoSelecionado = 'audiencia';
 var msgsPadrao = {
     audiencia: 'Olá, [nome]! Sua audiência está agendada para [data] às [hora].\n\n*IMPORTANTE:* Acesse o link abaixo para informações essenciais sobre sua audiência:\nhttps://www.ferreiraesa.com.br/audiencias/\n\nQualquer dúvida, estamos à disposição!\nFerreira e Sá Advocacia',
     reuniao_cliente: 'Olá, [nome]! Sua reunião com nossa equipe está confirmada para [data] às [hora].\n\nLink da reunião: [link_meet]\n\nTe esperamos!\nFerreira e Sá Advocacia',
+    reuniao_lead: 'Olá, [nome]! Sua reunião com a equipe Ferreira & Sá Advocacia está confirmada para [data] às [hora].\n\n[link_meet]\n\nQualquer dúvida, estamos à disposição.\nEquipe Ferreira & Sá Advocacia',
     onboarding: 'Olá, [nome]! Seu onboarding está agendado para [data] às [hora]. Prepare os documentos solicitados!\n\nLink da reunião: [link_meet]\n\nFerreira e Sá Advocacia',
     mediacao_cejusc: 'Olá, [nome]! A mediação/CEJUSC está agendada para [data] às [hora]. Contamos com sua presença!\nFerreira e Sá Advocacia',
     balcao_virtual: '',
@@ -1007,6 +1048,7 @@ var msgsPadrao = {
 var titulosPadrao = {
     audiencia: 'Audiência',
     reuniao_cliente: 'Reunião com cliente',
+    reuniao_lead: 'Reunião lead',
     prazo: 'Prazo processual',
     onboarding: 'Onboarding',
     reuniao_interna: 'Reunião interna',
@@ -1417,8 +1459,8 @@ function selTipo(tipo, btn) {
     var boxPart = document.getElementById('agParticipantesBox');
     if (boxPart) boxPart.style.display = tiposComParticipantes.indexOf(tipo) !== -1 ? 'block' : 'none';
 
-    // Reunião interna/cliente/onboarding: sugerir online (gera Meet)
-    var sugerirOnline = ['reuniao_interna','reuniao_cliente','onboarding'];
+    // Reunião interna/cliente/lead/onboarding: sugerir online (gera Meet)
+    var sugerirOnline = ['reuniao_interna','reuniao_cliente','reuniao_lead','onboarding'];
     // Balcão/prazo: sugerir "não se aplica"
     var sugerirNA = ['balcao_virtual','prazo'];
     if (sugerirOnline.indexOf(tipo) !== -1) {
@@ -1429,6 +1471,53 @@ function selTipo(tipo, btn) {
     // Audiência, mediação, ligação: não forçar (usuário escolhe)
     toggleMeet();
     atualizarPreview();
+
+    // Amanda 10/06/2026: bloco de Reuniao Lead (telefone + cidade quando presencial)
+    var leadBox = document.getElementById('agLeadBox');
+    if (leadBox) {
+        leadBox.style.display = (tipo === 'reuniao_lead') ? 'block' : 'none';
+        if (tipo === 'reuniao_lead') {
+            agToggleLeadLocal(); // atualiza visibilidade do seletor de cidade
+        }
+    }
+}
+
+// Amanda 10/06/2026: helpers Reuniao Lead
+function agToggleLeadLocal() {
+    var tipo = window.tipoSelecionado || '';
+    var modal = document.getElementById('agModalidade').value;
+    var wrap = document.getElementById('agLeadCidadeWrap');
+    if (!wrap) return;
+    // Mostra seletor de cidade quando reuniao_lead + (presencial OU hibrida)
+    var mostrar = (tipo === 'reuniao_lead') && (modal === 'presencial' || modal === 'hibrida');
+    wrap.style.display = mostrar ? 'block' : 'none';
+}
+function agToggleSemTel() {
+    var cb = document.getElementById('agLeadSemTel');
+    document.getElementById('agLeadJustifSemTel').style.display = cb.checked ? 'block' : 'none';
+    document.getElementById('agLeadTelefone').disabled = cb.checked;
+    if (cb.checked) document.getElementById('agLeadTelefone').value = '';
+}
+function agSelCidadeLead(cidade, btn) {
+    document.querySelectorAll('.ag-lead-cidade').forEach(function(b){ b.style.background = '#fff'; b.style.color = 'var(--text)'; b.style.borderColor = 'var(--border)'; });
+    btn.style.background = '#0ea5e9';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#0ea5e9';
+    document.getElementById('agLeadCidade').value = cidade;
+    var end = btn.dataset.endereco || '';
+    var inputEnd = document.getElementById('agLeadEndereco');
+    var local = document.getElementById('agLocal');
+    if (cidade === 'barra_mansa' || cidade === 'sp') {
+        // endereço fixo conhecido — preenche local e esconde campo livre
+        inputEnd.style.display = 'none';
+        inputEnd.value = '';
+        if (local) local.value = end;
+    } else {
+        // pede pra digitar endereço
+        inputEnd.style.display = 'block';
+        inputEnd.placeholder = (cidade === 'outro' ? 'Cidade + endereço completo' : 'Endereço da reunião em ' + (btn.dataset.label || cidade));
+        if (local) local.value = inputEnd.value || '';
+    }
 }
 
 // Sincroniza valores entre datetime-local (default) e date+hora (balcão virtual)
@@ -1863,6 +1952,53 @@ function salvarEvento() {
         if (boxOk) boxOk.style.borderColor = '';
     }
 
+    // Amanda 10/06/2026: validacoes Reuniao Lead
+    var leadInfo = '';
+    if (tipoSelecionado === 'reuniao_lead') {
+        var tel = (document.getElementById('agLeadTelefone').value || '').trim();
+        var semTel = document.getElementById('agLeadSemTel').checked;
+        var justSemTel = (document.getElementById('agLeadJustifSemTel').value || '').trim();
+        if (!semTel && !tel) {
+            document.getElementById('agLeadTelefone').style.borderColor = '#ef4444';
+            document.getElementById('agLeadTelefone').focus();
+            alert('⚠️ Telefone do lead é obrigatório.\n\nSe não tiver, marque "Sem telefone" e justifique.');
+            return;
+        }
+        if (semTel && justSemTel.length < 5) {
+            document.getElementById('agLeadJustifSemTel').style.borderColor = '#ef4444';
+            document.getElementById('agLeadJustifSemTel').focus();
+            alert('⚠️ Justifique por que não temos o telefone do lead (mín. 5 caracteres).');
+            return;
+        }
+        // Cidade obrigatoria se presencial/hibrida
+        var modal = document.getElementById('agModalidade').value;
+        if (modal === 'presencial' || modal === 'hibrida') {
+            var cidade = document.getElementById('agLeadCidade').value;
+            if (!cidade) {
+                alert('⚠️ Selecione a cidade da reunião presencial.');
+                document.getElementById('agLeadCidadeWrap').scrollIntoView({behavior:'smooth', block:'center'});
+                return;
+            }
+            var endLivre = (document.getElementById('agLeadEndereco').value || '').trim();
+            if (cidade !== 'barra_mansa' && cidade !== 'sp' && !endLivre) {
+                document.getElementById('agLeadEndereco').style.borderColor = '#ef4444';
+                document.getElementById('agLeadEndereco').focus();
+                alert('⚠️ Informe o endereço completo da reunião.');
+                return;
+            }
+        }
+        // Empacota num bloco no inicio da descricao
+        var linhas = ['── DADOS DO LEAD ──'];
+        if (semTel) linhas.push('Telefone: (sem telefone) — ' + justSemTel);
+        else linhas.push('Telefone: ' + tel);
+        if (modal === 'presencial' || modal === 'hibrida') {
+            var btnCid = document.querySelector('.ag-lead-cidade[data-cidade="' + document.getElementById('agLeadCidade').value + '"]');
+            var lblCid = btnCid ? (btnCid.dataset.label || btnCid.textContent.trim()) : document.getElementById('agLeadCidade').value;
+            linhas.push('Cidade: ' + lblCid);
+        }
+        leadInfo = linhas.join('\n') + '\n\n';
+    }
+
     var fd = new FormData();
     fd.append('action', 'salvar');
     fd.append('csrf_token', CSRF);
@@ -1888,7 +2024,7 @@ function salvarEvento() {
     }
     fd.append('local', document.getElementById('agLocal').value);
     fd.append('meet_link', document.getElementById('agMeetLink').value);
-    fd.append('descricao', document.getElementById('agDescricao').value);
+    fd.append('descricao', leadInfo + (document.getElementById('agDescricao').value || ''));
     fd.append('client_id', document.getElementById('agClienteId').value);
     fd.append('case_id', document.getElementById('agCasoId').value);
     fd.append('responsavel_id', document.getElementById('agResponsavel').value);
