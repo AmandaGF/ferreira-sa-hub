@@ -16,18 +16,22 @@ echo "\n";
 
 $nome = $_GET['nome'] ?? 'Gabrielle';
 
-echo "=== 1) case_partes onde nome contem '$nome' ===\n";
-$st = $pdo->prepare("SELECT cp.case_id, cp.tipo_parte, cp.nome, cp.client_id, c.title AS case_title, c.case_number, cl.name AS cliente_principal
+echo "=== 1) case_partes onde nome/razao_social/representante_nome contem '$nome' ===\n";
+$st = $pdo->prepare("SELECT cp.case_id, cp.papel, cp.nome, cp.razao_social, cp.representante_nome, cp.client_id, c.title AS case_title, c.case_number, cl.name AS cliente_principal
                      FROM case_partes cp
                      LEFT JOIN cases c ON c.id = cp.case_id
                      LEFT JOIN clients cl ON cl.id = c.client_id
                      WHERE cp.nome LIKE ?
+                        OR cp.razao_social LIKE ?
+                        OR cp.representante_nome LIKE ?
+                        OR cp.nome_fantasia LIKE ?
                      LIMIT 30");
-$st->execute(array('%' . $nome . '%'));
+$L = '%' . $nome . '%';
+$st->execute(array($L, $L, $L, $L));
 $rows = $st->fetchAll();
 if (!$rows) echo "  Nenhum.\n";
 foreach ($rows as $r) {
-    echo "  Caso #{$r['case_id']} | tipo={$r['tipo_parte']} | nome_parte=\"{$r['nome']}\" | client_id_parte={$r['client_id']}\n";
+    echo "  Caso #{$r['case_id']} | papel={$r['papel']} | nome=\"{$r['nome']}\" | razao_social=\"{$r['razao_social']}\" | repr=\"{$r['representante_nome']}\"\n";
     echo "    Titulo: {$r['case_title']} | CNJ: {$r['case_number']} | Cliente principal: {$r['cliente_principal']}\n\n";
 }
 
