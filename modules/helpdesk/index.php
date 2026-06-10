@@ -175,6 +175,58 @@ if ($filterOrigem === 'clientes') {
     $kpiContexto = 'Chamados internos';
 }
 
+// ─── Dados para gráficos (Amanda 08/06/2026) ──────────────
+// Respeitam aba origem (equipe vs Central VIP). Pegam TODOS chamados pra
+// dar visão real de produtividade — nao filtram por status atual.
+$grafDados = array(
+    'status'      => array(),  // Distribuição por status (pizza)
+    'prioridade'  => array(),  // Distribuição por prioridade (donut)
+    'categoria'   => array(),  // Top categorias (barras)
+    'resolvedores'=> array(),  // Ranking de quem resolveu mais (barras)
+);
+try {
+    if ($filterOrigem === 'clientes') {
+        // Status Central VIP (salavip_threads)
+        $stG = $pdo->query("SELECT status, COUNT(*) as n FROM salavip_threads GROUP BY status ORDER BY n DESC");
+        foreach ($stG as $r) $grafDados['status'][$r['status']] = (int)$r['n'];
+        // Ranking de respondedores ultimos 60 dias (quem enviou mais msgs origem=conecta)
+        $stR = $pdo->query("SELECT u.name as nome, COUNT(*) as n
+            FROM salavip_mensagens m
+            JOIN users u ON u.id = m.remetente_id
+            WHERE m.origem = 'conecta' AND m.criado_em >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+            GROUP BY m.remetente_id, u.name ORDER BY n DESC LIMIT 10");
+        foreach ($stR as $r) $grafDados['resolvedores'][$r['nome']] = (int)$r['n'];
+    } else {
+        // Status chamados internos
+        $stG = $pdo->query("SELECT status, COUNT(*) as n
+            FROM tickets WHERE (origem IS NULL OR origem != 'salavip')
+            GROUP BY status ORDER BY n DESC");
+        foreach ($stG as $r) $grafDados['status'][$r['status']] = (int)$r['n'];
+        // Prioridade (so abertos+em_andamento — o que importa agora)
+        $stP = $pdo->query("SELECT priority, COUNT(*) as n
+            FROM tickets WHERE (origem IS NULL OR origem != 'salavip')
+              AND status IN ('aberto','em_andamento','aguardando')
+            GROUP BY priority ORDER BY n DESC");
+        foreach ($stP as $r) $grafDados['prioridade'][$r['priority']] = (int)$r['n'];
+        // Categoria — top 8 (so abertos+em_andamento)
+        $stC = $pdo->query("SELECT COALESCE(NULLIF(category,''),'(sem categoria)') as category, COUNT(*) as n
+            FROM tickets WHERE (origem IS NULL OR origem != 'salavip')
+              AND status IN ('aberto','em_andamento','aguardando')
+            GROUP BY category ORDER BY n DESC LIMIT 8");
+        foreach ($stC as $r) $grafDados['categoria'][$r['category']] = (int)$r['n'];
+        // Ranking de quem resolveu mais nos ultimos 60 dias (top 10)
+        $stR = $pdo->query("SELECT u.name as nome, COUNT(DISTINCT t.id) as n
+            FROM tickets t
+            JOIN ticket_assignees ta ON ta.ticket_id = t.id
+            JOIN users u ON u.id = ta.user_id
+            WHERE (t.origem IS NULL OR t.origem != 'salavip')
+              AND t.status = 'resolvido'
+              AND t.resolved_at >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+            GROUP BY ta.user_id, u.name ORDER BY n DESC LIMIT 10");
+        foreach ($stR as $r) $grafDados['resolvedores'][$r['nome']] = (int)$r['n'];
+    }
+} catch (Exception $eG) { /* silencioso */ }
+
 $statusLabels = array('aberto' => 'Aberto', 'em_andamento' => 'Em andamento', 'aguardando' => 'Aguardando', 'resolvido' => 'Resolvido', 'cancelado' => 'Cancelado');
 $statusBadge = array('aberto' => 'warning', 'em_andamento' => 'info', 'aguardando' => 'gestao', 'resolvido' => 'success', 'cancelado' => 'danger');
 $statusIcons = array('aberto' => '🟡', 'em_andamento' => '🔵', 'aguardando' => '🟠', 'resolvido' => '✅', 'cancelado' => '❌');
@@ -343,7 +395,141 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <span style="font-size:1.1rem;">✅</span>
         <div><div style="font-size:1.2rem;font-weight:800;color:#059669;"><?= $kpi['resolvidos_mes'] ?? 0 ?></div><div style="font-size:.65rem;color:var(--text-muted);">Resolvidos mês</div></div>
     </div>
+    <button type="button" onclick="hdToggleGraficos()" id="hdBtnGraf" style="margin-left:auto;background:#fff;border:1.5px solid #B87333;color:#B87333;border-radius:8px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;">📊 Ver gráficos</button>
 </div>
+
+<!-- Seção de gráficos colapsável (Amanda 08/06/2026) -->
+<div id="hdSecaoGraficos" style="display:none;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
+        <?php if (!empty($grafDados['status'])): ?>
+        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+            <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">📊 Distribuição por status</h4>
+            <div style="height:240px;position:relative;"><canvas id="grafStatus"></canvas></div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($grafDados['prioridade'])): ?>
+        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+            <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">🎯 Prioridade dos abertos</h4>
+            <div style="height:240px;position:relative;"><canvas id="grafPrior"></canvas></div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($grafDados['categoria'])): ?>
+        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+            <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">📂 Categorias dos pendentes</h4>
+            <div style="height:240px;position:relative;"><canvas id="grafCat"></canvas></div>
+        </div>
+        <?php endif; ?>
+        <?php if (!empty($grafDados['resolvedores'])): ?>
+        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+            <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">🏆 Top 10 — quem resolveu mais (últimos 60 dias)</h4>
+            <div style="height:280px;position:relative;"><canvas id="grafResolv"></canvas></div>
+        </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<script>
+window.hdGrafDados = {
+    status: <?= json_encode($grafDados['status'], JSON_UNESCAPED_UNICODE) ?>,
+    prioridade: <?= json_encode($grafDados['prioridade'], JSON_UNESCAPED_UNICODE) ?>,
+    categoria: <?= json_encode($grafDados['categoria'], JSON_UNESCAPED_UNICODE) ?>,
+    resolvedores: <?= json_encode($grafDados['resolvedores'], JSON_UNESCAPED_UNICODE) ?>
+};
+window.hdGrafInstancias = {};
+window.hdGrafRenderizado = false;
+
+function hdToggleGraficos() {
+    var sec = document.getElementById('hdSecaoGraficos');
+    var btn = document.getElementById('hdBtnGraf');
+    if (sec.style.display === 'none' || !sec.style.display) {
+        sec.style.display = 'block';
+        btn.innerHTML = '🔼 Ocultar gráficos';
+        if (!window.hdGrafRenderizado) hdRenderGraficos();
+    } else {
+        sec.style.display = 'none';
+        btn.innerHTML = '📊 Ver gráficos';
+    }
+}
+
+function hdRenderGraficos() {
+    if (typeof Chart === 'undefined') {
+        // Carrega Chart.js sob demanda
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+        s.onload = function(){ hdDesenharTodos(); };
+        document.head.appendChild(s);
+    } else {
+        hdDesenharTodos();
+    }
+}
+
+function hdDesenharTodos() {
+    window.hdGrafRenderizado = true;
+    var d = window.hdGrafDados;
+    var statusLabels = {aberto:'🟡 Aberto', em_andamento:'🔵 Em andamento', aguardando:'🟠 Aguardando', resolvido:'✅ Resolvido', cancelado:'❌ Cancelado',
+                        aberta:'🟡 Aberta', respondida:'✅ Respondida', fechada:'⚫ Fechada'};
+    var statusColors = {aberto:'#f59e0b', em_andamento:'#0ea5e9', aguardando:'#fb923c', resolvido:'#10b981', cancelado:'#dc2626',
+                        aberta:'#f59e0b', respondida:'#10b981', fechada:'#6b7280'};
+    var priorLabels = {urgente:'🔴 Urgente', normal:'🟢 Normal', baixa:'⚪ Baixa'};
+    var priorColors = {urgente:'#dc2626', normal:'#10b981', baixa:'#94a3b8'};
+
+    // Status (pizza)
+    var cStatus = document.getElementById('grafStatus');
+    if (cStatus && Object.keys(d.status).length) {
+        var ks = Object.keys(d.status);
+        window.hdGrafInstancias.status = new Chart(cStatus.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ks.map(function(k){ return (statusLabels[k] || k) + ' (' + d.status[k] + ')'; }),
+                datasets: [{ data: ks.map(function(k){ return d.status[k]; }), backgroundColor: ks.map(function(k){ return statusColors[k] || '#9ca3af'; }), borderWidth:2, borderColor:'#fff' }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'right', labels:{font:{size:11}, boxWidth:12}}}}
+        });
+    }
+
+    // Prioridade
+    var cPrior = document.getElementById('grafPrior');
+    if (cPrior && Object.keys(d.prioridade).length) {
+        var kp = Object.keys(d.prioridade);
+        window.hdGrafInstancias.prior = new Chart(cPrior.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: kp.map(function(k){ return (priorLabels[k] || k) + ' (' + d.prioridade[k] + ')'; }),
+                datasets: [{ data: kp.map(function(k){ return d.prioridade[k]; }), backgroundColor: kp.map(function(k){ return priorColors[k] || '#9ca3af'; }), borderWidth:2, borderColor:'#fff' }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{position:'right', labels:{font:{size:11}, boxWidth:12}}}}
+        });
+    }
+
+    // Categorias (barras horizontal)
+    var cCat = document.getElementById('grafCat');
+    if (cCat && Object.keys(d.categoria).length) {
+        var kc = Object.keys(d.categoria);
+        window.hdGrafInstancias.cat = new Chart(cCat.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: kc,
+                datasets: [{ label:'Pendentes', data: kc.map(function(k){ return d.categoria[k]; }), backgroundColor:'#3B4FA0', borderRadius:6 }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{ legend:{display:false}}, scales:{x:{beginAtZero:true, ticks:{precision:0}}}}
+        });
+    }
+
+    // Ranking de resolvedores (barras)
+    var cR = document.getElementById('grafResolv');
+    if (cR && Object.keys(d.resolvedores).length) {
+        var kr = Object.keys(d.resolvedores);
+        window.hdGrafInstancias.resolv = new Chart(cR.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: kr.map(function(n){ return n.split(' ').slice(0,2).join(' '); }),
+                datasets: [{ label:'Resolvidos', data: kr.map(function(k){ return d.resolvedores[k]; }), backgroundColor:'#B87333', borderRadius:6 }]
+            },
+            options: { responsive:true, maintainAspectRatio:false, indexAxis:'y', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:function(ctx){ return ctx.parsed.x + ' chamado(s) resolvido(s)';}}}}, scales:{x:{beginAtZero:true, ticks:{precision:0}}}}
+        });
+    }
+}
+</script>
 
 <script>
 function filtrarHelpdesk(param, value) {
