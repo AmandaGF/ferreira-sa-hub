@@ -413,10 +413,19 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
     $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/send-text';
     $telefone_norm = zapi_normaliza_telefone($telefone);
 
+    // Amanda 08/06/2026: Z-API exige '+' no inicio pra reconhecer DDI internacional.
+    // Sem '+', ela prefixa 55 (Brasil) assumindo BR. Caso Renata: '34661457631' vira
+    // '5534661457631' (DDD 34 BR Uberlandia) sem o '+'. Com '+34661457631' funciona.
+    // Detectamos pelo prefixo do telefone original OU pelo digito inicial nao ser 55.
+    $telefoneOriginal = ltrim((string)$telefone);
+    $vaiComMais = (substr($telefoneOriginal, 0, 1) === '+' || substr($telefoneOriginal, 0, 2) === '00')
+                  || (strpos($telefone_norm, '55') !== 0 && strlen($telefone_norm) >= 10 && strpos($telefone_norm, '@g.us') === false);
+    $phoneZapi = ($vaiComMais && substr($telefone_norm, 0, 1) !== '+') ? '+' . $telefone_norm : $telefone_norm;
+
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
-    $body = array('phone' => $telefone_norm, 'message' => $mensagem);
+    $body = array('phone' => $phoneZapi, 'message' => $mensagem);
     if (!empty($replyTo)) { $body['messageId'] = $replyTo; }
 
     $ch = curl_init($url);
