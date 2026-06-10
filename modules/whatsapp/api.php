@@ -2157,7 +2157,7 @@ if ($action === 'gerar_link_salavip') {
     if (!$cpf) { echo json_encode(array('error' => 'Cliente sem CPF cadastrado. Edite o cadastro primeiro.')); exit; }
 
     // Buscar ou criar entrada em salavip_usuarios
-    $svStmt = $pdo->prepare("SELECT id, ativo FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+    $svStmt = $pdo->prepare("SELECT id, ativo, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
     $svStmt->execute(array($clientId));
     $sv = $svStmt->fetch();
 
@@ -2165,10 +2165,16 @@ if ($action === 'gerar_link_salavip') {
     $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
 
     if ($sv) {
-        // Renova token
-        $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
-            ->execute(array($token, $expira, $sv['id']));
-        audit_log('sv_renovar_via_wa', 'client', $clientId, 'Token renovado no chat WA');
+        // FIX Amanda 10/06/2026: nao zerar ativo se cliente ja tem senha (ja ativou)
+        if (!empty($sv['senha_hash'])) {
+            $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ? WHERE id = ?")
+                ->execute(array($token, $expira, $sv['id']));
+            audit_log('sv_renovar_via_wa', 'client', $clientId, 'Token renovado (cliente ja ativo)');
+        } else {
+            $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
+                ->execute(array($token, $expira, $sv['id']));
+            audit_log('sv_renovar_via_wa', 'client', $clientId, 'Token renovado no chat WA');
+        }
     } else {
         // Cria novo
         $pdo->prepare("INSERT INTO salavip_usuarios (cliente_id, cpf, token_ativacao, token_expira, ativo) VALUES (?, ?, ?, ?, 0)")
@@ -2217,7 +2223,7 @@ if ($action === 'gerar_link_salavip_por_cliente') {
     $cpf = preg_replace('/\D/', '', $cli['cpf'] ?? '');
     if (!$cpf) { echo json_encode(array('error' => 'Cliente sem CPF cadastrado. Edite o cadastro primeiro.')); exit; }
 
-    $svStmt = $pdo->prepare("SELECT id FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+    $svStmt = $pdo->prepare("SELECT id, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
     $svStmt->execute(array($clientId));
     $sv = $svStmt->fetch();
 
@@ -2225,9 +2231,16 @@ if ($action === 'gerar_link_salavip_por_cliente') {
     $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
 
     if ($sv) {
-        $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
-            ->execute(array($token, $expira, $sv['id']));
-        audit_log('sv_renovar_via_wa_sender', 'client', $clientId, 'Token renovado via waSenderOpen chip');
+        // FIX Amanda 10/06/2026: nao zerar ativo se cliente ja tem senha
+        if (!empty($sv['senha_hash'])) {
+            $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ? WHERE id = ?")
+                ->execute(array($token, $expira, $sv['id']));
+            audit_log('sv_renovar_via_wa_sender', 'client', $clientId, 'Token renovado via chip (cliente ja ativo)');
+        } else {
+            $pdo->prepare("UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE id = ?")
+                ->execute(array($token, $expira, $sv['id']));
+            audit_log('sv_renovar_via_wa_sender', 'client', $clientId, 'Token renovado via waSenderOpen chip');
+        }
     } else {
         $pdo->prepare("INSERT INTO salavip_usuarios (cliente_id, cpf, token_ativacao, token_expira, ativo) VALUES (?, ?, ?, ?, 0)")
             ->execute(array($clientId, $cpf, $token, $expira));

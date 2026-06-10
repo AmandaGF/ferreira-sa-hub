@@ -238,12 +238,32 @@ switch ($action) {
     case 'reset_salavip':
         $clientId = (int)($_POST['client_id'] ?? 0);
         if ($clientId && has_min_role('gestao')) {
+            // FIX CRITICO Amanda 10/06/2026: nunca zerar ativo se cliente ja
+            // cadastrou senha — caso da Renata da Silva (cliente_id=2412) que
+            // logou 12:08 e foi bloqueada indevidamente 12:15 por alguem
+            // clicando 'Reenviar Link' aqui. Pra quem ja ativou, regenera
+            // token mas mantem ativo=1 e oferece link de recuperar senha.
+            $usrAtual = $pdo->prepare("SELECT id, ativo, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+            $usrAtual->execute(array($clientId));
+            $svInfo = $usrAtual->fetch();
+            $jaTemSenha = $svInfo && !empty($svInfo['senha_hash']);
+
             $token = bin2hex(random_bytes(32));
             $expira = date('Y-m-d H:i:s', strtotime('+72 hours'));
-            $pdo->prepare(
-                'UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE cliente_id = ?'
-            )->execute(array($token, $expira, $clientId));
-            audit_log('reset_salavip', 'client', $clientId, 'Novo token: ' . substr($token, 0, 8) . '...');
+
+            if ($jaTemSenha) {
+                // Mantem ativo=1, regenera token (pode ser usado em "recuperar senha")
+                $pdo->prepare(
+                    'UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ? WHERE cliente_id = ?'
+                )->execute(array($token, $expira, $clientId));
+                audit_log('reset_salavip_senha', 'client', $clientId, 'Cliente ja ativo — token de recuperacao gerado: ' . substr($token, 0, 8) . '...');
+            } else {
+                // Cadastro novo / ainda nao ativou — fluxo original
+                $pdo->prepare(
+                    'UPDATE salavip_usuarios SET token_ativacao = ?, token_expira = ?, ativo = 0 WHERE cliente_id = ?'
+                )->execute(array($token, $expira, $clientId));
+                audit_log('reset_salavip', 'client', $clientId, 'Novo token de ativacao: ' . substr($token, 0, 8) . '...');
+            }
 
             // Reenviar e-mail
             $cl2 = $pdo->prepare('SELECT name, email FROM clients WHERE id = ?');
@@ -254,7 +274,10 @@ switch ($action) {
                 _salavip_enviar_email_ativacao($cli2['email'], $cli2['name'], $linkAtivacao);
             }
 
-            flash_set('success', 'Link de ativação reenviado por e-mail (válido por 72h).');
+            $msg = $jaTemSenha
+                ? 'Cliente JÁ tinha conta ativa — link enviado por e-mail (pode ser usado pra trocar de senha). Acesso continua liberado.'
+                : 'Link de ativação reenviado por e-mail (válido por 72h).';
+            flash_set('success', $msg);
         }
         redirect(module_url('clientes', 'ver.php?id=' . $clientId));
         break;
