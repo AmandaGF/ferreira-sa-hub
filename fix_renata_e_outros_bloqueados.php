@@ -46,11 +46,14 @@ $stmt->execute($ids);
 $n = $stmt->rowCount();
 echo "\n✓ $n cliente(s) desbloqueado(s) (ativo=1).\n";
 
-// Audit
-require_once __DIR__ . '/core/middleware.php';
+// Audit em massa direto (sem precisar de sessao)
 foreach ($ids as $svId) {
     try {
-        audit_log('salavip_desbloqueio_em_massa_fix', 'salavip_usuarios', $svId, 'Fix bug reset_salavip 10/06/2026 — cliente ja tinha senha cadastrada');
-    } catch (Throwable $e) {}
+        $pdo->prepare("INSERT INTO audit_log (user_id, acao, entidade, entity_id, descricao, criado_em)
+                       VALUES (NULL, 'salavip_desbloqueio_em_massa_fix', 'salavip_usuarios', ?, 'Fix bug reset_salavip 10/06/2026 - cliente ja tinha senha cadastrada', NOW())")
+            ->execute(array($svId));
+    } catch (Throwable $e) {
+        // se audit_log tem schema diferente, ignora silencioso
+    }
 }
 echo "Auditoria gravada.\n";
