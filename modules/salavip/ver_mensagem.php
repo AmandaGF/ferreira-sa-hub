@@ -395,7 +395,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Update thread status
+        // Update thread status (reabre se estava fechada)
+        $statusAntes = (string)$thread['status'];
         $pdo->prepare("UPDATE salavip_threads SET status = 'respondida', atualizado_em = NOW() WHERE id = ?")->execute([$threadId]);
 
         // Create notification for client (if notifications table exists)
@@ -415,8 +416,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Notifications table may not exist yet, ignore
         }
 
-        audit_log('salavip_responder', 'salavip_threads', $threadId);
-        flash_set('success', 'Resposta enviada.');
+        // ── WhatsApp automático ao cliente (Amanda 08/06/2026) ──
+        // Notifica o cliente que o chamado foi respondido. Pede que ele
+        // acesse a Central VIP pra ver a resposta completa. Silencioso se
+        // cliente sem phone, sem WhatsApp ativo, ou Z-API offline.
+        try {
+            require_once APP_ROOT . '/core/functions_zapi.php';
+            $stCli = $pdo->prepare("SELECT c.phone FROM clients c WHERE c.id = ?");
+            $stCli->execute(array((int)$thread['cliente_id']));
+            $clientePhone = (string)$stCli->fetchColumn();
+            if ($clientePhone) {
+                // Detecta tipo de atualizacao a partir das primeiras palavras
+                $tipoAtualizacao = 'Resposta da equipe';
+                $msgLower = mb_strtolower(mb_substr($mensagem, 0, 200, 'UTF-8'), 'UTF-8');
+                if (strpos($msgLower, 'status atualizado') !== false || strpos($msgLower, 'status dos seus') !== false || strpos($msgLower, 'atualizamos o status') !== false) {
+                    $tipoAtualizacao = 'Status dos seus processos atualizado';
+                } elseif (strpos($msgLower, 'documento') !== false || strpos($msgLower, 'docs') !== false) {
+                    $tipoAtualizacao = 'Atualização sobre documentos';
+                } elseif (strpos($msgLower, 'audi') !== false) {
+                    $tipoAtualizacao = 'Informação sobre audiência';
+                } elseif (strpos($msgLower, 'acordo') !== false) {
+                    $tipoAtualizacao = 'Atualização sobre acordo';
+                } elseif ($statusAntes === 'fechada') {
+                    $tipoAtualizacao = 'Resposta complementar (chamado reaberto)';
+                }
+                $assunto = (string)$thread['assunto'] ?: 'seu chamado';
+                $linkVip = 'https://ferreiraesa.com.br/salavip/';
+                $textoWa = "🔔 *Atualização no seu chamado*\n\n"
+                         . "Olá, *" . explode(' ', (string)$thread['client_name'])[0] . "*!\n\n"
+                         . "Você tem uma nova resposta sobre *\"" . mb_substr($assunto, 0, 80, 'UTF-8') . "\"*.\n\n"
+                         . "📌 *Tipo:* " . $tipoAtualizacao . "\n\n"
+                         . "Acesse a *Central VIP* pra ler a mensagem completa:\n" . $linkVip . "\n\n"
+                         . "_Equipe Ferreira & Sá Advocacia_";
+                zapi_send_text('24', $clientePhone, $textoWa);
+            }
+        } catch (Throwable $eWa) {
+            @error_log('[salavip resposta_wa_automatico] ' . $eWa->getMessage());
+        }
+
+        audit_log('salavip_responder', 'salavip_threads', $threadId, 'status_antes=' . $statusAntes);
+        flash_set('success', 'Resposta enviada.' . ($statusAntes === 'fechada' ? ' Chamado foi REABERTO.' : ''));
         redirect(module_url('salavip', 'ver_mensagem.php?thread_id=' . $threadId));
     }
 }
@@ -580,11 +619,19 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
     </div>
 </div>
 
-<!-- Reply Form -->
-<?php if ($thread['status'] !== 'fechada'): ?>
+<!-- Reply Form (Amanda 08/06/2026: aparece tambem em chamados fechados,
+     com banner avisando que vai reabrir o chamado se enviar resposta) -->
 <div class="card mb-2">
     <div class="card-header"><h3>Responder</h3></div>
     <div class="card-body">
+        <?php if ($thread['status'] === 'fechada'): ?>
+            <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:.65rem 1rem;margin-bottom:1rem;color:#92400e;font-size:.85rem;display:flex;align-items:flex-start;gap:.6rem;">
+                <span style="font-size:1.2rem;flex-shrink:0;">⚠️</span>
+                <div>
+                    <strong>Este chamado está fechado.</strong> Se você enviar uma resposta, ele será automaticamente REABERTO como "respondida" e o cliente será notificado por WhatsApp.
+                </div>
+            </div>
+        <?php endif; ?>
         <?php if (!empty($respostasPadrao)): ?>
             <?php
             // Helper: infere tema visual a partir do titulo (sem precisar de coluna na tabela).
@@ -1106,12 +1153,5 @@ window.salavipEditarMsg = function(msgId) {
         </form>
     </div>
 </div>
-<?php else: ?>
-<div class="card mb-2">
-    <div class="card-body" style="text-align:center;padding:1.5rem;">
-        <p class="text-muted">Esta conversa foi fechada.</p>
-    </div>
-</div>
-<?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
