@@ -58,7 +58,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // ── AJAX: processos do cliente do thread + resumo IA + tracking ───
     // Amanda 08/06/2026: mesmo modal do helpdesk adaptado pra Central VIP.
     if ($action === 'processos_do_thread') {
+        // Limpa qualquer output buffer pra garantir JSON limpo
+        while (ob_get_level() > 0) { @ob_end_clean(); }
         header('Content-Type: application/json; charset=utf-8');
+        try {
         $clientId = (int)$thread['cliente_id'];
         if (!$clientId) { echo json_encode(array('error' => 'Thread sem cliente vinculado.')); exit; }
 
@@ -127,10 +130,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'cases'   => $out,
         ));
         exit;
+        } catch (Throwable $e) {
+            @error_log('[salavip processos_do_thread] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            echo json_encode(array('error' => 'Erro servidor: ' . $e->getMessage()));
+            exit;
+        }
     }
 
     if ($action === 'salavip_gerar_resumo_caso') {
+        while (ob_get_level() > 0) { @ob_end_clean(); }
         header('Content-Type: application/json; charset=utf-8');
+        try {
         $caseId = (int)($_POST['case_id'] ?? 0);
         if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
 
@@ -229,6 +239,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'custo_brl' => $r['custo_brl'],
         ));
         exit;
+        } catch (Throwable $e) {
+            @error_log('[salavip gerar_resumo_caso] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+            echo json_encode(array('error' => 'Erro servidor: ' . $e->getMessage()));
+            exit;
+        }
     }
 
     if ($action === 'fechar_thread') {
@@ -579,7 +594,11 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
             </style>
 
             <script>
-            (function(){
+            // Amanda 08/06/2026: envolto em DOMContentLoaded porque o textarea
+            // (id=txtResposta) e' criado DEPOIS desse script no HTML. Sem
+            // isso, getElementById retornava null e os clicks nas respostas
+            // rapidas nao inseriam texto.
+            document.addEventListener('DOMContentLoaded', function(){
                 var tip = document.getElementById('vipPreviewTip');
                 var btns = document.querySelectorAll('.vip-rapida-btn');
                 var btnLimpar = document.getElementById('btnLimparResp');
@@ -635,7 +654,7 @@ if ($ref && strpos($ref, '/modules/helpdesk/') !== false && strpos($ref, 'origem
                     if (btnLimpar) btnLimpar.style.display = 'none';
                     txt.focus();
                 };
-            })();
+            });
             </script>
         <?php endif; ?>
 
