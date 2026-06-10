@@ -131,8 +131,16 @@ function zapi_phone_exists($ddd, $phone) {
     if (!$inst) return array('exists' => false, 'erro' => 'Instância DDD ' . $ddd . ' não configurada');
     $cfg = zapi_get_config();
 
+    // Amanda 08/06/2026: respeitar '+' internacional (mesma logica de zapi_normaliza_telefone).
+    $phoneRaw = ltrim((string)$phone);
+    $temPrefixoIntl = (substr($phoneRaw, 0, 1) === '+' || substr($phoneRaw, 0, 2) === '00');
     $num = preg_replace('/\D/', '', (string)$phone);
-    if (strlen($num) === 10 || strlen($num) === 11) $num = '55' . $num;
+    if ($temPrefixoIntl) {
+        if (substr($phoneRaw, 0, 2) === '00') $num = preg_replace('/^00/', '', $num);
+        // Aceita o numero como esta -- ja tem DDI internacional
+    } else if (strlen($num) === 10 || strlen($num) === 11) {
+        $num = '55' . $num;
+    }
     if (strlen($num) < 10) return array('exists' => false, 'erro' => 'Telefone inválido: ' . $phone);
 
     $url = rtrim($cfg['base_url'], '/') . '/' . $inst['instancia_id'] . '/token/' . $inst['token'] . '/phone-exists/' . urlencode($num);
