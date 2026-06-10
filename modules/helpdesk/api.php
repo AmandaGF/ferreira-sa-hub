@@ -81,14 +81,54 @@ switch ($action) {
             $pdo->prepare('UPDATE tickets SET status=?, priority=?, category=?, department=?, due_date=?, resolved_at=COALESCE(?,resolved_at), updated_at=NOW() WHERE id=?')
                 ->execute([$status, $priority, $category ?: null, $department ?: null, $dueDate, $resolvedAt, $ticketId]);
 
-            // Atualizar responsáveis
+            // Atualizar responsáveis + notificar quem foi ADICIONADO (Amanda 08/06/2026)
+            // Pega quem JA era responsavel antes pra detectar adicionados (diff)
+            $antesAssg = array();
+            try {
+                $stA = $pdo->prepare("SELECT user_id FROM ticket_assignees WHERE ticket_id = ?");
+                $stA->execute(array($ticketId));
+                $antesAssg = array_map('intval', $stA->fetchAll(PDO::FETCH_COLUMN));
+            } catch (Exception $eA) {}
+
             $newAssignees = $_POST['assignees'] ?? array();
+            $newAssgInt = array();
+            foreach ((array)$newAssignees as $uid) {
+                $uid = (int)$uid;
+                if ($uid > 0) $newAssgInt[] = $uid;
+            }
+            $newAssgInt = array_values(array_unique($newAssgInt));
+            $adicionados = array_diff($newAssgInt, $antesAssg);
+
             $pdo->prepare('DELETE FROM ticket_assignees WHERE ticket_id = ?')->execute(array($ticketId));
-            if (!empty($newAssignees)) {
+            if (!empty($newAssgInt)) {
                 $stmtA = $pdo->prepare('INSERT INTO ticket_assignees (ticket_id, user_id) VALUES (?, ?)');
-                foreach ($newAssignees as $uid) {
-                    $uid = (int)$uid;
-                    if ($uid > 0) $stmtA->execute(array($ticketId, $uid));
+                foreach ($newAssgInt as $uid) $stmtA->execute(array($ticketId, $uid));
+            }
+
+            // Notifica os ADICIONADOS (sino + email + WhatsApp)
+            if (!empty($adicionados)) {
+                $stT = $pdo->prepare("SELECT title FROM tickets WHERE id = ?");
+                $stT->execute(array($ticketId));
+                $ticketTitle = (string)$stT->fetchColumn() ?: 'Chamado #' . $ticketId;
+                $ticketUrl = url('modules/helpdesk/ver.php?id=' . $ticketId);
+                $senderName = current_user()['name'] ?? 'Alguém';
+
+                $ph = implode(',', array_fill(0, count($adicionados), '?'));
+                $stU = $pdo->prepare("SELECT id, name, email, phone FROM users WHERE id IN ($ph) AND is_active = 1");
+                $stU->execute(array_values($adicionados));
+                $usersAd = $stU->fetchAll();
+
+                foreach ($usersAd as $u) {
+                    $uid = (int)$u['id'];
+                    if ($uid === current_user_id()) continue; // nao notifica a si mesmo
+                    // 1. Sino interno
+                    notify($uid, 'Marcado como responsável: #' . $ticketId,
+                        $senderName . ' te marcou como responsável no chamado "' . $ticketTitle . '"',
+                        'info', $ticketUrl, '📋');
+                    // 2. Email Brevo
+                    helpdesk_notificar_responsavel_adicionado($u, $senderName, $ticketId, $ticketTitle, $ticketUrl);
+                    // 3. WhatsApp via Z-API canal 24
+                    helpdesk_enviar_wa($u, 'responsavel_adicionado', $senderName, $ticketId, $ticketTitle, '', $ticketUrl);
                 }
             }
 
@@ -123,7 +163,11 @@ switch ($action) {
             if ($_antesSla !== $dueDate) $_diffs[] = "SLA: " . ($_antesSla ?: '—') . " -> " . ($dueDate ?: '—');
             $_msg = $_diffs ? implode(' | ', $_diffs) : "status:$status priority:$priority sla:" . ($dueDate ?: '—');
             audit_log('ticket_updated', 'ticket', $ticketId, $_msg);
-            flash_set('success', 'Chamado atualizado.');
+            $_extraMsg = '';
+            if (!empty($adicionados)) {
+                $_extraMsg = ' 🔔 ' . count($adicionados) . ' novo(s) responsável(eis) notificado(s) por e-mail e WhatsApp.';
+            }
+            flash_set('success', 'Chamado atualizado.' . $_extraMsg);
         }
         redirect(module_url('helpdesk', 'ver.php?id=' . $ticketId));
         break;
@@ -226,7 +270,8 @@ switch ($action) {
             // Extrair @PrimeiroNome da mensagem
             if (preg_match_all('/@([A-Za-zÀ-ÿ]+)/', $message, $matches)) {
                 $mentionedNames = array_unique($matches[1]);
-                $usersAll = $pdo->query("SELECT id, name, email FROM users WHERE is_active = 1")->fetchAll();
+                // Inclui phone agora pra WhatsApp tb (Amanda 08/06/2026)
+                $usersAll = $pdo->query("SELECT id, name, email, phone FROM users WHERE is_active = 1")->fetchAll();
                 $notifiedIds = array();
 
                 foreach ($mentionedNames as $firstName) {
@@ -253,6 +298,9 @@ switch ($action) {
                             if ($u['email']) {
                                 helpdesk_enviar_email_mencao($u, $senderName, $ticketId, $ticketTitle, $message, $ticketUrl);
                             }
+
+                            // 3. WhatsApp via Z-API canal 24 (Amanda 08/06/2026)
+                            helpdesk_enviar_wa($u, 'mencao', $senderName, $ticketId, $ticketTitle, $message, $ticketUrl);
 
                             break; // primeiro match por nome é suficiente
                         }
@@ -501,6 +549,95 @@ switch ($action) {
 }
 
 // ── Helper: enviar e-mail de menção via Brevo ──
+/**
+ * Envia notificacao WhatsApp pelo canal 24 (CX/Operacional) pra um colaborador
+ * mencionado/marcado como responsavel num chamado. Silencioso em falha
+ * (nao bloqueia o salvamento do chamado). Amanda 08/06/2026.
+ *
+ * @param array $user com keys id, name, phone (de users)
+ * @param string $tipo 'mencao' ou 'responsavel_adicionado'
+ * @param string $senderName quem mencionou/adicionou
+ * @param int    $ticketId
+ * @param string $ticketTitle
+ * @param string $message  (texto da mencao OU pode ser vazio em responsavel_adicionado)
+ * @param string $ticketUrl
+ */
+function helpdesk_enviar_wa($user, $tipo, $senderName, $ticketId, $ticketTitle, $message, $ticketUrl) {
+    if (empty($user['phone'])) return; // sem telefone, pula
+
+    require_once APP_ROOT . '/core/functions_zapi.php';
+
+    $firstName = explode(' ', (string)$user['name'])[0];
+    $msgPreview = $message ? mb_substr(trim(strip_tags($message)), 0, 200, 'UTF-8') : '';
+    if ($message && mb_strlen($message, 'UTF-8') > 200) $msgPreview .= '...';
+
+    if ($tipo === 'mencao') {
+        $texto = "🔔 *Você foi mencionado(a) num chamado*\n\n"
+               . "Olá, *" . $firstName . "*!\n\n"
+               . "*" . $senderName . "* te mencionou no Chamado #" . $ticketId . " — " . $ticketTitle . "\n\n";
+        if ($msgPreview) $texto .= "> " . $msgPreview . "\n\n";
+        $texto .= "Ver: " . $ticketUrl;
+    } else { // responsavel_adicionado
+        $texto = "📋 *Você foi marcado(a) como responsável por um chamado*\n\n"
+               . "Olá, *" . $firstName . "*!\n\n"
+               . "*" . $senderName . "* te adicionou como responsável no Chamado #" . $ticketId . " — " . $ticketTitle . "\n\n";
+        $texto .= "Ver: " . $ticketUrl;
+    }
+
+    try {
+        zapi_send_text('24', $user['phone'], $texto);
+    } catch (Exception $e) { /* silencioso */ }
+}
+
+/**
+ * Email + WA quando alguem e' ADICIONADO como responsavel.
+ * Amanda 08/06/2026: chamados urgentes ficavam parados pq Luiz nao sabia
+ * que tinha sido marcado.
+ */
+function helpdesk_notificar_responsavel_adicionado($user, $senderName, $ticketId, $ticketTitle, $ticketUrl) {
+    try {
+        $pdo = db();
+        $cfg = array('key' => '', 'email' => 'contato@ferreiraesa.com.br', 'name' => 'Ferreira & Sá Advocacia');
+        $rows = $pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'brevo_%'")->fetchAll();
+        foreach ($rows as $r) {
+            if ($r['chave'] === 'brevo_api_key') $cfg['key'] = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_email') $cfg['email'] = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_name') $cfg['name'] = $r['valor'];
+        }
+        if (!$cfg['key'] || empty($user['email'])) return;
+
+        $firstName = htmlspecialchars(explode(' ', (string)$user['name'])[0], ENT_QUOTES, 'UTF-8');
+        $html = '<!DOCTYPE html><html><head><meta charset="utf-8"></head><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">
+<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+    <div style="background:#052228;padding:20px 24px;">
+        <h1 style="color:#fff;font-size:16px;margin:0;">📋 Você foi marcado(a) como responsável</h1>
+    </div>
+    <div style="padding:24px;">
+        <p style="font-size:14px;color:#374151;margin:0 0 16px;">Olá, <strong>' . $firstName . '</strong>!</p>
+        <p style="font-size:14px;color:#374151;margin:0 0 20px;">
+            <strong>' . htmlspecialchars($senderName, ENT_QUOTES, 'UTF-8') . '</strong> te adicionou como responsável no chamado <strong>#' . $ticketId . ' — ' . htmlspecialchars($ticketTitle, ENT_QUOTES, 'UTF-8') . '</strong>.
+        </p>
+        <a href="' . htmlspecialchars($ticketUrl, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#052228;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">Ver Chamado →</a>
+    </div>
+    <div style="background:#f9fafb;padding:14px 24px;font-size:12px;color:#9ca3af;text-align:center;">Ferreira & Sá Advocacia — Conecta Hub</div>
+</div></body></html>';
+
+        $data = array(
+            'sender' => array('name' => $cfg['name'], 'email' => $cfg['email']),
+            'to' => array(array('email' => $user['email'], 'name' => $user['name'])),
+            'subject' => '📋 Você foi marcado como responsável no chamado #' . $ticketId,
+            'htmlContent' => $html,
+        );
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt_array($ch, array(
+            CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 15, CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => array('api-key: ' . $cfg['key'], 'Content-Type: application/json', 'Accept: application/json'),
+            CURLOPT_POSTFIELDS => json_encode($data), CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        curl_exec($ch); curl_close($ch);
+    } catch (Exception $e) { /* silencioso */ }
+}
+
 function helpdesk_enviar_email_mencao($user, $senderName, $ticketId, $ticketTitle, $message, $ticketUrl) {
     try {
         $pdo = db();
