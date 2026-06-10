@@ -46,6 +46,9 @@ $fieldLabels = array(
     'client_email' => 'E-mail',
     'relationship_role' => 'Relação com a criança (Mãe/Pai/Responsável)',
     'children' => 'Filhos',
+    'child_name' => 'Nome da criança',
+    'child_age' => 'Idade da criança',
+    'answers' => 'Respostas detalhadas',
 
     // Convivência — Visitas
     'pickup_frequency' => 'Frequência de convivência',
@@ -55,7 +58,7 @@ $fieldLabels = array(
     'wk_sat_pick_time' => 'Horário de busca no sábado',
     'wk_sun_drop_time' => 'Horário de entrega no domingo',
     'wk_sat_pick_time_2' => 'Horário de busca no sábado (modelo 2)',
-    'overnight' => 'Pernoite (dormir na casa)',
+    'overnight' => 'Pernoite (criança dorme na casa)',
     'overnight_quick_reason' => 'Motivo rápido de não pernoitar',
     'overnight_reason' => 'Motivo detalhado de não pernoitar',
 
@@ -234,10 +237,27 @@ $statusFormLabels = array('novo' => 'Novo', 'em_analise' => 'Em análise', 'proc
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 $clients = $pdo->query("SELECT id, name FROM clients ORDER BY name LIMIT 200")->fetchAll();
 
+// Amanda 08/06/2026: normalizar pra cobrir keys que vem em camelCase, com
+// espaco, ou com case mixed. Form da convivencia armazena chaves como
+// "Pickup frequency", "Child name", "Overnight quick reason" -- todas
+// passam por aqui e viram snake_case lowercase pra match no mapping.
+function normalize_key($key) {
+    $k = trim((string)$key);
+    // Espaços -> underscore
+    $k = preg_replace('/\s+/', '_', $k);
+    // CamelCase -> snake_case
+    $k = preg_replace('/([a-z0-9])([A-Z])/', '$1_$2', $k);
+    // Multiplos underscores -> 1
+    $k = preg_replace('/_+/', '_', $k);
+    return strtolower(trim($k, '_'));
+}
+
 function getLabel($key, $labels) {
     if (isset($labels[$key])) return $labels[$key];
+    $nk = normalize_key($key);
+    if (isset($labels[$nk])) return $labels[$nk];
     // Transformar snake_case em texto legível
-    $text = str_replace(array('_', '-'), ' ', $key);
+    $text = str_replace(array('_', '-'), ' ', $nk);
     return ucfirst($text);
 }
 
@@ -388,20 +408,191 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Respostas do formulário — TODOS os campos com nomes claros -->
+<?php
+// ═══════════════════════════════════════════════════════
+// Normaliza payload (snake_case lowercase pra match no mapping)
+// ═══════════════════════════════════════════════════════
+$normPayload = array();
+foreach ($payload as $k => $v) {
+    $nk = normalize_key($k);
+    if ($k === 'totais' && is_array($v)) {
+        foreach ($v as $sk => $sv) {
+            $normPayload['total_' . str_replace('_cents', '', $sk) . '_cents'] = $sv;
+        }
+    } else {
+        $normPayload[$nk] = $v;
+    }
+}
+
+$skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds', 'client_name', 'client_phone', 'client_email', 'form_type', 'protocol_original', 'protocol', 'protocolo', 'answers');
+
+// Helper visual: bloco de campo
+function visualCampo($icon, $label, $value, $valueLabels, $key = '', $bg = '#fff', $border = '#e5e7eb') {
+    $displayVal = getValue($value, $valueLabels, $key);
+    $isEmpty = ($displayVal === '' || $displayVal === null);
+    if ($isEmpty) return ''; // pula campos vazios pra reduzir poluicao
+    return '<div style="background:' . $bg . ';border:1px solid ' . $border . ';border-radius:10px;padding:.7rem .9rem;display:flex;align-items:flex-start;gap:.7rem;">'
+         . '<span style="font-size:1.2rem;flex-shrink:0;">' . $icon . '</span>'
+         . '<div style="flex:1;min-width:0;">'
+         . '<div style="font-size:.7rem;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:.3px;margin-bottom:.2rem;">' . htmlspecialchars($label, ENT_QUOTES) . '</div>'
+         . '<div style="font-size:.92rem;color:#0f172a;line-height:1.45;white-space:pre-wrap;">' . nl2br(htmlspecialchars($displayVal, ENT_QUOTES)) . '</div>'
+         . '</div></div>';
+}
+
+// Helper visual: seção
+function visualSecao($icon, $titulo, $cor, $bg, $items) {
+    if (empty(array_filter($items))) return '';
+    $html = '<div style="margin-bottom:1.2rem;break-inside:avoid;">';
+    $html .= '<div style="background:' . $cor . ';color:#fff;padding:.6rem 1rem;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:.6rem;">';
+    $html .= '<span style="font-size:1.3rem;">' . $icon . '</span>';
+    $html .= '<h3 style="margin:0;font-size:1rem;font-weight:700;">' . htmlspecialchars($titulo, ENT_QUOTES) . '</h3>';
+    $html .= '</div>';
+    $html .= '<div style="background:' . $bg . ';border:1px solid ' . $cor . ';border-top:none;border-radius:0 0 10px 10px;padding:.9rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:.7rem;">';
+    foreach ($items as $item) $html .= $item;
+    $html .= '</div></div>';
+    return $html;
+}
+?>
+
+<?php if ($form['form_type'] === 'convivencia'): ?>
+<!-- ═══════════════════════════════════════════════════════
+     VISUAL LAW — CONVIVÊNCIA (refeito 08/06/2026)
+     ═══════════════════════════════════════════════════════ -->
+<style>
+@media print {
+    .visual-law-secao { break-inside:avoid; }
+    .visual-law-secao h3 { color:#fff !important; }
+}
+</style>
+<div class="visual-law-conteudo">
+
+    <!-- Seção 1: Identificação -->
+    <?= visualSecao('👤', 'Identificação', '#3B4FA0', '#eff6ff', array(
+        visualCampo('📛', 'Nome do cliente', $form['client_name'], $valueLabels, 'client_name'),
+        visualCampo('📱', 'Telefone / WhatsApp', $form['client_phone'], $valueLabels, 'client_phone'),
+        visualCampo('✉️', 'E-mail', $form['client_email'], $valueLabels, 'client_email'),
+        visualCampo('👨‍👩‍👧', 'Relação com a criança', $normPayload['relationship_role'] ?? '', $valueLabels, 'relationship_role'),
+    )) ?>
+
+    <!-- Seção 2: Filhos -->
+    <?php
+    $filhos = $normPayload['children'] ?? null;
+    if (is_string($filhos)) { $tmp = json_decode($filhos, true); if (is_array($tmp)) $filhos = $tmp; }
+    if (is_array($filhos) && !empty($filhos)):
+    ?>
+    <div style="margin-bottom:1.2rem;break-inside:avoid;">
+        <div style="background:#ec4899;color:#fff;padding:.6rem 1rem;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:.6rem;">
+            <span style="font-size:1.3rem;">👶</span>
+            <h3 style="margin:0;font-size:1rem;font-weight:700;">Filhos</h3>
+        </div>
+        <div style="background:#fdf2f8;border:1px solid #ec4899;border-top:none;border-radius:0 0 10px 10px;padding:.9rem;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.7rem;">
+            <?php foreach ($filhos as $i => $f):
+                if (!is_array($f)) continue;
+                $nome = $f['name'] ?? '—';
+                $nasc = $f['dob'] ?? '';
+                $idade = $f['age'] ?? '';
+            ?>
+                <div style="background:#fff;border:1px solid #fbcfe8;border-radius:10px;padding:.8rem;">
+                    <div style="font-size:.7rem;color:#9d174d;font-weight:700;text-transform:uppercase;margin-bottom:.3rem;">Filho(a) <?= $i + 1 ?></div>
+                    <div style="font-size:.98rem;font-weight:700;color:#0f172a;"><?= e($nome) ?></div>
+                    <?php if ($nasc): ?><div style="font-size:.78rem;color:#475569;margin-top:.2rem;">📅 Nasc: <?= e($nasc) ?></div><?php endif; ?>
+                    <?php if ($idade !== ''): ?><div style="font-size:.78rem;color:#475569;">🎂 <?= e($idade) ?> ano(s)</div><?php endif; ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <!-- Seção 3: Convivência -->
+    <?= visualSecao('🗓️', 'Convivência regular', '#0ea5e9', '#f0f9ff', array(
+        visualCampo('🔄', 'Frequência', $normPayload['pickup_frequency'] ?? '', $valueLabels, 'pickup_frequency'),
+        visualCampo('💬', 'Outra forma (detalhe)', $normPayload['pickup_frequency_other'] ?? '', $valueLabels, 'pickup_frequency_other'),
+        visualCampo('🎯', 'Modelo de fim de semana', $normPayload['weekend_model'] ?? '', $valueLabels, 'weekend_model'),
+        visualCampo('🕐', 'Horário busca sábado', $normPayload['wk_sat_pick_time'] ?? '', $valueLabels, 'wk_sat_pick_time'),
+        visualCampo('🕓', 'Horário entrega domingo', $normPayload['wk_sun_drop_time'] ?? '', $valueLabels, 'wk_sun_drop_time'),
+        visualCampo('🌙', 'Pernoite', $normPayload['overnight'] ?? '', $valueLabels, 'overnight'),
+        visualCampo('🚪', 'Início da convivência', $normPayload['convivio_inicio'] ?? '', $valueLabels, 'convivio_inicio'),
+        visualCampo('🔙', 'Retorno da convivência', $normPayload['convivio_retorno'] ?? '', $valueLabels, 'convivio_retorno'),
+        visualCampo('📍', 'Local de troca', $normPayload['exchange_place'] ?? '', $valueLabels, 'exchange_place'),
+    )) ?>
+
+    <!-- Seção 4: Datas Especiais -->
+    <?= visualSecao('🎂', 'Datas especiais', '#f59e0b', '#fffbeb', array(
+        visualCampo('🎈', 'Aniversário da criança', $normPayload['bday_child'] ?? '', $valueLabels, 'bday_child'),
+        visualCampo('📝', 'Aniversário da criança (detalhe)', $normPayload['bday_child_other'] ?? '', $valueLabels, 'bday_child_other'),
+        visualCampo('💐', 'Dia das Mães', $normPayload['bday_mom'] ?? '', $valueLabels, 'bday_mom'),
+        visualCampo('🤵', 'Dia dos Pais', $normPayload['bday_dad'] ?? '', $valueLabels, 'bday_dad'),
+        visualCampo('📅', 'Feriados', $normPayload['holidays'] ?? '', $valueLabels, 'holidays'),
+    )) ?>
+
+    <!-- Seção 5: Férias -->
+    <?= visualSecao('🏖️', 'Férias escolares', '#10b981', '#ecfdf5', array(
+        visualCampo('☀️', 'Meio do ano', $normPayload['vac_mid'] ?? '', $valueLabels, 'vac_mid'),
+        visualCampo('🎄', 'Fim do ano', $normPayload['vac_end'] ?? '', $valueLabels, 'vac_end'),
+    )) ?>
+
+    <!-- Seção 6: Natal & Ano Novo -->
+    <?= visualSecao('🎄', 'Natal & Ano Novo', '#dc2626', '#fef2f2', array(
+        visualCampo('🎁', 'Natal', $normPayload['xmas'] ?? '', $valueLabels, 'xmas'),
+        visualCampo('🎆', 'Ano Novo', $normPayload['newyear'] ?? '', $valueLabels, 'newyear'),
+    )) ?>
+
+    <!-- Seção 7: Observações -->
+    <?php $obs = $normPayload['open_notes'] ?? ''; if ($obs): ?>
+    <div style="margin-bottom:1.2rem;break-inside:avoid;">
+        <div style="background:#6b7280;color:#fff;padding:.6rem 1rem;border-radius:10px 10px 0 0;display:flex;align-items:center;gap:.6rem;">
+            <span style="font-size:1.3rem;">📝</span>
+            <h3 style="margin:0;font-size:1rem;font-weight:700;">Observações do cliente</h3>
+        </div>
+        <div style="background:#f9fafb;border:1px solid #6b7280;border-top:none;border-radius:0 0 10px 10px;padding:1rem;">
+            <div style="background:#fff;border-left:4px solid #6b7280;padding:.8rem 1rem;border-radius:0 8px 8px 0;font-size:.92rem;line-height:1.55;color:#0f172a;font-style:italic;white-space:pre-wrap;">
+                "<?= nl2br(e(is_array($obs) ? json_encode($obs) : $obs)) ?>"
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+</div>
+
+<!-- Campos extras NÃO mapeados nas seções acima -->
+<?php
+$mappedInSections = array('relationship_role','children','pickup_frequency','pickup_frequency_other','weekend_model','wk_sat_pick_time','wk_sun_drop_time','overnight','convivio_inicio','convivio_retorno','exchange_place','bday_child','bday_child_other','bday_mom','bday_mom_other','bday_dad','bday_dad_other','holidays','holidays_other','vac_mid','vac_mid_other','vac_end','vac_end_other','xmas','xmas_other','newyear','newyear_other','open_notes','weekend_sunday_time','wk_sat_pick_time_2','overnight_quick_reason','overnight_reason');
+$extras = array();
+foreach ($normPayload as $k => $v) {
+    if (in_array($k, $mappedInSections) || in_array($k, $skipKeys)) continue;
+    $dv = getValue($v, $valueLabels, $k);
+    if ($dv === '' || $dv === null) continue;
+    $extras[$k] = $v;
+}
+if (!empty($extras)): ?>
+<div class="card no-print" style="margin-top:1rem;">
+    <div class="card-header"><h3 style="font-size:.9rem;color:#6b7280;">Campos extras (não classificados)</h3></div>
+    <div class="form-detail-grid">
+        <?php foreach ($extras as $k => $v): ?>
+            <div class="field-row">
+                <div class="field-label"><?= e(getLabel($k, $fieldLabels)) ?></div>
+                <div class="field-value"><?= nl2br(e(getValue($v, $valueLabels, $k))) ?></div>
+            </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php else: ?>
+<!-- ═══════════════════════════════════════════════════════
+     Layout tabular padrão (gastos_pensao, cadastro_cliente, etc)
+     ═══════════════════════════════════════════════════════ -->
 <div class="card">
     <div class="card-header">
         <h3>Respostas</h3>
     </div>
     <div class="form-detail-grid">
         <?php
-        // Campos fixos primeiro
         $fixedFields = array(
             'client_name' => $form['client_name'],
             'client_phone' => $form['client_phone'],
             'client_email' => $form['client_email'],
         );
-
         foreach ($fixedFields as $key => $val): ?>
             <div class="field-row">
                 <div class="field-label"><?= getLabel($key, $fieldLabels) ?></div>
@@ -410,19 +601,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endforeach; ?>
 
         <?php
-        // Campos do JSON ignorando os que já mostramos
-        $skipKeys = array('id', 'created_at', 'updated_at', 'ip', 'ip_address', 'user_agent', 'data_envio', 'payload_json', 'seconds', 'nanoseconds', 'client_name', 'client_phone', 'client_email', 'form_type', 'protocol_original', 'protocol', 'protocolo');
-        // Flatten: se tem 'totais' aninhado, extrair os sub-campos
-        $flatPayload = array();
-        foreach ($payload as $key => $val) {
-            if ($key === 'totais' && is_array($val)) {
-                foreach ($val as $sk => $sv) { $flatPayload['total_' . str_replace('_cents', '', $sk) . '_cents'] = $sv; }
-            } else {
-                $flatPayload[$key] = $val;
-            }
-        }
-
-        foreach ($flatPayload as $key => $val):
+        foreach ($normPayload as $key => $val):
             if (in_array($key, $skipKeys)) continue;
             $label = getLabel($key, $fieldLabels);
             $displayVal = getValue($val, $valueLabels, $key);
@@ -445,6 +624,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endforeach; ?>
     </div>
 </div>
+<?php endif; ?>
 
 <!-- Notas -->
 <div class="card mt-2 no-print">
