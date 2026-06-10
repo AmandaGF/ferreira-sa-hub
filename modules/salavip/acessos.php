@@ -35,7 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ── Gerar link de impersonate (SÓ Amanda — user_id=1) ──
     // Cria token de uso único, válido 5min. Amanda clica → entra como cliente.
-    if ($action === 'gerar_link_impersonate') {
+    // Modo: 'desktop' (default, abre direto) ou 'mobile' (vai pra preview com moldura de celular)
+    if ($action === 'gerar_link_impersonate' || $action === 'gerar_link_impersonate_mobile') {
         if ((int)current_user_id() !== 1) {
             flash_set('error', 'Apenas Amanda pode entrar como cliente.');
             redirect(module_url('salavip', 'acessos.php'));
@@ -52,8 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = bin2hex(random_bytes(32));
         $pdo->prepare("INSERT INTO salavip_impersonate_tokens (token, salavip_user_id, admin_user_id, expira_em) VALUES (?, ?, ?, DATE_ADD(NOW(), INTERVAL 5 MINUTE))")
             ->execute(array($token, (int)$u['id'], (int)current_user_id()));
-        audit_log('salavip_impersonate', 'salavip_usuarios', $id, 'Amanda gerou token de impersonate');
-        // Redireciona direto pro fluxo de login admin no salavip
+        audit_log('salavip_impersonate', 'salavip_usuarios', $id, 'Amanda gerou token de impersonate (' . ($action === 'gerar_link_impersonate_mobile' ? 'mobile' : 'desktop') . ')');
+
+        if ($action === 'gerar_link_impersonate_mobile') {
+            // Vai pra preview com moldura de celular (passa token + sv user id)
+            header('Location: ' . module_url('salavip', 'preview_celular.php') . '?token=' . urlencode($token) . '&sv=' . (int)$u['id']);
+            exit;
+        }
+        // Redireciona direto pro fluxo de login admin no salavip (desktop)
         $url = 'https://www.ferreiraesa.com.br/salavip/login_admin.php?token=' . $token;
         header('Location: ' . $url);
         exit;
@@ -328,12 +335,19 @@ if ($totPendentes > 0):
                             <td>
                                 <div style="display:flex;gap:.3rem;flex-wrap:wrap;">
                                     <?php if ((int)current_user_id() === 1 && $u['ativo']): ?>
-                                    <!-- Entrar como cliente (impersonate) — só Amanda -->
+                                    <!-- Entrar como cliente (impersonate desktop) — só Amanda -->
                                     <form method="POST" style="display:inline;" onsubmit="return confirm('Entrar na Central VIP como este cliente? (modo admin, ações ficam logadas)');">
                                         <?= csrf_input() ?>
                                         <input type="hidden" name="action" value="gerar_link_impersonate">
                                         <input type="hidden" name="id" value="<?= $u['id'] ?>">
-                                        <button type="submit" class="btn btn-sm" title="Entrar como cliente (modo admin)" style="background:#7c3aed;color:#fff;border:none;">&#128065;</button>
+                                        <button type="submit" class="btn btn-sm" title="Entrar como cliente (modo desktop)" style="background:#7c3aed;color:#fff;border:none;">&#128065;</button>
+                                    </form>
+                                    <!-- Ver como cliente NO CELULAR (impersonate mobile) — só Amanda -->
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('Abrir Central VIP como cliente no MODO CELULAR? (pra ver como aparece pra ele no aparelho)');">
+                                        <?= csrf_input() ?>
+                                        <input type="hidden" name="action" value="gerar_link_impersonate_mobile">
+                                        <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                                        <button type="submit" class="btn btn-sm" title="Ver como cliente no celular (simulação)" style="background:#0ea5e9;color:#fff;border:none;">&#128241;</button>
                                     </form>
                                     <?php endif; ?>
 
