@@ -43,9 +43,16 @@ $filterAssignee = (int)($_GET['assignee'] ?? 0);
 if ($filterCategory) { $where[] = "t.category = ?"; $params[] = $filterCategory; }
 if ($filterAssignee) { $where[] = "ta.user_id = ?"; $params[] = $filterAssignee; }
 if ($search) {
-    $where[] = "(t.title LIKE ? OR t.client_name LIKE ? OR t.case_number LIKE ?)";
+    // Amanda 10/06/2026: aceitar busca por ID (#253, 253, " 253 ")
+    $searchClean = ltrim(trim($search), '#');
     $like = '%' . $search . '%';
-    $params = array_merge($params, array($like, $like, $like));
+    if (ctype_digit($searchClean) && (int)$searchClean > 0) {
+        $where[] = "(t.id = ? OR t.title LIKE ? OR t.client_name LIKE ? OR t.case_number LIKE ?)";
+        $params = array_merge($params, array((int)$searchClean, $like, $like, $like));
+    } else {
+        $where[] = "(t.title LIKE ? OR t.client_name LIKE ? OR t.case_number LIKE ?)";
+        $params = array_merge($params, array($like, $like, $like));
+    }
 }
 
 $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
@@ -307,7 +314,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <a href="<?= module_url('helpdesk') ?>?origem=<?= e($filterOrigem) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Limpar filtros</a>
         <?php endif; ?>
     </div>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;align-items:center;">
+        <?php
+        // Amanda 10/06/2026: atalho rapido pra ver finalizados (resolvido + cancelado)
+        $_finalCnt = ($statusCounts['resolvido'] ?? 0) + ($statusCounts['cancelado'] ?? 0);
+        $_jaNoFinalizados = ($filterStatus === 'resolvido' || $filterStatus === 'cancelado');
+        ?>
+        <a href="<?= module_url('helpdesk') ?>?<?= http_build_query(array_filter(array('origem'=>$filterOrigem,'status'=>'resolvido','sort'=>'atualizado','dir'=>'desc'))) ?>"
+           class="btn btn-sm"
+           style="font-size:.75rem;background:<?= $_jaNoFinalizados ? '#10b981' : '#fff' ?>;color:<?= $_jaNoFinalizados ? '#fff' : '#059669' ?>;border:1.5px solid #10b981;font-weight:700;"
+           title="Mostra chamados resolvidos (mais recentes primeiro)">
+           ✅ Finalizados <span style="background:rgba(0,0,0,.15);padding:1px 7px;border-radius:8px;margin-left:4px;"><?= $_finalCnt ?></span>
+        </a>
         <?php if ($showArquivados): ?>
             <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline btn-sm" style="font-size:.75rem;">✕ Ocultar arquivados</a>
         <?php else: ?>
@@ -315,6 +333,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         <a href="<?= module_url('helpdesk', 'novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Chamado</a>
     </div>
+</div>
+<!-- Amanda 10/06/2026: timestamp pra debug do cache PWA (se os numeros nao mudam apos resolver, eh sw.js cacheando) -->
+<div style="font-size:.7rem;color:#94a3b8;text-align:right;margin:-.5rem 0 .8rem;">
+    📅 Atualizado em <strong><?= date('d/m/Y H:i:s') ?></strong>
+    · <a href="javascript:location.reload(true)" style="color:#0ea5e9;text-decoration:underline;">🔄 forçar atualização</a>
 </div>
 
 <!-- Filtros -->
@@ -398,33 +421,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <button type="button" onclick="hdToggleGraficos()" id="hdBtnGraf" style="margin-left:auto;background:#fff;border:1.5px solid #B87333;color:#B87333;border-radius:8px;padding:.4rem .9rem;font-size:.78rem;font-weight:700;cursor:pointer;">📊 Ver gráficos</button>
 </div>
 
-<!-- Seção de gráficos colapsável (Amanda 08/06/2026) -->
+<!-- Seção de gráficos colapsável (Amanda 08/06/2026 - ajustado 10/06) -->
 <div id="hdSecaoGraficos" style="display:none;background:#fff;border:1px solid var(--border);border-radius:10px;padding:1rem;margin-bottom:1rem;">
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem;">
-        <?php if (!empty($grafDados['status'])): ?>
-        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+        <div id="boxGrafStatus" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;<?= empty($grafDados['status']) ? 'display:none;' : '' ?>">
             <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">📊 Distribuição por status</h4>
             <div style="height:240px;position:relative;"><canvas id="grafStatus"></canvas></div>
         </div>
-        <?php endif; ?>
-        <?php if (!empty($grafDados['prioridade'])): ?>
-        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+        <div id="boxGrafPrior" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;<?= empty($grafDados['prioridade']) ? 'display:none;' : '' ?>">
             <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">🎯 Prioridade dos abertos</h4>
             <div style="height:240px;position:relative;"><canvas id="grafPrior"></canvas></div>
         </div>
-        <?php endif; ?>
-        <?php if (!empty($grafDados['categoria'])): ?>
-        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+        <div id="boxGrafCat" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;<?= empty($grafDados['categoria']) ? 'display:none;' : '' ?>">
             <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">📂 Categorias dos pendentes</h4>
             <div style="height:240px;position:relative;"><canvas id="grafCat"></canvas></div>
         </div>
-        <?php endif; ?>
-        <?php if (!empty($grafDados['resolvedores'])): ?>
-        <div style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;">
+        <div id="boxGrafResolv" style="background:#fafafa;border:1px solid #e5e7eb;border-radius:8px;padding:.75rem;<?= empty($grafDados['resolvedores']) ? 'display:none;' : '' ?>">
             <h4 style="margin:0 0 .5rem;font-size:.82rem;color:var(--petrol-900);">🏆 Top 10 — quem resolveu mais (últimos 60 dias)</h4>
             <div style="height:280px;position:relative;"><canvas id="grafResolv"></canvas></div>
         </div>
-        <?php endif; ?>
     </div>
 </div>
 
@@ -452,11 +467,27 @@ function hdToggleGraficos() {
 }
 
 function hdRenderGraficos() {
+    var sec = document.getElementById('hdSecaoGraficos');
+    var d = window.hdGrafDados;
+    var temDados = d && (Object.keys(d.status||{}).length || Object.keys(d.prioridade||{}).length || Object.keys(d.categoria||{}).length || Object.keys(d.resolvedores||{}).length);
+    if (!temDados) {
+        sec.innerHTML = '<div style="padding:1.2rem;text-align:center;color:#94a3b8;font-size:.85rem;">📊 Ainda não há dados suficientes nesta aba pra gerar gráficos.<br><span style="font-size:.75rem;">Resolva alguns chamados nos últimos 60 dias e os gráficos vão aparecer.</span></div>';
+        return;
+    }
     if (typeof Chart === 'undefined') {
-        // Carrega Chart.js sob demanda
+        // Indicador "carregando..."
+        sec.insertAdjacentHTML('afterbegin', '<div id="hdGrafLoading" style="padding:.6rem;text-align:center;color:#0ea5e9;font-size:.78rem;">⏳ Carregando biblioteca de gráficos...</div>');
         var s = document.createElement('script');
         s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-        s.onload = function(){ hdDesenharTodos(); };
+        s.onload = function(){
+            var ld = document.getElementById('hdGrafLoading'); if (ld) ld.remove();
+            hdDesenharTodos();
+        };
+        s.onerror = function(){
+            var ld = document.getElementById('hdGrafLoading');
+            if (ld) ld.innerHTML = '⚠️ Não foi possível carregar a biblioteca de gráficos (CDN bloqueado pela rede do escritório?). Tente recarregar a página ou peça pra TI liberar <code>cdn.jsdelivr.net</code>.';
+            if (ld) ld.style.color = '#dc2626';
+        };
         document.head.appendChild(s);
     } else {
         hdDesenharTodos();
