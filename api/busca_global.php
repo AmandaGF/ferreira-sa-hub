@@ -117,7 +117,8 @@ try {
     $qNumProc = preg_replace('/\D/', '', $q);
     $likeNumProc = $qNumProc ? '%' . $qNumProc . '%' : '%zzzzz%';
 
-    $sqlProc = "SELECT DISTINCT c.id, c.title AS titulo, c.case_number, cl.name AS cliente_nome, c.updated_at,
+    // Amanda 11/06/2026: trazer c.status pra marcar arquivados em cinza no dropdown
+    $sqlProc = "SELECT DISTINCT c.id, c.title AS titulo, c.case_number, c.status, cl.name AS cliente_nome, c.updated_at,
                        (SELECT GROUP_CONCAT(DISTINCT
                             COALESCE(NULLIF(cp2.nome,''), NULLIF(cp2.razao_social,''), NULLIF(cp2.representante_nome,''))
                             SEPARATOR ' / ')
@@ -138,8 +139,10 @@ try {
                    OR cp.nome_fantasia LIKE ?
                    OR REPLACE(REPLACE(REPLACE(cp.cpf,'.',''),'-',''),'/','') LIKE ?
                    OR REPLACE(REPLACE(REPLACE(cp.cnpj,'.',''),'-',''),'/','') LIKE ?
-                ORDER BY (c.title LIKE ?) DESC, c.updated_at DESC
-                LIMIT 8";
+                ORDER BY
+                    CASE WHEN c.status IN ('arquivado','cancelado','concluido') THEN 1 ELSE 0 END ASC,
+                    (c.title LIKE ?) DESC, c.updated_at DESC
+                LIMIT 10";
     $paramsExec = array_merge(
         array($like, $like, $like, $like),                  // subquery parte_match
         array($like, $like, $likeNumProc, $like),           // title, CNJ, CNJ_norm, cliente
@@ -153,15 +156,22 @@ try {
     if ($rows) {
         $grupos['processos'] = array();
         foreach ($rows as $r) {
+            $st = (string)($r['status'] ?? '');
+            $arquivado = in_array($st, array('arquivado','cancelado','concluido'), true);
             $sub = $r['case_number'] ?: '';
             if ($r['cliente_nome']) $sub = ($sub ? $sub . ' • ' : '') . '👤 ' . $r['cliente_nome'];
             if ($r['parte_match']) $sub = ($sub ? $sub . ' • ' : '') . '⚖️ parte: ' . $r['parte_match'];
+            if ($arquivado) {
+                $rotuloSt = $st === 'arquivado' ? 'ARQUIVADO' : ($st === 'cancelado' ? 'CANCELADO' : 'CONCLUÍDO');
+                $sub = '📦 ' . $rotuloSt . ($sub ? ' • ' . $sub : '');
+            }
             $grupos['processos'][] = array(
                 'id'        => (int)$r['id'],
                 'titulo'    => $r['titulo'] ?: 'Processo #' . $r['id'],
                 'subtitulo' => $sub,
                 'url'       => 'modules/operacional/caso_ver.php?id=' . (int)$r['id'],
                 'icon'      => '⚖️',
+                'arquivado' => $arquivado,  // Amanda 11/06/2026: front estiliza em cinza
             );
         }
     }

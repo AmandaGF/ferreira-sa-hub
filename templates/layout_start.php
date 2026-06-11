@@ -115,11 +115,15 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                          +  (it.subtitulo ? '<div class="bg-item-sub" style="color:#a16207;">' + bgEsc(it.subtitulo) + '</div>' : '')
                                          +  '</div></a>';
                                 } else {
-                                    html += '<a class="bg-item" href="' + base + '/' + it.url + '">'
-                                         +  '<span class="bg-item-ico">' + it.icon + '</span>'
+                                    // Amanda 11/06/2026: processos arquivados/cancelados/concluidos ficam cinza-claro
+                                    var _arqStyle = it.arquivado ? 'opacity:.5;filter:grayscale(.65);background:#f8fafc;' : '';
+                                    var _arqTit   = it.arquivado ? 'color:#64748b;font-weight:600;' : '';
+                                    var _arqSub   = it.arquivado ? 'color:#94a3b8;' : '';
+                                    html += '<a class="bg-item" href="' + base + '/' + it.url + '" style="' + _arqStyle + '">'
+                                         +  '<span class="bg-item-ico"' + (it.arquivado ? ' style="opacity:.6;"' : '') + '>' + it.icon + '</span>'
                                          +  '<div style="min-width:0;flex:1;">'
-                                         +  '<div class="bg-item-tit">' + bgEsc(it.titulo) + '</div>'
-                                         +  (it.subtitulo ? '<div class="bg-item-sub">' + bgEsc(it.subtitulo) + '</div>' : '')
+                                         +  '<div class="bg-item-tit" style="' + _arqTit + '">' + bgEsc(it.titulo) + '</div>'
+                                         +  (it.subtitulo ? '<div class="bg-item-sub" style="' + _arqSub + '">' + bgEsc(it.subtitulo) + '</div>' : '')
                                          +  '</div></a>';
                                 }
                             });
