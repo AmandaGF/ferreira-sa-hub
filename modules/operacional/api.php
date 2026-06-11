@@ -209,6 +209,36 @@ if ($action === 'arquivar_todos_para_arquivar') {
     exit;
 }
 
+// ── Amanda 11/06/2026: corrigir acentuação de TODOS os andamentos do caso ──
+// Sem IA, sem custo. Determinístico (dicionário fechado). Idempotente.
+if ($action === 'corrigir_acentos_andamentos') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if ($caseId <= 0) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+
+    require_once APP_ROOT . '/core/functions_acentos.php';
+    try {
+        $st = $pdo->prepare("SELECT id, descricao FROM case_andamentos WHERE case_id = ? AND descricao IS NOT NULL AND descricao != ''");
+        $st->execute(array($caseId));
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        $up = $pdo->prepare("UPDATE case_andamentos SET descricao = ? WHERE id = ?");
+        $alterados = 0;
+        foreach ($rows as $r) {
+            $corr = corrigir_acentos_juridico($r['descricao']);
+            if ($corr !== $r['descricao']) {
+                $up->execute(array($corr, (int)$r['id']));
+                $alterados++;
+            }
+        }
+        audit_log('corrigir_acentos_andamentos', 'case', $caseId, "alterados=$alterados/" . count($rows));
+        echo json_encode(array('ok' => true, 'total' => count($rows), 'alterados' => $alterados));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 // ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
 if ($action === 'criar_pasta_drive') {
     header('Content-Type: application/json; charset=utf-8');

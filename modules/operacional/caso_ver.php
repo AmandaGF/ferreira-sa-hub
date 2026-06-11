@@ -3792,7 +3792,11 @@ foreach ($tarefasReais as $_t) {
         <?php endif; ?>
 
         <!-- Barra de ações: importação em lote + botão de novo andamento existente -->
-        <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;gap:.4rem;">
+            <!-- Amanda 11/06/2026: corrigir acentos sem custo (deterministico) -->
+            <button type="button" onclick="corrigirAcentosAndamentos(<?= (int)$caseId ?>)" class="btn btn-outline btn-sm" style="background:#f0fdf4;border-color:#86efac;color:#166534;font-size:.78rem;" title="Aplica acentuação faltante (decisao→decisão, peticao→petição, audiencia→audiência, etc) em TODOS os andamentos deste caso. Sem IA, sem custo. Idempotente.">
+                🔤 Corrigir acentos
+            </button>
             <button type="button" onclick="abrirImportAndamentos()" class="btn btn-outline btn-sm" style="background:#eff6ff;border-color:#bfdbfe;color:#1e40af;font-size:.78rem;" title="Colar bloco pipe-delimited com vários andamentos de uma vez (gerado por IA a partir dos autos)">
                 📋 Importar em lote
             </button>
@@ -6460,6 +6464,35 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
     var apiUrl = '<?= module_url('operacional', 'api.php') ?>';
     var csrfTok = '<?= generate_csrf_token() ?>';
     var parseados = [];  // resultado do analisar
+
+    // Amanda 11/06/2026: corrige acentuacao de TODOS os andamentos do caso (sem custo de IA)
+    window.corrigirAcentosAndamentos = function(caseId) {
+        if (!confirm('Aplicar correção de acentuação em todos os andamentos deste caso?\n\n• Adiciona acentos faltantes (decisao→decisão, peticao→petição, etc).\n• NÃO altera nomes próprios, datas, números ou termos técnicos.\n• Sem custo, instantâneo, idempotente (pode rodar várias vezes sem problema).')) return;
+        var btn = event.target;
+        var orig = btn.innerHTML;
+        btn.innerHTML = '⏳ Corrigindo...';
+        btn.disabled = true;
+
+        var fd = new FormData();
+        fd.append('action', 'corrigir_acentos_andamentos');
+        fd.append('case_id', caseId);
+        fd.append('csrf_token', csrfTok);
+
+        fetch('<?= module_url('operacional', 'api.php') ?>', { method:'POST', body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                if (d.error) { alert('Erro: ' + d.error); return; }
+                alert('✓ ' + (d.alterados || 0) + ' andamento(s) corrigido(s) (de ' + (d.total || 0) + ' total).\n\nRecarregando a página pra ver o resultado.');
+                location.reload();
+            })
+            .catch(function(){
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                alert('Erro de rede. Tente novamente.');
+            });
+    };
 
     window.abrirImportAndamentos = function() {
         document.getElementById('impAndTextarea').value = '';
