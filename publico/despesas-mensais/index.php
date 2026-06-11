@@ -58,6 +58,11 @@ button[onclick^="goStep"]{display:none !important}
 .col-6{}
 label{display:block;font-size:.82rem;font-weight:600;margin-bottom:4px;color:var(--g2)}
 .requiredMark{color:var(--err)}
+/* Amanda 11/06/2026: visual de erro proximo ao campo (antes so tinha toast que sumia rapido) */
+.requiredField.fieldErr { border:2px solid var(--err) !important; background:#fff5f5 !important; box-shadow:0 0 0 3px rgba(231,57,57,.15); }
+.fieldErrMsg { display:none; color:var(--err); font-size:.78rem; font-weight:600; margin-top:4px; padding:5px 8px; background:#fff5f5; border-left:3px solid var(--err); border-radius:0 4px 4px 0; animation:fieldErrPulse .35s ease; }
+.fieldErrMsg.visible { display:block; }
+@keyframes fieldErrPulse { from { transform:translateY(-4px); opacity:0; } to { transform:translateY(0); opacity:1; } }
 input[type="text"],input[type="tel"],input[type="email"],input[type="number"],select,textarea{
   width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:10px;font-family:inherit;font-size:.9rem;
   background:#fafafa;transition:border .2s;outline:none
@@ -247,7 +252,7 @@ textarea{resize:vertical;min-height:70px}
   <div class="row">
     <div class="col-6">
       <label>Seu nome completo <span class="requiredMark">*</span></label>
-      <input type="text" name="nome_completo" class="requiredField" placeholder="Ex.: Maria Fernanda da Silva" data-store>
+      <input type="text" name="nome_completo" class="requiredField" placeholder="Ex.: Maria Fernanda da Silva" data-store required aria-required="true">
     </div>
     <div class="col-6">
       <label>CPF</label>
@@ -258,11 +263,11 @@ textarea{resize:vertical;min-height:70px}
   <div class="row">
     <div class="col-6">
       <label>WhatsApp <span class="requiredMark">*</span></label>
-      <input type="tel" name="whatsapp" class="requiredField" placeholder="(00) 00000-0000" data-mask="phone" data-store>
+      <input type="tel" name="whatsapp" class="requiredField" placeholder="(00) 00000-0000" data-mask="phone" data-store required aria-required="true">
     </div>
     <div class="col-6">
       <label>Nome do filho(a) a que este formulário se refere <span class="requiredMark">*</span></label>
-      <input type="text" name="nome_filho_referente" id="nomeFilhoInput" class="requiredField" placeholder="Ex.: Ana Clara" data-store>
+      <input type="text" name="nome_filho_referente" id="nomeFilhoInput" class="requiredField" placeholder="Ex.: Ana Clara" data-store required aria-required="true">
       <div style="margin-top:8px;">
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text);">
           <input type="checkbox" id="semFilhosCheck" style="width:auto;"> Não tenho filhos
@@ -324,7 +329,7 @@ textarea{resize:vertical;min-height:70px}
   <div class="row">
     <div class="col-6">
       <label>Fonte de renda <span class="requiredMark">*</span></label>
-      <select name="fonte_renda" class="requiredField" data-store>
+      <select name="fonte_renda" class="requiredField" data-store required aria-required="true">
         <option value="">Selecione</option>
         <option value="empregado_clt">Empregado(a) CLT</option>
         <option value="autonomo">Autônomo(a)</option>
@@ -1103,7 +1108,15 @@ function buildSummaryChart(catTotals){
 /* ========== BUILD REVIEW ========== */
 function buildReview(){
   const moradores=Math.max(1,+(document.querySelector('[name="moradores"]')?.value||1));
-  let html='<table class="reviewTable"><thead><tr><th>Categoria</th><th style="text-align:right">Valor total</th><th style="text-align:right">Por pessoa</th></tr></thead><tbody>';
+  // Amanda 11/06/2026: a coluna antes chamada 'Por pessoa' confundia o usuario
+  // porque só Moradia é rateada — nas outras o número repetia. Renomeei pra
+  // 'Considerado no total' e nas categorias sem rateio mostro '—'. Soma usa
+  // o 'considerado'. Embaixo da tabela vai uma legenda explicativa.
+  let html='<table class="reviewTable"><thead><tr>'
+    +'<th>Categoria</th>'
+    +'<th style="text-align:right">Valor total</th>'
+    +'<th style="text-align:right" title="Quanto desta categoria entra no TOTAL MENSAL deste formulário">Considerado no total</th>'
+    +'</tr></thead><tbody>';
   let grandTotal=0;
   const catTotals=[];
 
@@ -1114,17 +1127,26 @@ function buildReview(){
     });
     // Eventuais (anuais): mostra total anual mas mensaliza pra somar no TOTAL MENSAL
     const total = (cat.mensalizar && cat.mensalizar > 1) ? Math.round(totalBruto / cat.mensalizar) : totalBruto;
-    const perPerson=(cat.key==='moradia')?Math.round(total/moradores):total;
-    grandTotal+=perPerson;
-    catTotals.push({label:cat.label,cents:perPerson});
+    const ehMoradia = (cat.key==='moradia');
+    const considerado = ehMoradia ? Math.round(total/moradores) : total;
+    grandTotal+=considerado;
+    catTotals.push({label:cat.label,cents:considerado});
     if(totalBruto>0){
       const labelExtra = (cat.mensalizar && cat.mensalizar > 1) ? ` <small style="color:#888">(anual ${formatBRL(totalBruto)})</small>` : '';
-      html+=`<tr><td>${cat.label}${labelExtra}</td><td style="text-align:right">${formatBRL(total)}</td><td style="text-align:right">${formatBRL(perPerson)}</td></tr>`;
+      const consideradoCelula = ehMoradia
+        ? `${formatBRL(considerado)} <small style="color:#6b4c2e;font-weight:600;">÷ ${moradores} morador${moradores>1?'es':''}</small>`
+        : `<span style="color:#27ae60;">${formatBRL(considerado)}</span>`;
+      html+=`<tr><td>${cat.label}${labelExtra}</td><td style="text-align:right">${formatBRL(total)}</td><td style="text-align:right">${consideradoCelula}</td></tr>`;
     }
   });
 
   html+=`<tr class="totalRow"><td><strong>TOTAL MENSAL</strong></td><td style="text-align:right" colspan="2"><strong>${formatBRL(grandTotal)}</strong></td></tr>`;
   html+='</tbody></table>';
+  html+='<div style="margin-top:8px;padding:8px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:12px;color:#78350f;line-height:1.5;">'
+    +'💡 <strong>Como ler:</strong> só a categoria <strong>Moradia</strong> é rateada pelo número de moradores '
+    +`(${moradores} pessoa${moradores>1?'s':''} na residência) — porque a despesa é da casa toda, não só do filho. `
+    +'As outras categorias entram <strong>integralmente</strong> no total. O <strong>TOTAL MENSAL</strong> '
+    +'é a soma da última coluna.</div>';
 
   document.getElementById('reviewContent').innerHTML=html;
   buildChart(catTotals);
@@ -1227,15 +1249,49 @@ async function submitForm(){
 
   // Página única: a validação dos obrigatórios (que antes era por etapa)
   // acontece aqui no envio. Rola até o 1º campo vazio e avisa.
-  for(const f of document.querySelectorAll('.requiredField')){
+  // Amanda 11/06/2026: borda vermelha + mensagem inline próxima ao campo
+  // (antes só toast que sumia rápido — usuário não via o erro).
+  document.querySelectorAll('.requiredField').forEach(f=>{ f.classList.remove('fieldErr'); });
+  document.querySelectorAll('.fieldErrMsg').forEach(el=>{ el.classList.remove('visible'); el.textContent=''; });
+  let primeiroErro = null;
+  const camposObrig = [...document.querySelectorAll('.requiredField')];
+  for(const f of camposObrig){
     if(f.offsetParent===null) continue; // ignora campos escondidos (ex.: filho c/ "sem filhos")
-    if(f.value.trim()===''){
-      toast('Preencha os campos obrigatórios (marcados com *)','err');
-      f.scrollIntoView({behavior:'smooth',block:'center'});
-      setTimeout(()=>f.focus(),300);
-      return;
+    if((f.value||'').trim()===''){
+      f.classList.add('fieldErr');
+      // Insere/atualiza mensagem inline logo abaixo do campo
+      let msg = f.nextElementSibling;
+      if (!msg || !msg.classList.contains('fieldErrMsg')) {
+        msg = document.createElement('div');
+        msg.className = 'fieldErrMsg';
+        f.parentNode.insertBefore(msg, f.nextSibling);
+      }
+      const labelEl = f.closest('.col-6,.col-12,div')?.querySelector('label');
+      const label = labelEl ? labelEl.textContent.replace(/\*/g,'').trim() : (f.name || 'este campo');
+      msg.textContent = '⚠️ Preencha: ' + label;
+      msg.classList.add('visible');
+      if (!primeiroErro) primeiroErro = f;
     }
   }
+  if (primeiroErro) {
+    toast('Preencha os campos obrigatórios (marcados com *)','err');
+    primeiroErro.scrollIntoView({behavior:'smooth',block:'center'});
+    setTimeout(()=>primeiroErro.focus(),350);
+    return;
+  }
+  // Quando o usuário começar a corrigir, limpa o erro automaticamente
+  camposObrig.forEach(f=>{
+    if (!f._validBound) {
+      f._validBound = true;
+      f.addEventListener('input', ()=>{
+        if ((f.value||'').trim() !== '') {
+          f.classList.remove('fieldErr');
+          const msg = f.nextElementSibling;
+          if (msg && msg.classList.contains('fieldErrMsg')) msg.classList.remove('visible');
+        }
+      });
+    }
+  });
 
   // Validação anti-zerado (Amanda 14/05/2026): vários envios chegavam com TODOS
   // os valores em 0 porque o cliente reabria o form em outro dispositivo (sem
