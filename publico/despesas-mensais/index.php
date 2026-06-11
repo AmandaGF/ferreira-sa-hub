@@ -792,7 +792,28 @@ document.addEventListener('DOMContentLoaded', () => {
   updateSummaryKPIs();
   try{ buildReview(); }catch(e){}   // não pode derrubar o init se falhar
   autoSaveLoop();
+  initRequiredFieldAutoClear(); // Amanda 11/06/2026: limpa erro vermelho ao preencher
 });
+
+/* Amanda 11/06/2026: assim que o usuario preencher (input) ou sair (blur) de
+ * um campo obrigatório em erro, remove a borda vermelha e a mensagem inline
+ * — sem esperar o próximo clique em Enviar. */
+function initRequiredFieldAutoClear(){
+  document.querySelectorAll('.requiredField').forEach(f => {
+    if (f._validBound) return;
+    f._validBound = true;
+    const limpar = () => {
+      if ((f.value || '').trim() !== '') {
+        f.classList.remove('fieldErr');
+        const msg = f.nextElementSibling;
+        if (msg && msg.classList.contains('fieldErrMsg')) msg.classList.remove('visible');
+      }
+    };
+    f.addEventListener('input', limpar);
+    f.addEventListener('change', limpar); // pra <select>
+    f.addEventListener('blur', limpar);
+  });
+}
 
 /* ========== PROGRESS BAR ========== */
 function buildProgressBar(){
@@ -1279,19 +1300,6 @@ async function submitForm(){
     setTimeout(()=>primeiroErro.focus(),350);
     return;
   }
-  // Quando o usuário começar a corrigir, limpa o erro automaticamente
-  camposObrig.forEach(f=>{
-    if (!f._validBound) {
-      f._validBound = true;
-      f.addEventListener('input', ()=>{
-        if ((f.value||'').trim() !== '') {
-          f.classList.remove('fieldErr');
-          const msg = f.nextElementSibling;
-          if (msg && msg.classList.contains('fieldErrMsg')) msg.classList.remove('visible');
-        }
-      });
-    }
-  });
 
   // Validação anti-zerado (Amanda 14/05/2026): vários envios chegavam com TODOS
   // os valores em 0 porque o cliente reabria o form em outro dispositivo (sem
