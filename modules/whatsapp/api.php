@@ -191,6 +191,12 @@ if (($_GET['action'] ?? $_POST['action'] ?? '') === 'resumir_conv_ia') {
 // transcricoes de audio) e responde em texto curto e direto.
 if (($_GET['action'] ?? $_POST['action'] ?? '') === 'perguntar_ia_chat') {
     $action = 'perguntar_ia_chat';
+    // Amanda 11/06/2026: aumenta timeout e ignora desconexao do cliente pra
+    // chamada IA terminar mesmo se o navegador desistir.
+    @set_time_limit(180);
+    @ignore_user_abort(true);
+    header('Content-Type: application/json; charset=utf-8');
+
     if (!ia_user_autorizado(current_user_id())) { echo json_encode(array('error' => 'Não autorizado a usar IA')); exit; }
     $convId = (int)($_POST['conversa_id'] ?? $_GET['conversa_id'] ?? 0);
     $pergunta = trim((string)($_POST['pergunta'] ?? $_GET['pergunta'] ?? ''));

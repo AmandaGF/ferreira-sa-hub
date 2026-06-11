@@ -2874,11 +2874,33 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fd.append('pergunta', pergunta);
         fd.append('csrf_token', csrf);
 
-        fetch(apiUrl, { method: 'POST', body: fd })
-            .then(function(r){ return r.json(); })
-            .then(function(d){
+        // Amanda 11/06/2026: timeout 180s + erro verbose pra debug
+        var ctrl = new AbortController();
+        var timeoutId = setTimeout(function(){ ctrl.abort(); }, 180000);
+
+        fetch(apiUrl, { method: 'POST', body: fd, signal: ctrl.signal })
+            .then(function(r){
+                clearTimeout(timeoutId);
+                return r.text().then(function(txt){
+                    return { status: r.status, ok: r.ok, body: txt };
+                });
+            })
+            .then(function(res){
                 btn.disabled = false;
                 btn.textContent = '🤖 Perguntar';
+                var d;
+                try { d = JSON.parse(res.body); }
+                catch (e) {
+                    caixaResp.style.background = '#fef2f2';
+                    caixaResp.style.borderLeftColor = '#dc2626';
+                    caixaResp.style.color = '#991b1b';
+                    var preview = (res.body || '').substring(0, 500);
+                    caixaResp.textContent = '⚠️ HTTP ' + res.status + ' — servidor não retornou JSON. '
+                                          + 'Provavelmente timeout do PHP ou erro fatal. '
+                                          + 'Resposta bruta:\n\n' + preview;
+                    console.error('[perguntar_ia_chat] body bruto:', res.body);
+                    return;
+                }
                 if (d.error) {
                     caixaResp.style.background = '#fef2f2';
                     caixaResp.style.borderLeftColor = '#dc2626';
@@ -2895,13 +2917,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                       + (d.tokens || 0) + ' tokens · custo ~R$ '
                                       + (d.custo_brl ? d.custo_brl.toFixed(4) : '0,0000');
             })
-            .catch(function(){
+            .catch(function(err){
+                clearTimeout(timeoutId);
                 btn.disabled = false;
                 btn.textContent = '🤖 Perguntar';
                 caixaResp.style.background = '#fef2f2';
                 caixaResp.style.borderLeftColor = '#dc2626';
                 caixaResp.style.color = '#991b1b';
-                caixaResp.textContent = '⚠️ Erro de rede. Tente novamente.';
+                var msg = '⚠️ ';
+                if (err && err.name === 'AbortError') msg += 'Timeout (180s). A IA está demorando demais — conversa muito longa? Tente uma pergunta mais específica.';
+                else msg += 'Erro de rede: ' + (err && err.message ? err.message : 'desconhecido');
+                caixaResp.textContent = msg;
+                console.error('[perguntar_ia_chat] erro:', err);
             });
     };
 
