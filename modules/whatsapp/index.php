@@ -839,6 +839,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
         actions += '<button onclick="waCriarChamadoComResumoIA()" title="IA resume a conversa e abre o chamado com descrição pronta (R$ ~0,05)" style="background:#6d28d9;color:#fff;border-color:#6d28d9;">✨ Chamado IA</button>';
         <?php endif; ?>
+        <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id())): ?>
+        actions += '<button onclick="waPerguntarIA()" title="Pergunte à IA sobre o conteúdo da conversa. Ex: a cliente preencheu o formulário? que documentos faltam?" style="background:#0ea5e9;color:#fff;border-color:#0ea5e9;">🤖 Perguntar à IA</button>';
+        <?php endif; ?>
         if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
         if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
         // Botão "Vincular cliente" — aparece quando conversa AINDA NÃO tem cliente vinculado
@@ -2789,6 +2792,118 @@ require_once APP_ROOT . '/templates/layout_start.php';
     function _waResumoLimpar(convId) {
         try { localStorage.removeItem(_waResumoCacheKey(convId)); } catch(e){}
     }
+
+    // ═══════════════════════════════════════════════════════════
+    // Amanda 11/06/2026: Perguntar à IA sobre a conversa atual
+    // ═══════════════════════════════════════════════════════════
+    window.waPerguntarIA = function() {
+        if (!convAtiva) return;
+        var overlay = document.getElementById('waPergIaOverlay');
+        if (overlay) overlay.remove();
+
+        overlay = document.createElement('div');
+        overlay.id = 'waPergIaOverlay';
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+        var box = document.createElement('div');
+        box.style.cssText = 'background:#fff;border-radius:12px;max-width:620px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);';
+        box.innerHTML =
+            '<div style="padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:#0ea5e9;border-radius:12px 12px 0 0;">'
+                + '<div style="color:#fff;"><strong style="font-size:1.05rem;">🤖 Perguntar à IA</strong>'
+                + '<div style="font-size:.72rem;opacity:.85;margin-top:2px;">A IA lê o histórico desta conversa e responde sua pergunta.</div></div>'
+                + '<button onclick="document.getElementById(\'waPergIaOverlay\').remove()" style="background:transparent;border:none;color:#fff;font-size:1.4rem;cursor:pointer;line-height:1;">×</button>'
+            + '</div>'
+            + '<div style="padding:1rem 1.25rem;overflow-y:auto;flex:1;">'
+                + '<label style="font-size:.78rem;font-weight:700;color:#475569;display:block;margin-bottom:.4rem;">Sua pergunta:</label>'
+                + '<textarea id="waPergIaInput" rows="3" placeholder="Ex: a cliente preencheu o formulário de gastos? · Que documentos ela já mandou? · Ela informou o CPF do filho? · Confirmou o endereço novo?" style="width:100%;padding:.65rem .75rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.88rem;font-family:inherit;resize:vertical;"></textarea>'
+                + '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;">'
+                    + '<button class="waPergIaSugestao" type="button" data-q="A cliente preencheu o formulário?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">💡 Preencheu o formulário?</button>'
+                    + '<button class="waPergIaSugestao" type="button" data-q="Quais documentos a cliente já enviou e quais ainda faltam?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📄 Que docs faltam?</button>'
+                    + '<button class="waPergIaSugestao" type="button" data-q="Qual foi o último compromisso/promessa que a cliente fez?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">⏰ Última promessa?</button>'
+                    + '<button class="waPergIaSugestao" type="button" data-q="A cliente confirmou os dados pessoais (CPF, endereço, etc)?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📇 Confirmou dados?</button>'
+                + '</div>'
+                + '<div id="waPergIaResposta" style="display:none;margin-top:1rem;padding:.85rem 1rem;background:#f0f9ff;border-left:4px solid #0ea5e9;border-radius:0 8px 8px 0;font-size:.88rem;color:#0c4a6e;line-height:1.5;white-space:pre-wrap;"></div>'
+                + '<div id="waPergIaMeta" style="display:none;margin-top:.4rem;font-size:.68rem;color:#94a3b8;"></div>'
+            + '</div>'
+            + '<div style="padding:.8rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:.5rem;background:#f8fafc;border-radius:0 0 12px 12px;">'
+                + '<button onclick="document.getElementById(\'waPergIaOverlay\').remove()" style="padding:.5rem 1rem;background:#fff;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;">Fechar</button>'
+                + '<button id="waPergIaBtn" onclick="waPerguntarIaEnviar()" style="padding:.5rem 1.1rem;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;">🤖 Perguntar</button>'
+            + '</div>';
+
+        overlay.appendChild(box);
+        document.body.appendChild(overlay);
+
+        // Sugestões: clica → preenche input
+        overlay.querySelectorAll('.waPergIaSugestao').forEach(function(b){
+            b.onclick = function() {
+                document.getElementById('waPergIaInput').value = b.dataset.q;
+                document.getElementById('waPergIaInput').focus();
+            };
+        });
+
+        // Enter sem shift envia
+        var input = document.getElementById('waPergIaInput');
+        input.focus();
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                window.waPerguntarIaEnviar();
+            }
+        });
+    };
+
+    window.waPerguntarIaEnviar = function() {
+        var input = document.getElementById('waPergIaInput');
+        var pergunta = (input.value || '').trim();
+        if (pergunta.length < 4) { alert('Digite uma pergunta mais específica (mín. 4 caracteres).'); return; }
+
+        var btn = document.getElementById('waPergIaBtn');
+        var caixaResp = document.getElementById('waPergIaResposta');
+        var caixaMeta = document.getElementById('waPergIaMeta');
+
+        btn.disabled = true;
+        btn.textContent = '⏳ Pensando...';
+        caixaResp.style.display = 'block';
+        caixaResp.textContent = 'A IA está lendo o histórico desta conversa...';
+        caixaMeta.style.display = 'none';
+
+        var fd = new FormData();
+        fd.append('action', 'perguntar_ia_chat');
+        fd.append('conversa_id', convAtiva);
+        fd.append('pergunta', pergunta);
+        fd.append('csrf_token', csrf);
+
+        fetch(apiUrl, { method: 'POST', body: fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                btn.disabled = false;
+                btn.textContent = '🤖 Perguntar';
+                if (d.error) {
+                    caixaResp.style.background = '#fef2f2';
+                    caixaResp.style.borderLeftColor = '#dc2626';
+                    caixaResp.style.color = '#991b1b';
+                    caixaResp.textContent = '⚠️ ' + d.error;
+                    return;
+                }
+                caixaResp.style.background = '#f0f9ff';
+                caixaResp.style.borderLeftColor = '#0ea5e9';
+                caixaResp.style.color = '#0c4a6e';
+                caixaResp.textContent = d.resposta || '(sem resposta)';
+                caixaMeta.style.display = 'block';
+                caixaMeta.textContent = '💬 ' + (d.mensagens_analisadas || 0) + ' mensagens analisadas · '
+                                      + (d.tokens || 0) + ' tokens · custo ~R$ '
+                                      + (d.custo_brl ? d.custo_brl.toFixed(4) : '0,0000');
+            })
+            .catch(function(){
+                btn.disabled = false;
+                btn.textContent = '🤖 Perguntar';
+                caixaResp.style.background = '#fef2f2';
+                caixaResp.style.borderLeftColor = '#dc2626';
+                caixaResp.style.color = '#991b1b';
+                caixaResp.textContent = '⚠️ Erro de rede. Tente novamente.';
+            });
+    };
 
     window.waCriarChamadoComResumoIA = function() {
         if (!convAtiva) return;

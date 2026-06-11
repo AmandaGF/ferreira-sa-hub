@@ -185,6 +185,113 @@ if (($_GET['action'] ?? $_POST['action'] ?? '') === 'resumir_conv_ia') {
     exit;
 }
 
+// ── Amanda 11/06/2026: pergunta livre à IA sobre o conteúdo da conversa ──
+// Ex: 'a cliente preencheu o formulario de gastos?', 'que documentos faltam?',
+// 'ela informou o CPF do filho?', etc. A IA varre TODAS as mensagens (incluindo
+// transcricoes de audio) e responde em texto curto e direto.
+if (($_GET['action'] ?? $_POST['action'] ?? '') === 'perguntar_ia_chat') {
+    $action = 'perguntar_ia_chat';
+    if (!ia_user_autorizado(current_user_id())) { echo json_encode(array('error' => 'Não autorizado a usar IA')); exit; }
+    $convId = (int)($_POST['conversa_id'] ?? $_GET['conversa_id'] ?? 0);
+    $pergunta = trim((string)($_POST['pergunta'] ?? $_GET['pergunta'] ?? ''));
+    if (!$convId)            { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    if (mb_strlen($pergunta) < 4) { echo json_encode(array('error' => 'Pergunta muito curta')); exit; }
+    if (mb_strlen($pergunta) > 500) $pergunta = mb_substr($pergunta, 0, 500, 'UTF-8');
+
+    try {
+        $stC = db()->prepare("SELECT co.id, co.canal, co.telefone, co.nome_contato, co.client_id, c.name AS client_name
+                              FROM zapi_conversas co LEFT JOIN clients c ON c.id = co.client_id WHERE co.id = ? LIMIT 1");
+        $stC->execute(array($convId));
+        $conv = $stC->fetch(PDO::FETCH_ASSOC);
+        if (!$conv) { echo json_encode(array('error' => 'Conversa não encontrada')); exit; }
+
+        // Puxa as ultimas 400 msgs (texto + transcricao de audio + tipo de midia).
+        // 400 cobre conversas longas sem estourar contexto do Haiku 4.5 (200k).
+        $stM = db()->prepare(
+            "SELECT m.direcao, m.tipo, m.conteudo, m.arquivo_nome, m.transcricao, m.created_at, u.name AS quem
+             FROM zapi_mensagens m LEFT JOIN users u ON u.id = m.enviado_por_id
+             WHERE m.conversa_id = ?
+               AND (m.status IS NULL OR m.status != 'deletada')
+             ORDER BY m.created_at DESC LIMIT 400"
+        );
+        $stM->execute(array($convId));
+        $msgs = array_reverse($stM->fetchAll(PDO::FETCH_ASSOC));
+        if (!$msgs) { echo json_encode(array('error' => 'Conversa sem mensagens')); exit; }
+
+        $nomeCli = $conv['nome_contato'] ?: ($conv['client_name'] ?: 'Cliente');
+        $ctx  = "Cliente: " . $nomeCli . "\n";
+        $ctx .= "Canal: WhatsApp " . ($conv['canal'] === '21' ? 'Comercial (21)' : 'CX (24)') . "\n";
+        $ctx .= "Total de mensagens: " . count($msgs) . "\n\n";
+        $ctx .= "HISTÓRICO COMPLETO (cronológico, mais antigas primeiro):\n";
+        foreach ($msgs as $m) {
+            $autor = $m['direcao'] === 'enviada' ? ($m['quem'] ? 'Equipe (' . $m['quem'] . ')' : 'Equipe') : $nomeCli;
+            $ts    = date('d/m/Y H:i', strtotime($m['created_at']));
+            $tipo  = $m['tipo'] ?: 'texto';
+            $conteudoBruto = trim((string)$m['conteudo']);
+
+            // Para audio/imagem/video/documento sem texto util, mostra o tipo + nome de arquivo + transcricao se houver
+            if (in_array($tipo, array('audio','imagem','video','documento','sticker'), true)) {
+                $linha = "[$tipo";
+                if (!empty($m['arquivo_nome'])) $linha .= ': ' . $m['arquivo_nome'];
+                $linha .= ']';
+                if (!empty($m['transcricao'])) $linha .= ' (transcricao: ' . trim($m['transcricao']) . ')';
+                if ($conteudoBruto && $conteudoBruto !== '[' . $tipo . ']') $linha .= ' ' . $conteudoBruto;
+                $tx = $linha;
+            } else {
+                $tx = $conteudoBruto;
+            }
+
+            $tx = preg_replace('/\s+/', ' ', $tx);
+            if (mb_strlen($tx) > 600) $tx = mb_substr($tx, 0, 600, 'UTF-8') . '…';
+            $ctx .= "[$ts] $autor: $tx\n";
+        }
+
+        $system = "Você é uma assistente jurídica do escritório Ferreira & Sá Advocacia. "
+                . "Vai receber o histórico COMPLETO de uma conversa WhatsApp entre a equipe e um cliente, "
+                . "e uma pergunta da advogada Amanda. Você deve responder a pergunta baseando-se EXCLUSIVAMENTE "
+                . "nas mensagens do histórico — NÃO invente, NÃO suponha.\n\n"
+                . "REGRAS:\n"
+                . "- Resposta direta, em 1-3 frases curtas. Português brasileiro.\n"
+                . "- Cite a DATA da mensagem relevante quando possível (formato dd/mm).\n"
+                . "- Se houver citação textual importante, coloque entre aspas.\n"
+                . "- Se a resposta NÃO ESTÁ no histórico, diga claramente: 'Não encontrei essa informação na conversa.'\n"
+                . "- Se a resposta for parcial (cliente prometeu mas não enviou), diga isso explicitamente.\n"
+                . "- Não use markdown. Texto corrido simples.\n"
+                . "- Não cumprimente, vá direto ao ponto.";
+
+        $userMsg = $ctx . "\n────────────────────────────────\nPERGUNTA da advogada: " . $pergunta;
+
+        $r = ia_chamar(
+            'perguntar_ia_chat',
+            'claude-haiku-4-5',
+            $system,
+            array(array('role' => 'user', 'content' => $userMsg)),
+            array(
+                'user_id'      => current_user_id(),
+                'max_tokens'   => 400,
+                'temperature'  => 0.1,
+                'contexto'     => 'conv#' . $convId . ' q=' . mb_substr($pergunta, 0, 60),
+                'cache_system' => true,
+            )
+        );
+
+        if (!$r['ok']) { echo json_encode(array('error' => $r['erro'] ?: 'Falha IA')); exit; }
+
+        @audit_log('IA_PERGUNTA_CHAT', 'zapi_conversas', $convId, mb_substr($pergunta, 0, 100));
+        echo json_encode(array(
+            'ok'         => true,
+            'resposta'   => $r['texto'],
+            'pergunta'   => $pergunta,
+            'custo_brl'  => $r['custo_brl'],
+            'tokens'     => $r['input_tokens'] + $r['output_tokens'],
+            'mensagens_analisadas' => count($msgs),
+        ));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
 $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_rapido', 'assumir_atendimento', 'atribuir', 'resolver',
                   'ativar_bot', 'desativar_bot', 'marcar_lida', 'marcar_nao_lida', 'arquivar',
                   'sincronizar_conversa', 'importar_todos',
