@@ -19,6 +19,7 @@ function case_desfechos(): array {
         'acordo'                    => array('label' => 'Acordo / transação',             'cor' => '#0ea5e9', 'cobravel' => true,  'alerta' => 'Conferir termos do acordo antes de cobrar honorários contratuais adicionais.'),
         'extinto_sem_julgamento'    => array('label' => 'Extinto sem julgamento',         'cor' => '#dc2626', 'cobravel' => false, 'alerta' => '⚠️ Extinção sem resolução do mérito (CPC 485) — avaliar cuidadosamente o direito à cobrança de honorários contratuais.'),
         'desistencia'               => array('label' => 'Desistência pelo cliente',       'cor' => '#dc2626', 'cobravel' => false, 'alerta' => '⚠️ Desistência do cliente — avaliar causa e cláusula contratual antes de cobrar.'),
+        'renuncia'                  => array('label' => 'Renúncia',                       'cor' => '#a16207', 'cobravel' => false, 'alerta' => '⚠️ Renúncia (do mandato ou ao direito). Avaliar contrato + momento processual antes de cobrar.'),
         'arquivado'                 => array('label' => 'Arquivado (outros)',             'cor' => '#94a3b8', 'cobravel' => true,  'alerta' => null),
     );
 }
