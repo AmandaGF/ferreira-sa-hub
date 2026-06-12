@@ -2,7 +2,7 @@
 // Estratégia: network-first para HTML/API, cache-first para assets estáticos,
 // offline.html como fallback quando estiver sem rede.
 
-var CACHE_NAME = 'fshub-v61-perguntar-ia-debug';
+var CACHE_NAME = 'fshub-v62-hist-perg-ia';
 var OFFLINE_URL = '/conecta/offline.html';
 
 // Shell mínimo pré-cacheado — assets que compõem o layout base

@@ -77,6 +77,24 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
 
+// Amanda 12/06/2026: historico de perguntas IA por conversa
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_ia_perguntas (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        conversa_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED DEFAULT NULL,
+        pergunta TEXT NOT NULL,
+        resposta TEXT,
+        tokens INT UNSIGNED DEFAULT 0,
+        custo_brl DECIMAL(10,4) DEFAULT 0,
+        mensagens_analisadas INT UNSIGNED DEFAULT 0,
+        modelo VARCHAR(50) DEFAULT 'claude-haiku-4-5',
+        criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_conv (conversa_id, criado_em),
+        INDEX idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+} catch (Exception $e) {}
+
 // Self-heal: biblioteca de stickers compartilhada pela equipe
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS zapi_stickers (
@@ -283,15 +301,80 @@ if (($_GET['action'] ?? $_POST['action'] ?? '') === 'perguntar_ia_chat') {
 
         if (!$r['ok']) { echo json_encode(array('error' => $r['erro'] ?: 'Falha IA')); exit; }
 
+        // Amanda 12/06/2026: grava no historico pra reabrir sem pagar IA de novo
+        $perguntaId = 0;
+        try {
+            $stIns = db()->prepare("INSERT INTO zapi_ia_perguntas
+                (conversa_id, user_id, pergunta, resposta, tokens, custo_brl, mensagens_analisadas, modelo)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stIns->execute(array(
+                $convId,
+                current_user_id() ?: null,
+                $pergunta,
+                $r['texto'],
+                (int)($r['input_tokens'] + $r['output_tokens']),
+                (float)$r['custo_brl'],
+                count($msgs),
+                'claude-haiku-4-5',
+            ));
+            $perguntaId = (int)db()->lastInsertId();
+        } catch (Throwable $eIns) { /* silencioso — historico nao deve quebrar a feature */ }
+
         @audit_log('IA_PERGUNTA_CHAT', 'zapi_conversas', $convId, mb_substr($pergunta, 0, 100));
         echo json_encode(array(
             'ok'         => true,
+            'id'         => $perguntaId,
             'resposta'   => $r['texto'],
             'pergunta'   => $pergunta,
             'custo_brl'  => $r['custo_brl'],
             'tokens'     => $r['input_tokens'] + $r['output_tokens'],
             'mensagens_analisadas' => count($msgs),
         ));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
+    }
+    exit;
+}
+
+// Amanda 12/06/2026: lista historico de perguntas IA desta conversa (sem custo)
+if (($_GET['action'] ?? $_POST['action'] ?? '') === 'historico_ia_chat') {
+    header('Content-Type: application/json; charset=utf-8');
+    $convId = (int)($_GET['conversa_id'] ?? $_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa_id obrigatório')); exit; }
+    try {
+        $st = db()->prepare("SELECT p.id, p.pergunta, p.resposta, p.tokens, p.custo_brl,
+                                    p.mensagens_analisadas, p.criado_em,
+                                    u.name AS user_name
+                             FROM zapi_ia_perguntas p
+                             LEFT JOIN users u ON u.id = p.user_id
+                             WHERE p.conversa_id = ?
+                             ORDER BY p.criado_em DESC, p.id DESC
+                             LIMIT 50");
+        $st->execute(array($convId));
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+        echo json_encode(array('ok' => true, 'historico' => $rows, 'total' => count($rows)));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage(), 'historico' => array()));
+    }
+    exit;
+}
+
+// Amanda 12/06/2026: apaga uma pergunta do historico
+if (($_GET['action'] ?? $_POST['action'] ?? '') === 'apagar_pergunta_ia') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
+    $pergId = (int)($_POST['pergunta_id'] ?? 0);
+    if (!$pergId) { echo json_encode(array('error' => 'pergunta_id obrigatório')); exit; }
+    try {
+        // Só permite apagar perguntas que o próprio user fez (ou admin)
+        $check = db()->prepare("SELECT user_id FROM zapi_ia_perguntas WHERE id = ?");
+        $check->execute(array($pergId));
+        $ownerId = (int)$check->fetchColumn();
+        if ($ownerId !== (int)current_user_id() && (int)current_user_id() !== 1) {
+            echo json_encode(array('error' => 'Sem permissão')); exit;
+        }
+        db()->prepare("DELETE FROM zapi_ia_perguntas WHERE id = ?")->execute(array($pergId));
+        echo json_encode(array('ok' => true));
     } catch (Throwable $e) {
         echo json_encode(array('error' => 'Erro: ' . $e->getMessage()));
     }

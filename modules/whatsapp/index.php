@@ -2814,19 +2814,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 + '<div style="font-size:.72rem;opacity:.85;margin-top:2px;">A IA lê o histórico desta conversa e responde sua pergunta.</div></div>'
                 + '<button onclick="document.getElementById(\'waPergIaOverlay\').remove()" style="background:transparent;border:none;color:#fff;font-size:1.4rem;cursor:pointer;line-height:1;">×</button>'
             + '</div>'
-            + '<div style="padding:1rem 1.25rem;overflow-y:auto;flex:1;">'
-                + '<label style="font-size:.78rem;font-weight:700;color:#475569;display:block;margin-bottom:.4rem;">Sua pergunta:</label>'
-                + '<textarea id="waPergIaInput" rows="3" placeholder="Ex: a cliente preencheu o formulário de gastos? · Que documentos ela já mandou? · Ela informou o CPF do filho? · Confirmou o endereço novo?" style="width:100%;padding:.65rem .75rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.88rem;font-family:inherit;resize:vertical;"></textarea>'
-                + '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;">'
-                    + '<button class="waPergIaSugestao" type="button" data-q="A cliente preencheu o formulário?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">💡 Preencheu o formulário?</button>'
-                    + '<button class="waPergIaSugestao" type="button" data-q="Quais documentos a cliente já enviou e quais ainda faltam?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📄 Que docs faltam?</button>'
-                    + '<button class="waPergIaSugestao" type="button" data-q="Qual foi o último compromisso/promessa que a cliente fez?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">⏰ Última promessa?</button>'
-                    + '<button class="waPergIaSugestao" type="button" data-q="A cliente confirmou os dados pessoais (CPF, endereço, etc)?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📇 Confirmou dados?</button>'
-                + '</div>'
-                + '<div id="waPergIaResposta" style="display:none;margin-top:1rem;padding:.85rem 1rem;background:#f0f9ff;border-left:4px solid #0ea5e9;border-radius:0 8px 8px 0;font-size:.88rem;color:#0c4a6e;line-height:1.5;white-space:pre-wrap;"></div>'
-                + '<div id="waPergIaMeta" style="display:none;margin-top:.4rem;font-size:.68rem;color:#94a3b8;"></div>'
+            // Tabs Nova pergunta / Historico (Amanda 12/06/2026)
+            + '<div style="display:flex;border-bottom:1px solid #e5e7eb;background:#f8fafc;">'
+                + '<button id="waPergTabNova" onclick="waPergTrocaTab(\'nova\')" style="flex:1;padding:.6rem;border:none;background:transparent;font-size:.82rem;font-weight:700;color:#0ea5e9;border-bottom:3px solid #0ea5e9;cursor:pointer;">🆕 Nova pergunta</button>'
+                + '<button id="waPergTabHist" onclick="waPergTrocaTab(\'hist\')" style="flex:1;padding:.6rem;border:none;background:transparent;font-size:.82rem;font-weight:600;color:#64748b;border-bottom:3px solid transparent;cursor:pointer;">📜 Histórico <span id="waPergHistCnt" style="background:#cbd5e1;color:#1e293b;padding:1px 7px;border-radius:8px;font-size:.65rem;margin-left:4px;">…</span></button>'
             + '</div>'
-            + '<div style="padding:.8rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:.5rem;background:#f8fafc;border-radius:0 0 12px 12px;">'
+            + '<div style="padding:1rem 1.25rem;overflow-y:auto;flex:1;">'
+                // ── Tab Nova ──
+                + '<div id="waPergPaneNova">'
+                    + '<label style="font-size:.78rem;font-weight:700;color:#475569;display:block;margin-bottom:.4rem;">Sua pergunta:</label>'
+                    + '<textarea id="waPergIaInput" rows="3" placeholder="Ex: a cliente preencheu o formulário de gastos? · Que documentos ela já mandou? · Ela informou o CPF do filho? · Confirmou o endereço novo?" style="width:100%;padding:.65rem .75rem;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.88rem;font-family:inherit;resize:vertical;"></textarea>'
+                    + '<div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.5rem;">'
+                        + '<button class="waPergIaSugestao" type="button" data-q="A cliente preencheu o formulário?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">💡 Preencheu o formulário?</button>'
+                        + '<button class="waPergIaSugestao" type="button" data-q="Quais documentos a cliente já enviou e quais ainda faltam?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📄 Que docs faltam?</button>'
+                        + '<button class="waPergIaSugestao" type="button" data-q="Qual foi o último compromisso/promessa que a cliente fez?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">⏰ Última promessa?</button>'
+                        + '<button class="waPergIaSugestao" type="button" data-q="A cliente confirmou os dados pessoais (CPF, endereço, etc)?" style="font-size:.7rem;padding:.25rem .6rem;border:1px solid #e0f2fe;background:#f0f9ff;color:#0c4a6e;border-radius:14px;cursor:pointer;">📇 Confirmou dados?</button>'
+                    + '</div>'
+                    + '<div id="waPergIaResposta" style="display:none;margin-top:1rem;padding:.85rem 1rem;background:#f0f9ff;border-left:4px solid #0ea5e9;border-radius:0 8px 8px 0;font-size:.88rem;color:#0c4a6e;line-height:1.5;white-space:pre-wrap;"></div>'
+                    + '<div id="waPergIaMeta" style="display:none;margin-top:.4rem;font-size:.68rem;color:#94a3b8;"></div>'
+                + '</div>'
+                // ── Tab Historico ──
+                + '<div id="waPergPaneHist" style="display:none;">'
+                    + '<div id="waPergHistLista" style="display:flex;flex-direction:column;gap:.6rem;"><div style="text-align:center;color:#94a3b8;font-size:.85rem;padding:1rem;">Carregando...</div></div>'
+                + '</div>'
+            + '</div>'
+            + '<div id="waPergFooter" style="padding:.8rem 1.25rem;border-top:1px solid #e5e7eb;display:flex;justify-content:flex-end;gap:.5rem;background:#f8fafc;border-radius:0 0 12px 12px;">'
                 + '<button onclick="document.getElementById(\'waPergIaOverlay\').remove()" style="padding:.5rem 1rem;background:#fff;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.82rem;font-weight:600;cursor:pointer;">Fechar</button>'
                 + '<button id="waPergIaBtn" onclick="waPerguntarIaEnviar()" style="padding:.5rem 1.1rem;background:#0ea5e9;color:#fff;border:none;border-radius:8px;font-size:.82rem;font-weight:700;cursor:pointer;">🤖 Perguntar</button>'
             + '</div>';
@@ -2851,6 +2863,89 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 window.waPerguntarIaEnviar();
             }
         });
+
+        // Amanda 12/06/2026: carrega historico em background pra mostrar a contagem
+        waPergCarregarHistorico();
+    };
+
+    // ── Tabs Nova/Histórico ──────────────────────────
+    window.waPergTrocaTab = function(t) {
+        var nova = document.getElementById('waPergPaneNova');
+        var hist = document.getElementById('waPergPaneHist');
+        var btnNova = document.getElementById('waPergTabNova');
+        var btnHist = document.getElementById('waPergTabHist');
+        var footer = document.getElementById('waPergFooter');
+        if (t === 'hist') {
+            nova.style.display = 'none'; hist.style.display = 'block';
+            btnNova.style.color = '#64748b'; btnNova.style.borderBottomColor = 'transparent';
+            btnHist.style.color = '#0ea5e9'; btnHist.style.borderBottomColor = '#0ea5e9';
+            document.getElementById('waPergIaBtn').style.display = 'none';
+            waPergCarregarHistorico(); // recarrega sempre que abre a aba
+        } else {
+            nova.style.display = 'block'; hist.style.display = 'none';
+            btnNova.style.color = '#0ea5e9'; btnNova.style.borderBottomColor = '#0ea5e9';
+            btnHist.style.color = '#64748b'; btnHist.style.borderBottomColor = 'transparent';
+            document.getElementById('waPergIaBtn').style.display = '';
+        }
+    };
+
+    // Carrega historico via API e renderiza a lista
+    window.waPergCarregarHistorico = function() {
+        if (!convAtiva) return;
+        var lista = document.getElementById('waPergHistLista');
+        var cnt = document.getElementById('waPergHistCnt');
+        fetch(apiUrl + '?action=historico_ia_chat&conversa_id=' + convAtiva)
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                var hist = (d && d.historico) || [];
+                if (cnt) cnt.textContent = hist.length;
+                if (!hist.length) {
+                    lista.innerHTML = '<div style="text-align:center;color:#94a3b8;font-size:.85rem;padding:1.5rem;font-style:italic;">📜 Nenhuma pergunta feita ainda nesta conversa.<br><small>Volta na aba "Nova pergunta" e faça a primeira!</small></div>';
+                    return;
+                }
+                var html = '';
+                hist.forEach(function(p){
+                    var data = new Date(p.criado_em.replace(' ', 'T'));
+                    var dataStr = ('0'+data.getDate()).slice(-2)+'/'+('0'+(data.getMonth()+1)).slice(-2)+'/'+data.getFullYear()
+                                + ' ' + ('0'+data.getHours()).slice(-2)+':'+('0'+data.getMinutes()).slice(-2);
+                    var custo = p.custo_brl ? parseFloat(p.custo_brl).toFixed(4).replace('.', ',') : '0,0000';
+                    html += '<div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">'
+                        + '<div style="padding:.6rem .85rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;">'
+                            + '<div style="flex:1;min-width:0;">'
+                                + '<div style="font-size:.85rem;font-weight:600;color:#0c4a6e;">❓ ' + escapeHtml(p.pergunta) + '</div>'
+                                + '<div style="font-size:.66rem;color:#94a3b8;margin-top:2px;">'
+                                    + '🕒 ' + dataStr
+                                    + (p.user_name ? ' · 👤 ' + escapeHtml(p.user_name) : '')
+                                    + ' · 💬 ' + (p.mensagens_analisadas || 0) + ' msgs · R$ ' + custo
+                                + '</div>'
+                            + '</div>'
+                            + '<button onclick="waPergApagar(' + p.id + ')" title="Apagar do histórico" style="background:transparent;border:none;color:#94a3b8;cursor:pointer;font-size:.9rem;line-height:1;padding:2px 6px;border-radius:4px;">🗑️</button>'
+                        + '</div>'
+                        + '<div style="padding:.7rem .85rem;background:#f0f9ff;border-left:3px solid #0ea5e9;font-size:.83rem;color:#0c4a6e;line-height:1.5;white-space:pre-wrap;">'
+                            + '🤖 ' + escapeHtml(p.resposta || '(sem resposta)')
+                        + '</div>'
+                    + '</div>';
+                });
+                lista.innerHTML = html;
+            })
+            .catch(function(){
+                lista.innerHTML = '<div style="text-align:center;color:#dc2626;font-size:.82rem;padding:1rem;">⚠️ Erro ao carregar histórico.</div>';
+            });
+    };
+
+    // Apagar pergunta do historico
+    window.waPergApagar = function(pergId) {
+        if (!confirm('Apagar esta pergunta do histórico?')) return;
+        var fd = new FormData();
+        fd.append('action', 'apagar_pergunta_ia');
+        fd.append('pergunta_id', pergId);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert(d.error); return; }
+                waPergCarregarHistorico();
+            });
     };
 
     window.waPerguntarIaEnviar = function() {
@@ -2916,6 +3011,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 caixaMeta.textContent = '💬 ' + (d.mensagens_analisadas || 0) + ' mensagens analisadas · '
                                       + (d.tokens || 0) + ' tokens · custo ~R$ '
                                       + (d.custo_brl ? d.custo_brl.toFixed(4) : '0,0000');
+                // Amanda 12/06/2026: atualiza a contagem do histórico
+                if (typeof waPergCarregarHistorico === 'function') waPergCarregarHistorico();
             })
             .catch(function(err){
                 clearTimeout(timeoutId);
