@@ -844,10 +844,16 @@ function renderLista() {
         var isAtrasada = ev.atrasada || false;
         if (isAtrasada) cor = '#dc2626';
         var _isBalcao = (ev.tipo === 'balcao_virtual');
-        var meetHtml = ev.meet_link
-            ? '<button class="ag-btn-acao meet" onclick="window.open(' + JSON.stringify(ev.meet_link) + ',\'_blank\')">Entrar no Meet</button>'
-              + '<button class="ag-btn-acao" onclick="copiarLinkMeet(' + JSON.stringify(ev.meet_link) + ',this)" title="Copia o link da reunião pra colar no WhatsApp">📋 Copiar link</button>'
-            : '';
+        // Amanda 12/06/2026: <a href> em vez de <button onclick="window.open(JSON.stringify(...))">.
+        // As aspas duplas que o stringify gera batiam com as do atributo onclick,
+        // quebrando o HTML — o botao parecia clicavel mas nao fazia nada.
+        // O 'Copiar link' tinha o mesmo bug latente — agora usa data-link via JS bind.
+        var meetHtml = '';
+        if (ev.meet_link) {
+            var _safeLink = String(ev.meet_link).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            meetHtml = '<a class="ag-btn-acao meet" href="' + _safeLink + '" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;">Entrar no Meet</a>'
+                     + '<button class="ag-btn-acao ag-copiar-meet" data-link="' + _safeLink + '" title="Copia o link da reunião pra colar no WhatsApp">📋 Copiar link</button>';
+        }
         var msgHtml = (ev.client_id && !_isBalcao) ? '<button class="ag-btn-acao" onclick="enviarMsgCliente(' + ev.id + ')">Mensagem cliente</button>' : '';
 
         var acoesHtml = '';
@@ -1568,6 +1574,15 @@ function _balcaoSyncFromFields() {
 // Listeners dos campos balcão: qualquer mudança sincroniza pro hidden datetime-local +
 // valida fds/feriado na data + checa conflito com outros balcões agendados
 document.addEventListener('DOMContentLoaded', function(){
+    // Amanda 12/06/2026: event delegation pro botao 'Copiar link' do Meet
+    // (substituiu onclick inline com JSON.stringify, que quebrava o HTML)
+    document.body.addEventListener('click', function(e){
+        var btn = e.target.closest('.ag-copiar-meet');
+        if (!btn) return;
+        e.preventDefault();
+        copiarLinkMeet(btn.dataset.link || '', btn);
+    });
+
     var dataEl = document.getElementById('agBalcaoData');
     if (dataEl) {
         dataEl.addEventListener('change', function() {
