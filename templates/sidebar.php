@@ -563,6 +563,21 @@ body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
 </style>
 
 <script>
+<?php
+// ── Favoritos do usuário vindos do SERVIDOR (seguem em qualquer PC) ──
+$__favsServidor = array();
+try {
+    $__uidFav = current_user_id();
+    if ($__uidFav) {
+        $__stFav = db()->prepare("SELECT fav_id AS id, label, icon, href FROM user_favoritos WHERE user_id = ? ORDER BY ordem, id");
+        $__stFav->execute(array($__uidFav));
+        $__favsServidor = $__stFav->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Throwable $__e) { /* tabela pode não existir ainda */ }
+?>
+window.FSA_FAVORITOS = <?= json_encode($__favsServidor ?: array(), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+window.FSA_FAVS_URL  = '<?= url('api/favoritos.php') ?>';
+
 // ── Colapsar sidebar ──
 function toggleSidebarCollapse() {
     var sb = document.getElementById('sidebar');
@@ -729,12 +744,31 @@ function sidebarFiltrar(q) {
     });
 })();
 
-// ── Favoritos ──
+// ── Favoritos (persistidos no SERVIDOR, por usuário) ──
+// Fonte da verdade: window.FSA_FAVORITOS (vem do banco no load). localStorage
+// vira só cache local (e fallback de migração do modelo antigo).
 function getFavoritos() {
+    if (window.FSA_FAVORITOS && Array.isArray(window.FSA_FAVORITOS)) return window.FSA_FAVORITOS;
     try { return JSON.parse(localStorage.getItem('sidebar_favoritos') || '[]'); } catch(e) { return []; }
 }
 function saveFavoritos(list) {
-    try { localStorage.setItem('sidebar_favoritos', JSON.stringify(list)); } catch(e) {}
+    window.FSA_FAVORITOS = list;
+    try { localStorage.setItem('sidebar_favoritos', JSON.stringify(list)); } catch(e) {} // cache
+    // Persiste no servidor pra seguir o usuário em qualquer máquina
+    persistirFavoritosServidor(list);
+}
+function persistirFavoritosServidor(list) {
+    if (!window.FSA_FAVS_URL) return;
+    try {
+        var body = new URLSearchParams();
+        body.set('csrf_token', window._FSA_CSRF || window.FSA_CSRF || '');
+        body.set('favoritos', JSON.stringify(list));
+        fetch(window.FSA_FAVS_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body.toString()
+        }).catch(function(){ /* offline: fica o cache local, sincroniza no próximo toggle */ });
+    } catch(e) {}
 }
 function toggleFavorito(btn, evt) {
     if (evt) { evt.preventDefault(); evt.stopPropagation(); }
@@ -800,6 +834,18 @@ function _sidebarRestorePrefs() {
                 }
             }
         });
+        // Migração 1x: servidor vazio + favoritos antigos no localStorage -> sobe
+        // pro servidor (preserva quem já tinha favoritos nesta máquina).
+        try {
+            var srv = (window.FSA_FAVORITOS && Array.isArray(window.FSA_FAVORITOS)) ? window.FSA_FAVORITOS : [];
+            if (srv.length === 0) {
+                var local = JSON.parse(localStorage.getItem('sidebar_favoritos') || '[]');
+                if (local && local.length) {
+                    window.FSA_FAVORITOS = local;
+                    persistirFavoritosServidor(local);
+                }
+            }
+        } catch(e) {}
         // Marcar favoritos ativos
         var favs = getFavoritos();
         var favIds = favs.map(function(f) { return f.id; });
