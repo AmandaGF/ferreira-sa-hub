@@ -25,8 +25,14 @@ echo str_repeat('=', 60) . "\n\n";
 
 foreach ($rows as $r) {
     echo "--- andamento #{$r['id']} (caso {$r['case_id']}) ---\n";
-    echo "[ANTES]\n" . substr($r['descricao'], 0, 600) . "\n\n";
-    echo "[DEPOIS]\n" . substr(limpar_html_juridico($r['descricao']), 0, 600) . "\n";
+    // janela em torno da PRIMEIRA tag/entidade pra ver o HTML cru de fato
+    $pos = 0;
+    if (preg_match('/<[a-zA-Z\/]|&[a-zA-Z]+;/', $r['descricao'], $m, PREG_OFFSET_CAPTURE)) {
+        $pos = max(0, $m[0][1] - 60);
+    }
+    $limpo = limpar_html_juridico($r['descricao']);
+    echo "[ANTES — janela do HTML]\n..." . substr($r['descricao'], $pos, 700) . "...\n\n";
+    echo "[DEPOIS — final do texto limpo]\n..." . substr($limpo, max(0, mb_strlen($limpo)-700)) . "\n";
     echo str_repeat('-', 60) . "\n\n";
 }
 
