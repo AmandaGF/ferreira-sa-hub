@@ -268,7 +268,7 @@ function djen_importar_publicacao($pdo, $pub, $caseId, $userId) {
              VALUES (?,?,?,?,?,1,'prazo',?,?,NOW())"
         )->execute(array(
             $caseId, 'Publicação: ' . $lbl . ' | ' . $tituloCase,
-            mb_substr($conteudo, 0, 300, 'UTF-8'),
+            djen_conteudo_limpo($conteudo, 300),
             $dataDisp . ' 08:00:00', $dataDisp . ' 08:30:00',
             $responsavel, $userId ?: $responsavel
         ));
@@ -292,7 +292,9 @@ function djen_importar_publicacao($pdo, $pub, $caseId, $userId) {
         if ($resumo) $descAnd .= "\n\n📝 Resumo: " . $resumo;
         if ($orient) $descAnd .= "\n⚖️ Orientação: " . $orient;
         if ($dataFim) $descAnd .= "\n⏰ Prazo fatal: " . date('d/m/Y', strtotime($dataFim));
-        $descAnd .= "\n\n— Conteúdo completo —\n" . mb_substr($conteudo, 0, 2000, 'UTF-8');
+        // Limpa o HTML cru do DJen antes de gravar (decodifica entidades, remove
+        // tags) — antes ia HTML cru no andamento, poluindo tela/PDF/IA/Central VIP.
+        $descAnd .= "\n\n— Conteúdo completo —\n" . djen_conteudo_limpo($conteudo, 2000);
 
         $pdo->prepare(
             "INSERT INTO case_andamentos
