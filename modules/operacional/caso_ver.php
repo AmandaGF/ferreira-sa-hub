@@ -4295,7 +4295,7 @@ foreach ($tarefasReais as $_t) {
                                 <?php endif; ?>
                             </div>
                         </div>
-                        <p id="andDesc<?= $and['id'] ?>" style="font-size:.85rem;margin:0;white-space:pre-wrap;line-height:1.5;"><?= e($and['descricao']) ?></p>
+                        <p id="andDesc<?= $and['id'] ?>" style="font-size:.85rem;margin:0;white-space:pre-wrap;line-height:1.5;"><?= e(limpar_html_juridico($and['descricao'])) ?></p>
                     </div>
                 </div>
                 <?php endforeach; ?>

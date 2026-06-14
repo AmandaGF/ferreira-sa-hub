@@ -12,6 +12,49 @@ function e(?string $value): string
     return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+// ─── Limpeza de texto jurídico com HTML cru ─────────────
+/**
+ * Converte texto que veio com HTML cru (tags + entidades nomeadas) em texto
+ * plano legível. Usado em andamentos/publicações importados de sistemas de
+ * tribunal que vêm com <section>, <td>, &iacute;, &ordm;, &emsp; etc.
+ *
+ * Idempotente e seguro pra texto puro: só age quando DETECTA HTML (tag ou
+ * entidade nomeada). Texto digitado à mão pela equipe passa intacto.
+ *
+ * Retorna texto plano (com \n). O caller ainda deve escapar com e() e exibir
+ * com white-space:pre-wrap (NÃO usar nl2br por cima).
+ */
+function limpar_html_juridico(?string $texto): string
+{
+    $t = (string)$texto;
+    if ($t === '') return '';
+
+    // Detecta markup: tag HTML OU entidade nomeada (&iacute; etc). Ignora
+    // &amp;/&lt;/&gt;/&quot;/&#NN; sozinhos pra não mexer em texto comum.
+    $temTag      = preg_match('/<\/?[a-z][a-z0-9]*\b[^>]*>/i', $t);
+    $temEntidade = preg_match('/&(?!amp;|lt;|gt;|quot;|#)[a-zA-Z][a-zA-Z0-9]+;/', $t);
+    if (!$temTag && !$temEntidade) return $t;
+
+    // 1. Tags de quebra/bloco viram nova linha (preserva parágrafos)
+    $t = preg_replace('/<\s*br\s*\/?>/i', "\n", $t);
+    $t = preg_replace('/<\/(p|div|section|header|footer|article|tr|li|h[1-6]|blockquote)\s*>/i', "\n", $t);
+    $t = preg_replace('/<\/(td|th)\s*>/i', "\t", $t);
+
+    // 2. Remove todas as tags restantes
+    $t = strip_tags($t);
+
+    // 3. Decodifica entidades (&iacute;->í, &ordm;->º, &emsp;->espaço, etc)
+    $t = html_entity_decode($t, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+    // 4. Normaliza espaços em branco
+    $t = str_replace("\xc2\xa0", ' ', $t);      // &nbsp; -> espaço comum
+    $t = preg_replace('/[ \t]*\t[ \t]*/', ' ', $t); // tabs (vindos de td) -> 1 espaço
+    $t = preg_replace('/[ \t]{2,}/', ' ', $t);
+    $t = preg_replace('/ *\n */', "\n", $t);
+    $t = preg_replace('/\n{3,}/', "\n\n", $t);
+    return trim($t);
+}
+
 // ─── Redirect ───────────────────────────────────────────
 function redirect(string $url)
 {
