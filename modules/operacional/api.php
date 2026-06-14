@@ -3222,6 +3222,25 @@ switch ($action) {
         redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
         break;
 
+    case 'toggle_elaborado_ia':
+        // Marca/desmarca o caso como "Elaborado por IA". Auto-marcado pela Minerva
+        // (Fábrica de Petições); aqui é o override manual da equipe.
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId && has_min_role('operacional')) {
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN elaborado_por_ia TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN elaborado_por_ia_em DATETIME NULL"); } catch (Exception $e) {}
+            $stmtEi = $pdo->prepare("SELECT elaborado_por_ia FROM cases WHERE id = ?");
+            $stmtEi->execute(array($caseId));
+            $curEi = (int)$stmtEi->fetchColumn();
+            $newEi = $curEi ? 0 : 1;
+            $pdo->prepare("UPDATE cases SET elaborado_por_ia = ?, elaborado_por_ia_em = " . ($newEi ? "NOW()" : "NULL") . " WHERE id = ?")
+                ->execute(array($newEi, $caseId));
+            audit_log('toggle_elaborado_ia', 'case', $caseId, $newEi ? 'Marcado elaborado por IA' : 'Desmarcado');
+            flash_set('success', $newEi ? 'Caso marcado como Elaborado por IA.' : 'Marca de Elaborado por IA removida.');
+        }
+        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        break;
+
     case 'toggle_visibilidade':
         // Blindagem total: limpa qualquer output (warnings/notices) que possa
         // ter vazado antes do nosso JSON — assim a resposta é SEMPRE JSON puro.

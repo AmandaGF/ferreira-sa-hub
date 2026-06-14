@@ -509,6 +509,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php if ($cs['case_type'] && $cs['case_type'] !== 'outro'): ?>
                             <span class="op-card-badge" style="background:#173d46;"><?= e($cs['case_type']) ?></span>
                         <?php endif; ?>
+                        <?php if (!empty($cs['elaborado_por_ia'])): ?>
+                            <span class="op-card-badge" style="background:#7c3aed;" title="Minuta elaborada com IA (Minerva)<?= !empty($cs['elaborado_por_ia_em']) ? ' — ' . date('d/m/Y', strtotime($cs['elaborado_por_ia_em'])) : '' ?>">🤖 Elaborado por IA</span>
+                        <?php endif; ?>
                         <?php if (!empty($cs['is_incidental']) && $cs['processo_principal_id']): ?>
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['processo_principal_id']) ?>" onclick="event.stopPropagation();" class="op-card-badge" style="background:#6366f1;text-decoration:none;cursor:pointer;" title="Ver processo principal">📎 Incidental</a>
                         <?php endif; ?>

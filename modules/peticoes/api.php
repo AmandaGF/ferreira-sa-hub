@@ -546,6 +546,18 @@ FIXO;
 
     audit_log('PETICAO_GERADA', 'case', $caseId ?: 0, $titulo);
 
+    // Marca o caso como "Elaborado por IA" (Minerva gerou minuta) -> badge no Kanban.
+    // Não mexe no título do card (outras skills leem "Cliente x Tipo").
+    if ($caseId) {
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN elaborado_por_ia TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN elaborado_por_ia_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN elaborado_por_ia_doc_id INT NULL"); } catch (Exception $e) {}
+        try {
+            $pdo->prepare("UPDATE cases SET elaborado_por_ia = 1, elaborado_por_ia_em = NOW(), elaborado_por_ia_doc_id = ? WHERE id = ?")
+                ->execute(array($docId, $caseId));
+        } catch (Exception $e) {}
+    }
+
     // Cambio USD->BRL (cfg em configuracoes, default 5.50)
     $cambioBrl = 5.50;
     try {

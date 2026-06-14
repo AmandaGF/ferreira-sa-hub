@@ -480,6 +480,16 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
+    <?php if (has_min_role('operacional')): ?>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="toggle_elaborado_ia">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-sm" style="background:<?= !empty($case['elaborado_por_ia']) ? '#7c3aed' : '#fff' ?>;color:<?= !empty($case['elaborado_por_ia']) ? '#fff' : '#7c3aed' ?>;border:1px solid #7c3aed;" title="<?= !empty($case['elaborado_por_ia']) ? 'Minuta elaborada com IA' . (!empty($case['elaborado_por_ia_em']) ? ' em ' . date('d/m/Y', strtotime($case['elaborado_por_ia_em'])) : '') . '. Clique para desmarcar.' : 'Marcar este caso como tendo minuta elaborada com IA (a Minerva marca sozinha ao gerar a peça).' ?>">
+            🤖 <?= !empty($case['elaborado_por_ia']) ? 'Elaborado por IA ✓' : 'Elaborado por IA' ?>
+        </button>
+    </form>
+    <?php endif; ?>
     <?php /* Botão "Resumir caso" movido pro bloco fixo da ficha em 26/05/2026 — fica sempre visível, custo zero quando há cache. */ ?>
     <?php if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('sugerir_acao')): ?>
     <button type="button" id="btnSugerirAcaoIA" onclick="sugerirAcaoIA()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;" title="IA lê prazos, intimações, andamentos, tarefas e sugere a PRÓXIMA AÇÃO concreta com prazo e justificativa. Custo médio: R$ 0,10 por sugestão.">✨ O que fazer agora?</button>
