@@ -95,12 +95,61 @@ if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_text
     // Amanda 10/06/2026: aceita client_id direto (quando nao tem processo)
     $clientIdInput = (int)($_POST['client_id'] ?? 0) ?: null;
 
+    // Amanda 15/06/2026: nomes como fallback — se o front enviou só o NOME
+    // (porque o datalist nao casou exato), resolve via SQL.
+    $clientNome = trim((string)($_POST['client_nome'] ?? ''));
+    $caseLabel  = trim((string)($_POST['case_label'] ?? ''));
+
     // Buscar client_id pelo case (precedencia: do case quando ha case)
     $clientId = $clientIdInput;
     if ($caseId) {
         $stmtC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
         $stmtC->execute(array($caseId));
         $clientId = (int)$stmtC->fetchColumn() ?: $clientIdInput;
+    }
+
+    // Fallback: cliente nao foi resolvido por ID nem por case — tenta pelo nome
+    if (!$clientId && $clientNome !== '') {
+        try {
+            $stCl = $pdo->prepare("SELECT id FROM clients WHERE LOWER(name) = LOWER(?) ORDER BY id DESC LIMIT 1");
+            $stCl->execute(array($clientNome));
+            $achouId = (int)$stCl->fetchColumn();
+            if (!$achouId) {
+                // Tenta busca parcial por palavras (quebra em palavras com AND)
+                $palavras = preg_split('/\s+/', $clientNome);
+                $palavras = array_filter($palavras, function($p){ return mb_strlen($p) >= 3; });
+                if (!empty($palavras)) {
+                    $wh = array(); $bind = array();
+                    foreach ($palavras as $p) { $wh[] = 'name LIKE ?'; $bind[] = '%' . $p . '%'; }
+                    $sql = "SELECT id FROM clients WHERE " . implode(' AND ', $wh) . " ORDER BY id DESC LIMIT 1";
+                    $stCl2 = $pdo->prepare($sql);
+                    $stCl2->execute($bind);
+                    $achouId = (int)$stCl2->fetchColumn();
+                }
+            }
+            if ($achouId) $clientId = $achouId;
+        } catch (Throwable $e) { /* silent */ }
+    }
+
+    // Fallback: caso nao foi resolvido por ID — tenta pelo label do select
+    if (!$caseId && $caseLabel !== '') {
+        try {
+            // Geralmente o label vem como 'Titulo — 1234567-89.xxxx' — quebra
+            $partes = explode(' — ', $caseLabel);
+            $titBusca = trim($partes[0] ?? '');
+            $cnjBusca = trim($partes[1] ?? '');
+            if ($cnjBusca !== '') {
+                $stC2 = $pdo->prepare("SELECT id, client_id FROM cases WHERE case_number LIKE ? LIMIT 1");
+                $stC2->execute(array('%' . $cnjBusca . '%'));
+                $r = $stC2->fetch();
+                if ($r) { $caseId = (int)$r['id']; if (!$clientId) $clientId = (int)$r['client_id']; }
+            } elseif ($titBusca !== '') {
+                $stC3 = $pdo->prepare("SELECT id, client_id FROM cases WHERE LOWER(title) = LOWER(?) LIMIT 1");
+                $stC3->execute(array($titBusca));
+                $r = $stC3->fetch();
+                if ($r) { $caseId = (int)$r['id']; if (!$clientId) $clientId = (int)$r['client_id']; }
+            }
+        } catch (Throwable $e) { /* silent */ }
     }
 
     $apiKey = defined('ANTHROPIC_API_KEY') ? ANTHROPIC_API_KEY : '';
@@ -320,7 +369,15 @@ if (in_array($action, array('processar_pdf', 'processar_imagem', 'processar_text
         $cnm = $stmtCV->fetchColumn();
         if ($cnm) $vincTxt = '👤 ' . $cnm;
     }
-    if (!$vincTxt) $vincTxt = '⚠️ Sem vínculo (processo e cliente vazios)';
+    if (!$vincTxt) {
+        // Amanda 15/06/2026: diagnostico visivel quando der vazio
+        $diag = array();
+        if (isset($_POST['case_id']))    $diag[] = 'case_id="' . $_POST['case_id'] . '"';
+        if (isset($_POST['client_id']))  $diag[] = 'client_id="' . $_POST['client_id'] . '"';
+        if (isset($_POST['client_nome']))$diag[] = 'client_nome="' . mb_substr($_POST['client_nome'], 0, 50, 'UTF-8') . '"';
+        if (isset($_POST['case_label'])) $diag[] = 'case_label="' . mb_substr($_POST['case_label'], 0, 50, 'UTF-8') . '"';
+        $vincTxt = '⚠️ Sem vínculo. O navegador enviou: ' . implode(' · ', $diag);
+    }
 
     echo json_encode(array(
         'ok' => true,

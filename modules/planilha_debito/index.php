@@ -287,8 +287,18 @@ function iniciarProcessamento(tipo) {
         }
     }
 
+    // Amanda 15/06/2026: envia tambem o NOME do cliente e o LABEL do caso —
+    // backend usa como fallback se os IDs vierem vazios (datalist nao casou
+    // exato, etc). Resolve casos onde o select tinha valor mas o JS leu vazio.
+    var caseLabelVal = '';
+    var caseSel = document.getElementById('pdCaseId');
+    if (caseSel && caseSel.selectedIndex > 0) {
+        caseLabelVal = (caseSel.options[caseSel.selectedIndex].textContent || '').trim();
+    }
     fd.append('case_id', caseIdVal);
     fd.append('client_id', clientIdVal || '0');
+    fd.append('case_label', caseLabelVal);
+    fd.append('client_nome', clientBuscaVal);
 
     // Avisa se nada foi vinculado (a Amanda pode confirmar antes de gastar IA)
     if (!caseIdVal && !clientIdVal) {
