@@ -226,6 +226,12 @@ switch ($action) {
 
                 audit_log('case_auto_created', 'case', $newCaseId, 'Pipeline contrato_assinado - lead: ' . $leadId);
                 notify_gestao('Contrato assinado!', $lead['name'] . ' — Caso criado no Operacional.' . ($driveResult['success'] ? ' Pasta criada no Drive!' : ''), 'sucesso', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '✅');
+
+                // ── Amanda 15/06/2026: comemoracao no grupo WhatsApp do escritorio ──
+                try {
+                    require_once APP_ROOT . '/core/functions_comemoracao.php';
+                    comemorar_contrato_assinado($lead);
+                } catch (Throwable $eCom) { /* silencioso — nao trava o fechamento do contrato */ }
                 if (!$driveResult['success']) {
                     notify_gestao('Falha ao criar pasta no Drive', $lead['name'] . ' — ' . ($driveResult['error'] ?? 'erro desconhecido') . '. Use o botão "Criar pasta" na pasta do caso pra tentar de novo.', 'erro', url('modules/operacional/caso_ver.php?id=' . $newCaseId), '⚠️');
                 }
