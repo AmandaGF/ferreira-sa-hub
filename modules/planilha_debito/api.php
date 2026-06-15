@@ -18,6 +18,88 @@ if (!validate_csrf()) { echo json_encode(array('error' => 'Token inválido', 'cs
 $newCsrf = generate_csrf_token();
 $action = $_POST['action'] ?? '';
 
+// ── Amanda 15/06/2026: salvar XLSX do calculo na pasta do Drive do processo ──
+if ($action === 'salvar_drive') {
+    @set_time_limit(180);
+    $planilhaId = (int)($_POST['planilha_id'] ?? 0);
+    if ($planilhaId <= 0) { echo json_encode(array('error' => 'planilha_id obrigatório', 'csrf' => $newCsrf)); exit; }
+
+    // Self-heal: coluna pra rastrear que ja foi salvo no Drive
+    try { $pdo->exec("ALTER TABLE planilha_debito ADD COLUMN drive_file_url VARCHAR(500) NULL"); } catch (Throwable $e) {}
+    try { $pdo->exec("ALTER TABLE planilha_debito ADD COLUMN drive_salvo_em DATETIME NULL"); } catch (Throwable $e) {}
+
+    // Buscar planilha + caso
+    $st = $pdo->prepare("SELECT pd.id, pd.titulo, pd.case_id, pd.xlsx_path, pd.drive_file_url,
+                                cs.title AS case_title, cs.drive_folder_url
+                         FROM planilha_debito pd
+                         LEFT JOIN cases cs ON cs.id = pd.case_id
+                         WHERE pd.id = ?");
+    $st->execute(array($planilhaId));
+    $pl = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$pl) { echo json_encode(array('error' => 'Planilha não encontrada', 'csrf' => $newCsrf)); exit; }
+    if (!$pl['case_id']) {
+        echo json_encode(array('error' => 'Esta planilha não está vinculada a um processo. Vincule antes de salvar no Drive.', 'csrf' => $newCsrf));
+        exit;
+    }
+    if (!$pl['drive_folder_url']) {
+        echo json_encode(array('error' => 'O processo "' . $pl['case_title'] . '" ainda não tem pasta criada no Drive. Crie a pasta primeiro (botão "📁 Criar pasta Drive" na tela do caso).', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    // Le XLSX do disco
+    $xlsxFull = APP_ROOT . '/' . ltrim($pl['xlsx_path'], '/');
+    if (!is_file($xlsxFull)) {
+        echo json_encode(array('error' => 'Arquivo XLSX não está mais disponível em disco (temp/ pode ter sido limpo). Gere um novo cálculo.', 'csrf' => $newCsrf));
+        exit;
+    }
+    $bytes = @file_get_contents($xlsxFull);
+    if ($bytes === false) {
+        echo json_encode(array('error' => 'Falha ao ler XLSX do disco.', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    require_once APP_ROOT . '/core/google_drive.php';
+
+    // Pega/cria a subpasta "Cálculos" dentro da pasta do caso
+    $sub = drive_get_or_create_subfolder($pl['drive_folder_url'], 'Cálculos');
+    if (empty($sub['success'])) {
+        echo json_encode(array('error' => 'Falha ao criar/achar subpasta Cálculos: ' . ($sub['error'] ?? 'desconhecido'), 'csrf' => $newCsrf));
+        exit;
+    }
+    $folderId = $sub['folderId'];
+
+    // Monta nome: "Calculo - <titulo> - YYYY-MM-DD.xlsx"
+    $tituloLimpo = preg_replace('/[\\\\\/\?\*\:\|"<>]+/', '', (string)$pl['titulo']);
+    $tituloLimpo = mb_substr(trim($tituloLimpo), 0, 80, 'UTF-8') ?: ('Calculo #' . $planilhaId);
+    $nomeFinal = 'Calculo - ' . $tituloLimpo . ' - ' . date('Y-m-d') . '.xlsx';
+
+    $r = upload_file_to_drive_base64(
+        $folderId,
+        $nomeFinal,
+        base64_encode($bytes),
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    if (empty($r['success'])) {
+        echo json_encode(array('error' => 'Falha no upload pro Drive: ' . ($r['error'] ?? 'desconhecido'), 'csrf' => $newCsrf));
+        exit;
+    }
+
+    $pdo->prepare("UPDATE planilha_debito SET drive_file_url = ?, drive_salvo_em = NOW() WHERE id = ?")
+        ->execute(array($r['fileUrl'], $planilhaId));
+
+    audit_log('planilha_calculo_drive', 'planilha_debito', $planilhaId, 'case=' . $pl['case_id'] . ' file=' . $r['fileId']);
+
+    echo json_encode(array(
+        'ok'           => true,
+        'drive_url'    => $r['fileUrl'],
+        'nome_arquivo' => $nomeFinal,
+        'subpasta'     => 'Cálculos',
+        'case_title'   => $pl['case_title'],
+        'csrf'         => $newCsrf,
+    ));
+    exit;
+}
+
 // Prompt unificado pros 3 modos. Detalha formato DrCalc.net E Jusfy.
 $systemPrompt = 'Você é um assistente especializado em cálculos judiciais (planilhas de débito). '
     . 'Você recebe um cálculo em PDF, imagem ou texto — geralmente do DrCalc.net, Jusfy ou similar — e deve extrair TODOS os dados em JSON estruturado. '

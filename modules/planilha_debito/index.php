@@ -152,6 +152,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <a href="<?= url($pl['xlsx_path']) ?>" class="btn btn-primary btn-sm" style="font-size:.68rem;background:#059669;" download>📥 XLSX</a>
                     <?php endif; ?>
                     <a href="<?= module_url('planilha_debito', 'ver.php?id=' . $pl['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.68rem;" target="_blank">🖨️ PDF</a>
+                    <?php
+                    // Amanda 15/06/2026: botao 'Salvar no Drive' aparece quando ha
+                    // vinculo com processo. Se ja foi salvo, mostra link pra Drive.
+                    if (!empty($pl['drive_file_url'])):
+                    ?>
+                        <a href="<?= e($pl['drive_file_url']) ?>" target="_blank" class="btn btn-sm" style="font-size:.68rem;background:#10b981;color:#fff;border:none;" title="Abrir XLSX salvo no Drive">📁 No Drive</a>
+                    <?php elseif (!empty($pl['case_id'])): ?>
+                        <button type="button" onclick="pdSalvarNoDrive(<?= (int)$pl['id'] ?>, this)" class="btn btn-sm" style="font-size:.68rem;background:#4285f4;color:#fff;border:none;">📁 Salvar Drive</button>
+                    <?php endif; ?>
                 </td>
             </tr>
             <?php endforeach; ?>
@@ -410,23 +419,105 @@ function mostrarResultado(r) {
     var vincStyle = (r.case_id_salvo || r.client_id_salvo)
         ? 'background:#dcfce7;border-left:3px solid #10b981;color:#14532d;'
         : 'background:#fef3c7;border-left:3px solid #f59e0b;color:#7c2d12;';
-    var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">'
+    // Amanda 15/06/2026: botao 'Salvar no Drive' so faz sentido se vinculou a processo
+    var btnDrive = '';
+    if (r.id && r.case_id_salvo) {
+        btnDrive = '<button id="pdBtnDrive" onclick="pdSalvarNoDrive(' + r.id + ')" class="btn btn-sm" style="background:#4285f4;color:#fff;border:none;">📁 Salvar no Drive</button>';
+    }
+    var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;">'
         + '<h3>Cálculo Gerado</h3>'
-        + '<div style="display:flex;gap:.5rem;">'
+        + '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'
         + (r.xlsx_url ? '<a href="' + r.xlsx_url + '" class="btn btn-primary btn-sm" style="background:#059669;" download>📥 Baixar XLSX</a>' : '')
         + (r.id ? '<a href="' + API.replace('api.php', 'ver.php?id=' + r.id) + '" class="btn btn-outline btn-sm" target="_blank">🖨️ Ver/Imprimir PDF</a>' : '')
+        + btnDrive
         + '<button onclick="location.reload()" class="btn btn-outline btn-sm">Novo cálculo</button>'
         + '</div></div>'
         + '<div class="card-body">'
         + '<div style="' + vincStyle + 'padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;font-size:.8rem;font-weight:600;">'
         + (r.vinculo_txt || '—')
         + '</div>'
+        + '<div id="pdDriveStatus" style="display:none;font-size:.78rem;padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;"></div>'
         + '<p style="font-size:.82rem;color:var(--text-muted);">Total: <strong style="color:var(--petrol-900);font-size:1rem;">R$ ' + (r.total || '—') + '</strong></p>'
         + '<p style="font-size:.75rem;color:var(--text-muted);">Itens: ' + (r.parcelas || '—') + ' · Gerado em ' + (r.gerado_em || '') + '</p>'
         + '</div></div>';
     document.getElementById('pdResultado').innerHTML = html;
     document.getElementById('pdResultado').style.display = '';
 }
+
+// Amanda 15/06/2026: upload do XLSX pra pasta do Drive do caso.
+// Pode ser chamado do card resultado (sem btn) OU dos botoes da lista
+// 'Calculos Gerados' (passa o proprio btn como 2o arg).
+window.pdSalvarNoDrive = function(planilhaId, btnOpcional) {
+    var btn = btnOpcional || document.getElementById('pdBtnDrive');
+    var status = document.getElementById('pdDriveStatus'); // pode nao existir (botao na lista)
+    if (!btn) return;
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ ...';
+    if (status) {
+        status.style.display = 'block';
+        status.style.background = '#dbeafe';
+        status.style.color = '#1e3a8a';
+        status.style.borderLeft = '3px solid #3b82f6';
+        status.innerHTML = '📤 Salvando XLSX na subpasta <strong>Cálculos</strong> da pasta do Drive...';
+    }
+
+    var fd = new FormData();
+    fd.append('action', 'salvar_drive');
+    fd.append('planilha_id', planilhaId);
+    fd.append('csrf_token', CSRF);
+
+    fetch(API, { method:'POST', body:fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            btn.disabled = false;
+            if (d.csrf) CSRF = d.csrf;
+            if (d.error) {
+                if (status) {
+                    status.style.background = '#fef2f2';
+                    status.style.color = '#991b1b';
+                    status.style.borderLeftColor = '#dc2626';
+                    status.innerHTML = '⚠️ ' + d.error;
+                } else {
+                    alert('⚠️ ' + d.error);
+                }
+                btn.innerHTML = orig;
+                return;
+            }
+            if (status) {
+                status.style.background = '#dcfce7';
+                status.style.color = '#14532d';
+                status.style.borderLeftColor = '#10b981';
+                status.innerHTML = '✓ Salvo na pasta <strong>' + d.case_title + ' / Cálculos / ' + d.nome_arquivo + '</strong> · '
+                                + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>';
+            }
+            // Converte o botão em link pro Drive
+            if (btnOpcional) {
+                var a = document.createElement('a');
+                a.href = d.drive_url;
+                a.target = '_blank';
+                a.className = 'btn btn-sm';
+                a.style.cssText = 'font-size:.68rem;background:#10b981;color:#fff;border:none;text-decoration:none;display:inline-block;';
+                a.title = 'Abrir XLSX salvo no Drive';
+                a.textContent = '📁 No Drive';
+                btn.parentNode.replaceChild(a, btn);
+            } else {
+                btn.innerHTML = '✓ No Drive';
+                btn.style.background = '#10b981';
+            }
+        })
+        .catch(function(){
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            if (status) {
+                status.style.background = '#fef2f2';
+                status.style.color = '#991b1b';
+                status.innerHTML = '⚠️ Erro de rede. Tente novamente.';
+            } else {
+                alert('⚠️ Erro de rede. Tente novamente.');
+            }
+        });
+};
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
