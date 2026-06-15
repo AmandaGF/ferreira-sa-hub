@@ -2804,7 +2804,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         overlay = document.createElement('div');
         overlay.id = 'waPergIaOverlay';
         overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
-        overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+        // Amanda 15/06/2026: NAO fechar ao clicar fora (perdia a resposta da IA
+        // sem querer). So o X, botao Fechar ou tecla ESC fecham.
+        document.addEventListener('keydown', function _waPergEsc(e){
+            if (e.key === 'Escape') {
+                var ov = document.getElementById('waPergIaOverlay');
+                if (ov) ov.remove();
+                document.removeEventListener('keydown', _waPergEsc);
+            }
+        });
 
         var box = document.createElement('div');
         box.style.cssText = 'background:#fff;border-radius:12px;max-width:620px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 60px rgba(0,0,0,.3);';
