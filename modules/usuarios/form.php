@@ -38,6 +38,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $setor  = clean_str($_POST['setor'] ?? '', 60);
     $role   = $_POST['role'] ?? 'colaborador';
     $password = $_POST['password'] ?? '';
+    // Amanda 12/06/2026: nome exibido pro cliente (WhatsApp/Central VIP).
+    // Quando vazio, usa users.name como fallback.
+    $waDisplay = clean_str($_POST['wa_display_name'] ?? '', 100);
 
     // Validações
     if (empty($name)) $errors[] = 'Nome é obrigatório.';
@@ -61,12 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         if ($editId) {
             // Atualizar
-            $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, setor = ?, role = ?, updated_at = NOW() WHERE id = ?';
-            $params = [$name, $email, $phone ?: null, $setor ?: null, $role, $editId];
+            // Amanda 12/06/2026: inclui wa_display_name (nome exibido pro cliente).
+            // Vazio = NULL = cai pro fallback 'primeiro+último' do user_display_name().
+            $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, setor = ?, role = ?, wa_display_name = ?, updated_at = NOW() WHERE id = ?';
+            $params = [$name, $email, $phone ?: null, $setor ?: null, $role, $waDisplay ?: null, $editId];
 
             if (!empty($password)) {
-                $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, setor = ?, role = ?, password_hash = ?, updated_at = NOW() WHERE id = ?';
-                $params = [$name, $email, $phone ?: null, $setor ?: null, $role, password_hash($password, PASSWORD_DEFAULT), $editId];
+                $sql = 'UPDATE users SET name = ?, email = ?, phone = ?, setor = ?, role = ?, wa_display_name = ?, password_hash = ?, updated_at = NOW() WHERE id = ?';
+                $params = [$name, $email, $phone ?: null, $setor ?: null, $role, $waDisplay ?: null, password_hash($password, PASSWORD_DEFAULT), $editId];
             }
 
             $pdo->prepare($sql)->execute($params);
@@ -76,9 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Criar
             $hash = password_hash($password, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare(
-                'INSERT INTO users (name, email, password_hash, phone, setor, role) VALUES (?, ?, ?, ?, ?, ?)'
+                'INSERT INTO users (name, email, password_hash, phone, setor, role, wa_display_name) VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
-            $stmt->execute([$name, $email, $hash, $phone ?: null, $setor ?: null, $role]);
+            $stmt->execute([$name, $email, $hash, $phone ?: null, $setor ?: null, $role, $waDisplay ?: null]);
             $newId = (int)$pdo->lastInsertId();
             audit_log('user_created', 'user', $newId, "Criado por admin");
             flash_set('success', 'Usuário criado com sucesso.');
@@ -120,6 +125,7 @@ $f = [
     'phone' => $_POST['phone'] ?? ($user['phone'] ?? ($colab['telefone_whatsapp'] ?? '')),
     'setor' => $_POST['setor'] ?? ($user['setor'] ?? ($colab['setor'] ?? '')),
     'role'  => $_POST['role']  ?? ($user['role']  ?? ($_roleFromColab ?? 'colaborador')),
+    'wa_display_name' => $_POST['wa_display_name'] ?? ($user['wa_display_name'] ?? ''),
 ];
 
 // Lista de cadastros do onboarding pra seletor "puxar de" (em modo novo OU edit)
@@ -217,6 +223,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <label class="form-label" for="name">Nome completo *</label>
                     <input type="text" id="name" name="name" class="form-input"
                            value="<?= e($f['name']) ?>" required>
+                    <small style="color:#6b7280;font-size:.72rem;">Como aparece pra equipe no Hub (sidebar, audit log, etc).</small>
+                </div>
+
+                <!-- Amanda 12/06/2026: nome exibido pro cliente — bug reportado em
+                     que mudar 'name' no Hub nao refletia pro cliente porque o
+                     wa_display_name continuava com o nome antigo. -->
+                <div class="form-group">
+                    <label class="form-label" for="wa_display_name">Nome exibido pro cliente <span style="color:#94a3b8;font-weight:normal;">(opcional)</span></label>
+                    <input type="text" id="wa_display_name" name="wa_display_name" class="form-input"
+                           value="<?= e($f['wa_display_name']) ?>" placeholder="Ex.: Maria Vitória — deixe em branco pra usar Primeiro + Último automaticamente" maxlength="100">
+                    <small style="color:#6b7280;font-size:.72rem;">
+                        Aparece nas mensagens de WhatsApp e Central VIP. Se vazio, o sistema usa <strong>Primeiro nome + último sobrenome</strong>
+                        (ex.: "Amanda Guedes Ferreira" → "Amanda Ferreira").
+                        <strong style="color:#dc2626;">Se mudou o nome acima e o cliente ainda vê o nome antigo, apague este campo e salve.</strong>
+                    </small>
                 </div>
 
                 <div class="form-row">

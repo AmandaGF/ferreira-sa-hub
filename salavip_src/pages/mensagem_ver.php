@@ -37,11 +37,24 @@ $stmtLidas = $pdo->prepare(
 $stmtLidas->execute([$threadId]);
 
 // --- Buscar mensagens ---
+// Amanda 12/06/2026: o cliente via 'Maria Ponciano' (nome ANTIGO) mesmo
+// depois que o user trocou de nome no Hub. Causa: remetente_nome eh
+// snapshot no momento do envio. Fix: LEFT JOIN users pra pegar o nome
+// ATUAL; cai pro snapshot so se o user foi deletado.
 $stmtMsgs = $pdo->prepare(
-    "SELECT * FROM salavip_mensagens WHERE thread_id = ? ORDER BY criado_em ASC"
+    "SELECT m.*,
+            COALESCE(u.name, m.remetente_nome) AS remetente_nome_atual
+     FROM salavip_mensagens m
+     LEFT JOIN users u ON u.id = m.remetente_id AND u.is_active = 1
+     WHERE m.thread_id = ?
+     ORDER BY m.criado_em ASC"
 );
 $stmtMsgs->execute([$threadId]);
 $mensagens = $stmtMsgs->fetchAll();
+// Sobrescreve pra a view continuar usando $msg['remetente_nome'] sem mexer no template
+foreach ($mensagens as $i => $m) {
+    $mensagens[$i]['remetente_nome'] = $m['remetente_nome_atual'];
+}
 
 $pageTitle = $thread['assunto'];
 require_once __DIR__ . '/../includes/header.php';
