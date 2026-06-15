@@ -33,13 +33,16 @@ function current_user_name(): string
 }
 
 /**
- * Nome do usuário pra atendimento WhatsApp.
+ * Nome do usuário pra atendimento WhatsApp / Central VIP.
+ *
  * 1. Se o usuário preencheu users.wa_display_name, usa esse.
- * 2. Senão, computa "primeiro + último sobrenome" do nome completo.
- *    Ex: "Amanda Guedes Ferreira" → "Amanda Ferreira"
- *        "Luiz Eduardo de Sá Silva" → "Luiz Silva"
- *        "Naiara Gama Dourado" → "Naiara Dourado"
- *        "Maria" → "Maria" (só um nome)
+ * 2. Senão, usa o users.name COMPLETO.
+ *
+ * Amanda 12/06/2026: antes o fallback (quando wa_display_name era vazio)
+ * truncava pra 'primeiro + último' — isso causava confusão porque o
+ * colaborador mudava o nome no Hub mas o cliente continuava vendo nome
+ * truncado. Agora o fallback usa o nome completo direto. Quem quiser
+ * versão curta preenche wa_display_name explicitamente no form.
  *
  * Aceita user_id (int) OU array (user row) OU null (usa o logado).
  */
@@ -62,11 +65,7 @@ function user_display_name($userOrId = null): string
     $display = trim($arr['wa_display_name'] ?? '');
     if ($display !== '') return $display;
 
-    $full = trim($arr['name'] ?? '');
-    if ($full === '') return '';
-    $parts = preg_split('/\s+/', $full);
-    if (count($parts) < 2) return $full;
-    return $parts[0] . ' ' . end($parts);
+    return trim($arr['name'] ?? '');
 }
 
 // ─── Login / Logout ─────────────────────────────────────

@@ -226,16 +226,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <small style="color:#6b7280;font-size:.72rem;">Como aparece pra equipe no Hub (sidebar, audit log, etc).</small>
                 </div>
 
-                <!-- Amanda 12/06/2026: nome exibido pro cliente — bug reportado em
-                     que mudar 'name' no Hub nao refletia pro cliente porque o
-                     wa_display_name continuava com o nome antigo. -->
+                <!-- Amanda 12/06/2026: nome exibido pro cliente -->
                 <div class="form-group">
-                    <label class="form-label" for="wa_display_name">Nome exibido pro cliente <span style="color:#94a3b8;font-weight:normal;">(opcional)</span></label>
+                    <label class="form-label" for="wa_display_name">Nome exibido pro cliente <span style="color:#94a3b8;font-weight:normal;">(opcional — versão curta)</span></label>
                     <input type="text" id="wa_display_name" name="wa_display_name" class="form-input"
-                           value="<?= e($f['wa_display_name']) ?>" placeholder="Ex.: Maria Vitória — deixe em branco pra usar Primeiro + Último automaticamente" maxlength="100">
+                           value="<?= e($f['wa_display_name']) ?>" placeholder="Deixe em branco pra usar o NOME COMPLETO acima" maxlength="100">
                     <small style="color:#6b7280;font-size:.72rem;">
-                        Aparece nas mensagens de WhatsApp e Central VIP. Se vazio, o sistema usa <strong>Primeiro nome + último sobrenome</strong>
-                        (ex.: "Amanda Guedes Ferreira" → "Amanda Ferreira").
+                        Aparece nas mensagens de WhatsApp e Central VIP. Se vazio, o sistema usa o <strong>nome completo do campo acima</strong>.
+                        Preencha aqui só se quiser uma versão mais curta — ex.: "Amanda Guedes Ferreira" pode virar "Amanda" ou "Dra. Amanda".
                         <strong style="color:#dc2626;">Se mudou o nome acima e o cliente ainda vê o nome antigo, apague este campo e salve.</strong>
                     </small>
                 </div>
