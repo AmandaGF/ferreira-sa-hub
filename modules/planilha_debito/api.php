@@ -89,13 +89,40 @@ if ($action === 'salvar_drive') {
 
     audit_log('planilha_calculo_drive', 'planilha_debito', $planilhaId, 'case=' . $pl['case_id'] . ' file=' . $r['fileId']);
 
+    // Amanda 15/06/2026: tambem cria andamento no caso (pedido explicito)
+    // pra ficar registrado dentro do Hub na linha do tempo do processo.
+    $andamentoId = 0;
+    try {
+        // Busca total/parcelas do dados_json pra incluir na descricao
+        $st2 = $pdo->prepare("SELECT dados_json FROM planilha_debito WHERE id = ?");
+        $st2->execute(array($planilhaId));
+        $dados = json_decode((string)$st2->fetchColumn(), true) ?: array();
+        $totalFmt = isset($dados['debito_total']) ? number_format((float)$dados['debito_total'], 2, ',', '.') : null;
+        $qtItens  = isset($dados['parcelas']) ? count($dados['parcelas']) : 0;
+
+        $descricao = '📊 Planilha de Cálculo gerada: ' . $pl['titulo'];
+        if ($totalFmt) $descricao .= ' — Total R$ ' . $totalFmt;
+        if ($qtItens) $descricao .= ' (' . $qtItens . ' ' . ($qtItens === 1 ? 'item' : 'itens') . ')';
+        $descricao .= "\n🔗 Drive: " . $r['fileUrl'];
+        $descricao .= "\n📂 Subpasta: Cálculos · 📑 Arquivo: " . $nomeFinal;
+
+        $stAnd = $pdo->prepare(
+            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+             VALUES (?, CURDATE(), 'calculo', ?, 0, ?, NOW())"
+        );
+        $stAnd->execute(array((int)$pl['case_id'], $descricao, current_user_id()));
+        $andamentoId = (int)$pdo->lastInsertId();
+    } catch (Throwable $e) { /* nao quebra o sucesso do drive */ }
+
     echo json_encode(array(
-        'ok'           => true,
-        'drive_url'    => $r['fileUrl'],
-        'nome_arquivo' => $nomeFinal,
-        'subpasta'     => 'Cálculos',
-        'case_title'   => $pl['case_title'],
-        'csrf'         => $newCsrf,
+        'ok'             => true,
+        'drive_url'      => $r['fileUrl'],
+        'nome_arquivo'   => $nomeFinal,
+        'subpasta'       => 'Cálculos',
+        'case_title'     => $pl['case_title'],
+        'case_id'        => (int)$pl['case_id'],
+        'andamento_id'   => $andamentoId,
+        'csrf'           => $newCsrf,
     ));
     exit;
 }

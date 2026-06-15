@@ -153,13 +153,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php endif; ?>
                     <a href="<?= module_url('planilha_debito', 'ver.php?id=' . $pl['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.68rem;" target="_blank">🖨️ PDF</a>
                     <?php
-                    // Amanda 15/06/2026: botao 'Salvar no Drive' aparece quando ha
-                    // vinculo com processo. Se ja foi salvo, mostra link pra Drive.
+                    // Amanda 15/06/2026: botao salva no Drive + cria andamento no caso.
+                    // Se ja foi salvo, mostra link pra Drive.
                     if (!empty($pl['drive_file_url'])):
                     ?>
-                        <a href="<?= e($pl['drive_file_url']) ?>" target="_blank" class="btn btn-sm" style="font-size:.68rem;background:#10b981;color:#fff;border:none;" title="Abrir XLSX salvo no Drive">📁 No Drive</a>
+                        <a href="<?= e($pl['drive_file_url']) ?>" target="_blank" class="btn btn-sm" style="font-size:.68rem;background:#10b981;color:#fff;border:none;" title="Abrir XLSX salvo no Drive (já foi vinculado ao caso)">📁 No Drive</a>
                     <?php elseif (!empty($pl['case_id'])): ?>
-                        <button type="button" onclick="pdSalvarNoDrive(<?= (int)$pl['id'] ?>, this)" class="btn btn-sm" style="font-size:.68rem;background:#4285f4;color:#fff;border:none;">📁 Salvar Drive</button>
+                        <button type="button" onclick="pdSalvarNoDrive(<?= (int)$pl['id'] ?>, this)" class="btn btn-sm" style="font-size:.68rem;background:#4285f4;color:#fff;border:none;" title="Sobe pra Drive E cria andamento no caso">💾 Salvar no caso</button>
                     <?php endif; ?>
                 </td>
             </tr>
@@ -419,10 +419,10 @@ function mostrarResultado(r) {
     var vincStyle = (r.case_id_salvo || r.client_id_salvo)
         ? 'background:#dcfce7;border-left:3px solid #10b981;color:#14532d;'
         : 'background:#fef3c7;border-left:3px solid #f59e0b;color:#7c2d12;';
-    // Amanda 15/06/2026: botao 'Salvar no Drive' so faz sentido se vinculou a processo
+    // Amanda 15/06/2026: botao salva no Drive + cria andamento no caso (pedido)
     var btnDrive = '';
     if (r.id && r.case_id_salvo) {
-        btnDrive = '<button id="pdBtnDrive" onclick="pdSalvarNoDrive(' + r.id + ')" class="btn btn-sm" style="background:#4285f4;color:#fff;border:none;">📁 Salvar no Drive</button>';
+        btnDrive = '<button id="pdBtnDrive" onclick="pdSalvarNoDrive(' + r.id + ')" class="btn btn-sm" style="background:#4285f4;color:#fff;border:none;" title="Sobe o XLSX pra subpasta Cálculos do Drive E cria um andamento no caso com o link">💾 Salvar no caso (Drive + Andamento)</button>';
     }
     var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;">'
         + '<h3>Cálculo Gerado</h3>'
@@ -488,8 +488,13 @@ window.pdSalvarNoDrive = function(planilhaId, btnOpcional) {
                 status.style.background = '#dcfce7';
                 status.style.color = '#14532d';
                 status.style.borderLeftColor = '#10b981';
+                var linkCaso = (window.location.origin + '/conecta/modules/operacional/caso_ver.php?id=' + (d.case_id || ''));
+                var linhaAnd = d.andamento_id
+                    ? '<br>📋 Andamento criado no caso · <a href="' + linkCaso + '#andamento-' + d.andamento_id + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Ver no Hub ↗</a>'
+                    : '';
                 status.innerHTML = '✓ Salvo na pasta <strong>' + d.case_title + ' / Cálculos / ' + d.nome_arquivo + '</strong> · '
-                                + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>';
+                                + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>'
+                                + linhaAnd;
             }
             // Converte o botão em link pro Drive
             if (btnOpcional) {
