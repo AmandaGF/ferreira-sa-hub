@@ -1836,9 +1836,17 @@ if ($action === 'enviar_arquivo') {
     $tipo    = $isImage ? 'imagem' : 'documento';
 
     // Enviar via Z-API
+    // Amanda 16/06/2026: imagens via base64 INLINE em vez de URL publica.
+    // Bug confirmado: ao enviar imagem via URL publica, a Z-API aceitava
+    // (gerava ID sintetico 3EB0... 20 chars) mas a entrega real falhava —
+    // o WhatsApp nunca recebia. Base64 elimina o passo 'Z-API baixa de
+    // servidor externo' e a mensagem chega de verdade (vira ID A5... 32 chars).
     if ($isImage) {
-        $resp = zapi_send_image($conv['canal'], $conv['telefone'], $publicUrl, $caption);
+        $bytes = @file_get_contents($dest);
+        $b64   = $bytes !== false ? ('data:' . $mime . ';base64,' . base64_encode($bytes)) : $publicUrl;
+        $resp  = zapi_send_image($conv['canal'], $conv['telefone'], $b64, $caption);
     } else {
+        // Documentos seguem por URL (PDFs grandes em base64 estouram payload)
         $resp = zapi_send_document($conv['canal'], $conv['telefone'], $publicUrl, $nome, $caption);
     }
     if (empty($resp['ok'])) {
