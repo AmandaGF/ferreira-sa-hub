@@ -68,6 +68,23 @@ try {
     $hist = json_decode($j, true) ?: array();
 } catch (Throwable $e) {}
 
+// Amanda 16/06/2026: lista grupos disponiveis por canal, agrupados
+$gruposCanal = array('21' => array(), '24' => array());
+try {
+    $st = $pdo->query("SELECT co.id, co.telefone, co.nome_contato,
+                              i.ddd AS canal,
+                              (SELECT created_at FROM zapi_mensagens m WHERE m.conversa_id = co.id ORDER BY m.created_at DESC LIMIT 1) AS ultima_msg
+                       FROM zapi_conversas co
+                       JOIN zapi_instancias i ON i.id = co.instancia_id
+                       WHERE COALESCE(co.eh_grupo, 0) = 1
+                       ORDER BY co.nome_contato ASC");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $g) {
+        $ch = (string)$g['canal'];
+        if (!isset($gruposCanal[$ch])) $gruposCanal[$ch] = array();
+        $gruposCanal[$ch][] = $g;
+    }
+} catch (Throwable $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -111,14 +128,62 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
                 <div class="form-group">
                     <label class="form-label">ID do grupo WhatsApp</label>
-                    <input type="text" name="grupo_id" class="form-input"
+                    <input type="text" name="grupo_id" id="grupoIdInput" class="form-input"
                            value="<?= e($cfg['grupo_id']) ?>"
-                           placeholder="Ex.: 5524999999999-1234567890@g.us">
+                           placeholder="Selecione um grupo da lista abaixo ou cole o ID manualmente">
                     <small style="color:#6b7280;font-size:.74rem;">
-                        Como descobrir: abra o grupo no Hub (WhatsApp → busque pelo nome do grupo), depois copie o telefone que aparece no chip
-                        (algo terminado em <code>@g.us</code>). Ou peça pra alguém mandar uma msg no grupo e olhe o webhook.
+                        🎯 <strong>Atalho:</strong> os grupos onde o canal selecionado já participa aparecem na lista abaixo —
+                        é só clicar pra preencher.
                     </small>
+
+                    <!-- Lista de grupos disponiveis por canal -->
+                    <div style="margin-top:.75rem;">
+                        <?php foreach (array('21'=>'(21) Comercial','24'=>'(24) CX / Operacional') as $ch => $lbl): ?>
+                            <?php $gs = $gruposCanal[$ch] ?? array(); ?>
+                            <div style="margin-bottom:.6rem;">
+                                <div style="font-size:.72rem;font-weight:700;color:#475569;margin-bottom:.3rem;">
+                                    📞 <?= $lbl ?> <span style="background:#e2e8f0;color:#475569;padding:1px 7px;border-radius:8px;font-size:.65rem;margin-left:4px;"><?= count($gs) ?> grupo<?= count($gs)===1?'':'s' ?></span>
+                                </div>
+                                <?php if (!$gs): ?>
+                                    <div style="font-size:.74rem;color:#94a3b8;font-style:italic;padding:.4rem .6rem;background:#f8fafc;border:1px dashed #cbd5e1;border-radius:6px;">
+                                        Nenhum grupo encontrado neste canal. Peça pra alguém adicionar o número (<?= $ch ?>) ao grupo do escritório e mandar uma mensagem lá — depois recarrega esta página.
+                                    </div>
+                                <?php else: ?>
+                                    <div style="display:flex;flex-direction:column;gap:.3rem;">
+                                        <?php foreach ($gs as $g): ?>
+                                            <button type="button"
+                                                    onclick="grupoSelecionar('<?= e($g['telefone']) ?>', this)"
+                                                    style="text-align:left;background:#f0f9ff;border:1px solid #bae6fd;padding:.4rem .65rem;border-radius:6px;cursor:pointer;font-size:.78rem;display:flex;justify-content:space-between;align-items:center;gap:.5rem;">
+                                                <span>
+                                                    <strong style="color:#0c4a6e;">👥 <?= e($g['nome_contato'] ?: '(grupo sem nome)') ?></strong>
+                                                    <div style="font-size:.65rem;color:#64748b;font-family:ui-monospace,monospace;margin-top:1px;"><?= e($g['telefone']) ?></div>
+                                                </span>
+                                                <span style="color:#0ea5e9;font-size:.7rem;font-weight:600;">Usar este ↗</span>
+                                            </button>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
+
+                <script>
+                function grupoSelecionar(telefone, btn) {
+                    document.getElementById('grupoIdInput').value = telefone;
+                    // Marca o botão como selecionado
+                    document.querySelectorAll('#grupoIdInput').forEach(function(){});
+                    document.querySelectorAll('[onclick^="grupoSelecionar"]').forEach(function(b){
+                        b.style.background = '#f0f9ff';
+                        b.style.borderColor = '#bae6fd';
+                    });
+                    btn.style.background = '#dcfce7';
+                    btn.style.borderColor = '#10b981';
+                    // Rola pro input pra usuário ver
+                    document.getElementById('grupoIdInput').scrollIntoView({behavior:'smooth', block:'center'});
+                    document.getElementById('grupoIdInput').focus();
+                }
+                </script>
             </div>
 
             <div class="form-group">
