@@ -220,6 +220,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
     .wa-chat-head { flex-wrap:wrap; }
 }
 .wa-chat-body { flex:1;overflow-y:auto;padding:1rem;background:#faf8f5; }
+/* Amanda 16/06/2026: modo de selecao de imagens (clica no balao pra marcar) */
+.wa-chat-body.wa-modo-sel-img .wa-msg-row[data-tipo="imagem"] { cursor:pointer; transition:transform .12s, filter .12s; }
+.wa-chat-body.wa-modo-sel-img .wa-msg-row[data-tipo="imagem"] .wa-msg { transition:box-shadow .15s, outline .15s; }
+.wa-chat-body.wa-modo-sel-img .wa-msg-row[data-tipo="imagem"]:hover .wa-msg { outline:3px solid #fed7aa; outline-offset:2px; }
+.wa-chat-body.wa-modo-sel-img .wa-msg-row[data-tipo="imagem"].wa-sel-on .wa-msg {
+    outline:4px solid #16a34a !important; outline-offset:2px;
+    box-shadow:0 0 0 8px rgba(22,163,74,.18);
+    position:relative;
+}
+.wa-chat-body.wa-modo-sel-img .wa-msg-row[data-tipo="imagem"].wa-sel-on .wa-msg::after {
+    content:'✓'; position:absolute; top:-12px; left:-12px;
+    width:30px; height:30px; background:#16a34a; color:#fff;
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:1.05rem; box-shadow:0 2px 8px rgba(0,0,0,.25); z-index:10;
+}
 /* Amanda 10/06/2026: barra de filtros de midia (imagens/audios/videos/PDFs/docs) */
 .wa-filtro-midia { display:flex;gap:.3rem;padding:.4rem .75rem;background:#f8fafc;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;align-items:center; }
 .wa-fm-btn { background:#fff;border:1px solid #d1d5db;border-radius:14px;padding:.2rem .65rem;font-size:.72rem;font-weight:600;color:#475569;cursor:pointer;display:inline-flex;gap:4px;align-items:center;transition:all .15s; }
@@ -2340,35 +2355,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waToggleSelecionarImagens = function() {
         window._waModoSelImg = !window._waModoSelImg;
-        var rows = document.querySelectorAll('#waChatBody .wa-msg-row[data-tipo="imagem"]');
+        var body = document.getElementById('waChatBody');
         var barra = document.getElementById('waBarraSelImg');
         var btn = document.getElementById('waBtnSelImg');
 
         if (window._waModoSelImg) {
-            // ENTRA no modo seleção
+            // ENTRA no modo seleção — marca body inteiro pra ativar CSS de hover/highlight
             window._waImgSelecionadas.clear();
-            // Filtra so imagens
             waFiltrarMidia('imagem');
-            rows.forEach(function(row){
-                var cb = document.createElement('input');
-                cb.type = 'checkbox';
-                cb.className = 'wa-img-sel-cb';
-                cb.dataset.msgId = row.dataset.msgId;
-                cb.style.cssText = 'position:absolute;top:8px;left:8px;width:20px;height:20px;z-index:5;cursor:pointer;';
-                cb.onclick = function(e){
-                    e.stopPropagation();
-                    var id = parseInt(cb.dataset.msgId, 10);
-                    if (cb.checked) window._waImgSelecionadas.add(id);
-                    else window._waImgSelecionadas.delete(id);
-                    waAtualizarBarraSelImg();
-                };
-                // Container relativo
-                row.style.position = 'relative';
-                row.appendChild(cb);
-                // Click no body inteiro tb seleciona
-                row.dataset.selectable = '1';
-                row.addEventListener('click', _waCliqueSelImg);
-            });
+            body.classList.add('wa-modo-sel-img');
+            // Click handler delegado no body (funciona inclusive em imgs renderizadas depois)
+            body.addEventListener('click', _waCliqueSelImg, true);
             barra.style.display = 'flex';
             btn.style.background = '#fb923c';
             btn.style.color = '#fff';
@@ -2376,10 +2373,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             waAtualizarBarraSelImg();
         } else {
             // SAI do modo seleção
-            document.querySelectorAll('.wa-img-sel-cb').forEach(function(cb){ cb.remove(); });
-            rows.forEach(function(row){
-                row.removeEventListener('click', _waCliqueSelImg);
-                delete row.dataset.selectable;
+            body.classList.remove('wa-modo-sel-img');
+            body.removeEventListener('click', _waCliqueSelImg, true);
+            // Limpa marcação visual
+            document.querySelectorAll('.wa-msg-row.wa-sel-on').forEach(function(r){
+                r.classList.remove('wa-sel-on');
             });
             window._waImgSelecionadas.clear();
             barra.style.display = 'none';
@@ -2391,16 +2389,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
 
     function _waCliqueSelImg(e) {
-        // Click na própria msg liga/desliga o checkbox (sem precisar mirar)
-        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT'
-            || e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') return;
-        var row = e.currentTarget;
-        var cb = row.querySelector('.wa-img-sel-cb');
-        if (cb) { cb.checked = !cb.checked; cb.onclick({stopPropagation:function(){}}); }
+        // Acha o row de imagem (closest)
+        var row = e.target.closest('.wa-msg-row[data-tipo="imagem"]');
+        if (!row) return;
+        // Bloqueia abrir a imagem em nova aba (e qualquer onclick interno)
+        e.preventDefault();
+        e.stopPropagation();
+        var id = parseInt(row.dataset.msgId, 10);
+        if (!id) return;
+        if (window._waImgSelecionadas.has(id)) {
+            window._waImgSelecionadas.delete(id);
+            row.classList.remove('wa-sel-on');
+        } else {
+            window._waImgSelecionadas.add(id);
+            row.classList.add('wa-sel-on');
+        }
+        waAtualizarBarraSelImg();
     }
 
     window.waLimparSelImg = function() {
-        document.querySelectorAll('.wa-img-sel-cb').forEach(function(cb){ cb.checked = false; });
+        document.querySelectorAll('.wa-msg-row.wa-sel-on').forEach(function(r){
+            r.classList.remove('wa-sel-on');
+        });
         window._waImgSelecionadas.clear();
         waAtualizarBarraSelImg();
     };
