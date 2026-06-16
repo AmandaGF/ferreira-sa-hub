@@ -36,7 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $canal = $_POST['canal'] ?? '21';
         if (!in_array($canal, array('21','24'), true)) $canal = '21';
         _comemo_set($pdo, 'comemoracao_contrato_canal', $canal);
-        _comemo_set($pdo, 'comemoracao_contrato_grupo_id', trim($_POST['grupo_id'] ?? ''));
+        // Amanda 16/06/2026: append @g.us se faltar — IDs salvos puros nao
+        // funcionam (Z-API gera ID sintetico 3EB0... e nao entrega).
+        $g = trim($_POST['grupo_id'] ?? '');
+        if ($g !== '' && strpos($g, '@') === false) $g = $g . '@g.us';
+        _comemo_set($pdo, 'comemoracao_contrato_grupo_id', $g);
         _comemo_set($pdo, 'comemoracao_contrato_template', trim($_POST['template'] ?? ''));
         flash_set('success', 'Configuração salva. Teste enviando uma mensagem teste antes de ativar de vez!');
         redirect($_SERVER['REQUEST_URI']);

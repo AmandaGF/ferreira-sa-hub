@@ -31,6 +31,14 @@ function comemoracao_get_config() {
             if (isset($cache[$k])) $cache[$k] = (string)$r['valor'];
         }
     } catch (Throwable $e) {}
+
+    // Amanda 16/06/2026: garantir que grupo_id sempre tem o sufixo @g.us.
+    // Bug confirmado em 16/06: ID salvo sem @g.us fazia Z-API gerar messageId
+    // sintetico 3EB0... — aceitava no HTTP 200 mas nao entregava ao WhatsApp.
+    $g = trim($cache['grupo_id']);
+    if ($g !== '' && strpos($g, '@g.us') === false && strpos($g, '@') === false) {
+        $cache['grupo_id'] = $g . '@g.us';
+    }
     return $cache;
 }
 
