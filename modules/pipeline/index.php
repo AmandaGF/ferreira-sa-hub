@@ -394,7 +394,13 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($lead['case_number']) ?>',this)" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($lead['case_number']) ?></div>
                     <?php endif; ?>
                     <?php if (!empty($lead['onboard_nao_precisa'])): ?>
-                        <div title="Equipe marcou que este cliente não precisa de onboarding" style="display:inline-block;font-size:.58rem;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;font-weight:700;margin-top:.2rem;padding:1px 6px;border-radius:8px;">🚫 Sem onboarding</div>
+                        <div onclick="event.stopPropagation();toggleOnboardNaoPrecisa(<?= (int)$lead['id'] ?>,0,this)"
+                             title="Clique pra DESMARCAR (este cliente vai voltar a aparecer como precisando de onboarding)"
+                             style="display:inline-block;font-size:.58rem;color:#b91c1c;background:#fee2e2;border:1px solid #fca5a5;font-weight:700;margin-top:.2rem;padding:1px 6px;border-radius:8px;cursor:pointer;">🚫 Sem onboarding</div>
+                    <?php elseif (empty($lead['onboard_realizado'])): ?>
+                        <button type="button" onclick="event.stopPropagation();toggleOnboardNaoPrecisa(<?= (int)$lead['id'] ?>,1,this)"
+                                title="Marcar que este cliente NÃO precisa de onboarding"
+                                style="display:inline-block;font-size:.58rem;color:#92400e;background:#fffbeb;border:1px solid #fcd34d;font-weight:700;margin-top:.2rem;padding:1px 6px;border-radius:8px;cursor:pointer;">🚫 Sem onboard?</button>
                     <?php endif; ?>
                     <?php if ($stageKey === 'doc_faltante' && $lead['doc_faltante_motivo']): ?>
                         <div class="lead-doc-alert">⚠️ <?= e($lead['doc_faltante_motivo']) ?></div>
@@ -892,6 +898,27 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
 <script>
 var _pendingForm = null;
 var _pendingDragData = null;
+
+// Amanda 16/06/2026: marca/desmarca 'sem onboarding' direto no card do Kanban
+function toggleOnboardNaoPrecisa(leadId, valor, btn) {
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳';
+    var fd = new FormData();
+    fd.append('action', 'inline_edit');
+    fd.append('lead_id', leadId);
+    fd.append('field', 'onboard_nao_precisa');
+    fd.append('value', valor);
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url('pipeline', 'api.php') ?>', { method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); btn.disabled=false; btn.innerHTML=orig; return; }
+            // Recarrega o Kanban pra refletir o novo estado (badge troca)
+            location.reload();
+        })
+        .catch(function(){ alert('Erro de rede.'); btn.disabled=false; btn.innerHTML=orig; });
+}
 
 // Amanda 08/06/2026: clique no CNJ copia pro clipboard com feedback temporario
 function copiarCNJ(ev, numero, btn) {
