@@ -1591,6 +1591,8 @@ if ($action === 'salvar_lote_pdf_drive') {
         echo json_encode(array('error' => 'Falha ao criar subpasta no Drive: ' . ($sub['error'] ?? 'desconhecido')));
         exit;
     }
+    // Amanda 16/06/2026: URL da SUBPASTA pra mostrar botao 'Abrir pasta'
+    $subpastaUrl = 'https://drive.google.com/drive/folders/' . $sub['folderId'];
 
     // Nome do arquivo
     $prefBase = $nomePersonalizado !== '' ? $nomePersonalizado : 'docs';
@@ -1620,7 +1622,9 @@ if ($action === 'salvar_lote_pdf_drive') {
     echo json_encode(array(
         'ok'           => true,
         'drive_url'    => $up['fileUrl'],
+        'subpasta_url' => $subpastaUrl,
         'nome_arquivo' => $nomeFinal,
+        'case_title'   => $case['title'],
         'paginas'      => $r['paginas'],
         'bytes'        => $r['bytes'],
         'mb'           => round($r['bytes']/1024/1024, 2),

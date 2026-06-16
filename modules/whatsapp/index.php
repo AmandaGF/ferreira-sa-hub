@@ -235,6 +235,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     border-radius:50%; display:flex; align-items:center; justify-content:center;
     font-weight:700; font-size:1.05rem; box-shadow:0 2px 8px rgba(0,0,0,.25); z-index:10;
 }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes popIn { from { opacity:0; transform:scale(.9) translateY(8px); } to { opacity:1; transform:scale(1) translateY(0); } }
 /* Amanda 10/06/2026: barra de filtros de midia (imagens/audios/videos/PDFs/docs) */
 .wa-filtro-midia { display:flex;gap:.3rem;padding:.4rem .75rem;background:#f8fafc;border-bottom:1px solid #e5e7eb;flex-wrap:wrap;align-items:center; }
 .wa-fm-btn { background:#fff;border:1px solid #d1d5db;border-radius:14px;padding:.2rem .65rem;font-size:.72rem;font-weight:600;color:#475569;cursor:pointer;display:inline-flex;gap:4px;align-items:center;transition:all .15s; }
@@ -2550,17 +2552,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     btn.innerHTML = '📑 Tentar de novo';
                     return;
                 }
-                status.style.background = '#dcfce7';
-                status.style.color = '#14532d';
-                status.innerHTML = '✓ PDF salvo! <strong>' + d.nome_arquivo + '</strong> · ' + d.paginas + ' páginas · '
-                    + d.mb + ' MB (qualidade JPG ' + d.qualidade + ') · '
-                    + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>';
-                btn.innerHTML = '✓ Salvo';
-                btn.style.background = '#10b981';
-                setTimeout(function(){
-                    document.getElementById('waLoteModal').remove();
-                    waToggleSelecionarImagens();
-                }, 3500);
+                // Amanda 16/06/2026: tela de sucesso BEM clara, nao fecha sozinha,
+                // tem botao pra abrir a pasta no Drive.
+                _waMostrarSucessoLote(d);
             })
             .catch(function(err){
                 clearTimeout(tid);
@@ -2575,6 +2569,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 btn.innerHTML = '📑 Tentar de novo';
             });
     };
+
+    // Amanda 16/06/2026: tela de sucesso bem clara apos PDF gerado
+    function _waMostrarSucessoLote(d) {
+        // Fecha o modal de progresso primeiro
+        var modal = document.getElementById('waLoteModal');
+        if (modal) modal.remove();
+
+        var ov = document.createElement('div');
+        ov.id = 'waLoteSucesso';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .2s;';
+
+        ov.innerHTML =
+            '<div style="background:#fff;border-radius:14px;max-width:520px;width:100%;padding:2rem 1.5rem 1.5rem;box-shadow:0 24px 60px rgba(0,0,0,.35);text-align:center;animation:popIn .25s;">'
+            + '<div style="font-size:3.5rem;line-height:1;margin-bottom:.5rem;">🎉</div>'
+            + '<h2 style="color:#15803d;margin:0 0 .4rem;font-size:1.4rem;">PDF salvo com sucesso!</h2>'
+            + '<div style="color:#475569;font-size:.9rem;margin-bottom:1.2rem;">As imagens foram juntadas e enviadas para o Drive do caso.</div>'
+
+            + '<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:1rem;margin-bottom:1.2rem;text-align:left;">'
+            +   '<div style="font-size:.78rem;color:#166534;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.5rem;">Arquivo</div>'
+            +   '<div style="font-family:ui-monospace,Consolas,monospace;font-size:.85rem;color:#052228;word-break:break-all;margin-bottom:.6rem;">📄 ' + escapeHtml(d.nome_arquivo) + '</div>'
+            +   '<div style="display:flex;gap:1.2rem;flex-wrap:wrap;font-size:.78rem;color:#475569;">'
+            +     '<div><strong style="color:#052228;">' + d.paginas + '</strong> páginas</div>'
+            +     '<div><strong style="color:#052228;">' + d.mb + ' MB</strong></div>'
+            +     '<div>Qualidade JPG <strong style="color:#052228;">' + d.qualidade + '</strong></div>'
+            +   '</div>'
+            +   '<div style="margin-top:.5rem;font-size:.78rem;color:#475569;">📂 Pasta: <strong style="color:#052228;">' + escapeHtml(d.case_title || '—') + '</strong> / <strong style="color:#052228;">01 - PARA DISTRIBUIR</strong></div>'
+            + '</div>'
+
+            + '<div style="display:flex;flex-direction:column;gap:.5rem;">'
+            +   '<a href="' + d.subpasta_url + '" target="_blank" style="background:#4285f4;color:#fff;padding:.7rem 1rem;border-radius:8px;text-decoration:none;font-weight:700;font-size:.92rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">'
+            +     '📁 Abrir pasta no Drive ↗'
+            +   '</a>'
+            +   '<a href="' + d.drive_url + '" target="_blank" style="background:#fff;color:#4285f4;padding:.55rem 1rem;border:1.5px solid #4285f4;border-radius:8px;text-decoration:none;font-weight:600;font-size:.85rem;">'
+            +     '📄 Abrir só este PDF ↗'
+            +   '</a>'
+            +   '<button onclick="document.getElementById(\'waLoteSucesso\').remove(); waToggleSelecionarImagens();" style="background:#f8fafc;color:#475569;padding:.55rem 1rem;border:1.5px solid #cbd5e1;border-radius:8px;cursor:pointer;font-weight:600;font-size:.85rem;margin-top:.3rem;">'
+            +     'Fechar e sair da seleção'
+            +   '</button>'
+            + '</div>'
+
+            + '</div>';
+
+        document.body.appendChild(ov);
+    }
 
     window.waTranscrever = function(msgId, btn) {
         var original = btn.textContent;
