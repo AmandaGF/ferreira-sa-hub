@@ -185,17 +185,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 </div>
 
                 <script>
+                // Amanda 16/06/2026: ao clicar num grupo, alinha automaticamente
+                // o canal correspondente — evita bug onde grupo do 24 ficava com
+                // canal=21 selecionado e Z-API gerava ID sintetico que nao entregava.
                 function grupoSelecionar(telefone, btn) {
                     document.getElementById('grupoIdInput').value = telefone;
-                    // Marca o botão como selecionado
-                    document.querySelectorAll('#grupoIdInput').forEach(function(){});
+                    // Detecta o canal do grupo pela secao DOM-mae do botao
+                    var sectionDdd = btn.closest('div[style*="margin-bottom"]')
+                        ? btn.closest('div[style*="margin-bottom"]').querySelector('div[style*="font-weight:700"]').textContent.match(/\((\d{2})\)/)
+                        : null;
+                    if (sectionDdd && sectionDdd[1]) {
+                        var canalSel = document.querySelector('select[name="canal"]');
+                        if (canalSel && canalSel.value !== sectionDdd[1]) {
+                            canalSel.value = sectionDdd[1];
+                            // Avisa o usuario que mudou
+                            var aviso = document.getElementById('canalAuto');
+                            if (!aviso) {
+                                aviso = document.createElement('div');
+                                aviso.id = 'canalAuto';
+                                aviso.style.cssText = 'margin-top:.5rem;padding:.4rem .7rem;background:#fef3c7;border-left:3px solid #f59e0b;border-radius:0 6px 6px 0;font-size:.78rem;color:#7c2d12;';
+                                canalSel.parentNode.appendChild(aviso);
+                            }
+                            aviso.textContent = '✓ Canal ajustado automaticamente pra ' + sectionDdd[1] + ' (esse grupo está nele).';
+                        }
+                    }
                     document.querySelectorAll('[onclick^="grupoSelecionar"]').forEach(function(b){
                         b.style.background = '#f0f9ff';
                         b.style.borderColor = '#bae6fd';
                     });
                     btn.style.background = '#dcfce7';
                     btn.style.borderColor = '#10b981';
-                    // Rola pro input pra usuário ver
                     document.getElementById('grupoIdInput').scrollIntoView({behavior:'smooth', block:'center'});
                     document.getElementById('grupoIdInput').focus();
                 }
