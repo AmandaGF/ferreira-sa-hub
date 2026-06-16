@@ -43,18 +43,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($act === 'teste') {
-        $fakeLead = array(
-            'name' => 'CLIENTE TESTE (apenas teste do sino)',
-            'case_type' => 'Pensão Alimentícia',
-            'estimated_value_cents' => 350000,
-            'honorarios_cents' => 350000,
-            'assigned_to' => current_user_id(),
-        );
-        $r = comemorar_contrato_assinado($fakeLead);
+        // Amanda 16/06/2026: mensagem de teste é uma frase divertida do "Jorjão",
+        // separada do template de producao (que tem cliente/vendedor de verdade).
+        // Assim a equipe entende que eh teste e nao confunde com contrato real.
+        $cfg = comemoracao_get_config();
+        if ($cfg['ativada'] !== '1' && empty($_POST['forcar_mesmo_desligado'])) {
+            // Permite testar mesmo desligado — eh o objetivo do botao
+        }
+        if (!$cfg['grupo_id']) {
+            flash_set('error', '⚠️ Configure o grupo do WhatsApp primeiro (clique num grupo da lista e salve).');
+            redirect($_SERVER['REQUEST_URI']);
+        }
+        if (!in_array($cfg['canal'], array('21','24'), true)) {
+            flash_set('error', '⚠️ Canal inválido. Selecione 21 ou 24 e salve.');
+            redirect($_SERVER['REQUEST_URI']);
+        }
+
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $msgTeste = "🔔 *Fala pessoal! Jorjão tá na área dnovo!* 🔔\n\nBora lá?! 🚀\n\n_(mensagem de teste do sino de comemoração — está tudo funcionando!)_";
+        $r = zapi_send_text($cfg['canal'], $cfg['grupo_id'], $msgTeste);
+
         if (!empty($r['ok'])) {
-            flash_set('success', '✓ Mensagem teste enviada! Confira o grupo no WhatsApp.');
+            flash_set('success', '✓ Mensagem TESTE do Jorjão enviada! Confira o grupo no WhatsApp.');
         } else {
-            flash_set('error', '⚠️ Falhou: ' . ($r['erro'] ?? 'desconhecido'));
+            flash_set('error', '⚠️ Falhou ao enviar: ' . ($r['erro'] ?? 'desconhecido'));
         }
         redirect($_SERVER['REQUEST_URI']);
     }
@@ -206,7 +218,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?= csrf_input() ?>
             <input type="hidden" name="action" value="teste">
             <button type="submit" class="btn btn-outline" style="background:#fef3c7;border-color:#f59e0b;color:#7c2d12;">🧪 Enviar mensagem TESTE no grupo</button>
-            <small style="color:#6b7280;font-size:.74rem;">Usa cliente fictício "CLIENTE TESTE" + valor R$ 3.500,00.</small>
+            <small style="color:#6b7280;font-size:.74rem;">Manda uma frase do Jorjão pra equipe saber que é teste: <em>"Fala pessoal! Jorjão tá na área dnovo! Bora lá?!"</em></small>
         </form>
     </div>
 </div>
