@@ -477,6 +477,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button type="button" class="wa-fm-btn" data-tipo="video" onclick="waFiltrarMidia('video')">🎬 Vídeos <span class="wa-fm-cnt" id="waFmCntVid">0</span></button>
             <button type="button" class="wa-fm-btn" data-tipo="pdf" onclick="waFiltrarMidia('pdf')">📕 PDFs <span class="wa-fm-cnt" id="waFmCntPdf">0</span></button>
             <button type="button" class="wa-fm-btn" data-tipo="documento" onclick="waFiltrarMidia('documento')">📄 Outros docs <span class="wa-fm-cnt" id="waFmCntDoc">0</span></button>
+            <!-- Amanda 16/06/2026: modo de selecao de varias imagens pra juntar em 1 PDF -->
+            <button type="button" class="wa-fm-btn" id="waBtnSelImg" onclick="waToggleSelecionarImagens()" style="margin-left:auto;background:#fff7ed;border-color:#fb923c;color:#9a3412;">☑️ Selecionar imagens (PDF)</button>
+        </div>
+        <!-- Barra flutuante quando ha imagens selecionadas -->
+        <div id="waBarraSelImg" style="display:none;position:sticky;top:0;z-index:50;background:#fb923c;color:#fff;padding:.5rem .85rem;display:none;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;font-size:.85rem;">
+            <span><strong id="waBarraSelImgCnt">0</strong> imagem(ns) selecionada(s) · juntar tudo em 1 PDF</span>
+            <span style="display:flex;gap:.4rem;">
+                <button type="button" onclick="waLimparSelImg()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">Limpar</button>
+                <button type="button" onclick="waSalvarLoteImgPdf()" style="background:#fff;border:none;color:#9a3412;padding:.3rem .9rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700;">📑 Salvar como PDF no Drive</button>
+                <button type="button" onclick="waToggleSelecionarImagens()" style="background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:.3rem .7rem;border-radius:6px;cursor:pointer;font-size:.78rem;">✕ Sair</button>
+            </span>
         </div>
         <div id="waChatBody" class="wa-chat-body">
             <div class="wa-chat-empty">
@@ -787,6 +798,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var c = d.conversa;
         var nome = c.nome_contato || c.client_name || c.lead_name || formatTel(c.telefone);
         convNomeAtual = nome; // guarda pra substituição de {{nome}}
+        // Amanda 16/06/2026: guarda conv atual globalmente pra modo de seleção de imagens
+        window._waConvAtual = c;
 
         // Header com ações
         var head = document.getElementById('waChatHeadContainer');
@@ -2317,6 +2330,195 @@ require_once APP_ROOT . '/templates/layout_start.php';
         document.querySelectorAll('#waFiltroMidia .wa-fm-btn').forEach(function(b){
             b.classList.toggle('wa-fm-ativa', b.dataset.tipo === 'todos');
         });
+    };
+
+    // ════════════════════════════════════════════════════════
+    // Amanda 16/06/2026: selecionar imagens pra juntar num PDF
+    // ════════════════════════════════════════════════════════
+    window._waModoSelImg = false;
+    window._waImgSelecionadas = new Set();
+
+    window.waToggleSelecionarImagens = function() {
+        window._waModoSelImg = !window._waModoSelImg;
+        var rows = document.querySelectorAll('#waChatBody .wa-msg-row[data-tipo="imagem"]');
+        var barra = document.getElementById('waBarraSelImg');
+        var btn = document.getElementById('waBtnSelImg');
+
+        if (window._waModoSelImg) {
+            // ENTRA no modo seleção
+            window._waImgSelecionadas.clear();
+            // Filtra so imagens
+            waFiltrarMidia('imagem');
+            rows.forEach(function(row){
+                var cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'wa-img-sel-cb';
+                cb.dataset.msgId = row.dataset.msgId;
+                cb.style.cssText = 'position:absolute;top:8px;left:8px;width:20px;height:20px;z-index:5;cursor:pointer;';
+                cb.onclick = function(e){
+                    e.stopPropagation();
+                    var id = parseInt(cb.dataset.msgId, 10);
+                    if (cb.checked) window._waImgSelecionadas.add(id);
+                    else window._waImgSelecionadas.delete(id);
+                    waAtualizarBarraSelImg();
+                };
+                // Container relativo
+                row.style.position = 'relative';
+                row.appendChild(cb);
+                // Click no body inteiro tb seleciona
+                row.dataset.selectable = '1';
+                row.addEventListener('click', _waCliqueSelImg);
+            });
+            barra.style.display = 'flex';
+            btn.style.background = '#fb923c';
+            btn.style.color = '#fff';
+            btn.innerHTML = '✕ Sair da seleção';
+            waAtualizarBarraSelImg();
+        } else {
+            // SAI do modo seleção
+            document.querySelectorAll('.wa-img-sel-cb').forEach(function(cb){ cb.remove(); });
+            rows.forEach(function(row){
+                row.removeEventListener('click', _waCliqueSelImg);
+                delete row.dataset.selectable;
+            });
+            window._waImgSelecionadas.clear();
+            barra.style.display = 'none';
+            btn.style.background = '#fff7ed';
+            btn.style.color = '#9a3412';
+            btn.innerHTML = '☑️ Selecionar imagens (PDF)';
+            waFiltrarMidia('todos');
+        }
+    };
+
+    function _waCliqueSelImg(e) {
+        // Click na própria msg liga/desliga o checkbox (sem precisar mirar)
+        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT'
+            || e.target.tagName === 'IMG' || e.target.tagName === 'VIDEO') return;
+        var row = e.currentTarget;
+        var cb = row.querySelector('.wa-img-sel-cb');
+        if (cb) { cb.checked = !cb.checked; cb.onclick({stopPropagation:function(){}}); }
+    }
+
+    window.waLimparSelImg = function() {
+        document.querySelectorAll('.wa-img-sel-cb').forEach(function(cb){ cb.checked = false; });
+        window._waImgSelecionadas.clear();
+        waAtualizarBarraSelImg();
+    };
+
+    function waAtualizarBarraSelImg() {
+        var n = window._waImgSelecionadas.size;
+        var el = document.getElementById('waBarraSelImgCnt');
+        if (el) el.textContent = n;
+    }
+
+    window.waSalvarLoteImgPdf = function() {
+        var ids = Array.from(window._waImgSelecionadas);
+        if (!ids.length) { alert('Selecione pelo menos uma imagem.'); return; }
+        if (ids.length > 50) { alert('Máximo 50 imagens por PDF. Reduza a seleção.'); return; }
+
+        // Precisa do case_id da conversa: pega da convAtiva via API
+        var c = window._waConvAtual || {};
+        if (!c.client_id) {
+            alert('Esta conversa não tem cliente vinculado. Vincule primeiro pra poder salvar no Drive do caso.');
+            return;
+        }
+
+        // Busca casos do cliente — chama o endpoint que ja existe (igual salvar_drive 1 a 1)
+        var fd = new FormData();
+        fd.append('action', 'listar_cases_cliente');
+        fd.append('client_id', c.client_id);
+        fd.append('csrf_token', csrf);
+        fetch(apiUrl, { method:'POST', body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error || !d.cases || !d.cases.length) {
+                    alert('Cliente não tem casos com pasta no Drive. Crie um caso primeiro pelo Kanban Operacional.');
+                    return;
+                }
+                _waMostrarModalSalvarLotePDF(d.cases, ids);
+            })
+            .catch(function(){ alert('Erro de rede ao buscar casos.'); });
+    };
+
+    function _waMostrarModalSalvarLotePDF(cases, msgIds) {
+        var existe = document.getElementById('waLoteModal');
+        if (existe) existe.remove();
+        var ov = document.createElement('div');
+        ov.id = 'waLoteModal';
+        ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+        ov.innerHTML =
+            '<div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:1.25rem;box-shadow:0 24px 60px rgba(0,0,0,.3);">'
+            + '<h3 style="margin:0 0 .8rem;color:#9a3412;">📑 Salvar ' + msgIds.length + ' imagens como 1 PDF</h3>'
+            + '<label style="font-size:.82rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem;">Caso (pasta no Drive):</label>'
+            + '<select id="waLoteCaso" style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:.7rem;font-size:.85rem;">'
+            +   cases.map(function(c){ return '<option value="' + c.id + '">' + escapeHtml(c.title) + '</option>'; }).join('')
+            + '</select>'
+            + '<label style="font-size:.82rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem;">Nome do arquivo (sem .pdf):</label>'
+            + '<input type="text" id="waLoteNome" placeholder="Ex: docs_renda, comprovantes, RG_CPF" style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:1rem;font-size:.85rem;" maxlength="80">'
+            + '<div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:.5rem .7rem;margin-bottom:1rem;font-size:.74rem;color:#7c2d12;border-radius:0 6px 6px 0;">'
+            +   '⚠️ Limite: 9MB. Se passar, o sistema vai comprimir as imagens automaticamente. PDF vai pra subpasta <strong>01 - PARA DISTRIBUIR</strong>.'
+            + '</div>'
+            + '<div id="waLoteStatus" style="display:none;margin-bottom:.8rem;padding:.5rem .7rem;border-radius:6px;font-size:.82rem;"></div>'
+            + '<div style="display:flex;justify-content:flex-end;gap:.5rem;">'
+            +   '<button onclick="document.getElementById(\'waLoteModal\').remove()" style="background:#fff;border:1.5px solid #cbd5e1;padding:.45rem 1rem;border-radius:6px;cursor:pointer;font-size:.85rem;">Cancelar</button>'
+            +   '<button id="waLoteBtn" onclick="_waEnviarLotePdf()" style="background:#fb923c;color:#fff;border:none;padding:.45rem 1.2rem;border-radius:6px;cursor:pointer;font-size:.85rem;font-weight:700;">📑 Gerar PDF e salvar</button>'
+            + '</div>'
+            + '</div>';
+        document.body.appendChild(ov);
+        window._waLoteIds = msgIds;
+        setTimeout(function(){ document.getElementById('waLoteNome').focus(); }, 100);
+    }
+
+    window._waEnviarLotePdf = function() {
+        var caseId = document.getElementById('waLoteCaso').value;
+        var nome = document.getElementById('waLoteNome').value.trim();
+        var status = document.getElementById('waLoteStatus');
+        var btn = document.getElementById('waLoteBtn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Gerando PDF...';
+        status.style.display = 'block';
+        status.style.background = '#dbeafe';
+        status.style.color = '#1e3a8a';
+        status.innerHTML = '📤 Baixando ' + window._waLoteIds.length + ' imagens, juntando em PDF e enviando pro Drive...';
+
+        var fd = new FormData();
+        fd.append('action', 'salvar_lote_pdf_drive');
+        fd.append('case_id', caseId);
+        fd.append('nome_personalizado', nome);
+        window._waLoteIds.forEach(function(id){ fd.append('mensagem_ids[]', id); });
+        fd.append('csrf_token', csrf);
+
+        fetch(apiUrl, { method:'POST', body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                btn.disabled = false;
+                if (d.error) {
+                    status.style.background = '#fee2e2';
+                    status.style.color = '#991b1b';
+                    status.innerHTML = '⚠️ ' + d.error;
+                    btn.innerHTML = '📑 Tentar de novo';
+                    return;
+                }
+                status.style.background = '#dcfce7';
+                status.style.color = '#14532d';
+                status.innerHTML = '✓ PDF salvo! <strong>' + d.nome_arquivo + '</strong> · ' + d.paginas + ' páginas · '
+                    + d.mb + ' MB (qualidade JPG ' + d.qualidade + ') · '
+                    + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>';
+                btn.innerHTML = '✓ Salvo';
+                btn.style.background = '#10b981';
+                // Fecha modal apos 3s + sai do modo selecao
+                setTimeout(function(){
+                    document.getElementById('waLoteModal').remove();
+                    waToggleSelecionarImagens();
+                }, 3500);
+            })
+            .catch(function(){
+                btn.disabled = false;
+                status.style.background = '#fee2e2';
+                status.style.color = '#991b1b';
+                status.innerHTML = '⚠️ Erro de rede. Tente novamente.';
+                btn.innerHTML = '📑 Tentar de novo';
+            });
     };
 
     window.waTranscrever = function(msgId, btn) {

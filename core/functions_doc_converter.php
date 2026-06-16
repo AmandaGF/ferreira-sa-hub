@@ -131,6 +131,160 @@ function imagem_para_pdf($caminhoImagem, $caminhoPdfSaida) {
 }
 
 /**
+ * Amanda 16/06/2026: junta varias imagens num unico PDF multi-pagina, respeitando
+ * limite de tamanho (default 9MB). Se estourar, comprime JPG progressivamente
+ * (qualidade 88 -> 75 -> 65 -> 55 -> 45). Se mesmo assim nao couber, retorna erro.
+ *
+ * @param array $caminhos Array de caminhos locais das imagens (jpg/png/gif/webp)
+ * @param string $caminhoPdfSaida Caminho do PDF final
+ * @param int $maxBytes Limite de tamanho (default 9 * 1024 * 1024)
+ * @return array ['success'=>bool, 'paginas'=>int, 'bytes'=>int, 'qualidade'=>int, 'error'=>?]
+ */
+function imagens_para_pdf_multi(array $caminhos, $caminhoPdfSaida, $maxBytes = 9437184) {
+    if (empty($caminhos)) return array('success' => false, 'error' => 'Nenhuma imagem informada');
+    if (!function_exists('imagecreatefromjpeg')) {
+        return array('success' => false, 'error' => 'Extensao GD nao disponivel no servidor');
+    }
+
+    // Tenta qualidade alta primeiro; reduz se passar do limite
+    $qualidades = array(88, 75, 65, 55, 45);
+    foreach ($qualidades as $q) {
+        $r = _gerar_pdf_multi_com_qualidade($caminhos, $caminhoPdfSaida, $q);
+        if (!$r['success']) return $r;
+        $bytes = filesize($caminhoPdfSaida);
+        if ($bytes <= $maxBytes) {
+            return array(
+                'success'   => true,
+                'paginas'   => $r['paginas'],
+                'bytes'     => $bytes,
+                'qualidade' => $q,
+            );
+        }
+        // Passou do limite — tenta proxima qualidade
+    }
+
+    @unlink($caminhoPdfSaida);
+    return array('success' => false, 'error' => 'PDF resultante > ' . round($maxBytes/1024/1024, 1) . 'MB mesmo na menor qualidade. Reduza o numero de imagens selecionadas.');
+}
+
+function _gerar_pdf_multi_com_qualidade(array $caminhos, $caminhoPdfSaida, $qualidade = 88) {
+    $paginaW = 595.0;
+    $paginaH = 842.0;
+    $margem  = 36.0;
+    $maxW    = $paginaW - 2 * $margem;
+    $maxH    = $paginaH - 2 * $margem;
+
+    // Pre-processa: pra cada imagem, gera o JPG bytes e dimensoes
+    $paginas = array(); // cada item: ['jpg' => bytes, 'w' => int, 'h' => int]
+    $tmpsParaLimpar = array();
+
+    foreach ($caminhos as $caminhoImg) {
+        if (!is_file($caminhoImg)) continue;
+        $info = @getimagesize($caminhoImg);
+        if (!$info) continue;
+        $largura = (int)$info[0];
+        $altura  = (int)$info[1];
+        $tipo    = (int)$info[2];
+
+        if ($tipo === IMAGETYPE_JPEG && $qualidade >= 85) {
+            // JPG ja bom — usa direto
+            $bytes = file_get_contents($caminhoImg);
+        } else {
+            // Decoda + re-encoda na qualidade pedida
+            $img = null;
+            switch ($tipo) {
+                case IMAGETYPE_JPEG: $img = @imagecreatefromjpeg($caminhoImg); break;
+                case IMAGETYPE_PNG:  $img = @imagecreatefrompng($caminhoImg);  break;
+                case IMAGETYPE_GIF:  $img = @imagecreatefromgif($caminhoImg);  break;
+                case IMAGETYPE_WEBP: if (function_exists('imagecreatefromwebp')) $img = @imagecreatefromwebp($caminhoImg); break;
+                case IMAGETYPE_BMP:  if (function_exists('imagecreatefrombmp'))  $img = @imagecreatefrombmp($caminhoImg);  break;
+            }
+            if (!$img) continue;
+            if ($tipo === IMAGETYPE_PNG || $tipo === IMAGETYPE_GIF || $tipo === IMAGETYPE_WEBP) {
+                $base = imagecreatetruecolor($largura, $altura);
+                $branco = imagecolorallocate($base, 255, 255, 255);
+                imagefilledrectangle($base, 0, 0, $largura, $altura, $branco);
+                imagecopy($base, $img, 0, 0, 0, 0, $largura, $altura);
+                imagedestroy($img);
+                $img = $base;
+            }
+            $tmpJpg = sys_get_temp_dir() . '/pdfmulti_' . uniqid('', true) . '.jpg';
+            imagejpeg($img, $tmpJpg, $qualidade);
+            imagedestroy($img);
+            $tmpsParaLimpar[] = $tmpJpg;
+            $bytes = file_get_contents($tmpJpg);
+        }
+        if (!$bytes) continue;
+
+        $paginas[] = array('jpg' => $bytes, 'w' => $largura, 'h' => $altura);
+    }
+
+    if (empty($paginas)) {
+        foreach ($tmpsParaLimpar as $t) @unlink($t);
+        return array('success' => false, 'error' => 'Nenhuma imagem valida pra converter');
+    }
+
+    // Monta PDF — objetos numerados sequencialmente
+    // 1=Catalog, 2=Pages, depois pra cada pagina: Page, Resources, ImageXObject, ContentStream
+    $pdf = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
+    $objetos = array();
+    $pageRefs = array();
+    $numObj = 3; // proximo obj livre apos Catalog (1) e Pages (2)
+
+    foreach ($paginas as $idx => $pg) {
+        $ratio = min($maxW / $pg['w'], $maxH / $pg['h']);
+        $imgW = $pg['w'] * $ratio;
+        $imgH = $pg['h'] * $ratio;
+        $imgX = ($paginaW - $imgW) / 2;
+        $imgY = ($paginaH - $imgH) / 2;
+        $imgYPdf = $paginaH - $imgY - $imgH;
+
+        $contentStream = sprintf("q\n%.2f 0 0 %.2f %.2f %.2f cm\n/Im1 Do\nQ\n", $imgW, $imgH, $imgX, $imgYPdf);
+
+        $idPage     = $numObj++;
+        $idResource = $numObj++;
+        $idImage    = $numObj++;
+        $idContent  = $numObj++;
+        $pageRefs[] = $idPage;
+
+        $objetos[$idPage]     = sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources %d 0 R /Contents %d 0 R >>", $paginaW, $paginaH, $idResource, $idContent);
+        $objetos[$idResource] = sprintf("<< /XObject << /Im1 %d 0 R >> /ProcSet [/PDF /ImageC] >>", $idImage);
+        $objetos[$idImage]    = "<< /Type /XObject /Subtype /Image /Width " . $pg['w'] . " /Height " . $pg['h'] . " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " . strlen($pg['jpg']) . " >>\nstream\n" . $pg['jpg'] . "\nendstream";
+        $objetos[$idContent]  = "<< /Length " . strlen($contentStream) . " >>\nstream\n" . $contentStream . "endstream";
+    }
+
+    // Objs 1 e 2: Catalog e Pages
+    $kidsStr = '';
+    foreach ($pageRefs as $r) $kidsStr .= $r . ' 0 R ';
+    $objetos[1] = "<< /Type /Catalog /Pages 2 0 R >>";
+    $objetos[2] = "<< /Type /Pages /Kids [" . trim($kidsStr) . "] /Count " . count($pageRefs) . " >>";
+
+    ksort($objetos);
+    $xref = array();
+    foreach ($objetos as $num => $body) {
+        $xref[$num] = strlen($pdf);
+        $pdf .= $num . " 0 obj\n" . $body . "\nendobj\n";
+    }
+    $startXref = strlen($pdf);
+    $totalObjs = max(array_keys($objetos));
+    $pdf .= "xref\n0 " . ($totalObjs + 1) . "\n0000000000 65535 f \n";
+    for ($i = 1; $i <= $totalObjs; $i++) {
+        $offset = isset($xref[$i]) ? $xref[$i] : 0;
+        $pdf .= sprintf("%010d 00000 n \n", $offset);
+    }
+    $pdf .= "trailer\n<< /Size " . ($totalObjs + 1) . " /Root 1 0 R >>\nstartxref\n" . $startXref . "\n%%EOF\n";
+
+    $bytes = file_put_contents($caminhoPdfSaida, $pdf);
+
+    foreach ($tmpsParaLimpar as $t) @unlink($t);
+
+    if ($bytes === false || $bytes < 100) {
+        return array('success' => false, 'error' => 'Falha ao gravar PDF de saida');
+    }
+    return array('success' => true, 'paginas' => count($paginas), 'bytes' => $bytes);
+}
+
+/**
  * Baixa imagem de URL publica + converte pra PDF + retorna caminho do PDF temporario.
  * Caller e' responsavel por dar unlink() depois de usar.
  *

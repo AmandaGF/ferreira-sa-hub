@@ -386,7 +386,7 @@ $mutantes = array('enviar_mensagem', 'enviar_arquivo', 'enviar_audio', 'enviar_r
                   'sincronizar_conversa', 'importar_todos',
                   'editar_conversa', 'adicionar_etiqueta', 'remover_etiqueta',
                   'deletar_mensagem', 'editar_mensagem',
-                  'salvar_drive',
+                  'salvar_drive', 'salvar_lote_pdf_drive',
                   'fila_marcar_enviada', 'fila_descartar', 'fila_editar', 'fila_bulk_descartar',
                   'gerar_link_salavip', 'gerar_link_salavip_por_cliente',
                   'delegar_conversa', 'remover_delegacao',
@@ -1471,6 +1471,161 @@ if ($action === 'casos_do_cliente') {
 //
 // Compatibilidade: aceita 'nome_personalizado' (legado) OU 'tipo_doc' (novo).
 // Se 'tipo_doc' enviado, usa fluxo novo (subpasta + auto-num + conversao).
+// Amanda 16/06/2026: lista os cases do cliente que tem pasta no Drive
+// (usado pelo modo de selecao de imagens pro PDF lote)
+if ($action === 'listar_cases_cliente') {
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
+    try {
+        $st = $pdo->prepare("SELECT id, title FROM cases
+                             WHERE client_id = ?
+                               AND drive_folder_url IS NOT NULL AND drive_folder_url != ''
+                               AND status NOT IN ('arquivado','cancelado')
+                             ORDER BY id DESC LIMIT 50");
+        $st->execute(array($clientId));
+        echo json_encode(array('ok' => true, 'cases' => $st->fetchAll(PDO::FETCH_ASSOC)));
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => $e->getMessage(), 'cases' => array()));
+    }
+    exit;
+}
+
+// Amanda 16/06/2026: salvar VARIAS imagens como UM PDF unico no Drive do caso.
+// Recebe array de mensagem_ids (so imagens). Limite 9MB no PDF final
+// (auto-comprime JPG progressivamente: 88 -> 75 -> 65 -> 55 -> 45).
+if ($action === 'salvar_lote_pdf_drive') {
+    @set_time_limit(240);
+    require_once APP_ROOT . '/core/google_drive.php';
+    require_once APP_ROOT . '/core/functions_doc_converter.php';
+
+    $msgIdsRaw = $_POST['mensagem_ids'] ?? array();
+    if (!is_array($msgIdsRaw)) $msgIdsRaw = explode(',', (string)$msgIdsRaw);
+    $msgIds = array();
+    foreach ($msgIdsRaw as $v) { $v = (int)$v; if ($v > 0) $msgIds[] = $v; }
+    $msgIds = array_values(array_unique($msgIds));
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $nomePersonalizado = trim((string)($_POST['nome_personalizado'] ?? ''));
+
+    if (empty($msgIds))  { echo json_encode(array('error' => 'Nenhuma imagem selecionada')); exit; }
+    if (count($msgIds) > 50) { echo json_encode(array('error' => 'Máximo 50 imagens por PDF')); exit; }
+    if (!$caseId)        { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+
+    // Busca o caso
+    $caseSt = $pdo->prepare("SELECT id, title, drive_folder_url, client_id FROM cases WHERE id = ?");
+    $caseSt->execute(array($caseId));
+    $case = $caseSt->fetch(PDO::FETCH_ASSOC);
+    if (!$case) { echo json_encode(array('error' => 'Caso não encontrado')); exit; }
+    if (!$case['drive_folder_url']) {
+        echo json_encode(array('error' => 'Caso sem pasta no Drive. Crie a pasta primeiro pelo Kanban Operacional.'));
+        exit;
+    }
+
+    // Busca as mensagens (precisam ser imagens da mesma conv)
+    $placeholders = implode(',', array_fill(0, count($msgIds), '?'));
+    $ms = $pdo->prepare("SELECT m.id, m.tipo, m.arquivo_url, m.arquivo_nome, m.arquivo_mime, m.created_at,
+                                co.client_id
+                         FROM zapi_mensagens m
+                         JOIN zapi_conversas co ON co.id = m.conversa_id
+                         WHERE m.id IN ($placeholders) AND co.client_id = ?
+                         ORDER BY m.created_at ASC, m.id ASC");
+    $ms->execute(array_merge($msgIds, array($case['client_id'])));
+    $msgs = $ms->fetchAll(PDO::FETCH_ASSOC);
+
+    if (count($msgs) !== count($msgIds)) {
+        echo json_encode(array('error' => 'Algumas mensagens não pertencem ao mesmo cliente do caso.'));
+        exit;
+    }
+
+    // Cada msg precisa ser imagem com arquivo_url
+    foreach ($msgs as $m) {
+        if ($m['tipo'] !== 'imagem' || empty($m['arquivo_url'])) {
+            echo json_encode(array('error' => 'Mensagem #' . $m['id'] . ' não é uma imagem com arquivo.'));
+            exit;
+        }
+    }
+
+    // Baixa cada imagem pra disco temp
+    $tempImgs = array();
+    $cleanup = array();
+    foreach ($msgs as $m) {
+        $tmp = sys_get_temp_dir() . '/lote_' . uniqid('', true);
+        $ch = curl_init($m['arquivo_url']);
+        $fp = fopen($tmp, 'wb');
+        curl_setopt_array($ch, array(
+            CURLOPT_FILE => $fp,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSL_VERIFYPEER => false,
+        ));
+        $ok = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fp);
+        if (!$ok || $http !== 200 || !filesize($tmp)) {
+            @unlink($tmp);
+            foreach ($cleanup as $c) @unlink($c);
+            echo json_encode(array('error' => 'Falha ao baixar imagem da mensagem #' . $m['id'] . ' (HTTP ' . $http . ')'));
+            exit;
+        }
+        $tempImgs[] = $tmp;
+        $cleanup[] = $tmp;
+    }
+
+    // Gera PDF com limite 9MB
+    $tmpPdf = sys_get_temp_dir() . '/pdf_lote_' . uniqid('', true) . '.pdf';
+    $r = imagens_para_pdf_multi($tempImgs, $tmpPdf, 9 * 1024 * 1024);
+    foreach ($cleanup as $c) @unlink($c);
+    if (empty($r['success'])) {
+        @unlink($tmpPdf);
+        echo json_encode(array('error' => 'Falha ao gerar PDF: ' . ($r['error'] ?? 'desconhecido')));
+        exit;
+    }
+
+    // Cria subpasta "01 - PARA DISTRIBUIR" (igual o salvar_drive faz)
+    $sub = drive_get_or_create_subfolder($case['drive_folder_url'], '01 - PARA DISTRIBUIR');
+    if (empty($sub['success'])) {
+        @unlink($tmpPdf);
+        echo json_encode(array('error' => 'Falha ao criar subpasta no Drive: ' . ($sub['error'] ?? 'desconhecido')));
+        exit;
+    }
+
+    // Nome do arquivo
+    $prefBase = $nomePersonalizado !== '' ? $nomePersonalizado : 'docs';
+    $prefBase = preg_replace('/[^A-Za-z0-9_\.\-]/u', '_', $prefBase);
+    $prefBase = preg_replace('/_{2,}/', '_', trim($prefBase, '_'));
+    if ($prefBase === '') $prefBase = 'docs';
+    $nomeFinal = $prefBase . '_' . date('Ymd_His') . '_' . count($msgs) . 'imgs.pdf';
+
+    // Upload base64
+    $bytes = file_get_contents($tmpPdf);
+    $up = upload_file_to_drive_base64($sub['folderId'], $nomeFinal, base64_encode($bytes), 'application/pdf');
+    @unlink($tmpPdf);
+
+    if (empty($up['success'])) {
+        echo json_encode(array('error' => 'Falha no upload pro Drive: ' . ($up['error'] ?? 'desconhecido')));
+        exit;
+    }
+
+    // Marca as msgs com salvo_drive_em (igual o salvar_drive faz)
+    try {
+        $upd = $pdo->prepare("UPDATE zapi_mensagens SET salvo_drive_em = NOW(), salvo_drive_url = ? WHERE id IN ($placeholders)");
+        $upd->execute(array_merge(array($up['fileUrl']), $msgIds));
+    } catch (Throwable $e) {}
+
+    audit_log('wa_salvar_lote_pdf_drive', 'cases', $caseId, count($msgs) . ' imgs · ' . $r['bytes'] . ' bytes · q=' . $r['qualidade']);
+
+    echo json_encode(array(
+        'ok'           => true,
+        'drive_url'    => $up['fileUrl'],
+        'nome_arquivo' => $nomeFinal,
+        'paginas'      => $r['paginas'],
+        'bytes'        => $r['bytes'],
+        'mb'           => round($r['bytes']/1024/1024, 2),
+        'qualidade'    => $r['qualidade'],
+    ));
+    exit;
+}
+
 if ($action === 'salvar_drive') {
     require_once APP_ROOT . '/core/google_drive.php';
     $msgId = (int)($_POST['mensagem_id'] ?? 0);
