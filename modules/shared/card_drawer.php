@@ -6,6 +6,7 @@
 $_cdApiUrl = url('modules/shared/card_api.php');
 $_cdActUrl = url('modules/shared/card_actions.php');
 $_cdOpApiUrl = url('modules/operacional/api.php');
+$_cdPipeApiUrl = url('modules/pipeline/api.php');
 // generate_csrf_token() — funcao real do projeto (functions_utils.php).
 // O nome 'csrf_token' nao existe em lugar nenhum e estava causando fatal
 // error 'Call to undefined function' que cortava o output deste arquivo,
@@ -46,6 +47,7 @@ var _cd = null, _cdTab = 'geral';
 var _cdApiUrl = '<?php echo $_cdApiUrl; ?>';
 var _cdActUrl = '<?php echo $_cdActUrl; ?>';
 var _cdOpApi = '<?php echo $_cdOpApiUrl; ?>';
+var _cdPipeApi = '<?php echo $_cdPipeApiUrl; ?>';
 var _cdCsrf = '<?php echo $_cdCsrfName; ?>=<?php echo $_cdCsrf; ?>';
 
 // Token monotonico pra detectar XHRs em out-of-order (race condition):
@@ -253,6 +255,34 @@ function cdRenderTab() {
         h += _row('Nome Pasta', l.nome_pasta) + _row('Pendencias', l.pendencias);
         h += _row('Convertido em', l.converted_at ? _d(l.converted_at) : null);
         h += '</div>';
+
+        // Amanda 16/06/2026: secao Onboarding clara com 3 estados
+        var onbReal = +(l.onboard_realizado || 0);
+        var onbNao  = +(l.onboard_nao_precisa || 0);
+        var statusOnbHtml = '';
+        if (onbReal) statusOnbHtml = '<span style="background:#dcfce7;color:#166534;padding:3px 10px;border-radius:12px;font-weight:700;font-size:.78rem;">✅ Realizado</span>';
+        else if (onbNao) statusOnbHtml = '<span style="background:#fee2e2;color:#b91c1c;padding:3px 10px;border-radius:12px;font-weight:700;font-size:.78rem;">🚫 Não precisa</span>';
+        else statusOnbHtml = '<span style="background:#fef3c7;color:#92400e;padding:3px 10px;border-radius:12px;font-weight:700;font-size:.78rem;">⏳ Pendente</span>';
+        h += '<div class="cd-s"><h5>Onboarding</h5>';
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:.6rem;">';
+        h += '<span style="font-size:.78rem;color:#475569;">Status atual:</span>' + statusOnbHtml;
+        h += '</div>';
+        h += '<div style="display:flex;flex-direction:column;gap:.4rem;">';
+        // Botao Realizado
+        if (onbReal) {
+            h += '<button onclick="cdToggleOnboard(' + l.id + ',\'onboard_realizado\',0,this)" style="background:#059669;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;text-align:left;">✓ Marcado como Realizado · clique pra desmarcar</button>';
+        } else {
+            h += '<button onclick="cdToggleOnboard(' + l.id + ',\'onboard_realizado\',1,this)" style="background:#fff;color:#059669;border:1.5px solid #10b981;padding:8px 12px;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;text-align:left;">✅ Marcar como Realizado</button>';
+        }
+        // Botao Nao precisa
+        if (onbNao) {
+            h += '<button onclick="cdToggleOnboard(' + l.id + ',\'onboard_nao_precisa\',0,this)" style="background:#dc2626;color:#fff;border:none;padding:8px 12px;border-radius:8px;font-size:.85rem;font-weight:700;cursor:pointer;text-align:left;">🚫 Marcado como NÃO precisa · clique pra desmarcar</button>';
+        } else {
+            h += '<button onclick="cdToggleOnboard(' + l.id + ',\'onboard_nao_precisa\',1,this)" style="background:#fff;color:#b91c1c;border:1.5px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:.85rem;font-weight:600;cursor:pointer;text-align:left;">🚫 Marcar que NÃO precisa de onboarding</button>';
+        }
+        h += '</div>';
+        h += '<div style="font-size:.7rem;color:#94a3b8;margin-top:.5rem;">Apenas um dos dois pode estar marcado por vez — selecionar um desmarca o outro automaticamente.</div>';
+        h += '</div>';
         h += '<div class="cd-s"><h5>Histórico Pipeline</h5><div class="cd-tl">';
         (d.pipeline_history || []).forEach(function(ph) {
             h += '<div class="cd-ti"><div class="dt">' + _d(ph.created_at) + '</div><div class="tx">' + _e(ph.user_name ? ph.user_name.split(' ')[0] : 'Sistema') + ' > ' + (sl[ph.to_stage]||ph.to_stage) + '</div></div>';
@@ -369,6 +399,37 @@ function cdAddComment() {
         } catch(e) {}
     };
     xhr.send('action=add_comment&client_id=' + _cd.client_id + '&case_id=' + (_cd.case_id||0) + '&lead_id=' + (_cd.lead_id||0) + '&message=' + encodeURIComponent(ta.value));
+}
+
+// Amanda 16/06/2026: marca/desmarca onboarding direto do drawer (aba Comercial)
+function cdToggleOnboard(leadId, campo, valor, btn) {
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Salvando...';
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', _cdPipeApi);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var r = JSON.parse(xhr.responseText);
+            if (r.error) {
+                alert('Erro: ' + r.error);
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                return;
+            }
+            // Recarrega o drawer pra mostrar o novo status
+            cdAbrir('lead_id=' + leadId);
+            setTimeout(function(){ cdMudarTab('comercial'); }, 300);
+        } catch(e) {
+            alert('Erro inesperado.');
+            btn.disabled = false;
+            btn.innerHTML = orig;
+        }
+    };
+    xhr.onerror = function() { alert('Erro de rede.'); btn.disabled = false; btn.innerHTML = orig; };
+    xhr.send('action=inline_edit&lead_id=' + leadId + '&field=' + campo + '&value=' + valor + '&' + _cdCsrf);
 }
 
 function cdMarcarDoc(docId) {
