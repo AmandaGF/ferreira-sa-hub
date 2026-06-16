@@ -4,6 +4,23 @@ header('Content-Type: text/plain; charset=utf-8');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 require_once __DIR__ . '/core/functions_zapi.php';
+$pdo = db();
+
+echo "=== Verificacao: msgs RECENTES enviadas pra DMs (nao-grupos) canal 24 ===\n";
+$st = $pdo->query("SELECT m.id, m.zapi_message_id, m.status, m.lida, m.created_at, co.telefone, co.nome_contato
+                   FROM zapi_mensagens m
+                   JOIN zapi_conversas co ON co.id = m.conversa_id
+                   JOIN zapi_instancias i ON i.id = co.instancia_id
+                   WHERE i.ddd = '24' AND m.direcao = 'enviada' AND m.tipo = 'texto'
+                     AND COALESCE(co.eh_grupo, 0) = 0
+                     AND m.created_at > DATE_SUB(NOW(), INTERVAL 6 HOUR)
+                   ORDER BY m.created_at DESC LIMIT 10");
+foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $m) {
+    $prefix = substr($m['zapi_message_id'], 0, 4);
+    $tipo = ($prefix === '3EB0') ? '⚠️ 3EB0' : '✓ NAO-3EB0';
+    echo "  msg #{$m['id']} {$m['created_at']} | $tipo | id={$m['zapi_message_id']} (" . strlen($m['zapi_message_id']) . "ch) | status='{$m['status']}' | lida={$m['lida']} | dest={$m['nome_contato']}\n";
+}
+echo "\n";
 
 $inst = zapi_get_instancia('24');
 $cfg = zapi_get_config();
