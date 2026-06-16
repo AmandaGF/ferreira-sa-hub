@@ -2423,31 +2423,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     window.waSalvarLoteImgPdf = function() {
         var ids = Array.from(window._waImgSelecionadas);
+        console.log('[lotePDF] iniciando, ids=', ids);
         if (!ids.length) { alert('Selecione pelo menos uma imagem.'); return; }
         if (ids.length > 50) { alert('Máximo 50 imagens por PDF. Reduza a seleção.'); return; }
 
-        // Precisa do case_id da conversa: pega da convAtiva via API
         var c = window._waConvAtual || {};
+        console.log('[lotePDF] convAtual=', c);
         if (!c.client_id) {
-            alert('Esta conversa não tem cliente vinculado. Vincule primeiro pra poder salvar no Drive do caso.');
+            alert('⚠️ Esta conversa NÃO tem cliente vinculado.\n\nClique em "🔗 Vincular cliente" no cabeçalho da conversa primeiro, e depois tente de novo.');
             return;
         }
 
-        // Busca casos do cliente — chama o endpoint que ja existe (igual salvar_drive 1 a 1)
         var fd = new FormData();
         fd.append('action', 'listar_cases_cliente');
         fd.append('client_id', c.client_id);
         fd.append('csrf_token', csrf);
+
         fetch(apiUrl, { method:'POST', body:fd })
-            .then(function(r){ return r.json(); })
-            .then(function(d){
-                if (d.error || !d.cases || !d.cases.length) {
-                    alert('Cliente não tem casos com pasta no Drive. Crie um caso primeiro pelo Kanban Operacional.');
+            .then(function(r){
+                console.log('[lotePDF] listar_cases_cliente HTTP=', r.status);
+                return r.text().then(function(txt){ return { status: r.status, body: txt }; });
+            })
+            .then(function(res){
+                console.log('[lotePDF] response bruto:', res.body.substring(0, 500));
+                var d;
+                try { d = JSON.parse(res.body); }
+                catch (e) {
+                    alert('⚠️ Servidor não retornou JSON (HTTP ' + res.status + ').\n\nResposta bruta (primeiras 300 letras):\n\n' + res.body.substring(0, 300));
                     return;
                 }
+                if (d.error) {
+                    alert('⚠️ Erro do backend: ' + d.error);
+                    return;
+                }
+                if (!d.cases || !d.cases.length) {
+                    alert('⚠️ Cliente "' + (c.client_name || 'sem nome') + '" não tem nenhum caso ATIVO com pasta no Drive.\n\nVerifique:\n• O caso existe no Operacional?\n• A pasta no Drive foi criada (botão "Criar pasta" na tela do caso)?\n• O caso não está arquivado/cancelado?');
+                    return;
+                }
+                console.log('[lotePDF] casos encontrados:', d.cases.length);
                 _waMostrarModalSalvarLotePDF(d.cases, ids);
             })
-            .catch(function(){ alert('Erro de rede ao buscar casos.'); });
+            .catch(function(err){
+                console.error('[lotePDF] erro fetch:', err);
+                alert('⚠️ Erro de rede ao buscar casos: ' + (err && err.message ? err.message : 'desconhecido'));
+            });
     };
 
     function _waMostrarModalSalvarLotePDF(cases, msgIds) {
@@ -2484,12 +2503,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var nome = document.getElementById('waLoteNome').value.trim();
         var status = document.getElementById('waLoteStatus');
         var btn = document.getElementById('waLoteBtn');
+        console.log('[lotePDF] enviando: case_id=' + caseId + ' nome=' + nome + ' ids=', window._waLoteIds);
         btn.disabled = true;
         btn.innerHTML = '⏳ Gerando PDF...';
         status.style.display = 'block';
         status.style.background = '#dbeafe';
         status.style.color = '#1e3a8a';
-        status.innerHTML = '📤 Baixando ' + window._waLoteIds.length + ' imagens, juntando em PDF e enviando pro Drive...';
+        status.innerHTML = '📤 Baixando ' + window._waLoteIds.length + ' imagens, juntando em PDF e enviando pro Drive... (pode levar até 1 minuto)';
 
         var fd = new FormData();
         fd.append('action', 'salvar_lote_pdf_drive');
@@ -2498,10 +2518,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
         window._waLoteIds.forEach(function(id){ fd.append('mensagem_ids[]', id); });
         fd.append('csrf_token', csrf);
 
-        fetch(apiUrl, { method:'POST', body:fd })
-            .then(function(r){ return r.json(); })
-            .then(function(d){
+        // Timeout 4 minutos (pode demorar pra baixar muitas imgs)
+        var ctrl = new AbortController();
+        var tid = setTimeout(function(){ ctrl.abort(); }, 240000);
+
+        fetch(apiUrl, { method:'POST', body:fd, signal: ctrl.signal })
+            .then(function(r){
+                clearTimeout(tid);
+                console.log('[lotePDF] HTTP=', r.status);
+                return r.text().then(function(txt){ return { status: r.status, body: txt }; });
+            })
+            .then(function(res){
                 btn.disabled = false;
+                console.log('[lotePDF] resp:', res.body.substring(0, 800));
+                var d;
+                try { d = JSON.parse(res.body); }
+                catch (e) {
+                    status.style.background = '#fee2e2';
+                    status.style.color = '#991b1b';
+                    status.innerHTML = '⚠️ HTTP ' + res.status + ' — servidor não retornou JSON.<br><br>'
+                                     + '<strong>Resposta bruta (debug):</strong><br>'
+                                     + '<code style="font-size:.7rem;background:#fff;padding:.3rem;border-radius:4px;display:block;margin-top:.3rem;word-break:break-all;">'
+                                     + res.body.substring(0, 600).replace(/</g, '&lt;') + '</code>';
+                    btn.innerHTML = '📑 Tentar de novo';
+                    return;
+                }
                 if (d.error) {
                     status.style.background = '#fee2e2';
                     status.style.color = '#991b1b';
@@ -2516,17 +2557,21 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     + '<a href="' + d.drive_url + '" target="_blank" style="color:#1e40af;text-decoration:underline;">Abrir no Drive ↗</a>';
                 btn.innerHTML = '✓ Salvo';
                 btn.style.background = '#10b981';
-                // Fecha modal apos 3s + sai do modo selecao
                 setTimeout(function(){
                     document.getElementById('waLoteModal').remove();
                     waToggleSelecionarImagens();
                 }, 3500);
             })
-            .catch(function(){
+            .catch(function(err){
+                clearTimeout(tid);
                 btn.disabled = false;
+                console.error('[lotePDF] erro:', err);
                 status.style.background = '#fee2e2';
                 status.style.color = '#991b1b';
-                status.innerHTML = '⚠️ Erro de rede. Tente novamente.';
+                var msg = '⚠️ ';
+                if (err && err.name === 'AbortError') msg += 'Timeout (4 min). O servidor demorou demais — tente com menos imagens.';
+                else msg += 'Erro de rede: ' + (err && err.message ? err.message : 'desconhecido');
+                status.innerHTML = msg;
                 btn.innerHTML = '📑 Tentar de novo';
             });
     };

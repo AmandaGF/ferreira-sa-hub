@@ -1495,6 +1495,9 @@ if ($action === 'listar_cases_cliente') {
 // (auto-comprime JPG progressivamente: 88 -> 75 -> 65 -> 55 -> 45).
 if ($action === 'salvar_lote_pdf_drive') {
     @set_time_limit(240);
+    @ignore_user_abort(true);
+    @ini_set('memory_limit', '512M'); // imagens em base64 podem comer RAM
+    header('Content-Type: application/json; charset=utf-8');
     require_once APP_ROOT . '/core/google_drive.php';
     require_once APP_ROOT . '/core/functions_doc_converter.php';
 
