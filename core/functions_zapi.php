@@ -422,6 +422,19 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
                   || (strpos($telefone_norm, '55') !== 0 && strlen($telefone_norm) >= 10 && strpos($telefone_norm, '@g.us') === false);
     $phoneZapi = ($vaiComMais && substr($telefone_norm, 0, 1) !== '+') ? '+' . $telefone_norm : $telefone_norm;
 
+    // Amanda 16/06/2026: FIX CRITICO pra LID groups modernos (formato 120363XXXX).
+    // Z-API aceita envios pra grupos modernos SOMENTE com sufixo '-group', NÃO
+    // '@g.us'. Com '@g.us', responde HTTP 200 + ID 3EB0... mas nunca entrega
+    // (mensagem fantasma). Bug confirmado em produção 16/06: msg da comemoração
+    // pro grupo Controladoria não chegava. Heurística: ID começa com '12036' e
+    // tem >= 16 dígitos. Grupos antigos (formato 55XX-YYYY) continuam com @g.us.
+    if (strpos($phoneZapi, '@g.us') !== false) {
+        $idGrupo = preg_replace('/[^0-9]/', '', $phoneZapi);
+        if (strlen($idGrupo) >= 16 && substr($idGrupo, 0, 5) === '12036') {
+            $phoneZapi = $idGrupo . '-group';
+        }
+    }
+
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
@@ -465,8 +478,17 @@ function zapi_send_image($ddd, $telefone, $imagem, $caption = '') {
     $headers = array('Content-Type: application/json');
     if ($cfg['client_token']) $headers[] = 'Client-Token: ' . $cfg['client_token'];
 
+    // Amanda 16/06/2026: LID groups precisam de '-group' em vez de '@g.us' (ver zapi_send_text)
+    $phone = zapi_normaliza_telefone($telefone);
+    if (strpos($phone, '@g.us') !== false) {
+        $idGrupo = preg_replace('/[^0-9]/', '', $phone);
+        if (strlen($idGrupo) >= 16 && substr($idGrupo, 0, 5) === '12036') {
+            $phone = $idGrupo . '-group';
+        }
+    }
+
     $body = array(
-        'phone'   => zapi_normaliza_telefone($telefone),
+        'phone'   => $phone,
         'image'   => $imagem,
         'caption' => $caption,
     );
