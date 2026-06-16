@@ -20,7 +20,7 @@ function comemoracao_get_config() {
         'ativada' => '0',
         'canal' => '21',
         'grupo_id' => '',
-        'template' => "🎉🔔 *CONTRATO FECHADO!* 🔔🎉\n\nParabéns ao time! ✨\n\n👤 Cliente: *[cliente]*\n💼 Caso: [tipo_caso]\n💰 Valor: R\$ [valor]\n🎯 Vendedor(a): *[comercial]*\n\n_Mais um a equipe Ferreira & Sá Advocacia conquistou!_ 💪",
+        'template' => "🎉🔔 *CONTRATO FECHADO!* 🔔🎉\n\nParabéns ao time! ✨\n\n👤 Cliente: *[cliente]*\n💼 Caso: [tipo_caso]\n🎯 Vendedor(a): *[comercial]*\n📅 Data: [hoje]\n\n_Mais uma família escolheu a equipe Ferreira & Sá Advocacia!_ 💪\n\n🚀 Cada contrato fechado é uma vida transformada. Vamos com tudo, time — que venham muitos outros! 🏆",
     );
     try {
         $st = db()->prepare("SELECT chave, valor FROM configuracoes WHERE chave IN
