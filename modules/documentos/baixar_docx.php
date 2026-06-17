@@ -225,7 +225,11 @@ function block_to_xml(DOMNode $node, $opts = array()) {
     // ─── Card visual: <div> com background + border → VML roundrect
     // (Tabela OOXML não suporta border-radius. v:roundrect é VML legacy mas
     // funciona em todas as versões do Word desde 2007.)
-    if ($tag === 'div' && _is_card_div($node)) {
+    // Amanda 17/06/2026: se JA ESTAMOS dentro de um card, NAO criar shape
+    // aninhado — Word recusa com 'Não é possível inserir objetos de desenho
+    // em uma caixa de texto...'. Divs internos com bg/border viram parágrafo
+    // simples com cor de fundo via shading do parágrafo.
+    if ($tag === 'div' && _is_card_div($node) && !$inCard) {
         $bgHex = _hex_from_style($style, 'background');
         $bdHex = _hex_from_style($style, 'border');
         // Processa o conteúdo do card recursivamente, marcando inCard
