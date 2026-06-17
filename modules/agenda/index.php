@@ -1220,7 +1220,7 @@ function abrirModalEditar(id) {
                          : _tip === 'mediacao_cejusc' ? 'Mediação realizada'
                          : _tip === 'reuniao_cliente' ? 'Reunião realizada'
                          : 'Marcar como realizado';
-                atHtml += '<button type="button" onclick="marcarRealizadoModal(' + _evId + ',' + JSON.stringify(_tip) + ',' + _cid + ',' + _cliid + ')" style="font-size:.75rem;padding:4px 10px;background:#059669;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">✓ ' + _lbl + '</button>';
+                atHtml += '<button type="button" onclick="marcarRealizadoModal(' + _evId + ",'" + _tip + "'," + _cid + ',' + _cliid + ')" style="font-size:.75rem;padding:4px 10px;background:#059669;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">✓ ' + _lbl + '</button>';
                 var _lblR = _tip === 'audiencia' ? 'Remarcar audiência'
                           : _tip === 'mediacao_cejusc' ? 'Remarcar mediação'
                           : _tip === 'reuniao_cliente' ? 'Remarcar reunião'
