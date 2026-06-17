@@ -569,7 +569,10 @@ try {
                   AND ae.status NOT IN ('cancelado','realizado','concluido')
                   AND DATE(ae.data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
             ) un
-            ORDER BY prazo_fatal ASC
+            ORDER BY
+                CASE WHEN prazo_fatal >= CURDATE() THEN 0 ELSE 1 END ASC,
+                CASE WHEN prazo_fatal >= CURDATE() THEN prazo_fatal END ASC,
+                prazo_fatal DESC
             LIMIT 15"
         );
         $__stmtPz->execute();
