@@ -577,7 +577,11 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
         'waveform' => (bool)$asPtt,
         'viewOnce' => false,
     );
-    $r = _zapi_post($url, $headers, $body);
+    // Amanda 17/06/2026: timeout 90s pra audio (vs 30s default). Base64 de
+    // audio de 15-30s vira 200-500KB de payload — Z-API precisa decodar +
+    // hospedar no CDN dela + processar waveform. 30s estourava em produção
+    // com HTTP 0 (erro generico). Aumentado pra dar respiro.
+    $r = _zapi_post($url, $headers, $body, 90);
 
     // Log persistente (tabela self-heal) — útil pra revisar se o fix base64 chega à Z-API
     try {
@@ -742,26 +746,35 @@ function zapi_edit_message($ddd, $telefone, $zapiMessageId, $novoTexto) {
     return $ultimo ?: array('ok' => false, 'erro' => 'Edit não suportado por nenhum endpoint Z-API testado');
 }
 
-function _zapi_post($url, $headers, $body) {
+function _zapi_post($url, $headers, $body, $timeout = 30) {
     $ch = curl_init($url);
     curl_setopt_array($ch, array(
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_TIMEOUT        => $timeout,
+        CURLOPT_CONNECTTIMEOUT => 10,
         CURLOPT_POST           => true,
         CURLOPT_HTTPHEADER     => $headers,
         CURLOPT_POSTFIELDS     => json_encode($body),
         CURLOPT_SSL_VERIFYPEER => false,
     ));
-    $resp = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
+    $resp  = curl_exec($ch);
+    $code  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err   = curl_error($ch);
+    $errno = curl_errno($ch);
     curl_close($ch);
     $json = json_decode($resp, true);
+    // Amanda 17/06/2026: HTTP 0 = falha antes de resposta. Se curl_error vazio,
+    // pega curl_strerror(errno) pra mensagem util ('Operation timed out',
+    // 'Couldn't resolve host', etc) em vez de retornar 'false' pro usuario.
+    if ($code === 0 && empty($err) && $errno > 0 && function_exists('curl_strerror')) {
+        $err = curl_strerror($errno) . ' (cURL #' . $errno . ')';
+    }
     return array(
         'ok'        => ($code >= 200 && $code < 300),
         'http_code' => $code,
-        'data'      => $json ?: $resp,
+        'data'      => $json !== null ? $json : $resp,
         'erro'      => $err,
+        'curl_errno'=> $errno,
     );
 }
 

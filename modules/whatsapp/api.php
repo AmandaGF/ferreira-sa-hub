@@ -2091,7 +2091,16 @@ if ($action === 'enviar_audio') {
     $audioParam = is_readable($dest) ? $dest : $publicUrl;
     $resp = zapi_send_audio($conv['canal'], $conv['telefone'], $audioParam, true);
     if (empty($resp['ok'])) {
-        echo json_encode(array('error' => 'Z-API recusou: HTTP ' . ($resp['http_code'] ?? '?') . ' — ' . json_encode($resp['data'] ?? '')));
+        // Amanda 17/06/2026: msg de erro mais util quando HTTP 0 (sem resposta da Z-API)
+        $http = $resp['http_code'] ?? '?';
+        if ($http === 0 || $http === '0') {
+            $erroDetalhe = $resp['erro'] ?: 'sem resposta da Z-API (provável timeout)';
+            $msg = '⚠️ Não consegui falar com a Z-API pra enviar o áudio. Motivo: ' . $erroDetalhe
+                 . '. Áudios longos podem demorar mais — tente gravar um mais curto ou tente de novo.';
+        } else {
+            $msg = 'Z-API recusou: HTTP ' . $http . ' — ' . json_encode($resp['data'] ?? '');
+        }
+        echo json_encode(array('error' => $msg));
         exit;
     }
 
