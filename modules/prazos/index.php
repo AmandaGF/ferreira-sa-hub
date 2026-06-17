@@ -97,21 +97,26 @@ $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
 if ($filtro === 'todos') {
     $prazos = $pdo->query(
         "SELECT * FROM (
-            SELECT p.id, p.client_id, p.case_id, p.numero_processo, p.descricao_acao,
+            SELECT p.id, p.client_id, p.case_id,
+                   p.numero_processo COLLATE utf8mb4_unicode_ci AS numero_processo,
+                   p.descricao_acao COLLATE utf8mb4_unicode_ci AS descricao_acao,
                    p.prazo_fatal, p.concluido, p.concluido_em,
-                   c.name as client_name, cs.title as case_title,
-                   'prazo' AS origem
+                   c.name COLLATE utf8mb4_unicode_ci AS client_name,
+                   cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                   CAST('prazo' AS CHAR) COLLATE utf8mb4_unicode_ci AS origem
             FROM prazos_processuais p
             LEFT JOIN clients c ON c.id = p.client_id
             LEFT JOIN cases cs ON cs.id = p.case_id
             UNION ALL
-            SELECT (-ae.id) AS id, ae.client_id, ae.case_id, cs.case_number AS numero_processo,
-                   ae.titulo AS descricao_acao,
+            SELECT (-ae.id) AS id, ae.client_id, ae.case_id,
+                   cs.case_number COLLATE utf8mb4_unicode_ci AS numero_processo,
+                   ae.titulo COLLATE utf8mb4_unicode_ci AS descricao_acao,
                    DATE(ae.data_inicio) AS prazo_fatal,
                    CASE WHEN ae.status IN ('realizado','concluido','cancelado') THEN 1 ELSE 0 END AS concluido,
                    ae.updated_at AS concluido_em,
-                   c.name as client_name, cs.title as case_title,
-                   'agenda' AS origem
+                   c.name COLLATE utf8mb4_unicode_ci AS client_name,
+                   cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                   CAST('agenda' AS CHAR) COLLATE utf8mb4_unicode_ci AS origem
             FROM agenda_eventos ae
             LEFT JOIN clients c ON c.id = ae.client_id
             LEFT JOIN cases cs ON cs.id = ae.case_id
@@ -122,21 +127,26 @@ if ($filtro === 'todos') {
 } else {
     $prazos = $pdo->query(
         "SELECT * FROM (
-            SELECT p.id, p.client_id, p.case_id, p.numero_processo, p.descricao_acao,
+            SELECT p.id, p.client_id, p.case_id,
+                   p.numero_processo COLLATE utf8mb4_unicode_ci AS numero_processo,
+                   p.descricao_acao COLLATE utf8mb4_unicode_ci AS descricao_acao,
                    p.prazo_fatal, p.concluido, p.concluido_em,
-                   c.name as client_name, cs.title as case_title,
-                   'prazo' AS origem
+                   c.name COLLATE utf8mb4_unicode_ci AS client_name,
+                   cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                   CAST('prazo' AS CHAR) COLLATE utf8mb4_unicode_ci AS origem
             FROM prazos_processuais p
             LEFT JOIN clients c ON c.id = p.client_id
             LEFT JOIN cases cs ON cs.id = p.case_id
             WHERE p.concluido = 0
             UNION ALL
-            SELECT (-ae.id) AS id, ae.client_id, ae.case_id, cs.case_number AS numero_processo,
-                   ae.titulo AS descricao_acao,
+            SELECT (-ae.id) AS id, ae.client_id, ae.case_id,
+                   cs.case_number COLLATE utf8mb4_unicode_ci AS numero_processo,
+                   ae.titulo COLLATE utf8mb4_unicode_ci AS descricao_acao,
                    DATE(ae.data_inicio) AS prazo_fatal,
                    0 AS concluido, NULL AS concluido_em,
-                   c.name as client_name, cs.title as case_title,
-                   'agenda' AS origem
+                   c.name COLLATE utf8mb4_unicode_ci AS client_name,
+                   cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                   CAST('agenda' AS CHAR) COLLATE utf8mb4_unicode_ci AS origem
             FROM agenda_eventos ae
             LEFT JOIN clients c ON c.id = ae.client_id
             LEFT JOIN cases cs ON cs.id = ae.case_id

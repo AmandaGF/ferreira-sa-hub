@@ -524,27 +524,43 @@ try {
         // 17/06/2026: UNION com agenda_eventos tipo='prazo' — Amanda usa Agenda
         // pra criar prazos hoje em dia, banner antigo so lia prazos_processuais
         // e por isso parou de aparecer.
+        // COLLATE utf8mb4_unicode_ci em TODAS colunas string: agenda_eventos e
+        // prazos_processuais foram criadas com collations diferentes e a UNION
+        // levantava "Illegal mix of collations" — o catch engolia em silencio.
         $__stmtPz = db()->prepare(
             "SELECT * FROM (
-                SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.case_id,
-                       cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
-                       cl.name AS client_name,
-                       u.name AS responsavel_name,
-                       'prazo' AS __origem
+                SELECT p.id,
+                       p.descricao_acao COLLATE utf8mb4_unicode_ci AS descricao_acao,
+                       p.prazo_fatal,
+                       p.numero_processo COLLATE utf8mb4_unicode_ci AS numero_processo,
+                       p.case_id,
+                       cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                       cs.case_number COLLATE utf8mb4_unicode_ci AS case_cnj,
+                       cs.comarca COLLATE utf8mb4_unicode_ci AS comarca,
+                       cs.comarca_uf COLLATE utf8mb4_unicode_ci AS comarca_uf,
+                       cs.court COLLATE utf8mb4_unicode_ci AS vara,
+                       cl.name COLLATE utf8mb4_unicode_ci AS client_name,
+                       u.name COLLATE utf8mb4_unicode_ci AS responsavel_name,
+                       CAST('prazo' AS CHAR) COLLATE utf8mb4_unicode_ci AS __origem
                 FROM prazos_processuais p
                 LEFT JOIN cases cs ON cs.id = p.case_id
                 LEFT JOIN clients cl ON cl.id = p.client_id
                 LEFT JOIN users u ON u.id = cs.responsible_user_id
                 WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
                 UNION ALL
-                SELECT ae.id, ae.titulo AS descricao_acao,
+                SELECT ae.id,
+                       ae.titulo COLLATE utf8mb4_unicode_ci AS descricao_acao,
                        DATE(ae.data_inicio) AS prazo_fatal,
-                       cs.case_number AS numero_processo,
+                       cs.case_number COLLATE utf8mb4_unicode_ci AS numero_processo,
                        ae.case_id,
-                       cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
-                       cl.name AS client_name,
-                       u.name AS responsavel_name,
-                       'agenda' AS __origem
+                       cs.title COLLATE utf8mb4_unicode_ci AS case_title,
+                       cs.case_number COLLATE utf8mb4_unicode_ci AS case_cnj,
+                       cs.comarca COLLATE utf8mb4_unicode_ci AS comarca,
+                       cs.comarca_uf COLLATE utf8mb4_unicode_ci AS comarca_uf,
+                       cs.court COLLATE utf8mb4_unicode_ci AS vara,
+                       cl.name COLLATE utf8mb4_unicode_ci AS client_name,
+                       u.name COLLATE utf8mb4_unicode_ci AS responsavel_name,
+                       CAST('agenda' AS CHAR) COLLATE utf8mb4_unicode_ci AS __origem
                 FROM agenda_eventos ae
                 LEFT JOIN cases cs ON cs.id = ae.case_id
                 LEFT JOIN clients cl ON cl.id = ae.client_id
