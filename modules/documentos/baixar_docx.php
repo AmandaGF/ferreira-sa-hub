@@ -93,23 +93,53 @@ function _ppr_from_style($style, $isTitle = false, $opts = array()) {
     return '<w:pPr>' . $spacing . $indent . $jc . '</w:pPr>';
 }
 
-// Detecta se um <div> é um "card" visual (background + border) — vira tabela
-// 1x1 com shading no docx, preservando o destaque visual do preview HTML.
+// Detecta se um <div> é um "card" visual (background OU border presente) →
+// vira tabela 1x1 com shading no docx, preservando o destaque visual do
+// preview HTML.
+// Amanda 17/06/2026: antes exigia bg+border AMBOS, e os caracteres `:` `#`
+// específicos. Templates como PESQUISA PREVJUD perdiam formato em Word
+// porque usam gradient, ou só border, ou border-left. Agora aceita:
+//  - background sólido (#hex ou nome) OU linear-gradient(...)
+//  - border em qualquer direção (border, border-left, border-top, etc) OU
+//    border-radius (quando combinado com bg)
+// Basta UM dos dois efeitos visuais pra valer como card.
 function _is_card_div(DOMNode $node) {
     if ($node->nodeType !== XML_ELEMENT_NODE) return false;
     if (strtolower($node->nodeName) !== 'div') return false;
     $style = $node->getAttribute('style');
     if (!$style) return false;
-    $hasBg = preg_match('/background(?:-color)?\s*:\s*#?[A-Za-z0-9]+/i', $style)
-          && !preg_match('/background(?:-color)?\s*:\s*(?:transparent|none|inherit)/i', $style);
-    $hasBorder = preg_match('/border\s*:\s*\d+(?:px|pt|em)\s+\w+/i', $style);
-    return $hasBg && $hasBorder;
+    // Background sólido (#hex ou nome de cor) OU gradient
+    $hasBg = (
+        preg_match('/background(?:-color)?\s*:\s*#[A-Fa-f0-9]{3,6}/i', $style)
+        || preg_match('/background(?:-color)?\s*:\s*(?:rgb|rgba|hsl|hsla)\s*\(/i', $style)
+        || preg_match('/background(?:-color)?\s*:\s*linear-gradient\s*\(/i', $style)
+        || preg_match('/background\s*:\s*linear-gradient\s*\(/i', $style)
+    ) && !preg_match('/background(?:-color)?\s*:\s*(?:transparent|none|inherit)/i', $style);
+    // Border em qualquer direção
+    $hasBorder = preg_match('/border(?:-(?:left|right|top|bottom))?\s*:\s*\d+(?:px|pt|em)\s+\w+/i', $style);
+    // Padroes que merecem destaque sozinhos:
+    //  - tem fundo → card de destaque
+    //  - tem border + border-radius → card com cantos arredondados
+    //  - tem border-left grosso (>=3px) → card de "alerta lateral"
+    if ($hasBg) return true;
+    $hasRadius = preg_match('/border-radius\s*:\s*[\d.]+/i', $style);
+    if ($hasBorder && $hasRadius) return true;
+    if (preg_match('/border-left\s*:\s*([\d.]+)(?:px|pt|em)/i', $style, $m) && floatval($m[1]) >= 3) return true;
+    return false;
 }
 
 function _hex_from_style($style, $prop) {
     // $prop: 'background' ou 'border'
     if ($prop === 'background') {
+        // 1. Cor solida #hex
         if (preg_match('/background(?:-color)?\s*:\s*#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
+            $hex = $m[1];
+            if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
+            return strtoupper($hex);
+        }
+        // 2. linear-gradient(...) — pega a primeira cor #hex que aparece
+        // Amanda 17/06/2026: PESQUISA PREVJUD usa gradient; sem isso virava bege default.
+        if (preg_match('/linear-gradient\s*\([^)]*#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
             $hex = $m[1];
             if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
             return strtoupper($hex);
@@ -117,7 +147,8 @@ function _hex_from_style($style, $prop) {
         return 'F8F6F2'; // bege default
     }
     if ($prop === 'border') {
-        if (preg_match('/border\s*:\s*\d+(?:px|pt|em)\s+\w+\s+#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
+        // Aceita border, border-left, border-top, etc. Pega o primeiro #hex que vier.
+        if (preg_match('/border(?:-(?:left|right|top|bottom))?\s*:\s*\d+(?:px|pt|em)\s+\w+\s+#([A-Fa-f0-9]{3,6})/i', $style, $m)) {
             $hex = $m[1];
             if (strlen($hex) === 3) $hex = $hex[0].$hex[0].$hex[1].$hex[1].$hex[2].$hex[2];
             return strtoupper($hex);
