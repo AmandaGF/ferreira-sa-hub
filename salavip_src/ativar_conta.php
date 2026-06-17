@@ -21,13 +21,19 @@ if (empty($token)) {
     $tokenValido = false;
     $erro = 'Link invalido ou expirado.';
 } else {
-    // Buscar usuario pelo token
+    // Amanda 17/06/2026: aceita conta ja ativa (cliente esqueceu senha e Amanda
+    // mandou o link de novo). Detecta pelo flag 'tem_senha' pra ajustar a
+    // mensagem do form (ativar vs redefinir). Antes era 'ativo = 0' fixo na
+    // query, o que fazia o link parecer 'invalido' pra clientes ja ativos.
     $stmt = $pdo->prepare(
-        'SELECT id, nome_exibicao, email FROM salavip_usuarios WHERE token_ativacao = ? AND token_expira > NOW() AND ativo = 0 LIMIT 1'
+        'SELECT id, nome_exibicao, email, ativo,
+                (senha_hash IS NOT NULL AND senha_hash != "") AS tem_senha
+         FROM salavip_usuarios WHERE token_ativacao = ? AND token_expira > NOW() LIMIT 1'
     );
     $stmt->execute([$token]);
     $user = $stmt->fetch();
     $tokenValido = (bool) $user;
+    $modoRedefinir = $tokenValido && !empty($user['tem_senha']);
 
     if (!$tokenValido) {
         $erro = 'Link invalido ou expirado.';
@@ -54,14 +60,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tokenValido) {
         } elseif (!preg_match('/[0-9]/', $senha)) {
             $erro = 'A senha deve conter pelo menos um numero.';
         } else {
-            // Ativar conta
+            // Ativar conta (cria senha) OU redefinir senha (cliente ja ativo).
+            // Em ambos os casos: grava hash e invalida o token (uso unico).
             $hash = password_hash($senha, PASSWORD_DEFAULT);
             $stmt = $pdo->prepare(
                 'UPDATE salavip_usuarios SET ativo = 1, senha_hash = ?, token_ativacao = NULL, token_expira = NULL WHERE id = ?'
             );
             $stmt->execute([$hash, $user['id']]);
 
-            sv_flash('success', 'Conta ativada! Faca login.');
+            $msgOk = $modoRedefinir ? 'Senha redefinida! Faca login com a nova senha.' : 'Conta ativada! Faca login.';
+            sv_flash('success', $msgOk);
             header('Location: ' . SALAVIP_BASE_URL . '/index.php');
             exit;
         }
@@ -75,7 +83,7 @@ $csrf_token = salavip_gerar_csrf();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ativar Conta — Central VIP</title>
+    <title><?= !empty($modoRedefinir) ? 'Redefinir Senha' : 'Ativar Conta' ?> — Central VIP</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Lato:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -91,7 +99,7 @@ $csrf_token = salavip_gerar_csrf();
         </div>
 
         <h1 class="login-title">Central VIP</h1>
-        <p class="login-subtitle">Ativacao de Conta</p>
+        <p class="login-subtitle"><?= !empty($modoRedefinir) ? 'Redefinir Senha' : 'Ativacao de Conta' ?></p>
 
         <?php if ($erro): ?>
             <div class="error-msg"><?= sv_e($erro) ?></div>
@@ -105,8 +113,13 @@ $csrf_token = salavip_gerar_csrf();
             <a href="<?= sv_e(SALAVIP_BASE_URL) ?>/index.php" class="link-forgot" style="margin-top:1.5rem;">Voltar ao login</a>
         <?php else: ?>
             <p style="text-align:center;color:#94a3b8;margin-bottom:1.5rem;">
-                Bem-vindo(a), <strong style="color:#c9a94e;"><?= sv_e($user['nome_exibicao']) ?></strong>!<br>
-                Defina sua senha para acessar a Central VIP.
+                <?php if (!empty($modoRedefinir)): ?>
+                    Ola, <strong style="color:#c9a94e;"><?= sv_e($user['nome_exibicao']) ?></strong>!<br>
+                    Defina uma <strong>nova senha</strong> para sua conta na Central VIP.
+                <?php else: ?>
+                    Bem-vindo(a), <strong style="color:#c9a94e;"><?= sv_e($user['nome_exibicao']) ?></strong>!<br>
+                    Defina sua senha para acessar a Central VIP.
+                <?php endif; ?>
             </p>
 
             <form method="POST" action="<?= sv_e(SALAVIP_BASE_URL) ?>/ativar_conta.php?token=<?= sv_e($token) ?>">
@@ -144,7 +157,7 @@ $csrf_token = salavip_gerar_csrf();
                     >
                 </div>
 
-                <button type="submit" class="btn-login">Ativar Conta</button>
+                <button type="submit" class="btn-login"><?= !empty($modoRedefinir) ? 'Redefinir Senha' : 'Ativar Conta' ?></button>
             </form>
 
             <a href="<?= sv_e(SALAVIP_BASE_URL) ?>/index.php" class="link-forgot">Voltar ao login</a>
