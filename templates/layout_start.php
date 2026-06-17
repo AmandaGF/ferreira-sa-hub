@@ -9,10 +9,159 @@
 
 require_once APP_ROOT . '/templates/header.php';
 require_once APP_ROOT . '/templates/sidebar.php';
+
+// ════════════════════════════════════════════════════════════════
+// Amanda 17/06/2026: banner de prazos críticos em TODAS as páginas
+// ════════════════════════════════════════════════════════════════
+// Conta prazos VENCIDOS e de HOJE (de prazos_processuais + agenda_eventos).
+// Cache por sessão pra não pesar a query a cada page-load (revalida a cada
+// 2 min). Banner pode ser minimizado por 30min via localStorage no front.
+$_prazoBannerData = null;
+try {
+    $_cacheKey = '_prazoBanner_' . date('Y-m-d-H') . '_' . floor(date('i') / 2);
+    if (isset($_SESSION[$_cacheKey])) {
+        $_prazoBannerData = $_SESSION[$_cacheKey];
+    } else {
+        // Limpa caches antigos da sessão
+        foreach (array_keys($_SESSION) as $_k) {
+            if (strpos($_k, '_prazoBanner_') === 0 && $_k !== $_cacheKey) unset($_SESSION[$_k]);
+        }
+        $_pdoBn = db();
+        $_qN = function($sql, $args = array()) use ($_pdoBn) {
+            $s = $_pdoBn->prepare($sql); $s->execute($args); return (int)$s->fetchColumn();
+        };
+        $_vencidosTab = $_qN("SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal < CURDATE()");
+        $_hojeTab     = $_qN("SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal = CURDATE()");
+        $_vencidosAg  = $_qN("SELECT COUNT(*) FROM agenda_eventos WHERE tipo='prazo' AND status NOT IN ('cancelado','realizado','concluido') AND DATE(data_inicio) < CURDATE()");
+        $_hojeAg      = $_qN("SELECT COUNT(*) FROM agenda_eventos WHERE tipo='prazo' AND status NOT IN ('cancelado','realizado','concluido') AND DATE(data_inicio) = CURDATE()");
+        // Primeiros 5 prazos pra mostrar na lista expandida
+        $_listaSt = $_pdoBn->query("
+            SELECT id, descricao_acao, prazo_fatal, dias, case_id, client_name, case_title, origem
+            FROM (
+                SELECT p.id, p.descricao_acao,
+                       p.prazo_fatal,
+                       DATEDIFF(p.prazo_fatal, CURDATE()) AS dias,
+                       p.case_id, cl.name AS client_name, cs.title AS case_title,
+                       'prazo' AS origem
+                FROM prazos_processuais p
+                LEFT JOIN clients cl ON cl.id = p.client_id
+                LEFT JOIN cases cs   ON cs.id = p.case_id
+                WHERE p.concluido = 0 AND p.prazo_fatal <= CURDATE()
+                UNION ALL
+                SELECT ae.id, ae.titulo AS descricao_acao,
+                       DATE(ae.data_inicio) AS prazo_fatal,
+                       DATEDIFF(DATE(ae.data_inicio), CURDATE()) AS dias,
+                       ae.case_id, cl.name AS client_name, cs.title AS case_title,
+                       'agenda' AS origem
+                FROM agenda_eventos ae
+                LEFT JOIN clients cl ON cl.id = ae.client_id
+                LEFT JOIN cases cs   ON cs.id = ae.case_id
+                WHERE ae.tipo = 'prazo'
+                  AND ae.status NOT IN ('cancelado','realizado','concluido')
+                  AND DATE(ae.data_inicio) <= CURDATE()
+            ) un
+            ORDER BY CASE WHEN dias = 0 THEN 0 ELSE 1 END ASC, prazo_fatal DESC
+            LIMIT 8
+        ");
+        $_lista = $_listaSt ? $_listaSt->fetchAll(PDO::FETCH_ASSOC) : array();
+        $_prazoBannerData = array(
+            'vencidos' => $_vencidosTab + $_vencidosAg,
+            'hoje'     => $_hojeTab + $_hojeAg,
+            'lista'    => $_lista,
+        );
+        $_SESSION[$_cacheKey] = $_prazoBannerData;
+    }
+} catch (Throwable $_eBn) { $_prazoBannerData = null; }
 ?>
 
 <div class="app-layout">
     <main class="main-content">
+
+        <?php
+        // ── Banner de prazos críticos (sticky topo, todas as páginas) ──
+        if ($_prazoBannerData && (($_prazoBannerData['vencidos'] ?? 0) > 0 || ($_prazoBannerData['hoje'] ?? 0) > 0)):
+            $_v = (int)$_prazoBannerData['vencidos'];
+            $_h = (int)$_prazoBannerData['hoje'];
+            $_temVencido = $_v > 0;
+            $_corBg = $_temVencido ? '#7f1d1d' : '#dc2626';
+            $_corBgClaro = $_temVencido ? '#b91c1c' : '#ef4444';
+        ?>
+        <div id="prazoBanner" style="background:linear-gradient(135deg, <?= $_corBg ?>, <?= $_corBgClaro ?>);color:#fff;padding:.6rem 1rem;border-bottom:3px solid rgba(255,255,255,.25);position:sticky;top:0;z-index:200;box-shadow:0 4px 12px rgba(127,29,29,.3);">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+                <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;font-size:.88rem;font-weight:700;">
+                    <span style="font-size:1.1rem;">🚨</span>
+                    <?php if ($_temVencido && $_h > 0): ?>
+                        <span><?= $_v ?> prazo<?= $_v>1?'s':'' ?> <u>VENCIDO<?= $_v>1?'S':'' ?></u> + <?= $_h ?> pra <u>HOJE</u></span>
+                    <?php elseif ($_temVencido): ?>
+                        <span><?= $_v ?> prazo<?= $_v>1?'s':'' ?> <u>VENCIDO<?= $_v>1?'S':'' ?></u></span>
+                    <?php else: ?>
+                        <span><?= $_h ?> prazo<?= $_h>1?'s':'' ?> vencendo <u>HOJE</u></span>
+                    <?php endif; ?>
+                    <button type="button" onclick="prazoBannerToggle()" id="prazoBannerToggleBtn" style="background:rgba(255,255,255,.18);border:none;color:#fff;padding:.2rem .65rem;border-radius:14px;cursor:pointer;font-size:.7rem;font-weight:600;">▼ Ver lista</button>
+                </div>
+                <div style="display:flex;gap:.4rem;align-items:center;">
+                    <a href="<?= url('modules/dashboard/index.php') ?>#prazos" style="background:rgba(255,255,255,.95);color:<?= $_corBg ?>;padding:.3rem .8rem;border-radius:6px;text-decoration:none;font-size:.76rem;font-weight:700;">📋 Abrir todos</a>
+                    <button type="button" onclick="prazoBannerDismiss()" title="Esconder por 30 minutos" style="background:transparent;border:1px solid rgba(255,255,255,.5);color:#fff;padding:.25rem .55rem;border-radius:6px;cursor:pointer;font-size:.72rem;">✕ 30min</button>
+                </div>
+            </div>
+
+            <div id="prazoBannerLista" style="display:none;margin-top:.6rem;padding-top:.6rem;border-top:1px solid rgba(255,255,255,.2);">
+                <?php if (!empty($_prazoBannerData['lista'])): ?>
+                    <div style="display:flex;flex-direction:column;gap:.3rem;">
+                        <?php foreach ($_prazoBannerData['lista'] as $_p):
+                            $_dias = (int)$_p['dias'];
+                            $_lbl = $_dias < 0 ? '🚨 VENCIDO há ' . abs($_dias) . 'd' : ($_dias === 0 ? '⚠️ HOJE' : '✓ em ' . $_dias . 'd');
+                            $_href = !empty($_p['case_id']) ? url('modules/operacional/caso_ver.php?id=' . (int)$_p['case_id']) : url('modules/agenda/');
+                        ?>
+                        <a href="<?= e($_href) ?>" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:rgba(255,255,255,.12);padding:.4rem .7rem;border-radius:6px;text-decoration:none;color:#fff;font-size:.78rem;">
+                            <div style="flex:1;min-width:0;overflow:hidden;">
+                                <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                    <?= e(mb_substr($_p['descricao_acao'] ?: '(sem descrição)', 0, 90, 'UTF-8')) ?>
+                                </div>
+                                <?php if (!empty($_p['client_name']) || !empty($_p['case_title'])): ?>
+                                    <div style="font-size:.66rem;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                                        <?= e(($_p['client_name'] ?: '—') . ($_p['case_title'] ? ' · ' . $_p['case_title'] : '')) ?>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <div style="font-size:.7rem;font-weight:700;white-space:nowrap;background:rgba(0,0,0,.25);padding:.18rem .55rem;border-radius:10px;"><?= e($_lbl) ?></div>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <script>
+        (function(){
+            // Esconde por 30 min via localStorage
+            try {
+                var stored = parseInt(localStorage.getItem('prazoBannerDismissUntil') || '0', 10);
+                if (stored > Date.now()) {
+                    var bn = document.getElementById('prazoBanner');
+                    if (bn) bn.style.display = 'none';
+                }
+            } catch(e){}
+            window.prazoBannerDismiss = function() {
+                try { localStorage.setItem('prazoBannerDismissUntil', String(Date.now() + 30 * 60 * 1000)); } catch(e){}
+                var bn = document.getElementById('prazoBanner');
+                if (bn) bn.style.display = 'none';
+            };
+            window.prazoBannerToggle = function() {
+                var lst = document.getElementById('prazoBannerLista');
+                var btn = document.getElementById('prazoBannerToggleBtn');
+                if (!lst) return;
+                if (lst.style.display === 'none' || !lst.style.display) {
+                    lst.style.display = 'block';
+                    if (btn) btn.innerHTML = '▲ Ocultar';
+                } else {
+                    lst.style.display = 'none';
+                    if (btn) btn.innerHTML = '▼ Ver lista';
+                }
+            };
+        })();
+        </script>
+        <?php endif; ?>
+
         <div class="topbar">
             <div class="topbar-left">
                 <button class="btn-sidebar-toggle" id="sidebarToggle">☰</button>
