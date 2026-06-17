@@ -198,8 +198,14 @@ $qtdPrazosAg  = (int)qval($pdo, "SELECT COUNT(*) FROM agenda_eventos
                                     AND DATE(data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
 $prazos7dias = $qtdPrazosTab + $qtdPrazosAg;
 
+// Amanda 17/06/2026: priorizar HOJE e PRÓXIMOS antes de vencidos. Antes ordenava
+// só por prazo_fatal ASC, o que jogava os 10+ vencidos antigos no LIMIT 10 e
+// os de HOJE ficavam fora.
+// Ordem: 1) HOJE/futuros (dias >= 0) ASC pelo prazo · 2) Vencidos (dias < 0) DESC
+// pelo prazo (vencidos mais recentes antes dos antigos)
 $prazosLista = qrows($pdo, "
-    SELECT id, case_id, descricao_acao, prazo_fatal, dias, client_name, case_title, origem
+    SELECT id, case_id, descricao_acao, prazo_fatal, dias, client_name, case_title, origem,
+           CASE WHEN dias >= 0 THEN 0 ELSE 1 END AS bucket
     FROM (
         SELECT p.id, p.case_id, p.descricao_acao,
                p.prazo_fatal,
@@ -224,8 +230,10 @@ $prazosLista = qrows($pdo, "
           AND ae.status NOT IN ('cancelado','realizado','concluido')
           AND DATE(ae.data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
     ) un
-    ORDER BY prazo_fatal ASC, dias ASC
-    LIMIT 10
+    ORDER BY bucket ASC,
+             CASE WHEN dias >= 0 THEN prazo_fatal END ASC,
+             CASE WHEN dias <  0 THEN prazo_fatal END DESC
+    LIMIT 15
 ");
 
 // Clientes sem movimentação 30+ dias
