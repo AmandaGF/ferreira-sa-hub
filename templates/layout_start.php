@@ -10,71 +10,6 @@
 require_once APP_ROOT . '/templates/header.php';
 require_once APP_ROOT . '/templates/sidebar.php';
 
-// ════════════════════════════════════════════════════════════════
-// Amanda 17/06/2026: banner de prazos críticos em TODAS as páginas
-// ════════════════════════════════════════════════════════════════
-// Conta prazos VENCIDOS e de HOJE (de prazos_processuais + agenda_eventos).
-// SEM cache de sessão por enquanto — query rápida, prefere garantir que
-// reflete o banco em tempo real.
-$_prazoBannerData = null;
-$_prazoBannerErr = '';
-// Limpa caches antigos da sessão (de versões anteriores que cacheavam)
-if (isset($_SESSION)) {
-    foreach (array_keys($_SESSION) as $_k) {
-        if (strpos($_k, '_prazoBanner_') === 0) unset($_SESSION[$_k]);
-    }
-}
-try {
-    $_pdoBn = db();
-    $_qN = function($sql) use ($_pdoBn) {
-        $s = $_pdoBn->query($sql); return $s ? (int)$s->fetchColumn() : 0;
-    };
-    $_vencidosTab = $_qN("SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal < CURDATE()");
-    $_hojeTab     = $_qN("SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal = CURDATE()");
-    $_vencidosAg  = $_qN("SELECT COUNT(*) FROM agenda_eventos WHERE tipo='prazo' AND status NOT IN ('cancelado','realizado','concluido') AND DATE(data_inicio) < CURDATE()");
-    $_hojeAg      = $_qN("SELECT COUNT(*) FROM agenda_eventos WHERE tipo='prazo' AND status NOT IN ('cancelado','realizado','concluido') AND DATE(data_inicio) = CURDATE()");
-    $_listaSt = $_pdoBn->query("
-        SELECT id, descricao_acao, prazo_fatal, dias, case_id, client_name, case_title, origem
-        FROM (
-            SELECT p.id, p.descricao_acao,
-                   p.prazo_fatal,
-                   DATEDIFF(p.prazo_fatal, CURDATE()) AS dias,
-                   p.case_id, cl.name AS client_name, cs.title AS case_title,
-                   'prazo' AS origem
-            FROM prazos_processuais p
-            LEFT JOIN clients cl ON cl.id = p.client_id
-            LEFT JOIN cases cs   ON cs.id = p.case_id
-            WHERE p.concluido = 0 AND p.prazo_fatal <= CURDATE()
-            UNION ALL
-            SELECT ae.id, ae.titulo AS descricao_acao,
-                   DATE(ae.data_inicio) AS prazo_fatal,
-                   DATEDIFF(DATE(ae.data_inicio), CURDATE()) AS dias,
-                   ae.case_id, cl.name AS client_name, cs.title AS case_title,
-                   'agenda' AS origem
-            FROM agenda_eventos ae
-            LEFT JOIN clients cl ON cl.id = ae.client_id
-            LEFT JOIN cases cs   ON cs.id = ae.case_id
-            WHERE ae.tipo = 'prazo'
-              AND ae.status NOT IN ('cancelado','realizado','concluido')
-              AND DATE(ae.data_inicio) <= CURDATE()
-        ) un
-        ORDER BY CASE WHEN dias = 0 THEN 0 ELSE 1 END ASC, prazo_fatal DESC
-        LIMIT 8
-    ");
-    $_lista = $_listaSt ? $_listaSt->fetchAll(PDO::FETCH_ASSOC) : array();
-    $_prazoBannerData = array(
-        'vencidos' => $_vencidosTab + $_vencidosAg,
-        'hoje'     => $_hojeTab + $_hojeAg,
-        'lista'    => $_lista,
-    );
-} catch (Throwable $_eBn) {
-    $_prazoBannerData = null;
-    $_prazoBannerErr = $_eBn->getMessage();
-}
-// Comentário HTML pra debug visual (View Source)
-echo "<!-- prazoBanner: " . ($_prazoBannerData
-    ? 'venc=' . $_prazoBannerData['vencidos'] . ' hoje=' . $_prazoBannerData['hoje'] . ' lista=' . count($_prazoBannerData['lista'])
-    : 'ERRO: ' . $_prazoBannerErr) . " · ts=" . date('H:i:s') . " -->\n";
 ?>
 
 <div class="app-layout">
@@ -586,17 +521,40 @@ try {
     if (in_array($__role, array('admin','gestao','operacional'))) {
         // Inclui VENCIDOS nao concluidos (prazo_fatal <= +3d, sem limite inferior).
         // Antes: BETWEEN CURDATE() AND +3d -- vencido sumia do banner. (28/05/2026)
+        // 17/06/2026: UNION com agenda_eventos tipo='prazo' — Amanda usa Agenda
+        // pra criar prazos hoje em dia, banner antigo so lia prazos_processuais
+        // e por isso parou de aparecer.
         $__stmtPz = db()->prepare(
-            "SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.case_id,
-                    cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
-                    cl.name AS client_name,
-                    u.name AS responsavel_name
-             FROM prazos_processuais p
-             LEFT JOIN cases cs ON cs.id = p.case_id
-             LEFT JOIN clients cl ON cl.id = p.client_id
-             LEFT JOIN users u ON u.id = cs.responsible_user_id
-             WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
-             ORDER BY p.prazo_fatal ASC LIMIT 15"
+            "SELECT * FROM (
+                SELECT p.id, p.descricao_acao, p.prazo_fatal, p.numero_processo, p.case_id,
+                       cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
+                       cl.name AS client_name,
+                       u.name AS responsavel_name,
+                       'prazo' AS __origem
+                FROM prazos_processuais p
+                LEFT JOIN cases cs ON cs.id = p.case_id
+                LEFT JOIN clients cl ON cl.id = p.client_id
+                LEFT JOIN users u ON u.id = cs.responsible_user_id
+                WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+                UNION ALL
+                SELECT ae.id, ae.titulo AS descricao_acao,
+                       DATE(ae.data_inicio) AS prazo_fatal,
+                       cs.case_number AS numero_processo,
+                       ae.case_id,
+                       cs.title AS case_title, cs.case_number AS case_cnj, cs.comarca, cs.comarca_uf, cs.court AS vara,
+                       cl.name AS client_name,
+                       u.name AS responsavel_name,
+                       'agenda' AS __origem
+                FROM agenda_eventos ae
+                LEFT JOIN cases cs ON cs.id = ae.case_id
+                LEFT JOIN clients cl ON cl.id = ae.client_id
+                LEFT JOIN users u ON u.id = cs.responsible_user_id
+                WHERE ae.tipo = 'prazo'
+                  AND ae.status NOT IN ('cancelado','realizado','concluido')
+                  AND DATE(ae.data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 3 DAY)
+            ) un
+            ORDER BY prazo_fatal ASC
+            LIMIT 15"
         );
         $__stmtPz->execute();
         $__prazosUrgentes = $__stmtPz->fetchAll();

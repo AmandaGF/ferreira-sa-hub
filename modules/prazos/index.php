@@ -60,19 +60,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 
     if ($action === 'concluir') {
         $id = (int)($_POST['id'] ?? 0);
-        if ($id) {
+        if ($id > 0) {
             $pdo->prepare("UPDATE prazos_processuais SET concluido = 1, concluido_em = NOW() WHERE id = ?")
                 ->execute(array($id));
             flash_set('success', 'Prazo concluído!');
+        } elseif ($id < 0) {
+            // id negativo = agenda_eventos (visto que a tela unifica as 2 fontes)
+            $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado' WHERE id = ?")
+                ->execute(array(abs($id)));
+            flash_set('success', 'Prazo (agenda) marcado como realizado.');
         }
         redirect(module_url('prazos'));
     }
 
     if ($action === 'delete') {
         $id = (int)($_POST['id'] ?? 0);
-        if ($id) {
+        if ($id > 0) {
             $pdo->prepare("DELETE FROM prazos_processuais WHERE id = ?")->execute(array($id));
             flash_set('success', 'Prazo removido.');
+        } elseif ($id < 0) {
+            $pdo->prepare("UPDATE agenda_eventos SET status = 'cancelado' WHERE id = ?")
+                ->execute(array(abs($id)));
+            flash_set('success', 'Prazo (agenda) cancelado.');
         }
         redirect(module_url('prazos'));
     }
@@ -81,22 +90,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 // Filtro
 $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
 
+// 17/06/2026: UNION com agenda_eventos tipo='prazo'. Amanda cria prazos pela
+// Agenda hoje em dia, sem isso a tela ficava "mentindo" — prazo do dia HOJE
+// nao aparecia aqui. Origem 'agenda' usa id negativo no DOM pra nao colidir
+// com ids de prazos_processuais quando renderiza/forma.
 if ($filtro === 'todos') {
     $prazos = $pdo->query(
-        "SELECT p.*, c.name as client_name, cs.title as case_title
-         FROM prazos_processuais p
-         LEFT JOIN clients c ON c.id = p.client_id
-         LEFT JOIN cases cs ON cs.id = p.case_id
-         ORDER BY p.concluido ASC, p.prazo_fatal ASC"
+        "SELECT * FROM (
+            SELECT p.id, p.client_id, p.case_id, p.numero_processo, p.descricao_acao,
+                   p.prazo_fatal, p.concluido, p.concluido_em,
+                   c.name as client_name, cs.title as case_title,
+                   'prazo' AS origem
+            FROM prazos_processuais p
+            LEFT JOIN clients c ON c.id = p.client_id
+            LEFT JOIN cases cs ON cs.id = p.case_id
+            UNION ALL
+            SELECT (-ae.id) AS id, ae.client_id, ae.case_id, cs.case_number AS numero_processo,
+                   ae.titulo AS descricao_acao,
+                   DATE(ae.data_inicio) AS prazo_fatal,
+                   CASE WHEN ae.status IN ('realizado','concluido','cancelado') THEN 1 ELSE 0 END AS concluido,
+                   ae.updated_at AS concluido_em,
+                   c.name as client_name, cs.title as case_title,
+                   'agenda' AS origem
+            FROM agenda_eventos ae
+            LEFT JOIN clients c ON c.id = ae.client_id
+            LEFT JOIN cases cs ON cs.id = ae.case_id
+            WHERE ae.tipo = 'prazo'
+        ) un
+        ORDER BY concluido ASC, prazo_fatal ASC"
     )->fetchAll();
 } else {
     $prazos = $pdo->query(
-        "SELECT p.*, c.name as client_name, cs.title as case_title
-         FROM prazos_processuais p
-         LEFT JOIN clients c ON c.id = p.client_id
-         LEFT JOIN cases cs ON cs.id = p.case_id
-         WHERE p.concluido = 0
-         ORDER BY p.prazo_fatal ASC"
+        "SELECT * FROM (
+            SELECT p.id, p.client_id, p.case_id, p.numero_processo, p.descricao_acao,
+                   p.prazo_fatal, p.concluido, p.concluido_em,
+                   c.name as client_name, cs.title as case_title,
+                   'prazo' AS origem
+            FROM prazos_processuais p
+            LEFT JOIN clients c ON c.id = p.client_id
+            LEFT JOIN cases cs ON cs.id = p.case_id
+            WHERE p.concluido = 0
+            UNION ALL
+            SELECT (-ae.id) AS id, ae.client_id, ae.case_id, cs.case_number AS numero_processo,
+                   ae.titulo AS descricao_acao,
+                   DATE(ae.data_inicio) AS prazo_fatal,
+                   0 AS concluido, NULL AS concluido_em,
+                   c.name as client_name, cs.title as case_title,
+                   'agenda' AS origem
+            FROM agenda_eventos ae
+            LEFT JOIN clients c ON c.id = ae.client_id
+            LEFT JOIN cases cs ON cs.id = ae.case_id
+            WHERE ae.tipo = 'prazo'
+              AND ae.status NOT IN ('cancelado','realizado','concluido')
+        ) un
+        ORDER BY prazo_fatal ASC"
     )->fetchAll();
 }
 
