@@ -188,8 +188,45 @@ $entregasMes = qval($pdo, "SELECT COUNT(*) FROM cases WHERE status IN ('concluid
 // Prazos vencendo em 7 dias E TAMBEM VENCIDOS (qualquer prazo nao concluido <= +7d).
 // Vencidos so SAEM da listagem quando concluido=1 (alguem deu baixa). Antes,
 // passaram a data, sumiam da query — e a notificacao tambem (bug reportado 28/05/2026).
-$prazos7dias = qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
-$prazosLista = qrows($pdo, "SELECT p.id, p.case_id, p.descricao_acao, p.prazo_fatal, DATEDIFF(p.prazo_fatal, CURDATE()) as dias, cl.name as client_name, cs.title as case_title FROM prazos_processuais p LEFT JOIN clients cl ON cl.id = p.client_id LEFT JOIN cases cs ON cs.id = p.case_id WHERE p.concluido = 0 AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY p.prazo_fatal ASC LIMIT 10");
+// Amanda 17/06/2026: AGORA UNE 2 FONTES — antes contava só prazos_processuais e
+// ignorava os prazos criados via Agenda (agenda_eventos tipo='prazo'). KPI ficou
+// '0' enquanto havia prazos da Agenda vencendo HOJE.
+$qtdPrazosTab = (int)qval($pdo, "SELECT COUNT(*) FROM prazos_processuais WHERE concluido = 0 AND prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+$qtdPrazosAg  = (int)qval($pdo, "SELECT COUNT(*) FROM agenda_eventos
+                                  WHERE tipo = 'prazo'
+                                    AND status NOT IN ('cancelado','realizado','concluido')
+                                    AND DATE(data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)");
+$prazos7dias = $qtdPrazosTab + $qtdPrazosAg;
+
+$prazosLista = qrows($pdo, "
+    SELECT id, case_id, descricao_acao, prazo_fatal, dias, client_name, case_title, origem
+    FROM (
+        SELECT p.id, p.case_id, p.descricao_acao,
+               p.prazo_fatal,
+               DATEDIFF(p.prazo_fatal, CURDATE()) AS dias,
+               cl.name AS client_name, cs.title AS case_title,
+               'prazo' AS origem
+        FROM prazos_processuais p
+        LEFT JOIN clients cl ON cl.id = p.client_id
+        LEFT JOIN cases cs   ON cs.id = p.case_id
+        WHERE p.concluido = 0
+          AND p.prazo_fatal <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+        UNION ALL
+        SELECT ae.id, ae.case_id, ae.titulo AS descricao_acao,
+               DATE(ae.data_inicio) AS prazo_fatal,
+               DATEDIFF(DATE(ae.data_inicio), CURDATE()) AS dias,
+               cl.name AS client_name, cs.title AS case_title,
+               'agenda' AS origem
+        FROM agenda_eventos ae
+        LEFT JOIN clients cl ON cl.id = ae.client_id
+        LEFT JOIN cases cs   ON cs.id = ae.case_id
+        WHERE ae.tipo = 'prazo'
+          AND ae.status NOT IN ('cancelado','realizado','concluido')
+          AND DATE(ae.data_inicio) <= DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+    ) un
+    ORDER BY prazo_fatal ASC, dias ASC
+    LIMIT 10
+");
 
 // Clientes sem movimentação 30+ dias
 $semMovimentacao = qrows($pdo, "SELECT c.id, c.title, cl.name, DATEDIFF(NOW(), c.updated_at) as dias_parado FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.status NOT IN ('cancelado','concluido','arquivado','renunciamos','distribuido') AND c.updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY) ORDER BY dias_parado DESC LIMIT 10");
