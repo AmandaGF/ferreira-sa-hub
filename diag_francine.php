@@ -57,4 +57,11 @@ if ($ids) {
     }
 } else { echo "(sem client_id pra buscar)\n"; }
 
+echo "\n=== PAYLOAD do form #700 (dados REAIS da Francine) ===\n";
+$p = $pdo->query("SELECT payload_json FROM form_submissions WHERE id = 700")->fetchColumn();
+$pa = json_decode($p, true);
+if (is_array($pa)) { foreach ($pa as $k => $v) { if (is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE); echo "  $k = $v\n"; } }
+echo "\n=== CLIENT #2473 (Alex — checar contaminacao pela Francine) ===\n";
+$cli = $pdo->query("SELECT * FROM clients WHERE id = 2473")->fetch(PDO::FETCH_ASSOC);
+if ($cli) { foreach ($cli as $k => $v) { if ($v !== null && $v !== '') echo "  $k = $v\n"; } }
 echo "\n=== FIM ===\n";
