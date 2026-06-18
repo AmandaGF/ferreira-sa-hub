@@ -65,6 +65,19 @@ if (!in_array($formType, $tiposValidos)) {
     exit;
 }
 
+// DIAG TEMPORARIO (Amanda 18/06/2026): rastrear de qual PAGINA vem cada POST,
+// pra achar o formulario que reenviava cadastro_cliente em loop (~4-5s). Loga
+// Origin/Referer/IP/UA. Remover depois de identificar a origem.
+@file_put_contents(
+    __DIR__ . '/../files/api_form_origem.log',
+    date('Y-m-d H:i:s') . "\t" . $formType
+        . "\torigin=" . ($_SERVER['HTTP_ORIGIN'] ?? '-')
+        . "\treferer=" . ($_SERVER['HTTP_REFERER'] ?? '-')
+        . "\tip=" . ($_SERVER['REMOTE_ADDR'] ?? '-')
+        . "\tua=" . substr($_SERVER['HTTP_USER_AGENT'] ?? '-', 0, 80) . "\n",
+    FILE_APPEND | LOCK_EX
+);
+
 // Extrair dados do cliente (campos padronizados)
 $clientName  = isset($data['client_name']) ? trim($data['client_name']) : '';
 $clientPhone = isset($data['client_phone']) ? trim($data['client_phone']) : '';
