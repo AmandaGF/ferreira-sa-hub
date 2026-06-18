@@ -47,17 +47,7 @@ foreach ($leads as $r) {
 if (!$leads) echo "(nenhum)\n";
 echo "\n";
 
-echo "=== CASES (por client_id dos achados) ===\n";
-$ids = array();
-foreach ($clientes as $r) $ids[] = (int)$r['id'];
-if ($ids) {
-    $in = implode(',', $ids);
-    foreach ($pdo->query("SELECT id, title, stage, client_id, created_at FROM cases WHERE client_id IN ($in) ORDER BY id")->fetchAll() as $r) {
-        echo "case #{$r['id']}: {$r['title']} | stage={$r['stage']} | client_id={$r['client_id']} | {$r['created_at']}\n";
-    }
-} else { echo "(sem client_id pra buscar)\n"; }
-
-echo "\n=== PAYLOAD do form #700 (dados REAIS da Francine) ===\n";
+echo "=== PAYLOAD do form #700 (dados REAIS da Francine) ===\n";
 $p = $pdo->query("SELECT payload_json FROM form_submissions WHERE id = 700")->fetchColumn();
 $pa = json_decode($p, true);
 if (is_array($pa)) { foreach ($pa as $k => $v) { if (is_array($v)) $v = json_encode($v, JSON_UNESCAPED_UNICODE); echo "  $k = $v\n"; } }
