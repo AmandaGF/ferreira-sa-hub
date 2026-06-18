@@ -393,8 +393,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // Montar endereço completo antes de enviar
-        document.getElementById('clientForm').addEventListener('submit', function() {
+        // Montar endereço completo antes de enviar + TRAVA anti-reenvio.
+        // Antes: em conexão lenta de celular o cliente tapava ENVIAR várias
+        // vezes (cada POST demora pelas notificações), gerando 10+ cadastros
+        // duplicados. Agora o 1º envio desabilita o botão e bloqueia repetição.
+        var _enviandoCadastro = false;
+        document.getElementById('clientForm').addEventListener('submit', function(e) {
+            if (_enviandoCadastro) { e.preventDefault(); return; }
+
             var rua = document.getElementById('rua').value;
             var numero = document.getElementById('numero').value;
             var complemento = document.getElementById('complemento').value;
@@ -409,6 +415,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (cidade && uf) partes.push(cidade + '/' + uf);
             else if (cidade) partes.push(cidade);
             document.getElementById('enderecoCompleto').value = partes.join(', ');
+
+            _enviandoCadastro = true;
+            var _btn = this.querySelector('button[type="submit"]');
+            if (_btn) {
+                _btn.disabled = true;
+                _btn.textContent = 'ENVIANDO... aguarde';
+                _btn.style.opacity = '0.7';
+            }
         });
         </script>
         <?php endif; ?>
