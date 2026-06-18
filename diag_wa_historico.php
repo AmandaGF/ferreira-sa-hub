@@ -9,6 +9,8 @@
  * Uso: curl "https://ferreiraesa.com.br/conecta/diag_wa_historico.php?key=fsa-hub-deploy-2026"
  *      opcional: &telefone=552499999999  (foca numa conversa)
  */
+error_reporting(E_ALL);
+ini_set('display_errors', '1');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 
@@ -52,22 +54,24 @@ echo "Mais nova:   " . $r2['mais_nova'] . "\n\n";
 
 // 3. Top conversas por nº de mensagens + faixa de datas
 echo "--- 3. Top 15 conversas por volume (candidatas a estourar LIMIT 500) ---\n";
-$st3 = $pdo->query(
-    "SELECT co.id, co.canal, co.telefone, co.nome,
-            COUNT(m.id) AS qt,
-            MIN(m.created_at) AS dt_min,
-            MAX(m.created_at) AS dt_max
-     FROM zapi_conversas co
-     JOIN zapi_mensagens m ON m.conversa_id = co.id
-     GROUP BY co.id, co.canal, co.telefone, co.nome
-     ORDER BY qt DESC
-     LIMIT 15"
-);
-echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s\n", 'conv', 'canal', 'telefone', 'qtd', 'mais_antiga', 'mais_nova');
-foreach ($st3->fetchAll() as $c) {
-    echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s  %s\n",
-        $c['id'], $c['canal'], substr($c['telefone'], 0, 15), $c['qt'],
-        $c['dt_min'], $c['dt_max'], ($c['qt'] > 500 ? '⚠ >500' : ''));
+try {
+    // Agrega só na tabela de mensagens (sem JOIN) — mais rápido e sem ONLY_FULL_GROUP_BY
+    $st3 = $pdo->query(
+        "SELECT conversa_id, COUNT(*) AS qt, MIN(created_at) AS dt_min, MAX(created_at) AS dt_max
+         FROM zapi_mensagens GROUP BY conversa_id ORDER BY qt DESC LIMIT 15"
+    );
+    $rows = $st3->fetchAll();
+    echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s\n", 'conv', 'canal', 'telefone', 'qtd', 'mais_antiga', 'mais_nova');
+    foreach ($rows as $c) {
+        $cinfo = $pdo->prepare("SELECT canal, telefone, nome FROM zapi_conversas WHERE id = ?");
+        $cinfo->execute(array($c['conversa_id']));
+        $ci = $cinfo->fetch() ?: array('canal' => '?', 'telefone' => '?', 'nome' => '');
+        echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s  %s\n",
+            $c['conversa_id'], $ci['canal'], substr($ci['telefone'], 0, 15), $c['qt'],
+            $c['dt_min'], $c['dt_max'], ($c['qt'] > 500 ? '⚠ >500' : ''));
+    }
+} catch (Exception $e) {
+    echo "ERRO na seção 3: " . $e->getMessage() . "\n";
 }
 echo "\n";
 
