@@ -4,6 +4,7 @@
  */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); exit('Forbidden.'); }
 header('Content-Type: text/plain; charset=utf-8');
+error_reporting(E_ALL); ini_set('display_errors', '1');
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
@@ -31,8 +32,8 @@ if (!$leads) echo "(nenhum lead)\n";
 echo "\n";
 
 echo "=== CASES ===\n";
-$cs = $pdo->prepare("SELECT id, title, stage, client_id, created_at, updated_at FROM cases WHERE title LIKE ? OR client_id IN (SELECT id FROM clients WHERE name LIKE ?) ORDER BY id");
-$cs->execute(array($nome, $nome));
+$cs = $pdo->prepare("SELECT id, title, stage, client_id, created_at FROM cases WHERE title LIKE ? ORDER BY id");
+$cs->execute(array($nome));
 $casos = $cs->fetchAll();
 foreach ($casos as $r) {
     echo "case #{$r['id']}: {$r['title']} | stage={$r['stage']} | client_id={$r['client_id']} | criado={$r['created_at']}\n";
