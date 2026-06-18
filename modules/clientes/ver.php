@@ -155,7 +155,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (has_min_role('gestao')): ?>
             <?php
             // Verificar se cliente tem acesso Central VIP
-            $stmtSv = $pdo->prepare("SELECT id, ativo, token_ativacao, token_expira FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+            $stmtSv = $pdo->prepare("SELECT id, ativo, token_ativacao, token_expira, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
             $svUser = null;
             try { $stmtSv->execute(array($clientId)); $svUser = $stmtSv->fetch(); } catch (Exception $e) {}
             ?>
@@ -167,6 +167,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <input type="hidden" name="action" value="reset_salavip">
                         <input type="hidden" name="client_id" value="<?= $clientId ?>">
                         <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Gerar novo link de ativação">🔄 Reenviar Link</button>
+                    </form>
+                    <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="toggle_salavip">
+                        <input type="hidden" name="ativo" value="0">
+                        <input type="hidden" name="client_id" value="<?= $clientId ?>">
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:var(--danger);border-color:var(--danger);" title="Bloquear o login do cliente na Central VIP (conta e senha são preservadas)" data-confirm="Desabilitar o acesso de '<?= e(addslashes($client['name'])) ?>' à Central VIP? O cliente não conseguirá mais entrar até você reabilitar.">🚫 Desabilitar acesso</button>
+                    </form>
+                <?php elseif (!empty($svUser['senha_hash'])): ?>
+                    <span class="btn btn-sm" style="background:#9ca3af;color:#fff;cursor:default;">🚫 Central VIP Desabilitada</span>
+                    <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="toggle_salavip">
+                        <input type="hidden" name="ativo" value="1">
+                        <input type="hidden" name="client_id" value="<?= $clientId ?>">
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#059669;border-color:#059669;" title="Reabilitar o login (cliente usa a mesma senha de antes)">✅ Reabilitar acesso</button>
                     </form>
                 <?php else: ?>
                     <span class="btn btn-sm" style="background:#f59e0b;color:#fff;cursor:default;">⏳ Central VIP Pendente</span>

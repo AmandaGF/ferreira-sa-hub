@@ -282,6 +282,32 @@ switch ($action) {
         redirect(module_url('clientes', 'ver.php?id=' . $clientId));
         break;
 
+    case 'toggle_salavip':
+        // Habilita/desabilita o acesso do cliente à Central VIP (flag ativo).
+        // Desabilitar NÃO apaga a conta nem a senha — só bloqueia o login.
+        // Reabilitar devolve o acesso com a mesma senha que o cliente já tinha.
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $novoAtivo = (int)($_POST['ativo'] ?? 0) ? 1 : 0;
+        if ($clientId && has_min_role('gestao')) {
+            $sv = $pdo->prepare("SELECT id FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+            $sv->execute(array($clientId));
+            if ($sv->fetch()) {
+                $pdo->prepare('UPDATE salavip_usuarios SET ativo = ? WHERE cliente_id = ?')
+                    ->execute(array($novoAtivo, $clientId));
+                if ($novoAtivo) {
+                    audit_log('reativar_salavip', 'client', $clientId, 'Acesso à Central VIP reabilitado');
+                    flash_set('success', 'Acesso à Central VIP reabilitado. O cliente pode entrar com a senha de antes.');
+                } else {
+                    audit_log('desativar_salavip', 'client', $clientId, 'Acesso à Central VIP desabilitado');
+                    flash_set('success', 'Acesso à Central VIP desabilitado. O cliente não consegue mais entrar (a conta e a senha foram preservadas).');
+                }
+            } else {
+                flash_set('error', 'Cliente não possui conta na Central VIP.');
+            }
+        }
+        redirect(module_url('clientes', 'ver.php?id=' . $clientId));
+        break;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('crm'));
