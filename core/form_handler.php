@@ -24,6 +24,34 @@ require_once __DIR__ . '/functions.php';
 function process_form_submission($formType, $clientData, $payloadJson)
 {
     $pdo = db();
+
+    // ── DEDUP (anti-reenvio) ──────────────────────────────────────────
+    // Retries de rede / double-submit em celular criavam DEZENAS de linhas
+    // identicas (mesmo payload, mesmo telefone, intervalos regulares de ~4-5s)
+    // — ex: 13 cadastros da mesma pessoa no mesmo minuto. Se ja existe uma
+    // submissao IDENTICA (mesmo tipo + mesmo payload) nos ultimos 30 min,
+    // devolve ELA em vez de inserir de novo, criar cliente/lead e re-notificar.
+    // Payload diferente (cliente corrigiu algo e reenviou) passa normalmente.
+    try {
+        $dupChk = $pdo->prepare(
+            "SELECT id, protocol, linked_client_id FROM form_submissions
+             WHERE form_type = ? AND payload_json = ?
+               AND created_at >= (NOW() - INTERVAL 30 MINUTE)
+             ORDER BY id DESC LIMIT 1"
+        );
+        $dupChk->execute(array($formType, $payloadJson));
+        $dup = $dupChk->fetch();
+        if ($dup) {
+            return array(
+                'submission_id' => (int)$dup['id'],
+                'client_id'     => !empty($dup['linked_client_id']) ? (int)$dup['linked_client_id'] : null,
+                'lead_id'       => null,
+                'protocol'      => $dup['protocol'],
+                'duplicate'     => true,
+            );
+        }
+    } catch (Exception $e) { /* se a checagem falhar, segue o fluxo normal */ }
+
     $protocol = generate_protocol(strtoupper(substr($formType, 0, 3)));
 
     $name  = isset($clientData['name']) ? clean_str($clientData['name'], 150) : null;
