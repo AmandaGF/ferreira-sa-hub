@@ -106,4 +106,32 @@ if ($tel !== '') {
     echo "\n";
 }
 
+// 5. Lista de conversas: a tela usa LIMIT 200 ordenado por ultima_msg_em DESC.
+//    Se >200 conversas ativas, as menos recentes somem da lista.
+echo "--- 5. Lista de conversas (LIMIT 200 da tela) ---\n";
+foreach (array('21', '24') as $canal) {
+    $tot = $pdo->prepare("SELECT COUNT(*) FROM zapi_conversas WHERE canal = ? AND status != 'arquivado'");
+    $tot->execute(array($canal));
+    $qtTot = (int)$tot->fetchColumn();
+
+    // ultima_msg_em da 200ª conversa (o ponto de corte da tela)
+    $corte = $pdo->prepare(
+        "SELECT COALESCE(ultima_msg_em, created_at) AS dt FROM zapi_conversas
+         WHERE canal = ? AND status != 'arquivado'
+         ORDER BY COALESCE(fixada,0) DESC, COALESCE(ultima_msg_em, created_at) DESC
+         LIMIT 1 OFFSET 199"
+    );
+    $corte->execute(array($canal));
+    $dtCorte = $corte->fetchColumn();
+
+    echo "Canal $canal: $qtTot conversas (nao-arquivadas).";
+    if ($qtTot > 200) {
+        echo "  ⚠ Tela mostra so as 200 mais recentes — corte em ultima_msg_em = " . ($dtCorte ?: '?') . "\n";
+        echo "          → as " . ($qtTot - 200) . " conversas que falaram antes disso NAO aparecem (so via busca).\n";
+    } else {
+        echo "  OK (cabe nas 200, sem corte).\n";
+    }
+}
+echo "\n";
+
 echo "=== FIM ===\n";
