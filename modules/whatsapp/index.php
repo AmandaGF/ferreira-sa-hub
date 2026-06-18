@@ -686,8 +686,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (ligar) waTocarSom(); // toca pra confirmar
     };
 
+    // Paginação da lista de conversas. limiteLista cresce ao clicar "Carregar mais".
+    // Reseta pra 200 quando muda o contexto (canal/filtro/busca/atendente/etiqueta)
+    // — detectado por chave, pra funcionar de qualquer call site (inclusive o poll de 8s,
+    // que mantém o limite atual e por isso a lista expandida não "encolhe" sozinha).
+    var limiteLista = 200;
+    var _ctxListaAnterior = null;
+    window.waCarregarMaisConversas = function() {
+        limiteLista += 200;
+        carregarLista();
+    };
     function carregarLista() {
-        var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual);
+        var ctx = canal + '|' + filtroAtual + '|' + buscaAtual + '|' + atendenteFiltro + '|' + etiquetaFiltro;
+        if (ctx !== _ctxListaAnterior) { limiteLista = 200; _ctxListaAnterior = ctx; }
+        var url = apiUrl + '?action=listar_conversas&canal=' + canal + '&status=' + filtroAtual + '&q=' + encodeURIComponent(buscaAtual) + '&limit=' + limiteLista;
         if (atendenteFiltro !== '') url += '&atendente=' + encodeURIComponent(atendenteFiltro);
         if (etiquetaFiltro) url += '&etiqueta=' + etiquetaFiltro;
         fetch(url).then(function(r){ return r.json(); }).then(function(d){
@@ -773,7 +785,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 html += '  </div>';
                 html += '</div>';
             });
+            // Botão "carregar mais" quando há conversas além do limite atual
+            if (_totalReal > _mostradas) {
+                html += '<div style="padding:12px;text-align:center;">'
+                      + '<button onclick="waCarregarMaisConversas()" class="btn btn-outline btn-sm" style="font-size:.78rem;">'
+                      + '⬇️ Carregar mais conversas (' + (_totalReal - _mostradas) + ' restantes)</button></div>';
+            }
+            // Preserva o scroll: o poll de 8s re-renderiza a lista inteira; sem isso
+            // a pessoa que rolou pra ver conversas antigas seria jogada pro topo.
+            var _scrollAntes = list.scrollTop;
             list.innerHTML = html;
+            list.scrollTop = _scrollAntes;
         });
     }
 

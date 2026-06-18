@@ -418,6 +418,11 @@ if ($action === 'listar_conversas') {
 
     $canal   = $_GET['canal']   ?? '21';
     $status  = $_GET['status']  ?? '';
+    // Paginação da lista: frontend manda limit crescente (botão "Carregar mais").
+    // Default 200, teto 5000 pra não travar. 'X de Y' usa o COUNT real abaixo.
+    $limite  = (int)($_GET['limit'] ?? 200);
+    if ($limite < 1)    $limite = 200;
+    if ($limite > 5000) $limite = 5000;
     $busca   = trim($_GET['q']  ?? '');
     $where   = array('co.canal = ?');
     $params  = array($canal);
@@ -507,7 +512,7 @@ if ($action === 'listar_conversas') {
             {$joinEtq}
             WHERE " . implode(' AND ', $where) . "
             ORDER BY COALESCE(co.fixada, 0) DESC, COALESCE(co.ultima_msg_em, co.created_at) DESC
-            LIMIT 200";
+            LIMIT " . (int)$limite;
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $rows = $stmt->fetchAll();
@@ -516,7 +521,7 @@ if ($action === 'listar_conversas') {
     // conversas (ex: 'Aguardando'). Causa: LIMIT 200 + frontend usando .length da
     // lista. Agora calcula COUNT real com o mesmo WHERE pra mostrar 'X de Y'.
     $totalReal = count($rows);
-    if (count($rows) >= 200) {
+    if (count($rows) >= $limite) {
         try {
             $countSql = "SELECT COUNT(*) FROM zapi_conversas co
                          LEFT JOIN clients cl ON cl.id = co.client_id
