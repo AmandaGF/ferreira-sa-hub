@@ -63,7 +63,7 @@ try {
     $rows = $st3->fetchAll();
     echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s\n", 'conv', 'canal', 'telefone', 'qtd', 'mais_antiga', 'mais_nova');
     foreach ($rows as $c) {
-        $cinfo = $pdo->prepare("SELECT canal, telefone, nome FROM zapi_conversas WHERE id = ?");
+        $cinfo = $pdo->prepare("SELECT canal, telefone, nome_contato AS nome FROM zapi_conversas WHERE id = ?");
         $cinfo->execute(array($c['conversa_id']));
         $ci = $cinfo->fetch() ?: array('canal' => '?', 'telefone' => '?', 'nome' => '');
         echo sprintf("%-6s %-5s %-15s %-6s %-19s %-19s  %s\n",
@@ -79,7 +79,7 @@ echo "\n";
 $tel = preg_replace('/\D/', '', $_GET['telefone'] ?? '');
 if ($tel !== '') {
     echo "--- 4. Conversa do telefone $tel ---\n";
-    $cv = $pdo->prepare("SELECT id, canal, telefone, nome FROM zapi_conversas WHERE telefone LIKE ? ORDER BY id DESC");
+    $cv = $pdo->prepare("SELECT id, canal, telefone, nome_contato AS nome FROM zapi_conversas WHERE telefone LIKE ? ORDER BY id DESC");
     $cv->execute(array('%' . $tel . '%'));
     foreach ($cv->fetchAll() as $conv) {
         $cid = $conv['id'];
