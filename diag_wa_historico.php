@@ -59,7 +59,7 @@ $st3 = $pdo->query(
             MAX(m.created_at) AS dt_max
      FROM zapi_conversas co
      JOIN zapi_mensagens m ON m.conversa_id = co.id
-     GROUP BY co.id
+     GROUP BY co.id, co.canal, co.telefone, co.nome
      ORDER BY qt DESC
      LIMIT 15"
 );
