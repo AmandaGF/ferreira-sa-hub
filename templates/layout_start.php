@@ -645,6 +645,11 @@ if (!empty($__prazosUrgentes)):
 .urg-banner { background:linear-gradient(135deg,#dc2626,#b91c1c); color:#fff; border-radius:10px; padding:.6rem 1rem; margin-bottom:.75rem; font-size:.78rem; }
 .urg-banner.urg-tem-vencido { background:linear-gradient(135deg,#991b1b,#7f1d1d); box-shadow:0 0 0 2px rgba(220,38,38,.4), 0 4px 14px rgba(127,29,29,.4); animation:urgPulse 2.5s infinite; }
 @keyframes urgPulse { 0%,100%{box-shadow:0 0 0 2px rgba(220,38,38,.4), 0 4px 14px rgba(127,29,29,.4);} 50%{box-shadow:0 0 0 6px rgba(220,38,38,.2), 0 6px 18px rgba(127,29,29,.55);} }
+/* Recolhido: para de pulsar e fica discreto (so o resumo) */
+.urg-banner.urg-recolhido { animation:none; box-shadow:0 2px 8px rgba(127,29,29,.3); margin-bottom:.5rem; }
+.urg-banner.urg-recolhido .urg-hdr { margin-bottom:0; }
+.urg-toggle-btn { background:rgba(255,255,255,.18); border:none; color:#fff; padding:.2rem .65rem; border-radius:14px; cursor:pointer; font-size:.7rem; font-weight:600; }
+.urg-toggle-btn:hover { background:rgba(255,255,255,.3); }
 .urg-row.urg-row-vencido { background:rgba(0,0,0,.18); }
 .urg-row.urg-row-vencido .urg-label { background:#fff; color:#7f1d1d; padding:1px 8px; border-radius:6px; font-weight:800; }
 .urg-banner .urg-hdr { display:flex; align-items:center; gap:.5rem; margin-bottom:.45rem; }
@@ -677,8 +682,10 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
                 <?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!
             <?php endif; ?>
         </strong>
-        <a href="<?= url('modules/prazos/') ?>" style="color:#fecaca;margin-left:auto;font-size:.7rem;text-decoration:underline;">Ver todos →</a>
+        <button type="button" id="urgBannerToggle" onclick="urgBannerToggle()" class="urg-toggle-btn" style="margin-left:auto;">▲ recolher</button>
+        <a href="<?= url('modules/prazos/') ?>" style="color:#fecaca;margin-left:.6rem;font-size:.7rem;text-decoration:underline;">Ver todos →</a>
     </div>
+    <div id="urgBannerLista">
     <?php foreach ($__prazosUrgentes as $__pz):
         $__diasPz = (int)((strtotime($__pz['prazo_fatal']) - strtotime(date('Y-m-d'))) / 86400);
         if ($__diasPz < 0) {
@@ -722,9 +729,43 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
         </a>
     </div>
     <?php endforeach; ?>
+    </div><!-- /#urgBannerLista -->
 </div>
 <script>
+// Recolher/expandir o banner de prazos urgentes (pedido Amanda 19/06/2026 —
+// "nao ficar tao gritante"). Guarda a preferencia no localStorage e para a
+// animacao pulsante quando recolhido. Resumo (cabecalho) fica sempre visivel.
+window.urgBannerToggle = function() {
+    var lst = document.getElementById('urgBannerLista');
+    var btn = document.getElementById('urgBannerToggle');
+    var banner = document.querySelector('.urg-banner');
+    if (!lst) return;
+    var vaiRecolher = (lst.style.display !== 'none');
+    if (vaiRecolher) {
+        lst.style.display = 'none';
+        if (btn) btn.textContent = '▼ ver lista';
+        if (banner) banner.classList.add('urg-recolhido');
+        try { localStorage.setItem('urgBannerRecolhido', '1'); } catch(e){}
+    } else {
+        lst.style.display = '';
+        if (btn) btn.textContent = '▲ recolher';
+        if (banner) banner.classList.remove('urg-recolhido');
+        try { localStorage.setItem('urgBannerRecolhido', '0'); } catch(e){}
+    }
+};
 (function(){
+    // Aplica preferencia salva ao carregar
+    try {
+        if (localStorage.getItem('urgBannerRecolhido') === '1') {
+            var lst = document.getElementById('urgBannerLista');
+            var btn = document.getElementById('urgBannerToggle');
+            var banner = document.querySelector('.urg-banner');
+            if (lst) lst.style.display = 'none';
+            if (btn) btn.textContent = '▼ ver lista';
+            if (banner) banner.classList.add('urg-recolhido');
+        }
+    } catch(e){}
+
     document.querySelectorAll('.urg-fechar-btn').forEach(function(btn){
         btn.addEventListener('click', function(e){
             e.preventDefault(); e.stopPropagation();
