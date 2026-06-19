@@ -86,6 +86,61 @@ switch ($action) {
         redirect(module_url('formularios', $redirectType ? '?type=' . urlencode($redirectType) : ''));
         break;
 
+    case 'salvar_gastos_edit':
+    case 'reverter_gastos_edit':
+        // Edição manual dos valores do Relatório de Gastos. NÃO sobrescreve os
+        // dados originais do cliente: guarda uma camada de override em
+        // payload['_edit'] que o relatorio_gastos.php aplica por cima.
+        // Reversível (reverter_gastos_edit limpa a camada). Amanda 19/06/2026.
+        header('Content-Type: application/json; charset=utf-8');
+        $st = $pdo->prepare("SELECT id, payload_json FROM form_submissions WHERE id = ? AND form_type IN ('gastos_pensao','despesas_mensais') LIMIT 1");
+        $st->execute(array($formId));
+        $f = $st->fetch();
+        if (!$f) { echo json_encode(array('ok' => false, 'erro' => 'Formulário de gastos não encontrado.')); exit; }
+
+        $payload = json_decode($f['payload_json'], true);
+        if (!is_array($payload)) $payload = array();
+
+        if ($action === 'reverter_gastos_edit') {
+            unset($payload['_edit'], $payload['_edit_meta']);
+            $pdo->prepare('UPDATE form_submissions SET payload_json = ?, updated_at = NOW() WHERE id = ?')
+                ->execute(array(json_encode($payload, JSON_UNESCAPED_UNICODE), $formId));
+            audit_log('gastos_edit_revert', 'form', $formId);
+            echo json_encode(array('ok' => true, 'revertido' => true));
+            exit;
+        }
+
+        // salvar: recebe JSON {cats:{key:cents}, subs:{key:cents}, total_geral_cents:int}
+        $editIn = json_decode($_POST['edit'] ?? '', true);
+        if (!is_array($editIn)) { echo json_encode(array('ok' => false, 'erro' => 'Dados de edição inválidos.')); exit; }
+
+        $clean = array('cats' => array(), 'subs' => array());
+        if (!empty($editIn['cats']) && is_array($editIn['cats'])) {
+            foreach ($editIn['cats'] as $k => $v) {
+                if (preg_match('/^[a-z_]+$/', (string)$k)) $clean['cats'][$k] = max(0, (int)round($v));
+            }
+        }
+        if (!empty($editIn['subs']) && is_array($editIn['subs'])) {
+            foreach ($editIn['subs'] as $k => $v) {
+                if (preg_match('/^[a-z0-9_]+$/i', (string)$k)) $clean['subs'][$k] = max(0, (int)round($v));
+            }
+        }
+        if (isset($editIn['total_geral_cents'])) $clean['total_geral_cents'] = max(0, (int)round($editIn['total_geral_cents']));
+
+        // Nome de quem editou (pro selo)
+        $uid = current_user_id();
+        $nome = '';
+        try { $u = $pdo->prepare('SELECT name FROM users WHERE id = ?'); $u->execute(array($uid)); $nome = (string)$u->fetchColumn(); } catch (Exception $e) {}
+
+        $payload['_edit'] = $clean;
+        $payload['_edit_meta'] = array('por_id' => (int)$uid, 'por_nome' => $nome, 'em' => date('Y-m-d H:i:s'));
+
+        $pdo->prepare('UPDATE form_submissions SET payload_json = ?, updated_at = NOW() WHERE id = ?')
+            ->execute(array(json_encode($payload, JSON_UNESCAPED_UNICODE), $formId));
+        audit_log('gastos_edit_save', 'form', $formId, count($clean['cats']) . ' cats, ' . count($clean['subs']) . ' subs');
+        echo json_encode(array('ok' => true));
+        exit;
+
     default:
         flash_set('error', 'Ação inválida.');
         redirect(module_url('formularios'));

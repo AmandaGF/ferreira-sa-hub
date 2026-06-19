@@ -224,8 +224,34 @@ foreach ($categorias as $key => $cat) {
 }
 if ($totalGeral === 0) $totalGeral = $totalCalculado;
 
+// ── Overrides manuais da equipe (camada _edit; original do cliente preservado) ──
+$edit = (isset($payload['_edit']) && is_array($payload['_edit'])) ? $payload['_edit'] : array();
+$editMeta = (isset($payload['_edit_meta']) && is_array($payload['_edit_meta'])) ? $payload['_edit_meta'] : array();
+if (!empty($edit['cats']) && is_array($edit['cats'])) {
+    foreach ($edit['cats'] as $ck => $cv) {
+        if (array_key_exists($ck, $gastosData)) $gastosData[$ck] = (int)$cv;
+    }
+}
+$subOverride = (!empty($edit['subs']) && is_array($edit['subs'])) ? $edit['subs'] : array();
+if (!empty($edit)) {
+    $totalGeral = isset($edit['total_geral_cents']) ? (int)$edit['total_geral_cents'] : array_sum($gastosData);
+}
+
 function fmt($cents) { return 'R$ ' . number_format($cents / 100, 2, ',', '.'); }
 function pct($parte, $total) { return $total > 0 ? round(($parte / $total) * 100, 1) : 0; }
+
+// Célula de valor editável: span de leitura + input (reais) + botões ÷12 / ÷moradores [/ Σ subs]
+function gMoneyCell($cents, $dataAttr, $isCat = false, $catKey = '') {
+    $reais = number_format($cents / 100, 2, '.', '');
+    $h  = '<span class="g-disp">' . fmt($cents) . '</span>';
+    $h .= '<span class="g-edit"><span class="g-editwrap">';
+    $h .= '<input type="number" step="0.01" min="0" class="g-input" value="' . $reais . '" oninput="gRecalc()">';
+    $h .= '<button type="button" class="g-mini" onclick="gDiv(this,12)" title="Valor anual → mensal (÷12)">÷12</button>';
+    $h .= '<button type="button" class="g-mini" onclick="gDivMor(this)" title="Ratear pelo nº de moradores">÷mor</button>';
+    if ($isCat) $h .= '<button type="button" class="g-mini g-sumbtn" onclick="gSumSubs(this,\'' . htmlspecialchars($catKey, ENT_QUOTES) . '\')" title="Usar a soma das subcategorias">Σ subs</button>';
+    $h .= '</span></span>';
+    return $h;
+}
 
 $logoUrl = url('assets/img/logo.png');
 
@@ -297,11 +323,25 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
 
 .nota-legal { background:#fef3c7; border:1px solid #fcd34d; border-radius:8px; padding:12px 16px; font-size:9pt; color:#92400e; margin-top:20px; }
 
+/* Edição de valores */
+.selo-editado { background:#fff7ed; border:1px solid #fdba74; color:#92400e; border-radius:8px; padding:8px 14px; font-size:.8rem; margin-bottom:14px; }
+.g-edit { display:none; }
+body.gediting .g-disp { display:none; }
+body.gediting .g-edit { display:inline-flex; }
+.g-editwrap { display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-end; }
+.g-input { width:92px; padding:3px 6px; border:1.5px solid #B87333; border-radius:5px; font-size:10pt; text-align:right; font-family:inherit; }
+.g-mini { background:#052228; color:#fff; border:none; border-radius:5px; padding:2px 6px; font-size:8pt; font-weight:700; cursor:pointer; }
+.g-mini:hover { background:#B87333; }
+.g-sumbtn { background:#6366f1; }
+body.gediting .gastos-table tr:hover td { background:inherit; }
+
 @media print {
     body { background:#fff; }
     .toolbar { display:none !important; }
     .page { box-shadow:none; margin:0; padding:30px 40px; }
     .gastos-table tr:hover td { background:inherit; }
+    .g-edit, .selo-editado, .no-print { display:none !important; }
+    .g-disp { display:inline !important; }
     @page { size:A4; margin:1cm; }
 }
 </style>
@@ -314,6 +354,9 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
         <span style="font-size:.78rem;opacity:.7;">Relatório de Gastos — <?= htmlspecialchars($nomeFilho, ENT_QUOTES, 'UTF-8') ?></span>
     </div>
     <div style="display:flex;gap:.5rem;">
+        <button id="gBtnEditar" onclick="gToggleEdit(true)" style="background:#B87333;">✏️ Editar valores</button>
+        <button id="gBtnSalvar" onclick="gSalvar()" style="background:#059669;display:none;">💾 Salvar</button>
+        <button id="gBtnCancelar" onclick="gToggleEdit(false)" style="background:#6b7280;display:none;">✖ Cancelar</button>
         <button onclick="copiarRelatorio()" style="background:#059669;">📋 Copiar</button>
         <button onclick="window.print()" class="btn-pdf">📕 PDF / Imprimir</button>
     </div>
@@ -345,10 +388,17 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
         <div class="info-item"><div class="lbl">Fonte de renda</div><?= htmlspecialchars($fonteRenda, ENT_QUOTES, 'UTF-8') ?></div>
     </div>
 
+    <?php if (!empty($edit)): ?>
+    <div class="selo-editado no-print" id="gSeloEditado">
+        ✏️ <strong>Valores ajustados pela equipe</strong><?= !empty($editMeta['por_nome']) ? ' por ' . htmlspecialchars($editMeta['por_nome'], ENT_QUOTES, 'UTF-8') : '' ?><?= !empty($editMeta['em']) ? ' em ' . date('d/m/Y H:i', strtotime($editMeta['em'])) : '' ?> (o original do cliente foi preservado).
+        <button type="button" onclick="gReverter()" style="margin-left:8px;background:#fff;border:1px solid #B87333;color:#92400e;padding:2px 8px;border-radius:6px;cursor:pointer;font-size:.72rem;font-weight:700;">↩ Reverter ao original</button>
+    </div>
+    <?php endif; ?>
+
     <!-- Resumo rápido -->
     <div class="resumo-grid">
         <div class="resumo-card">
-            <div class="valor"><?= fmt($totalGeral) ?></div>
+            <div class="valor" id="gTotalDisp"><?= fmt($totalGeral) ?></div>
             <div class="label">Total mensal</div>
         </div>
         <div class="resumo-card">
@@ -385,30 +435,32 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
                     <div class="bar"><div class="bar-fill" style="width:<?= $percentual ?>%;background:<?= $cat['cor'] ?>;"></div></div>
                     <span class="pct"><?= $percentual ?>%</span>
                 </td>
-                <td><?= fmt($valor) ?></td>
+                <td class="g-val" data-cat="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($valor, '', true, $key) ?></td>
             </tr>
             <?php
             // Detalhamento das subcategorias do stored
             if (isset($storedPorCategoria[$key]) && !empty($stored)):
                 $camposExibidos = array();
                 foreach ($storedPorCategoria[$key] as $subCampo):
-                    $subValor = 0;
+                    $subValor = 0; $subKeyUsed = $subCampo;
                     // Tentar nome direto, com _cents, e variações
                     foreach (array($subCampo, $subCampo . '_cents') as $tentativa) {
                         if (isset($stored[$tentativa]) && (int)$stored[$tentativa] > 0) {
                             $subValor = (int)$stored[$tentativa];
+                            $subKeyUsed = $tentativa;
                             $camposExibidos[] = $tentativa;
                             break;
                         }
                     }
                     if ($subValor === 0) continue;
+                    if (isset($subOverride[$subKeyUsed])) $subValor = (int)$subOverride[$subKeyUsed];
                     $subLabel = isset($storedLabels[$subCampo]) ? $storedLabels[$subCampo] : ucfirst(str_replace('_', ' ', $subCampo));
                 ?>
                 <tr style="background:rgba(0,0,0,.02);">
                     <td></td>
                     <td style="padding-left:32px;font-size:10pt;color:#666;">↳ <?= $subLabel ?></td>
                     <td></td>
-                    <td style="font-size:10pt;color:#666;"><?= fmt($subValor) ?></td>
+                    <td style="font-size:10pt;color:#666;" class="g-val" data-sub="<?= htmlspecialchars($subKeyUsed, ENT_QUOTES) ?>" data-catgroup="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($subValor, '') ?></td>
                 </tr>
                 <?php endforeach;
 
@@ -434,7 +486,7 @@ body { font-family:Calibri,'Segoe UI',Arial,sans-serif; color:#1A1A1A; backgroun
                 <td></td>
                 <td>TOTAL MENSAL APROXIMADO</td>
                 <td></td>
-                <td><?= fmt($totalGeral) ?></td>
+                <td id="gTotalRow"><?= fmt($totalGeral) ?></td>
             </tr>
         </tbody>
     </table>
@@ -521,6 +573,77 @@ new Chart(ctx, {
         animation: { animateRotate: true, duration: 800 }
     }
 });
+
+// ── Editor de valores ──────────────────────────────────────
+var G_CSRF = '<?= generate_csrf_token() ?>';
+var G_FORMID = <?= (int)$id ?>;
+var G_MORADORES = <?= (int)$numMoradores ?>;
+var G_API = '<?= module_url('formularios', 'api.php') ?>';
+window._gDirty = false;
+
+function gToggleEdit(on) {
+    if (!on && window._gDirty) { location.reload(); return; } // Cancelar descarta edições
+    document.body.classList.toggle('gediting', on);
+    document.getElementById('gBtnEditar').style.display   = on ? 'none' : '';
+    document.getElementById('gBtnSalvar').style.display   = on ? '' : 'none';
+    document.getElementById('gBtnCancelar').style.display = on ? '' : 'none';
+    if (on) gRecalc();
+}
+function gInputOf(btn) { return btn.parentNode.querySelector('.g-input'); }
+function gCents(v) { return Math.round((parseFloat(v) || 0) * 100); }
+function gSet(input, reais) { input.value = (Math.round(reais * 100) / 100).toFixed(2); window._gDirty = true; gRecalc(); }
+function gDiv(btn, n) { var i = gInputOf(btn); gSet(i, (parseFloat(i.value) || 0) / n); }
+function gDivMor(btn) {
+    var n = G_MORADORES;
+    if (!n || n < 1) { n = parseInt(prompt('Dividir por quantos moradores?', '1') || '0', 10); }
+    if (!n || n < 1) return;
+    var i = gInputOf(btn); gSet(i, (parseFloat(i.value) || 0) / n);
+}
+function gSumSubs(btn, catKey) {
+    var subs = document.querySelectorAll('.g-val[data-catgroup="' + catKey + '"] .g-input');
+    if (!subs.length) { alert('Esta categoria não tem subcategorias detalhadas para somar.'); return; }
+    var soma = 0; subs.forEach(function(s) { soma += parseFloat(s.value) || 0; });
+    gSet(gInputOf(btn), soma);
+}
+function gRecalc() {
+    var somaCents = 0;
+    document.querySelectorAll('.g-val[data-cat] .g-input').forEach(function(i) { somaCents += gCents(i.value); });
+    var disp = 'R$ ' + (somaCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var t1 = document.getElementById('gTotalDisp'); if (t1) t1.textContent = disp;
+    var t2 = document.getElementById('gTotalRow'); if (t2) t2.textContent = disp;
+}
+function gSalvar() {
+    var cats = {}, subs = {}, soma = 0;
+    document.querySelectorAll('.g-val[data-cat]').forEach(function(td) {
+        var c = gCents(td.querySelector('.g-input').value); cats[td.dataset.cat] = c; soma += c;
+    });
+    document.querySelectorAll('.g-val[data-sub]').forEach(function(td) {
+        subs[td.dataset.sub] = gCents(td.querySelector('.g-input').value);
+    });
+    var fd = new FormData();
+    fd.append('csrf_token', G_CSRF);
+    fd.append('action', 'salvar_gastos_edit');
+    fd.append('form_id', G_FORMID);
+    fd.append('edit', JSON.stringify({ cats: cats, subs: subs, total_geral_cents: soma }));
+    var b = document.getElementById('gBtnSalvar'); b.disabled = true; b.textContent = 'Salvando...';
+    fetch(G_API, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json().catch(function() { return {}; }); })
+        .then(function(j) {
+            if (j && j.ok) { window._gDirty = false; location.reload(); }
+            else { alert('Erro ao salvar: ' + ((j && j.erro) || 'tente novamente')); b.disabled = false; b.textContent = '💾 Salvar'; }
+        })
+        .catch(function(e) { alert('Falha de rede: ' + e.message); b.disabled = false; b.textContent = '💾 Salvar'; });
+}
+function gReverter() {
+    if (!confirm('Reverter para os valores originais do cliente? As edições da equipe serão removidas.')) return;
+    var fd = new FormData();
+    fd.append('csrf_token', G_CSRF);
+    fd.append('action', 'reverter_gastos_edit');
+    fd.append('form_id', G_FORMID);
+    fetch(G_API, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function(r) { return r.json().catch(function() { return {}; }); })
+        .then(function(j) { if (j && j.ok) { location.reload(); } else { alert('Erro ao reverter.'); } });
+}
 
 function copiarRelatorio() {
     var el = document.getElementById('relatorio');
