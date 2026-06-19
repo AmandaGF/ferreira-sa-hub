@@ -240,17 +240,47 @@ if (!empty($edit)) {
 function fmt($cents) { return 'R$ ' . number_format($cents / 100, 2, ',', '.'); }
 function pct($parte, $total) { return $total > 0 ? round(($parte / $total) * 100, 1) : 0; }
 
-// Célula de valor editável: span de leitura + input (reais) + botões ÷12 / ÷moradores [/ Σ subs]
-function gMoneyCell($cents, $dataAttr, $isCat = false, $catKey = '') {
+// Célula de valor editável.
+//  - Normal (subcategoria ou categoria sem detalhe): input editável + ÷12 / ÷moradores.
+//  - Derivada (categoria que TEM subcategorias): total ao vivo = soma das subs,
+//    sem edição manual (edita-se as subcategorias). O JS mantém o valor sincronizado.
+function gMoneyCell($cents, $derived = false) {
     $reais = number_format($cents / 100, 2, '.', '');
     $h  = '<span class="g-disp">' . fmt($cents) . '</span>';
-    $h .= '<span class="g-edit"><span class="g-editwrap">';
-    $h .= '<input type="number" step="0.01" min="0" class="g-input" value="' . $reais . '" oninput="gRecalc()">';
-    $h .= '<button type="button" class="g-mini" onclick="gDiv(this,12)" title="Valor anual → mensal (÷12)">÷12</button>';
-    $h .= '<button type="button" class="g-mini" onclick="gDivMor(this)" title="Ratear pelo nº de moradores">÷mor</button>';
-    if ($isCat) $h .= '<button type="button" class="g-mini g-sumbtn" onclick="gSumSubs(this,\'' . htmlspecialchars($catKey, ENT_QUOTES) . '\')" title="Usar a soma das subcategorias">Σ subs</button>';
-    $h .= '</span></span>';
+    if ($derived) {
+        $h .= '<span class="g-edit"><span class="g-editwrap">';
+        $h .= '<span class="g-derived">' . fmt($cents) . '</span>';
+        $h .= '<input type="hidden" class="g-input" value="' . $reais . '" readonly>';
+        $h .= '<span class="g-derived-tag">= soma das subcategorias</span>';
+        $h .= '</span></span>';
+    } else {
+        $h .= '<span class="g-edit"><span class="g-editwrap">';
+        $h .= '<input type="number" step="0.01" min="0" class="g-input" value="' . $reais . '" oninput="gRecalc()">';
+        $h .= '<button type="button" class="g-mini" onclick="gDiv(this,12)" title="Valor anual → mensal (÷12)">÷12</button>';
+        $h .= '<button type="button" class="g-mini" onclick="gDivMor(this)" title="Ratear pelo nº de moradores">÷mor</button>';
+        $h .= '</span></span>';
+    }
     return $h;
+}
+
+// Categoria é "derivada" (total = soma das subcategorias) só quando as subs
+// representam ~todo o total da categoria. Se as subs forem parciais, a categoria
+// fica editável direto pra não perder o remanescente não detalhado.
+$catTemSubs = array();
+foreach ($categorias as $key => $cat) {
+    $somaSubs = 0;
+    if (!empty($stored) && isset($storedPorCategoria[$key])) {
+        foreach ($storedPorCategoria[$key] as $sc) {
+            $sv = 0; $usedKey = $sc;
+            if (isset($stored[$sc]) && (int)$stored[$sc] > 0) { $sv = (int)$stored[$sc]; $usedKey = $sc; }
+            elseif (isset($stored[$sc . '_cents']) && (int)$stored[$sc . '_cents'] > 0) { $sv = (int)$stored[$sc . '_cents']; $usedKey = $sc . '_cents'; }
+            if ($sv <= 0) continue;
+            if (isset($subOverride[$usedKey])) $sv = (int)$subOverride[$usedKey];
+            $somaSubs += $sv;
+        }
+    }
+    $catTotal = isset($gastosData[$key]) ? (int)$gastosData[$key] : 0;
+    $catTemSubs[$key] = ($somaSubs > 0 && $somaSubs >= $catTotal * 0.97);
 }
 
 $logoUrl = url('assets/img/logo.png');
@@ -332,7 +362,8 @@ body.gediting .g-edit { display:inline-flex; }
 .g-input { width:92px; padding:3px 6px; border:1.5px solid #B87333; border-radius:5px; font-size:10pt; text-align:right; font-family:inherit; }
 .g-mini { background:#052228; color:#fff; border:none; border-radius:5px; padding:2px 6px; font-size:8pt; font-weight:700; cursor:pointer; }
 .g-mini:hover { background:#B87333; }
-.g-sumbtn { background:#6366f1; }
+.g-derived { font-weight:700; color:#052228; font-size:11pt; }
+.g-derived-tag { font-size:8pt; color:#94a3b8; font-style:italic; }
 body.gediting .gastos-table tr:hover td { background:inherit; }
 
 @media print {
@@ -435,7 +466,7 @@ body.gediting .gastos-table tr:hover td { background:inherit; }
                     <div class="bar"><div class="bar-fill" style="width:<?= $percentual ?>%;background:<?= $cat['cor'] ?>;"></div></div>
                     <span class="pct"><?= $percentual ?>%</span>
                 </td>
-                <td class="g-val" data-cat="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($valor, '', true, $key) ?></td>
+                <td class="g-val" data-cat="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($valor, $catTemSubs[$key]) ?></td>
             </tr>
             <?php
             // Detalhamento das subcategorias do stored
@@ -460,7 +491,7 @@ body.gediting .gastos-table tr:hover td { background:inherit; }
                     <td></td>
                     <td style="padding-left:32px;font-size:10pt;color:#666;">↳ <?= $subLabel ?></td>
                     <td></td>
-                    <td style="font-size:10pt;color:#666;" class="g-val" data-sub="<?= htmlspecialchars($subKeyUsed, ENT_QUOTES) ?>" data-catgroup="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($subValor, '') ?></td>
+                    <td style="font-size:10pt;color:#666;" class="g-val" data-sub="<?= htmlspecialchars($subKeyUsed, ENT_QUOTES) ?>" data-catgroup="<?= htmlspecialchars($key, ENT_QUOTES) ?>"><?= gMoneyCell($subValor, false) ?></td>
                 </tr>
                 <?php endforeach;
 
@@ -599,20 +630,32 @@ function gDivMor(btn) {
     if (!n || n < 1) return;
     var i = gInputOf(btn); gSet(i, (parseFloat(i.value) || 0) / n);
 }
-function gSumSubs(btn, catKey) {
-    var subs = document.querySelectorAll('.g-val[data-catgroup="' + catKey + '"] .g-input');
-    if (!subs.length) { alert('Esta categoria não tem subcategorias detalhadas para somar.'); return; }
-    var soma = 0; subs.forEach(function(s) { soma += parseFloat(s.value) || 0; });
-    gSet(gInputOf(btn), soma);
-}
+function gFmtCents(c) { return 'R$ ' + (c / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 function gRecalc() {
-    var somaCents = 0;
-    document.querySelectorAll('.g-val[data-cat] .g-input').forEach(function(i) { somaCents += gCents(i.value); });
-    var disp = 'R$ ' + (somaCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    var t1 = document.getElementById('gTotalDisp'); if (t1) t1.textContent = disp;
-    var t2 = document.getElementById('gTotalRow'); if (t2) t2.textContent = disp;
+    var grand = 0;
+    document.querySelectorAll('.g-val[data-cat]').forEach(function(catTd) {
+        var key = catTd.dataset.cat;
+        var catInput = catTd.querySelector('.g-input');
+        var subs = document.querySelectorAll('.g-val[data-catgroup="' + key + '"] .g-input');
+        var catCents;
+        if (subs.length) {
+            // Categoria derivada: total = soma das subcategorias (ao vivo)
+            var s = 0; subs.forEach(function(si) { s += gCents(si.value); });
+            catCents = s;
+            if (catInput) catInput.value = (s / 100).toFixed(2);
+            var dv = catTd.querySelector('.g-derived'); if (dv) dv.textContent = gFmtCents(s);
+            var dp = catTd.querySelector('.g-disp'); if (dp) dp.textContent = gFmtCents(s);
+        } else {
+            catCents = catInput ? gCents(catInput.value) : 0;
+        }
+        grand += catCents;
+    });
+    var d = gFmtCents(grand);
+    var t1 = document.getElementById('gTotalDisp'); if (t1) t1.textContent = d;
+    var t2 = document.getElementById('gTotalRow'); if (t2) t2.textContent = d;
 }
 function gSalvar() {
+    gRecalc(); // garante categorias derivadas sincronizadas antes de coletar
     var cats = {}, subs = {}, soma = 0;
     document.querySelectorAll('.g-val[data-cat]').forEach(function(td) {
         var c = gCents(td.querySelector('.g-input').value); cats[td.dataset.cat] = c; soma += c;
