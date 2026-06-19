@@ -53,6 +53,32 @@ window.fsaNotifClickWa = function(el) {
         alert('WhatsApp do Hub não carregado. Recarregue a página.');
     }
 };
+
+// Clique em QUALQUER notificação (links normais) marca como lida na hora.
+// Antes o link só anexava ?notif_id=... que NADA processava — entao as
+// notificacoes nunca ficavam lidas. Agora: feedback visual imediato (.read)
+// + persiste via sendBeacon (sobrevive a navegacao da pagina). As de WhatsApp
+// (data-wa-phone) seguem tratadas por fsaNotifClickWa e sao ignoradas aqui.
+document.addEventListener('click', function(ev) {
+    var item = ev.target && ev.target.closest ? ev.target.closest('.notif-item[data-notif-id]') : null;
+    if (!item) return;
+    if (item.hasAttribute('data-wa-phone')) return;   // WhatsApp: tratado em fsaNotifClickWa
+    if (item.classList.contains('read')) return;       // ja lida
+    var id = item.getAttribute('data-notif-id');
+    if (!id) return;
+    var rurl = '<?= url('modules/notificacoes/api.php') ?>?action=read&id=' + encodeURIComponent(id);
+    try {
+        if (navigator.sendBeacon) navigator.sendBeacon(rurl);
+        else { var rx = new XMLHttpRequest(); rx.open('GET', rurl, true); rx.send(); }
+    } catch (e) {}
+    item.classList.add('read');                        // feedback visual imediato
+    var badge = document.querySelector('.notif-badge, #notifBadge');
+    if (badge) {
+        var n = parseInt(badge.textContent, 10) || 0;
+        if (n > 1) badge.textContent = (n - 1);
+        else if (badge.style) badge.style.display = 'none';
+    }
+}, true);
 </script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <!-- PWA: service worker + install prompt + update banner -->

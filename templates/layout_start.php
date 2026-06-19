@@ -440,7 +440,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                     <span class="notif-time"><?= $ago ?></span>
                                 </a>
                                 <?php else: ?>
-                                <a href="<?= $n['link'] ? e($n['link']) . (strpos($n['link'],'?') !== false ? '&' : '?') . 'notif_id=' . $n['id'] : url('modules/notificacoes/?read=' . $n['id']) ?>" class="<?= $nClass ?>">
+                                <a href="<?= $n['link'] ? e($n['link']) . (strpos($n['link'],'?') !== false ? '&' : '?') . 'notif_id=' . $n['id'] : url('modules/notificacoes/?read=' . $n['id']) ?>" class="<?= $nClass ?>" data-notif-id="<?= (int)$n['id'] ?>">
                                     <span class="notif-icon"><?= $nIcon ?></span>
                                     <div class="notif-content">
                                         <div class="notif-title"><?= e($n['title']) ?></div>

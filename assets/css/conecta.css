@@ -326,11 +326,19 @@ body { overflow-x: hidden; }
     display: flex; align-items: flex-start; gap: .65rem;
     padding: .7rem 1rem; border-bottom: 1px solid var(--border);
     text-decoration: none; color: var(--text);
-    transition: background var(--transition);
-    background: rgba(99,102,241,.04);
+    transition: background var(--transition), opacity var(--transition);
+    /* NÃO LIDA: destaque claro — fundo tingido + barra colorida à esquerda */
+    background: rgba(99,102,241,.12);
+    border-left: 3px solid var(--rose);
 }
-.notif-item.read { background: transparent; }
-.notif-item:hover { background: var(--petrol-100); }
+/* LIDA: apagada — sem barra, fundo transparente, esmaecida e título cinza */
+.notif-item.read {
+    background: transparent;
+    border-left: 3px solid transparent;
+    opacity: .55;
+}
+.notif-item.read .notif-title { color: var(--text-muted); font-weight: 600; }
+.notif-item:hover { background: var(--petrol-100); opacity: 1; }
 .notif-item:last-child { border-bottom: none; }
 .notif-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
 .notif-content { flex: 1; min-width: 0; }
