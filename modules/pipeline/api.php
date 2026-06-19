@@ -147,8 +147,9 @@ switch ($action) {
         $pdo->prepare('UPDATE pipeline_leads SET stage=?, updated_at=NOW() WHERE id=?')
             ->execute(array($toStage, $leadId));
 
-        // Se perdido, salvar motivo
-        if ($toStage === 'perdido' && $notes) {
+        // Se perdido OU cancelado, salvar motivo (lost_reason). O motivo do
+        // cancelamento vem do modal de motivos (Amanda 19/06/2026).
+        if (($toStage === 'perdido' || $toStage === 'cancelado') && $notes) {
             $pdo->prepare('UPDATE pipeline_leads SET lost_reason=? WHERE id=?')
                 ->execute(array($notes, $leadId));
         }
@@ -358,7 +359,7 @@ switch ($action) {
                     ->execute(array($linkedCaseId));
                 audit_log('case_auto_cancelled', 'case', $linkedCaseId, 'Pipeline ' . $toStage . ' lead #' . $leadId);
             }
-            notify_gestao('Lead ' . $toStage, $lead['name'] . ' foi ' . $toStage . ' no Pipeline.' . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
+            notify_gestao('Lead ' . $toStage, $lead['name'] . ' foi ' . $toStage . ' no Pipeline.' . ($notes ? ' Motivo: ' . $notes . '.' : '') . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
         }
 
         // ── SUSPENSO: bilateral com memória de estado (admin checado acima) ──

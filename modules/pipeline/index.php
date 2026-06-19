@@ -865,6 +865,36 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     </div>
 </div>
 
+<!-- Modal: motivo do CANCELAMENTO (pedido Amanda 19/06/2026) -->
+<div id="cancelMotivoModalPipe" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <h3 style="font-size:1rem;font-weight:700;color:#dc2626;margin-bottom:.25rem;">❌ Cancelar lead</h3>
+        <p style="font-size:.78rem;color:#6b7280;margin-bottom:.9rem;">Por que esse cliente está sendo cancelado? Escolha o motivo:</p>
+        <div style="display:flex;flex-direction:column;gap:.45rem;">
+            <?php
+            $__motivosCancel = array(
+                'Inadimplência',
+                'Ausência de documentos',
+                'Parou de responder/bloqueou o escritório',
+                'Pediu cancelamento por questões financeiras',
+                'Demitida por não ter educação',
+                'Outro motivo',
+            );
+            foreach ($__motivosCancel as $__mc): ?>
+                <label style="display:flex;align-items:center;gap:.55rem;font-size:.85rem;color:#374151;cursor:pointer;padding:.45rem .6rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+                    <input type="radio" name="cancelMotivoOpt" value="<?= e($__mc) ?>" onchange="cancelMotivoToggleOutro()" style="width:auto;margin:0;">
+                    <?= e($__mc) ?>
+                </label>
+            <?php endforeach; ?>
+        </div>
+        <textarea id="cancelMotivoOutro" rows="3" style="display:none;width:100%;margin-top:.7rem;padding:.6rem .8rem;font-size:.88rem;border:2px solid #e5e7eb;border-radius:10px;font-family:inherit;outline:none;resize:vertical;" placeholder="Descreva o que houve..."></textarea>
+        <div style="display:flex;gap:.5rem;margin-top:1.1rem;justify-content:flex-end;">
+            <button type="button" onclick="closeCancelMotivo()" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;">Voltar</button>
+            <button type="button" onclick="confirmCancelMotivo()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#dc2626;color:#fff;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:700;">Confirmar cancelamento</button>
+        </div>
+    </div>
+</div>
+
 <div id="folderModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
         <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:.25rem;">Contrato Assinado</h3>
@@ -1056,7 +1086,6 @@ function excluirLeadPlanilha(leadId, nome) {
 // antes de mover, pra evitar clique acidental no select (Nilce r9 31/05/2026).
 var PIPE_STAGES_SENSIVEIS = {
     'perdido':       { label: 'Perdido',          icon: '❌', txt: 'Marcar como PERDIDO?' },
-    'cancelado':     { label: 'Cancelado',        icon: '❌', txt: 'Marcar como CANCELADO?' },
     'suspenso':      { label: 'Suspenso',         icon: '⏸️', txt: 'Marcar como SUSPENSO?' },
     'para_arquivar': { label: 'Para Arquivar',    icon: '📦', txt: 'Marcar como Para Arquivar?' },
     'arquivado':     { label: 'Arquivado',        icon: '📦', txt: 'ARQUIVAR esse lead?' },
@@ -1066,6 +1095,15 @@ function handleStageMove(select) {
     var stage = select.value;
     if (!stage) return;
     var form = select.closest('form');
+
+    // CANCELADO: abre modal de motivo (a propria escolha do motivo confirma)
+    if (stage === 'cancelado') {
+        _pendingForm = form;
+        _pendingDragData = null;
+        abrirCancelMotivo();
+        select.value = '';
+        return;
+    }
 
     // Confirmacao pra destinos sensiveis - sem isso, clicar errado no select move na hora
     if (PIPE_STAGES_SENSIVEIS[stage]) {
@@ -1123,6 +1161,59 @@ function confirmDocFaltantePipe() {
         var inp2 = document.createElement('input'); inp2.type = 'hidden'; inp2.name = 'doc_faltante_desc'; inp2.value = desc; _pendingForm.appendChild(inp2);
         _pendingForm.submit();
     }
+}
+
+// ── Modal de motivo do cancelamento ──
+function abrirCancelMotivo() {
+    var m = document.getElementById('cancelMotivoModalPipe');
+    // limpa selecao anterior
+    m.querySelectorAll('input[name="cancelMotivoOpt"]').forEach(function(r){ r.checked = false; });
+    var out = document.getElementById('cancelMotivoOutro');
+    out.value = ''; out.style.display = 'none'; out.style.borderColor = '#e5e7eb';
+    m.style.display = 'flex';
+}
+function cancelMotivoToggleOutro() {
+    var sel = document.querySelector('input[name="cancelMotivoOpt"]:checked');
+    var out = document.getElementById('cancelMotivoOutro');
+    if (sel && sel.value === 'Outro motivo') {
+        out.style.display = 'block'; out.focus();
+    } else {
+        out.style.display = 'none';
+    }
+}
+function closeCancelMotivo() {
+    document.getElementById('cancelMotivoModalPipe').style.display = 'none';
+    // reverte select de origem (se veio do <select>)
+    if (_pendingForm) {
+        var s = _pendingForm.querySelector('select[name="to_stage"]');
+        if (s) s.value = '';
+    }
+    _pendingForm = null;
+    _pendingDragData = null;
+}
+function confirmCancelMotivo() {
+    var sel = document.querySelector('input[name="cancelMotivoOpt"]:checked');
+    if (!sel) { alert('Escolha um motivo do cancelamento.'); return; }
+    var motivo = sel.value;
+    if (motivo === 'Outro motivo') {
+        var txt = document.getElementById('cancelMotivoOutro').value.trim();
+        if (!txt) {
+            var el = document.getElementById('cancelMotivoOutro');
+            el.style.borderColor = '#ef4444'; el.focus();
+            return;
+        }
+        motivo = txt;
+    }
+    document.getElementById('cancelMotivoModalPipe').style.display = 'none';
+    if (!_pendingForm) return;
+    // Se veio do <select>, tira o name dele pra nao mandar to_stage vazio
+    var s = _pendingForm.querySelector('select[name="to_stage"]');
+    if (s) s.removeAttribute('name');
+    if (!_pendingForm.querySelector('[name="to_stage"]')) {
+        var i1 = document.createElement('input'); i1.type = 'hidden'; i1.name = 'to_stage'; i1.value = 'cancelado'; _pendingForm.appendChild(i1);
+    }
+    var i2 = document.createElement('input'); i2.type = 'hidden'; i2.name = 'notes'; i2.value = motivo; _pendingForm.appendChild(i2);
+    _pendingForm.submit();
 }
 
 function closeFolderModal() {
@@ -1286,6 +1377,18 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
                 _pendingDragData = null;
                 document.getElementById('docFaltanteModalPipe').style.display = 'flex';
                 document.getElementById('docFaltanteDescPipe').focus();
+                return;
+            }
+
+            if (toStage === 'cancelado') {
+                // Arrastar pra coluna Cancelado tambem pede o motivo
+                var tmpFormC = document.createElement('form');
+                tmpFormC.method = 'POST'; tmpFormC.action = apiUrl;
+                tmpFormC.innerHTML = '<input type="hidden" name="csrf_token" value="' + csrfToken + '"><input type="hidden" name="action" value="move"><input type="hidden" name="lead_id" value="' + draggedId + '"><input type="hidden" name="to_stage" value="cancelado">';
+                document.body.appendChild(tmpFormC);
+                _pendingForm = tmpFormC;
+                _pendingDragData = null;
+                abrirCancelMotivo();
                 return;
             }
 
