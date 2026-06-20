@@ -253,6 +253,20 @@ function process_form_submission($formType, $clientData, $payloadJson)
         );
     }
 
+    // ── Speed-to-lead (Follow-up item 1) ──
+    // 1º contato imediato quando um lead NOVO é criado. Gated por kill switch
+    // (followup_ativo + followup_speed_to_lead, ambos nascem '0'). NUNCA quebra
+    // o submit do formulário — qualquer erro é só logado.
+    if ($leadId) {
+        try {
+            require_once __DIR__ . '/functions_followup.php';
+            followup_speed_to_lead($pdo, (int)$leadId);
+        } catch (Exception $e) {
+            @file_put_contents(__DIR__ . '/../files/followup.log',
+                '[' . date('Y-m-d H:i:s') . '] hook erro lead ' . $leadId . ': ' . $e->getMessage() . "\n", FILE_APPEND);
+        }
+    }
+
     return array(
         'submission_id' => $submissionId,
         'client_id' => $clientId,
