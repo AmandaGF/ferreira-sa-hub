@@ -46,6 +46,9 @@ $defaults = array(
     'zapi_bot_ia_ativo'            => '0',
     'zapi_bot_ia_auto_novas'       => '0',
     'zapi_bot_ia_prompt'           => '',
+    // Follow-up comercial (kill switch nasce desligado)
+    'followup_ativo'               => '0',
+    'followup_speed_to_lead'       => '0',
 );
 
 // ── POST ────────────────────────────────────────────────
@@ -87,6 +90,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $up->execute(array('zapi_bot_ia_auto_novas',  !empty($_POST['bot_ia_auto_novas']) ? '1' : '0'));
     $up->execute(array('zapi_bot_ia_prompt',      trim($_POST['bot_ia_prompt'] ?? '')));
 
+    // Follow-up comercial
+    $up->execute(array('followup_ativo',          !empty($_POST['followup_ativo']) ? '1' : '0'));
+    $up->execute(array('followup_speed_to_lead',  !empty($_POST['followup_speed_to_lead']) ? '1' : '0'));
+
     audit_log('zapi_automacoes_salvar', 'configuracoes', 0);
     flash_set('success', 'Automações salvas.');
     redirect(module_url('whatsapp', 'automacoes.php'));
@@ -94,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Ler config atual ────────────────────────────────────
 $cfg = $defaults;
-foreach ($pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_%'")->fetchAll() as $r) {
+foreach ($pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'zapi_%' OR chave LIKE 'followup_%'")->fetchAll() as $r) {
     if (array_key_exists($r['chave'], $cfg)) $cfg[$r['chave']] = $r['valor'];
 }
 $diasArr = explode(',', $cfg['zapi_dias_uteis']);
@@ -154,6 +161,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <label><input type="checkbox" name="dia_<?= $k ?>" value="1" <?= in_array($k, $diasArr, true) ? 'checked' : '' ?>> <span><?= $l ?></span></label>
                 <?php endforeach; ?>
             </div>
+        </div>
+    </div>
+
+    <div class="aut-card" style="border:2px solid #B87333;">
+        <h3 style="color:#B87333;">🚀 Follow-up de Leads (Comercial · DDD 21)</h3>
+        <p class="aut-hint">Quando ligado, todo lead <strong>novo</strong> que preenche um formulário recebe automaticamente a 1ª mensagem (speed-to-lead), respeitando o horário acima (fora dele, manda a versão "estamos com seu contato"). <strong>Leads que já vêm de conversa de WhatsApp não entram</strong> (já estão falando com vocês).</p>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="followup_ativo" value="1" <?= $cfg['followup_ativo'] === '1' ? 'checked' : '' ?>> <strong>Chave-mestra do Follow-up</strong> — desliga tudo de uma vez</label>
+        </div>
+        <div class="aut-toggle-row">
+            <label><input type="checkbox" name="followup_speed_to_lead" value="1" <?= $cfg['followup_speed_to_lead'] === '1' ? 'checked' : '' ?>> Ativar <strong>1º contato automático</strong> no lead novo (speed-to-lead)</label>
+        </div>
+        <p class="aut-hint">⚠️ As <strong>duas</strong> precisam estar ligadas pra disparar. O texto das mensagens (A1) fica em <a href="<?= module_url('whatsapp', 'templates.php') ?>">📋 Templates</a> — categoria <code>followup</code>, canal 21. Edite o tom por lá.</p>
+        <div style="margin-top:.5rem;display:flex;gap:.5rem;flex-wrap:wrap;">
+            <button type="button" onclick="testarFollowup()" class="btn btn-outline btn-sm">📲 Testar entrega (envia 1 msg pra um número)</button>
+            <a href="<?= url('diag_followup_speed.php?key=fsa-hub-deploy-2026') ?>" target="_blank" class="btn btn-outline btn-sm">🔎 Ver simulação (dry-run)</a>
         </div>
     </div>
 
@@ -316,6 +339,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 function enviarAgora() {
     if (!confirm('Enviar parabéns AGORA para todos os aniversariantes de hoje (que ainda não foram parabenizados este ano)?\n\nUse apenas para teste ou quando quiser antecipar o horário.')) return;
     window.open('<?= url('cron/zapi_aniversarios.php?key=fsa-hub-deploy-2026&forcar=1') ?>', '_blank');
+}
+function testarFollowup() {
+    var n = prompt('Número de teste (com DDI/DDD, só dígitos). Ex: 5524999999999\n\nVai enviar UMA mensagem de boas-vindas só pra esse número (não toca lead nenhum).');
+    if (!n) return;
+    n = n.replace(/\D/g, '');
+    if (n.length < 10) { alert('Número inválido — use DDI+DDD+número, só dígitos.'); return; }
+    window.open('<?= url('diag_followup_speed.php?key=fsa-hub-deploy-2026&enviar=') ?>' + n, '_blank');
 }
 </script>
 
