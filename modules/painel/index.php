@@ -327,7 +327,8 @@ try {
     $q->execute(array($viewUserId, $hoje)); $dopa['prazos'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 try {
-    $q = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND DATE(updated_at)=?");
+    // Baixa na agenda (cumprido + balcão virtual realizado) — atribuída a QUEM deu baixa, via audit_log
+    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE entity_type='agenda' AND user_id=? AND DATE(created_at)=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%'))");
     $q->execute(array($viewUserId, $hoje)); $dopa['agenda'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 try {
@@ -367,7 +368,7 @@ $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
     'tarefas'       => array("SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=? GROUP BY DATE(completed_at)", array($viewUserId, $desde7)),
     'prazos'        => array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
-    'agenda'        => array("SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND updated_at>=? GROUP BY DATE(updated_at)", array($viewUserId, $desde7)),
+    'agenda'        => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND created_at>=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'helpdesk'      => array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
     'distribuicoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
@@ -384,7 +385,7 @@ try {
     $q = $pdo->prepare("SELECT SUM(c) tot FROM (
         SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
         UNION ALL SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
-        UNION ALL SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? GROUP BY DATE(updated_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
