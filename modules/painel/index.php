@@ -356,19 +356,26 @@ try { $q = $pdo->prepare("SELECT COUNT(*) t, SUM(status='realizado') f FROM agen
       $q->execute(array($viewUserId, $hoje)); $r = $q->fetch(); $diaTot += (int)$r['t']; $diaFeito += (int)$r['f']; } catch (Exception $e) {}
 $diaPct = $diaTot > 0 ? (int)round($diaFeito / $diaTot * 100) : 0;
 
-// ── Histórico 7 dias (total de baixas por dia) ──
-$dias7 = array();
-for ($i = 6; $i >= 0; $i--) { $dias7[date('Y-m-d', strtotime("-$i day"))] = 0; }
+// ── Histórico 7 dias (total + quebra por categoria, por dia) ──
+$dias7 = array(); $dias7det = array();
+for ($i = 6; $i >= 0; $i--) {
+    $d = date('Y-m-d', strtotime("-$i day"));
+    $dias7[$d] = 0;
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'helpdesk' => 0);
+}
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
-    array("SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=? GROUP BY DATE(completed_at)", array($viewUserId, $desde7)),
-    array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
-    array("SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND updated_at>=? GROUP BY DATE(updated_at)", array($viewUserId, $desde7)),
-    array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
-    array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
+    'tarefas'       => array("SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=? GROUP BY DATE(completed_at)", array($viewUserId, $desde7)),
+    'prazos'        => array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
+    'agenda'        => array("SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND updated_at>=? GROUP BY DATE(updated_at)", array($viewUserId, $desde7)),
+    'helpdesk'      => array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
+    'distribuicoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
-foreach ($histQ as $h) {
-    try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) { $d = substr($row['d'], 0, 10); if (isset($dias7[$d])) $dias7[$d] += (int)$row['c']; } } catch (Exception $e) {}
+foreach ($histQ as $cat => $h) {
+    try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
+        $d = substr($row['d'], 0, 10);
+        if (isset($dias7[$d])) { $dias7[$d] += (int)$row['c']; $dias7det[$d][$cat] += (int)$row['c']; }
+    } } catch (Exception $e) {}
 }
 $dopaMax = max(1, max($dias7));
 // Recorde HISTÓRICO (all-time) — fallback pro recorde da semana se a query falhar
@@ -506,7 +513,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-badge.novo{background:linear-gradient(90deg,#f59e0b,#fde68a);color:#3b2700;animation:pdGlow 1.2s ease-in-out infinite;}
 @keyframes pdGlow{0%,100%{box-shadow:0 0 0 0 rgba(253,230,138,.6)}50%{box-shadow:0 0 0 6px rgba(253,230,138,0)}}
 .pd-dopa-bars{display:flex;align-items:flex-end;gap:.5rem;height:78px;}
-.pd-dopa-colwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;}
+.pd-dopa-colwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;cursor:pointer;border-radius:6px;transition:background .15s;}
+.pd-dopa-colwrap:hover{background:rgba(255,255,255,.12);}
+.pd-pop{position:absolute;z-index:9998;background:#0b2d34;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:.6rem .75rem;min-width:185px;box-shadow:0 12px 32px rgba(0,0,0,.4);font-size:.78rem;animation:pdPopIn .14s ease-out;}
+@keyframes pdPopIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.pd-pop-head{font-weight:700;margin-bottom:.4rem;border-bottom:1px solid rgba(255,255,255,.18);padding-bottom:.32rem;}
+.pd-pop-row{display:flex;justify-content:space-between;gap:1.2rem;padding:2px 0;}
+.pd-pop-row b{font-weight:800;}
+.pd-pop-row.zero{opacity:.45;}
+.pd-pop-empty{opacity:.7;font-style:italic;margin-top:.3rem;}
 .pd-dopa-col{width:72%;max-width:28px;background:rgba(255,255,255,.4);border-radius:5px 5px 0 0;position:relative;min-height:4px;transition:height .9s cubic-bezier(.2,.8,.2,1);}
 .pd-dopa-col.hoje{background:#fff;box-shadow:0 0 12px rgba(255,255,255,.55);}
 .pd-dopa-col.rec{background:#fde68a;}
@@ -588,7 +603,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $isRec = ($c > 0 && $c === $dopaRecorde);
                     $wd = mb_substr($diasSemana[(int)date('w', strtotime($d))], 0, 3);
                 ?>
-                <div class="pd-dopa-colwrap" title="<?= date('d/m', strtotime($d)) ?>: <?= $c ?> baixa<?= $c == 1 ? '' : 's' ?>">
+                <div class="pd-dopa-colwrap" onclick="pdDopaDia('<?= $d ?>', this)" title="<?= date('d/m', strtotime($d)) ?>: <?= $c ?> baixa<?= $c == 1 ? '' : 's' ?> — clique pra detalhar">
                     <div class="pd-dopa-col <?= $isHoje ? 'hoje' : '' ?> <?= $isRec ? 'rec' : '' ?>" data-h="<?= max(4, $h) ?>" style="height:0;">
                         <?php if ($c > 0): ?><span class="pd-dopa-coln"><?= $c ?></span><?php endif; ?>
                     </div>
@@ -646,6 +661,35 @@ function pdConfete(){
         c.appendChild(p);
     }
     setTimeout(function(){ c.remove(); }, 4300);
+}
+
+// Detalhe do dia ao clicar numa barra
+var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', helpdesk:'🎫 Chamados' };
+function pdDopaDia(date, el){
+    var ex = document.getElementById('pdDopaPop');
+    if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
+    var det = PD_DIAS[date] || {};
+    var total = 0, rows = '';
+    for (var k in PD_LBL){ var v = det[k] || 0; total += v; rows += '<div class="pd-pop-row '+(v?'':'zero')+'"><span>'+PD_LBL[k]+'</span><b>'+v+'</b></div>'; }
+    var p = date.split('-');
+    var pop = document.createElement('div');
+    pop.id = 'pdDopaPop'; pop.dataset.date = date; pop.className = 'pd-pop';
+    pop.innerHTML = '<div class="pd-pop-head">📅 '+p[2]+'/'+p[1]+' · '+total+' no total</div>' + rows + (total === 0 ? '<div class="pd-pop-empty">Nenhuma baixa nesse dia.</div>' : '');
+    document.body.appendChild(pop);
+    var r = el.getBoundingClientRect();
+    var top = r.top + window.scrollY - pop.offsetHeight - 8;
+    if (top < window.scrollY + 4) top = r.bottom + window.scrollY + 8;
+    var left = r.left + window.scrollX + r.width / 2 - pop.offsetWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - pop.offsetWidth - 8));
+    pop.style.top = top + 'px'; pop.style.left = left + 'px';
+    setTimeout(function(){ document.addEventListener('click', pdPopClose); }, 10);
+}
+function pdPopClose(e){
+    var pop = document.getElementById('pdDopaPop');
+    if (pop && !pop.contains(e.target) && !(e.target.closest && e.target.closest('.pd-dopa-colwrap'))){
+        pop.remove(); document.removeEventListener('click', pdPopClose);
+    }
 }
 </script>
 
