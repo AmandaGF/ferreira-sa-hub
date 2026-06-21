@@ -317,7 +317,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'helpdesk' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'helpdesk' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -345,6 +345,11 @@ try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND DATE(created_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['distribuicoes'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
+try {
+    // Movimentações realizadas (andamentos registrados manualmente pela equipe) — via audit_log
+    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND DATE(created_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['movimentacoes'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
 $dopaTotal = array_sum($dopa);
 
 // ── Progresso do dia: itens DATADOS para hoje (tarefas due hoje + prazos hoje + compromissos hoje) ──
@@ -362,7 +367,7 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'helpdesk' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'helpdesk' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
@@ -371,6 +376,7 @@ $histQ = array(
     'agenda'        => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND created_at>=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'helpdesk'      => array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
     'distribuicoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
+    'movimentacoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
 foreach ($histQ as $cat => $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
@@ -388,8 +394,9 @@ try {
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
     $rt = (int)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
@@ -582,6 +589,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
             <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
             <div class="pd-dopa-stat <?= $dopa['distribuicoes'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['distribuicoes'] ?></span><span class="l">🏛️ Distribuições</span></div>
+            <div class="pd-dopa-stat <?= $dopa['movimentacoes'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['movimentacoes'] ?></span><span class="l">🔄 Movimentações</span></div>
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
         </div>
 
@@ -666,7 +674,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', helpdesk:'🎫 Chamados' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', helpdesk:'🎫 Chamados' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
