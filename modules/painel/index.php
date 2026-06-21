@@ -317,7 +317,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'helpdesk' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'helpdesk' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -338,6 +338,11 @@ try {
                           AND a.user_id=? AND DATE(a.created_at)=?
                           AND t.status='resolvido' AND DATE(t.resolved_at)=?");
     $q->execute(array($viewUserId, $hoje, $hoje)); $dopa['helpdesk'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    // Distribuição de petição inicial (ajuizamento) — registrada via audit_log ao mover pra 'distribuido'
+    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND DATE(created_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['distribuicoes'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 $dopaTotal = array_sum($dopa);
 
@@ -360,12 +365,29 @@ $histQ = array(
     array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
     array("SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND updated_at>=? GROUP BY DATE(updated_at)", array($viewUserId, $desde7)),
     array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
+    array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
 foreach ($histQ as $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) { $d = substr($row['d'], 0, 10); if (isset($dias7[$d])) $dias7[$d] += (int)$row['c']; } } catch (Exception $e) {}
 }
 $dopaMax = max(1, max($dias7));
+// Recorde HISTÓRICO (all-time) — fallback pro recorde da semana se a query falhar
 $dopaRecorde = max($dias7);
+try {
+    $q = $pdo->prepare("SELECT SUM(c) tot FROM (
+        SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
+        UNION ALL SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
+        UNION ALL SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? GROUP BY DATE(updated_at)
+        UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+    ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $rt = (int)$q->fetchColumn();
+    if ($rt > $dopaRecorde) $dopaRecorde = $rt;
+} catch (Exception $e) {}
+$recordeNovo = ($dopaTotal > 0 && $dopaTotal >= $dopaRecorde); // hoje é (ou empata) o recorde
+$pdConfete = (($viewUserId === $userId) && $diaTot > 0 && $diaPct >= 100) ? 1 : 0; // confete ao fechar a agenda do dia
+
 // Streak: dias seguidos com >=1 baixa, terminando no último dia produtivo (ignora zeros do fim, ex: hoje cedo)
 $streak = 0; $vals7 = array_values($dias7); $i7 = count($vals7) - 1;
 while ($i7 >= 0 && $vals7[$i7] === 0) $i7--;
@@ -481,6 +503,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-dopa-chart-head{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:700;opacity:.95;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem;}
 .pd-dopa-badges{display:flex;gap:.4rem;flex-wrap:wrap;}
 .pd-badge{background:rgba(0,0,0,.2);padding:2px 9px;border-radius:99px;font-size:.68rem;font-weight:700;}
+.pd-badge.novo{background:linear-gradient(90deg,#f59e0b,#fde68a);color:#3b2700;animation:pdGlow 1.2s ease-in-out infinite;}
+@keyframes pdGlow{0%,100%{box-shadow:0 0 0 0 rgba(253,230,138,.6)}50%{box-shadow:0 0 0 6px rgba(253,230,138,0)}}
 .pd-dopa-bars{display:flex;align-items:flex-end;gap:.5rem;height:78px;}
 .pd-dopa-colwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;}
 .pd-dopa-col{width:72%;max-width:28px;background:rgba(255,255,255,.4);border-radius:5px 5px 0 0;position:relative;min-height:4px;transition:height .9s cubic-bezier(.2,.8,.2,1);}
@@ -541,6 +565,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="pd-dopa-stat <?= $dopa['tarefas'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['tarefas'] ?></span><span class="l">✅ Tarefas</span></div>
             <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
             <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
+            <div class="pd-dopa-stat <?= $dopa['distribuicoes'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['distribuicoes'] ?></span><span class="l">🏛️ Distribuições</span></div>
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
         </div>
 
@@ -549,7 +574,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <span>📊 Últimos 7 dias</span>
                 <span class="pd-dopa-badges">
                     <?php if ($streak >= 2): ?><span class="pd-badge fire">🔥 <?= $streak ?> dias seguidos</span><?php endif; ?>
-                    <?php if ($dopaRecorde > 0): ?><span class="pd-badge rec">🏆 recorde <?= $dopaRecorde ?></span><?php endif; ?>
+                    <?php if ($recordeNovo && ($viewUserId === $userId)): ?>
+                        <span class="pd-badge novo">🏆 NOVO RECORDE: <?= (int)$dopaTotal ?>!</span>
+                    <?php elseif ($dopaRecorde > 0): ?>
+                        <span class="pd-badge rec">🏆 recorde <?= (int)$dopaRecorde ?></span>
+                    <?php endif; ?>
                 </span>
             </div>
             <div class="pd-dopa-bars">
@@ -585,11 +614,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
     }, 70);
     // Restaurar estado recolhido
     try { if (localStorage.getItem('pdDopaCollapsed') === '1') { var d = document.getElementById('pdDopa'); if (d) d.classList.add('collapsed'); } } catch (e) {}
+    // Confete ao fechar 100% da agenda do dia (1x por dia)
+    <?php if (!empty($pdConfete)): ?>
+    try {
+        var ck = 'pdConfete_<?= $hoje ?>';
+        if (localStorage.getItem(ck) !== '1') { setTimeout(pdConfete, 450); localStorage.setItem(ck, '1'); }
+    } catch (e) { setTimeout(pdConfete, 450); }
+    <?php endif; ?>
 })();
 function pdDopaToggle(){
     var d = document.getElementById('pdDopa'); if (!d) return;
     d.classList.toggle('collapsed');
     try { localStorage.setItem('pdDopaCollapsed', d.classList.contains('collapsed') ? '1' : '0'); } catch (e) {}
+}
+function pdConfete(){
+    var cores = ['#fde68a','#34d399','#60a5fa','#f472b6','#fb923c','#a78bfa','#ffffff'];
+    var c = document.createElement('div');
+    c.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999;overflow:hidden;';
+    document.body.appendChild(c);
+    for (var i = 0; i < 90; i++) {
+        var p = document.createElement('div');
+        var size = 6 + Math.random() * 9;
+        p.style.cssText = 'position:absolute;top:-12px;left:' + (Math.random() * 100) + '%;width:' + size + 'px;height:' + (size * 0.6) + 'px;background:' + cores[i % cores.length] + ';border-radius:2px;';
+        var dx = (Math.random() * 240 - 120);
+        if (p.animate) {
+            p.animate([
+                { transform: 'translate(0,0) rotate(0deg)', opacity: 1 },
+                { transform: 'translate(' + dx + 'px,' + (window.innerHeight + 60) + 'px) rotate(' + (360 + Math.random() * 720) + 'deg)', opacity: 1 }
+            ], { duration: 2200 + Math.random() * 1600, delay: Math.random() * 500, easing: 'cubic-bezier(.3,.6,.5,1)', fill: 'forwards' });
+        }
+        c.appendChild(p);
+    }
+    setTimeout(function(){ c.remove(); }, 4300);
 }
 </script>
 
