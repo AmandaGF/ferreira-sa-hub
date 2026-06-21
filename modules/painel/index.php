@@ -341,6 +341,36 @@ try {
 } catch (Exception $e) {}
 $dopaTotal = array_sum($dopa);
 
+// ── Progresso do dia: itens DATADOS para hoje (tarefas due hoje + prazos hoje + compromissos hoje) ──
+$diaTot = 0; $diaFeito = 0;
+try { $q = $pdo->prepare("SELECT COUNT(*) t, SUM(status='concluido') f FROM case_tasks WHERE assigned_to=? AND due_date=?");
+      $q->execute(array($viewUserId, $hoje)); $r = $q->fetch(); $diaTot += (int)$r['t']; $diaFeito += (int)$r['f']; } catch (Exception $e) {}
+try { $q = $pdo->prepare("SELECT COUNT(*) t, SUM(concluido=1) f FROM prazos_processuais WHERE usuario_id=? AND prazo_fatal=?");
+      $q->execute(array($viewUserId, $hoje)); $r = $q->fetch(); $diaTot += (int)$r['t']; $diaFeito += (int)$r['f']; } catch (Exception $e) {}
+try { $q = $pdo->prepare("SELECT COUNT(*) t, SUM(status='realizado') f FROM agenda_eventos WHERE responsavel_id=? AND DATE(data_inicio)=? AND status!='cancelado'");
+      $q->execute(array($viewUserId, $hoje)); $r = $q->fetch(); $diaTot += (int)$r['t']; $diaFeito += (int)$r['f']; } catch (Exception $e) {}
+$diaPct = $diaTot > 0 ? (int)round($diaFeito / $diaTot * 100) : 0;
+
+// ── Histórico 7 dias (total de baixas por dia) ──
+$dias7 = array();
+for ($i = 6; $i >= 0; $i--) { $dias7[date('Y-m-d', strtotime("-$i day"))] = 0; }
+$desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
+$histQ = array(
+    array("SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=? GROUP BY DATE(completed_at)", array($viewUserId, $desde7)),
+    array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
+    array("SELECT DATE(updated_at) d, COUNT(*) c FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND updated_at>=? GROUP BY DATE(updated_at)", array($viewUserId, $desde7)),
+    array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
+);
+foreach ($histQ as $h) {
+    try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) { $d = substr($row['d'], 0, 10); if (isset($dias7[$d])) $dias7[$d] += (int)$row['c']; } } catch (Exception $e) {}
+}
+$dopaMax = max(1, max($dias7));
+$dopaRecorde = max($dias7);
+// Streak: dias seguidos com >=1 baixa, terminando no último dia produtivo (ignora zeros do fim, ex: hoje cedo)
+$streak = 0; $vals7 = array_values($dias7); $i7 = count($vals7) - 1;
+while ($i7 >= 0 && $vals7[$i7] === 0) $i7--;
+while ($i7 >= 0 && $vals7[$i7] > 0) { $streak++; $i7--; }
+
 // Nome do alvo (quando gestão olha agenda de outro)
 $dopaSelf = ($viewUserId === $userId);
 $dopaNome = $userName;
@@ -427,15 +457,37 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-dopa{border-radius:var(--radius-lg);padding:1.1rem 1.4rem;margin-bottom:1.25rem;color:#fff;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08);}
 .pd-dopa.tem{background:linear-gradient(120deg,#059669 0%,#0d9488 45%,#B87333 115%);}
 .pd-dopa.zero{background:linear-gradient(120deg,#334155,#475569);}
-.pd-dopa-head{display:flex;align-items:center;gap:1rem;position:relative;z-index:1;}
+.pd-dopa-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;position:relative;z-index:1;}
+.pd-dopa-head{display:flex;align-items:center;gap:1rem;}
 .pd-dopa-total{font-size:3rem;font-weight:900;line-height:1;min-width:66px;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.25);}
 .pd-dopa-titulo{font-size:1.05rem;font-weight:800;}
 .pd-dopa-frase{font-size:.82rem;opacity:.92;margin-top:.15rem;}
-.pd-dopa-stats{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem;position:relative;z-index:1;}
+.pd-dopa-toggle{background:rgba(255,255,255,.18);border:none;color:#fff;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:.75rem;flex-shrink:0;transition:transform .2s;line-height:1;}
+.pd-dopa-toggle:hover{background:rgba(255,255,255,.3);}
+.pd-dopa.collapsed .pd-dopa-toggle{transform:rotate(-90deg);}
+.pd-dopa-body{margin-top:.9rem;position:relative;z-index:1;overflow:hidden;}
+.pd-dopa.collapsed .pd-dopa-body{display:none;}
+.pd-dopa-prog{margin-bottom:.9rem;}
+.pd-dopa-prog-lbl{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:.3rem;font-weight:600;}
+.pd-dopa-bar{height:12px;background:rgba(255,255,255,.22);border-radius:99px;overflow:hidden;}
+.pd-dopa-bar-fill{height:100%;background:linear-gradient(90deg,#fde68a,#fff);border-radius:99px;transition:width .9s cubic-bezier(.2,.8,.2,1);box-shadow:0 0 10px rgba(255,255,255,.45);}
+.pd-dopa-prog-done{font-size:.78rem;font-weight:700;margin-top:.35rem;}
+.pd-dopa-stats{display:flex;gap:.6rem;flex-wrap:wrap;}
 .pd-dopa-stat{background:rgba(255,255,255,.16);border-radius:10px;padding:.5rem .85rem;display:flex;align-items:center;gap:.45rem;}
 .pd-dopa-stat .n{font-size:1.25rem;font-weight:800;}
 .pd-dopa-stat .l{font-size:.72rem;font-weight:600;opacity:.92;}
 .pd-dopa-stat.z{opacity:.5;}
+.pd-dopa-chart{margin-top:1rem;background:rgba(255,255,255,.10);border-radius:12px;padding:.7rem .85rem .55rem;}
+.pd-dopa-chart-head{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:700;opacity:.95;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem;}
+.pd-dopa-badges{display:flex;gap:.4rem;flex-wrap:wrap;}
+.pd-badge{background:rgba(0,0,0,.2);padding:2px 9px;border-radius:99px;font-size:.68rem;font-weight:700;}
+.pd-dopa-bars{display:flex;align-items:flex-end;gap:.5rem;height:78px;}
+.pd-dopa-colwrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;}
+.pd-dopa-col{width:72%;max-width:28px;background:rgba(255,255,255,.4);border-radius:5px 5px 0 0;position:relative;min-height:4px;transition:height .9s cubic-bezier(.2,.8,.2,1);}
+.pd-dopa-col.hoje{background:#fff;box-shadow:0 0 12px rgba(255,255,255,.55);}
+.pd-dopa-col.rec{background:#fde68a;}
+.pd-dopa-coln{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:.62rem;font-weight:800;}
+.pd-dopa-coll{font-size:.6rem;opacity:.85;font-weight:600;white-space:nowrap;}
 @keyframes pdPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
 .pd-dopa.tem .pd-dopa-total{animation:pdPop .5s ease-out both;}
 .pd-dopa.tem::after{content:'';position:absolute;top:-60%;right:-8%;width:260px;height:260px;background:radial-gradient(circle,rgba(255,255,255,.20),transparent 70%);pointer-events:none;}
@@ -461,31 +513,84 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 <!-- 🎉 Dopamina: o que já foi cumprido hoje -->
-<div class="pd-dopa <?= $dopaTotal > 0 ? 'tem' : 'zero' ?>">
-    <div class="pd-dopa-head">
-        <div class="pd-dopa-total" id="pdDopaTotal" data-n="<?= (int)$dopaTotal ?>"><?= (int)$dopaTotal ?></div>
-        <div>
-            <div class="pd-dopa-titulo"><?= $dopaTitulo ?></div>
-            <div class="pd-dopa-frase"><?= $dopaFrase ?></div>
+<div class="pd-dopa <?= $dopaTotal > 0 ? 'tem' : 'zero' ?>" id="pdDopa">
+    <div class="pd-dopa-top">
+        <div class="pd-dopa-head">
+            <div class="pd-dopa-total" id="pdDopaTotal" data-n="<?= (int)$dopaTotal ?>"><?= (int)$dopaTotal ?></div>
+            <div>
+                <div class="pd-dopa-titulo"><?= $dopaTitulo ?></div>
+                <div class="pd-dopa-frase"><?= $dopaFrase ?></div>
+            </div>
         </div>
+        <button type="button" class="pd-dopa-toggle" onclick="pdDopaToggle()" title="Recolher / expandir">▼</button>
     </div>
-    <div class="pd-dopa-stats">
-        <div class="pd-dopa-stat <?= $dopa['tarefas'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['tarefas'] ?></span><span class="l">✅ Tarefas</span></div>
-        <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
-        <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
-        <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
+
+    <div class="pd-dopa-body">
+        <?php if ($diaTot > 0): ?>
+        <div class="pd-dopa-prog">
+            <div class="pd-dopa-prog-lbl">
+                <span>📋 Agenda de hoje</span>
+                <span><strong><?= (int)$diaFeito ?></strong> de <?= (int)$diaTot ?> · <?= $diaPct ?>%</span>
+            </div>
+            <div class="pd-dopa-bar"><div class="pd-dopa-bar-fill" data-w="<?= $diaPct ?>" style="width:0;"></div></div>
+            <?php if ($diaPct >= 100): ?><div class="pd-dopa-prog-done">🎉 Tudo do dia concluído — você arrasou!</div><?php endif; ?>
+        </div>
+        <?php endif; ?>
+
+        <div class="pd-dopa-stats">
+            <div class="pd-dopa-stat <?= $dopa['tarefas'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['tarefas'] ?></span><span class="l">✅ Tarefas</span></div>
+            <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
+            <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
+            <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
+        </div>
+
+        <div class="pd-dopa-chart">
+            <div class="pd-dopa-chart-head">
+                <span>📊 Últimos 7 dias</span>
+                <span class="pd-dopa-badges">
+                    <?php if ($streak >= 2): ?><span class="pd-badge fire">🔥 <?= $streak ?> dias seguidos</span><?php endif; ?>
+                    <?php if ($dopaRecorde > 0): ?><span class="pd-badge rec">🏆 recorde <?= $dopaRecorde ?></span><?php endif; ?>
+                </span>
+            </div>
+            <div class="pd-dopa-bars">
+                <?php foreach ($dias7 as $d => $c):
+                    $h = round($c / $dopaMax * 100);
+                    $isHoje = ($d === $hoje);
+                    $isRec = ($c > 0 && $c === $dopaRecorde);
+                    $wd = mb_substr($diasSemana[(int)date('w', strtotime($d))], 0, 3);
+                ?>
+                <div class="pd-dopa-colwrap" title="<?= date('d/m', strtotime($d)) ?>: <?= $c ?> baixa<?= $c == 1 ? '' : 's' ?>">
+                    <div class="pd-dopa-col <?= $isHoje ? 'hoje' : '' ?> <?= $isRec ? 'rec' : '' ?>" data-h="<?= max(4, $h) ?>" style="height:0;">
+                        <?php if ($c > 0): ?><span class="pd-dopa-coln"><?= $c ?></span><?php endif; ?>
+                    </div>
+                    <div class="pd-dopa-coll"><?= $isHoje ? 'Hoje' : $wd ?></div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
     </div>
 </div>
 <script>
 (function(){
     var el = document.getElementById('pdDopaTotal');
-    if (!el) return;
-    var n = parseInt(el.dataset.n || '0', 10);
-    if (n <= 0) return;
-    var c = 0, step = Math.max(1, Math.round(n / 18));
-    el.textContent = '0';
-    var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = c; }, 45);
+    if (el) {
+        var n = parseInt(el.dataset.n || '0', 10);
+        if (n > 0) { var c = 0, step = Math.max(1, Math.round(n / 18)); el.textContent = '0';
+            var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = c; }, 45); }
+    }
+    // Animar barras crescendo (após o paint)
+    setTimeout(function(){
+        var f = document.querySelector('.pd-dopa-bar-fill'); if (f && f.dataset.w != null) f.style.width = f.dataset.w + '%';
+        document.querySelectorAll('.pd-dopa-col').forEach(function(co){ if (co.dataset.h != null) co.style.height = co.dataset.h + '%'; });
+    }, 70);
+    // Restaurar estado recolhido
+    try { if (localStorage.getItem('pdDopaCollapsed') === '1') { var d = document.getElementById('pdDopa'); if (d) d.classList.add('collapsed'); } } catch (e) {}
 })();
+function pdDopaToggle(){
+    var d = document.getElementById('pdDopa'); if (!d) return;
+    d.classList.toggle('collapsed');
+    try { localStorage.setItem('pdDopaCollapsed', d.classList.contains('collapsed') ? '1' : '0'); } catch (e) {}
+}
 </script>
 
 <?php
