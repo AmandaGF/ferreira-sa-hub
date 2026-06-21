@@ -312,6 +312,56 @@ if ($isGestao) {
     $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// 🎉 DOPAMINA — o que o usuário JÁ CUMPRIU hoje (baixas do dia)
+// Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
+// compromissos da agenda dados baixa (realizado) e chamados resolvidos.
+// ══════════════════════════════════════════════════════════════════════
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'helpdesk' => 0);
+try {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND DATE(concluido_em)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['prazos'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM agenda_eventos WHERE status='realizado' AND responsavel_id=? AND DATE(updated_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['agenda'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    // Helpdesk não tem campo "quem resolveu" — atribui via audit_log (quem deu o update no dia)
+    $q = $pdo->prepare("SELECT COUNT(DISTINCT a.entity_id) FROM audit_log a
+                        JOIN tickets t ON t.id = a.entity_id
+                        WHERE a.action='ticket_updated' AND a.entity_type='ticket'
+                          AND a.user_id=? AND DATE(a.created_at)=?
+                          AND t.status='resolvido' AND DATE(t.resolved_at)=?");
+    $q->execute(array($viewUserId, $hoje, $hoje)); $dopa['helpdesk'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+$dopaTotal = array_sum($dopa);
+
+// Nome do alvo (quando gestão olha agenda de outro)
+$dopaSelf = ($viewUserId === $userId);
+$dopaNome = $userName;
+if (!$dopaSelf) { foreach ($users as $u) { if ((int)$u['id'] === $viewUserId) { $dopaNome = explode(' ', $u['name'])[0]; break; } } }
+
+if ($dopaSelf) {
+    $dopaTitulo = $dopaTotal > 0
+        ? ('🎉 Você já cumpriu ' . $dopaTotal . ($dopaTotal == 1 ? ' coisa' : ' coisas') . ' hoje!')
+        : '☕ Bora começar o dia!';
+    if ($dopaTotal === 0)      $dopaFrase = 'A primeira baixa do dia é a mais gostosa. Você consegue! 💪';
+    elseif ($dopaTotal <= 2)   $dopaFrase = 'Já saiu do zero — continua nesse ritmo! ✨';
+    elseif ($dopaTotal <= 5)   $dopaFrase = 'Tá voando hoje! 🚀';
+    elseif ($dopaTotal <= 9)   $dopaFrase = 'Que produtividade — tá pegando fogo! 🔥';
+    else                        $dopaFrase = 'Você é uma máquina hoje! Orgulho. 🏆';
+} else {
+    $dopaTitulo = $dopaTotal > 0
+        ? ('👏 ' . e($dopaNome) . ' já cumpriu ' . $dopaTotal . ($dopaTotal == 1 ? ' coisa' : ' coisas') . ' hoje')
+        : ('🕊️ ' . e($dopaNome) . ' ainda não deu baixas hoje');
+    $dopaFrase = $dopaTotal > 0 ? 'Produzindo bem.' : 'O dia ainda tá começando.';
+}
+
 $pageTitle = 'Painel do Dia';
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -373,6 +423,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-cor-roxo{background:#e9d5ff;}
 .pd-empty{text-align:center;padding:2rem 1rem;color:var(--text-muted);font-size:.85rem;}
 .pd-empty .big{font-size:2rem;margin-bottom:.5rem;}
+/* === 🎉 Dopamina: baixas do dia === */
+.pd-dopa{border-radius:var(--radius-lg);padding:1.1rem 1.4rem;margin-bottom:1.25rem;color:#fff;position:relative;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.08);}
+.pd-dopa.tem{background:linear-gradient(120deg,#059669 0%,#0d9488 45%,#B87333 115%);}
+.pd-dopa.zero{background:linear-gradient(120deg,#334155,#475569);}
+.pd-dopa-head{display:flex;align-items:center;gap:1rem;position:relative;z-index:1;}
+.pd-dopa-total{font-size:3rem;font-weight:900;line-height:1;min-width:66px;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.25);}
+.pd-dopa-titulo{font-size:1.05rem;font-weight:800;}
+.pd-dopa-frase{font-size:.82rem;opacity:.92;margin-top:.15rem;}
+.pd-dopa-stats{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem;position:relative;z-index:1;}
+.pd-dopa-stat{background:rgba(255,255,255,.16);border-radius:10px;padding:.5rem .85rem;display:flex;align-items:center;gap:.45rem;}
+.pd-dopa-stat .n{font-size:1.25rem;font-weight:800;}
+.pd-dopa-stat .l{font-size:.72rem;font-weight:600;opacity:.92;}
+.pd-dopa-stat.z{opacity:.5;}
+@keyframes pdPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}
+.pd-dopa.tem .pd-dopa-total{animation:pdPop .5s ease-out both;}
+.pd-dopa.tem::after{content:'';position:absolute;top:-60%;right:-8%;width:260px;height:260px;background:radial-gradient(circle,rgba(255,255,255,.20),transparent 70%);pointer-events:none;}
+@media print{.pd-dopa{display:none;}}
 </style>
 
 <!-- Saudação -->
@@ -392,6 +459,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <?php endif; ?>
 </div>
+
+<!-- 🎉 Dopamina: o que já foi cumprido hoje -->
+<div class="pd-dopa <?= $dopaTotal > 0 ? 'tem' : 'zero' ?>">
+    <div class="pd-dopa-head">
+        <div class="pd-dopa-total" id="pdDopaTotal" data-n="<?= (int)$dopaTotal ?>"><?= (int)$dopaTotal ?></div>
+        <div>
+            <div class="pd-dopa-titulo"><?= $dopaTitulo ?></div>
+            <div class="pd-dopa-frase"><?= $dopaFrase ?></div>
+        </div>
+    </div>
+    <div class="pd-dopa-stats">
+        <div class="pd-dopa-stat <?= $dopa['tarefas'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['tarefas'] ?></span><span class="l">✅ Tarefas</span></div>
+        <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
+        <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
+        <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
+    </div>
+</div>
+<script>
+(function(){
+    var el = document.getElementById('pdDopaTotal');
+    if (!el) return;
+    var n = parseInt(el.dataset.n || '0', 10);
+    if (n <= 0) return;
+    var c = 0, step = Math.max(1, Math.round(n / 18));
+    el.textContent = '0';
+    var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = c; }, 45);
+})();
+</script>
 
 <?php
 // ══════════════════════════════════════════════════════════════════════
