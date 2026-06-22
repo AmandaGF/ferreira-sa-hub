@@ -197,22 +197,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registr
         $n++;
     }
 
+    // cliente que renunciou/desistiu perde o acesso à Central VIP (automático)
+    $vipOff = false;
+    try {
+        $uv = $pdo->prepare("UPDATE salavip_usuarios SET ativo = 0 WHERE cliente_id = ?");
+        $uv->execute(array($clientId));
+        $vipOff = $uv->rowCount() > 0;
+        if ($vipOff) audit_log('desativar_salavip', 'client', $clientId, 'auto via renúncia/desistência');
+    } catch (Exception $e) {}
+
     if (function_exists('notify_gestao')) {
         notify_gestao('Pedido de ' . $tipoLabel . ' registrado', $n . ' processo(s) — operacional precisa juntar o pedido na pasta.', 'pendencia', url('modules/tarefas/'), '📌');
     }
 
-    flash_set('success', 'Registro de ' . $tipoLabel . ' salvo para ' . $n . ' processo(s). Comprovante anexado e tarefa aberta pro operacional em cada pasta.');
+    flash_set('success', 'Registro de ' . $tipoLabel . ' salvo para ' . $n . ' processo(s). Comprovante anexado e tarefa aberta pro operacional em cada pasta.'
+                       . ($vipOff ? ' A Central VIP do cliente foi desabilitada.' : ''));
     redirect(module_url('processos', 'renuncias.php') . '#historico');
+}
+
+// ── POST: ligar/desligar Central VIP de um cliente ───────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'toggle_vip') {
+    if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('processos', 'renuncias.php') . '#historico'); }
+    if (has_min_role('gestao')) {
+        $cid  = (int)($_POST['client_id'] ?? 0);
+        $novo = !empty($_POST['ativar']) ? 1 : 0;
+        $sv = $pdo->prepare("SELECT id FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+        $sv->execute(array($cid));
+        if ($sv->fetch()) {
+            $pdo->prepare("UPDATE salavip_usuarios SET ativo = ? WHERE cliente_id = ?")->execute(array($novo, $cid));
+            audit_log($novo ? 'reativar_salavip' : 'desativar_salavip', 'client', $cid, 'via renúncias');
+            flash_set('success', $novo ? 'Central VIP reabilitada — o cliente entra com a senha de antes.' : 'Central VIP desabilitada — o cliente não consegue mais entrar (conta/senha preservadas).');
+        } else {
+            flash_set('error', 'Esse cliente não tem conta na Central VIP.');
+        }
+    } else { flash_set('error', 'Só gestão/admin pode mexer na Central VIP.'); }
+    redirect(module_url('processos', 'renuncias.php') . '#historico');
+}
+
+// ── POST: dar baixa na tarefa do operacional ─────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'baixar_tarefa') {
+    if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('processos', 'renuncias.php') . '#operacional'); }
+    $tid = (int)($_POST['task_id'] ?? 0);
+    if ($tid) {
+        $pdo->prepare("UPDATE case_tasks SET status = 'concluido', completed_at = NOW() WHERE id = ?")->execute(array($tid));
+        audit_log('renuncia_tarefa_baixa', 'task', $tid, 'baixa via renúncias');
+        flash_set('success', 'Tarefa concluída! 🎉');
+    }
+    redirect(module_url('processos', 'renuncias.php') . '#operacional');
 }
 
 // ── Dados: histórico ─────────────────────────────────────
 $lista = $pdo->query("SELECT r.*, c.title AS case_title, c.case_number, c.drive_folder_url,
-                             cl.name AS client_name, u.name AS reg_por
+                             cl.name AS client_name, u.name AS reg_por,
+                             sv.id AS vip_id, sv.ativo AS vip_ativo
                       FROM renuncias r
                       JOIN cases c ON c.id = r.case_id
                       JOIN clients cl ON cl.id = r.client_id
                       LEFT JOIN users u ON u.id = r.created_by
+                      LEFT JOIN salavip_usuarios sv ON sv.cliente_id = r.client_id
                       ORDER BY r.created_at DESC LIMIT 500")->fetchAll();
+
+// ── Dados: operacional (tarefas de renúncia/desistência ainda abertas) ──
+$opTarefas = $pdo->query("SELECT r.id, r.tipo, r.motivo, r.motivo_outro, r.case_id, r.client_id,
+                                 r.task_id, c.title AS case_title, c.case_number, c.drive_folder_url,
+                                 cl.name AS client_name, t.title AS task_title, t.due_date
+                          FROM renuncias r
+                          JOIN case_tasks t ON t.id = r.task_id
+                          JOIN cases c ON c.id = r.case_id
+                          JOIN clients cl ON cl.id = r.client_id
+                          WHERE t.status <> 'concluido'
+                          ORDER BY r.created_at DESC LIMIT 300")->fetchAll();
 
 // ── Dados: métricas ──────────────────────────────────────
 $mTotal = (int)$pdo->query("SELECT COUNT(*) FROM renuncias")->fetchColumn();
@@ -285,6 +339,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div class="rd-tabs">
   <button type="button" class="rd-tab active" data-pane="registrar" onclick="rdTab(this)">➕ Registrar</button>
+  <button type="button" class="rd-tab" data-pane="operacional" onclick="rdTab(this)">🛠️ Operacional <span style="opacity:.6;">(<?= count($opTarefas) ?>)</span></button>
   <button type="button" class="rd-tab" data-pane="historico" onclick="rdTab(this)">📜 Histórico <span style="opacity:.6;">(<?= count($lista) ?>)</span></button>
   <button type="button" class="rd-tab" data-pane="metricas" onclick="rdTab(this)">📊 Métricas</button>
 </div>
@@ -346,6 +401,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
   </div>
 </div>
 
+<!-- ABA OPERACIONAL -->
+<div class="rd-pane" id="pane-operacional">
+  <div class="text-sm text-muted" style="margin-bottom:10px;">Tarefas de renúncia/desistência ainda abertas. Elabore a petição (modelo pronto) e dê baixa quando juntar na pasta.</div>
+  <?php if (!$opTarefas): ?>
+    <div class="rd-empty">🎉 Nada pendente no operacional.</div>
+  <?php else: ?>
+  <div style="overflow-x:auto;">
+  <table class="rd-table">
+    <thead><tr><th>Tipo</th><th>Cliente</th><th>Processo</th><th>Motivo</th><th>Pasta</th><th>Ações</th></tr></thead>
+    <tbody>
+      <?php foreach ($opTarefas as $r):
+        $mot = $r['motivo'] === 'outro' ? ($r['motivo_outro'] ?: 'Outro') : ($MOTIVOS[$r['motivo']] ?? $r['motivo']);
+        $tpl = $r['tipo'] === 'renuncia' ? 'renuncia_poderes' : 'desistencia_acao';
+        $petUrl = url('modules/documentos/gerar.php') . '?tipo=' . $tpl . '&client_id=' . (int)$r['client_id'];
+      ?>
+      <tr>
+        <td><span class="rd-chip <?= e($r['tipo']) ?>"><?= e($TIPOS[$r['tipo']] ?? $r['tipo']) ?></span></td>
+        <td><?= e($r['client_name']) ?></td>
+        <td><?= e($r['case_number'] ?: $r['case_title']) ?></td>
+        <td><?= e($mot) ?></td>
+        <td><?php if ($r['drive_folder_url']): ?><a href="<?= e($r['drive_folder_url']) ?>" target="_blank" rel="noopener">📁 Drive</a><?php else: ?>—<?php endif; ?></td>
+        <td style="white-space:nowrap;">
+          <a href="<?= e($petUrl) ?>" target="_blank" rel="noopener" class="btn btn-outline btn-sm" title="Abre o modelo de <?= e($TIPOS[$r['tipo']]) ?> já com o cliente">📝 Elaborar petição</a>
+          <form method="post" action="<?= module_url('processos', 'renuncias.php') ?>" style="display:inline;" onsubmit="return confirm('Dar baixa? A tarefa some daqui.');">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+            <input type="hidden" name="acao" value="baixar_tarefa">
+            <input type="hidden" name="task_id" value="<?= (int)$r['task_id'] ?>">
+            <button type="submit" class="btn btn-primary btn-sm">✅ Dar baixa</button>
+          </form>
+        </td>
+      </tr>
+      <?php endforeach; ?>
+    </tbody>
+  </table>
+  </div>
+  <?php endif; ?>
+</div>
+
 <!-- ABA HISTÓRICO -->
 <div class="rd-pane" id="pane-historico">
   <?php if (!$lista): ?>
@@ -353,7 +446,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
   <?php else: ?>
   <div style="overflow-x:auto;">
   <table class="rd-table">
-    <thead><tr><th>Data</th><th>Tipo</th><th>Cliente</th><th>Processo</th><th>Motivo</th><th>Registrado por</th><th>Comprovante</th><th>Pasta</th></tr></thead>
+    <thead><tr><th>Data</th><th>Tipo</th><th>Cliente</th><th>Processo</th><th>Motivo</th><th>Registrado por</th><th>Comprovante</th><th>Pasta</th><th>Central VIP</th></tr></thead>
     <tbody>
       <?php foreach ($lista as $r):
         $mot = $r['motivo'] === 'outro' ? ($r['motivo_outro'] ?: 'Outro') : ($MOTIVOS[$r['motivo']] ?? $r['motivo']);
@@ -367,6 +460,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <td><?= e($r['reg_por'] ?: '—') ?></td>
         <td><?php if ($r['comprovante_path']): ?><a href="?baixar=<?= (int)$r['id'] ?>" target="_blank" rel="noopener">📎 abrir</a><?php else: ?>—<?php endif; ?></td>
         <td><?php if ($r['drive_folder_url']): ?><a href="<?= e($r['drive_folder_url']) ?>" target="_blank" rel="noopener">📁 Drive</a><?php else: ?>—<?php endif; ?></td>
+        <td style="white-space:nowrap;">
+          <?php if ($r['vip_id']): ?>
+            <?php if ($r['vip_ativo']): ?>
+              <span class="rd-chip" style="background:#dcfce7;color:#15803d;">Ativa</span>
+              <?php if (has_min_role('gestao')): ?>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Desabilitar a Central VIP desse cliente?');">
+                <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="toggle_vip">
+                <input type="hidden" name="client_id" value="<?= (int)$r['client_id'] ?>"><input type="hidden" name="ativar" value="0">
+                <button type="submit" class="btn btn-outline btn-sm" style="padding:2px 8px;">Desabilitar</button>
+              </form>
+              <?php endif; ?>
+            <?php else: ?>
+              <span class="rd-chip" style="background:#fee2e2;color:#b91c1c;">Desabilitada</span>
+              <?php if (has_min_role('gestao')): ?>
+              <form method="post" style="display:inline;" onsubmit="return confirm('Reabilitar a Central VIP desse cliente?');">
+                <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="toggle_vip">
+                <input type="hidden" name="client_id" value="<?= (int)$r['client_id'] ?>"><input type="hidden" name="ativar" value="1">
+                <button type="submit" class="btn btn-outline btn-sm" style="padding:2px 8px;">Reabilitar</button>
+              </form>
+              <?php endif; ?>
+            <?php endif; ?>
+          <?php else: ?>
+            <span class="text-muted" style="font-size:.78rem;">sem conta</span>
+          <?php endif; ?>
+        </td>
       </tr>
       <?php endforeach; ?>
     </tbody>
