@@ -18,11 +18,13 @@ try {
         lead_id INT NULL,
         observacao TEXT NULL,
         proximo_followup DATE NULL,
+        status VARCHAR(20) NULL,
         atualizado_por INT NULL,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     echo "✓ comercial_lead_obs\n";
 } catch (Exception $e) { echo "⚠️ comercial_lead_obs: " . $e->getMessage() . "\n"; }
+try { $pdo->exec("ALTER TABLE comercial_lead_obs ADD COLUMN status VARCHAR(20) NULL"); echo "✓ status\n"; } catch (Exception $e) { echo "[SKIP] status já existe\n"; }
 
 try {
     $pdo->exec("CREATE TABLE IF NOT EXISTS comercial_cobranca (

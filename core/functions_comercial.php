@@ -26,10 +26,13 @@ function comercial_self_heal($pdo)
             lead_id INT NULL,
             observacao TEXT NULL,
             proximo_followup DATE NULL,
+            status VARCHAR(20) NULL,
             atualizado_por INT NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     } catch (Exception $e) {}
+    // status: 'aquecendo' (fixa no follow-up) | 'resolvido' (sai do follow-up) | NULL
+    try { $pdo->exec("ALTER TABLE comercial_lead_obs ADD COLUMN status VARCHAR(20) NULL"); } catch (Exception $e) {}
     try {
         $pdo->exec("CREATE TABLE IF NOT EXISTS comercial_cobranca (
             conversa_id INT NOT NULL PRIMARY KEY,
@@ -90,15 +93,24 @@ function comercial_responsavel_id($row)
  * @param int $minMinutos exige que a última msg seja MAIS VELHA que N min (0 = ignora)
  * @param int $maxMinutos exige que a última msg seja MAIS NOVA que N min (0 = ignora) —
  *                        usado pela cobrança pra só perseguir conversas recentes
+ * @param string|null $statusEq se informado (ex: 'aquecendo'), ignora direção/janela e
+ *                        traz só as conversas com esse status manual (lo.status)
  */
-function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $maxMinutos = 0, $limit = 300)
+function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $maxMinutos = 0, $limit = 300, $statusEq = null)
 {
-    $where  = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
-               AND co.status NOT IN ('resolvido','arquivado') AND lm.direcao = ?";
-    $params = array($direcao);
-    if ($diasMax > 0)    $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
-    if ($minMinutos > 0) $where .= " AND lm.created_at <= DATE_SUB(NOW(), INTERVAL " . (int)$minMinutos . " MINUTE)";
-    if ($maxMinutos > 0) $where .= " AND lm.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$maxMinutos . " MINUTE)";
+    if ($statusEq !== null) {
+        // Modo "fixado": traz as conversas marcadas com esse status, independente de
+        // direção da última msg ou janela de tempo (ex: leads "aquecendo").
+        $where  = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL) AND lo.status = ?";
+        $params = array($statusEq);
+    } else {
+        $where  = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
+                   AND co.status NOT IN ('resolvido','arquivado') AND lm.direcao = ?";
+        $params = array($direcao);
+        if ($diasMax > 0)    $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
+        if ($minMinutos > 0) $where .= " AND lm.created_at <= DATE_SUB(NOW(), INTERVAL " . (int)$minMinutos . " MINUTE)";
+        if ($maxMinutos > 0) $where .= " AND lm.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$maxMinutos . " MINUTE)";
+    }
 
     $sql = "SELECT co.id AS conversa_id, co.telefone, co.nome_contato, co.atendente_id,
                    co.lead_id, co.client_id, co.created_at AS conversa_em, co.status,
@@ -110,7 +122,7 @@ function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $maxMin
                      ORDER BY mm.id DESC LIMIT 1) AS ultimo_resp_id,
                    (SELECT MAX(mm.created_at) FROM zapi_mensagens mm
                      WHERE mm.conversa_id = co.id AND mm.direcao = 'enviada') AS ultima_nossa_em,
-                   lo.observacao, lo.proximo_followup
+                   lo.observacao, lo.proximo_followup, lo.status
             FROM zapi_conversas co
             JOIN (
                 SELECT m.conversa_id, m.id, m.direcao, m.created_at, m.conteudo

@@ -47,6 +47,26 @@ if ($action === 'salvar_obs') {
     exit;
 }
 
+if ($action === 'definir_status') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if ($convId <= 0) { echo json_encode(array('ok' => false, 'error' => 'Conversa inválida')); exit; }
+    $status = $_POST['status'] ?? '';
+    if (!in_array($status, array('aquecendo', 'resolvido', ''), true)) {
+        echo json_encode(array('ok' => false, 'error' => 'Status inválido')); exit;
+    }
+    $statusVal = $status !== '' ? $status : null;
+    $leadId  = (int)($_POST['lead_id'] ?? 0);
+    $leadVal = $leadId > 0 ? $leadId : null;
+
+    $pdo->prepare("INSERT INTO comercial_lead_obs (conversa_id, lead_id, status, atualizado_por)
+                   VALUES (?, ?, ?, ?)
+                   ON DUPLICATE KEY UPDATE status = VALUES(status), atualizado_por = VALUES(atualizado_por)")
+        ->execute(array($convId, $leadVal, $statusVal, current_user_id()));
+
+    echo json_encode(array('ok' => true));
+    exit;
+}
+
 if ($action === 'preview_cobranca') {
     if (!has_min_role('gestao')) { http_response_code(403); echo json_encode(array('ok' => false, 'error' => 'Sem permissão')); exit; }
     $rep = comercial_rodar_cobranca($pdo, array('dry' => true, 'forcar_horario' => true, 'ignorar_ativo' => true));

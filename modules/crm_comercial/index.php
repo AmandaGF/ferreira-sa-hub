@@ -38,7 +38,18 @@ $cfg = comercial_cfg($pdo);
 
 // ── Dados ────────────────────────────────────────────────
 $pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300); // última msg = do lead
-$followups = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);  // última msg = nossa, lead sumiu
+
+// Follow-up = última msg nossa (45d) + leads "aquecendo" (fixados), menos os "resolvido".
+$fupRaw    = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);
+$aquecendo = comercial_fetch($pdo, 'enviada', 0, 0, 0, 300, 'aquecendo'); // fixados, sempre na lista
+$aqIds = array();
+foreach ($aquecendo as $a) $aqIds[(int)$a['conversa_id']] = true;
+$followups = $aquecendo; // fixados primeiro
+foreach ($fupRaw as $f) {
+    if (($f['status'] ?? '') === 'resolvido') continue;      // resolvido sai da lista
+    if (isset($aqIds[(int)$f['conversa_id']])) continue;     // já listado como aquecendo
+    $followups[] = $f;
+}
 $umap = comercial_users_map($pdo);
 
 function cc_e($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
@@ -104,6 +115,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cc-btn.ghost { background:#fff; color:#0f3d3e; border:1px solid #0f3d3e; }
 .cc-switch { display:flex; align-items:center; gap:8px; font-weight:600; color:#444; }
 .cc-preview { margin-top:12px; background:#f7f9f9; border:1px dashed #bcd; border-radius:8px; padding:12px; font-size:13px; white-space:pre-wrap; display:none; }
+.cc-aq { background:#fff; border:1px solid #e0a64a; color:#b9770e; border-radius:8px; padding:6px 10px; font-weight:600; cursor:pointer; font-size:12.5px; }
+.cc-aq:hover { background:#fff4e0; }
+.cc-aq.on { background:#fff4e0; border-color:#d98a1f; color:#9c5d05; box-shadow:inset 0 0 0 1px #d98a1f; }
+.cc-rs { background:#fff; border:1px solid #cfd8d6; color:#3a6b5f; border-radius:8px; padding:6px 10px; font-weight:600; cursor:pointer; font-size:12.5px; }
+.cc-rs:hover { background:#e8f3f1; }
+tr.cc-pin { background:#fffaf0; }
+tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
 </style>
 
 <div class="page-header" style="margin-bottom:14px;">
@@ -181,15 +199,22 @@ function cc_render_tabela($rows, $umap, $modo)
         $tema = $r['case_type'] ? $r['case_type'] : '';
         $prox = $r['proximo_followup'] ?? '';
         $obs  = $r['observacao'] ?? '';
+        $aquecido = (($r['status'] ?? '') === 'aquecendo');
 
-        echo '<tr>';
+        echo '<tr class="' . ($modo === 'followup' && $aquecido ? 'cc-pin' : '') . '">';
         echo '<td><a class="cc-nome" href="' . cc_e($abrir) . '">' . cc_e($nome) . '</a>';
         echo '<div class="cc-sub">' . cc_e($r['telefone']) . ($tema ? ' · ' . cc_e($tema) : '') . '</div></td>';
         echo '<td><span class="cc-chip ' . ($semDono ? 'semdono' : 'dono') . '">' . cc_e($semDono ? 'sem dono' : strtok($respNome, ' ')) . '</span></td>';
         echo '<td><span class="cc-chip ' . $classeTempo . '">' . cc_e(cc_tempo($baseTempo)) . '</span></td>';
         echo '<td><textarea class="cc-obs" data-conv="' . $convId . '" data-lead="' . (int)$r['lead_id'] . '" placeholder="Anotações, combinados, próximo passo…" onblur="ccSalvarObs(this)">' . cc_e($obs) . '</textarea></td>';
         echo '<td><input type="date" class="cc-date" data-conv="' . $convId . '" data-lead="' . (int)$r['lead_id'] . '" value="' . cc_e($prox) . '" onchange="ccSalvarObs(this)"></td>';
-        echo '<td><a class="cc-btn ghost" style="padding:6px 10px; text-decoration:none;" href="' . cc_e($abrir) . '">Abrir</a></td>';
+        echo '<td style="white-space:nowrap;">';
+        if ($modo === 'followup') {
+            echo '<button type="button" class="cc-aq' . ($aquecido ? ' on' : '') . '" data-lead="' . (int)$r['lead_id'] . '" onclick="ccAquecer(' . $convId . ',' . (int)$r['lead_id'] . ',this)" title="Fixar na lista de follow-up">🔥 ' . ($aquecido ? 'Aquecendo' : 'Aquecer') . '</button> ';
+            echo '<button type="button" class="cc-rs" onclick="ccResolver(' . $convId . ',' . (int)$r['lead_id'] . ',this)" title="Tirar da lista de follow-up">✅ Resolvido</button> ';
+        }
+        echo '<a class="cc-btn ghost" style="padding:6px 10px; text-decoration:none;" href="' . cc_e($abrir) . '">Abrir</a>';
+        echo '</td>';
         echo '</tr>';
     }
     echo '</tbody></table>';
@@ -243,6 +268,28 @@ function ccSalvarObs(el) {
     } else {
       alert('⚠️ Não consegui salvar a observação. Recarregue a página (F5).');
     }
+  });
+}
+
+// 🔥 Aquecer/desaquecer: fixa (ou solta) o lead na lista de follow-up
+function ccAquecer(conv, lead, btn) {
+  var ativo = btn.classList.contains('on');
+  var novo = ativo ? '' : 'aquecendo';
+  ccPost({ action:'definir_status', conversa_id:conv, lead_id:lead, status:novo }, function(resp){
+    if (!resp || !resp.ok) { alert('⚠️ Não consegui salvar. Recarregue (F5).'); return; }
+    var tr = btn.closest('tr');
+    if (novo === 'aquecendo') { btn.classList.add('on'); btn.textContent = '🔥 Aquecendo'; if (tr) tr.classList.add('cc-pin'); }
+    else { btn.classList.remove('on'); btn.textContent = '🔥 Aquecer'; if (tr) tr.classList.remove('cc-pin'); }
+  });
+}
+
+// ✅ Resolvido: tira o lead da lista de follow-up
+function ccResolver(conv, lead, btn) {
+  if (!confirm('Marcar como resolvido? O lead sai da lista de follow-up.')) return;
+  ccPost({ action:'definir_status', conversa_id:conv, lead_id:lead, status:'resolvido' }, function(resp){
+    if (!resp || !resp.ok) { alert('⚠️ Não consegui salvar. Recarregue (F5).'); return; }
+    var tr = btn.closest('tr');
+    if (tr) { tr.style.transition = 'opacity .3s'; tr.style.opacity = '0'; setTimeout(function(){ tr.remove(); }, 300); }
   });
 }
 
