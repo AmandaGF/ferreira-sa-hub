@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_
         audit_log('marketing_invest_salvar', 'configuracoes', 0, $ym);
         flash_set('success', 'Investimento de ' . $ym . ' salvo.');
     }
-    redirect(module_url('whatsapp', 'conversas_novas.php') . '?gran=' . urlencode($gran) . ($incluirGrupos ? '&grupos=1' : ''));
+    redirect(module_url('whatsapp', 'conversas_novas.php') . '?gran=' . urlencode($gran) . ($incluirGrupos ? '&grupos=1' : '') . '&invmes=' . urlencode($ym) . '#invest');
 }
 
 // ── Intervalo ────────────────────────────────────────────
@@ -137,13 +137,18 @@ $cac24 = $tot24 > 0 ? $totInv24 / $tot24 : null;
 $totInvGeral = $totInv21 + $totInv24;
 $cacGeral = $totGeral > 0 && $totInvGeral > 0 ? $totInvGeral / $totGeral : null;
 
-// Pré-preenche o editor de investimento com o mês corrente
-$invEditMes = date('Y-m');
+// Editor de investimento: mês escolhido (?invmes) ou o corrente; + lista de TODOS os lançamentos
+$invEditMes = (isset($_GET['invmes']) && preg_match('/^\d{4}-\d{2}$/', $_GET['invmes'])) ? $_GET['invmes'] : date('Y-m');
 $invEdit = array('21' => '', '24' => '');
+$invAll = array();
 try {
     $ie = $pdo->prepare("SELECT canal, valor_cents FROM marketing_investimento WHERE ano_mes = ?");
     $ie->execute(array($invEditMes));
     foreach ($ie->fetchAll() as $r) $invEdit[$r['canal']] = number_format($r['valor_cents'] / 100, 2, '.', '');
+
+    foreach ($pdo->query("SELECT ano_mes, canal, valor_cents FROM marketing_investimento ORDER BY ano_mes DESC")->fetchAll() as $r) {
+        $invAll[$r['ano_mes']][$r['canal']] = (int)$r['valor_cents'];
+    }
 } catch (Exception $e) {}
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -217,17 +222,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="cn-card c24"><div class="num money"><?= $cac24 !== null ? $cnFmt($cac24) : '—' ?></div><div class="lbl">CAC CX (24)</div></div>
 </div>
 
-<details class="cn-invest">
-    <summary>💰 Lançar investimento em anúncios (para calcular o CAC)</summary>
+<details id="invest" class="cn-invest" <?= isset($_GET['invmes']) ? 'open' : '' ?>>
+    <summary>💰 Investimento em anúncios (lançar / editar / ver histórico)</summary>
     <form method="POST">
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar_invest">
+        <input type="hidden" name="gran" value="<?= e($gran) ?>">
         <label>Mês <input type="month" name="inv_mes" value="<?= e($invEditMes) ?>" required></label>
         <label>Comercial (21) — R$ <input type="number" step="0.01" min="0" name="inv_21" value="<?= e($invEdit['21']) ?>" placeholder="0,00" style="width:130px;"></label>
         <label>CX/Operac. (24) — R$ <input type="number" step="0.01" min="0" name="inv_24" value="<?= e($invEdit['24']) ?>" placeholder="0,00" style="width:130px;"></label>
         <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
     </form>
-    <p class="text-sm text-muted" style="margin:0 0 .5rem;">Lance o gasto com anúncios do mês, por canal. <strong>CAC = investimento ÷ conversas novas.</strong> Nas visões diária/semanal o investimento do mês é rateado por dia. (Mostra o mês atual; mude o mês pra lançar outro.)</p>
+    <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês, por canal. <strong>CAC = investimento ÷ conversas novas.</strong> Para comparar mês a mês (e decidir aumentar/diminuir o gasto), use a aba <strong>Mensal</strong> acima. Nas visões diária/semanal o investimento é rateado por dia.</p>
+
+    <?php if (!empty($invAll)): ?>
+    <div style="overflow-x:auto;margin-bottom:.7rem;">
+        <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.3rem;">Lançamentos registrados</div>
+        <table class="cn-table" style="font-size:.78rem;">
+            <thead><tr><th>Mês</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th></th></tr></thead>
+            <tbody>
+                <?php foreach ($invAll as $ym => $vals):
+                    $i21 = isset($vals['21']) ? $vals['21'] : 0;
+                    $i24 = isset($vals['24']) ? $vals['24'] : 0;
+                    $yy = explode('-', $ym);
+                    $mlbl = $mesesAbr[(int)$yy[1]] . '/' . $yy[0];
+                    $qsE = $_GET; $qsE['invmes'] = $ym;
+                ?>
+                <tr>
+                    <td><?= e($mlbl) ?></td>
+                    <td><?= $cnFmt($i21) ?></td>
+                    <td><?= $cnFmt($i24) ?></td>
+                    <td><strong><?= $cnFmt($i21 + $i24) ?></strong></td>
+                    <td style="text-align:center;"><a href="?<?= http_build_query($qsE) ?>#invest" style="font-size:.72rem;font-weight:700;color:#6366f1;text-decoration:none;">✏️ editar</a></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php endif; ?>
 </details>
 
 <div class="cn-chartbox">
