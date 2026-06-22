@@ -1,31 +1,24 @@
 <?php
-/** Diag temporário: exercita comercial_fetch (read-only). Remover após uso. */
+/** Diag temporário: render-test do módulo CRM Comercial com sessão fake. Remover após uso. */
 if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); die('nope'); }
-header('Content-Type: text/plain; charset=utf-8');
-require_once __DIR__ . '/core/config.php';
-require_once __DIR__ . '/core/database.php';
-require_once __DIR__ . '/core/functions.php';
-require_once __DIR__ . '/core/functions_comercial.php';
-$pdo = db();
-comercial_self_heal($pdo);
 
-try {
-    $cron = comercial_fetch($pdo, 'recebida', 0, 5, 48 * 60, 200);
-    echo "COBRANCA (ultima=lead, 5min-48h): " . count($cron) . " (esses seriam cobrados ao ligar)\n\n";
-    $pend = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300);
-    echo "PENDENTES PAGINA (ultima=lead, 45d): " . count($pend) . "\n";
-    foreach (array_slice($pend, 0, 5) as $r) {
-        $resp = comercial_responsavel_id($r);
-        echo "  conv#{$r['conversa_id']} " . ($r['lead_name'] ?: $r['nome_contato'] ?: $r['telefone'])
-           . " | resp=" . ($resp ?: 'sem dono') . " | ult=" . $r['ultima_em'] . "\n";
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR), true)) {
+        echo "\n\n!!! FATAL: " . $e['message'] . " em " . $e['file'] . ":" . $e['line'] . "\n";
     }
-    $fup = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);
-    echo "\nFOLLOW-UP (ultima=nossa, 45d): " . count($fup) . "\n";
-    foreach (array_slice($fup, 0, 5) as $r) {
-        echo "  conv#{$r['conversa_id']} " . ($r['lead_name'] ?: $r['nome_contato'] ?: $r['telefone'])
-           . " | ult_nossa=" . $r['ultima_nossa_em'] . "\n";
-    }
-    echo "\nOK — queries rodaram sem erro.\n";
-} catch (Exception $e) {
-    echo "ERRO SQL: " . $e->getMessage() . "\n";
-}
+});
+
+@session_start();
+$_SESSION['user'] = array('id' => 1, 'name' => 'Amanda Ferreira', 'email' => 'a@a.com', 'role' => 'admin');
+
+ob_start();
+require __DIR__ . '/modules/crm_comercial/index.php';
+$html = ob_get_clean();
+
+header('Content-Type: text/plain; charset=utf-8');
+echo "RENDER OK — bytes: " . strlen($html) . "\n";
+echo "tem aba 'Responder agora': " . (strpos($html, 'Responder agora') !== false ? 'sim' : 'NAO') . "\n";
+echo "tem aba 'Follow-up': "      . (strpos($html, 'Follow-up') !== false ? 'sim' : 'NAO') . "\n";
+echo "tem painel config: "        . (strpos($html, 'Cobrança automática') !== false ? 'sim' : 'NAO') . "\n";
+echo "erro PHP no html: "         . (strpos($html, 'Fatal error') !== false || strpos($html, 'Warning:') !== false ? 'SIM (ver abaixo)' : 'nao') . "\n";
