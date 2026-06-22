@@ -30,12 +30,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_
     validate_csrf();
     $ym = trim($_POST['inv_mes'] ?? '');
     if (preg_match('/^\d{4}-\d{2}$/', $ym)) {
+        // CAC só no canal 21 (o 24 recebe leads por erro de campanha — fora do CAC por ora)
         $up = $pdo->prepare("INSERT INTO marketing_investimento (ano_mes, canal, valor_cents, updated_by)
                              VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor_cents=VALUES(valor_cents), updated_by=VALUES(updated_by)");
-        foreach (array('21','24') as $cc) {
-            $cents = (int) round(((float)($_POST['inv_' . $cc] ?? 0)) * 100);
-            $up->execute(array($ym, $cc, max(0, $cents), current_user_id()));
-        }
+        $cents = (int) round(((float)($_POST['inv_21'] ?? 0)) * 100);
+        $up->execute(array($ym, '21', max(0, $cents), current_user_id()));
         audit_log('marketing_invest_salvar', 'configuracoes', 0, $ym);
         flash_set('success', 'Investimento de ' . $ym . ' salvo.');
     }
@@ -80,14 +79,15 @@ try {
 
 // ── Buckets ordenados (preenche zeros nos períodos sem conversa) ──
 $mesesAbr = array(1=>'jan',2=>'fev',3=>'mar',4=>'abr',5=>'mai',6=>'jun',7=>'jul',8=>'ago',9=>'set',10=>'out',11=>'nov',12=>'dez');
-$buckets = array();
+$buckets = array();      // rótulo curto (eixo do gráfico)
+$bucketsFull = array();  // rótulo completo (tabela) — na semana mostra o intervalo de datas
 $cur = clone $ini;
 if ($gran === 'dia') {
-    while ($cur <= $fim) { $buckets[$cur->format('Y-m-d')] = $cur->format('d/m'); $cur->modify('+1 day'); }
+    while ($cur <= $fim) { $k = $cur->format('Y-m-d'); $buckets[$k] = $cur->format('d/m'); $bucketsFull[$k] = $cur->format('d/m/Y'); $cur->modify('+1 day'); }
 } elseif ($gran === 'semana') {
-    while ($cur <= $fim) { $buckets[$cur->format('Y-m-d')] = $cur->format('d/m'); $cur->modify('+7 days'); }
+    while ($cur <= $fim) { $k = $cur->format('Y-m-d'); $fimSem = (clone $cur)->modify('+6 days'); $buckets[$k] = $cur->format('d/m'); $bucketsFull[$k] = $cur->format('d/m') . ' a ' . $fimSem->format('d/m'); $cur->modify('+7 days'); }
 } else {
-    while ($cur <= $fim) { $buckets[$cur->format('Y-m')] = $mesesAbr[(int)$cur->format('n')] . '/' . $cur->format('y'); $cur->modify('first day of next month'); }
+    while ($cur <= $fim) { $k = $cur->format('Y-m'); $lbl = $mesesAbr[(int)$cur->format('n')] . '/' . $cur->format('y'); $buckets[$k] = $lbl; $bucketsFull[$k] = $lbl; $cur->modify('first day of next month'); }
 }
 
 // ── Investimento (CAC): carrega por mês e rateia por dia em cada bucket ──
@@ -114,14 +114,14 @@ while ($cur3 <= $fim) {
     $cur3->modify('+1 day');
 }
 
-$labels = array(); $d21 = array(); $d24 = array(); $inv21Arr = array(); $inv24Arr = array();
+$labels = array(); $labelsTabela = array(); $d21 = array(); $d24 = array(); $inv21Arr = array(); $inv24Arr = array();
 $tot21 = 0; $tot24 = 0; $totInv21 = 0; $totInv24 = 0; $best = array('lbl' => '—', 'v' => 0);
 foreach ($buckets as $k => $lbl) {
     $v21 = isset($rows[$k]['21']) ? $rows[$k]['21'] : 0;
     $v24 = isset($rows[$k]['24']) ? $rows[$k]['24'] : 0;
     $i21 = isset($bucketInvest[$k]['21']) ? $bucketInvest[$k]['21'] : 0;
     $i24 = isset($bucketInvest[$k]['24']) ? $bucketInvest[$k]['24'] : 0;
-    $labels[] = $lbl; $d21[] = $v21; $d24[] = $v24; $inv21Arr[] = $i21; $inv24Arr[] = $i24;
+    $labels[] = $lbl; $labelsTabela[] = isset($bucketsFull[$k]) ? $bucketsFull[$k] : $lbl; $d21[] = $v21; $d24[] = $v24; $inv21Arr[] = $i21; $inv24Arr[] = $i24;
     $tot21 += $v21; $tot24 += $v24; $totInv21 += $i21; $totInv24 += $i24;
     if (($v21 + $v24) > $best['v']) $best = array('lbl' => $lbl, 'v' => $v21 + $v24);
 }
@@ -216,10 +216,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="cn-card c24"><div class="num"><?= $tot24 ?></div><div class="lbl">💬 CX/Operac. (24)</div></div>
     <div class="cn-card"><div class="num"><?= $media ?></div><div class="lbl">Média / <?= $granLabel[$gran] ?></div></div>
     <div class="cn-card"><div class="num"><?= (int)$best['v'] ?></div><div class="lbl">Pico (<?= e($best['lbl']) ?>)</div></div>
-    <div class="cn-card"><div class="num money"><?= $totInvGeral > 0 ? $cnFmt($totInvGeral) : '—' ?></div><div class="lbl">💰 Investido</div></div>
-    <div class="cn-card cac"><div class="num money"><?= $cacGeral !== null ? $cnFmt($cacGeral) : '—' ?></div><div class="lbl">CAC geral</div></div>
-    <div class="cn-card c21"><div class="num money"><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></div><div class="lbl">CAC Comercial (21)</div></div>
-    <div class="cn-card c24"><div class="num money"><?= $cac24 !== null ? $cnFmt($cac24) : '—' ?></div><div class="lbl">CAC CX (24)</div></div>
+    <div class="cn-card"><div class="num money"><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></div><div class="lbl">💰 Investido (21)</div></div>
+    <div class="cn-card cac"><div class="num money"><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></div><div class="lbl">CAC — Comercial (21)</div></div>
 </div>
 
 <details id="invest" class="cn-invest" <?= isset($_GET['invmes']) ? 'open' : '' ?>>
@@ -229,30 +227,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <input type="hidden" name="acao" value="salvar_invest">
         <input type="hidden" name="gran" value="<?= e($gran) ?>">
         <label>Mês <input type="month" name="inv_mes" value="<?= e($invEditMes) ?>" required></label>
-        <label>Comercial (21) — R$ <input type="number" step="0.01" min="0" name="inv_21" value="<?= e($invEdit['21']) ?>" placeholder="0,00" style="width:130px;"></label>
-        <label>CX/Operac. (24) — R$ <input type="number" step="0.01" min="0" name="inv_24" value="<?= e($invEdit['24']) ?>" placeholder="0,00" style="width:130px;"></label>
+        <label>Investimento em anúncios — Comercial (21) — R$ <input type="number" step="0.01" min="0" name="inv_21" value="<?= e($invEdit['21']) ?>" placeholder="0,00" style="width:140px;"></label>
         <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
     </form>
-    <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês, por canal. <strong>CAC = investimento ÷ conversas novas.</strong> Para comparar mês a mês (e decidir aumentar/diminuir o gasto), use a aba <strong>Mensal</strong> acima. Nas visões diária/semanal o investimento é rateado por dia.</p>
+    <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês no <strong>Comercial (21)</strong>. <strong>CAC = investimento ÷ conversas novas do 21.</strong> O canal 24 não entra no CAC por enquanto (recebe leads por erro de campanha). Para comparar mês a mês e decidir aumentar/diminuir o gasto, use a aba <strong>Mensal</strong>. Nas visões diária/semanal o investimento é rateado por dia.</p>
 
     <?php if (!empty($invAll)): ?>
     <div style="overflow-x:auto;margin-bottom:.7rem;">
         <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.3rem;">Lançamentos registrados</div>
         <table class="cn-table" style="font-size:.78rem;">
-            <thead><tr><th>Mês</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th></th></tr></thead>
+            <thead><tr><th>Mês</th><th>Investido — Comercial (21)</th><th></th></tr></thead>
             <tbody>
                 <?php foreach ($invAll as $ym => $vals):
                     $i21 = isset($vals['21']) ? $vals['21'] : 0;
-                    $i24 = isset($vals['24']) ? $vals['24'] : 0;
+                    if ($i21 <= 0) continue; // só mostra meses com investimento no 21
                     $yy = explode('-', $ym);
                     $mlbl = $mesesAbr[(int)$yy[1]] . '/' . $yy[0];
                     $qsE = $_GET; $qsE['invmes'] = $ym;
                 ?>
                 <tr>
                     <td><?= e($mlbl) ?></td>
-                    <td><?= $cnFmt($i21) ?></td>
-                    <td><?= $cnFmt($i24) ?></td>
-                    <td><strong><?= $cnFmt($i21 + $i24) ?></strong></td>
+                    <td><strong><?= $cnFmt($i21) ?></strong></td>
                     <td style="text-align:center;"><a href="?<?= http_build_query($qsE) ?>#invest" style="font-size:.72rem;font-weight:700;color:#6366f1;text-decoration:none;">✏️ editar</a></td>
                 </tr>
                 <?php endforeach; ?>
@@ -268,16 +263,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="overflow-x:auto;">
 <table class="cn-table">
-    <thead><tr><th>Período</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th>Investido</th><th>CAC</th></tr></thead>
+    <thead><tr><th>Período</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th>Investido (21)</th><th>CAC (21)</th></tr></thead>
     <tbody>
         <?php for ($i = count($labels)-1; $i >= 0; $i--): // mais recente primeiro
             $tt = $d21[$i] + $d24[$i];
-            $iv = $inv21Arr[$i] + $inv24Arr[$i];
-            $cac = ($tt > 0 && $iv > 0) ? $iv / $tt : null;
+            $iv = $inv21Arr[$i];                                 // CAC só do canal 21
+            $cac = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
         ?>
-            <tr><td><?= e($labels[$i]) ?></td><td><?= $d21[$i] ?></td><td><?= $d24[$i] ?></td><td><strong><?= $tt ?></strong></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
+            <tr><td><?= e($labelsTabela[$i]) ?></td><td><?= $d21[$i] ?></td><td><?= $d24[$i] ?></td><td><strong><?= $tt ?></strong></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
         <?php endfor; ?>
-        <tr class="tot"><td>TOTAL</td><td><?= $tot21 ?></td><td><?= $tot24 ?></td><td><?= $totGeral ?></td><td><?= $totInvGeral > 0 ? $cnFmt($totInvGeral) : '—' ?></td><td><?= $cacGeral !== null ? $cnFmt($cacGeral) : '—' ?></td></tr>
+        <tr class="tot"><td>TOTAL</td><td><?= $tot21 ?></td><td><?= $tot24 ?></td><td><?= $totGeral ?></td><td><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></td><td><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></td></tr>
     </tbody>
 </table>
 </div>
