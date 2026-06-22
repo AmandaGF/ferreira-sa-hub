@@ -79,7 +79,7 @@ if ($action === 'testar_grupo') {
     $cfg = comercial_cfg($pdo);
     if (empty($cfg['grupo_id'])) { echo json_encode(array('ok' => false, 'error' => 'Configure o ID do grupo primeiro.')); exit; }
     $canal = $cfg['grupo_canal'] ? $cfg['grupo_canal'] : '21';
-    $res = zapi_send_text($canal, $cfg['grupo_id'], "✅ Teste do Hub — as cobranças de leads pendentes chegarão neste grupo.");
+    $res = zapi_send_text($canal, $cfg['grupo_id'], "Fala povo, sou eu, Jorge, vindo aqui só para testar uma nova funcionalidade! TMJ e bora!");
     echo json_encode(array('ok' => !empty($res['ok']), 'error' => isset($res['erro']) ? $res['erro'] : ''));
     exit;
 }
