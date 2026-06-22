@@ -414,7 +414,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <?php foreach ($opTarefas as $r):
         $mot = $r['motivo'] === 'outro' ? ($r['motivo_outro'] ?: 'Outro') : ($MOTIVOS[$r['motivo']] ?? $r['motivo']);
         $tpl = $r['tipo'] === 'renuncia' ? 'renuncia_poderes' : 'desistencia_acao';
-        $petUrl = url('modules/documentos/gerar.php') . '?tipo=' . $tpl . '&client_id=' . (int)$r['client_id'];
+        $petUrl = url('modules/documentos/gerar.php') . '?tipo=' . $tpl . '&client_id=' . (int)$r['client_id'] . '&case_id=' . (int)$r['case_id'];
       ?>
       <tr>
         <td><span class="rd-chip <?= e($r['tipo']) ?>"><?= e($TIPOS[$r['tipo']] ?? $r['tipo']) ?></span></td>
