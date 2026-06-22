@@ -177,7 +177,7 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
 <?php if ($podeConfig): ?>
 <div class="cc-cfg" id="config">
   <h3>⚙️ Cobrança automática</h3>
-  <p class="muted">Quando um lead fica <strong><?= (int)$cfg['min'] ?> min</strong> sem resposta, o responsável é notificado (igual a um lead novo) e o grupo do WhatsApp recebe um resumo (máx. 1×/30min, em horário comercial).</p>
+  <p class="muted">Em <strong>horário comercial (9h–18h, seg–sex)</strong>, quando um lead fica <strong><?= (int)$cfg['min'] ?> min</strong> sem resposta, o responsável é notificado (igual a um lead novo) e o grupo recebe um resumo (máx. 1×/30min). Quem manda mensagem <strong>fora do horário</strong> e fica pendente entra numa <strong>mensagem de "bom dia"</strong> no grupo, no início do expediente.</p>
   <form method="post" action="<?= module_url('crm_comercial') ?>">
     <input type="hidden" name="acao" value="salvar_config">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>">

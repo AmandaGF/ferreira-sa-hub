@@ -52,6 +52,7 @@ function comercial_cfg($pdo)
         'grupo_canal'     => '21',
         'min'             => '5',    // minutos sem resposta pra cobrar
         'grupo_ultimo_em' => '',
+        'bomdia_data'     => '',     // último dia em que a msg de "bom dia" foi enviada
     );
     try {
         $rows = $pdo->query("SELECT chave, valor FROM configuracoes
@@ -62,6 +63,7 @@ function comercial_cfg($pdo)
             elseif ($r['chave'] === 'comercial_cobranca_canal')       $cfg['grupo_canal'] = $r['valor'];
             elseif ($r['chave'] === 'comercial_cobranca_min')         $cfg['min'] = $r['valor'];
             elseif ($r['chave'] === 'comercial_cobranca_grupo_ultimo_em') $cfg['grupo_ultimo_em'] = $r['valor'];
+            elseif ($r['chave'] === 'comercial_cobranca_bomdia_data')     $cfg['bomdia_data'] = $r['valor'];
         }
     } catch (Exception $e) {}
     return $cfg;
@@ -155,6 +157,52 @@ function comercial_users_map($pdo)
     return $map;
 }
 
+/** Horário comercial da cobrança: 9h–18h, de segunda a sexta. */
+function comercial_em_horario()
+{
+    $h  = (int)date('H');
+    $wd = (int)date('N'); // 1=seg … 7=dom
+    return ($wd <= 5) && ($h >= 9) && ($h < 18);
+}
+
+/** Um timestamp caiu FORA do horário comercial? (antes das 9h, das 18h em diante, ou fim de semana) */
+function comercial_fora_horario_ts($dt)
+{
+    if (!$dt) return false;
+    $t  = strtotime($dt);
+    $h  = (int)date('H', $t);
+    $wd = (int)date('N', $t);
+    return ($wd > 5) || ($h < 9) || ($h >= 18);
+}
+
+/**
+ * Mensagem motivacional de "bom dia" — lista os leads que mandaram mensagem FORA do
+ * horário comercial e seguem esperando resposta. Tom leve, com variações.
+ */
+function comercial_msg_bomdia($leads, $umap)
+{
+    $linhas = array();
+    foreach ($leads as $r) {
+        $nome   = $r['lead_name'] ? $r['lead_name'] : ($r['client_name'] ? $r['client_name'] : ($r['nome_contato'] ? $r['nome_contato'] : $r['telefone']));
+        $respId = comercial_responsavel_id($r);
+        $resp   = $respId ? (isset($umap[$respId]) ? trim(strtok($umap[$respId], ' ')) : ('#' . $respId)) : 'sem dono';
+        $linhas[] = '• ' . $nome . ' — ' . $resp;
+    }
+    $link = 'ferreiraesa.com.br/conecta/modules/crm_comercial/';
+    $aberturas = array(
+        "☀️ *Bom dia, time dos sonhos!* Novo dia, novas conversões 💚",
+        "🌅 *Bom dia, craques!* Bora fazer hoje valer a pena 🚀",
+        "☀️ *Oi oi, time!* Cafézinho na mão e foco no cliente ☕💛",
+        "🌞 *Bom dia!* Quem começa cedo abraça mais leads 😄",
+        "☀️ *Bom dia, gente boa!* Hoje tem cliente novo esperando carinho 💚",
+    );
+    $msg  = $aberturas[array_rand($aberturas)] . "\n\n";
+    $msg .= "Chegou gente *fora do horário* que tá esperando uma atenção logo cedo:\n\n";
+    $msg .= implode("\n", $linhas) . "\n\n";
+    $msg .= "Bora começar o dia no capricho! 👉 " . $link;
+    return $msg;
+}
+
 /**
  * Monta a mensagem do grupo — divertida, empática e com VARIAÇÕES (sorteada a cada envio).
  * {lista} = "Nativânia (4), Maria (2)".  Tom: leve, motivador, sem cobrar feio.
@@ -199,9 +247,35 @@ function comercial_rodar_cobranca($pdo, $opts = array())
     $cfg = comercial_cfg($pdo);
     if ($cfg['ativo'] !== '1' && !$ignorarAtivo) { $rep['ativo'] = false; return $rep; }
 
-    if (function_exists('zapi_fora_horario') && zapi_fora_horario() && !$forcarHorario) {
+    // Cobrança só roda em horário comercial (9h–18h, seg–sex). Fora disso, ninguém é cobrado.
+    if (!comercial_em_horario() && !$forcarHorario) {
         $rep['horario_ok'] = false;
         return $rep;
+    }
+
+    $umap = comercial_users_map($pdo);
+
+    // ── "Bom dia": 1×/dia, no 1º run do horário comercial (depois das 9h) ──
+    // Lista os leads que mandaram mensagem FORA do horário e seguem pendentes.
+    if (!$dry && !empty($cfg['grupo_id'])) {
+        $hoje = date('Y-m-d');
+        if (($cfg['bomdia_data'] ?? '') !== $hoje) {
+            $foraPend = array();
+            foreach (comercial_fetch($pdo, 'recebida', 0, 1, 72 * 60, 200) as $fr) {
+                if (comercial_fora_horario_ts($fr['ultima_em'])) $foraPend[] = $fr;
+            }
+            if ($foraPend) {
+                $canalBd = $cfg['grupo_canal'] ? $cfg['grupo_canal'] : '21';
+                $rb = zapi_send_text($canalBd, $cfg['grupo_id'], comercial_msg_bomdia($foraPend, $umap));
+                if (!empty($rb['ok'])) {
+                    $rep['bomdia_enviado'] = true;
+                    // segura a msg "normal" do grupo por 30min pra não duplicar logo após o bom dia
+                    comercial_set_cfg($pdo, 'comercial_cobranca_grupo_ultimo_em', date('Y-m-d H:i:s'));
+                    $cfg['grupo_ultimo_em'] = date('Y-m-d H:i:s');
+                }
+            }
+            comercial_set_cfg($pdo, 'comercial_cobranca_bomdia_data', $hoje);
+        }
     }
 
     $min  = max(1, (int)$cfg['min']);
@@ -210,8 +284,6 @@ function comercial_rodar_cobranca($pdo, $opts = array())
     $rows = comercial_fetch($pdo, 'recebida', 0, $min, 48 * 60, 200);
     $rep['pendentes'] = count($rows);
     if (!$rows) return $rep;
-
-    $umap = comercial_users_map($pdo);
 
     // estado de dedup: já cobrei esta conversa por esta mensagem?
     $jaCobrado = array();
