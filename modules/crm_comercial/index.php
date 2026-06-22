@@ -24,8 +24,23 @@ $podeConfig = has_min_role('gestao');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_config' && $podeConfig) {
     validate_csrf();
     comercial_set_cfg($pdo, 'comercial_cobranca_ativo', !empty($_POST['ativo']) ? '1' : '0');
-    comercial_set_cfg($pdo, 'comercial_grupo_id', trim($_POST['grupo_id'] ?? ''));
+
+    $grp   = trim($_POST['grupo_id'] ?? '');
     $canal = ($_POST['grupo_canal'] ?? '21') === '24' ? '24' : '21';
+    // Robustez: descobre por qual número (canal) esse grupo é realmente alcançável
+    // (o ID puro casa com zapi_conversas.telefone). Evita enviar pelo número errado.
+    if ($grp !== '') {
+        try {
+            $stc = $pdo->prepare("SELECT i.ddd FROM zapi_conversas co JOIN zapi_instancias i ON i.id = co.instancia_id
+                                  WHERE co.telefone = ? AND COALESCE(co.eh_grupo,0) = 1 LIMIT 1");
+            $stc->execute(array($grp));
+            $ddd = $stc->fetchColumn();
+            if ($ddd) $canal = (string)$ddd;
+        } catch (Exception $e) {}
+        // Sufixo @g.us (o zapi_send_text converte pra -group em grupos modernos).
+        if (strpos($grp, '@') === false && strpos($grp, '-group') === false) $grp .= '@g.us';
+    }
+    comercial_set_cfg($pdo, 'comercial_grupo_id', $grp);
     comercial_set_cfg($pdo, 'comercial_cobranca_canal', $canal);
     $minN = max(1, (int)($_POST['min'] ?? 5));
     comercial_set_cfg($pdo, 'comercial_cobranca_min', (string)$minN);
@@ -52,6 +67,15 @@ if ($podeConfig) {
             $gruposCanal[$ch][] = $g;
         }
     } catch (Exception $e) {}
+}
+// ID base (sem @g.us/-group) pra casar com zapi_conversas.telefone (que é puro)
+$grupoIdBase = preg_replace('/(@g\.us|-group)$/', '', $cfg['grupo_id']);
+// nome do grupo já configurado (pra mostrar recolhido)
+$grupoSelNome = '';
+foreach ($gruposCanal as $gch => $ggs) {
+    foreach ($ggs as $gg) {
+        if ($grupoIdBase !== '' && $gg['telefone'] === $grupoIdBase) $grupoSelNome = $gg['nome_contato'] ?: '(grupo sem nome)';
+    }
 }
 
 // ── Dados ────────────────────────────────────────────────
@@ -181,8 +205,14 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
       </div>
     </div>
 
+    <?php $temGrupo = ($cfg['grupo_id'] !== ''); ?>
     <div style="margin-top:6px;">
-      <div class="muted" style="margin-bottom:6px;">🎯 Os grupos onde os números já participam aparecem aqui — é só clicar pra escolher:</div>
+      <div id="ccGrupoResumo" style="display:<?= $temGrupo ? 'flex' : 'none' ?>; align-items:center; gap:10px; flex-wrap:wrap;">
+        <span style="background:#e8f3f1;color:#0f3d3e;padding:5px 12px;border-radius:999px;font-weight:600;font-size:13px;">✅ Grupo: <?= cc_e($grupoSelNome ?: $cfg['grupo_id']) ?></span>
+        <button type="button" class="cc-btn ghost" style="padding:5px 12px;" onclick="ccGruposToggle(true)">Trocar grupo</button>
+      </div>
+      <div id="ccGruposLista" style="<?= $temGrupo ? 'display:none;' : '' ?>">
+      <div class="muted" style="margin-bottom:6px;">🎯 Os grupos onde os números já participam aparecem aqui — é só clicar pra escolher<?php if ($temGrupo): ?> · <a href="javascript:void(0)" onclick="ccGruposToggle(false)" style="color:#0f3d3e;font-weight:600;">recolher</a><?php endif; ?>:</div>
       <?php foreach (array('21' => '(21) Comercial', '24' => '(24) CX') as $ch => $lbl): $gs = $gruposCanal[$ch] ?? array(); ?>
         <div style="margin-bottom:8px;">
           <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">📞 <?= $lbl ?> · <?= count($gs) ?> grupo<?= count($gs) === 1 ? '' : 's' ?></div>
@@ -190,7 +220,7 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
             <div style="font-size:12px;color:#94a3b8;font-style:italic;">Nenhum grupo encontrado neste número. Adicione o número (<?= $ch ?>) a um grupo e mande uma mensagem lá; depois recarregue a página.</div>
           <?php else: ?>
             <div style="display:flex;flex-wrap:wrap;gap:6px;">
-              <?php foreach ($gs as $g): $sel = ($cfg['grupo_id'] === $g['telefone']); ?>
+              <?php foreach ($gs as $g): $sel = ($grupoIdBase !== '' && $grupoIdBase === $g['telefone']); ?>
                 <button type="button" onclick="ccGrupoSel('<?= cc_e($g['telefone']) ?>','<?= $ch ?>',this)"
                         class="cc-grpbtn<?= $sel ? ' on' : '' ?>">
                   👥 <?= cc_e($g['nome_contato'] ?: '(grupo sem nome)') ?>
@@ -200,6 +230,7 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
+      </div>
     </div>
   </form>
   <div class="row" style="margin-top:12px;">
@@ -279,6 +310,14 @@ function ccTab(el) {
   document.querySelectorAll('.cc-pane').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   document.getElementById('pane-' + el.dataset.pane).classList.add('active');
+}
+
+// Mostra/recolhe a lista completa de grupos
+function ccGruposToggle(show) {
+  var lista = document.getElementById('ccGruposLista');
+  var resumo = document.getElementById('ccGrupoResumo');
+  if (lista)  lista.style.display = show ? '' : 'none';
+  if (resumo) resumo.style.display = show ? 'none' : 'flex';
 }
 
 // Clicar num grupo: preenche o ID e alinha o canal automaticamente
