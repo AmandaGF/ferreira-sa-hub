@@ -547,6 +547,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (has_min_role('gestao')): ?>
             <a href="<?= module_url('crm', 'importar_processos.php') ?>" class="btn btn-outline btn-sm">Importar CSV</a>
         <?php endif; ?>
+        <a href="<?= module_url('processos', 'renuncias.php') ?>" class="btn btn-outline btn-sm" title="Registrar renúncia ou desistência de um processo">📤 Renúncia/Desistência</a>
         <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm">+ Novo Processo</a>
     </div>
 </div>
