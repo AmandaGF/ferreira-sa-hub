@@ -54,6 +54,7 @@ function _permission_defaults()
         'operacional'         => $todos,
         'operacional_mover'   => $todos,
         'processos'           => $todos,
+        'processos_renuncias' => array('admin','gestao','comercial','cx','operacional','estagiario'),
         'prazos'              => $todos,
         'documentos'          => $todos,
         'peticoes'            => $todos,
