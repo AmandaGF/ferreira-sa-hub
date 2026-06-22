@@ -59,6 +59,17 @@ function user_display_name($userOrId = null): string
         } catch (Exception $e) {}
     } else {
         $arr = current_user();
+        // A sessão NÃO guarda wa_display_name (só id/name/email/role). Sem isso,
+        // a assinatura e o nome de atendimento sempre caíam no nome completo.
+        // Busca o wa_display_name no banco quando a sessão não tem a chave.
+        if (is_array($arr) && !array_key_exists('wa_display_name', $arr) && !empty($arr['id'])) {
+            try {
+                $stmt = db()->prepare("SELECT name, wa_display_name FROM users WHERE id = ?");
+                $stmt->execute(array((int)$arr['id']));
+                $row = $stmt->fetch();
+                if ($row) $arr = $row;
+            } catch (Exception $e) {}
+        }
     }
     if (!$arr) return '';
 
