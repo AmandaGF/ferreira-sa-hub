@@ -135,11 +135,11 @@ foreach ($buckets as $k => $lbl) {
     $labels[] = $lbl; $labelsTabela[] = isset($bucketsFull[$k]) ? $bucketsFull[$k] : $lbl; $d21[] = $v21; $d24[] = $v24; $inv21Arr[] = $i21; $inv24Arr[] = $i24;
     $cacArr[] = ($v21 > 0 && $i21 > 0) ? round($i21 / $v21 / 100, 2) : null; // CAC 21 em R$ (null = sem dado)
     $tot21 += $v21; $tot24 += $v24; $totInv21 += $i21; $totInv24 += $i24;
-    if (($v21 + $v24) > $best['v']) $best = array('lbl' => $lbl, 'v' => $v21 + $v24);
+    if ($v21 > $best['v']) $best = array('lbl' => $lbl, 'v' => $v21); // Pico só do 21
 }
 $totGeral  = $tot21 + $tot24;
 $nPeriodos = max(1, count($buckets));
-$media     = round($totGeral / $nPeriodos, 1);
+$media     = round($tot21 / $nPeriodos, 1); // média só do 21
 $granLabel = array('dia' => 'dia', 'semana' => 'semana', 'mes' => 'mês');
 
 // CAC = investimento ÷ conversas (em centavos por conversa)
@@ -182,7 +182,7 @@ $diaDetalhe = (isset($_GET['dia']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET[
 $leadsDia = array();
 if ($diaDetalhe) {
     try {
-        $stD = $pdo->prepare("SELECT id, canal, telefone, client_id, lead_id, nome_contato FROM zapi_conversas WHERE DATE(created_at)=? AND COALESCE(eh_grupo,0)=0 ORDER BY created_at ASC");
+        $stD = $pdo->prepare("SELECT id, canal, telefone, client_id, lead_id, nome_contato FROM zapi_conversas WHERE DATE(created_at)=? AND COALESCE(eh_grupo,0)=0 AND canal='21' ORDER BY created_at ASC");
         $stD->execute(array($diaDetalhe));
         foreach ($stD->fetchAll() as $c) {
             $cid = (int)$c['id'];
@@ -228,27 +228,27 @@ if (($_GET['export'] ?? '') === 'csv') {
     echo "\xEF\xBB\xBF"; // BOM utf-8 (Excel abre acentos certo)
     $out = fopen('php://output', 'w');
     if ($diaDetalhe) {
-        fputcsv($out, array('Canal', 'Lead', 'Telefone', '1a msg (lead)', 'Nossa resposta', 'Tempo resposta', 'Follow-up', 'Conversao'), ';');
+        fputcsv($out, array('Lead', 'Telefone', '1a msg (lead)', 'Nossa resposta', 'Tempo resposta', 'Follow-up', 'Conversao'), ';');
         foreach ($leadsDia as $L) {
             fputcsv($out, array(
-                $L['canal'], $L['nome'], $L['tel'],
+                $L['nome'], $L['tel'],
                 $L['firstAt'] ? date('d/m/Y H:i', strtotime($L['firstAt'])) : '',
                 $L['resp'] ? date('d/m/Y H:i', strtotime($L['resp'])) : 'sem resposta',
                 $L['diff'] ?: '', $L['followup'] ? 'Sim' : 'Nao', $L['conv'] ? 'Sim' : 'Nao'
             ), ';');
         }
     } else {
-        fputcsv($out, array('Periodo', 'Comercial (21)', 'CX/Operac (24)', 'Total', 'Investido 21 (R$)', 'CPA 21 (R$)'), ';');
+        fputcsv($out, array('Periodo', 'Conversas novas (21)', 'Investido 21 (R$)', 'CPA 21 (R$)'), ';');
         for ($i = 0; $i < count($labels); $i++) {
             $iv = $inv21Arr[$i];
             $cacv = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
             fputcsv($out, array(
-                $labelsTabela[$i], $d21[$i], $d24[$i], $d21[$i] + $d24[$i],
+                $labelsTabela[$i], $d21[$i],
                 $iv > 0 ? number_format($iv / 100, 2, ',', '') : '',
                 $cacv !== null ? number_format($cacv / 100, 2, ',', '') : ''
             ), ';');
         }
-        fputcsv($out, array('TOTAL', $tot21, $tot24, $totGeral,
+        fputcsv($out, array('TOTAL', $tot21,
             $totInv21 > 0 ? number_format($totInv21 / 100, 2, ',', '') : '',
             $cac21 !== null ? number_format($cac21 / 100, 2, ',', '') : ''), ';');
     }
@@ -299,7 +299,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h1 style="margin:.2rem 0 1rem;">📈 Relatórios - CPA</h1>
 <p class="text-sm text-muted" style="margin-top:-.6rem;margin-bottom:1rem;">
     <?= $soLeads ? '<strong>Leads novos</strong> = conversas iniciadas pelo cliente (1ª mensagem recebida).' : '<strong>Todas</strong> as conversas novas (inclui as que vocês iniciaram).' ?>
-    Por canal, granularidade <strong><?= $granLabel[$gran] ?></strong>.
+    Canal <strong>Comercial (21)</strong>, granularidade <strong><?= $granLabel[$gran] ?></strong>.
 </p>
 
 <div class="cn-head">
@@ -332,9 +332,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </form>
 
 <div class="cn-cards">
-    <div class="cn-card"><div class="num"><?= $totGeral ?></div><div class="lbl">Total no período</div></div>
-    <div class="cn-card c21"><div class="num"><?= $tot21 ?></div><div class="lbl">💬 Comercial (21)</div></div>
-    <div class="cn-card c24"><div class="num"><?= $tot24 ?></div><div class="lbl">💬 CX/Operac. (24)</div></div>
+    <div class="cn-card c21"><div class="num"><?= $tot21 ?></div><div class="lbl">💬 Conversas novas (21)</div></div>
     <div class="cn-card"><div class="num"><?= $media ?></div><div class="lbl">Média / <?= $granLabel[$gran] ?></div></div>
     <div class="cn-card"><div class="num"><?= (int)$best['v'] ?></div><div class="lbl">Pico (<?= e($best['lbl']) ?>)</div></div>
     <div class="cn-card"><div class="num money"><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></div><div class="lbl">💰 Investido (21)</div></div>
@@ -399,16 +397,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div style="overflow-x:auto;">
 <table class="cn-table">
-    <thead><tr><th>Período</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th>Investido (21)</th><th>CPA (21)</th></tr></thead>
+    <thead><tr><th>Período</th><th>Conversas novas (21)</th><th>Investido (21)</th><th>CPA (21)</th></tr></thead>
     <tbody>
         <?php for ($i = count($labels)-1; $i >= 0; $i--): // mais recente primeiro
             $tt = $d21[$i] + $d24[$i];
             $iv = $inv21Arr[$i];                                 // CAC só do canal 21
             $cac = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
         ?>
-            <tr><td><?php if ($gran === 'dia'): $qsD = $_GET; $qsD['dia'] = $keysArr[$i]; ?><a href="?<?= http_build_query($qsD) ?>#leads" title="Ver os leads deste dia" style="color:#052228;font-weight:700;text-decoration:none;border-bottom:1px dashed #B87333;"><?= e($labelsTabela[$i]) ?></a><?php else: ?><?= e($labelsTabela[$i]) ?><?php endif; ?></td><td><?= $d21[$i] ?></td><td><?= $d24[$i] ?></td><td><strong><?= $tt ?></strong></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
+            <tr><td><?php if ($gran === 'dia'): $qsD = $_GET; $qsD['dia'] = $keysArr[$i]; ?><a href="?<?= http_build_query($qsD) ?>#leads" title="Ver os leads deste dia" style="color:#052228;font-weight:700;text-decoration:none;border-bottom:1px dashed #B87333;"><?= e($labelsTabela[$i]) ?></a><?php else: ?><?= e($labelsTabela[$i]) ?><?php endif; ?></td><td><?= $d21[$i] ?></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
         <?php endfor; ?>
-        <tr class="tot"><td>TOTAL</td><td><?= $tot21 ?></td><td><?= $tot24 ?></td><td><?= $totGeral ?></td><td><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></td><td><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></td></tr>
+        <tr class="tot"><td>TOTAL</td><td><?= $tot21 ?></td><td><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></td><td><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></td></tr>
     </tbody>
 </table>
 </div>
@@ -430,11 +428,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php else: ?>
     <div style="overflow-x:auto;">
     <table class="cn-table" style="font-size:.8rem;">
-        <thead><tr><th>Canal</th><th>Lead</th><th>1ª msg (lead)</th><th>Nossa resposta</th><th>Tempo resp.</th><th>Follow-up</th><th>Conversão</th></tr></thead>
+        <thead><tr><th>Lead</th><th>1ª msg (lead)</th><th>Nossa resposta</th><th>Tempo resp.</th><th>Follow-up</th><th>Conversão</th></tr></thead>
         <tbody>
             <?php foreach ($leadsDia as $L): ?>
             <tr>
-                <td><?= e($L['canal']) ?></td>
                 <td style="text-align:left;"><a href="<?= url('modules/whatsapp/?canal=' . urlencode($L['canal']) . '&abrir=' . (int)$L['id']) ?>" target="_blank" rel="noopener" title="Abrir conversa no Hub" style="color:#052228;font-weight:600;text-decoration:none;border-bottom:1px dashed #0d9488;"><?= e($L['nome']) ?></a></td>
                 <td><?= $L['firstAt'] ? date('H:i', strtotime($L['firstAt'])) : '—' ?></td>
                 <td><?= $L['resp'] ? date('d/m H:i', strtotime($L['resp'])) : '<span style="color:#dc2626;font-weight:700;">sem resposta</span>' ?></td>
@@ -457,8 +454,7 @@ new Chart(document.getElementById('cnChart').getContext('2d'), {
     data: {
         labels: <?= json_encode($labels) ?>,
         datasets: [
-            { label: 'Comercial (21)', data: <?= json_encode($d21) ?>, backgroundColor: '#0d9488', borderRadius: 4 },
-            { label: 'CX/Operac. (24)', data: <?= json_encode($d24) ?>, backgroundColor: '#B87333', borderRadius: 4 }
+            { label: 'Comercial (21)', data: <?= json_encode($d21) ?>, backgroundColor: '#0d9488', borderRadius: 4 }
         ]
     },
     options: {
