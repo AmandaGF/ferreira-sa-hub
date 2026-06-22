@@ -10,7 +10,7 @@ require_login();
 if (!has_min_role('gestao')) { flash_set('error', 'Acesso restrito.'); redirect(url('modules/whatsapp/')); }
 
 $pdo = db();
-$pageTitle = 'Conversas Novas — WhatsApp';
+$pageTitle = 'Relatórios - CAC';
 
 $gran = $_GET['gran'] ?? 'dia';
 if (!in_array($gran, array('dia', 'semana', 'mes'), true)) $gran = 'dia';
@@ -284,7 +284,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <a href="<?= module_url('whatsapp') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar ao WhatsApp</a>
-<h1 style="margin:.2rem 0 1rem;">📈 Conversas Novas (WhatsApp)</h1>
+<h1 style="margin:.2rem 0 1rem;">📈 Relatórios - CAC</h1>
 <p class="text-sm text-muted" style="margin-top:-.6rem;margin-bottom:1rem;">
     <?= $soLeads ? '<strong>Leads novos</strong> = conversas iniciadas pelo cliente (1ª mensagem recebida).' : '<strong>Todas</strong> as conversas novas (inclui as que vocês iniciaram).' ?>
     Por canal, granularidade <strong><?= $granLabel[$gran] ?></strong>.

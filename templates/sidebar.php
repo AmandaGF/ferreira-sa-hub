@@ -86,7 +86,7 @@ $menuItems = array(
     array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'),   'id' => 'whatsapp_24',     'roles' => $all, 'badge' => $_waNaoLidas24),
     array('label' => 'Caixa de Envios',   'icon' => '📬', 'href' => url('modules/whatsapp/fila.php'),    'id' => 'whatsapp_fila',   'roles' => $all, 'badge' => $_waFilaPendente, 'badgeCor' => '#b45309'),
     array('label' => 'Dashboard WhatsApp', 'icon' => '📊', 'href' => url('modules/whatsapp/dashboard.php'), 'id' => 'whatsapp_dashboard', 'roles' => array('admin','gestao')),
-    array('label' => 'Conversas Novas',   'icon' => '📈', 'href' => url('modules/whatsapp/conversas_novas.php'), 'id' => 'whatsapp_convnovas', 'roles' => array('admin','gestao')),
+    array('label' => 'Relatórios - CAC',  'icon' => '📈', 'href' => url('modules/whatsapp/conversas_novas.php'), 'id' => 'whatsapp_convnovas', 'roles' => array('admin','gestao')),
     array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/central.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
 
     // PAUSADO 07/06/2026 — Meta exige status Tech Provider (irreversível, R$ 20k+/ano de compliance)
