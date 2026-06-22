@@ -37,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_
 $cfg = comercial_cfg($pdo);
 
 // ── Dados ────────────────────────────────────────────────
-$pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 300); // última msg = do lead
-$followups = comercial_fetch($pdo, 'enviada', 45, 0, 300);  // última msg = nossa, lead sumiu
+$pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300); // última msg = do lead
+$followups = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);  // última msg = nossa, lead sumiu
 $umap = comercial_users_map($pdo);
 
 function cc_e($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }

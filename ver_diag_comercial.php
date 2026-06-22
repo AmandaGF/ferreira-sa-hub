@@ -10,14 +10,16 @@ $pdo = db();
 comercial_self_heal($pdo);
 
 try {
-    $pend = comercial_fetch($pdo, 'recebida', 45, 0, 300);
-    echo "PENDENTES (ultima=lead, 45d): " . count($pend) . "\n";
+    $cron = comercial_fetch($pdo, 'recebida', 0, 5, 48 * 60, 200);
+    echo "COBRANCA (ultima=lead, 5min-48h): " . count($cron) . " (esses seriam cobrados ao ligar)\n\n";
+    $pend = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300);
+    echo "PENDENTES PAGINA (ultima=lead, 45d): " . count($pend) . "\n";
     foreach (array_slice($pend, 0, 5) as $r) {
         $resp = comercial_responsavel_id($r);
         echo "  conv#{$r['conversa_id']} " . ($r['lead_name'] ?: $r['nome_contato'] ?: $r['telefone'])
            . " | resp=" . ($resp ?: 'sem dono') . " | ult=" . $r['ultima_em'] . "\n";
     }
-    $fup = comercial_fetch($pdo, 'enviada', 45, 0, 300);
+    $fup = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);
     echo "\nFOLLOW-UP (ultima=nossa, 45d): " . count($fup) . "\n";
     foreach (array_slice($fup, 0, 5) as $r) {
         echo "  conv#{$r['conversa_id']} " . ($r['lead_name'] ?: $r['nome_contato'] ?: $r['telefone'])

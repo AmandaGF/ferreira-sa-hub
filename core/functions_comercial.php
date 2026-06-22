@@ -87,15 +87,18 @@ function comercial_responsavel_id($row)
  *  - 'enviada'  = última foi nossa     → lead sumiu (follow-up)
  *
  * @param int $diasMax    janela em dias sobre created_at da conversa (0 = sem limite)
- * @param int $minMinutos exige que a última msg seja mais velha que N min (0 = ignora)
+ * @param int $minMinutos exige que a última msg seja MAIS VELHA que N min (0 = ignora)
+ * @param int $maxMinutos exige que a última msg seja MAIS NOVA que N min (0 = ignora) —
+ *                        usado pela cobrança pra só perseguir conversas recentes
  */
-function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $limit = 300)
+function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $maxMinutos = 0, $limit = 300)
 {
     $where  = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
                AND co.status NOT IN ('resolvido','arquivado') AND lm.direcao = ?";
     $params = array($direcao);
     if ($diasMax > 0)    $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
     if ($minMinutos > 0) $where .= " AND lm.created_at <= DATE_SUB(NOW(), INTERVAL " . (int)$minMinutos . " MINUTE)";
+    if ($maxMinutos > 0) $where .= " AND lm.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$maxMinutos . " MINUTE)";
 
     $sql = "SELECT co.id AS conversa_id, co.telefone, co.nome_contato, co.atendente_id,
                    co.lead_id, co.client_id, co.created_at AS conversa_em, co.status,
@@ -166,7 +169,9 @@ function comercial_rodar_cobranca($pdo, $opts = array())
     }
 
     $min  = max(1, (int)$cfg['min']);
-    $rows = comercial_fetch($pdo, 'recebida', 45, $min, 200);
+    // Cobrança só persegue conversas RECENTES (última msg do lead nas últimas 48h).
+    // O backlog mais antigo fica pra revisão manual no CRM Comercial (janela de 45 dias).
+    $rows = comercial_fetch($pdo, 'recebida', 0, $min, 48 * 60, 200);
     $rep['pendentes'] = count($rows);
     if (!$rows) return $rep;
 
