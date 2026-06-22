@@ -156,6 +156,30 @@ function comercial_users_map($pdo)
 }
 
 /**
+ * Monta a mensagem do grupo — divertida, empática e com VARIAÇÕES (sorteada a cada envio).
+ * {lista} = "Nativânia (4), Maria (2)".  Tom: leve, motivador, sem cobrar feio.
+ */
+function comercial_msg_grupo($partes)
+{
+    $lista = implode(', ', $partes);
+    $link  = 'ferreiraesa.com.br/conecta/modules/crm_comercial/';
+    $vars = array(
+        "👋 Opa, time! Tem gente esperando um alô de vocês 💚\n\n*Aguardando resposta:* {lista}\n\nBora fazer a mágica acontecer? 👉 {link}",
+        "⏰ Psiu! Uns leads estão de olho no celular esperando 👀\n\n*Na espera:* {lista}\n\nUma resposta rapidinha muda tudo! 🚀\n{link}",
+        "🌟 Fala, craques! Cada retorno rápido é um cliente mais feliz.\n\n*Esperando carinho:* {lista}\n\nBora abraçar esses leads 👉 {link}",
+        "🔔 Toc toc! Tem lead querendo papo com vocês:\n\n{lista}\n\nVamo que vamo, vocês são fera! 💪\n{link}",
+        "💬 Alguém chamou? Chegou gente nova querendo conversar:\n\n{lista}\n\nResponde com aquele jeitinho F&S 💛 {link}",
+        "🚀 Combinado é combinado: ninguém fica no vácuo, né?\n\n*Aguardando:* {lista}\n\nDá aquele retorno e arrasa 👉 {link}",
+        "😄 Ó, chegou cliente! Leadzinhos na espera:\n\n{lista}\n\nUm oi rapidinho que eles amam 💚\n{link}",
+        "🧡 Fala, time dos sonhos! Tem gente contando com vocês:\n\n*Esperando resposta:* {lista}\n\nBora transformar conversa em cliente 👉 {link}",
+        "👀 Psssiu... uns leads soltaram um 'oi' e tão esperando o de vocês:\n\n{lista}\n\nResponde rapidinho e faz a diferença! ✨ {link}",
+        "💚 Lembrete fofo: cada minuto conta pra quem está esperando.\n\n*Na fila do carinho:* {lista}\n\nBora lá, vocês mandam bem demais! 👉 {link}",
+    );
+    $msg = $vars[array_rand($vars)];
+    return str_replace(array('{lista}', '{link}'), array($lista, $link), $msg);
+}
+
+/**
  * Motor da cobrança. Notifica o responsável de cada lead pendente (+5 min sem resposta)
  * e, no máximo 1×/30min em horário comercial, manda o resumo no grupo.
  *
@@ -247,9 +271,7 @@ function comercial_rodar_cobranca($pdo, $opts = array())
                 $nm = trim(strtok($nm, ' ')); // primeiro nome
                 $partes[] = $nm . ' (' . $qt . ')';
             }
-            $msg  = "⚠️ *Leads pendentes de resposta*\n\n";
-            $msg .= "Existem leads pendentes para os responsáveis: " . implode(', ', $partes) . ".\n\n";
-            $msg .= "Responda pelo Hub 👉 ferreiraesa.com.br/conecta/modules/crm_comercial/";
+            $msg = comercial_msg_grupo($partes);
 
             if (!$dry) {
                 $canal = $cfg['grupo_canal'] ? $cfg['grupo_canal'] : '21';
