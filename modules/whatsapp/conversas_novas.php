@@ -200,7 +200,7 @@ if ($diaDetalhe) {
                 if (!$conv) { $tel8 = substr(preg_replace('/\D/', '', $c['telefone']), -8); if (strlen($tel8) >= 8) { $sc = $pdo->prepare("SELECT 1 FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-',''),' ','') LIKE ? AND (converted_at IS NOT NULL OR stage IN ('contrato_assinado','finalizado')) LIMIT 1"); $sc->execute(array('%' . $tel8)); if ($sc->fetchColumn()) $conv = true; } }
             } catch (Exception $e) {}
             $leadsDia[] = array(
-                'canal' => $c['canal'], 'nome' => ($c['nome_contato'] ?: $c['telefone']), 'tel' => $c['telefone'],
+                'id' => $cid, 'canal' => $c['canal'], 'nome' => ($c['nome_contato'] ?: $c['telefone']), 'tel' => $c['telefone'],
                 'firstAt' => $firstAt, 'resp' => $resp, 'diff' => cnDiff($firstAt, $resp),
                 'followup' => ($diasEnv > 1), 'conv' => $conv,
             );
@@ -416,7 +416,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?php foreach ($leadsDia as $L): ?>
             <tr>
                 <td><?= e($L['canal']) ?></td>
-                <td style="text-align:left;"><?= e($L['nome']) ?></td>
+                <td style="text-align:left;"><a href="<?= url('modules/whatsapp/?canal=' . urlencode($L['canal']) . '&abrir=' . (int)$L['id']) ?>" target="_blank" rel="noopener" title="Abrir conversa no Hub" style="color:#052228;font-weight:600;text-decoration:none;border-bottom:1px dashed #0d9488;"><?= e($L['nome']) ?></a></td>
                 <td><?= $L['firstAt'] ? date('H:i', strtotime($L['firstAt'])) : '—' ?></td>
                 <td><?= $L['resp'] ? date('d/m H:i', strtotime($L['resp'])) : '<span style="color:#dc2626;font-weight:700;">sem resposta</span>' ?></td>
                 <td><?= $L['diff'] ? e($L['diff']) : '—' ?></td>
