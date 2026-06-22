@@ -120,14 +120,16 @@ while ($cur3 <= $fim) {
     $cur3->modify('+1 day');
 }
 
-$labels = array(); $labelsTabela = array(); $d21 = array(); $d24 = array(); $inv21Arr = array(); $inv24Arr = array();
+$labels = array(); $labelsTabela = array(); $keysArr = array(); $d21 = array(); $d24 = array(); $inv21Arr = array(); $inv24Arr = array(); $cacArr = array();
 $tot21 = 0; $tot24 = 0; $totInv21 = 0; $totInv24 = 0; $best = array('lbl' => '—', 'v' => 0);
 foreach ($buckets as $k => $lbl) {
+    $keysArr[] = $k;
     $v21 = isset($rows[$k]['21']) ? $rows[$k]['21'] : 0;
     $v24 = isset($rows[$k]['24']) ? $rows[$k]['24'] : 0;
     $i21 = isset($bucketInvest[$k]['21']) ? $bucketInvest[$k]['21'] : 0;
     $i24 = isset($bucketInvest[$k]['24']) ? $bucketInvest[$k]['24'] : 0;
     $labels[] = $lbl; $labelsTabela[] = isset($bucketsFull[$k]) ? $bucketsFull[$k] : $lbl; $d21[] = $v21; $d24[] = $v24; $inv21Arr[] = $i21; $inv24Arr[] = $i24;
+    $cacArr[] = ($v21 > 0 && $i21 > 0) ? round($i21 / $v21 / 100, 2) : null; // CAC 21 em R$ (null = sem dado)
     $tot21 += $v21; $tot24 += $v24; $totInv21 += $i21; $totInv24 += $i24;
     if (($v21 + $v24) > $best['v']) $best = array('lbl' => $lbl, 'v' => $v21 + $v24);
 }
@@ -156,6 +158,53 @@ try {
         $invAll[$r['ano_mes']][$r['canal']] = (int)$r['valor_cents'];
     }
 } catch (Exception $e) {}
+
+// ── Detalhe de um dia: leads, 1ª msg, resposta + tempo, follow-up, conversão ──
+function cnDiff($a, $b) {
+    if (!$a || !$b) return null;
+    $s = strtotime($b) - strtotime($a);
+    if ($s < 0) return null;
+    if ($s < 60) return $s . 's';
+    $m = floor($s / 60);
+    if ($m < 60) return $m . ' min';
+    $h = floor($m / 60); $mm = $m % 60;
+    if ($h < 24) return $h . 'h' . ($mm ? ' ' . $mm . 'min' : '');
+    $d = floor($h / 24); $hh = $h % 24;
+    return $d . 'd' . ($hh ? ' ' . $hh . 'h' : '');
+}
+$diaDetalhe = (isset($_GET['dia']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['dia'])) ? $_GET['dia'] : null;
+$leadsDia = array();
+if ($diaDetalhe) {
+    try {
+        $stD = $pdo->prepare("SELECT id, canal, telefone, client_id, lead_id, nome_contato FROM zapi_conversas WHERE DATE(created_at)=? AND COALESCE(eh_grupo,0)=0 ORDER BY created_at ASC");
+        $stD->execute(array($diaDetalhe));
+        foreach ($stD->fetchAll() as $c) {
+            $cid = (int)$c['id'];
+            $stF = $pdo->prepare("SELECT direcao, created_at FROM zapi_mensagens WHERE conversa_id=? ORDER BY id ASC LIMIT 1");
+            $stF->execute(array($cid)); $fm = $stF->fetch();
+            $firstDir = $fm ? $fm['direcao'] : null;
+            $firstAt  = $fm ? $fm['created_at'] : null;
+            if ($soLeads && $firstDir !== 'recebida') continue; // só leads = 1ª msg do cliente
+            // 1ª resposta nossa após a 1ª mensagem do lead
+            $resp = null;
+            if ($firstAt) { $st2 = $pdo->prepare("SELECT MIN(created_at) FROM zapi_mensagens WHERE conversa_id=? AND direcao='enviada' AND created_at >= ?"); $st2->execute(array($cid, $firstAt)); $resp = $st2->fetchColumn() ?: null; }
+            // follow-up = equipe enviou em 2+ dias distintos
+            $st3 = $pdo->prepare("SELECT COUNT(DISTINCT DATE(created_at)) FROM zapi_mensagens WHERE conversa_id=? AND direcao='enviada'");
+            $st3->execute(array($cid)); $diasEnv = (int)$st3->fetchColumn();
+            // conversão = lead vinculado convertido (por lead_id ou telefone)
+            $conv = false;
+            try {
+                if (!empty($c['lead_id'])) { $sc = $pdo->prepare("SELECT converted_at, stage FROM pipeline_leads WHERE id=?"); $sc->execute(array($c['lead_id'])); $lr = $sc->fetch(); if ($lr && (!empty($lr['converted_at']) || in_array($lr['stage'], array('contrato_assinado','finalizado'), true))) $conv = true; }
+                if (!$conv) { $tel8 = substr(preg_replace('/\D/', '', $c['telefone']), -8); if (strlen($tel8) >= 8) { $sc = $pdo->prepare("SELECT 1 FROM pipeline_leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-',''),' ','') LIKE ? AND (converted_at IS NOT NULL OR stage IN ('contrato_assinado','finalizado')) LIMIT 1"); $sc->execute(array('%' . $tel8)); if ($sc->fetchColumn()) $conv = true; } }
+            } catch (Exception $e) {}
+            $leadsDia[] = array(
+                'canal' => $c['canal'], 'nome' => ($c['nome_contato'] ?: $c['telefone']), 'tel' => $c['telefone'],
+                'firstAt' => $firstAt, 'resp' => $resp, 'diff' => cnDiff($firstAt, $resp),
+                'followup' => ($diasEnv > 1), 'conv' => $conv,
+            );
+        }
+    } catch (Exception $e) {}
+}
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -270,8 +319,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </details>
 
 <div class="cn-chartbox">
+    <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">Conversas novas por período</div>
     <canvas id="cnChart" height="100"></canvas>
 </div>
+
+<?php if ($totInv21 > 0): ?>
+<div class="cn-chartbox">
+    <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">📉 CAC — Comercial (21) por período (R$ por lead)</div>
+    <canvas id="cnCac" height="80"></canvas>
+</div>
+<?php endif; ?>
 
 <div style="overflow-x:auto;">
 <table class="cn-table">
@@ -282,12 +339,46 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $iv = $inv21Arr[$i];                                 // CAC só do canal 21
             $cac = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
         ?>
-            <tr><td><?= e($labelsTabela[$i]) ?></td><td><?= $d21[$i] ?></td><td><?= $d24[$i] ?></td><td><strong><?= $tt ?></strong></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
+            <tr><td><?php if ($gran === 'dia'): $qsD = $_GET; $qsD['dia'] = $keysArr[$i]; ?><a href="?<?= http_build_query($qsD) ?>#leads" title="Ver os leads deste dia" style="color:#052228;font-weight:700;text-decoration:none;border-bottom:1px dashed #B87333;"><?= e($labelsTabela[$i]) ?></a><?php else: ?><?= e($labelsTabela[$i]) ?><?php endif; ?></td><td><?= $d21[$i] ?></td><td><?= $d24[$i] ?></td><td><strong><?= $tt ?></strong></td><td><?= $iv > 0 ? $cnFmt($iv) : '—' ?></td><td><?= $cac !== null ? $cnFmt($cac) : '—' ?></td></tr>
         <?php endfor; ?>
         <tr class="tot"><td>TOTAL</td><td><?= $tot21 ?></td><td><?= $tot24 ?></td><td><?= $totGeral ?></td><td><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></td><td><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></td></tr>
     </tbody>
 </table>
 </div>
+<?php if ($gran === 'dia'): ?><p class="text-sm text-muted" style="margin:.4rem 0 0;">💡 Clique na data (coluna Período) para ver os leads daquele dia, com horário da mensagem, tempo de resposta, follow-up e conversão.</p><?php endif; ?>
+
+<?php if ($diaDetalhe): $dd = explode('-', $diaDetalhe); ?>
+<div id="leads" class="cn-chartbox" style="margin-top:1rem;border:2px solid #6366f1;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
+        <div style="font-weight:800;color:var(--petrol-900);font-size:1rem;">🔎 Leads de <?= e($dd[2] . '/' . $dd[1] . '/' . $dd[0]) ?> <span class="text-sm text-muted" style="font-weight:600;">(<?= count($leadsDia) ?>)</span></div>
+        <?php $qsF = $_GET; unset($qsF['dia']); ?>
+        <a href="?<?= http_build_query($qsF) ?>" class="btn btn-outline btn-sm">✖ Fechar</a>
+    </div>
+    <?php if (empty($leadsDia)): ?>
+        <p class="text-muted text-sm">Nenhum lead nesse dia (com o filtro atual).</p>
+    <?php else: ?>
+    <div style="overflow-x:auto;">
+    <table class="cn-table" style="font-size:.8rem;">
+        <thead><tr><th>Canal</th><th>Lead</th><th>1ª msg (lead)</th><th>Nossa resposta</th><th>Tempo resp.</th><th>Follow-up</th><th>Conversão</th></tr></thead>
+        <tbody>
+            <?php foreach ($leadsDia as $L): ?>
+            <tr>
+                <td><?= e($L['canal']) ?></td>
+                <td style="text-align:left;"><?= e($L['nome']) ?></td>
+                <td><?= $L['firstAt'] ? date('H:i', strtotime($L['firstAt'])) : '—' ?></td>
+                <td><?= $L['resp'] ? date('d/m H:i', strtotime($L['resp'])) : '<span style="color:#dc2626;font-weight:700;">sem resposta</span>' ?></td>
+                <td><?= $L['diff'] ? e($L['diff']) : '—' ?></td>
+                <td style="text-align:center;"><?= $L['followup'] ? '✅' : '—' ?></td>
+                <td style="text-align:center;"><?= $L['conv'] ? '<span style="color:#15803d;font-weight:800;">✓ sim</span>' : '—' ?></td>
+            </tr>
+            <?php endforeach; ?>
+        </tbody>
+    </table>
+    </div>
+    <p class="text-sm text-muted" style="margin-top:.5rem;"><strong>1ª msg</strong> = quando o lead mandou a 1ª mensagem · <strong>Resposta</strong> = 1ª resposta de vocês · <strong>Tempo resp.</strong> = quanto demorou · <strong>Follow-up</strong> = vocês voltaram a falar em outro dia · <strong>Conversão</strong> = lead com contrato assinado.</p>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <script>
 new Chart(document.getElementById('cnChart').getContext('2d'), {
@@ -309,6 +400,22 @@ new Chart(document.getElementById('cnChart').getContext('2d'), {
         scales: { x: { stacked: false, grid:{display:false} }, y: { beginAtZero: true, ticks: { precision: 0 } } }
     }
 });
+<?php if ($totInv21 > 0): ?>
+new Chart(document.getElementById('cnCac').getContext('2d'), {
+    type: 'line',
+    data: { labels: <?= json_encode($labels) ?>, datasets: [{
+        label: 'CAC (21)', data: <?= json_encode($cacArr) ?>,
+        borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.15)',
+        spanGaps: true, tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#6366f1'
+    }] },
+    options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false },
+            tooltip: { callbacks: { label: function(c){ return c.parsed.y != null ? 'CAC: R$ ' + Number(c.parsed.y).toLocaleString('pt-BR', {minimumFractionDigits:2}) : 'sem dado'; } } } },
+        scales: { x: { grid:{display:false} }, y: { beginAtZero: true, ticks: { callback: function(v){ return 'R$ ' + v; } } } }
+    }
+});
+<?php endif; ?>
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
