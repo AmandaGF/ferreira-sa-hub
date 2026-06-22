@@ -208,6 +208,42 @@ if ($diaDetalhe) {
     } catch (Exception $e) {}
 }
 
+// ── Exportar CSV (respeita os filtros atuais) ──
+if (($_GET['export'] ?? '') === 'csv') {
+    $fn = $diaDetalhe ? ('leads_' . $diaDetalhe) : ('conversas_novas_' . $gran . '_' . $ini->format('Ymd') . '-' . $fim->format('Ymd'));
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $fn . '.csv"');
+    echo "\xEF\xBB\xBF"; // BOM utf-8 (Excel abre acentos certo)
+    $out = fopen('php://output', 'w');
+    if ($diaDetalhe) {
+        fputcsv($out, array('Canal', 'Lead', 'Telefone', '1a msg (lead)', 'Nossa resposta', 'Tempo resposta', 'Follow-up', 'Conversao'), ';');
+        foreach ($leadsDia as $L) {
+            fputcsv($out, array(
+                $L['canal'], $L['nome'], $L['tel'],
+                $L['firstAt'] ? date('d/m/Y H:i', strtotime($L['firstAt'])) : '',
+                $L['resp'] ? date('d/m/Y H:i', strtotime($L['resp'])) : 'sem resposta',
+                $L['diff'] ?: '', $L['followup'] ? 'Sim' : 'Nao', $L['conv'] ? 'Sim' : 'Nao'
+            ), ';');
+        }
+    } else {
+        fputcsv($out, array('Periodo', 'Comercial (21)', 'CX/Operac (24)', 'Total', 'Investido 21 (R$)', 'CAC 21 (R$)'), ';');
+        for ($i = 0; $i < count($labels); $i++) {
+            $iv = $inv21Arr[$i];
+            $cacv = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
+            fputcsv($out, array(
+                $labelsTabela[$i], $d21[$i], $d24[$i], $d21[$i] + $d24[$i],
+                $iv > 0 ? number_format($iv / 100, 2, ',', '') : '',
+                $cacv !== null ? number_format($cacv / 100, 2, ',', '') : ''
+            ), ';');
+        }
+        fputcsv($out, array('TOTAL', $tot21, $tot24, $totGeral,
+            $totInv21 > 0 ? number_format($totInv21 / 100, 2, ',', '') : '',
+            $cac21 !== null ? number_format($cac21 / 100, 2, ',', '') : ''), ';');
+    }
+    fclose($out);
+    exit;
+}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -240,6 +276,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cn-table td:first-child{text-align:left;font-weight:600;}
 .cn-table tr:hover td{background:rgba(184,115,51,.06);}
 .cn-table .tot td{background:#052228;color:#fff;font-weight:800;border:none;}
+@media print {
+    .cn-head, .cn-filtros, .cn-invest, .btn, a.btn { display:none !important; }
+    .cn-chartbox, .cn-table { break-inside: avoid; }
+    .cn-cards { grid-template-columns: repeat(4, 1fr); }
+}
 </style>
 
 <a href="<?= module_url('whatsapp') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar ao WhatsApp</a>
@@ -256,6 +297,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         ?>
             <a href="?<?= http_build_query($qs) ?>" class="cn-tab <?= $gran===$g?'on':'' ?>"><?= $lbl ?></a>
         <?php endforeach; ?>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:.4rem;">
+        <?php $qsCsv = $_GET; unset($qsCsv['dia']); $qsCsv['export'] = 'csv'; ?>
+        <a href="?<?= http_build_query($qsCsv) ?>" class="btn btn-outline btn-sm" title="Baixar a tabela em CSV (abre no Excel)">⬇️ CSV</a>
+        <button type="button" onclick="window.print()" class="btn btn-outline btn-sm">🖨️ Imprimir / PDF</button>
     </div>
 </div>
 
@@ -353,8 +399,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div id="leads" class="cn-chartbox" style="margin-top:1rem;border:2px solid #6366f1;">
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;margin-bottom:.6rem;">
         <div style="font-weight:800;color:var(--petrol-900);font-size:1rem;">🔎 Leads de <?= e($dd[2] . '/' . $dd[1] . '/' . $dd[0]) ?> <span class="text-sm text-muted" style="font-weight:600;">(<?= count($leadsDia) ?>)</span></div>
-        <?php $qsF = $_GET; unset($qsF['dia']); ?>
-        <a href="?<?= http_build_query($qsF) ?>" class="btn btn-outline btn-sm">✖ Fechar</a>
+        <div style="display:flex;gap:.4rem;">
+            <?php $qsL = $_GET; $qsL['export'] = 'csv'; ?>
+            <a href="?<?= http_build_query($qsL) ?>" class="btn btn-outline btn-sm" title="Baixar os leads deste dia em CSV">⬇️ CSV</a>
+            <?php $qsF = $_GET; unset($qsF['dia']); ?>
+            <a href="?<?= http_build_query($qsF) ?>" class="btn btn-outline btn-sm">✖ Fechar</a>
+        </div>
     </div>
     <?php if (empty($leadsDia)): ?>
         <p class="text-muted text-sm">Nenhum lead nesse dia (com o filtro atual).</p>
