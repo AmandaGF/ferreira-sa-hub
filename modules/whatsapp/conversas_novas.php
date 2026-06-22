@@ -160,6 +160,7 @@ try {
 } catch (Exception $e) {}
 
 // ── Detalhe de um dia: leads, 1ª msg, resposta + tempo, follow-up, conversão ──
+if (!function_exists('cnDiff')) {
 function cnDiff($a, $b) {
     if (!$a || !$b) return null;
     $s = strtotime($b) - strtotime($a);
@@ -171,6 +172,7 @@ function cnDiff($a, $b) {
     if ($h < 24) return $h . 'h' . ($mm ? ' ' . $mm . 'min' : '');
     $d = floor($h / 24); $hh = $h % 24;
     return $d . 'd' . ($hh ? ' ' . $hh . 'h' : '');
+}
 }
 $diaDetalhe = (isset($_GET['dia']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['dia'])) ? $_GET['dia'] : null;
 $leadsDia = array();
