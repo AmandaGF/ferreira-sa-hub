@@ -93,25 +93,29 @@ if (isset($_GET['baixar'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registrar') {
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada — faça login e tente de novo.'); redirect(module_url('processos', 'renuncias.php')); }
     $clientId    = (int)($_POST['client_id'] ?? 0);
-    $caseId      = (int)($_POST['case_id'] ?? 0);
+    $caseIds     = isset($_POST['case_ids']) && is_array($_POST['case_ids']) ? array_map('intval', $_POST['case_ids']) : array();
+    $caseIds     = array_values(array_unique(array_filter($caseIds)));
     $tipo        = isset($TIPOS[$_POST['tipo'] ?? '']) ? $_POST['tipo'] : '';
     $motivo      = $_POST['motivo'] ?? '';
     $motivoOutro = clean_str($_POST['motivo_outro'] ?? '', 300);
     $obs         = clean_str($_POST['observacao'] ?? '', 2000);
 
     $err = '';
-    $case = null;
+    $cases = array();
     if (!$clientId)                       $err = 'Selecione o cliente.';
-    elseif (!$caseId)                     $err = 'Selecione o processo.';
+    elseif (!$caseIds)                    $err = 'Selecione pelo menos um processo.';
     elseif (!$tipo)                       $err = 'Escolha renúncia ou desistência.';
     elseif (!isset($MOTIVOS[$motivo]))    $err = 'Escolha o motivo.';
     elseif ($motivo === 'outro' && $motivoOutro === '') $err = 'Descreva o "outro" motivo.';
 
     if (!$err) {
-        $ck = $pdo->prepare("SELECT id, title, case_number, drive_folder_url, responsible_user_id FROM cases WHERE id = ? AND client_id = ?");
-        $ck->execute(array($caseId, $clientId));
-        $case = $ck->fetch();
-        if (!$case) $err = 'O processo selecionado não pertence a esse cliente.';
+        // só os processos que realmente são desse cliente
+        $ph = implode(',', array_fill(0, count($caseIds), '?'));
+        $ck = $pdo->prepare("SELECT id, title, case_number, drive_folder_url, responsible_user_id
+                             FROM cases WHERE client_id = ? AND id IN ($ph)");
+        $ck->execute(array_merge(array($clientId), $caseIds));
+        $cases = $ck->fetchAll();
+        if (!$cases) $err = 'Os processos selecionados não pertencem a esse cliente.';
     }
 
     // comprovante (obrigatório)
@@ -134,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registr
                 $dir = APP_ROOT . '/files/renuncias';
                 if (!is_dir($dir)) @mkdir($dir, 0755, true);
                 $safe   = preg_replace('/[^A-Za-z0-9._-]/', '_', $nome);
-                $stored = 'ren_' . $caseId . '_' . uniqid('', true) . '_' . $safe;
+                $stored = 'ren_' . $clientId . '_' . uniqid('', true) . '_' . $safe;
                 if (move_uploaded_file($tmp, $dir . '/' . $stored)) {
                     @chmod($dir . '/' . $stored, 0644);
                     $cmpNome = $nome; $cmpPath = $stored; $cmpMime = $mime;
@@ -147,43 +151,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registr
 
     if ($err) { flash_set('error', $err); redirect(module_url('processos', 'renuncias.php') . '#registrar'); }
 
-    // grava a renúncia
-    $pdo->prepare("INSERT INTO renuncias
-        (case_id, client_id, tipo, motivo, motivo_outro, observacao, comprovante_nome, comprovante_path, comprovante_mime, created_by, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,NOW())")
-        ->execute(array($caseId, $clientId, $tipo, $motivo, $motivo === 'outro' ? $motivoOutro : null,
-                        $obs !== '' ? $obs : null, $cmpNome, $cmpPath, $cmpMime, current_user_id()));
-    $renId = (int)$pdo->lastInsertId();
-
-    // abre tarefa pro operacional juntar o pedido na pasta
-    $tipoLabel  = $TIPOS[$tipo];
+    // grava cada processo: registro + tarefa + comprovante na pasta do Drive
+    $tipoLabel   = $TIPOS[$tipo];
     $motivoLabel = $motivo === 'outro' ? $motivoOutro : $MOTIVOS[$motivo];
-    $procRef    = $case['case_number'] ? $case['case_number'] : $case['title'];
-    $taskTitle  = 'Juntar pedido de ' . $tipoLabel . ' na pasta';
-    $taskDesc   = 'Processo: ' . $procRef . '. Motivo: ' . $motivoLabel . '.'
-                . ($obs !== '' ? ' Obs: ' . $obs . '.' : '')
-                . ' O comprovante de comunicação com o cliente já está anexado no registro de ' . $tipoLabel
-                . '. Juntar o pedido de ' . $tipoLabel . ' na pasta do processo no Drive.';
-    $assignedTo = !empty($case['responsible_user_id']) ? (int)$case['responsible_user_id'] : null;
-    $due        = date('Y-m-d', strtotime('+3 days'));
-
-    $pdo->prepare("INSERT INTO case_tasks
+    $insRen = $pdo->prepare("INSERT INTO renuncias
+        (case_id, client_id, tipo, motivo, motivo_outro, observacao, comprovante_nome, comprovante_path, comprovante_mime, created_by, created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,NOW())");
+    $insTask = $pdo->prepare("INSERT INTO case_tasks
         (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,NOW())")
-        ->execute(array($caseId, $taskTitle, 'juntar_documento', $taskDesc, $assignedTo, $due, 'alta', 'a_fazer', 0));
-    $taskId = (int)$pdo->lastInsertId();
-    $pdo->prepare("UPDATE renuncias SET task_id = ? WHERE id = ?")->execute(array($taskId, $renId));
+        VALUES (?,?,?,?,?,?,?,?,?,NOW())");
+    $due    = date('Y-m-d', strtotime('+3 days'));
+    $pubUrl = $cmpPath ? url('files/renuncias/' . $cmpPath) : '';
+    if ($pubUrl && is_file(APP_ROOT . '/core/google_drive.php')) require_once APP_ROOT . '/core/google_drive.php';
+    $n = 0;
+    foreach ($cases as $case) {
+        $cid = (int)$case['id'];
+        $insRen->execute(array($cid, $clientId, $tipo, $motivo, $motivo === 'outro' ? $motivoOutro : null,
+                               $obs !== '' ? $obs : null, $cmpNome, $cmpPath, $cmpMime, current_user_id()));
+        $renId = (int)$pdo->lastInsertId();
 
-    // notifica
-    if ($assignedTo) {
-        notify($assignedTo, '📌 Nova tarefa: ' . $taskTitle, $taskDesc, 'pendencia', url('modules/tarefas/?case_id=' . $caseId), '📌');
+        $procRef   = $case['case_number'] ? $case['case_number'] : $case['title'];
+        $taskTitle = 'Juntar pedido de ' . $tipoLabel . ' na pasta';
+        $taskDesc  = 'Processo: ' . $procRef . '. Motivo: ' . $motivoLabel . '.'
+                   . ($obs !== '' ? ' Obs: ' . $obs . '.' : '')
+                   . ' O comprovante de comunicação com o cliente já está anexado no registro de ' . $tipoLabel
+                   . '. Juntar o pedido de ' . $tipoLabel . ' na pasta do processo no Drive.';
+        $assignedTo = !empty($case['responsible_user_id']) ? (int)$case['responsible_user_id'] : null;
+        $insTask->execute(array($cid, $taskTitle, 'juntar_documento', $taskDesc, $assignedTo, $due, 'alta', 'a_fazer', 0));
+        $taskId = (int)$pdo->lastInsertId();
+        $pdo->prepare("UPDATE renuncias SET task_id = ? WHERE id = ?")->execute(array($taskId, $renId));
+
+        // salva o comprovante na pasta do processo no Drive (best-effort)
+        if ($pubUrl && !empty($case['drive_folder_url']) && function_exists('upload_file_to_drive')) {
+            try {
+                $driveName = 'Comprovante_comunicacao_' . $tipoLabel . '_' . date('Ymd') . '_' . preg_replace('/[^\w.\-]/', '_', (string)$cmpNome);
+                $up = upload_file_to_drive($case['drive_folder_url'], $driveName, $pubUrl, $cmpMime);
+                if (empty($up['success'])) audit_log('renuncia_drive_falhou', 'case', $cid, substr((string)($up['error'] ?? '?'), 0, 180));
+            } catch (Exception $e) {}
+        }
+
+        if ($assignedTo) {
+            notify($assignedTo, '📌 Nova tarefa: ' . $taskTitle, $taskDesc, 'pendencia', url('modules/tarefas/?case_id=' . $cid), '📌');
+        }
+        audit_log('renuncia_registrada', 'case', $cid, $tipo . ' / ' . $motivo);
+        $n++;
     }
+
     if (function_exists('notify_gestao')) {
-        notify_gestao('Pedido de ' . $tipoLabel . ' registrado', $procRef . ' — operacional precisa juntar o pedido na pasta.', 'pendencia', url('modules/tarefas/'), '📌');
+        notify_gestao('Pedido de ' . $tipoLabel . ' registrado', $n . ' processo(s) — operacional precisa juntar o pedido na pasta.', 'pendencia', url('modules/tarefas/'), '📌');
     }
-    audit_log('renuncia_registrada', 'case', $caseId, $tipo . ' / ' . $motivo);
 
-    flash_set('success', 'Registro de ' . $tipoLabel . ' salvo. Abri uma tarefa pro operacional juntar o pedido na pasta do processo.');
+    flash_set('success', 'Registro de ' . $tipoLabel . ' salvo para ' . $n . ' processo(s). Comprovante anexado e tarefa aberta pro operacional em cada pasta.');
     redirect(module_url('processos', 'renuncias.php') . '#historico');
 }
 
@@ -278,7 +296,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
       <input type="hidden" name="acao" value="registrar">
       <input type="hidden" name="client_id" id="rdClientId">
-      <input type="hidden" name="case_id" id="rdCaseId">
 
       <div class="row">
         <label>1. Cliente *</label>
@@ -290,11 +307,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
       </div>
 
       <div class="row" id="rdCasoRow" style="display:none;">
-        <label>2. Processo do cliente *</label>
-        <select class="rd-select" id="rdCaseSel" onchange="document.getElementById('rdCaseId').value=this.value;">
-          <option value="">Selecione o processo…</option>
-        </select>
-        <div class="text-sm text-muted" id="rdCaseHint" style="margin-top:4px;"></div>
+        <label>2. Processos do cliente * <span class="text-muted" style="font-weight:400;">(marque um, alguns ou todos)</span></label>
+        <div id="rdCasosBox" style="border:1px solid #e3e3e3;border-radius:8px;padding:8px 11px;max-height:240px;overflow:auto;">
+          <div class="text-muted" style="font-size:.85rem;">Escolha o cliente primeiro…</div>
+        </div>
       </div>
 
       <div class="row">
@@ -436,25 +452,34 @@ function rdSelCli(id, name) {
 }
 function rdLimparCli() {
   document.getElementById('rdClientId').value = '';
-  document.getElementById('rdCaseId').value = '';
   document.getElementById('rdCliSel').innerHTML = '';
   document.getElementById('rdCasoRow').style.display = 'none';
+  document.getElementById('rdCasosBox').innerHTML = '';
 }
 function rdCarregarCasos(clientId) {
-  var sel = document.getElementById('rdCaseSel');
-  sel.innerHTML = '<option value="">Carregando…</option>';
+  var box = document.getElementById('rdCasosBox');
+  box.innerHTML = 'Carregando…';
   document.getElementById('rdCasoRow').style.display = 'block';
   fetch(RD_URL + '?ajax=buscar_casos&client_id=' + clientId)
     .then(function(r){ return r.json(); })
     .then(function(arr){
-      if (!arr.length) { sel.innerHTML = '<option value="">Esse cliente não tem processo cadastrado</option>'; return; }
-      var html = '<option value="">Selecione o processo…</option>';
+      if (!arr.length) { box.innerHTML = '<div class="text-muted" style="font-size:.85rem;">Esse cliente não tem processo cadastrado.</div>'; return; }
+      var html = '';
+      if (arr.length > 1) {
+        html += '<label style="display:flex;align-items:center;gap:8px;font-weight:700;border-bottom:1px solid #eee;padding-bottom:6px;margin-bottom:6px;cursor:pointer;">'
+              + '<input type="checkbox" id="rdMarcarTodos" onchange="rdToggleTodos(this)"> ✅ Marcar todos (' + arr.length + ')</label>';
+      }
       arr.forEach(function(c){
         var lbl = (c.case_number ? c.case_number + ' — ' : '') + (c.title || ('Caso #' + c.id));
-        html += '<option value="' + c.id + '">' + lbl.replace(/</g,'') + '</option>';
+        html += '<label style="display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;font-size:.9rem;">'
+              + '<input type="checkbox" class="rd-caso-chk" name="case_ids[]" value="' + c.id + '"> '
+              + lbl.replace(/</g,'') + '</label>';
       });
-      sel.innerHTML = html;
+      box.innerHTML = html;
     });
+}
+function rdToggleTodos(master) {
+  document.querySelectorAll('.rd-caso-chk').forEach(function(c){ c.checked = master.checked; });
 }
 function rdTipo(input) {
   document.getElementById('rdTipoRen').classList.toggle('on', input.value === 'renuncia');
@@ -466,7 +491,7 @@ function rdMotivo() {
 }
 function rdValidar(f) {
   if (!f.client_id.value) { alert('Escolha o cliente.'); return false; }
-  if (!f.case_id.value)   { alert('Escolha o processo.'); return false; }
+  if (!document.querySelectorAll('.rd-caso-chk:checked').length) { alert('Escolha pelo menos um processo.'); return false; }
   if (!f.tipo.value && !document.querySelector('input[name="tipo"]:checked')) { alert('Marque renúncia ou desistência.'); return false; }
   var mot = document.querySelector('input[name="motivo"]:checked');
   if (!mot) { alert('Escolha o motivo.'); return false; }
