@@ -105,6 +105,7 @@ $menuItems = array(
 
     array('section' => '💼 Comercial'),
     array('label' => 'CRM',             'icon' => '🎯', 'href' => url('modules/crm/'),             'id' => 'crm',             'roles' => $_rolesEquipe),
+    array('label' => 'CRM Comercial',   'icon' => '🔥', 'href' => url('modules/crm_comercial/'),    'id' => 'crm_comercial',   'roles' => array('admin','gestao','comercial')),
     array('label' => 'Kanban Comercial','icon' => '📈', 'href' => url('modules/pipeline/'),         'id' => 'pipeline',        'roles' => $_rolesEquipe),
     array('label' => 'Formulários',     'icon' => '📋', 'href' => url('modules/formularios/'),      'id' => 'formularios',     'roles' => array('admin','gestao')),
 

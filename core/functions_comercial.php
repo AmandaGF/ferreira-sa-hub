@@ -1,0 +1,253 @@
+<?php
+/**
+ * Ferreira & Sá Conecta — CRM Comercial + cobrança de leads sem resposta (canal 21).
+ *
+ * Reforço comercial (22/06/2026): equipe maior, precisa de acompanhamento.
+ *  - Página CRM Comercial (modules/crm_comercial) lista quem está PENDENTE DE RESPOSTA
+ *    (última msg do lead) e quem precisa de FOLLOW-UP (última msg nossa, lead sumiu).
+ *  - Cron cron/comercial_cobranca.php cobra o responsável quando o lead está há +5 min
+ *    sem resposta (mesmo fluxo de notificação de lead novo) e avisa no grupo do WhatsApp.
+ *
+ * "Responsável" de uma conversa do canal 21 é volátil (atendente_id expira em 30 min),
+ * então resolvemos por: atendente_id → quem mandou a última msg nossa → assigned_to do
+ * pipeline → (nenhum) gestão.
+ */
+
+require_once __DIR__ . '/functions_notify.php';
+require_once __DIR__ . '/functions_push.php';
+require_once __DIR__ . '/functions_zapi.php';
+
+/** Cria as tabelas de apoio se não existirem (idempotente). */
+function comercial_self_heal($pdo)
+{
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS comercial_lead_obs (
+            conversa_id INT NOT NULL PRIMARY KEY,
+            lead_id INT NULL,
+            observacao TEXT NULL,
+            proximo_followup DATE NULL,
+            atualizado_por INT NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {}
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS comercial_cobranca (
+            conversa_id INT NOT NULL PRIMARY KEY,
+            ultima_msg_id INT NOT NULL,
+            responsavel_id INT NULL,
+            alertado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Exception $e) {}
+}
+
+/** Lê as configs (chave/valor) do módulo, com defaults. */
+function comercial_cfg($pdo)
+{
+    $cfg = array(
+        'ativo'           => '0',   // cobrança automática ligada?
+        'grupo_id'        => '',     // ID do grupo WhatsApp (…@g.us ou …-group)
+        'grupo_canal'     => '21',
+        'min'             => '5',    // minutos sem resposta pra cobrar
+        'grupo_ultimo_em' => '',
+    );
+    try {
+        $rows = $pdo->query("SELECT chave, valor FROM configuracoes
+                             WHERE chave LIKE 'comercial_cobranca_%' OR chave = 'comercial_grupo_id'")->fetchAll();
+        foreach ($rows as $r) {
+            if ($r['chave'] === 'comercial_cobranca_ativo')           $cfg['ativo'] = $r['valor'];
+            elseif ($r['chave'] === 'comercial_grupo_id')             $cfg['grupo_id'] = $r['valor'];
+            elseif ($r['chave'] === 'comercial_cobranca_canal')       $cfg['grupo_canal'] = $r['valor'];
+            elseif ($r['chave'] === 'comercial_cobranca_min')         $cfg['min'] = $r['valor'];
+            elseif ($r['chave'] === 'comercial_cobranca_grupo_ultimo_em') $cfg['grupo_ultimo_em'] = $r['valor'];
+        }
+    } catch (Exception $e) {}
+    return $cfg;
+}
+
+/** Salva uma config chave/valor. */
+function comercial_set_cfg($pdo, $chave, $valor)
+{
+    $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)
+                   ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
+        ->execute(array($chave, $valor));
+}
+
+/** Resolve o user_id responsável por uma linha de conversa (ou null). */
+function comercial_responsavel_id($row)
+{
+    if (!empty($row['atendente_id']))  return (int)$row['atendente_id'];
+    if (!empty($row['ultimo_resp_id'])) return (int)$row['ultimo_resp_id'];
+    if (!empty($row['assigned_to']))   return (int)$row['assigned_to'];
+    return null;
+}
+
+/**
+ * Busca conversas do canal 21 cuja ÚLTIMA mensagem tem a $direcao informada.
+ *  - 'recebida' = última foi do lead  → devemos resposta (pendentes / cobrança)
+ *  - 'enviada'  = última foi nossa     → lead sumiu (follow-up)
+ *
+ * @param int $diasMax    janela em dias sobre created_at da conversa (0 = sem limite)
+ * @param int $minMinutos exige que a última msg seja mais velha que N min (0 = ignora)
+ */
+function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $limit = 300)
+{
+    $where  = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
+               AND co.status NOT IN ('resolvido','arquivado') AND lm.direcao = ?";
+    $params = array($direcao);
+    if ($diasMax > 0)    $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
+    if ($minMinutos > 0) $where .= " AND lm.created_at <= DATE_SUB(NOW(), INTERVAL " . (int)$minMinutos . " MINUTE)";
+
+    $sql = "SELECT co.id AS conversa_id, co.telefone, co.nome_contato, co.atendente_id,
+                   co.lead_id, co.client_id, co.created_at AS conversa_em, co.status,
+                   cl.name AS client_name, pl.name AS lead_name, pl.assigned_to, pl.stage, pl.case_type,
+                   lm.id AS ultima_msg_id, lm.direcao AS ultima_direcao,
+                   lm.created_at AS ultima_em, lm.conteudo AS ultima_texto,
+                   (SELECT mm.enviado_por_id FROM zapi_mensagens mm
+                     WHERE mm.conversa_id = co.id AND mm.direcao = 'enviada' AND mm.enviado_por_id IS NOT NULL
+                     ORDER BY mm.id DESC LIMIT 1) AS ultimo_resp_id,
+                   (SELECT MAX(mm.created_at) FROM zapi_mensagens mm
+                     WHERE mm.conversa_id = co.id AND mm.direcao = 'enviada') AS ultima_nossa_em,
+                   lo.observacao, lo.proximo_followup
+            FROM zapi_conversas co
+            JOIN (
+                SELECT m.conversa_id, m.id, m.direcao, m.created_at, m.conteudo
+                FROM zapi_mensagens m
+                JOIN (SELECT conversa_id, MAX(id) AS maxid FROM zapi_mensagens GROUP BY conversa_id) x
+                  ON x.conversa_id = m.conversa_id AND x.maxid = m.id
+            ) lm ON lm.conversa_id = co.id
+            LEFT JOIN clients cl ON cl.id = co.client_id
+            LEFT JOIN pipeline_leads pl ON pl.id = co.lead_id
+            LEFT JOIN comercial_lead_obs lo ON lo.conversa_id = co.id
+            WHERE $where
+            ORDER BY lm.created_at ASC
+            LIMIT " . (int)$limit;
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    return $st->fetchAll();
+}
+
+/** Mapa id→nome de todos os usuários (cacheado por request). */
+function comercial_users_map($pdo)
+{
+    static $map = null;
+    if ($map === null) {
+        $map = array();
+        foreach ($pdo->query("SELECT id, name FROM users")->fetchAll() as $u) {
+            $map[(int)$u['id']] = $u['name'];
+        }
+    }
+    return $map;
+}
+
+/**
+ * Motor da cobrança. Notifica o responsável de cada lead pendente (+5 min sem resposta)
+ * e, no máximo 1×/30min em horário comercial, manda o resumo no grupo.
+ *
+ * @param array $opts forcar_horario(bool), ignorar_ativo(bool), dry(bool)
+ * @return array relatório
+ */
+function comercial_rodar_cobranca($pdo, $opts = array())
+{
+    comercial_self_heal($pdo);
+    $forcarHorario = !empty($opts['forcar_horario']);
+    $ignorarAtivo  = !empty($opts['ignorar_ativo']);
+    $dry           = !empty($opts['dry']);
+
+    $rep = array('ativo' => true, 'horario_ok' => true, 'pendentes' => 0,
+                 'notificados' => 0, 'grupo_enviado' => false, 'detalhe' => array());
+
+    $cfg = comercial_cfg($pdo);
+    if ($cfg['ativo'] !== '1' && !$ignorarAtivo) { $rep['ativo'] = false; return $rep; }
+
+    if (function_exists('zapi_fora_horario') && zapi_fora_horario() && !$forcarHorario) {
+        $rep['horario_ok'] = false;
+        return $rep;
+    }
+
+    $min  = max(1, (int)$cfg['min']);
+    $rows = comercial_fetch($pdo, 'recebida', 45, $min, 200);
+    $rep['pendentes'] = count($rows);
+    if (!$rows) return $rep;
+
+    $umap = comercial_users_map($pdo);
+
+    // estado de dedup: já cobrei esta conversa por esta mensagem?
+    $jaCobrado = array();
+    foreach ($pdo->query("SELECT conversa_id, ultima_msg_id FROM comercial_cobranca")->fetchAll() as $c) {
+        $jaCobrado[(int)$c['conversa_id']] = (int)$c['ultima_msg_id'];
+    }
+    $upsert = $pdo->prepare("INSERT INTO comercial_cobranca (conversa_id, ultima_msg_id, responsavel_id, alertado_em)
+                             VALUES (?, ?, ?, NOW())
+                             ON DUPLICATE KEY UPDATE ultima_msg_id = VALUES(ultima_msg_id),
+                                                     responsavel_id = VALUES(responsavel_id), alertado_em = NOW()");
+
+    $porResp = array(); // resp_id (0 = sem dono) => qtd de pendentes (pro grupo)
+    foreach ($rows as $r) {
+        $convId = (int)$r['conversa_id'];
+        $respId = comercial_responsavel_id($r);
+        $key    = $respId ? $respId : 0;
+        $porResp[$key] = isset($porResp[$key]) ? $porResp[$key] + 1 : 1;
+
+        // só notifica se a última mensagem é NOVA (não cobrar a mesma msg de novo)
+        $jaMsg = isset($jaCobrado[$convId]) ? $jaCobrado[$convId] : 0;
+        if ($jaMsg === (int)$r['ultima_msg_id']) continue;
+
+        $nome  = $r['lead_name'] ? $r['lead_name'] : ($r['client_name'] ? $r['client_name'] : ($r['nome_contato'] ? $r['nome_contato'] : $r['telefone']));
+        $mins  = max($min, (int)((time() - strtotime($r['ultima_em'])) / 60));
+        $titulo = '🔥 Lead aguardando resposta';
+        $corpo  = $nome . ' mandou mensagem há ' . $mins . ' min e ainda não foi respondido.';
+        $link   = '/conecta/modules/whatsapp/?abrir=' . $convId . '&canal=21';
+
+        if (!$dry) {
+            if ($respId) {
+                if (function_exists('notify')) notify($respId, $titulo, $corpo, 'urgencia', $link, '🔥');
+                if (function_exists('push_notify')) { try { push_notify($respId, $titulo, $corpo, $link, true); } catch (Exception $e) {} }
+            } else {
+                if (function_exists('notify_gestao')) notify_gestao($titulo . ' (sem responsável)', $corpo, 'urgencia', $link, '🔥');
+                if (function_exists('push_notify_role')) { try { push_notify_role(array('admin','gestao'), $titulo, $corpo, $link, true); } catch (Exception $e) {} }
+            }
+            $upsert->execute(array($convId, (int)$r['ultima_msg_id'], $respId));
+        }
+        $rep['notificados']++;
+        $rep['detalhe'][] = array(
+            'conversa'    => $convId,
+            'nome'        => $nome,
+            'responsavel' => $respId ? (isset($umap[$respId]) ? $umap[$respId] : ('#' . $respId)) : 'sem responsável',
+            'min'         => $mins,
+        );
+    }
+
+    // ── Mensagem no grupo (nomes no texto, máx 1×/30min em horário comercial) ──
+    if (!empty($cfg['grupo_id']) && $porResp) {
+        $ultimo   = $cfg['grupo_ultimo_em'] ? strtotime($cfg['grupo_ultimo_em']) : 0;
+        $podeGrupo = $forcarHorario || ((time() - $ultimo) >= 30 * 60);
+        if ($podeGrupo) {
+            arsort($porResp);
+            $partes = array();
+            foreach ($porResp as $rid => $qt) {
+                $nm = $rid ? (isset($umap[$rid]) ? $umap[$rid] : ('#' . $rid)) : 'sem responsável';
+                $nm = trim(strtok($nm, ' ')); // primeiro nome
+                $partes[] = $nm . ' (' . $qt . ')';
+            }
+            $msg  = "⚠️ *Leads pendentes de resposta*\n\n";
+            $msg .= "Existem leads pendentes para os responsáveis: " . implode(', ', $partes) . ".\n\n";
+            $msg .= "Responda pelo Hub 👉 ferreiraesa.com.br/conecta/modules/crm_comercial/";
+
+            if (!$dry) {
+                $canal = $cfg['grupo_canal'] ? $cfg['grupo_canal'] : '21';
+                $res = zapi_send_text($canal, $cfg['grupo_id'], $msg);
+                if (!empty($res['ok'])) {
+                    comercial_set_cfg($pdo, 'comercial_cobranca_grupo_ultimo_em', date('Y-m-d H:i:s'));
+                    $rep['grupo_enviado'] = true;
+                } else {
+                    $rep['grupo_erro'] = isset($res['erro']) ? $res['erro'] : 'falhou';
+                }
+            } else {
+                $rep['grupo_preview'] = $msg;
+            }
+        }
+    }
+
+    return $rep;
+}
