@@ -37,6 +37,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_
         $up = $pdo->prepare("INSERT INTO marketing_investimento (ano_mes, canal, valor_cents, updated_by)
                              VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE valor_cents=VALUES(valor_cents), updated_by=VALUES(updated_by)");
         $cents = (int) round(((float)($_POST['inv_21'] ?? 0)) * 100);
+        // "Por dia": multiplica pelo nº de dias do mês → guarda o total do mês (canônico)
+        if (($_POST['inv_tipo'] ?? 'mes') === 'dia') {
+            $cents = $cents * (int) date('t', strtotime($ym . '-01'));
+        }
         $up->execute(array($ym, '21', max(0, $cents), current_user_id()));
         audit_log('marketing_invest_salvar', 'configuracoes', 0, $ym);
         flash_set('success', 'Investimento de ' . $ym . ' salvo.');
@@ -335,9 +339,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar_invest">
         <input type="hidden" name="gran" value="<?= e($gran) ?>">
-        <label>Mês <input type="month" name="inv_mes" value="<?= e($invEditMes) ?>" required></label>
-        <label>Investimento em anúncios — Comercial (21) — R$ <input type="number" step="0.01" min="0" name="inv_21" value="<?= e($invEdit['21']) ?>" placeholder="0,00" style="width:140px;"></label>
+        <label>Mês <input type="month" id="invMes" name="inv_mes" value="<?= e($invEditMes) ?>" required></label>
+        <label>Tipo
+            <select id="invTipo" name="inv_tipo">
+                <option value="mes">Total do mês</option>
+                <option value="dia">Por dia (× dias do mês)</option>
+            </select>
+        </label>
+        <label>Valor — Comercial (21) — R$ <input type="number" id="invVal" step="0.01" min="0" name="inv_21" value="<?= e($invEdit['21']) ?>" placeholder="0,00" style="width:140px;"></label>
         <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
+        <span id="invHint" class="text-sm text-muted"></span>
     </form>
     <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês no <strong>Comercial (21)</strong>. <strong>CAC = investimento ÷ conversas novas do 21.</strong> O canal 24 não entra no CAC por enquanto (recebe leads por erro de campanha). Para comparar mês a mês e decidir aumentar/diminuir o gasto, use a aba <strong>Mensal</strong>. Nas visões diária/semanal o investimento é rateado por dia.</p>
 
@@ -356,7 +367,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 ?>
                 <tr>
                     <td><?= e($mlbl) ?></td>
-                    <td><strong><?= $cnFmt($i21) ?></strong></td>
+                    <td><strong><?= $cnFmt($i21) ?></strong> <span class="text-muted" style="font-size:.72rem;">≈ <?= $cnFmt($i21 / max(1, (int)date('t', strtotime($ym . '-01')))) ?>/dia</span></td>
                     <td style="text-align:center;"><a href="?<?= http_build_query($qsE) ?>#invest" style="font-size:.72rem;font-weight:700;color:#6366f1;text-decoration:none;">✏️ editar</a></td>
                 </tr>
                 <?php endforeach; ?>
@@ -468,6 +479,21 @@ new Chart(document.getElementById('cnCac').getContext('2d'), {
     }
 });
 <?php endif; ?>
+
+// Investimento: dica ao vivo de conversão mês <-> por dia
+(function(){
+    var mes = document.getElementById('invMes'), tipo = document.getElementById('invTipo'),
+        val = document.getElementById('invVal'), hint = document.getElementById('invHint');
+    if (!mes || !tipo || !val || !hint) return;
+    function diasNoMes(ym){ if(!/^\d{4}-\d{2}$/.test(ym)) return 30; var p = ym.split('-'); return new Date(+p[0], +p[1], 0).getDate(); }
+    function brl(n){ return 'R$ ' + Number(n).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+    function upd(){
+        var v = parseFloat(val.value) || 0, d = diasNoMes(mes.value);
+        if (v <= 0) { hint.textContent = ''; return; }
+        hint.textContent = (tipo.value === 'dia') ? ('= ' + brl(v * d) + ' no mês (' + d + ' dias)') : ('≈ ' + brl(v / d) + ' por dia (' + d + ' dias)');
+    }
+    mes.addEventListener('change', upd); tipo.addEventListener('change', upd); val.addEventListener('input', upd); upd();
+})();
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
