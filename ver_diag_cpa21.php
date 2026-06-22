@@ -19,3 +19,5 @@ echo "tem 'CX/Operac' visível: " . (strpos($html, 'CX/Operac') !== false ? 'SIM
 echo "tem '(24)' visível: "      . (strpos($html, '(24)') !== false ? 'SIM (revisar)' : 'nao') . "\n";
 echo "tem 'Conversas novas (21)': " . (strpos($html, 'Conversas novas (21)') !== false ? 'sim' : 'NAO') . "\n";
 echo "erro PHP no html: " . (strpos($html, 'Fatal error') !== false || strpos($html, 'Warning:') !== false ? 'SIM' : 'nao') . "\n";
+$p = strpos($html, '(24)');
+if ($p !== false) { echo "\ncontexto do '(24)':\n..." . substr($html, max(0, $p - 80), 160) . "...\n"; }
