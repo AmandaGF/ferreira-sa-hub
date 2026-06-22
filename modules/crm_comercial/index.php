@@ -36,6 +36,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_
 
 $cfg = comercial_cfg($pdo);
 
+// Grupos de WhatsApp onde cada número já participa (pra escolher clicando, igual à
+// comemoração de contrato). Fonte: zapi_conversas com eh_grupo=1.
+$gruposCanal = array('21' => array(), '24' => array());
+if ($podeConfig) {
+    try {
+        $gst = $pdo->query("SELECT co.telefone, co.nome_contato, i.ddd AS canal
+                            FROM zapi_conversas co
+                            JOIN zapi_instancias i ON i.id = co.instancia_id
+                            WHERE COALESCE(co.eh_grupo, 0) = 1
+                            ORDER BY co.nome_contato ASC");
+        foreach ($gst->fetchAll(PDO::FETCH_ASSOC) as $g) {
+            $ch = (string)$g['canal'];
+            if (!isset($gruposCanal[$ch])) $gruposCanal[$ch] = array();
+            $gruposCanal[$ch][] = $g;
+        }
+    } catch (Exception $e) {}
+}
+
 // ── Dados ────────────────────────────────────────────────
 $pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300); // última msg = do lead
 
@@ -122,6 +140,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cc-rs:hover { background:#e8f3f1; }
 tr.cc-pin { background:#fffaf0; }
 tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
+.cc-grpbtn { text-align:left; background:#f0f9ff; border:1px solid #bae6fd; color:#0c4a6e; padding:6px 11px; border-radius:8px; cursor:pointer; font-size:12.5px; font-weight:600; }
+.cc-grpbtn:hover { background:#e0f2fe; }
+.cc-grpbtn.on { background:#0f3d3e; border-color:#0f3d3e; color:#fff; }
 </style>
 
 <div class="page-header" style="margin-bottom:14px;">
@@ -146,18 +167,39 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
       </div>
       <div>
         <label>Canal do grupo</label>
-        <select name="grupo_canal">
+        <select name="grupo_canal" id="ccGrupoCanal">
           <option value="21" <?= $cfg['grupo_canal'] !== '24' ? 'selected' : '' ?>>21 (Comercial)</option>
           <option value="24" <?= $cfg['grupo_canal'] === '24' ? 'selected' : '' ?>>24 (CX)</option>
         </select>
       </div>
       <div style="flex:1; min-width:260px;">
-        <label>ID do grupo no WhatsApp (…@g.us ou …-group)</label>
-        <input type="text" name="grupo_id" value="<?= cc_e($cfg['grupo_id']) ?>" placeholder="ex: 120363123456789@g.us" style="width:100%;">
+        <label>Grupo do WhatsApp</label>
+        <input type="text" name="grupo_id" id="ccGrupoId" value="<?= cc_e($cfg['grupo_id']) ?>" placeholder="Clique num grupo abaixo (ou cole o ID)" style="width:100%;">
       </div>
       <div>
         <button type="submit" class="cc-btn">Salvar</button>
       </div>
+    </div>
+
+    <div style="margin-top:6px;">
+      <div class="muted" style="margin-bottom:6px;">🎯 Os grupos onde os números já participam aparecem aqui — é só clicar pra escolher:</div>
+      <?php foreach (array('21' => '(21) Comercial', '24' => '(24) CX') as $ch => $lbl): $gs = $gruposCanal[$ch] ?? array(); ?>
+        <div style="margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:4px;">📞 <?= $lbl ?> · <?= count($gs) ?> grupo<?= count($gs) === 1 ? '' : 's' ?></div>
+          <?php if (!$gs): ?>
+            <div style="font-size:12px;color:#94a3b8;font-style:italic;">Nenhum grupo encontrado neste número. Adicione o número (<?= $ch ?>) a um grupo e mande uma mensagem lá; depois recarregue a página.</div>
+          <?php else: ?>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              <?php foreach ($gs as $g): $sel = ($cfg['grupo_id'] === $g['telefone']); ?>
+                <button type="button" onclick="ccGrupoSel('<?= cc_e($g['telefone']) ?>','<?= $ch ?>',this)"
+                        class="cc-grpbtn<?= $sel ? ' on' : '' ?>">
+                  👥 <?= cc_e($g['nome_contato'] ?: '(grupo sem nome)') ?>
+                </button>
+              <?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
     </div>
   </form>
   <div class="row" style="margin-top:12px;">
@@ -237,6 +279,15 @@ function ccTab(el) {
   document.querySelectorAll('.cc-pane').forEach(function(p){ p.classList.remove('active'); });
   el.classList.add('active');
   document.getElementById('pane-' + el.dataset.pane).classList.add('active');
+}
+
+// Clicar num grupo: preenche o ID e alinha o canal automaticamente
+function ccGrupoSel(telefone, canal, btn) {
+  document.getElementById('ccGrupoId').value = telefone;
+  var sel = document.getElementById('ccGrupoCanal');
+  if (sel) sel.value = canal;
+  document.querySelectorAll('.cc-grpbtn').forEach(function(b){ b.classList.remove('on'); });
+  if (btn) btn.classList.add('on');
 }
 
 function ccPost(data, cb) {
