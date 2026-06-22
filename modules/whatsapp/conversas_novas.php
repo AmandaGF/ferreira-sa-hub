@@ -10,7 +10,7 @@ require_login();
 if (!has_min_role('gestao')) { flash_set('error', 'Acesso restrito.'); redirect(url('modules/whatsapp/')); }
 
 $pdo = db();
-$pageTitle = 'Relatórios - CAC';
+$pageTitle = 'Relatórios - CPA';
 
 $gran = $_GET['gran'] ?? 'dia';
 if (!in_array($gran, array('dia', 'semana', 'mes'), true)) $gran = 'dia';
@@ -191,9 +191,17 @@ if ($diaDetalhe) {
             $firstDir = $fm ? $fm['direcao'] : null;
             $firstAt  = $fm ? $fm['created_at'] : null;
             if ($soLeads && $firstDir !== 'recebida') continue; // só leads = 1ª msg do cliente
-            // 1ª resposta nossa após a 1ª mensagem do lead
+            // 1ª resposta nossa após a 1ª mensagem do lead.
+            // IGNORA a auto-resposta de fora de horário ("Olá! Obrigado pelo seu contato 🌙…"):
+            // ela é 'enviada' mas não é atendimento real — conta a PRÓXIMA mensagem de atendente.
             $resp = null;
-            if ($firstAt) { $st2 = $pdo->prepare("SELECT MIN(created_at) FROM zapi_mensagens WHERE conversa_id=? AND direcao='enviada' AND created_at >= ?"); $st2->execute(array($cid, $firstAt)); $resp = $st2->fetchColumn() ?: null; }
+            if ($firstAt) {
+                $st2 = $pdo->prepare("SELECT MIN(created_at) FROM zapi_mensagens
+                    WHERE conversa_id=? AND direcao='enviada' AND created_at >= ?
+                      AND (conteudo IS NULL OR conteudo NOT LIKE '%estamos fora do nosso hor%')");
+                $st2->execute(array($cid, $firstAt));
+                $resp = $st2->fetchColumn() ?: null;
+            }
             // follow-up = equipe enviou em 2+ dias distintos
             $st3 = $pdo->prepare("SELECT COUNT(DISTINCT DATE(created_at)) FROM zapi_mensagens WHERE conversa_id=? AND direcao='enviada'");
             $st3->execute(array($cid)); $diasEnv = (int)$st3->fetchColumn();
@@ -230,7 +238,7 @@ if (($_GET['export'] ?? '') === 'csv') {
             ), ';');
         }
     } else {
-        fputcsv($out, array('Periodo', 'Comercial (21)', 'CX/Operac (24)', 'Total', 'Investido 21 (R$)', 'CAC 21 (R$)'), ';');
+        fputcsv($out, array('Periodo', 'Comercial (21)', 'CX/Operac (24)', 'Total', 'Investido 21 (R$)', 'CPA 21 (R$)'), ';');
         for ($i = 0; $i < count($labels); $i++) {
             $iv = $inv21Arr[$i];
             $cacv = ($d21[$i] > 0 && $iv > 0) ? $iv / $d21[$i] : null;
@@ -288,7 +296,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <a href="<?= module_url('whatsapp') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar ao WhatsApp</a>
-<h1 style="margin:.2rem 0 1rem;">📈 Relatórios - CAC</h1>
+<h1 style="margin:.2rem 0 1rem;">📈 Relatórios - CPA</h1>
 <p class="text-sm text-muted" style="margin-top:-.6rem;margin-bottom:1rem;">
     <?= $soLeads ? '<strong>Leads novos</strong> = conversas iniciadas pelo cliente (1ª mensagem recebida).' : '<strong>Todas</strong> as conversas novas (inclui as que vocês iniciaram).' ?>
     Por canal, granularidade <strong><?= $granLabel[$gran] ?></strong>.
@@ -330,7 +338,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="cn-card"><div class="num"><?= $media ?></div><div class="lbl">Média / <?= $granLabel[$gran] ?></div></div>
     <div class="cn-card"><div class="num"><?= (int)$best['v'] ?></div><div class="lbl">Pico (<?= e($best['lbl']) ?>)</div></div>
     <div class="cn-card"><div class="num money"><?= $totInv21 > 0 ? $cnFmt($totInv21) : '—' ?></div><div class="lbl">💰 Investido (21)</div></div>
-    <div class="cn-card cac"><div class="num money"><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></div><div class="lbl">CAC — Comercial (21)</div></div>
+    <div class="cn-card cac"><div class="num money"><?= $cac21 !== null ? $cnFmt($cac21) : '—' ?></div><div class="lbl">CPA — Comercial (21)</div></div>
 </div>
 
 <details id="invest" class="cn-invest" <?= isset($_GET['invmes']) ? 'open' : '' ?>>
@@ -350,7 +358,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <button type="submit" class="btn btn-primary btn-sm">Salvar</button>
         <span id="invHint" class="text-sm text-muted"></span>
     </form>
-    <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês no <strong>Comercial (21)</strong>. <strong>CAC = investimento ÷ conversas novas do 21.</strong> O canal 24 não entra no CAC por enquanto (recebe leads por erro de campanha). Para comparar mês a mês e decidir aumentar/diminuir o gasto, use a aba <strong>Mensal</strong>. Nas visões diária/semanal o investimento é rateado por dia.</p>
+    <p class="text-sm text-muted" style="margin:0 0 .6rem;">Lance o gasto com anúncios do mês no <strong>Comercial (21)</strong>. <strong>CPA = investimento ÷ conversas novas do 21.</strong> O canal 24 não entra no CPA por enquanto (recebe leads por erro de campanha). Para comparar mês a mês e decidir aumentar/diminuir o gasto, use a aba <strong>Mensal</strong>. Nas visões diária/semanal o investimento é rateado por dia.</p>
 
     <?php if (!empty($invAll)): ?>
     <div style="overflow-x:auto;margin-bottom:.7rem;">
@@ -384,14 +392,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <?php if ($totInv21 > 0): ?>
 <div class="cn-chartbox">
-    <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">📉 CAC — Comercial (21) por período (R$ por lead)</div>
+    <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">📉 CPA — Comercial (21) por período (R$ por lead)</div>
     <div style="position:relative;height:200px;"><canvas id="cnCac"></canvas></div>
 </div>
 <?php endif; ?>
 
 <div style="overflow-x:auto;">
 <table class="cn-table">
-    <thead><tr><th>Período</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th>Investido (21)</th><th>CAC (21)</th></tr></thead>
+    <thead><tr><th>Período</th><th>Comercial (21)</th><th>CX/Operac. (24)</th><th>Total</th><th>Investido (21)</th><th>CPA (21)</th></tr></thead>
     <tbody>
         <?php for ($i = count($labels)-1; $i >= 0; $i--): // mais recente primeiro
             $tt = $d21[$i] + $d24[$i];
@@ -467,14 +475,14 @@ new Chart(document.getElementById('cnChart').getContext('2d'), {
 new Chart(document.getElementById('cnCac').getContext('2d'), {
     type: 'line',
     data: { labels: <?= json_encode($labels) ?>, datasets: [{
-        label: 'CAC (21)', data: <?= json_encode($cacArr) ?>,
+        label: 'CPA (21)', data: <?= json_encode($cacArr) ?>,
         borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.15)',
         spanGaps: true, tension: .3, fill: true, pointRadius: 3, pointBackgroundColor: '#6366f1'
     }] },
     options: {
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { display: false },
-            tooltip: { callbacks: { label: function(c){ return c.parsed.y != null ? 'CAC: R$ ' + Number(c.parsed.y).toLocaleString('pt-BR', {minimumFractionDigits:2}) : 'sem dado'; } } } },
+            tooltip: { callbacks: { label: function(c){ return c.parsed.y != null ? 'CPA: R$ ' + Number(c.parsed.y).toLocaleString('pt-BR', {minimumFractionDigits:2}) : 'sem dado'; } } } },
         scales: { x: { grid:{display:false} }, y: { beginAtZero: true, ticks: { callback: function(v){ return 'R$ ' + v; } } } }
     }
 });
