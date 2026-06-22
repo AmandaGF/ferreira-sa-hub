@@ -322,13 +322,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div class="cn-chartbox">
     <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">Conversas novas por período</div>
-    <canvas id="cnChart" height="100"></canvas>
+    <div style="position:relative;height:260px;"><canvas id="cnChart"></canvas></div>
 </div>
 
 <?php if ($totInv21 > 0): ?>
 <div class="cn-chartbox">
     <div class="text-sm" style="font-weight:700;color:var(--petrol-900);margin-bottom:.4rem;">📉 CAC — Comercial (21) por período (R$ por lead)</div>
-    <canvas id="cnCac" height="80"></canvas>
+    <div style="position:relative;height:200px;"><canvas id="cnCac"></canvas></div>
 </div>
 <?php endif; ?>
 
