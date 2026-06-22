@@ -15,6 +15,9 @@ $pageTitle = 'Conversas Novas — WhatsApp';
 $gran = $_GET['gran'] ?? 'dia';
 if (!in_array($gran, array('dia', 'semana', 'mes'), true)) $gran = 'dia';
 $incluirGrupos = !empty($_GET['grupos']);
+// Default: conta só conversas iniciadas pelo CLIENTE (1ª msg recebida) = leads reais.
+// ?todas=1 inclui também as que NÓS iniciamos (follow-up, clientes existentes…).
+$soLeads = !isset($_GET['todas']);
 
 // ── Investimento em anúncios (pra CAC) — self-heal + salvar ──
 try {
@@ -69,6 +72,8 @@ else                         $keyExpr = "DATE_FORMAT(created_at, '%Y-%m')";
 $where  = "created_at >= ? AND created_at < ?";
 $params = array($iniStr, $fimStr);
 if (!$incluirGrupos) $where .= " AND COALESCE(eh_grupo,0) = 0";
+// Só leads = só conversas cuja 1ª mensagem foi RECEBIDA (o contato falou primeiro)
+if ($soLeads) $where .= " AND (SELECT mm.direcao FROM zapi_mensagens mm WHERE mm.conversa_id = zapi_conversas.id ORDER BY mm.id ASC LIMIT 1) = 'recebida'";
 
 $rows = array();
 try {
@@ -79,11 +84,12 @@ try {
 
 // ── Buckets ordenados (preenche zeros nos períodos sem conversa) ──
 $mesesAbr = array(1=>'jan',2=>'fev',3=>'mar',4=>'abr',5=>'mai',6=>'jun',7=>'jul',8=>'ago',9=>'set',10=>'out',11=>'nov',12=>'dez');
+$diasSemAbr = array(1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',7=>'Dom'); // N: 1=segunda
 $buckets = array();      // rótulo curto (eixo do gráfico)
 $bucketsFull = array();  // rótulo completo (tabela) — na semana mostra o intervalo de datas
 $cur = clone $ini;
 if ($gran === 'dia') {
-    while ($cur <= $fim) { $k = $cur->format('Y-m-d'); $buckets[$k] = $cur->format('d/m'); $bucketsFull[$k] = $cur->format('d/m/Y'); $cur->modify('+1 day'); }
+    while ($cur <= $fim) { $k = $cur->format('Y-m-d'); $buckets[$k] = $cur->format('d/m'); $bucketsFull[$k] = $cur->format('d/m/Y') . ' · ' . $diasSemAbr[(int)$cur->format('N')]; $cur->modify('+1 day'); }
 } elseif ($gran === 'semana') {
     while ($cur <= $fim) { $k = $cur->format('Y-m-d'); $fimSem = (clone $cur)->modify('+6 days'); $buckets[$k] = $cur->format('d/m'); $bucketsFull[$k] = $cur->format('d/m') . ' a ' . $fimSem->format('d/m'); $cur->modify('+7 days'); }
 } else {
@@ -187,7 +193,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <a href="<?= module_url('whatsapp') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar ao WhatsApp</a>
 <h1 style="margin:.2rem 0 1rem;">📈 Conversas Novas (WhatsApp)</h1>
-<p class="text-sm text-muted" style="margin-top:-.6rem;margin-bottom:1rem;">Conversas abertas pela 1ª vez (data de cadastro), por canal. Granularidade: <strong><?= $granLabel[$gran] ?></strong>.</p>
+<p class="text-sm text-muted" style="margin-top:-.6rem;margin-bottom:1rem;">
+    <?= $soLeads ? '<strong>Leads novos</strong> = conversas iniciadas pelo cliente (1ª mensagem recebida).' : '<strong>Todas</strong> as conversas novas (inclui as que vocês iniciaram).' ?>
+    Por canal, granularidade <strong><?= $granLabel[$gran] ?></strong>.
+</p>
 
 <div class="cn-head">
     <div class="cn-tabs">
@@ -203,6 +212,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <input type="hidden" name="gran" value="<?= e($gran) ?>">
     <label>De <input type="date" name="de" value="<?= e($ini->format('Y-m-d')) ?>"></label>
     <label>Até <input type="date" name="ate" value="<?= e($fim->format('Y-m-d')) ?>"></label>
+    <label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:.8rem;color:var(--text);" title="Por padrão conta só quem iniciou o contato (lead real). Marque para incluir também as conversas que vocês iniciaram (follow-up, clientes existentes).">
+        <input type="checkbox" name="todas" value="1" <?= !$soLeads?'checked':'' ?>> Incluir conversas que nós iniciamos
+    </label>
     <label style="flex-direction:row;align-items:center;gap:6px;text-transform:none;font-size:.8rem;color:var(--text);">
         <input type="checkbox" name="grupos" value="1" <?= $incluirGrupos?'checked':'' ?>> Incluir grupos
     </label>
