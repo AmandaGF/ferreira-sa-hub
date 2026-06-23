@@ -97,19 +97,19 @@ function crm_op_fetch_wa($pdo, $direcao, $diasMax = 45, $limit = 300, $statusEq 
                      WHERE mm.conversa_id = co.id AND mm.direcao = 'enviada') AS ultima_nossa_em,
                    (SELECT cs.id FROM cases cs
                      WHERE cs.client_id = co.client_id
-                       AND cs.stage NOT IN ('arquivado','concluido')
+                       AND cs.status NOT IN ('arquivado','concluido')
                      ORDER BY cs.updated_at DESC LIMIT 1) AS case_id,
                    (SELECT cs.title FROM cases cs
                      WHERE cs.client_id = co.client_id
-                       AND cs.stage NOT IN ('arquivado','concluido')
+                       AND cs.status NOT IN ('arquivado','concluido')
                      ORDER BY cs.updated_at DESC LIMIT 1) AS case_title,
-                   (SELECT cs.stage FROM cases cs
+                   (SELECT cs.status FROM cases cs
                      WHERE cs.client_id = co.client_id
-                       AND cs.stage NOT IN ('arquivado','concluido')
-                     ORDER BY cs.updated_at DESC LIMIT 1) AS case_stage,
+                       AND cs.status NOT IN ('arquivado','concluido')
+                     ORDER BY cs.updated_at DESC LIMIT 1) AS case_status,
                    (SELECT cs.responsible_user_id FROM cases cs
                      WHERE cs.client_id = co.client_id
-                       AND cs.stage NOT IN ('arquivado','concluido')
+                       AND cs.status NOT IN ('arquivado','concluido')
                      ORDER BY cs.updated_at DESC LIMIT 1) AS responsible_user_id,
                    lo.observacao, lo.proximo_followup, lo.status
             FROM zapi_conversas co
@@ -138,13 +138,13 @@ function crm_op_fetch_wa($pdo, $direcao, $diasMax = 45, $limit = 300, $statusEq 
  */
 function crm_op_fetch_peticoes($pdo, $limit = 200)
 {
-    $sql = "SELECT cs.id, cs.title, cs.stage, cs.responsible_user_id,
+    $sql = "SELECT cs.id, cs.title, cs.status, cs.responsible_user_id,
                    cs.updated_at, cs.created_at,
                    cl.name AS client_name,
                    DATEDIFF(NOW(), cs.updated_at) AS dias_parado
             FROM cases cs
             LEFT JOIN clients cl ON cl.id = cs.client_id
-            WHERE cs.stage IN ('em_elaboracao','aguardando_prazo')
+            WHERE cs.status IN ('em_elaboracao','aguardando_prazo')
             ORDER BY cs.updated_at ASC
             LIMIT " . (int)$limit;
     return $pdo->query($sql)->fetchAll();

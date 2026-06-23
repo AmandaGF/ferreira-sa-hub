@@ -15,7 +15,7 @@ require_access('crm_operacional');
 require_once __DIR__ . '/../../core/functions_crm_operacional.php';
 
 $pdo = db();
-$pageTitle = 'CRM Operacional';
+$pageTitle = 'CRM Operacional/CX';
 crm_op_self_heal($pdo);
 
 // Stage → label/ícone/cor (replicando o que o Kanban Operacional usa)
@@ -95,7 +95,7 @@ tr.cop-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
 </style>
 
 <div class="page-header" style="margin-bottom:14px;">
-  <h1 style="margin:0;">🛠️ CRM Operacional</h1>
+  <h1 style="margin:0;">🛠️ CRM Operacional/CX</h1>
   <p style="color:#777; margin:4px 0 0;">Cliente esperando resposta no canal 24, follow-up e petições iniciais ainda pendentes de distribuição.</p>
 </div>
 
@@ -137,7 +137,7 @@ function cop_render_wa($rows, $umap, $modo)
         echo '<div class="cop-sub">' . cop_e($r['telefone']) . '</div></td>';
         if (!empty($r['case_title'])) {
             echo '<td><a href="' . cop_e($caseHref) . '" style="color:#0f3d3e;text-decoration:none;font-weight:600;">' . cop_e($r['case_title']) . '</a>';
-            echo '<div class="cop-sub">' . cop_e($r['case_stage'] ?: '') . '</div></td>';
+            echo '<div class="cop-sub">' . cop_e($r['case_status'] ?: '') . '</div></td>';
         } else {
             echo '<td><span class="cop-sub">— sem case ativo —</span></td>';
         }
@@ -168,7 +168,7 @@ function cop_render_peticoes($rows, $umap, $stageMap)
     foreach ($rows as $r) {
         $caseId = (int)$r['id'];
         $cliente = $r['client_name'] ?: '(sem cliente)';
-        $stage = $r['stage'];
+        $stage = $r['status'];
         $stInfo = isset($stageMap[$stage]) ? $stageMap[$stage] : array('label' => $stage, 'color' => '#888', 'icon' => '•');
         $dias = (int)$r['dias_parado'];
         $diasClass = $dias >= 14 ? 'urg' : ($dias >= 7 ? 'med' : 'ok');
