@@ -111,6 +111,7 @@ $menuItems = array(
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $_rolesEquipe),
+    array('label' => 'CRM Operacional', 'icon' => '🛠️', 'href' => url('modules/crm_operacional/'), 'id' => 'crm_operacional', 'roles' => array('admin','gestao','operacional','cx','estagiario')),
     array('label' => 'Kanban PREV',    'icon' => '🏛️', 'href' => url('modules/prev/'),             'id' => 'prev',            'roles' => $all),
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => $_rolesEquipe),
     array('label' => 'Renúncia/Desistência','icon' => '📤', 'href' => url('modules/processos/renuncias.php'), 'id' => 'processos_renuncias', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario')),
