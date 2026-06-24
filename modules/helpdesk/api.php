@@ -134,9 +134,23 @@ switch ($action) {
 
             // Andamento automático no processo vinculado ao resolver/cancelar
             if (in_array($status, array('resolvido', 'cancelado'))) {
-                $stmtT = $pdo->prepare('SELECT title, case_id FROM tickets WHERE id = ?');
+                $stmtT = $pdo->prepare('SELECT title, case_id, requester_id FROM tickets WHERE id = ?');
                 $stmtT->execute(array($ticketId));
                 $ticketData = $stmtT->fetch();
+
+                // Fechar o loop: avisa quem ABRIU que foi resolvido/cancelado (só na transição).
+                $jaEra = isset($_antes['status']) && in_array($_antes['status'], array('resolvido', 'cancelado'), true);
+                if (!$jaEra && $ticketData && !empty($ticketData['requester_id']) && (int)$ticketData['requester_id'] !== current_user_id()) {
+                    $rid = (int)$ticketData['requester_id'];
+                    $urlReq = url('modules/helpdesk/ver.php?id=' . $ticketId);
+                    if ($status === 'resolvido') {
+                        notify($rid, '✅ Seu chamado #' . $ticketId . ' foi resolvido', $ticketData['title'], 'sucesso', $urlReq, '✅');
+                    } else {
+                        notify($rid, '🚫 Seu chamado #' . $ticketId . ' foi cancelado', $ticketData['title'], 'info', $urlReq, '🚫');
+                    }
+                    if (function_exists('push_notify')) { try { push_notify($rid, ($status === 'resolvido' ? '✅ Chamado resolvido: #' : '🚫 Chamado cancelado: #') . $ticketId, $ticketData['title'], '/conecta/modules/helpdesk/ver.php?id=' . $ticketId, false); } catch (Exception $e) {} }
+                }
+
                 if ($ticketData && $ticketData['case_id']) {
                     $descAndamento = ($status === 'resolvido')
                         ? 'CHAMADO INTERNO CONCLUÍDO - Chamado #' . $ticketId . ': ' . $ticketData['title']
@@ -255,7 +269,7 @@ switch ($action) {
             if ($message === '') $message = $msgContent;
 
             // Auto mudar status para em_andamento se estava aberto
-            $stmt = $pdo->prepare('SELECT status, title FROM tickets WHERE id = ?');
+            $stmt = $pdo->prepare('SELECT status, title, requester_id FROM tickets WHERE id = ?');
             $stmt->execute([$ticketId]);
             $t = $stmt->fetch();
             if ($t && $t['status'] === 'aberto') {
@@ -306,6 +320,18 @@ switch ($action) {
                         }
                     }
                 }
+            }
+
+            // Fechar o loop: avisa quem ABRIU o chamado que teve resposta
+            // (só se não foi ele mesmo respondendo e não foi @mencionado já).
+            if ($t && !empty($t['requester_id']) && (int)$t['requester_id'] !== current_user_id()
+                && !in_array((int)$t['requester_id'], $notifiedIds ?? array(), true)) {
+                $rid = (int)$t['requester_id'];
+                $urlReq = url('modules/helpdesk/ver.php?id=' . $ticketId);
+                notify($rid, '💬 Resposta no seu chamado #' . $ticketId,
+                    $senderName . ' respondeu: "' . mb_substr($message, 0, 120, 'UTF-8') . (mb_strlen($message, 'UTF-8') > 120 ? '…' : '') . '"',
+                    'info', $urlReq, '💬');
+                if (function_exists('push_notify')) { try { push_notify($rid, '💬 Resposta no seu chamado #' . $ticketId, $senderName . ' respondeu', '/conecta/modules/helpdesk/ver.php?id=' . $ticketId, false); } catch (Exception $e) {} }
             }
 
             audit_log('ticket_message', 'ticket', $ticketId);

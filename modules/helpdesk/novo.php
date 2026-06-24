@@ -149,6 +149,15 @@ echo voltar_ao_processo_html();
                        placeholder="Ex: Protocolar petição urgente">
             </div>
 
+            <div class="form-group">
+                <label class="form-label">Descrição</label>
+                <textarea name="description" class="form-textarea" rows="5" placeholder="Descreva o que precisa ser feito…"><?= e($_POST['description'] ?? $preDescription) ?></textarea>
+            </div>
+
+            <details <?= ($preClientId || $preCaseId) ? 'open' : '' ?> style="margin-bottom:1rem;border:1px solid #eee;border-radius:8px;padding:8px 12px;">
+              <summary style="cursor:pointer;font-weight:600;color:#0f3d3e;">➕ Mais detalhes (opcional) — categoria, setor, cliente, prazo, responsáveis…</summary>
+              <div style="padding-top:12px;">
+
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Categoria</label>
@@ -193,11 +202,6 @@ echo voltar_ao_processo_html();
                     </select>
                     <span class="form-hint">Quem precisa ver este chamado</span>
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Descrição</label>
-                <textarea name="description" class="form-textarea" rows="6" placeholder="Descreva o que precisa ser feito..."><?= e($_POST['description'] ?? $preDescription) ?></textarea>
             </div>
 
             <div class="form-row">
@@ -254,6 +258,8 @@ echo voltar_ao_processo_html();
                     <?php endforeach; ?>
                 </div>
             </div>
+              </div>
+            </details>
 
             <div class="card-footer" style="border-top:none;padding:1rem 0 0;">
                 <a href="<?= module_url('helpdesk') ?>" class="btn btn-outline">Cancelar</a>
