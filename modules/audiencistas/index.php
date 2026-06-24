@@ -151,9 +151,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, arquivo_nome, arquivo_path, arquivo_mime, status, created_by)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
             ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $aNome, $aPath, $aMime, $status, current_user_id()));
-        audit_log('audiencia_criar', 'audiencia', (int)$pdo->lastInsertId(), $tipo);
-        flash_set('success', 'Audiência registrada! ' . ($audId ? 'Audiencista já designada.' : 'Agora é só designar uma audiencista.'));
-        redirect(module_url('audiencistas'));
+        $novoId = (int)$pdo->lastInsertId();
+        audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
+
+        // Sem audiencista designada → avisa a equipe pra contatar e contratar.
+        if (!$audId && function_exists('notify_gestao')) {
+            notify_gestao('👩‍⚖️ Solicitação de audiencista',
+                $tipo . ($comarca ? ' — ' . $comarca : '') . ($dataVal ? ' em ' . date('d/m/Y H:i', strtotime($dataVal)) : '')
+                . '. Contatar uma audiencista pra verificar disponibilidade e contratar.',
+                'pendencia', url('modules/audiencistas/'), '👩‍⚖️');
+        }
+
+        flash_set('success', 'Audiência registrada! ' . ($audId ? 'Audiencista já designada.' : 'A equipe foi avisada pra contatar uma audiencista.'));
+        $vc = (int)($_POST['voltar_caso'] ?? 0);
+        redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('audiencistas'));
     }
 
     // -- designar audiencista a uma audiência --

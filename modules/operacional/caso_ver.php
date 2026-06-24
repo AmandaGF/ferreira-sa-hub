@@ -1563,6 +1563,7 @@ if ($_ehAlimentos) {
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
+    <button type="button" onclick="audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;">Balcão Virtual</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
@@ -1570,6 +1571,40 @@ if ($_ehAlimentos) {
     <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
+
+<!-- Modal: Solicitar audiencista (cria a demanda no módulo Audiencistas + avisa a equipe) -->
+<div id="audSolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:22px;max-width:480px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <h3 style="margin:0 0 6px;">👩‍⚖️ Solicitar audiencista</h3>
+    <p style="color:#666;font-size:.85rem;margin:0 0 14px;">A equipe será avisada pra contatar uma audiencista, verificar disponibilidade e contratar. Esta audiência já fica vinculada a esta pasta.</p>
+    <form method="post" action="<?= module_url('audiencistas') ?>">
+      <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+      <input type="hidden" name="acao" value="salvar_audiencia">
+      <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
+      <input type="hidden" name="case_id" value="<?= $caseId ?>">
+      <input type="hidden" name="comarca" value="<?= e($case['comarca'] ?? '') ?>">
+      <input type="hidden" name="processo_numero" value="<?= e($case['case_number'] ?? '') ?>">
+      <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
+      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Tipo de audiência *</label>
+      <select name="tipo" required class="form-input" style="width:100%;margin-bottom:10px;">
+        <option value="">Selecione…</option>
+        <?php foreach (array('AIJ (Instrução e Julgamento)','Audiência inicial','Conciliação','Mediação / CEJUSC','Audiência una','Justificação','Custódia','Juizado Especial','Outra') as $_t): ?><option value="<?= e($_t) ?>"><?= e($_t) ?></option><?php endforeach; ?>
+      </select>
+      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Data e hora</label>
+      <input type="datetime-local" name="data_hora" class="form-input" style="width:100%;margin-bottom:10px;">
+      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Orientações pra audiencista</label>
+      <textarea name="orientacoes" class="form-input" style="width:100%;min-height:70px;margin-bottom:14px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" onclick="audSolClose()" class="btn btn-outline btn-sm">Cancelar</button>
+        <button type="submit" class="btn btn-primary btn-sm" style="background:#b87333;">👩‍⚖️ Solicitar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function audSolOpen(){ document.getElementById('audSolModal').style.display='flex'; }
+function audSolClose(){ document.getElementById('audSolModal').style.display='none'; }
+</script>
 
 <!-- Banner: este processo é incidental de outro -->
 <?php if ($processoPrincipal && $case['is_incidental']): ?>
