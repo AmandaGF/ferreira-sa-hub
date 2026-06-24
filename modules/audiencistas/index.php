@@ -96,6 +96,46 @@ function aud_upload_file($field, $prefix, $maxMB = 25)
 }
 
 /**
+ * Registra andamento PRIVADO (visivel_cliente=0) na pasta do caso informando
+ * quem foi designada pra audiência. Não aparece na Central VIP — só internamente.
+ * Idempotente por (case_id, audiencista_id) — não duplica se já tem andamento dessa
+ * dupla nas últimas 24h (evita criar várias linhas se a tela é salva 2x sem mudar).
+ */
+function aud_registrar_andamento_designacao($pdo, $audId)
+{
+    $st = $pdo->prepare("SELECT au.*, ad.nome AS aud_nome, ad.oab AS aud_oab
+                         FROM audiencias au LEFT JOIN audiencistas ad ON ad.id=au.audiencista_id
+                         WHERE au.id=?");
+    $st->execute(array($audId));
+    $a = $st->fetch();
+    if (!$a || empty($a['case_id']) || empty($a['audiencista_id'])) return false;
+
+    // dedup: já existe andamento dessa dupla case+audiencista nas últimas 24h?
+    try {
+        $dup = $pdo->prepare("SELECT id FROM case_andamentos
+                              WHERE case_id = ? AND tipo = 'audiencia'
+                                AND descricao LIKE ?
+                                AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                              LIMIT 1");
+        $dup->execute(array((int)$a['case_id'], '%audiencista_id=' . (int)$a['audiencista_id'] . '%'));
+        if ($dup->fetchColumn()) return false;
+    } catch (Exception $e) {}
+
+    $linha = '👩‍⚖️ Audiência *' . $a['tipo'] . '*'
+           . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
+           . ($a['comarca'] ? ' (' . $a['comarca'] . ')' : '')
+           . ' — designada para: ' . $a['aud_nome']
+           . ($a['aud_oab'] ? ' (OAB ' . $a['aud_oab'] . ')' : '')
+           . "\n[interno · audiencista_id=" . (int)$a['audiencista_id'] . ']';
+    try {
+        $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                       VALUES (?, CURDATE(), 'audiencia', ?, 0, ?, NOW())")
+            ->execute(array((int)$a['case_id'], $linha, current_user_id()));
+        return true;
+    } catch (Exception $e) { return false; }
+}
+
+/**
  * Cria/atualiza evento na agenda quando uma audiencia tem audiencista designada
  * + data marcada. Retorna o agenda_evento_id (existente ou novo).
  *
@@ -148,6 +188,23 @@ if (($_GET['ajax'] ?? '') === 'buscar_casos') {
     $st = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE client_id = ? ORDER BY created_at DESC LIMIT 40");
     $st->execute(array($cid));
     echo json_encode($st->fetchAll()); exit;
+}
+// Próxima audiência agendada de um case (de agenda_eventos tipo='audiencia').
+// Usado pra pré-preencher data/hora quando Amanda escolhe o processo do cliente.
+if (($_GET['ajax'] ?? '') === 'proxima_audiencia') {
+    header('Content-Type: application/json; charset=utf-8');
+    $cid = (int)($_GET['case_id'] ?? 0); if (!$cid) { echo '{}'; exit; }
+    try {
+        $st = $pdo->prepare("SELECT data_inicio, titulo FROM agenda_eventos
+                             WHERE case_id = ? AND tipo = 'audiencia'
+                               AND data_inicio >= NOW()
+                               AND (status IS NULL OR status NOT IN ('cancelado','realizado','concluido'))
+                             ORDER BY data_inicio ASC LIMIT 1");
+        $st->execute(array($cid));
+        $r = $st->fetch();
+        echo json_encode($r ?: array());
+    } catch (Exception $e) { echo '{}'; }
+    exit;
 }
 
 // ── Download de arquivos (autenticado) ───────────────────
@@ -243,6 +300,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $novoId = (int)$pdo->lastInsertId();
         audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
 
+        // Se já veio com audiencista designada, cria evento na agenda + andamento privado.
+        if ($audId) {
+            aud_sync_agenda($pdo, $novoId);
+            aud_registrar_andamento_designacao($pdo, $novoId);
+        }
+
         // Sem audiencista designada → avisa a equipe pra contatar e contratar.
         if (!$audId && function_exists('notify_gestao')) {
             notify_gestao('👩‍⚖️ Solicitação de audiencista',
@@ -261,11 +324,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aid = (int)($_POST['audiencia_id'] ?? 0);
         $audId = (int)($_POST['audiencista_id'] ?? 0) ?: null;
         $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
+
+        // Audiencista anterior pra detectar mudança e logar troca no andamento
+        $prev = (int)$pdo->query("SELECT audiencista_id FROM audiencias WHERE id=" . (int)$aid)->fetchColumn();
         $pdo->prepare("UPDATE audiencias SET audiencista_id=?, valor_cents=COALESCE(?,valor_cents), status=IF(status='aberta','designada',status) WHERE id=?")
             ->execute(array($audId, $valor, $aid));
         audit_log('audiencia_designar', 'audiencia', $aid, 'audiencista=' . $audId);
         aud_sync_agenda($pdo, $aid); // cria/atualiza evento na agenda da equipe
+        if ($audId && $audId !== $prev) {
+            aud_registrar_andamento_designacao($pdo, $aid); // andamento PRIVADO na pasta do caso
+        }
         flash_set('success', 'Audiencista designada.');
+        redirect(module_url('audiencistas'));
+    }
+
+    // -- editar uma audiencia existente (campos principais) --
+    if ($acao === 'editar_audiencia') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        if (!$aid) { redirect(module_url('audiencistas')); }
+        $tipo = clean_str($_POST['tipo'] ?? '', 80);
+        $comarca = clean_str($_POST['comarca'] ?? '', 160);
+        $dataHora = trim($_POST['data_hora'] ?? '');
+        $dataVal = $dataHora && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/', $dataHora) ? str_replace('T', ' ', $dataHora) . ':00' : null;
+        $clientId = (int)($_POST['client_id'] ?? 0) ?: null;
+        $caseId   = (int)($_POST['case_id'] ?? 0) ?: null;
+        $procNum  = clean_str($_POST['processo_numero'] ?? '', 40);
+        $orient   = clean_str($_POST['orientacoes'] ?? '', 4000);
+        $audIdNew = (int)($_POST['audiencista_id'] ?? 0) ?: null;
+        if ($tipo === '') { flash_set('error', 'Tipo de audiência é obrigatório.'); redirect(module_url('audiencistas')); }
+
+        $prev = (int)$pdo->query("SELECT audiencista_id FROM audiencias WHERE id=" . $aid)->fetchColumn();
+        $pdo->prepare("UPDATE audiencias SET tipo=?, data_hora=?, comarca=?, client_id=?, case_id=?, processo_numero=?, orientacoes=?, audiencista_id=?, status=IF(status='aberta' AND ? IS NOT NULL,'designada',status) WHERE id=?")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audIdNew, $audIdNew, $aid));
+        audit_log('audiencia_editar', 'audiencia', $aid, $tipo);
+        aud_sync_agenda($pdo, $aid);
+        if ($audIdNew && $audIdNew !== $prev) {
+            aud_registrar_andamento_designacao($pdo, $aid);
+        }
+        flash_set('success', 'Audiência atualizada.');
+        redirect(module_url('audiencistas'));
+    }
+
+    // -- excluir audiencia --
+    if ($acao === 'excluir_audiencia') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        if (!$aid) { redirect(module_url('audiencistas')); }
+        // remove evento da agenda vinculado, se houver
+        try {
+            $eid = (int)$pdo->query("SELECT agenda_evento_id FROM audiencias WHERE id=" . $aid)->fetchColumn();
+            if ($eid) $pdo->prepare("DELETE FROM agenda_eventos WHERE id=?")->execute(array($eid));
+        } catch (Exception $e) {}
+        $pdo->prepare("DELETE FROM audiencias WHERE id=?")->execute(array($aid));
+        audit_log('audiencia_excluir', 'audiencia', $aid);
+        flash_set('success', 'Audiência removida.');
         redirect(module_url('audiencistas'));
     }
 
@@ -297,7 +408,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pub = url('files/audiencias/' . $a['substab_path']);
             $cap = "📜 Substabelecimento — " . $a['tipo']
                  . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
-                 . ($a['comarca'] ? ' (' . $a['comarca'] . ')' : '');
+                 . ($a['comarca'] ? ' (' . $a['comarca'] . ')' : '')
+                 . ($a['orientacoes'] ? "\n\nOrientações: " . $a['orientacoes'] : '');
             $res = zapi_send_document($AUD_CANAL, $a['aud_tel'], $pub, $a['substab_nome'] ?: 'substabelecimento.pdf', $cap);
             if (!empty($res['ok'])) {
                 $pdo->prepare("UPDATE audiencias SET substab_enviado_em = NOW() WHERE id = ?")->execute(array($aid));
@@ -464,45 +576,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <!-- ===== ABA AUDIÊNCIAS ===== -->
 <div class="au-pane active" id="pane-audiencias">
   <details class="au-card" id="nova" style="max-width:820px;" <?= isset($_GET['nova']) ? 'open' : '' ?>>
-    <summary style="font-weight:700;color:#0f3d3e;cursor:pointer;">➕ Nova audiência a contratar</summary>
-    <form class="au-form" method="post" action="<?= module_url('audiencistas') ?>" enctype="multipart/form-data" style="margin-top:12px;">
+    <summary style="font-weight:700;color:#0f3d3e;cursor:pointer;" id="auNovaSummary">➕ Nova audiência a contratar</summary>
+    <form class="au-form" id="auAudienciaForm" method="post" action="<?= module_url('audiencistas') ?>" enctype="multipart/form-data" style="margin-top:12px;">
       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-      <input type="hidden" name="acao" value="salvar_audiencia">
+      <input type="hidden" name="acao" id="auAudienciaAcao" value="salvar_audiencia">
+      <input type="hidden" name="audiencia_id" id="auAudienciaId" value="">
       <input type="hidden" name="client_id" id="auClientId">
       <input type="hidden" name="case_id" id="auCaseId">
       <div class="au-grid2">
         <div class="row"><label>Tipo de audiência *</label>
-          <select class="au-select" name="tipo" required>
+          <select class="au-select" name="tipo" id="auTipo" required>
             <option value="">Selecione…</option>
             <?php foreach ($TIPOS as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
           </select>
         </div>
-        <div class="row"><label>Data e hora</label><input type="datetime-local" class="au-input" name="data_hora"></div>
+        <div class="row"><label>Data e hora</label><input type="datetime-local" class="au-input" name="data_hora" id="auDataHora"></div>
       </div>
       <div class="au-grid2">
-        <div class="row"><label>Comarca / Local</label><input type="text" class="au-input" name="comarca" placeholder="Ex: Niterói/RJ — 2ª Vara Cível"></div>
-        <div class="row"><label>Nº do processo</label><input type="text" class="au-input" name="processo_numero" placeholder="CNJ (opcional)"></div>
+        <div class="row"><label>Comarca / Local</label><input type="text" class="au-input" name="comarca" id="auComarca" placeholder="Ex: Niterói/RJ — 2ª Vara Cível"></div>
+        <div class="row"><label>Nº do processo</label><input type="text" class="au-input" name="processo_numero" id="auProcNum" placeholder="CNJ (opcional)"></div>
       </div>
       <div class="row"><label>Cliente (opcional — vincula ao processo)</label>
         <div class="au-results"><input type="text" class="au-input" id="auBuscaCli" placeholder="Digite o nome do cliente…" autocomplete="off" onkeyup="auBuscarCli(this.value)"><div class="au-rbox" id="auCliBox"></div></div>
         <div id="auCliSel"></div>
         <div id="auCasoWrap" style="display:none;margin-top:8px;"><label>Processo do cliente</label>
-          <select class="au-select" id="auCaseSel" onchange="document.getElementById('auCaseId').value=this.value;"><option value="">—</option></select>
+          <select class="au-select" id="auCaseSel" onchange="auOnSelCase(this.value);"><option value="">—</option></select>
+          <div id="auProxAud" style="display:none;font-size:.78rem;color:#0c4a6e;background:#e0f2fe;border-radius:6px;padding:5px 9px;margin-top:5px;"></div>
         </div>
       </div>
       <div class="row"><label>Orientações para a audiencista</label>
-        <textarea class="au-text" name="orientacoes" placeholder="Pontos de atenção, teses, o que pedir/evitar, contato do cliente, etc."></textarea>
+        <textarea class="au-text" name="orientacoes" id="auOrientacoes" placeholder="Pontos de atenção, teses, o que pedir/evitar, contato do cliente, etc."></textarea>
       </div>
       <div class="au-grid2">
         <div class="row"><label>Designar audiencista (opcional)</label>
-          <select class="au-select" name="audiencista_id">
+          <select class="au-select" name="audiencista_id" id="auAudienciaSel">
             <option value="">— designar depois —</option>
-            <?php foreach ($audAtivas as $a): ?><option value="<?= (int)$a['id'] ?>"><?= e($a['nome']) ?><?= $a['areas'] ? ' · ' . e(mb_substr($a['areas'], 0, 40)) : '' ?></option><?php endforeach; ?>
+            <?php foreach ($audAtivas as $aA): ?><option value="<?= (int)$aA['id'] ?>"><?= e($aA['nome']) ?><?= $aA['areas'] ? ' · ' . e(mb_substr($aA['areas'], 0, 40)) : '' ?></option><?php endforeach; ?>
           </select>
         </div>
-        <div class="row"><label>Arquivo do processo (PDF/DOC/ZIP, até 25MB)</label><input type="file" class="au-input" name="arquivo" accept=".pdf,.doc,.docx,.zip,image/*"></div>
+        <div class="row" id="auArquivoWrap"><label>Arquivo do processo (PDF/DOC/ZIP, até 25MB)</label><input type="file" class="au-input" name="arquivo" accept=".pdf,.doc,.docx,.zip,image/*"></div>
       </div>
-      <button type="submit" class="au-btn">➕ Registrar audiência</button>
+      <button type="submit" class="au-btn" id="auAudienciaBtn">➕ Registrar audiência</button>
+      <button type="button" class="au-btn ghost" onclick="auResetAudienciaForm()" id="auAudienciaCancel" style="display:none;">Cancelar edição</button>
     </form>
   </details>
 
@@ -537,11 +652,33 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <?php if ($a['orientacoes']): ?><div style="margin-top:6px;font-size:.85rem;color:#444;background:#fafafa;border-radius:8px;padding:8px 10px;white-space:pre-wrap;"><?= e($a['orientacoes']) ?></div><?php endif; ?>
       </div>
-      <form method="post" style="margin:0;"><input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="status"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
-        <select class="au-select" name="novo" onchange="this.form.submit()" style="width:auto;font-size:.8rem;padding:5px 8px;">
-          <?php foreach ($STATUS as $k => $lbl): ?><option value="<?= $k ?>" <?= $a['status'] === $k ? 'selected' : '' ?>><?= $lbl ?></option><?php endforeach; ?>
-        </select>
-      </form>
+      <div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap;">
+        <form method="post" style="margin:0;"><input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="status"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+          <select class="au-select" name="novo" onchange="this.form.submit()" style="width:auto;font-size:.8rem;padding:5px 8px;">
+            <?php foreach ($STATUS as $k => $lbl): ?><option value="<?= $k ?>" <?= $a['status'] === $k ? 'selected' : '' ?>><?= $lbl ?></option><?php endforeach; ?>
+          </select>
+        </form>
+        <button type="button" class="au-mini gh" style="padding:5px 9px;font-size:.74rem;"
+          onclick='auEditAudienc(<?= json_encode(array(
+            "id" => (int)$a["id"],
+            "tipo" => $a["tipo"],
+            "data_hora" => $a["data_hora"] ? str_replace(" ", "T", substr($a["data_hora"], 0, 16)) : "",
+            "comarca" => $a["comarca"],
+            "processo_numero" => $a["processo_numero"],
+            "client_id" => (int)$a["client_id"],
+            "client_name" => $a["client_name"],
+            "case_id" => (int)$a["case_id"],
+            "case_title" => $a["case_title"],
+            "orientacoes" => $a["orientacoes"],
+            "audiencista_id" => (int)$a["audiencista_id"],
+          ), JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>)'>✏️ Editar</button>
+        <form method="post" style="margin:0;" onsubmit="return confirm('Excluir esta audiência? Não dá pra desfazer.\n\nPagamentos e avaliações registrados serão perdidos.');">
+          <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+          <input type="hidden" name="acao" value="excluir_audiencia">
+          <input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+          <button type="submit" class="au-mini gh" style="padding:5px 9px;font-size:.74rem;color:#b91c1c;border-color:#fecaca;">🗑️ Excluir</button>
+        </form>
+      </div>
     </div>
 
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid #f0f0f0;padding-top:10px;">
@@ -741,7 +878,71 @@ function auSelCli(id,name){
     sel.innerHTML=html;
   });
 }
-function auLimparCli(){ document.getElementById('auClientId').value=''; document.getElementById('auCaseId').value=''; document.getElementById('auCliSel').innerHTML=''; document.getElementById('auCasoWrap').style.display='none'; }
+function auLimparCli(){ document.getElementById('auClientId').value=''; document.getElementById('auCaseId').value=''; document.getElementById('auCliSel').innerHTML=''; document.getElementById('auCasoWrap').style.display='none'; document.getElementById('auProxAud').style.display='none'; }
+
+/**
+ * Ao escolher o processo do cliente, busca a próxima audiência agendada
+ * dele em agenda_eventos e pré-preenche data/hora (se ainda estiver vazia).
+ * Mostra um chip com o que foi achado pra Amanda confirmar/sobrescrever.
+ */
+function auOnSelCase(cid){
+  document.getElementById('auCaseId').value=cid;
+  var box=document.getElementById('auProxAud');
+  if(!cid){ box.style.display='none'; return; }
+  box.style.display='block'; box.textContent='Buscando próxima audiência agendada…';
+  fetch(AU_URL+'?ajax=proxima_audiencia&case_id='+cid).then(function(r){return r.json();}).then(function(d){
+    if(d && d.data_inicio){
+      var dt=d.data_inicio.replace(' ','T').substring(0,16);
+      var campoData=document.getElementById('auDataHora');
+      if(!campoData.value){ campoData.value=dt; box.innerHTML='📅 <strong>Data preenchida da agenda:</strong> '+formatarDT(dt)+' — '+ (d.titulo||''); }
+      else { box.innerHTML='ℹ️ Existe audiência na agenda em '+formatarDT(dt)+' — '+ (d.titulo||'') +' <a href="javascript:void(0)" onclick="document.getElementById(\'auDataHora\').value=\''+dt+'\';this.parentElement.innerHTML=\'📅 Usando '+formatarDT(dt)+'\';">usar essa data</a>'; }
+    } else {
+      box.style.display='none';
+    }
+  }).catch(function(){ box.style.display='none'; });
+}
+function formatarDT(s){ if(!s) return ''; var p=s.split('T'); var d=p[0].split('-'); return d[2]+'/'+d[1]+'/'+d[0]+' '+(p[1]||''); }
+
+/** Preenche o form de "Nova audiência" com dados pra edição. */
+function auEditAudienc(d){
+  document.getElementById('auAudienciaAcao').value='editar_audiencia';
+  document.getElementById('auAudienciaId').value=d.id;
+  document.getElementById('auTipo').value=d.tipo||'';
+  document.getElementById('auDataHora').value=d.data_hora||'';
+  document.getElementById('auComarca').value=d.comarca||'';
+  document.getElementById('auProcNum').value=d.processo_numero||'';
+  document.getElementById('auOrientacoes').value=d.orientacoes||'';
+  document.getElementById('auAudienciaSel').value=d.audiencista_id||'';
+  // cliente + processo
+  auLimparCli();
+  if(d.client_id){
+    document.getElementById('auClientId').value=d.client_id;
+    document.getElementById('auCliSel').innerHTML='<span class="au-sel">👤 '+(d.client_name||('#'+d.client_id))+' <button type="button" onclick="auLimparCli()">×</button></span>';
+    var w=document.getElementById('auCasoWrap'), sel=document.getElementById('auCaseSel');
+    w.style.display='block';
+    if(d.case_id){
+      document.getElementById('auCaseId').value=d.case_id;
+      sel.innerHTML='<option value="'+d.case_id+'" selected>'+(d.case_title||('Caso #'+d.case_id))+'</option>';
+    }
+  }
+  // arquivo: oculta input (não dá pra reupload em editar)
+  var aw=document.getElementById('auArquivoWrap'); if(aw) aw.style.display='none';
+  document.getElementById('auNovaSummary').textContent='✏️ Editando audiência #'+d.id;
+  document.getElementById('auAudienciaBtn').textContent='💾 Salvar alterações';
+  document.getElementById('auAudienciaCancel').style.display='inline-block';
+  document.getElementById('nova').open=true;
+  document.getElementById('nova').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function auResetAudienciaForm(){
+  document.getElementById('auAudienciaForm').reset();
+  document.getElementById('auAudienciaAcao').value='salvar_audiencia';
+  document.getElementById('auAudienciaId').value='';
+  auLimparCli();
+  var aw=document.getElementById('auArquivoWrap'); if(aw) aw.style.display='';
+  document.getElementById('auNovaSummary').textContent='➕ Nova audiência a contratar';
+  document.getElementById('auAudienciaBtn').textContent='➕ Registrar audiência';
+  document.getElementById('auAudienciaCancel').style.display='none';
+}
 
 function auEdit(d){
   document.getElementById('auEditId').value=d.id;

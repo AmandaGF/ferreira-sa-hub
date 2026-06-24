@@ -155,6 +155,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?= $a['comarca'] ? '📍 ' . e($a['comarca']) . ' · ' : '' ?>
         📄 <?= e($proc) ?><?= $a['client_name'] ? ' · 👤 ' . e($a['client_name']) : '' ?>
       </div>
+      <?php if (!empty($a['orientacoes'])): ?>
+        <details style="margin-top:6px;font-size:.82rem;">
+          <summary style="cursor:pointer;color:#475569;font-weight:600;">📋 Orientações</summary>
+          <div style="background:#f8fafc;border-radius:6px;padding:6px 9px;margin-top:4px;white-space:pre-wrap;color:#444;"><?= e($a['orientacoes']) ?></div>
+        </details>
+      <?php endif; ?>
     </div>
     <div style="text-align:right;font-size:.92rem;">
       <?php $v = $a['valor_cents'] !== null ? $a['valor_cents'] : $aud['valor_medio_cents']; ?>
