@@ -294,9 +294,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (move_uploaded_file($tmp, $dir . '/' . $stored)) { @chmod($dir . '/' . $stored, 0644); $aNome = $nome; $aPath = $stored; $aMime = $mime; }
         }
         $status = $audId ? 'designada' : 'aberta';
-        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, arquivo_nome, arquivo_path, arquivo_mime, status, created_by)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $aNome, $aPath, $aMime, $status, current_user_id()));
+        $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
+        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id()));
         $novoId = (int)$pdo->lastInsertId();
         audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
 
@@ -354,8 +355,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($tipo === '') { flash_set('error', 'Tipo de audiência é obrigatório.'); redirect(module_url('audiencistas')); }
 
         $prev = (int)$pdo->query("SELECT audiencista_id FROM audiencias WHERE id=" . $aid)->fetchColumn();
-        $pdo->prepare("UPDATE audiencias SET tipo=?, data_hora=?, comarca=?, client_id=?, case_id=?, processo_numero=?, orientacoes=?, audiencista_id=?, status=IF(status='aberta' AND ? IS NOT NULL,'designada',status) WHERE id=?")
-            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audIdNew, $audIdNew, $aid));
+        $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
+        // valor_cents: se veio campo preenchido, usa; senão preserva o atual (não zera)
+        $pdo->prepare("UPDATE audiencias SET tipo=?, data_hora=?, comarca=?, client_id=?, case_id=?, processo_numero=?, orientacoes=?, audiencista_id=?, valor_cents=COALESCE(?, valor_cents), status=IF(status='aberta' AND ? IS NOT NULL,'designada',status) WHERE id=?")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audIdNew, $valor, $audIdNew, $aid));
         audit_log('audiencia_editar', 'audiencia', $aid, $tipo);
         aud_sync_agenda($pdo, $aid);
         if ($audIdNew && $audIdNew !== $prev) {
@@ -609,13 +612,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
       </div>
       <div class="au-grid2">
         <div class="row"><label>Designar audiencista (opcional)</label>
-          <select class="au-select" name="audiencista_id" id="auAudienciaSel">
+          <select class="au-select" name="audiencista_id" id="auAudienciaSel" onchange="auAtualizarValorHint()">
             <option value="">— designar depois —</option>
-            <?php foreach ($audAtivas as $aA): ?><option value="<?= (int)$aA['id'] ?>"><?= e($aA['nome']) ?><?= $aA['areas'] ? ' · ' . e(mb_substr($aA['areas'], 0, 40)) : '' ?></option><?php endforeach; ?>
+            <?php foreach ($audAtivas as $aA): ?><option value="<?= (int)$aA['id'] ?>" data-valor="<?= $aA['valor_medio_cents'] !== null ? (int)$aA['valor_medio_cents'] : '' ?>"><?= e($aA['nome']) ?><?= $aA['areas'] ? ' · ' . e(mb_substr($aA['areas'], 0, 40)) : '' ?></option><?php endforeach; ?>
           </select>
         </div>
-        <div class="row" id="auArquivoWrap"><label>Arquivo do processo (PDF/DOC/ZIP, até 25MB)</label><input type="file" class="au-input" name="arquivo" accept=".pdf,.doc,.docx,.zip,image/*"></div>
+        <div class="row"><label>Valor acordado (R$)</label>
+          <input type="text" class="au-input" name="valor" id="auValor" placeholder="Ex: 350,00">
+          <div id="auValorHint" style="font-size:.74rem;color:#64748b;margin-top:3px;">deixe vazio pra usar o valor médio da audiencista</div>
+        </div>
       </div>
+      <div class="row" id="auArquivoWrap"><label>Arquivo do processo (PDF/DOC/ZIP, até 25MB)</label><input type="file" class="au-input" name="arquivo" accept=".pdf,.doc,.docx,.zip,image/*"></div>
       <button type="submit" class="au-btn" id="auAudienciaBtn">➕ Registrar audiência</button>
       <button type="button" class="au-btn ghost" onclick="auResetAudienciaForm()" id="auAudienciaCancel" style="display:none;">Cancelar edição</button>
     </form>
@@ -671,6 +678,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             "case_title" => $a["case_title"],
             "orientacoes" => $a["orientacoes"],
             "audiencista_id" => (int)$a["audiencista_id"],
+            "valor_cents" => $a["valor_cents"],
           ), JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>)'>✏️ Editar</button>
         <form method="post" style="margin:0;" onsubmit="return confirm('Excluir esta audiência? Não dá pra desfazer.\n\nPagamentos e avaliações registrados serão perdidos.');">
           <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
@@ -713,6 +721,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <details style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;flex:1;min-width:240px;">
         <summary style="font-size:.84rem;font-weight:700;color:#475569;cursor:pointer;">📜 Substabelecimento <?= $a['substab_path'] ? '✓' : '' ?></summary>
         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <a class="au-mini" style="background:#7c3aed;" href="<?= module_url('audiencistas', 'gerar_substab.php?audiencia_id=' . (int)$a['id']) ?>">✨ Gerar automático</a>
           <?php if ($a['substab_path']): ?>
             <a class="au-mini gh" href="?baixar=<?= (int)$a['id'] ?>&tipo=substab" target="_blank" rel="noopener">📄 Ver substab</a>
             <form method="post" style="margin:0;display:inline;" onsubmit="return confirm('Enviar o substabelecimento no WhatsApp da <?= e(addslashes($a['aud_nome'])) ?>?');">
@@ -724,7 +733,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <form method="post" enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="upload_substab"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
             <input type="file" name="substab" required accept=".pdf,.doc,.docx,image/*" style="font-size:.78rem;">
-            <button type="submit" class="au-mini gh"><?= $a['substab_path'] ? '🔁 Substituir' : '📤 Anexar' ?></button>
+            <button type="submit" class="au-mini gh"><?= $a['substab_path'] ? '🔁 Substituir' : '📤 Anexar assinado' ?></button>
           </form>
         </div>
       </details>
@@ -903,6 +912,16 @@ function auOnSelCase(cid){
 }
 function formatarDT(s){ if(!s) return ''; var p=s.split('T'); var d=p[0].split('-'); return d[2]+'/'+d[1]+'/'+d[0]+' '+(p[1]||''); }
 
+/** Mostra o valor médio da audiencista selecionada como dica embaixo do campo Valor. */
+function auAtualizarValorHint(){
+  var sel=document.getElementById('auAudienciaSel'); var hint=document.getElementById('auValorHint');
+  if(!sel||!hint) return;
+  var v=sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].getAttribute('data-valor') : '';
+  if(!v){ hint.textContent='deixe vazio pra usar o valor médio da audiencista'; return; }
+  var n=parseInt(v,10)/100;
+  hint.innerHTML='💰 Valor médio dessa audiencista: <strong>R$ '+n.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2})+'</strong> — deixe vazio pra usar esse valor';
+}
+
 /** Preenche o form de "Nova audiência" com dados pra edição. */
 function auEditAudienc(d){
   document.getElementById('auAudienciaAcao').value='editar_audiencia';
@@ -913,6 +932,8 @@ function auEditAudienc(d){
   document.getElementById('auProcNum').value=d.processo_numero||'';
   document.getElementById('auOrientacoes').value=d.orientacoes||'';
   document.getElementById('auAudienciaSel').value=d.audiencista_id||'';
+  document.getElementById('auValor').value=(d.valor_cents!=null && d.valor_cents!=='') ? (parseInt(d.valor_cents,10)/100).toString().replace('.',',') : '';
+  auAtualizarValorHint();
   // cliente + processo
   auLimparCli();
   if(d.client_id){
