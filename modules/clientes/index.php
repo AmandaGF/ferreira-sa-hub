@@ -133,7 +133,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .cli-contact { font-size:.75rem; color:var(--text-muted); }
 .cli-proc { font-size:.78rem; font-weight:700; }
 .cli-proc-active { color:var(--info); }
+.cli-tabs { display:flex; gap:6px; border-bottom:2px solid var(--border,#e5e7eb); margin-bottom:14px; flex-wrap:wrap; }
+.cli-tab { padding:9px 16px; border:none; background:transparent; font-size:.92rem; font-weight:700; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; margin-bottom:-2px; text-decoration:none; }
+.cli-tab:hover { color:var(--petrol-900); }
+.cli-tab.active { color:var(--petrol-900); border-bottom-color:var(--petrol-900); }
 </style>
+
+<!-- Tabs -->
+<div class="cli-tabs">
+    <a href="<?= module_url('clientes') ?>" class="cli-tab active">👤 Clientes</a>
+    <a href="<?= module_url('clientes', 'profissionais.php') ?>" class="cli-tab">🏛️ Profissionais</a>
+</div>
 
 <!-- KPIs -->
 <div class="cli-stats">
