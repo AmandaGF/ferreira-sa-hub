@@ -71,6 +71,22 @@ function aud_wa_link($telefone, $msg = '')
     if (substr($d, 0, 2) !== '55') $d = '55' . $d;
     return 'https://wa.me/' . $d . ($msg !== '' ? '?text=' . rawurlencode($msg) : '');
 }
+
+/**
+ * Link pra abrir conversa DENTRO do Hub (módulo WhatsApp, canal 24).
+ * Usa o deep-link ?telefone=&canal=24 que o /whatsapp/ resolve sozinho
+ * (acha a conversa existente ou prepara pra criar). Amanda prefere não sair
+ * do Hub pra falar com audiencista — antes abria wa.me e ia pro WhatsApp Web.
+ */
+function aud_hub_wa_link($telefone, $msg = '')
+{
+    $d = preg_replace('/\D/', '', (string)$telefone);
+    if ($d === '') return '';
+    if (substr($d, 0, 2) !== '55') $d = '55' . $d;
+    $q = 'canal=24&telefone=' . $d;
+    if ($msg !== '') $q .= '&texto=' . rawurlencode($msg);
+    return url('modules/whatsapp/') . '?' . $q;
+}
 function aud_money($cents) { return $cents !== null && $cents !== '' ? 'R$ ' . number_format($cents / 100, 2, ',', '.') : '—'; }
 
 /**
@@ -635,7 +651,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     $waMsg = "Olá! Tudo bem? Temos uma audiência (" . $a['tipo'] . ")"
            . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
            . ($a['comarca'] ? ' na comarca de ' . $a['comarca'] : '') . ". Você teria disponibilidade?";
-    $wa = $a['aud_tel'] ? aud_wa_link($a['aud_tel'], $waMsg) : '';
+    $wa = $a['aud_tel'] ? aud_hub_wa_link($a['aud_tel'], $waMsg) : '';
   ?>
   <div class="au-card au-acard">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
@@ -828,7 +844,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="au-empty">Nenhuma audiencista cadastrada. Cadastre a primeira acima. 👆</div>
   <?php else: foreach ($audiencistas as $a):
     $tiposArr = $a['tipos'] ? array_map('trim', explode(',', $a['tipos'])) : array();
-    $wa = $a['telefone'] ? aud_wa_link($a['telefone']) : '';
+    $wa = $a['telefone'] ? aud_hub_wa_link($a['telefone']) : '';
   ?>
   <div class="au-card" style="<?= (int)$a['ativo'] !== 1 ? 'opacity:.55;' : '' ?>">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
