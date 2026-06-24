@@ -144,6 +144,35 @@ function comercial_fetch($pdo, $direcao, $diasMax = 45, $minMinutos = 0, $maxMin
     return $st->fetchAll();
 }
 
+/**
+ * Conta o TOTAL real de conversas no critério (sem LIMIT). Usado pra mostrar
+ * o número real na aba — sem isso o badge trava no LIMIT (300) e Amanda acha
+ * que o follow-up nao está caindo mesmo apos trabalho.
+ */
+function comercial_count($pdo, $direcao, $diasMax = 45, $statusEq = null)
+{
+    if ($statusEq !== null) {
+        $where = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL) AND lo.status = ?";
+        $params = array($statusEq);
+    } else {
+        $where = "co.canal = '21' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
+                  AND co.status NOT IN ('resolvido','arquivado')
+                  AND lm.direcao = ?
+                  AND (lo.status IS NULL OR lo.status != 'resolvido')";
+        $params = array($direcao);
+        if ($diasMax > 0) $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
+    }
+    $sql = "SELECT COUNT(*) FROM zapi_conversas co
+            JOIN (SELECT m.conversa_id, m.id, m.direcao, m.created_at FROM zapi_mensagens m
+                  JOIN (SELECT conversa_id, MAX(id) AS maxid FROM zapi_mensagens GROUP BY conversa_id) x
+                    ON x.conversa_id = m.conversa_id AND x.maxid = m.id) lm ON lm.conversa_id = co.id
+            LEFT JOIN comercial_lead_obs lo ON lo.conversa_id = co.id
+            WHERE $where";
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    return (int)$st->fetchColumn();
+}
+
 /** Mapa id→nome de todos os usuários (cacheado por request). */
 function comercial_users_map($pdo)
 {

@@ -25,9 +25,11 @@ $stageMap = array(
 );
 
 // ── Dados ─────────────────────────────────────────────────────
-$pendentes = crm_op_fetch_wa($pdo, 'recebida', 45);  // última msg do cliente
-$fupRaw    = crm_op_fetch_wa($pdo, 'enviada',  45);  // última nossa
-$aquecendo = crm_op_fetch_wa($pdo, 'enviada',  0, 300, 'aquecendo');
+// Sem limite efetivo (10k = "todos" pro tamanho atual). Contadores reais via crm_op_count_wa.
+$LIMIT_LISTA = 10000;
+$pendentes = crm_op_fetch_wa($pdo, 'recebida', 45, $LIMIT_LISTA);  // última msg do cliente
+$fupRaw    = crm_op_fetch_wa($pdo, 'enviada',  45, $LIMIT_LISTA);  // última nossa
+$aquecendo = crm_op_fetch_wa($pdo, 'enviada',  0, $LIMIT_LISTA, 'aquecendo');
 $aqIds = array();
 foreach ($aquecendo as $a) $aqIds[(int)$a['conversa_id']] = true;
 $followups = $aquecendo;
@@ -36,8 +38,12 @@ foreach ($fupRaw as $f) {
     if (isset($aqIds[(int)$f['conversa_id']])) continue;
     $followups[] = $f;
 }
-$peticoes = crm_op_fetch_peticoes($pdo);
+$peticoes = crm_op_fetch_peticoes($pdo, $LIMIT_LISTA);
 $umap = crm_op_users_map($pdo);
+
+// Contadores REAIS (sem limite) pros badges das abas
+$totalPendentes = crm_op_count_wa($pdo, 'recebida', 45);
+$totalFollowups = crm_op_count_wa($pdo, 'enviada', 45);
 
 function cop_e($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
@@ -100,8 +106,8 @@ tr.cop-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
 </div>
 
 <div class="cop-tabs">
-  <div class="cop-tab active" data-pane="pendentes" onclick="copTab(this)">🔴 Responder agora <span class="cop-badge"><?= count($pendentes) ?></span></div>
-  <div class="cop-tab" data-pane="followup" onclick="copTab(this)">🟡 Follow-up <span class="cop-badge"><?= count($followups) ?></span></div>
+  <div class="cop-tab active" data-pane="pendentes" onclick="copTab(this)">🔴 Responder agora <span class="cop-badge"><?= $totalPendentes ?></span></div>
+  <div class="cop-tab" data-pane="followup" onclick="copTab(this)">🟡 Follow-up <span class="cop-badge"><?= $totalFollowups ?></span></div>
   <div class="cop-tab" data-pane="peticoes" onclick="copTab(this)">📝 Petições pendentes <span class="cop-badge"><?= count($peticoes) ?></span></div>
 </div>
 

@@ -79,11 +79,15 @@ foreach ($gruposCanal as $gch => $ggs) {
 }
 
 // ── Dados ────────────────────────────────────────────────
-$pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 0, 300); // última msg = do lead
+// Amanda pediu "todos, sem limite". Setamos teto bem alto (10k) que e
+// efetivamente "todos" pro tamanho atual. Contadores reais via comercial_count
+// — antes ficava travado em 300 (LIMIT) e parecia que follow-up nao caia.
+$LIMIT_LISTA = 10000;
+$pendentes = comercial_fetch($pdo, 'recebida', 45, 0, 0, $LIMIT_LISTA); // última msg = do lead
 
 // Follow-up = última msg nossa (45d) + leads "aquecendo" (fixados), menos os "resolvido".
-$fupRaw    = comercial_fetch($pdo, 'enviada', 45, 0, 0, 300);
-$aquecendo = comercial_fetch($pdo, 'enviada', 0, 0, 0, 300, 'aquecendo'); // fixados, sempre na lista
+$fupRaw    = comercial_fetch($pdo, 'enviada', 45, 0, 0, $LIMIT_LISTA);
+$aquecendo = comercial_fetch($pdo, 'enviada', 0, 0, 0, $LIMIT_LISTA, 'aquecendo'); // fixados, sempre na lista
 $aqIds = array();
 foreach ($aquecendo as $a) $aqIds[(int)$a['conversa_id']] = true;
 $followups = $aquecendo; // fixados primeiro
@@ -93,6 +97,11 @@ foreach ($fupRaw as $f) {
     $followups[] = $f;
 }
 $umap = comercial_users_map($pdo);
+
+// Contadores REAIS (sem LIMIT) — pro badge da aba refletir o universo,
+// nao o tamanho do array renderizado.
+$totalPendentes = comercial_count($pdo, 'recebida', 45);
+$totalFollowups = comercial_count($pdo, 'enviada', 45);
 
 function cc_e($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); }
 
@@ -242,8 +251,8 @@ tr.cc-pin td:first-child { box-shadow:inset 3px 0 0 #e0a64a; }
 <?php endif; ?>
 
 <div class="cc-tabs">
-  <div class="cc-tab active" data-pane="pendentes" onclick="ccTab(this)">🔴 Responder agora <span class="cc-badge"><?= count($pendentes) ?></span></div>
-  <div class="cc-tab" data-pane="followup" onclick="ccTab(this)">🟡 Follow-up <span class="cc-badge"><?= count($followups) ?></span></div>
+  <div class="cc-tab active" data-pane="pendentes" onclick="ccTab(this)">🔴 Responder agora <span class="cc-badge"><?= $totalPendentes ?></span></div>
+  <div class="cc-tab" data-pane="followup" onclick="ccTab(this)">🟡 Follow-up <span class="cc-badge"><?= $totalFollowups ?></span></div>
 </div>
 
 <?php

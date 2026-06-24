@@ -131,6 +131,34 @@ function crm_op_fetch_wa($pdo, $direcao, $diasMax = 45, $limit = 300, $statusEq 
 }
 
 /**
+ * Conta TOTAL real de conversas (sem LIMIT) — pra badge da aba refletir o
+ * universo, nao o tamanho do array renderizado.
+ */
+function crm_op_count_wa($pdo, $direcao, $diasMax = 45, $statusEq = null)
+{
+    if ($statusEq !== null) {
+        $where = "co.canal = '24' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL) AND lo.status = ?";
+        $params = array($statusEq);
+    } else {
+        $where = "co.canal = '24' AND (co.eh_grupo = 0 OR co.eh_grupo IS NULL)
+                  AND co.status NOT IN ('resolvido','arquivado')
+                  AND lm.direcao = ?
+                  AND (lo.status IS NULL OR lo.status != 'resolvido')";
+        $params = array($direcao);
+        if ($diasMax > 0) $where .= " AND co.created_at >= DATE_SUB(NOW(), INTERVAL " . (int)$diasMax . " DAY)";
+    }
+    $sql = "SELECT COUNT(*) FROM zapi_conversas co
+            JOIN (SELECT m.conversa_id, m.id, m.direcao, m.created_at FROM zapi_mensagens m
+                  JOIN (SELECT conversa_id, MAX(id) AS maxid FROM zapi_mensagens GROUP BY conversa_id) x
+                    ON x.conversa_id = m.conversa_id AND x.maxid = m.id) lm ON lm.conversa_id = co.id
+            LEFT JOIN crm_operacional_obs lo ON lo.conversa_id = co.id
+            WHERE $where";
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    return (int)$st->fetchColumn();
+}
+
+/**
  * Busca cases em "petição inicial pendente":
  *  - stage = em_elaboracao  → Pasta Apta (redação em curso)
  *  - stage = aguardando_prazo → Aguard. Distribuição (redigida, aguarda protocolo)
