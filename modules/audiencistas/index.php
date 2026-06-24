@@ -38,6 +38,28 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
 
+// Self-heal v2 (24/06/2026): substabelecimento, pagamento, avaliacao, integracao agenda.
+// ALTERs idempotentes em try/catch individual — falham silenciosos se coluna ja existe.
+$_audAlters = array(
+    "ALTER TABLE audiencistas ADD COLUMN oab VARCHAR(30) NULL",
+    "ALTER TABLE audiencias ADD COLUMN substab_nome VARCHAR(255) NULL",
+    "ALTER TABLE audiencias ADD COLUMN substab_path VARCHAR(255) NULL",
+    "ALTER TABLE audiencias ADD COLUMN substab_mime VARCHAR(80) NULL",
+    "ALTER TABLE audiencias ADD COLUMN substab_enviado_em DATETIME NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_em DATETIME NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_valor_cents INT NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_forma VARCHAR(40) NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_comprovante_path VARCHAR(255) NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_comprovante_nome VARCHAR(255) NULL",
+    "ALTER TABLE audiencias ADD COLUMN pago_comprovante_mime VARCHAR(80) NULL",
+    "ALTER TABLE audiencias ADD COLUMN avaliacao_nota TINYINT NULL",
+    "ALTER TABLE audiencias ADD COLUMN avaliacao_comentario TEXT NULL",
+    "ALTER TABLE audiencias ADD COLUMN avaliacao_em DATETIME NULL",
+    "ALTER TABLE audiencias ADD COLUMN avaliacao_por INT UNSIGNED NULL",
+    "ALTER TABLE audiencias ADD COLUMN agenda_evento_id INT UNSIGNED NULL",
+);
+foreach ($_audAlters as $_sql) { try { $pdo->exec($_sql); } catch (Exception $e) {} }
+
 $TIPOS = array('AIJ (Instrução e Julgamento)', 'Audiência inicial', 'Conciliação', 'Mediação / CEJUSC',
                'Audiência una', 'Justificação', 'Custódia', 'Juizado Especial', 'Outra');
 $STATUS = array('aberta' => 'Aberta', 'designada' => 'Designada', 'realizada' => 'Realizada', 'cancelada' => 'Cancelada');
@@ -50,6 +72,67 @@ function aud_wa_link($telefone, $msg = '')
     return 'https://wa.me/' . $d . ($msg !== '' ? '?text=' . rawurlencode($msg) : '');
 }
 function aud_money($cents) { return $cents !== null && $cents !== '' ? 'R$ ' . number_format($cents / 100, 2, ',', '.') : '—'; }
+
+/**
+ * Upload generico p/ pasta /files/audiencias com prefixo. Retorna [nome_original,
+ * stored, mime] ou null se nada subiu / erro silenciado pelo callsite.
+ */
+function aud_upload_file($field, $prefix, $maxMB = 25)
+{
+    if (empty($_FILES[$field]) || (int)$_FILES[$field]['error'] !== UPLOAD_ERR_OK) return null;
+    $tmp = $_FILES[$field]['tmp_name']; $nome = $_FILES[$field]['name'];
+    $mime = $_FILES[$field]['type'] ?: (function_exists('mime_content_type') ? mime_content_type($tmp) : 'application/octet-stream');
+    $tam = (int)$_FILES[$field]['size'];
+    $allowed = array('application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                     'image/png','image/jpeg','image/jpg','application/zip','application/x-zip-compressed');
+    if ($tam > $maxMB * 1024 * 1024) return array('erro' => 'Arquivo maior que ' . $maxMB . 'MB.');
+    if (!in_array($mime, $allowed, true)) return array('erro' => 'Formato nao permitido (PDF, DOC, imagem ou ZIP).');
+    $dir = APP_ROOT . '/files/audiencias'; if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $nome);
+    $stored = $prefix . '_' . uniqid('', true) . '_' . $safe;
+    if (!move_uploaded_file($tmp, $dir . '/' . $stored)) return array('erro' => 'Falha ao mover upload.');
+    @chmod($dir . '/' . $stored, 0644);
+    return array('nome' => $nome, 'path' => $stored, 'mime' => $mime);
+}
+
+/**
+ * Cria/atualiza evento na agenda quando uma audiencia tem audiencista designada
+ * + data marcada. Retorna o agenda_evento_id (existente ou novo).
+ *
+ * Fluxo: ao designar (ou redesignar) uma audiencista, o evento e criado/atualizado
+ * pra que apareca na agenda da equipe com lembrete. O audiencista nao tem acesso —
+ * e so visibilidade interna.
+ */
+function aud_sync_agenda($pdo, $audId)
+{
+    $st = $pdo->prepare("SELECT au.*, ad.nome AS aud_nome FROM audiencias au LEFT JOIN audiencistas ad ON ad.id=au.audiencista_id WHERE au.id=?");
+    $st->execute(array($audId));
+    $a = $st->fetch();
+    if (!$a || empty($a['data_hora']) || empty($a['audiencista_id'])) return null;
+
+    $titulo = '👩‍⚖️ Audiência (' . $a['tipo'] . ')'
+            . ($a['aud_nome'] ? ' — corresp.: ' . $a['aud_nome'] : '');
+    $desc = ($a['comarca'] ? '📍 ' . $a['comarca'] . "\n" : '')
+          . ($a['processo_numero'] ? '📄 ' . $a['processo_numero'] . "\n" : '')
+          . ($a['orientacoes'] ? "\nOrientações:\n" . $a['orientacoes'] : '');
+    $fim = date('Y-m-d H:i:s', strtotime($a['data_hora']) + 3600); // 1h default
+
+    if (!empty($a['agenda_evento_id'])) {
+        try {
+            $pdo->prepare("UPDATE agenda_eventos SET titulo=?, descricao=?, data_inicio=?, data_fim=?, case_id=?, client_id=? WHERE id=?")
+                ->execute(array($titulo, $desc, $a['data_hora'], $fim, $a['case_id'], $a['client_id'], $a['agenda_evento_id']));
+        } catch (Exception $e) {}
+        return (int)$a['agenda_evento_id'];
+    }
+    try {
+        $pdo->prepare("INSERT INTO agenda_eventos (tipo, titulo, descricao, data_inicio, data_fim, case_id, client_id, status, created_by)
+                       VALUES ('audiencia', ?, ?, ?, ?, ?, ?, 'agendado', ?)")
+            ->execute(array($titulo, $desc, $a['data_hora'], $fim, $a['case_id'], $a['client_id'], current_user_id()));
+        $eid = (int)$pdo->lastInsertId();
+        $pdo->prepare("UPDATE audiencias SET agenda_evento_id=? WHERE id=?")->execute(array($eid, $audId));
+        return $eid;
+    } catch (Exception $e) { return null; }
+}
 
 // ── AJAX: cliente / casos ────────────────────────────────
 if (($_GET['ajax'] ?? '') === 'buscar_cliente') {
@@ -67,16 +150,21 @@ if (($_GET['ajax'] ?? '') === 'buscar_casos') {
     echo json_encode($st->fetchAll()); exit;
 }
 
-// ── Download do arquivo do processo (autenticado) ────────
+// ── Download de arquivos (autenticado) ───────────────────
+// Tipos: processo (default), substab, comprovante (selecionado por ?tipo=)
 if (isset($_GET['baixar'])) {
     $id = (int)$_GET['baixar'];
-    $st = $pdo->prepare("SELECT arquivo_path, arquivo_nome, arquivo_mime FROM audiencias WHERE id = ?");
+    $tipo = $_GET['tipo'] ?? 'processo';
+    $colPath = 'arquivo_path'; $colNome = 'arquivo_nome'; $colMime = 'arquivo_mime'; $defaultName = 'processo';
+    if ($tipo === 'substab')      { $colPath = 'substab_path'; $colNome = 'substab_nome'; $colMime = 'substab_mime'; $defaultName = 'substabelecimento'; }
+    elseif ($tipo === 'comprov')  { $colPath = 'pago_comprovante_path'; $colNome = 'pago_comprovante_nome'; $colMime = 'pago_comprovante_mime'; $defaultName = 'comprovante'; }
+    $st = $pdo->prepare("SELECT $colPath AS p, $colNome AS n, $colMime AS m FROM audiencias WHERE id = ?");
     $st->execute(array($id));
     $row = $st->fetch();
-    $path = $row && $row['arquivo_path'] ? APP_ROOT . '/files/audiencias/' . basename($row['arquivo_path']) : '';
+    $path = $row && $row['p'] ? APP_ROOT . '/files/audiencias/' . basename($row['p']) : '';
     if (!$path || !is_file($path)) { http_response_code(404); die('Arquivo não encontrado.'); }
-    header('Content-Type: ' . ($row['arquivo_mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: inline; filename="' . preg_replace('/[^\w.\- ]/', '_', $row['arquivo_nome'] ?: 'processo') . '"');
+    header('Content-Type: ' . ($row['m'] ?: 'application/octet-stream'));
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^\w.\- ]/', '_', $row['n'] ?: $defaultName) . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path); exit;
 }
@@ -90,6 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($acao === 'salvar_audiencista') {
         $id    = (int)($_POST['id'] ?? 0);
         $nome  = clean_str($_POST['nome'] ?? '', 150);
+        $oab   = clean_str($_POST['oab'] ?? '', 30);
         $tel   = clean_str($_POST['telefone'] ?? '', 30);
         $email = clean_str($_POST['email'] ?? '', 190);
         $areas = clean_str($_POST['areas'] ?? '', 1000);
@@ -99,13 +188,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $obs   = clean_str($_POST['observacoes'] ?? '', 1000);
         if ($nome === '') { flash_set('error', 'Informe o nome da audiencista.'); redirect(module_url('audiencistas') . '#cad'); }
         if ($id > 0) {
-            $pdo->prepare("UPDATE audiencistas SET nome=?, telefone=?, email=?, areas=?, tipos=?, valor_medio_cents=?, dados_deposito=?, observacoes=? WHERE id=?")
-                ->execute(array($nome, $tel, $email, $areas, $tipos, $valor, $dep, $obs, $id));
+            $pdo->prepare("UPDATE audiencistas SET nome=?, oab=?, telefone=?, email=?, areas=?, tipos=?, valor_medio_cents=?, dados_deposito=?, observacoes=? WHERE id=?")
+                ->execute(array($nome, $oab, $tel, $email, $areas, $tipos, $valor, $dep, $obs, $id));
             audit_log('audiencista_editar', 'audiencista', $id, $nome);
             flash_set('success', 'Audiencista atualizada.');
         } else {
-            $pdo->prepare("INSERT INTO audiencistas (nome, telefone, email, areas, tipos, valor_medio_cents, dados_deposito, observacoes, created_by) VALUES (?,?,?,?,?,?,?,?,?)")
-                ->execute(array($nome, $tel, $email, $areas, $tipos, $valor, $dep, $obs, current_user_id()));
+            $pdo->prepare("INSERT INTO audiencistas (nome, oab, telefone, email, areas, tipos, valor_medio_cents, dados_deposito, observacoes, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)")
+                ->execute(array($nome, $oab, $tel, $email, $areas, $tipos, $valor, $dep, $obs, current_user_id()));
             audit_log('audiencista_criar', 'audiencista', (int)$pdo->lastInsertId(), $nome);
             flash_set('success', 'Audiencista cadastrada! 🎉');
         }
@@ -175,8 +264,99 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo->prepare("UPDATE audiencias SET audiencista_id=?, valor_cents=COALESCE(?,valor_cents), status=IF(status='aberta','designada',status) WHERE id=?")
             ->execute(array($audId, $valor, $aid));
         audit_log('audiencia_designar', 'audiencia', $aid, 'audiencista=' . $audId);
+        aud_sync_agenda($pdo, $aid); // cria/atualiza evento na agenda da equipe
         flash_set('success', 'Audiencista designada.');
         redirect(module_url('audiencistas'));
+    }
+
+    // -- upload do substabelecimento --
+    if ($acao === 'upload_substab') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        $up = aud_upload_file('substab', 'substab', 25);
+        if (!$up) { flash_set('error', 'Selecione o arquivo do substabelecimento.'); redirect(module_url('audiencistas')); }
+        if (!empty($up['erro'])) { flash_set('error', $up['erro']); redirect(module_url('audiencistas')); }
+        $pdo->prepare("UPDATE audiencias SET substab_nome=?, substab_path=?, substab_mime=? WHERE id=?")
+            ->execute(array($up['nome'], $up['path'], $up['mime'], $aid));
+        audit_log('audiencia_upload_substab', 'audiencia', $aid, $up['nome']);
+        flash_set('success', 'Substabelecimento anexado. 📜');
+        redirect(module_url('audiencistas'));
+    }
+
+    // -- enviar substab pelo WhatsApp da audiencista --
+    if ($acao === 'enviar_substab') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        $st = $pdo->prepare("SELECT au.*, ad.nome AS aud_nome, ad.telefone AS aud_tel
+                             FROM audiencias au LEFT JOIN audiencistas ad ON ad.id = au.audiencista_id WHERE au.id = ?");
+        $st->execute(array($aid));
+        $a = $st->fetch();
+        if (!$a || empty($a['audiencista_id']) || empty($a['aud_tel'])) {
+            flash_set('error', 'Designe uma audiencista (com WhatsApp) antes de enviar.');
+        } elseif (empty($a['substab_path'])) {
+            flash_set('error', 'Anexe o substabelecimento antes de enviar.');
+        } else {
+            $pub = url('files/audiencias/' . $a['substab_path']);
+            $cap = "📜 Substabelecimento — " . $a['tipo']
+                 . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
+                 . ($a['comarca'] ? ' (' . $a['comarca'] . ')' : '');
+            $res = zapi_send_document($AUD_CANAL, $a['aud_tel'], $pub, $a['substab_nome'] ?: 'substabelecimento.pdf', $cap);
+            if (!empty($res['ok'])) {
+                $pdo->prepare("UPDATE audiencias SET substab_enviado_em = NOW() WHERE id = ?")->execute(array($aid));
+                audit_log('audiencia_enviar_substab', 'audiencia', $aid, 'audiencista=' . $a['audiencista_id']);
+                flash_set('success', 'Substabelecimento enviado! 📨');
+            } else {
+                flash_set('error', 'Falhou o envio: ' . (isset($res['erro']) ? $res['erro'] : '?'));
+            }
+        }
+        redirect(module_url('audiencistas'));
+    }
+
+    // -- marcar como pago --
+    if ($acao === 'marcar_pago') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        $valor = ($_POST['valor_pago'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor_pago'])) * 100) : null;
+        $forma = clean_str($_POST['forma'] ?? '', 40);
+        $dt = trim($_POST['pago_em'] ?? '');
+        $dtVal = $dt && preg_match('/^\d{4}-\d{2}-\d{2}/', $dt) ? str_replace('T', ' ', $dt) . (strpos($dt, 'T') !== false ? ':00' : ' 12:00:00') : date('Y-m-d H:i:s');
+
+        // upload comprovante (opcional)
+        $cpNome = $cpPath = $cpMime = null;
+        if (!empty($_FILES['comprovante']) && (int)$_FILES['comprovante']['error'] === UPLOAD_ERR_OK) {
+            $up = aud_upload_file('comprovante', 'compr', 10);
+            if (!empty($up['erro'])) { flash_set('error', $up['erro']); redirect(module_url('audiencistas')); }
+            if ($up) { $cpNome = $up['nome']; $cpPath = $up['path']; $cpMime = $up['mime']; }
+        }
+        $pdo->prepare("UPDATE audiencias SET pago_em=?, pago_valor_cents=COALESCE(?, valor_cents), pago_forma=?,
+                       pago_comprovante_nome=COALESCE(?, pago_comprovante_nome),
+                       pago_comprovante_path=COALESCE(?, pago_comprovante_path),
+                       pago_comprovante_mime=COALESCE(?, pago_comprovante_mime) WHERE id=?")
+            ->execute(array($dtVal, $valor, $forma ?: null, $cpNome, $cpPath, $cpMime, $aid));
+        audit_log('audiencia_marcar_pago', 'audiencia', $aid, ($valor ? aud_money($valor) : '') . ($forma ? ' · ' . $forma : ''));
+        flash_set('success', 'Pagamento registrado. ✅');
+        redirect(!empty($_POST['voltar_detalhe']) ? module_url('audiencistas', 'detalhe.php?id=' . (int)$_POST['voltar_detalhe']) : module_url('audiencistas'));
+    }
+
+    // -- desfazer pagamento (engano) --
+    if ($acao === 'desfazer_pago') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        $pdo->prepare("UPDATE audiencias SET pago_em=NULL, pago_valor_cents=NULL, pago_forma=NULL,
+                       pago_comprovante_nome=NULL, pago_comprovante_path=NULL, pago_comprovante_mime=NULL WHERE id=?")
+            ->execute(array($aid));
+        audit_log('audiencia_desfazer_pago', 'audiencia', $aid);
+        flash_set('success', 'Pagamento desmarcado.');
+        redirect(!empty($_POST['voltar_detalhe']) ? module_url('audiencistas', 'detalhe.php?id=' . (int)$_POST['voltar_detalhe']) : module_url('audiencistas'));
+    }
+
+    // -- avaliar audiencista pela audiencia realizada --
+    if ($acao === 'avaliar') {
+        $aid = (int)($_POST['audiencia_id'] ?? 0);
+        $nota = (int)($_POST['nota'] ?? 0);
+        if ($nota < 1 || $nota > 5) { flash_set('error', 'Nota deve ser de 1 a 5.'); redirect(module_url('audiencistas')); }
+        $coment = clean_str($_POST['comentario'] ?? '', 1000);
+        $pdo->prepare("UPDATE audiencias SET avaliacao_nota=?, avaliacao_comentario=?, avaliacao_em=NOW(), avaliacao_por=? WHERE id=?")
+            ->execute(array($nota, $coment ?: null, current_user_id(), $aid));
+        audit_log('audiencia_avaliar', 'audiencia', $aid, $nota . '★');
+        flash_set('success', 'Avaliação salva. ⭐');
+        redirect(!empty($_POST['voltar_detalhe']) ? module_url('audiencistas', 'detalhe.php?id=' . (int)$_POST['voltar_detalhe']) : module_url('audiencistas'));
     }
 
     // -- mudar status --
@@ -340,6 +520,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <div>
         <div style="font-weight:700;color:#0f3d3e;font-size:1rem;">⚖️ <?= e($a['tipo']) ?>
           <span class="au-chip au-st-<?= e($a['status']) ?>"><?= e($STATUS[$a['status']] ?? $a['status']) ?></span>
+          <?php if ($a['substab_path']): ?>
+            <span class="au-chip" style="background:<?= $a['substab_enviado_em'] ? '#dcfce7;color:#15803d' : '#fef3c7;color:#92400e' ?>;">📜 substab<?= $a['substab_enviado_em'] ? ' enviado' : '' ?></span>
+          <?php endif; ?>
+          <?php if ($a['pago_em']): ?>
+            <span class="au-chip" style="background:#dcfce7;color:#15803d;">💰 pago <?= aud_money($a['pago_valor_cents']) ?></span>
+          <?php endif; ?>
+          <?php if ($a['avaliacao_nota']): ?>
+            <span class="au-chip" style="background:#fff4e0;color:#b9770e;">⭐ <?= (int)$a['avaliacao_nota'] ?>/5</span>
+          <?php endif; ?>
         </div>
         <div style="color:#666;font-size:.85rem;margin-top:3px;">
           <?= $a['data_hora'] ? '📅 ' . date('d/m/Y H:i', strtotime($a['data_hora'])) . ' · ' : '' ?>
@@ -357,8 +546,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border-top:1px solid #f0f0f0;padding-top:10px;">
       <?php if ($a['audiencista_id']): ?>
-        <span style="font-size:.85rem;">👩‍⚖️ <strong><?= e($a['aud_nome']) ?></strong><?= $a['valor_cents'] !== null ? ' · ' . aud_money($a['valor_cents']) : '' ?></span>
-        <?php if ($wa): ?><a class="au-mini wa" href="<?= e($wa) ?>" target="_blank" rel="noopener">💬 Falar no WhatsApp</a><?php endif; ?>
+        <span style="font-size:.85rem;">👩‍⚖️ <a href="<?= module_url('audiencistas', 'detalhe.php?id=' . (int)$a['audiencista_id']) ?>" style="color:#0f3d3e;font-weight:700;text-decoration:none;"><?= e($a['aud_nome']) ?></a><?= $a['valor_cents'] !== null ? ' · ' . aud_money($a['valor_cents']) : '' ?></span>
+        <?php if ($wa): ?><a class="au-mini wa" href="<?= e($wa) ?>" target="_blank" rel="noopener">💬 WhatsApp</a><?php endif; ?>
         <?php if ($a['arquivo_path']): ?>
           <a class="au-mini gh" href="?baixar=<?= (int)$a['id'] ?>" target="_blank" rel="noopener">📄 Ver processo</a>
           <form method="post" style="margin:0;display:inline;" onsubmit="return confirm('Enviar o arquivo do processo no WhatsApp da <?= e(addslashes($a['aud_nome'])) ?>?');">
@@ -380,6 +569,78 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </form>
       <?php endif; ?>
     </div>
+
+    <?php if ($a['audiencista_id']): // só faz sentido quando ja tem audiencista ?>
+    <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+      <!-- 📜 Substabelecimento -->
+      <details style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;flex:1;min-width:240px;">
+        <summary style="font-size:.84rem;font-weight:700;color:#475569;cursor:pointer;">📜 Substabelecimento <?= $a['substab_path'] ? '✓' : '' ?></summary>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          <?php if ($a['substab_path']): ?>
+            <a class="au-mini gh" href="?baixar=<?= (int)$a['id'] ?>&tipo=substab" target="_blank" rel="noopener">📄 Ver substab</a>
+            <form method="post" style="margin:0;display:inline;" onsubmit="return confirm('Enviar o substabelecimento no WhatsApp da <?= e(addslashes($a['aud_nome'])) ?>?');">
+              <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="enviar_substab"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+              <button type="submit" class="au-mini">📨 Enviar<?= $a['substab_enviado_em'] ? ' (reenviar)' : '' ?></button>
+            </form>
+            <?php if ($a['substab_enviado_em']): ?><span style="font-size:.74rem;color:#15803d;">✓ enviado <?= date('d/m H:i', strtotime($a['substab_enviado_em'])) ?></span><?php endif; ?>
+          <?php endif; ?>
+          <form method="post" enctype="multipart/form-data" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="upload_substab"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+            <input type="file" name="substab" required accept=".pdf,.doc,.docx,image/*" style="font-size:.78rem;">
+            <button type="submit" class="au-mini gh"><?= $a['substab_path'] ? '🔁 Substituir' : '📤 Anexar' ?></button>
+          </form>
+        </div>
+      </details>
+
+      <!-- 💰 Pagamento -->
+      <details style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;flex:1;min-width:260px;">
+        <summary style="font-size:.84rem;font-weight:700;color:#475569;cursor:pointer;">💰 Pagamento <?= $a['pago_em'] ? '✓' : '' ?></summary>
+        <?php if ($a['pago_em']): ?>
+          <div style="margin-top:8px;font-size:.82rem;color:#15803d;">
+            ✅ Pago em <?= date('d/m/Y', strtotime($a['pago_em'])) ?>
+            <?= $a['pago_valor_cents'] !== null ? ' — <strong>' . aud_money($a['pago_valor_cents']) . '</strong>' : '' ?>
+            <?= $a['pago_forma'] ? ' via ' . e($a['pago_forma']) : '' ?>
+            <?php if ($a['pago_comprovante_path']): ?> · <a href="?baixar=<?= (int)$a['id'] ?>&tipo=comprov" target="_blank" rel="noopener" style="color:#0f3d3e;">📎 comprovante</a><?php endif; ?>
+          </div>
+          <form method="post" style="margin-top:6px;" onsubmit="return confirm('Desmarcar pagamento desta audiência?');">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="desfazer_pago"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+            <button type="submit" class="au-mini gh" style="font-size:.72rem;">↩️ Desfazer pagamento</button>
+          </form>
+        <?php else: ?>
+          <form method="post" enctype="multipart/form-data" style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="marcar_pago"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+            <input type="date" name="pago_em" value="<?= date('Y-m-d') ?>" class="au-input" style="font-size:.82rem;padding:5px 7px;">
+            <input type="text" name="valor_pago" placeholder="Valor pago (R$)" class="au-input" value="<?= $a['valor_cents'] !== null ? number_format($a['valor_cents']/100, 2, '.', '') : '' ?>" style="font-size:.82rem;padding:5px 7px;">
+            <select name="forma" class="au-select" style="font-size:.82rem;padding:5px 7px;">
+              <option value="">— forma —</option>
+              <option value="PIX">PIX</option>
+              <option value="Transferência">Transferência</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="Outro">Outro</option>
+            </select>
+            <input type="file" name="comprovante" accept=".pdf,image/*" style="font-size:.78rem;">
+            <button type="submit" class="au-mini" style="grid-column:1/-1;">✅ Marcar como pago</button>
+          </form>
+        <?php endif; ?>
+      </details>
+
+      <!-- ⭐ Avaliação -->
+      <details style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;flex:1;min-width:240px;">
+        <summary style="font-size:.84rem;font-weight:700;color:#475569;cursor:pointer;">⭐ Avaliação <?= $a['avaliacao_nota'] ? '✓ ' . (int)$a['avaliacao_nota'] . '/5' : '' ?></summary>
+        <form method="post" style="margin-top:8px;">
+          <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="avaliar"><input type="hidden" name="audiencia_id" value="<?= (int)$a['id'] ?>">
+          <div style="display:flex;gap:10px;font-size:1.1rem;align-items:center;">
+            <?php for ($n = 1; $n <= 5; $n++): ?>
+              <label style="cursor:pointer;"><input type="radio" name="nota" value="<?= $n ?>" <?= (int)$a['avaliacao_nota'] === $n ? 'checked' : '' ?> style="vertical-align:middle;"> <?= $n ?>⭐</label>
+            <?php endfor; ?>
+          </div>
+          <textarea name="comentario" placeholder="Comentário (opcional): pontualidade, postura, comunicação…" class="au-text" style="margin-top:6px;min-height:50px;font-size:.84rem;"><?= e($a['avaliacao_comentario'] ?? '') ?></textarea>
+          <button type="submit" class="au-mini" style="margin-top:5px;"><?= $a['avaliacao_nota'] ? 'Atualizar avaliação' : '⭐ Salvar avaliação' ?></button>
+          <?php if ($a['avaliacao_em']): ?><span style="font-size:.74rem;color:#666;margin-left:6px;">avaliada em <?= date('d/m/Y', strtotime($a['avaliacao_em'])) ?></span><?php endif; ?>
+        </form>
+      </details>
+    </div>
+    <?php endif; ?>
   </div>
   <?php endforeach; endif; ?>
 </div>
@@ -394,11 +655,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <input type="hidden" name="id" id="auEditId" value="">
       <div class="au-grid2">
         <div class="row"><label>Nome *</label><input type="text" class="au-input" name="nome" id="fNome" required></div>
-        <div class="row"><label>WhatsApp</label><input type="text" class="au-input" name="telefone" id="fTel" placeholder="Ex: 21999998888"></div>
+        <div class="row"><label>OAB</label><input type="text" class="au-input" name="oab" id="fOab" placeholder="Ex: RJ 123.456"></div>
       </div>
       <div class="au-grid2">
+        <div class="row"><label>WhatsApp</label><input type="text" class="au-input" name="telefone" id="fTel" placeholder="Ex: 21999998888"></div>
         <div class="row"><label>E-mail</label><input type="email" class="au-input" name="email" id="fEmail"></div>
+      </div>
+      <div class="au-grid2">
         <div class="row"><label>Valor médio cobrado (R$)</label><input type="number" step="0.01" min="0" class="au-input" name="valor" id="fValor"></div>
+        <div class="row"></div>
       </div>
       <div class="row"><label>Áreas de abrangência</label><input type="text" class="au-input" name="areas" id="fAreas" placeholder="Ex: Niterói, São Gonçalo, Região dos Lagos / RJ"></div>
       <div class="row"><label>Tipos de audiência que participa</label>
@@ -425,6 +690,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="font-weight:700;color:#0f3d3e;font-size:1rem;">👩‍⚖️ <?= e($a['nome']) ?>
           <?php if ((int)$a['ativo'] !== 1): ?><span class="au-chip au-st-cancelada">arquivada</span><?php endif; ?></div>
         <div style="color:#666;font-size:.84rem;margin-top:3px;">
+          <?= !empty($a['oab']) ? '⚖️ OAB ' . e($a['oab']) . ' · ' : '' ?>
           <?= $a['telefone'] ? '📱 ' . e($a['telefone']) : '' ?><?= $a['email'] ? ' · ✉️ ' . e($a['email']) : '' ?>
           <?= $a['valor_medio_cents'] !== null ? ' · 💰 ' . aud_money($a['valor_medio_cents']) . ' (médio)' : '' ?>
         </div>
@@ -434,8 +700,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if ($a['observacoes']): ?><div style="font-size:.82rem;margin-top:4px;color:#777;"><?= e($a['observacoes']) ?></div><?php endif; ?>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <a class="au-mini" href="<?= module_url('audiencistas', 'detalhe.php?id=' . (int)$a['id']) ?>">📊 Detalhe / Acerto</a>
         <?php if ($wa): ?><a class="au-mini wa" href="<?= e($wa) ?>" target="_blank" rel="noopener">💬 WhatsApp</a><?php endif; ?>
-        <button type="button" class="au-mini gh" onclick='auEdit(<?= json_encode(array("id"=>(int)$a["id"],"nome"=>$a["nome"],"telefone"=>$a["telefone"],"email"=>$a["email"],"areas"=>$a["areas"],"tipos"=>$a["tipos"],"valor"=>($a["valor_medio_cents"]!==null?number_format($a["valor_medio_cents"]/100,2,".",""):""),"dep"=>$a["dados_deposito"],"obs"=>$a["observacoes"]), JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>)'>✏️ Editar</button>
+        <button type="button" class="au-mini gh" onclick='auEdit(<?= json_encode(array("id"=>(int)$a["id"],"nome"=>$a["nome"],"oab"=>($a["oab"]??""),"telefone"=>$a["telefone"],"email"=>$a["email"],"areas"=>$a["areas"],"tipos"=>$a["tipos"],"valor"=>($a["valor_medio_cents"]!==null?number_format($a["valor_medio_cents"]/100,2,".",""):""),"dep"=>$a["dados_deposito"],"obs"=>$a["observacoes"]), JSON_HEX_APOS|JSON_HEX_QUOT|JSON_UNESCAPED_UNICODE) ?>)'>✏️ Editar</button>
         <form method="post" style="margin:0;"><input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="toggle_audiencista"><input type="hidden" name="id" value="<?= (int)$a['id'] ?>"><input type="hidden" name="ativar" value="<?= (int)$a['ativo'] === 1 ? '0' : '1' ?>"><button type="submit" class="au-mini gh"><?= (int)$a['ativo'] === 1 ? '🗄️ Arquivar' : '♻️ Reativar' ?></button></form>
       </div>
     </div>
@@ -478,7 +745,8 @@ function auLimparCli(){ document.getElementById('auClientId').value=''; document
 
 function auEdit(d){
   document.getElementById('auEditId').value=d.id;
-  document.getElementById('fNome').value=d.nome||''; document.getElementById('fTel').value=d.telefone||'';
+  document.getElementById('fNome').value=d.nome||''; document.getElementById('fOab').value=d.oab||'';
+  document.getElementById('fTel').value=d.telefone||'';
   document.getElementById('fEmail').value=d.email||''; document.getElementById('fAreas').value=d.areas||'';
   document.getElementById('fValor').value=d.valor||''; document.getElementById('fDep').value=d.dep||'';
   document.getElementById('fObs').value=d.obs||'';
