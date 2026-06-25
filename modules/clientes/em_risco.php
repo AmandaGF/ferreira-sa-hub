@@ -32,10 +32,7 @@ require_once __DIR__ . '/../../core/functions_utils.php';
 require_once __DIR__ . '/../../core/functions_caso_visual.php';
 
 require_login();
-if (!has_min_role('gestao')) {
-    flash_set('error', 'Acesso restrito.');
-    redirect(url('modules/painel/'));
-}
+require_access('clientes');
 
 $pdo = db();
 $pageTitle = '🌡️ Clientes em Risco';

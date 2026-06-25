@@ -47,6 +47,7 @@ function _permission_defaults()
         'helpdesk'            => $todos,
         'agenda'              => $todos,
         'crm'                 => $todos,
+        'clientes'            => $todos,
         'crm_comercial'       => $todos,
         'crm_operacional'     => array('admin','gestao','operacional','cx','estagiario'),
         'pipeline'            => $todos,

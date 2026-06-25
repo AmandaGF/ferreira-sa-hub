@@ -152,13 +152,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
-        <?php if (has_min_role('gestao')): ?>
-            <?php
-            // Verificar se cliente tem acesso Central VIP
-            $stmtSv = $pdo->prepare("SELECT id, ativo, token_ativacao, token_expira, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
-            $svUser = null;
-            try { $stmtSv->execute(array($clientId)); $svUser = $stmtSv->fetch(); } catch (Exception $e) {}
-            ?>
+        <?php
+        // Acesso liberado pra todos (Amanda 25/06/2026): editar cliente + Central VIP.
+        // Excluir continua restrito a gestao (ação destrutiva).
+        // Verificar se cliente tem acesso Central VIP
+        $stmtSv = $pdo->prepare("SELECT id, ativo, token_ativacao, token_expira, senha_hash FROM salavip_usuarios WHERE cliente_id = ? LIMIT 1");
+        $svUser = null;
+        try { $stmtSv->execute(array($clientId)); $svUser = $stmtSv->fetch(); } catch (Exception $e) {}
+        ?>
             <?php if ($svUser): ?>
                 <?php if ($svUser['ativo']): ?>
                     <span class="btn btn-sm" style="background:#059669;color:#fff;cursor:default;">🟢 Central VIP Ativa</span>
@@ -201,7 +202,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <button type="submit" class="btn btn-sm" style="background:#6366f1;color:#fff;">🔑 Criar Acesso Central VIP</button>
                 </form>
             <?php endif; ?>
-            <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>
+        <a href="<?= module_url('crm', 'cliente_form.php?id=' . $client['id']) ?>" class="btn btn-outline btn-sm">✏️ Editar</a>
+        <?php if (has_min_role('gestao')): // Excluir = só gestão (ação destrutiva) ?>
             <form method="POST" action="<?= module_url('crm', 'api.php') ?>" style="display:inline;">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="delete_client">
