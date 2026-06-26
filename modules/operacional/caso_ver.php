@@ -1389,6 +1389,29 @@ if (!empty($compromissosCaso)): ?>
             <?php if ($comp['meet_link']): ?>
                 <a href="<?= e($comp['meet_link']) ?>" target="_blank" style="font-size:.7rem;background:#052228;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">Meet</a>
             <?php endif; ?>
+            <?php
+            // Atalho "Tribunal" pra balcão virtual — link direto pra página
+            // do Balcão Virtual do TJ correspondente (uso a UF da comarca do caso).
+            if ($comp['tipo'] === 'balcao_virtual'):
+                $_bvUf = strtoupper(trim((string)($case['comarca_uf'] ?? '')));
+                $_bvUrls = array(
+                    'RJ' => 'https://www3.tjrj.jus.br/balcaovirtual',
+                    'SP' => 'https://www.tjsp.jus.br/IntimacoesOnline',
+                    'MG' => 'https://balcaovirtual.tjmg.jus.br/',
+                    'RS' => 'https://www.tjrs.jus.br/balcaoVirtual/',
+                    'PR' => 'https://www.tjpr.jus.br/balcao-virtual',
+                    'SC' => 'https://www.tjsc.jus.br/balcao-virtual',
+                    'BA' => 'https://www5.tjba.jus.br/balcaovirtual/',
+                    'DF' => 'https://www.tjdft.jus.br/servicos/balcao-virtual',
+                    'PE' => 'https://www.tjpe.jus.br/balcao-virtual',
+                    'CE' => 'https://www.tjce.jus.br/balcao-virtual/',
+                    'GO' => 'https://www.tjgo.jus.br/balcao-virtual',
+                );
+                $_bvUrl = $_bvUrls[$_bvUf] ?? 'https://www.cnj.jus.br/poder-judiciario/tribunais/';
+                $_bvLabel = $_bvUf ? ('TJ' . $_bvUf) : 'Tribunal';
+            ?>
+                <a href="<?= e($_bvUrl) ?>" target="_blank" rel="noopener" title="Abrir página do Balcão Virtual do tribunal correspondente" style="font-size:.7rem;background:#0d9488;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">🏛️ <?= e($_bvLabel) ?> →</a>
+            <?php endif; ?>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&editar=<?= (int)$comp['id'] ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:#fff;background:#052228;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;" title="Alterar data, hora, local, responsável, etc.">✏️ Editar</a>
             <a href="<?= module_url('agenda') ?>?dia=<?= date('Y-m-d', strtotime($dtInicio)) ?>&voltar_caso=<?= $caseId ?>" style="font-size:.7rem;color:var(--petrol-900);padding:3px 8px;border:1px solid var(--border);border-radius:5px;text-decoration:none;">Ver agenda</a>
             <?php
@@ -1402,6 +1425,8 @@ if (!empty($compromissosCaso)): ?>
                 $_tiposModalAud = array('audiencia','mediacao_cejusc');
                 // Tipos que so abrem prompt simples (sem estrutura especifica)
                 $_tiposPromptSimples = array('reuniao_cliente');
+                // Balcao virtual: modal proprio com upload de printscreen ou 'sem print'
+                $_abreModalBalcao = ($comp['tipo'] ?? '') === 'balcao_virtual';
                 $_abreModalAud = in_array($comp['tipo'] ?? '', $_tiposModalAud, true);
                 $_pedePrompt = in_array($comp['tipo'] ?? '', $_tiposPromptSimples, true);
                 $_confirmMsg = ($comp['tipo'] === 'prazo') ? 'Cumprir este prazo? (vai marcar como realizado)' : 'Marcar este compromisso como realizado?';
@@ -1409,7 +1434,9 @@ if (!empty($compromissosCaso)): ?>
                 $_dataAudJs = date('Y-m-d', strtotime($comp['data_inicio']));
                 $_tituloEv = $comp['titulo'] ?? 'Compromisso';
                 $_onsubmit = ' onsubmit="return confirm(' . json_encode($_confirmMsg, JSON_UNESCAPED_UNICODE) . ');"';
-                if ($_abreModalAud) {
+                if ($_abreModalBalcao) {
+                    $_onsubmit = ' onsubmit="return abrirModalRealizarBalcao(' . (int)$comp['id'] . ',' . $caseId . ')"';
+                } elseif ($_abreModalAud) {
                     $_onsubmit = ' onsubmit="return abrirModalRealizarAud(this,' . (int)$comp['id'] . ',' . json_encode($_dataAudJs) . ',' . json_encode($_tituloEv, JSON_UNESCAPED_UNICODE) . ',' . json_encode($comp['tipo']) . ')"';
                 } elseif ($_pedePrompt) {
                     $_onsubmit = ' onsubmit="return pedirObsRealizado(this)"';
@@ -1556,6 +1583,64 @@ if ($_ehAlimentos) {
     <strong>⚠ Verifique a legitimidade ativa em ações de alimentos.</strong>
     Em alimentos / pensão / revisional / execução de alimentos, quem figura como <strong>Autor</strong> normalmente é a <strong>criança (alimentanda)</strong>. O adulto que contratou o escritório costuma figurar como <strong>Representante Legal</strong> (art. 71 CPC c/c art. 1.634 CC).
     <span style="display:block;margin-top:.4rem;font-size:.78rem;color:#92400e;">Se este caso já está cadastrado corretamente, ignore o aviso. Caso contrário, ajuste em "Partes do Processo".</span>
+</div>
+<?php endif; ?>
+
+<!-- Solicitações de audiencista (em aberto/designada) deste caso -->
+<?php
+$_solAud = array();
+try {
+    $stAud = $pdo->prepare("SELECT au.id, au.tipo, au.data_hora, au.modalidade, au.comarca, au.local,
+                                   au.status, au.audiencista_id, ad.nome AS aud_nome, ad.telefone AS aud_tel,
+                                   au.created_at
+                            FROM audiencias au
+                            LEFT JOIN audiencistas ad ON ad.id = au.audiencista_id
+                            WHERE au.case_id = ? AND au.status NOT IN ('cancelada','realizada')
+                            ORDER BY au.created_at DESC");
+    $stAud->execute(array($caseId));
+    $_solAud = $stAud->fetchAll();
+} catch (Exception $e) {}
+?>
+<?php if (!empty($_solAud)): ?>
+<div class="card mb-2" style="border-left:4px solid #b87333;">
+    <div class="card-body" style="padding:.75rem 1rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem;">
+            <h3 style="margin:0;font-size:.95rem;color:#0f3d3e;">👩‍⚖️ Solicitações de audiencista (<?= count($_solAud) ?>)</h3>
+            <a href="<?= url('modules/audiencistas/') ?>" style="font-size:.75rem;color:#0f3d3e;text-decoration:none;font-weight:600;">Abrir módulo →</a>
+        </div>
+        <?php foreach ($_solAud as $sa):
+            $stColors = array('aberta' => '#92400e:#fef3c7', 'designada' => '#1e40af:#dbeafe');
+            $pal = explode(':', $stColors[$sa['status']] ?? '#475569:#e2e8f0');
+            $stLabel = array('aberta' => 'Aguardando contratação', 'designada' => 'Audiencista designada');
+        ?>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.55rem .7rem;background:#fafafa;border-radius:8px;margin-bottom:.4rem;flex-wrap:wrap;gap:.5rem;">
+            <div style="flex:1;min-width:240px;">
+                <div style="font-weight:700;color:#0f3d3e;font-size:.86rem;">⚖️ <?= e($sa['tipo']) ?>
+                    <span style="background:<?= $pal[1] ?>;color:<?= $pal[0] ?>;padding:1px 8px;border-radius:999px;font-size:.7rem;font-weight:700;margin-left:4px;"><?= e($stLabel[$sa['status']] ?? $sa['status']) ?></span>
+                </div>
+                <div style="font-size:.78rem;color:#666;margin-top:2px;">
+                    <?= $sa['data_hora'] ? '📅 ' . date('d/m/Y H:i', strtotime($sa['data_hora'])) . ' · ' : '' ?>
+                    <?= $sa['modalidade'] ? '📍 ' . e(ucfirst($sa['modalidade'])) . ' · ' : '' ?>
+                    <?= $sa['comarca'] ? e($sa['comarca']) : ($sa['local'] ? e($sa['local']) : '') ?>
+                </div>
+                <?php if ($sa['aud_nome']): ?>
+                    <div style="font-size:.78rem;color:#0f3d3e;margin-top:2px;">👩‍⚖️ <strong><?= e($sa['aud_nome']) ?></strong><?= $sa['aud_tel'] ? ' · ' . e($sa['aud_tel']) : '' ?></div>
+                <?php endif; ?>
+            </div>
+            <div style="display:flex;gap:5px;align-items:center;">
+                <a href="<?= url('modules/audiencistas/') ?>#a-<?= (int)$sa['id'] ?>" style="font-size:.72rem;background:#0f3d3e;color:#fff;padding:4px 10px;border-radius:5px;text-decoration:none;font-weight:600;">Ver detalhes</a>
+                <form method="post" action="<?= url('modules/audiencistas/') ?>" style="margin:0;" onsubmit="return confirm('Cancelar esta solicitação de audiencista? Use quando a audiência foi desmarcada ou quando não vai mais precisar de audiencista.');">
+                    <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+                    <input type="hidden" name="acao" value="status">
+                    <input type="hidden" name="audiencia_id" value="<?= (int)$sa['id'] ?>">
+                    <input type="hidden" name="novo" value="cancelada">
+                    <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
+                    <button type="submit" style="font-size:.72rem;background:#fee2e2;color:#b91c1c;padding:4px 10px;border:1px solid #fecaca;border-radius:5px;cursor:pointer;font-weight:600;">❌ Cancelar</button>
+                </form>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
 </div>
 <?php endif; ?>
 
@@ -6937,6 +7022,60 @@ window.confirmarModalRealAud = function() {
     form.onsubmit = null;
     form.submit();
 };
+
+/**
+ * Modal específico pra "Realizado" do Balcão Virtual.
+ * Pede printscreen do balcão (pra enviar pra Central VIP do cliente) OU permite
+ * marcar "sem print" (balcão presencial / telefone).
+ * Submete via form próprio (multipart) — bypass do form padrão.
+ */
+window.abrirModalRealizarBalcao = function(eventoId, caseId) {
+    var oldModal = document.getElementById('balcaoRealModal');
+    if (oldModal) oldModal.remove();
+    var html = '' +
+      '<div id="balcaoRealModal" style="position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;">' +
+        '<div style="background:#fff;border-radius:14px;padding:24px;max-width:480px;width:94%;box-shadow:0 12px 40px rgba(0,0,0,.3);">' +
+          '<h3 style="margin:0 0 6px;color:#0d9488;">🏛️ Balcão Virtual realizado</h3>' +
+          '<p style="margin:0 0 14px;font-size:.85rem;color:#666;">Anexe o printscreen do atendimento (vai pra Central VIP do cliente) <b>ou</b> confirme que foi balcão presencial/telefone.</p>' +
+          '<form id="balcaoRealForm" method="POST" enctype="multipart/form-data" action="' + window.__BALCAO_API + '">' +
+            '<input type="hidden" name="csrf_token" value="' + window.__BALCAO_CSRF + '">' +
+            '<input type="hidden" name="action" value="evento_realizado">' +
+            '<input type="hidden" name="evento_id" value="' + eventoId + '">' +
+            '<input type="hidden" name="case_id" value="' + caseId + '">' +
+            '<input type="hidden" name="_back" value="' + window.__BALCAO_BACK + '">' +
+            '<input type="hidden" name="balcao_modo" id="balcaoModoInp" value="com_print">' +
+            '<label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:4px;">📸 Printscreen do balcão virtual</label>' +
+            '<input type="file" name="printscreen" id="balcaoPrintInp" accept="image/*,.pdf" style="width:100%;border:1px solid #cfd8d6;border-radius:8px;padding:8px;font-size:.84rem;">' +
+            '<div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">' +
+              '<button type="button" onclick="document.getElementById(\'balcaoRealModal\').remove()" style="background:#fff;border:1px solid #cfd8d6;color:#475569;padding:9px 14px;border-radius:8px;font-weight:600;cursor:pointer;">Cancelar</button>' +
+              '<button type="button" onclick="balcaoSubmitSemPrint()" style="background:#475569;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:600;cursor:pointer;" title="Se foi balcão presencial ou por telefone">📞 Sem print (presencial/telefone)</button>' +
+              '<button type="button" onclick="balcaoSubmitComPrint()" style="background:#0d9488;color:#fff;border:none;padding:9px 14px;border-radius:8px;font-weight:600;cursor:pointer;flex:1;">✅ Confirmar realizado</button>' +
+            '</div>' +
+          '</form>' +
+        '</div>' +
+      '</div>';
+    document.body.insertAdjacentHTML('beforeend', html);
+    return false; // bloqueia o submit do form externo
+};
+window.balcaoSubmitComPrint = function() {
+    var fInput = document.getElementById('balcaoPrintInp');
+    if (!fInput.files || !fInput.files.length) {
+        if (!confirm('Você não selecionou um printscreen. Deseja continuar mesmo assim?\n\n(Se foi balcão presencial/telefone, use o botão "Sem print".)')) return;
+    }
+    document.getElementById('balcaoModoInp').value = 'com_print';
+    document.getElementById('balcaoRealForm').submit();
+};
+window.balcaoSubmitSemPrint = function() {
+    if (!confirm('Marcar este balcão como realizado SEM printscreen?\n\nÚtil para balcão presencial ou por telefone.')) return;
+    document.getElementById('balcaoModoInp').value = 'sem_print';
+    // Limpa o input pra não enviar arquivo desnecessário
+    document.getElementById('balcaoPrintInp').value = '';
+    document.getElementById('balcaoRealForm').submit();
+};
+// Globais pra serem injetados pelo PHP
+window.__BALCAO_API = '<?= module_url('operacional', 'api.php') ?>';
+window.__BALCAO_CSRF = '<?= generate_csrf_token() ?>';
+window.__BALCAO_BACK = '<?= htmlspecialchars(module_url('operacional', 'caso_ver.php?id=' . $caseId), ENT_QUOTES, 'UTF-8') ?>';
 
 // Prompt simples (reuniao_cliente, balcao virtual etc.) - mantido pra compatibilidade
 window.pedirObsRealizado = function(form) {

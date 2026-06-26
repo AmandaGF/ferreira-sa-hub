@@ -594,9 +594,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $aid = (int)($_POST['audiencia_id'] ?? 0); $st = $_POST['novo'] ?? '';
         if (isset($STATUS[$st])) {
             $pdo->prepare("UPDATE audiencias SET status=? WHERE id=?")->execute(array($st, $aid));
+            audit_log('audiencia_status', 'audiencia', $aid, '→ ' . $st);
             flash_set('success', 'Status atualizado.');
         }
-        redirect(module_url('audiencistas'));
+        $vc = (int)($_POST['voltar_caso'] ?? 0);
+        redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('audiencistas'));
     }
 
     // -- enviar arquivo pro WhatsApp da audiencista (Z-API) --

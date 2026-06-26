@@ -2447,7 +2447,29 @@ switch ($action) {
         $novaAudHora = trim($_POST['nova_aud_hora'] ?? '');
         $novaAudMod = trim($_POST['nova_aud_modalidade'] ?? '');
         $dataAudRef = trim($_POST['data_audiencia_ref'] ?? '');
+        $balcaoModo = trim($_POST['balcao_modo'] ?? ''); // 'com_print' | 'sem_print' (só p/ balcao_virtual)
         $back = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+
+        // Upload do printscreen do balcão virtual (opcional)
+        $balcaoAnexoNome = null; $balcaoAnexoPath = null;
+        if (!empty($_FILES['printscreen']) && (int)$_FILES['printscreen']['error'] === UPLOAD_ERR_OK) {
+            $_tmpUp = $_FILES['printscreen']['tmp_name'];
+            $_origUp = $_FILES['printscreen']['name'];
+            $_sizeUp = (int)$_FILES['printscreen']['size'];
+            $_mimeUp = $_FILES['printscreen']['type'] ?: (function_exists('mime_content_type') ? mime_content_type($_tmpUp) : '');
+            $_allowedUp = array('image/png','image/jpeg','image/jpg','application/pdf');
+            if ($_sizeUp <= 15 * 1024 * 1024 && in_array($_mimeUp, $_allowedUp, true)) {
+                $_dirUp = APP_ROOT . '/files/balcoes';
+                if (!is_dir($_dirUp)) @mkdir($_dirUp, 0755, true);
+                $_safeUp = preg_replace('/[^A-Za-z0-9._-]/', '_', $_origUp);
+                $_storedUp = 'balcao_' . uniqid('', true) . '_' . $_safeUp;
+                if (move_uploaded_file($_tmpUp, $_dirUp . '/' . $_storedUp)) {
+                    @chmod($_dirUp . '/' . $_storedUp, 0644);
+                    $balcaoAnexoNome = $_origUp;
+                    $balcaoAnexoPath = $_storedUp;
+                }
+            }
+        }
         if ($eventoId && $caseId) {
             try {
                 $pdo->prepare("UPDATE agenda_eventos SET status = 'realizado', updated_at = NOW() WHERE id = ? AND case_id = ?")
@@ -2487,6 +2509,33 @@ switch ($action) {
                     }
                 } else {
                     $obsTexto = $observacao;
+                }
+
+                // Balcão Virtual realizado: andamento padrão visível ao cliente,
+                // cobrando movimentação do Cartório responsável. Anexa printscreen
+                // se foi enviado, OU registra que foi balcão presencial/telefone.
+                if ($tipoEv === 'balcao_virtual') {
+                    try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN anexo_path VARCHAR(500) NULL"); } catch (Exception $e) {}
+                    try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN anexo_nome VARCHAR(255) NULL"); } catch (Exception $e) {}
+
+                    $dataBalcao = $evRow['data_inicio'] ? date('d/m/Y', strtotime($evRow['data_inicio'])) : date('d/m/Y');
+                    $textoBalcao = "✓ Balcão Virtual realizado em {$dataBalcao}.";
+                    if ($balcaoModo === 'sem_print') {
+                        $textoBalcao .= "\n\n📞 Atendimento foi realizado de forma presencial/telefônica (sem printscreen disponível).";
+                    } elseif ($balcaoAnexoPath) {
+                        $textoBalcao .= "\n\n📸 Printscreen do atendimento anexado.";
+                    }
+                    $textoBalcao .= "\n\n🏛️ Já solicitamos a movimentação ao Cartório responsável e estamos aguardando o retorno.";
+                    if ($obsTexto !== '') {
+                        $textoBalcao .= "\n\n" . $obsTexto;
+                    }
+                    try {
+                        $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at, anexo_path, anexo_nome) VALUES (?, CURDATE(), 'balcao_virtual', ?, 1, ?, NOW(), ?, ?)")
+                            ->execute(array($caseId, $textoBalcao, current_user_id(), $balcaoAnexoPath, $balcaoAnexoNome));
+                        $extras[] = $balcaoAnexoPath ? 'andamento + print' : 'andamento';
+                    } catch (Exception $eBV) { @error_log('[evento_realizado balcao] ' . $eBV->getMessage()); }
+                    // Pula o INSERT padrão de andamento (já registrei aqui)
+                    $tipoEv = '__ja_registrado__';
                 }
 
                 // Andamento aberto pro processo
