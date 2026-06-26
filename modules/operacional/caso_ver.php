@@ -1572,29 +1572,69 @@ if ($_ehAlimentos) {
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
 
-<!-- Modal: Solicitar audiencista (cria a demanda no módulo Audiencistas + avisa a equipe) -->
+<!-- Modal: Solicitar audiencista (cria a demanda no módulo Audiencistas + avisa Luiz Eduardo) -->
+<?php
+// Mapa case_type → rótulo legível (espelha vocabulário do operacional)
+$_caseTypeLabel = array(
+    'familia' => 'Família', 'pensao' => 'Alimentos/Pensão', 'divorcio' => 'Divórcio',
+    'guarda' => 'Guarda', 'convivencia' => 'Convivência', 'inventario' => 'Inventário',
+    'responsabilidade_civil' => 'Responsabilidade Civil', 'outro' => 'Outro',
+);
+$_tipoProcessoSugerido = $case['case_type'] ?? '';
+if (isset($_caseTypeLabel[$_tipoProcessoSugerido])) $_tipoProcessoSugerido = $_caseTypeLabel[$_tipoProcessoSugerido];
+?>
 <div id="audSolModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:#fff;border-radius:12px;padding:22px;max-width:480px;width:92%;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+  <div style="background:#fff;border-radius:12px;padding:22px;max-width:540px;width:94%;max-height:92vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
     <h3 style="margin:0 0 6px;">👩‍⚖️ Solicitar audiencista</h3>
-    <p style="color:#666;font-size:.85rem;margin:0 0 14px;">A equipe será avisada pra contatar uma audiencista, verificar disponibilidade e contratar. Esta audiência já fica vinculada a esta pasta.</p>
+    <p style="color:#666;font-size:.85rem;margin:0 0 6px;">A equipe será avisada e o <b>Dr. Luiz Eduardo</b> recebe notificação + tarefa + e-mail pra acompanhar.</p>
+    <div id="audSolAuto" style="display:none;background:#dcfce7;color:#15803d;border-radius:8px;padding:7px 11px;margin-bottom:10px;font-size:.78rem;"></div>
     <form method="post" action="<?= module_url('audiencistas') ?>">
       <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
       <input type="hidden" name="acao" value="salvar_audiencia">
       <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
       <input type="hidden" name="case_id" value="<?= $caseId ?>">
-      <input type="hidden" name="comarca" value="<?= e($case['comarca'] ?? '') ?>">
       <input type="hidden" name="processo_numero" value="<?= e($case['case_number'] ?? '') ?>">
       <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
-      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Tipo de audiência *</label>
-      <select name="tipo" required class="form-input" style="width:100%;margin-bottom:10px;">
-        <option value="">Selecione…</option>
-        <?php foreach (array('AIJ (Instrução e Julgamento)','Audiência inicial','Conciliação','Mediação / CEJUSC','Audiência una','Justificação','Custódia','Juizado Especial','Outra') as $_t): ?><option value="<?= e($_t) ?>"><?= e($_t) ?></option><?php endforeach; ?>
-      </select>
-      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Data e hora</label>
-      <input type="datetime-local" name="data_hora" class="form-input" style="width:100%;margin-bottom:10px;">
-      <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:3px;">Orientações pra audiencista</label>
-      <textarea name="orientacoes" class="form-input" style="width:100%;min-height:70px;margin-bottom:14px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
-      <div style="display:flex;justify-content:flex-end;gap:8px;">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;">Tipo de audiência *</label>
+          <select id="audSolTipo" name="tipo" required class="form-input" style="width:100%;">
+            <option value="">Selecione…</option>
+            <?php foreach (array('AIJ (Instrução e Julgamento)','Audiência inicial','Conciliação','Mediação / CEJUSC','Audiência una','Justificação','Custódia','Juizado Especial','Outra') as $_t): ?><option value="<?= e($_t) ?>"><?= e($_t) ?></option><?php endforeach; ?>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;">Data e hora</label>
+          <input id="audSolData" type="datetime-local" name="data_hora" class="form-input" style="width:100%;">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px;">
+        <div>
+          <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;">Modalidade</label>
+          <select id="audSolModal2" name="modalidade" class="form-input" style="width:100%;">
+            <option value="">— escolher —</option>
+            <option value="presencial">📍 Presencial</option>
+            <option value="remota">💻 Remota (online)</option>
+            <option value="hibrida">🔀 Híbrida</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;">Tipo de processo</label>
+          <input id="audSolTipoProc" type="text" name="tipo_processo" class="form-input" value="<?= e($_tipoProcessoSugerido) ?>" placeholder="Ex: Alimentos" style="width:100%;">
+        </div>
+      </div>
+
+      <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">Local / Vara</label>
+      <input id="audSolLocal" type="text" name="local" class="form-input" value="<?= e(trim(($case['court'] ?? '') . ' — ' . ($case['comarca'] ?? ''), ' —')) ?>" placeholder="Ex: 4ª Vara de Família — Rio de Janeiro/RJ" style="width:100%;">
+
+      <input type="hidden" id="audSolComarca" name="comarca" value="<?= e($case['comarca'] ?? '') ?>">
+
+      <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">Orientações pra audiencista</label>
+      <textarea id="audSolOrient" name="orientacoes" class="form-input" style="width:100%;min-height:60px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
         <button type="button" onclick="audSolClose()" class="btn btn-outline btn-sm">Cancelar</button>
         <button type="submit" class="btn btn-primary btn-sm" style="background:#b87333;">👩‍⚖️ Solicitar</button>
       </div>
@@ -1602,7 +1642,52 @@ if ($_ehAlimentos) {
   </div>
 </div>
 <script>
-function audSolOpen(){ document.getElementById('audSolModal').style.display='flex'; }
+// Endpoint AJAX que devolve próxima audiência agendada do case (em agenda_eventos)
+var AUD_SOL_AJAX = '<?= module_url('audiencistas') ?>?ajax=proxima_audiencia&case_id=<?= $caseId ?>';
+function audSolOpen(){
+  var m=document.getElementById('audSolModal'); m.style.display='flex';
+  // Busca próxima audiência da agenda e pré-preenche o que estiver vazio
+  fetch(AUD_SOL_AJAX).then(function(r){return r.json();}).then(function(d){
+    if (!d || !d.data_inicio) return;
+    var aviso = document.getElementById('audSolAuto');
+    var msgs = [];
+    // Data
+    if (!document.getElementById('audSolData').value) {
+      document.getElementById('audSolData').value = d.data_inicio.replace(' ','T').substring(0,16);
+      msgs.push('📅 data');
+    }
+    // Modalidade
+    var sel = document.getElementById('audSolModal2');
+    if (!sel.value && d.modalidade) {
+      var m2 = d.modalidade;
+      if (m2 === 'online') m2 = 'remota';
+      if (['presencial','remota','hibrida'].indexOf(m2) >= 0) { sel.value = m2; msgs.push('💻 modalidade'); }
+    }
+    // Local
+    if (d.local) {
+      var locInput = document.getElementById('audSolLocal');
+      if (!locInput.value || locInput.value === ' — ') { locInput.value = d.local; msgs.push('📍 local'); }
+    }
+    // Tipo de audiência: tenta mapear pelo tipo do evento (balcao_virtual / mediacao_cejusc)
+    var tipoSel = document.getElementById('audSolTipo');
+    if (!tipoSel.value) {
+      var sugerido = null;
+      if (d.tipo === 'mediacao_cejusc') sugerido = 'Mediação / CEJUSC';
+      else if (d.tipo === 'balcao_virtual') sugerido = 'Conciliação';
+      else if (d.titulo && /aij|instru/i.test(d.titulo)) sugerido = 'AIJ (Instrução e Julgamento)';
+      else if (d.titulo && /concilia/i.test(d.titulo)) sugerido = 'Conciliação';
+      if (sugerido) {
+        for (var i = 0; i < tipoSel.options.length; i++) {
+          if (tipoSel.options[i].value === sugerido) { tipoSel.selectedIndex = i; msgs.push('⚖️ tipo'); break; }
+        }
+      }
+    }
+    if (msgs.length) {
+      aviso.style.display = 'block';
+      aviso.innerHTML = '✨ Pré-preenchido pela agenda: ' + msgs.join(', ') + (d.titulo ? ' — <i>' + d.titulo + '</i>' : '');
+    }
+  }).catch(function(){});
+}
 function audSolClose(){ document.getElementById('audSolModal').style.display='none'; }
 </script>
 

@@ -57,6 +57,9 @@ $_audAlters = array(
     "ALTER TABLE audiencias ADD COLUMN avaliacao_em DATETIME NULL",
     "ALTER TABLE audiencias ADD COLUMN avaliacao_por INT UNSIGNED NULL",
     "ALTER TABLE audiencias ADD COLUMN agenda_evento_id INT UNSIGNED NULL",
+    "ALTER TABLE audiencias ADD COLUMN modalidade VARCHAR(20) NULL",
+    "ALTER TABLE audiencias ADD COLUMN local VARCHAR(250) NULL",
+    "ALTER TABLE audiencias ADD COLUMN tipo_processo VARCHAR(80) NULL",
 );
 foreach ($_audAlters as $_sql) { try { $pdo->exec($_sql); } catch (Exception $e) {} }
 
@@ -109,6 +112,93 @@ function aud_upload_file($field, $prefix, $maxMB = 25)
     if (!move_uploaded_file($tmp, $dir . '/' . $stored)) return array('erro' => 'Falha ao mover upload.');
     @chmod($dir . '/' . $stored, 0644);
     return array('nome' => $nome, 'path' => $stored, 'mime' => $mime);
+}
+
+/**
+ * Notifica o Luiz Eduardo (user_id=6) da nova solicitação de audiencista:
+ *  1) notify() in-Hub (sino)
+ *  2) tarefa em case_tasks vinculada ao caso (pra ele acompanhar)
+ *  3) e-mail via Brevo (HTML simples)
+ */
+function aud_notificar_luiz($pdo, $audId)
+{
+    $LUIZ_ID    = 6;
+    $LUIZ_EMAIL = 'luizeduardo.sa.adv@gmail.com';
+
+    $st = $pdo->prepare("SELECT au.*, cl.name AS client_name, c.title AS case_title, c.case_number
+                         FROM audiencias au
+                         LEFT JOIN clients cl ON cl.id = au.client_id
+                         LEFT JOIN cases c ON c.id = au.case_id
+                         WHERE au.id = ?");
+    $st->execute(array($audId));
+    $a = $st->fetch();
+    if (!$a) return;
+
+    $titulo = '👩‍⚖️ Nova solicitação de audiencista';
+    $resumo = $a['tipo']
+            . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
+            . ($a['comarca'] ? ' — ' . $a['comarca'] : '')
+            . ($a['client_name'] ? ' (cliente: ' . $a['client_name'] . ')' : '')
+            . ($a['modalidade'] ? ' [' . $a['modalidade'] . ']' : '');
+    $link = url('modules/audiencistas/');
+
+    // 1) Notificação in-Hub
+    if (function_exists('notify')) {
+        try { notify($LUIZ_ID, $titulo, $resumo, 'info', $link, '👩‍⚖️'); } catch (Exception $e) {}
+    }
+
+    // 2) Tarefa em case_tasks vinculada ao caso (se houver case_id)
+    if (!empty($a['case_id'])) {
+        try {
+            $pdo->prepare("INSERT INTO case_tasks (case_id, title, status, assigned_to, sort_order, created_at)
+                           VALUES (?, ?, 'pendente', ?, 0, NOW())")
+                ->execute(array((int)$a['case_id'], '👩‍⚖️ Acompanhar solicitação de audiencista: ' . $resumo, $LUIZ_ID));
+        } catch (Exception $e) {}
+    }
+
+    // 3) E-mail Brevo
+    try {
+        $cfg = array('key' => '', 'email' => 'contato@ferreiraesa.com.br', 'name' => 'Ferreira & Sá Advocacia');
+        foreach ($pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'brevo_%'")->fetchAll() as $r) {
+            if ($r['chave'] === 'brevo_api_key')      $cfg['key']   = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_email') $cfg['email'] = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_name')  $cfg['name']  = $r['valor'];
+        }
+        if (!$cfg['key']) return;
+        $esc = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+        $linhas = '<tr><td><b>Tipo:</b></td><td>' . $esc($a['tipo']) . '</td></tr>'
+                . ($a['data_hora'] ? '<tr><td><b>Data/Hora:</b></td><td>' . $esc(date('d/m/Y H:i', strtotime($a['data_hora']))) . '</td></tr>' : '')
+                . ($a['modalidade'] ? '<tr><td><b>Modalidade:</b></td><td>' . $esc(ucfirst($a['modalidade'])) . '</td></tr>' : '')
+                . ($a['comarca']    ? '<tr><td><b>Comarca:</b></td><td>'    . $esc($a['comarca']) . '</td></tr>' : '')
+                . ($a['local']      ? '<tr><td><b>Local:</b></td><td>'      . $esc($a['local'])   . '</td></tr>' : '')
+                . ($a['tipo_processo']  ? '<tr><td><b>Tipo de processo:</b></td><td>' . $esc($a['tipo_processo']) . '</td></tr>' : '')
+                . ($a['client_name'] ? '<tr><td><b>Cliente:</b></td><td>'   . $esc($a['client_name']) . '</td></tr>' : '')
+                . ($a['case_title']  ? '<tr><td><b>Caso:</b></td><td>'      . $esc($a['case_title']) . ($a['case_number'] ? ' (' . $esc($a['case_number']) . ')' : '') . '</td></tr>' : '')
+                . ($a['orientacoes'] ? '<tr><td valign="top"><b>Orientações:</b></td><td>' . nl2br($esc($a['orientacoes'])) . '</td></tr>' : '');
+        $html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;background:#fff;border-radius:10px;padding:24px;border:1px solid #e5e7eb;">'
+              . '<h2 style="margin:0 0 4px;color:#0f3d3e;">👩‍⚖️ Nova solicitação de audiencista</h2>'
+              . '<p style="color:#6b7280;font-size:13px;margin:0 0 16px;">Foi aberta uma nova solicitação para você acompanhar.</p>'
+              . '<table style="font-size:14px;color:#111;border-collapse:collapse;width:100%;">' . $linhas . '</table>'
+              . '<p style="margin-top:18px;"><a href="' . $esc($link) . '" style="background:#0f3d3e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Abrir Audiencistas</a></p>'
+              . '</div>';
+        $data = array(
+            'sender'      => array('name' => $cfg['name'], 'email' => $cfg['email']),
+            'to'          => array(array('email' => $LUIZ_EMAIL, 'name' => 'Luiz Eduardo')),
+            'subject'     => $titulo . ' — ' . $a['tipo'],
+            'htmlContent' => $html,
+        );
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt_array($ch, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => array('api-key: ' . $cfg['key'], 'Content-Type: application/json', 'Accept: application/json'),
+            CURLOPT_POSTFIELDS     => json_encode($data),
+            CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        curl_exec($ch);
+        curl_close($ch);
+    } catch (Exception $e) {}
 }
 
 /**
@@ -211,8 +301,11 @@ if (($_GET['ajax'] ?? '') === 'proxima_audiencia') {
     header('Content-Type: application/json; charset=utf-8');
     $cid = (int)($_GET['case_id'] ?? 0); if (!$cid) { echo '{}'; exit; }
     try {
-        $st = $pdo->prepare("SELECT data_inicio, titulo FROM agenda_eventos
-                             WHERE case_id = ? AND tipo = 'audiencia'
+        // Inclui balcao_virtual e mediacao_cejusc — tudo que envolve aud presencial/online
+        $st = $pdo->prepare("SELECT data_inicio, titulo, tipo, modalidade, local
+                             FROM agenda_eventos
+                             WHERE case_id = ?
+                               AND tipo IN ('audiencia','balcao_virtual','mediacao_cejusc')
                                AND data_inicio >= NOW()
                                AND (status IS NULL OR status NOT IN ('cancelado','realizado','concluido'))
                              ORDER BY data_inicio ASC LIMIT 1");
@@ -311,9 +404,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $status = $audId ? 'designada' : 'aberta';
         $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
-        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id()));
+        $modalidade   = clean_str($_POST['modalidade'] ?? '', 20);
+        $local        = clean_str($_POST['local'] ?? '', 250);
+        $tipoProcesso = clean_str($_POST['tipo_processo'] ?? '', 80);
+        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by, modalidade, local, tipo_processo)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id(), $modalidade ?: null, $local ?: null, $tipoProcesso ?: null));
         $novoId = (int)$pdo->lastInsertId();
         audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
 
@@ -322,6 +418,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             aud_sync_agenda($pdo, $novoId);
             aud_registrar_andamento_designacao($pdo, $novoId);
         }
+
+        // Toda solicitação avisa o Luiz Eduardo (notify + tarefa + e-mail Brevo).
+        aud_notificar_luiz($pdo, $novoId);
 
         // Sem audiencista designada → avisa a equipe pra contatar e contratar.
         if (!$audId && function_exists('notify_gestao')) {
