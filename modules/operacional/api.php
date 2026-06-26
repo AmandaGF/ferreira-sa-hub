@@ -2534,6 +2534,33 @@ switch ($action) {
                             ->execute(array($caseId, $textoBalcao, current_user_id(), $balcaoAnexoPath, $balcaoAnexoNome));
                         $extras[] = $balcaoAnexoPath ? 'andamento + print' : 'andamento';
                     } catch (Exception $eBV) { @error_log('[evento_realizado balcao] ' . $eBV->getMessage()); }
+
+                    // Copia o printscreen pra GED da Central VIP do cliente (Amanda 26/06/2026:
+                    // antes ficava em /files/balcoes/ e não aparecia em "Docs" do cliente).
+                    if ($balcaoAnexoPath) {
+                        try {
+                            $stCli = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+                            $stCli->execute(array($caseId));
+                            $clienteId = (int)$stCli->fetchColumn();
+                            if ($clienteId > 0) {
+                                $orig   = APP_ROOT . '/files/balcoes/' . $balcaoAnexoPath;
+                                $gedDir = dirname(APP_ROOT) . '/salavip/uploads/ged/';
+                                if (!is_dir($gedDir)) @mkdir($gedDir, 0755, true);
+                                $gedName = 'ged_' . uniqid('', true) . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $balcaoAnexoNome ?: 'balcao.png');
+                                if (is_file($orig) && @copy($orig, $gedDir . $gedName)) {
+                                    @chmod($gedDir . $gedName, 0644);
+                                    $tituloGed = 'Printscreen Balcão Virtual — ' . $dataBalcao;
+                                    $descGed   = 'Atendimento de Balcão Virtual realizado em ' . $dataBalcao . '. Aguardando movimentação do Cartório responsável.';
+                                    $pdo->prepare(
+                                        "INSERT INTO salavip_ged (cliente_id, processo_id, titulo, descricao, categoria, arquivo_path, arquivo_nome, visivel_cliente, compartilhado_por, compartilhado_em)
+                                         VALUES (?, ?, ?, ?, 'Comprovante', ?, ?, 1, ?, NOW())"
+                                    )->execute(array($clienteId, $caseId, $tituloGed, $descGed, $gedName, $balcaoAnexoNome, current_user_id()));
+                                    $extras[] = 'Central VIP';
+                                }
+                            }
+                        } catch (Exception $eGed) { @error_log('[evento_realizado ged] ' . $eGed->getMessage()); }
+                    }
+
                     // Pula o INSERT padrão de andamento (já registrei aqui)
                     $tipoEv = '__ja_registrado__';
                 }
