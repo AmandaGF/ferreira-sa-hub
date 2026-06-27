@@ -1649,6 +1649,7 @@ try {
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
     <button type="button" onclick="audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
+    <button type="button" onclick="renOpen()" class="btn btn-sm" style="font-size:.78rem;background:#9333ea;color:#fff;border:none;" title="Registrar renúncia ou desistência deste processo">📤 Renúncia/Desistência</button>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;">Balcão Virtual</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
@@ -1656,6 +1657,68 @@ try {
     <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
+
+<!-- Modal: Renúncia/Desistência (importa cliente+processo desta pasta, confirma tipo+motivo+comprovante) -->
+<div id="renModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:22px;max-width:520px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <h3 style="margin:0 0 4px;">📤 Renúncia / Desistência</h3>
+    <p style="color:#666;font-size:.85rem;margin:0 0 12px;">Processo: <strong><?= e($case['case_number'] ?: $case['title']) ?></strong> · Cliente: <strong><?= e($case['client_name'] ?? '') ?></strong></p>
+    <form method="post" action="<?= module_url('processos', 'renuncias.php') ?>" enctype="multipart/form-data" onsubmit="return renValidar(this);">
+      <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+      <input type="hidden" name="acao" value="registrar">
+      <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
+      <input type="hidden" name="case_ids[]" value="<?= $caseId ?>">
+      <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
+
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">1. O que vamos fazer? *</label>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <label id="renTipoRen" style="flex:1;border:2px solid #e3e3e3;border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-weight:700;"><input type="radio" name="tipo" value="renuncia" style="display:none;" onchange="renTipo(this)"> Renúncia</label>
+        <label id="renTipoDes" style="flex:1;border:2px solid #e3e3e3;border-radius:10px;padding:10px;text-align:center;cursor:pointer;font-weight:700;"><input type="radio" name="tipo" value="desistencia" style="display:none;" onchange="renTipo(this)"> Desistência</label>
+      </div>
+
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">2. Motivo *</label>
+      <div style="margin-bottom:8px;">
+        <?php foreach (array('inadimplencia'=>'Inadimplência prolongada','cliente'=>'Desistência pelo(a) cliente','demitido'=>'Demitido — sem educação','sem_resposta'=>'Ausência de resposta prolongada','outro'=>'Outro') as $mk => $ml): ?>
+          <label style="display:flex;align-items:center;gap:7px;font-size:.88rem;margin:4px 0;cursor:pointer;"><input type="radio" name="motivo" value="<?= $mk ?>" onchange="renMotivo()"> <?= e($ml) ?></label>
+        <?php endforeach; ?>
+      </div>
+      <textarea name="motivo_outro" id="renMotivoOutro" placeholder="Descreva o motivo…" style="display:none;width:100%;min-height:50px;border:1px solid #ddd;border-radius:8px;padding:8px;margin-bottom:10px;font-family:inherit;"></textarea>
+
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">3. Observação (opcional)</label>
+      <textarea name="observacao" style="width:100%;min-height:50px;border:1px solid #ddd;border-radius:8px;padding:8px;margin-bottom:10px;font-family:inherit;" placeholder="Algum detalhe pro operacional…"></textarea>
+
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">4. Comprovante de comunicação com o cliente * <span style="font-weight:400;color:#888;">(PDF/print/DOC)</span></label>
+      <input type="file" name="comprovante" id="renFile" accept="image/*,application/pdf,.doc,.docx" style="width:100%;margin-bottom:14px;">
+
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" onclick="renClose()" class="btn btn-outline btn-sm">Cancelar</button>
+        <button type="submit" class="btn btn-sm" style="background:#9333ea;color:#fff;border:none;">📤 Registrar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function renOpen(){ document.getElementById('renModal').style.display='flex'; }
+function renClose(){ document.getElementById('renModal').style.display='none'; }
+function renTipo(input){
+  document.getElementById('renTipoRen').style.borderColor = input.value==='renuncia' ? '#9333ea' : '#e3e3e3';
+  document.getElementById('renTipoRen').style.background  = input.value==='renuncia' ? '#faf5ff' : '#fff';
+  document.getElementById('renTipoDes').style.borderColor = input.value==='desistencia' ? '#9333ea' : '#e3e3e3';
+  document.getElementById('renTipoDes').style.background  = input.value==='desistencia' ? '#faf5ff' : '#fff';
+}
+function renMotivo(){
+  var o=document.querySelector('#renModal input[name="motivo"]:checked');
+  document.getElementById('renMotivoOutro').style.display=(o && o.value==='outro')?'block':'none';
+}
+function renValidar(f){
+  if(!document.querySelector('#renModal input[name="tipo"]:checked')){ alert('Escolha renúncia ou desistência.'); return false; }
+  var m=document.querySelector('#renModal input[name="motivo"]:checked');
+  if(!m){ alert('Escolha o motivo.'); return false; }
+  if(m.value==='outro' && !document.getElementById('renMotivoOutro').value.trim()){ alert('Descreva o "outro" motivo.'); return false; }
+  if(!document.getElementById('renFile').value){ alert('Anexe o comprovante de comunicação com o cliente.'); return false; }
+  return true;
+}
+</script>
 
 <!-- Modal: Solicitar audiencista (cria a demanda no módulo Audiencistas + avisa Luiz Eduardo) -->
 <?php

@@ -212,7 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registr
 
     flash_set('success', 'Registro de ' . $tipoLabel . ' salvo para ' . $n . ' processo(s). Comprovante anexado e tarefa aberta pro operacional em cada pasta.'
                        . ($vipOff ? ' A Central VIP do cliente foi desabilitada.' : ''));
-    redirect(module_url('processos', 'renuncias.php') . '#historico');
+    $vc = (int)($_POST['voltar_caso'] ?? 0);
+    redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('processos', 'renuncias.php') . '#historico');
 }
 
 // ── POST: ligar/desligar Central VIP de um cliente ───────
