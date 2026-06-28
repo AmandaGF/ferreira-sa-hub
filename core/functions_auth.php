@@ -58,6 +58,7 @@ function _permission_defaults()
         'processos'           => $todos,
         'processos_renuncias' => array('admin','gestao','comercial','cx','operacional','estagiario'),
         'audiencistas'        => array('admin','gestao','operacional','cx','estagiario'),
+        'gerid'               => array('admin','gestao','operacional','cx','estagiario'),
         'prazos'              => $todos,
         'documentos'          => $todos,
         'peticoes'            => $todos,

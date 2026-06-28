@@ -1650,6 +1650,7 @@ try {
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
     <button type="button" onclick="audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
     <button type="button" onclick="renOpen()" class="btn btn-sm" style="font-size:.78rem;background:#9333ea;color:#fff;border:none;" title="Registrar renúncia ou desistência deste processo">📤 Renúncia/Desistência</button>
+    <button type="button" onclick="gdOpen()" class="btn btn-sm" style="font-size:.78rem;background:#0e7490;color:#fff;border:none;" title="Pedir pesquisa de vínculo empregatício no GERID (avisa o Luiz Eduardo + abre tarefa)">🔎 Pesquisar vínculo (GERID)</button>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;">Balcão Virtual</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
@@ -1718,6 +1719,42 @@ function renValidar(f){
   if(!document.getElementById('renFile').value){ alert('Anexe o comprovante de comunicação com o cliente.'); return false; }
   return true;
 }
+</script>
+
+<!-- Modal: Pesquisar vínculo no GERID (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
+<div id="gdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:22px;max-width:500px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
+    <h3 style="margin:0 0 4px;">🔎 Pesquisar vínculo no GERID</h3>
+    <p style="color:#666;font-size:.85rem;margin:0 0 12px;">O Luiz Eduardo será avisado pra pesquisar no GERID se a parte tem vínculo empregatício, e uma tarefa será aberta nesta pasta.</p>
+    <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return gdValidar(this);">
+      <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+      <input type="hidden" name="acao" value="solicitar">
+      <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
+      <input type="hidden" name="case_id" value="<?= $caseId ?>">
+      <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">Nome completo da parte *</label>
+      <input type="text" name="parte_nome" id="gdNome" value="<?= e($case['parte_re_nome'] ?? '') ?>" required class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Quem queremos saber se tem vínculo">
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">CPF</label>
+      <input type="text" name="parte_cpf" value="<?= e($case['parte_re_cpf_cnpj'] ?? '') ?>" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="000.000.000-00">
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">É o(a)…</label>
+      <div style="display:flex;gap:14px;margin-bottom:10px;font-size:.9rem;">
+        <label style="cursor:pointer;"><input type="radio" name="parente" value="pai"> Pai</label>
+        <label style="cursor:pointer;"><input type="radio" name="parente" value="mae"> Mãe</label>
+        <label style="cursor:pointer;"><input type="radio" name="parente" value="outro"> Outro</label>
+      </div>
+      <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">Observação (opcional)</label>
+      <textarea name="observacao" class="form-input" style="width:100%;min-height:50px;margin-bottom:14px;" placeholder="Algum detalhe que ajude…"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" onclick="gdClose()" class="btn btn-outline btn-sm">Cancelar</button>
+        <button type="submit" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;">🔎 Solicitar pesquisa</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+function gdOpen(){ document.getElementById('gdModal').style.display='flex'; }
+function gdClose(){ document.getElementById('gdModal').style.display='none'; }
+function gdValidar(f){ if(!document.getElementById('gdNome').value.trim()){ alert('Informe o nome completo da parte.'); return false; } return true; }
 </script>
 
 <!-- Modal: Solicitar audiencista (cria a demanda no módulo Audiencistas + avisa Luiz Eduardo) -->
