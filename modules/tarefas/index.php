@@ -74,6 +74,29 @@ echo voltar_ao_processo_html();
 .tk-tipo-btn{padding:6px;border:1.5px solid var(--border);border-radius:8px;background:none;cursor:pointer;font-size:.72rem;text-align:center;transition:all .2s}
 .tk-tipo-btn:hover{border-color:#B87333}
 .tk-tipo-btn.sel{background:#052228;color:#fff;border-color:#052228}
+/* Toggle Kanban/Lista */
+.tk-viewtog{display:flex;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;background:#fff;}
+.tk-viewtog button{background:none;border:none;padding:6px 12px;font-size:.78rem;font-weight:600;cursor:pointer;color:#64748b;display:flex;align-items:center;gap:.3rem;}
+.tk-viewtog button:hover{background:#f1f5f9;}
+.tk-viewtog button.ativo{background:#052228;color:#fff;}
+/* Lista (tabela) */
+.tk-lista{width:100%;background:#fff;border:1.5px solid var(--border,#e5e7eb);border-radius:12px;overflow:hidden;border-collapse:separate;border-spacing:0;font-size:.85rem;}
+.tk-lista thead th{background:#f8fafc;font-size:.7rem;text-transform:uppercase;letter-spacing:.3px;color:#64748b;font-weight:700;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);}
+.tk-lista tbody td{padding:9px 12px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.tk-lista tbody tr{cursor:pointer;transition:background .12s;}
+.tk-lista tbody tr:hover{background:#f9fafb;}
+.tk-lista tbody tr.tk-done{opacity:.55;}
+.tk-lista tbody tr.tk-done .tk-l-titulo{text-decoration:line-through;color:#94a3b8;}
+.tk-l-titulo{font-weight:700;color:#052228;}
+.tk-l-sub{font-size:.7rem;color:#64748b;margin-top:2px;}
+.tk-l-check{width:22px;}
+.tk-l-mover select{font-size:.7rem;padding:2px 5px;border:1px solid #e5e7eb;border-radius:4px;}
+.tk-statpill{display:inline-block;padding:2px 8px;border-radius:6px;font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.3px;}
+.tk-statpill.a_fazer{background:#e0e7ff;color:#3730a3;}
+.tk-statpill.em_andamento{background:#dbeafe;color:#1d4ed8;}
+.tk-statpill.aguardando{background:#fef3c7;color:#92400e;}
+.tk-statpill.concluido{background:#d1fae5;color:#065f46;}
+@media(max-width:768px){.tk-lista{font-size:.78rem;} .tk-lista thead th, .tk-lista tbody td{padding:6px 8px;}}
 </style>
 
 <!-- KPIs -->
@@ -99,7 +122,11 @@ echo voltar_ao_processo_html();
         </select>
         <select id="fPrio" onchange="reload()"><option value="">Prioridade</option><option value="urgente">Urgente</option><option value="alta">Alta</option><option value="normal">Normal</option><option value="baixa">Baixa</option></select>
     </div>
-    <div style="display:flex;gap:.5rem;">
+    <div style="display:flex;gap:.5rem;align-items:center;">
+        <div class="tk-viewtog" title="Trocar entre visão Kanban e Lista">
+            <button id="vwKanban" onclick="setView('kanban')" class="ativo">▦ Kanban</button>
+            <button id="vwLista" onclick="setView('lista')">☰ Lista</button>
+        </div>
         <button class="btn btn-outline btn-sm" style="font-size:.78rem;" onclick="toggleHistorico()">Histórico</button>
         <button class="btn btn-primary btn-sm" style="font-size:.82rem;" onclick="abrirModal()">+ Nova Tarefa</button>
     </div>
@@ -111,6 +138,24 @@ echo voltar_ao_processo_html();
     <div class="tk-col" data-status="em_andamento"><div class="tk-col-hd" style="background:#dbeafe;color:#1d4ed8;">Em Andamento <span id="cnt_em_andamento">0</span></div><div class="tk-col-bd" id="col_em_andamento"></div></div>
     <div class="tk-col" data-status="aguardando"><div class="tk-col-hd" style="background:#fef3c7;color:#92400e;">Aguardando <span id="cnt_aguardando">0</span></div><div class="tk-col-bd" id="col_aguardando"></div></div>
     <div class="tk-col" data-status="concluido"><div class="tk-col-hd" style="background:#d1fae5;color:#065f46;">Concluido <span id="cnt_concluido">0</span></div><div class="tk-col-bd" id="col_concluido"></div></div>
+</div>
+
+<!-- Lista (tabela) -->
+<div id="tkListaWrap" style="display:none;overflow-x:auto;">
+  <table class="tk-lista">
+    <thead><tr>
+      <th class="tk-l-check"></th>
+      <th>Título</th>
+      <th>Tipo</th>
+      <th>Prio</th>
+      <th>Prazo</th>
+      <th>Responsável</th>
+      <th>Status</th>
+      <th></th>
+    </tr></thead>
+    <tbody id="tkListaBody"></tbody>
+  </table>
+  <div id="tkListaVazio" style="display:none;text-align:center;padding:2rem;color:#94a3b8;font-size:.85rem;">Nenhuma tarefa.</div>
 </div>
 
 <!-- Modal -->
@@ -248,6 +293,9 @@ var BASE = '<?= BASE_URL ?>';
 var tarefas = [];
 var tipoSel = '';
 var showHistorico = false;
+var modoView = (function(){
+    try { return localStorage.getItem('tk_view') || 'kanban'; } catch(e) { return 'kanban'; }
+})();
 
 var TIPO_CORES = {peticionar:'#6366f1',juntar_documento:'#0ea5e9',prazo:'#dc2626',oficio:'#8b5cf6',acordo:'#059669',outros:'#94a3b8'};
 var TIPO_LABELS = {peticionar:'Peticionar',juntar_documento:'Juntar Doc',prazo:'Prazo',oficio:'Oficio',acordo:'Acordo',outros:'Outros'};
@@ -267,10 +315,26 @@ function reload() {
     x.open('GET', API + params);
     x.onload = function() {
         try { tarefas = JSON.parse(x.responseText); } catch(e) { tarefas = []; }
-        renderBoard();
+        renderAtual();
         window.scrollTo(0, scrollY);
     };
     x.send();
+}
+
+// Roteia pra view ativa (kanban ou lista)
+function renderAtual() {
+    if (modoView === 'lista') renderLista();
+    else renderBoard();
+}
+
+function setView(modo) {
+    modoView = (modo === 'lista') ? 'lista' : 'kanban';
+    try { localStorage.setItem('tk_view', modoView); } catch(e) {}
+    document.getElementById('vwKanban').classList.toggle('ativo', modoView === 'kanban');
+    document.getElementById('vwLista').classList.toggle('ativo', modoView === 'lista');
+    document.getElementById('tkBoard').style.display = (modoView === 'kanban') ? '' : 'none';
+    document.getElementById('tkListaWrap').style.display = (modoView === 'lista') ? '' : 'none';
+    renderAtual();
 }
 
 function renderBoard() {
@@ -389,7 +453,114 @@ function marcarConcluido(id, btn) {
     mover(id, novoStatus);
 }
 
-function toggleHistorico() { showHistorico = !showHistorico; renderBoard(); }
+function toggleHistorico() { showHistorico = !showHistorico; renderAtual(); }
+
+// Renderiza modo Lista (tabela)
+function renderLista() {
+    var tbody = document.getElementById('tkListaBody');
+    var vazio = document.getElementById('tkListaVazio');
+    var mesAtual = new Date().toISOString().substring(0,7);
+    var hoje = new Date().toISOString().substring(0,10);
+
+    // Filtra concluídas fora do mês quando histórico desligado
+    var visiveis = tarefas.filter(function(t) {
+        var st = t.status || 'a_fazer';
+        if (st === 'feito') st = 'concluido';
+        if (st === 'concluido' && !showHistorico) {
+            var mesConcl = t.completed_at ? t.completed_at.substring(0,7) : '';
+            if (mesConcl && mesConcl !== mesAtual) return false;
+        }
+        return true;
+    });
+
+    // Ordena: a_fazer > em_andamento > aguardando > concluido, depois prazo asc
+    var ordStat = {a_fazer:0, em_andamento:1, aguardando:2, concluido:3};
+    visiveis.sort(function(a, b) {
+        var sa = ordStat[a.status === 'feito' ? 'concluido' : (a.status || 'a_fazer')];
+        var sb = ordStat[b.status === 'feito' ? 'concluido' : (b.status || 'a_fazer')];
+        if (sa !== sb) return sa - sb;
+        // Sem prazo vai pro fim
+        if (!a.due_date && b.due_date) return 1;
+        if (a.due_date && !b.due_date) return -1;
+        if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+        return 0;
+    });
+
+    if (!visiveis.length) {
+        tbody.innerHTML = '';
+        vazio.style.display = 'block';
+        return;
+    }
+    vazio.style.display = 'none';
+
+    var STAT_LABEL = {a_fazer:'A Fazer', em_andamento:'Em Andamento', aguardando:'Aguardando', concluido:'Concluído'};
+    var rows = visiveis.map(function(t) {
+        var st = t.status === 'feito' ? 'concluido' : (t.status || 'a_fazer');
+        var isDone = (st === 'concluido');
+        var tipoCor = TIPO_CORES[t.tipo] || '#94a3b8';
+        var tipoLabel = TIPO_LABELS[t.tipo] || (t.tipo || '');
+        var prioCor = PRIO_CORES[t.prioridade] || '';
+        var prioLabel = t.prioridade && t.prioridade !== 'normal' ? t.prioridade.toUpperCase() : '';
+
+        // Prazo
+        var prazoHtml = '—';
+        if (t.due_date) {
+            var cls = 'ok';
+            if (!isDone) {
+                if (t.due_date < hoje) cls = 'vencido';
+                else {
+                    var diff = Math.ceil((new Date(t.due_date+'T23:59:59') - new Date()) / 86400000);
+                    if (diff <= 2) cls = 'alerta';
+                }
+            }
+            var dtFmt = t.due_date.substring(8,10)+'/'+t.due_date.substring(5,7)+'/'+t.due_date.substring(0,4);
+            prazoHtml = '<span class="tk-prazo '+cls+'">'+dtFmt+(cls==='vencido'?' VENCIDO':'')+'</span>';
+        }
+
+        // Avatar resp
+        var initials, avatarTitle, avatarBg;
+        if (t.assigned_name) {
+            initials = t.assigned_name.split(' ').map(function(w){return w[0]}).join('').substring(0,2).toUpperCase();
+            avatarTitle = t.assigned_name;
+            avatarBg = '';
+        } else { initials = '—'; avatarTitle = 'Sem responsável'; avatarBg = 'background:#9ca3af;'; }
+
+        var checkBtn = '<button onclick="event.stopPropagation();marcarConcluido('+t.id+',this)" style="background:none;border:none;cursor:pointer;font-size:1.2rem;padding:0;line-height:1;" title="'+(isDone?'Reabrir':'Concluir')+'">'
+            + (isDone ? '<span style="color:#059669">&#9745;</span>' : '<span style="color:#d1d5db">&#9744;</span>') + '</button>';
+
+        var moveSel = '<select onchange="event.stopPropagation();mover('+t.id+',this.value,this)" style="font-size:.7rem;padding:2px 5px;border:1px solid #e5e7eb;border-radius:4px;">'
+            + '<option value="">Mover...</option>'
+            + '<option value="a_fazer">A Fazer</option>'
+            + '<option value="em_andamento">Em Andamento</option>'
+            + '<option value="aguardando">Aguardando</option>'
+            + '<option value="concluido">Concluído</option></select>';
+
+        var subLinha = '';
+        if (t.case_title) {
+            subLinha = '<div class="tk-l-sub">'+esc(t.case_title)+(t.client_name?' — '+esc(t.client_name):'')+'</div>';
+        }
+
+        return '<tr class="'+(isDone?'tk-done':'')+'" onclick="editarTarefa('+t.id+')">'
+            + '<td class="tk-l-check" onclick="event.stopPropagation()">' + checkBtn + '</td>'
+            + '<td><div class="tk-l-titulo">'+esc(t.title)+'</div>'+subLinha+'</td>'
+            + '<td>'+(tipoLabel?'<span class="tk-badge" style="background:'+tipoCor+'">'+tipoLabel+'</span>':'—')+'</td>'
+            + '<td>'+(prioLabel?'<span class="tk-badge" style="background:'+prioCor+'">'+prioLabel+'</span>':'—')+'</td>'
+            + '<td>'+prazoHtml+'</td>'
+            + '<td><span class="tk-avatar" style="'+avatarBg+'" title="'+avatarTitle+'">'+initials+'</span></td>'
+            + '<td><span class="tk-statpill '+st+'">'+STAT_LABEL[st]+'</span></td>'
+            + '<td class="tk-l-mover" onclick="event.stopPropagation()">'+moveSel+'</td>'
+            + '</tr>';
+    }).join('');
+    tbody.innerHTML = rows;
+}
+
+// Aplica view persistida no load (depois do reload inicial)
+window.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('vwKanban').classList.toggle('ativo', modoView === 'kanban');
+    document.getElementById('vwLista').classList.toggle('ativo', modoView === 'lista');
+    document.getElementById('tkBoard').style.display = (modoView === 'kanban') ? '' : 'none';
+    document.getElementById('tkListaWrap').style.display = (modoView === 'lista') ? '' : 'none';
+});
 
 // ── DRAG AND DROP ──
 var dragTaskId = null;
