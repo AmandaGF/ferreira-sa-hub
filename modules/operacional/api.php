@@ -3044,6 +3044,54 @@ switch ($action) {
         redirect(module_url('operacional'));
         break;
 
+    case 'salvar_citacao':
+        // Amanda 29/06/2026: status da citação no processo (crítico em alimentos —
+        // pensão é devida a partir da data da citação).
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        $statusCit = trim($_POST['citacao_status'] ?? '');
+        $dataCit   = trim($_POST['citacao_data'] ?? '');
+        $obsCit    = clean_str($_POST['citacao_obs'] ?? '', 2000);
+        $back      = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
+        $validos = array('nao_expedido','expedido_aguardando','tentou_nao_localizou','citado','nao_houve');
+        if (!$caseId || !in_array($statusCit, $validos, true)) {
+            flash_set('error', 'Status de citação inválido.');
+            redirect($back ?: module_url('operacional', 'caso_ver.php?id=' . $caseId)); exit;
+        }
+        $dataCitVal = ($statusCit === 'citado' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataCit)) ? $dataCit : null;
+        try {
+            // Snapshot anterior pra detectar mudança e gerar andamento
+            $stOld = $pdo->prepare("SELECT citacao_status, citacao_data FROM cases WHERE id=?");
+            $stOld->execute(array($caseId));
+            $old = $stOld->fetch();
+
+            $pdo->prepare("UPDATE cases SET citacao_status=?, citacao_data=?, citacao_obs=?, citacao_updated_at=NOW(), citacao_updated_by=? WHERE id=?")
+                ->execute(array($statusCit, $dataCitVal, $obsCit ?: null, current_user_id(), $caseId));
+
+            $labels = array(
+                'nao_expedido'        => '📤 Mandado de citação ainda não foi expedido',
+                'expedido_aguardando' => '🟡 Mandado expedido — aguardando cumprimento',
+                'tentou_nao_localizou'=> '🔍 Tentou citação — réu não localizado',
+                'citado'              => '✅ Réu CITADO em ' . ($dataCitVal ? date('d/m/Y', strtotime($dataCitVal)) : 'data não informada'),
+                'nao_houve'           => '❌ Não houve citação',
+            );
+            $mudouStatus = (!$old || ($old['citacao_status'] ?? '') !== $statusCit || ($old['citacao_data'] ?? '') !== $dataCitVal);
+            if ($mudouStatus) {
+                $desc = "📜 Status da citação atualizado:\n" . ($labels[$statusCit] ?? $statusCit);
+                if ($obsCit) $desc .= "\n\n" . $obsCit;
+                try {
+                    $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
+                                   VALUES (?, CURDATE(), 'citacao', ?, 1, ?, NOW())")
+                        ->execute(array($caseId, $desc, current_user_id()));
+                } catch (Exception $e) {}
+            }
+            audit_log('citacao_status', 'case', $caseId, $statusCit . ($dataCitVal ? ' ' . $dataCitVal : ''));
+            flash_set('success', 'Status da citação atualizado.');
+        } catch (Exception $e) {
+            flash_set('error', 'Erro ao salvar: ' . $e->getMessage());
+        }
+        redirect($back ?: module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        exit;
+
     case 'add_prazo':
         $caseId = (int)($_POST['case_id'] ?? 0);
         $tipo = clean_str($_POST['tipo'] ?? '', 100);

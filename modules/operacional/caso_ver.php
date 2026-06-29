@@ -15,6 +15,12 @@ $pdo = db();
 // vara_mista: 1 se a vara julga múltiplas competências (ex: "2ª Vara Cível e Criminal").
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN competencia TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN vara_mista TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+// Citação (Amanda 29/06/2026): em alimentos/revisional/paternidade, pensão é devida da data da citação
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_status VARCHAR(30) NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_data DATE NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_obs TEXT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_updated_at DATETIME NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_updated_by INT UNSIGNED NULL"); } catch (Exception $e) {}
 // Acompanhamento externo: processo de outro escritório sob nossa observação,
 // sem procuração nossa. NÃO entra no painel de temperatura, ganha visual
 // distinto no Kanban e ficha (cinza-azulado).
@@ -1585,6 +1591,108 @@ if ($_ehAlimentos) {
     <span style="display:block;margin-top:.4rem;font-size:.78rem;color:#92400e;">Se este caso já está cadastrado corretamente, ignore o aviso. Caso contrário, ajuste em "Partes do Processo".</span>
 </div>
 <?php endif; ?>
+
+<!-- 📜 Citação + 📅 Prazos (resumo destacado no topo) -->
+<?php
+$_tipoLower = mb_strtolower((string)($case['case_type'] ?? ''), 'UTF-8');
+$_ehAlimentos = preg_match('/aliment|pens|paterni|gravid|revisi/u', $_tipoLower) === 1;
+$_citStatusLabels = array(
+    'nao_expedido'         => array('📤 Não expedido',           '#92400e', '#fef3c7'),
+    'expedido_aguardando'  => array('🟡 Expedido — aguardando',  '#1e40af', '#dbeafe'),
+    'tentou_nao_localizou' => array('🔍 Réu não localizado',     '#b45309', '#fff7ed'),
+    'citado'               => array('✅ Citado',                  '#15803d', '#dcfce7'),
+    'nao_houve'            => array('❌ Não houve',               '#b91c1c', '#fee2e2'),
+);
+$_citStatus = (string)($case['citacao_status'] ?? '');
+$_citData   = (string)($case['citacao_data'] ?? '');
+$_citObs    = (string)($case['citacao_obs'] ?? '');
+
+// Prazos ativos resumo (até 5 mais próximos)
+$_prazosResumo = array();
+try {
+    $stP = $pdo->prepare("SELECT id, descricao_acao, prazo_fatal, numero_processo
+                          FROM prazos_processuais WHERE case_id = ? AND concluido = 0
+                          ORDER BY prazo_fatal ASC LIMIT 5");
+    $stP->execute(array($caseId));
+    $_prazosResumo = $stP->fetchAll();
+} catch (Exception $e) {}
+$_prazosTotalAtivos = 0;
+try {
+    $stPC = $pdo->prepare("SELECT COUNT(*) FROM prazos_processuais WHERE case_id = ? AND concluido = 0");
+    $stPC->execute(array($caseId));
+    $_prazosTotalAtivos = (int)$stPC->fetchColumn();
+} catch (Exception $e) {}
+?>
+<div class="card mb-2" style="border-left:4px solid <?= $_ehAlimentos ? '#dc2626' : '#0f3d3e' ?>;">
+  <div class="card-body" style="padding:.85rem 1rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.7rem;">
+      <h3 style="margin:0;font-size:.95rem;color:#0f3d3e;">📜 Citação <?php if ($_ehAlimentos): ?><span style="background:#dc2626;color:#fff;padding:1px 8px;border-radius:6px;font-size:.7rem;font-weight:700;margin-left:6px;">⚠ ALIMENTOS — pensão devida da citação</span><?php endif; ?></h3>
+      <?php if ($_citStatus && isset($_citStatusLabels[$_citStatus])): list($_lbl, $_corFg, $_corBg) = $_citStatusLabels[$_citStatus]; ?>
+        <span style="background:<?= $_corBg ?>;color:<?= $_corFg ?>;padding:3px 10px;border-radius:8px;font-weight:700;font-size:.78rem;"><?= e($_lbl) ?><?= $_citStatus === 'citado' && $_citData ? ' — ' . date('d/m/Y', strtotime($_citData)) : '' ?></span>
+      <?php endif; ?>
+    </div>
+
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" id="formCitacao" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;">
+      <?= csrf_input() ?>
+      <input type="hidden" name="action" value="salvar_citacao">
+      <input type="hidden" name="case_id" value="<?= $caseId ?>">
+      <input type="hidden" name="_back" value="<?= e(module_url('operacional', 'caso_ver.php?id=' . $caseId)) ?>">
+
+      <div style="grid-column:1/-1;">
+        <label style="font-size:.72rem;font-weight:700;color:#475569;display:block;margin-bottom:4px;">Status da citação</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <?php foreach ($_citStatusLabels as $key => $info): list($lbl, $fg, $bg) = $info; ?>
+            <label style="background:<?= $_citStatus === $key ? $fg : '#fff' ?>;color:<?= $_citStatus === $key ? '#fff' : $fg ?>;border:1.5px solid <?= $fg ?>;border-radius:8px;padding:6px 11px;font-size:.78rem;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+              <input type="radio" name="citacao_status" value="<?= $key ?>" <?= $_citStatus === $key ? 'checked' : '' ?> onchange="document.getElementById('citDataWrap').style.display=this.value==='citado'?'block':'none';" style="margin:0;">
+              <?= e($lbl) ?>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <div id="citDataWrap" style="<?= $_citStatus === 'citado' ? '' : 'display:none;' ?>">
+        <label style="font-size:.72rem;font-weight:700;color:#475569;display:block;margin-bottom:4px;">📅 Data da citação <span style="color:#dc2626;">*</span></label>
+        <input type="date" name="citacao_data" class="form-input" style="width:100%;font-size:.85rem;" value="<?= e($_citData) ?>">
+        <?php if ($_ehAlimentos): ?><small style="font-size:.7rem;color:#dc2626;font-weight:600;">⚠ Pensão alimentícia é devida a partir desta data</small><?php endif; ?>
+      </div>
+      <div>
+        <label style="font-size:.72rem;font-weight:700;color:#475569;display:block;margin-bottom:4px;">📝 Observação (opcional)</label>
+        <input type="text" name="citacao_obs" class="form-input" style="width:100%;font-size:.85rem;" placeholder="Ex: tentou em 12/03 sem êxito; novo endereço fornecido" value="<?= e($_citObs) ?>">
+      </div>
+
+      <div style="grid-column:1/-1;text-align:right;">
+        <button type="submit" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0f3d3e;">💾 Salvar citação</button>
+        <?php if (!empty($case['citacao_updated_at'])): ?>
+          <small style="font-size:.7rem;color:#9ca3af;margin-left:8px;">atualizado em <?= date('d/m/Y H:i', strtotime($case['citacao_updated_at'])) ?></small>
+        <?php endif; ?>
+      </div>
+    </form>
+
+    <!-- Resumo de prazos -->
+    <div style="margin-top:14px;border-top:1px dashed #e5e7eb;padding-top:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:.5rem;">
+        <strong style="font-size:.86rem;color:#0f3d3e;">📅 Prazos processuais (<?= $_prazosTotalAtivos ?> ativo<?= $_prazosTotalAtivos !== 1 ? 's' : '' ?>)</strong>
+        <div style="display:flex;gap:6px;">
+          <a href="#prazos-processuais" style="font-size:.72rem;color:#0f3d3e;text-decoration:none;font-weight:700;">Ver todos abaixo ↓</a>
+          <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" style="font-size:.72rem;color:#0f3d3e;text-decoration:none;font-weight:700;">🧮 Calculadora</a>
+        </div>
+      </div>
+      <?php if (empty($_prazosResumo)): ?>
+        <div style="font-size:.78rem;color:#9ca3af;">Sem prazos abertos. Use o bloco "Prazos" mais abaixo pra criar.</div>
+      <?php else: foreach ($_prazosResumo as $_p):
+        $_dias = (int)floor((strtotime($_p['prazo_fatal']) - strtotime('today')) / 86400);
+        $_corP = $_dias < 0 ? '#b91c1c' : ($_dias <= 3 ? '#b45309' : '#0f3d3e');
+        $_lblP = $_dias < 0 ? 'VENCIDO ' . abs($_dias) . 'd' : ($_dias === 0 ? 'HOJE' : ($_dias === 1 ? 'amanhã' : 'em ' . $_dias . 'd'));
+      ?>
+        <div style="display:flex;gap:8px;font-size:.82rem;padding:4px 0;align-items:center;">
+          <span style="font-weight:700;color:<?= $_corP ?>;min-width:90px;font-size:.76rem;"><?= e($_lblP) ?></span>
+          <span style="color:#666;font-size:.76rem;"><?= date('d/m', strtotime($_p['prazo_fatal'])) ?></span>
+          <span style="flex:1;color:#0f3d3e;font-weight:600;"><?= e($_p['descricao_acao']) ?></span>
+        </div>
+      <?php endforeach; endif; ?>
+    </div>
+  </div>
+</div>
 
 <!-- Solicitações de audiencista (em aberto/designada) deste caso -->
 <?php
@@ -3688,9 +3796,9 @@ try {
 $prazosAtivos = array_filter($prazosCase, function($p) { return empty($p['concluido']); });
 $prazosConcluidos = array_filter($prazosCase, function($p) { return !empty($p['concluido']); });
 ?>
-<div class="card mb-2">
+<div class="card mb-2" id="prazos-processuais">
     <div class="card-header">
-        <h3>Prazos (<?= count($prazosAtivos) ?> ativo<?= count($prazosAtivos) !== 1 ? 's' : '' ?>)</h3>
+        <h3>📅 Prazos Processuais (<?= count($prazosAtivos) ?> ativo<?= count($prazosAtivos) !== 1 ? 's' : '' ?>)</h3>
         <div style="display:flex;gap:.5rem;">
             <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Calculadora de Prazos</a>
         </div>
