@@ -1286,8 +1286,37 @@ $tipoCompLabels = array(
     'balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','publicacao'=>'Publicação',
     'preparacao_audiencia'=>'Preparação',
 );
+?>
 
-if (!empty($compromissosCaso)): ?>
+<!-- ═══════ ABAS DA PASTA (movida pra antes dos cards pra ficar no topo) ═══════ -->
+<style>
+.cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg,#fafaf8); padding:6px 0 4px; margin:0 -1rem 14px; border-bottom:1px solid var(--border,#e5e7eb); }
+.cv-tabs { display:flex; gap:4px; padding:0 1rem; overflow-x:auto; scrollbar-width:none; }
+.cv-tabs::-webkit-scrollbar { display:none; }
+.cv-tab { background:transparent; border:none; padding:8px 14px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; font-family:inherit; }
+.cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); border-radius:6px 6px 0 0; }
+.cv-tab.ativa { color:#0f3d3e; border-bottom-color:#0f3d3e; background:rgba(15,61,62,.06); border-radius:6px 6px 0 0; }
+.cv-tab .cv-tab-badge { background:#dc2626; color:#fff; border-radius:999px; padding:1px 7px; font-size:.66rem; margin-left:4px; font-weight:800; }
+.cv-tab[data-aba="ia"].ativa { color:#6d28d9; border-bottom-color:#6d28d9; background:rgba(109,40,217,.07); }
+.cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; }
+body.cv-header-min .cv-header-collapsivel { display:none !important; }
+body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
+</style>
+<div class="cv-tabs-wrap">
+  <div class="cv-tabs">
+    <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
+    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <?php if (!empty($compromissosCaso)): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= count($compromissosCaso) ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
+    <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
+    <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
+    <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
+    <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
+    <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
+    <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
+  </div>
+</div>
+
+<?php if (!empty($compromissosCaso)): ?>
 <div class="card mb-2 cv-secao" data-aba="compromissos" id="cv-proximos-compromissos">
   <div class="card-header"><h3>📅 Próximos compromissos (<?= count($compromissosCaso) ?>)</h3></div>
   <div class="card-body" style="padding:.6rem 1rem 1rem;">
@@ -1600,38 +1629,7 @@ if ($_ehAlimentos) {
 </div>
 <?php endif; ?>
 
-<!-- ═══════ ABAS DA PASTA ═══════
-     Cada card grande recebe data-aba via JS (mapeia por id ou h3). Cards
-     sem mapeamento ficam visíveis em TODAS as abas (default seguro). -->
-<style>
-.cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg,#fafaf8); padding:6px 0 4px; margin:0 -1rem 14px; border-bottom:1px solid var(--border,#e5e7eb); }
-.cv-tabs { display:flex; gap:4px; padding:0 1rem; overflow-x:auto; scrollbar-width:none; }
-.cv-tabs::-webkit-scrollbar { display:none; }
-.cv-tab { background:transparent; border:none; padding:8px 14px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; font-family:inherit; }
-.cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); border-radius:6px 6px 0 0; }
-.cv-tab.ativa { color:#0f3d3e; border-bottom-color:#0f3d3e; background:rgba(15,61,62,.06); border-radius:6px 6px 0 0; }
-.cv-tab .cv-tab-badge { background:#dc2626; color:#fff; border-radius:999px; padding:1px 7px; font-size:.66rem; margin-left:4px; font-weight:800; }
-.cv-tab[data-aba="ia"].ativa { color:#6d28d9; border-bottom-color:#6d28d9; background:rgba(109,40,217,.07); }
-/* Header colapsável */
-.cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; }
-body.cv-header-min .cv-header-collapsivel { display:none !important; }
-/* Filtro por aba — aplicado via JS depois de classificar */
-body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
-</style>
-
-<div class="cv-tabs-wrap">
-  <div class="cv-tabs">
-    <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
-    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <?php if (!empty($compromissosCaso)): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= count($compromissosCaso) ?></span><?php endif; ?></button>
-    <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
-    <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
-    <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
-    <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
-    <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
-    <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
-    <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
-  </div>
-</div>
+<!-- (barra de abas antiga removida — agora aparece antes do bloco de compromissos) -->
 
 <!-- 📜 Citação + 📅 Prazos (resumo destacado no topo) -->
 <?php /* cv-secao data-aba=visao */ ?>
