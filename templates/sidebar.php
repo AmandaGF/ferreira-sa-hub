@@ -811,7 +811,7 @@ function toggleFavorito(btn, evt) {
         btn.classList.remove('active');
         btn.textContent = '☆';
     } else {
-        if (favs.length >= 10) { alert('Você já tem 10 favoritos. Remova um antes de adicionar.'); return; }
+        if (favs.length >= 20) { alert('Você já tem 20 favoritos (limite máximo). Remova um antes de adicionar.'); return; }
         favs.push({ id: id, label: label, icon: icon, href: href });
         btn.classList.add('active');
         btn.textContent = '★';
