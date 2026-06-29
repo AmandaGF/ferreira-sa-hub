@@ -1592,7 +1592,40 @@ if ($_ehAlimentos) {
 </div>
 <?php endif; ?>
 
+<!-- ═══════ ABAS DA PASTA ═══════
+     Cada card grande recebe data-aba via JS (mapeia por id ou h3). Cards
+     sem mapeamento ficam visíveis em TODAS as abas (default seguro). -->
+<style>
+.cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg,#fafaf8); padding:6px 0 4px; margin:0 -1rem 14px; border-bottom:1px solid var(--border,#e5e7eb); }
+.cv-tabs { display:flex; gap:4px; padding:0 1rem; overflow-x:auto; scrollbar-width:none; }
+.cv-tabs::-webkit-scrollbar { display:none; }
+.cv-tab { background:transparent; border:none; padding:8px 14px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; font-family:inherit; }
+.cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); border-radius:6px 6px 0 0; }
+.cv-tab.ativa { color:#0f3d3e; border-bottom-color:#0f3d3e; background:rgba(15,61,62,.06); border-radius:6px 6px 0 0; }
+.cv-tab .cv-tab-badge { background:#dc2626; color:#fff; border-radius:999px; padding:1px 7px; font-size:.66rem; margin-left:4px; font-weight:800; }
+.cv-tab[data-aba="ia"].ativa { color:#6d28d9; border-bottom-color:#6d28d9; background:rgba(109,40,217,.07); }
+/* Header colapsável */
+.cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; }
+body.cv-header-min .cv-header-collapsivel { display:none !important; }
+/* Filtro por aba — aplicado via JS depois de classificar */
+body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
+</style>
+
+<div class="cv-tabs-wrap">
+  <div class="cv-tabs">
+    <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
+    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <span class="cv-tab-badge" id="cvBadgeCompromissos" style="display:none;">0</span></button>
+    <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
+    <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
+    <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
+    <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
+    <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
+    <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
+  </div>
+</div>
+
 <!-- 📜 Citação + 📅 Prazos (resumo destacado no topo) -->
+<?php /* cv-secao data-aba=visao */ ?>
 <?php
 $_tipoLower = mb_strtolower((string)($case['case_type'] ?? ''), 'UTF-8');
 $_ehAlimentos = preg_match('/aliment|pens|paterni|gravid|revisi/u', $_tipoLower) === 1;
@@ -1623,7 +1656,7 @@ try {
     $_prazosTotalAtivos = (int)$stPC->fetchColumn();
 } catch (Exception $e) {}
 ?>
-<div class="card mb-2" style="border-left:4px solid <?= $_ehAlimentos ? '#dc2626' : '#0f3d3e' ?>;">
+<div class="card mb-2 cv-secao" data-aba="visao" id="cv-citacao" style="border-left:4px solid <?= $_ehAlimentos ? '#dc2626' : '#0f3d3e' ?>;">
   <div class="card-body" style="padding:.85rem 1rem;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.7rem;">
       <h3 style="margin:0;font-size:.95rem;color:#0f3d3e;">📜 Citação <?php if ($_ehAlimentos): ?><span style="background:#dc2626;color:#fff;padding:1px 8px;border-radius:6px;font-size:.7rem;font-weight:700;margin-left:6px;">⚠ ALIMENTOS — pensão devida da citação</span><?php endif; ?></h3>
@@ -1695,7 +1728,7 @@ try {
 </div>
 
 <!-- Solicitações de audiencista (em aberto/designada) deste caso -->
-<?php
+<?php /* cv-secao data-aba=compromissos */
 $_solAud = array();
 try {
     $stAud = $pdo->prepare("SELECT au.id, au.tipo, au.data_hora, au.modalidade, au.comarca, au.local,
@@ -1710,7 +1743,7 @@ try {
 } catch (Exception $e) {}
 ?>
 <?php if (!empty($_solAud)): ?>
-<div class="card mb-2" style="border-left:4px solid #b87333;">
+<div class="card mb-2 cv-secao" data-aba="compromissos" id="cv-solicitacoes-audiencista" style="border-left:4px solid #b87333;">
     <div class="card-body" style="padding:.75rem 1rem;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.5rem;">
             <h3 style="margin:0;font-size:.95rem;color:#0f3d3e;">👩‍⚖️ Solicitações de audiencista (<?= count($_solAud) ?>)</h3>
@@ -2091,7 +2124,7 @@ function audSolClose(){ document.getElementById('audSolModal').style.display='no
 
 <!-- Banner: este processo é incidental de outro -->
 <?php if ($processoPrincipal && $case['is_incidental']): ?>
-<div class="card mb-2" style="border-left:4px solid #6366f1;background:#eef2ff;">
+<div class="card mb-2 cv-secao" data-aba="visao" id="cv-banner-incidental" style="border-left:4px solid #6366f1;background:#eef2ff;">
     <div class="card-body" style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;">
         <span style="font-size:1.4rem;">📎</span>
         <div style="flex:1;min-width:240px;">
@@ -7398,5 +7431,115 @@ window.pedirObsRealizado = function(form) {
     if (inp) inp.value = (obs || '').trim();
     return true;
 };
+
+// ═══════════════════════════════════════════════════════
+// 🗂️ ABAS DA PASTA — classifica cada card grande e mostra só os da aba ativa.
+// Mapa: id ou padrão do <h3> → aba destino. Cards sem mapeamento ficam
+// visíveis em TODAS as abas (seguro pra não esconder coisa importante).
+// ═══════════════════════════════════════════════════════
+(function() {
+    // Mapa de IDs conhecidos → aba
+    var MAPA_ID = {
+        'cv-citacao': 'visao',
+        'cv-banner-incidental': 'visao',
+        'cv-solicitacoes-audiencista': 'compromissos',
+        'cardResumoIA': 'ia',
+        'cardChatIA': 'ia',
+        'prazos-processuais': 'prazos'
+    };
+    // Regras por título do <h3> (regex case-insensitive contra texto puro)
+    var REGRAS_TITULO = [
+        { rx: /pr[oó]ximos compromissos/i,         aba: 'compromissos' },
+        { rx: /tarefas operacionais|^tarefas/i,    aba: 'compromissos' },
+        { rx: /checklist.*documento|documentos.*solic/i, aba: 'prazos' },
+        { rx: /processos incidentais/i,            aba: 'partes' },
+        { rx: /recursos vinculados|^recursos/i,    aba: 'partes' },
+        { rx: /partes do processo/i,               aba: 'partes' },
+        { rx: /documentos pendentes/i,             aba: 'documentos' },
+        { rx: /ged|documentos para o cliente/i,    aba: 'documentos' },
+        { rx: /ofícios|oficios/i,                  aba: 'andamentos' },
+        { rx: /andamentos.*processuais|^andamentos/i, aba: 'andamentos' },
+        { rx: /dados do processo/i,                aba: 'visao' },
+        { rx: /parceria/i,                         aba: 'visao' },
+        { rx: /status\b|prioridade|respons/i,      aba: 'visao' },
+        { rx: /citação|citacao/i,                  aba: 'visao' },
+        { rx: /prazos? processuais|^prazos/i,      aba: 'prazos' }
+    ];
+
+    function classificarCards() {
+        document.querySelectorAll('.card.mb-2').forEach(function(card) {
+            if (card.dataset.aba) return; // já classificado (data-aba inline no PHP)
+            card.classList.add('cv-secao');
+            // 1) por id
+            if (card.id && MAPA_ID[card.id]) { card.dataset.aba = MAPA_ID[card.id]; return; }
+            // 2) por título h3
+            var h3 = card.querySelector('h3');
+            if (h3) {
+                var txt = (h3.textContent || '').trim();
+                for (var i = 0; i < REGRAS_TITULO.length; i++) {
+                    if (REGRAS_TITULO[i].rx.test(txt)) {
+                        card.dataset.aba = REGRAS_TITULO[i].aba;
+                        return;
+                    }
+                }
+            }
+            // 3) fallback: sem aba (fica visível em todas)
+        });
+        // Cards já com data-aba inline também precisam da classe
+        document.querySelectorAll('[data-aba]').forEach(function(el){ el.classList.add('cv-secao'); });
+    }
+
+    window.cvAba = function(nome) {
+        if (!nome) nome = 'visao';
+        document.querySelectorAll('.cv-tab').forEach(function(t) {
+            t.classList.toggle('ativa', t.dataset.aba === nome);
+        });
+        document.querySelectorAll('.cv-secao[data-aba]').forEach(function(s) {
+            s.classList.toggle('cv-aba-mostrar', s.dataset.aba === nome);
+        });
+        if (location.hash !== '#' + nome) {
+            history.replaceState(null, '', location.pathname + location.search + '#' + nome);
+        }
+    };
+
+    window.cvHeaderToggle = function() {
+        document.body.classList.toggle('cv-header-min');
+        var btn = document.querySelector('.cv-header-toggle');
+        if (btn) btn.textContent = document.body.classList.contains('cv-header-min') ? '▼ header' : '▲ header';
+    };
+
+    // Conta cards de uma aba pra mostrar no badge da tab
+    function contarBadge(aba, idBadge) {
+        var n = document.querySelectorAll('.cv-secao[data-aba="' + aba + '"]').length;
+        var el = document.getElementById(idBadge);
+        if (el && n > 0) { el.textContent = n; el.style.display = ''; }
+    }
+
+    // Marca o que está vinculado a um caso pra ser o "header colapsável".
+    // Tudo entre o início do conteúdo e o primeiro .cv-secao é "header".
+    function marcarHeaderColapsivel() {
+        // Aplica classe nas zonas que NÃO são .cv-secao (header, atalhos, banners de aviso)
+        // até o primeiro card que SERÁ filtrado. Estratégia simples: marca os
+        // ascendentes diretos do main que não tem data-aba e não são .cv-secao.
+        // Pra evitar sumir conteúdo crítico, vamos só esconder os cards sem aba
+        // quando o header for minimizado. Implementação atual já cobre.
+    }
+
+    function init() {
+        classificarCards();
+        document.body.classList.add('cv-tabs-ready');
+        // Aba inicial: hash da URL ou 'visao'
+        var hashAba = (location.hash || '').replace('#', '');
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','ia'];
+        cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
+        // Hash change (botão voltar do navegador, links externos)
+        window.addEventListener('hashchange', function() {
+            var nova = (location.hash || '').replace('#', '');
+            if (abasValidas.indexOf(nova) !== -1) cvAba(nova);
+        });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+    else init();
+})();
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
