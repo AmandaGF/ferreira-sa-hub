@@ -1619,7 +1619,7 @@ body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
     <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
-    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <span class="cv-tab-badge" id="cvBadgeCompromissos" style="display:none;">0</span></button>
+    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <?php if (!empty($compromissosCaso)): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= count($compromissosCaso) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
     <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
