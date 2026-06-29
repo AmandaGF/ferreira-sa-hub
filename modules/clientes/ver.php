@@ -153,6 +153,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
         <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $client['id']) ?>" class="btn btn-sm" style="background:#059669;color:#fff;" title="Histórico financeiro: cobranças, pagamentos, inadimplência">💰 Financeiro</a>
+        <button type="button" onclick="cobHonAbrir()" class="btn btn-sm" style="background:#1e40af;color:#fff;border:none;" title="Adicionar cliente ao Kanban de Cobrança / iniciar execução de honorários">⚖️ Cobrar Honorários</button>
         <?php endif; ?>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
         <?php
@@ -560,6 +561,165 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </table>
     </div>
 </div>
+<?php endif; ?>
+
+<?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
+<!-- ════ Modal: Cobrar Honorários (Amanda 29/06/2026) ════
+     Cria registro em honorarios_cobranca direto, sem depender do Asaas.
+     Útil pra clientes cuja cobrança Asaas foi cancelada (caso Sarah:
+     Luiz cancelava pra evitar taxa de notificação). Ao criar, abre
+     tarefa pro Luiz Eduardo atualizar valor com correção/juros. -->
+<div id="cobHonOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:14px;max-width:560px;width:94%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+    <div style="background:linear-gradient(135deg,#1e40af,#1e3a8a);color:#fff;padding:1rem 1.2rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;">
+      <h3 style="margin:0;font-size:1rem;">⚖️ Cobrar Honorários — <?= e($client['name']) ?></h3>
+      <button onclick="cobHonFechar()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;">×</button>
+    </div>
+    <div style="padding:1.1rem 1.2rem;">
+      <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;padding:.6rem .8rem;font-size:.78rem;color:#92400e;margin-bottom:.85rem;">
+        💡 Esta cobrança vai pro <strong>Kanban de Cobrança de Honorários</strong> direto, sem passar pelo Asaas. Útil quando a cobrança Asaas foi cancelada ou nunca existiu. <strong>Luiz Eduardo recebe tarefa</strong> pra atualizar o valor com correção/juros.
+      </div>
+
+      <div style="margin-bottom:.7rem;">
+        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Caso vinculado</label>
+        <select id="cobHonCase" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+          <option value="">— Sem caso específico (cobrança geral) —</option>
+          <?php foreach ($cases as $cs): ?>
+            <option value="<?= (int)$cs['id'] ?>"><?= e($cs['title']) ?><?= $cs['case_number'] ? ' (' . e($cs['case_number']) . ')' : '' ?> — <?= e($cs['status']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem;">
+        <div>
+          <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Valor devido (R$) *</label>
+          <input type="text" id="cobHonValor" placeholder="Ex: 5.000,00" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+        </div>
+        <div>
+          <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Vencimento (original) *</label>
+          <input type="date" id="cobHonVencto" value="<?= date('Y-m-d') ?>" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+        </div>
+      </div>
+
+      <div style="margin-bottom:.7rem;">
+        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Tipo de débito</label>
+        <select id="cobHonTipo" style="width:100%;padding:.55rem .75rem;font-size:.88rem;border:1.5px solid #e5e7eb;border-radius:8px;">
+          <option value="honorarios_contratuais">Honorários contratuais</option>
+          <option value="honorarios_exito">Honorários de êxito</option>
+          <option value="honorarios_arbitrados">Honorários arbitrados</option>
+          <option value="custas_processuais">Custas processuais</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom:.7rem;">
+        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.35rem;">Em qual estágio entrar?</label>
+        <label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.3rem;">
+          <input type="radio" name="cobHonEst" value="atrasado" style="margin-top:3px;">
+          <div><div style="font-weight:700;color:#dc2626;font-size:.82rem;">⚠️ Atrasado</div><div style="font-size:.7rem;color:#6b7280;">Entra no Kanban no início — sem notificação automática</div></div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.3rem;">
+          <input type="radio" name="cobHonEst" value="notificado_1" style="margin-top:3px;">
+          <div><div style="font-weight:700;color:#d97706;font-size:.82rem;">📱 Notificação amigável</div><div style="font-size:.7rem;color:#6b7280;">Manda 1ª cobrança amigável (WhatsApp/email)</div></div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.3rem;">
+          <input type="radio" name="cobHonEst" value="notificado_extrajudicial" style="margin-top:3px;">
+          <div><div style="font-weight:700;color:#8b5cf6;font-size:.82rem;">📄 Notificação extrajudicial</div><div style="font-size:.7rem;color:#6b7280;">Notificação formal antes da execução</div></div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:2px solid #1e40af;background:#eff6ff;border-radius:8px;cursor:pointer;">
+          <input type="radio" name="cobHonEst" value="judicial" checked style="margin-top:3px;">
+          <div><div style="font-weight:700;color:#1e40af;font-size:.82rem;">⚖️ Direto pra EXECUÇÃO judicial</div><div style="font-size:.7rem;color:#6b7280;">Cliente não respondeu — partir pra ação. Gestão é notificada.</div></div>
+        </label>
+      </div>
+
+      <div style="margin-bottom:.85rem;">
+        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Observação interna</label>
+        <textarea id="cobHonObs" rows="2" placeholder="Ex: contrato de 12 parcelas, não pagou nenhuma, ignorou contatos..." style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;resize:vertical;"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;">
+        <button onclick="cobHonFechar()" style="background:#e5e7eb;color:#374151;border:none;border-radius:8px;padding:8px 16px;font-size:.85rem;font-weight:600;cursor:pointer;">Cancelar</button>
+        <button onclick="cobHonSalvar()" id="cobHonBtnSalvar" style="background:#1e40af;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer;">⚖️ Criar cobrança</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+    var CSRF = <?= json_encode(generate_csrf_token()) ?>;
+    var CLIENT_ID = <?= (int)$client['id'] ?>;
+    var API_URL = <?= json_encode(module_url('financeiro', 'api.php')) ?>;
+
+    window.cobHonAbrir = function() {
+        document.getElementById('cobHonOverlay').style.display = 'flex';
+        setTimeout(function(){ document.getElementById('cobHonValor').focus(); }, 100);
+    };
+    window.cobHonFechar = function() {
+        document.getElementById('cobHonOverlay').style.display = 'none';
+    };
+    document.getElementById('cobHonOverlay').addEventListener('click', function(e) {
+        if (e.target.id === 'cobHonOverlay') cobHonFechar();
+    });
+
+    window.cobHonSalvar = function() {
+        var valor = document.getElementById('cobHonValor').value.trim();
+        var vencto = document.getElementById('cobHonVencto').value;
+        var tipo = document.getElementById('cobHonTipo').value;
+        var caseId = document.getElementById('cobHonCase').value;
+        var estagio = document.querySelector('input[name=cobHonEst]:checked');
+        var obs = document.getElementById('cobHonObs').value.trim();
+
+        if (!valor) { alert('Informe o valor devido.'); return; }
+        if (!vencto) { alert('Informe o vencimento original.'); return; }
+        if (!estagio) { alert('Escolha o estágio.'); return; }
+
+        var btn = document.getElementById('cobHonBtnSalvar');
+        btn.disabled = true; var textoAntigo = btn.textContent; btn.textContent = '⏳ Salvando...';
+
+        var fd = new FormData();
+        fd.append('action', 'criar_cobranca_honorarios');
+        fd.append('csrf_token', CSRF);
+        fd.append('client_id', CLIENT_ID);
+        if (caseId) fd.append('case_id', caseId);
+        fd.append('valor', valor);
+        fd.append('vencimento', vencto);
+        fd.append('tipo_debito', tipo);
+        fd.append('estagio', estagio.value);
+        fd.append('observacao', obs);
+
+        fetch(API_URL, {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            body: fd
+        })
+        .then(function(r) {
+            if (r.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); throw new Error('401'); }
+            return r.json();
+        })
+        .then(function(j) {
+            btn.disabled = false; btn.textContent = textoAntigo;
+            if (j.error) { alert('Erro: ' + j.error); return; }
+            var msgEst = ({
+                atrasado: '⚠️ Atrasado',
+                notificado_1: '📱 Notificação amigável',
+                notificado_extrajudicial: '📄 Notificação extrajudicial',
+                judicial: '⚖️ Execução judicial'
+            })[j.estagio] || j.estagio;
+            var msg = (j.ja_existia ? '✓ Cobrança ATUALIZADA' : '✓ Cobrança CRIADA') + '\n\nEstágio: ' + msgEst;
+            if (j.tarefa_luiz) msg += '\n\n💼 Tarefa criada pro Luiz Eduardo atualizar o valor com correção/juros.';
+            if (j.estagio === 'judicial') msg += '\n\n📢 Gestão foi notificada.';
+            msg += '\n\nAbrir no Kanban?';
+            if (confirm(msg)) window.open(j.kanban_url, '_blank');
+            cobHonFechar();
+        })
+        .catch(function(e) {
+            btn.disabled = false; btn.textContent = textoAntigo;
+            if (e.message !== '401') alert('Erro: ' + e.message);
+        });
+    };
+})();
+</script>
 <?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

@@ -294,6 +294,166 @@ if ($action === 'cobranca_alterar_vencimento') {
     exit;
 }
 
+// 29/06/2026 Amanda: criar cobrança DIRETO no Kanban de Cobrança de Honorários,
+// sem depender do Asaas. Cenário: cliente que deve honorários mas a cobrança Asaas
+// foi cancelada (Luiz cancelava pra não pagar taxa de notificação). Também serve
+// pra clientes sem cobrança Asaas alguma (acordo, contrato antigo, etc.).
+// Ao criar, abre tarefa pro Luiz Eduardo atualizar valor com correção/juros.
+if ($action === 'criar_cobranca_honorarios') {
+    header('Content-Type: application/json');
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $caseId   = (int)($_POST['case_id'] ?? 0) ?: null;
+    $valor    = (float)str_replace(array('.', ','), array('', '.'), trim($_POST['valor'] ?? '0'));
+    // Tenta também parser BR robusto se veio com vírgula decimal
+    $valorRaw = trim($_POST['valor'] ?? '');
+    if (function_exists('parse_valor_reais')) {
+        $cents = parse_valor_reais($valorRaw);
+        if ($cents !== null) $valor = $cents / 100;
+    }
+    $vencto  = $_POST['vencimento'] ?? date('Y-m-d');
+    $estagio = trim($_POST['estagio'] ?? 'judicial');
+    $obs     = trim($_POST['observacao'] ?? '');
+    $tipoDeb = trim($_POST['tipo_debito'] ?? 'honorarios_contratuais');
+    $estagiosValidos = array('atrasado','notificado_1','notificado_extrajudicial','judicial');
+
+    if (!$clientId)                                  { echo json_encode(array('error' => 'Cliente obrigatório.')); exit; }
+    if ($valor <= 0)                                 { echo json_encode(array('error' => 'Informe um valor maior que zero.')); exit; }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $vencto)) { echo json_encode(array('error' => 'Vencimento inválido.')); exit; }
+    if (!in_array($estagio, $estagiosValidos, true)) { echo json_encode(array('error' => 'Estágio inválido.')); exit; }
+
+    // Verifica cliente
+    $stCli = $pdo->prepare("SELECT id, name FROM clients WHERE id = ?");
+    $stCli->execute(array($clientId));
+    $cli = $stCli->fetch(PDO::FETCH_ASSOC);
+    if (!$cli) { echo json_encode(array('error' => 'Cliente não encontrado.')); exit; }
+
+    // Verifica caso (se passado)
+    $caseTitle = null;
+    if ($caseId) {
+        $stCs = $pdo->prepare("SELECT id, title FROM cases WHERE id = ?");
+        $stCs->execute(array($caseId));
+        $cs = $stCs->fetch(PDO::FETCH_ASSOC);
+        if (!$cs) { echo json_encode(array('error' => 'Caso não encontrado.')); exit; }
+        $caseTitle = $cs['title'];
+    }
+
+    try {
+        // Evita duplicar: se já existe registro aberto pro mesmo (client+case), atualiza valor + estágio
+        $stExist = $pdo->prepare(
+            "SELECT id, status, valor_total FROM honorarios_cobranca
+             WHERE client_id = ? AND " . ($caseId ? "case_id = ?" : "case_id IS NULL")
+            . " AND status NOT IN ('pago','cancelado')
+             ORDER BY id DESC LIMIT 1"
+        );
+        if ($caseId) $stExist->execute(array($clientId, $caseId));
+        else         $stExist->execute(array($clientId));
+        $existente = $stExist->fetch(PDO::FETCH_ASSOC);
+
+        if ($existente) {
+            $ordem = array('em_dia' => 0, 'atrasado' => 1, 'notificado_1' => 2, 'notificado_2' => 3,
+                           'notificado_extrajudicial' => 4, 'judicial' => 5);
+            $stAtual = (int)($ordem[$existente['status']] ?? 0);
+            $stNovo  = (int)($ordem[$estagio] ?? 0);
+            $novoSt  = ($stNovo > $stAtual) ? $estagio : $existente['status'];
+            $pdo->prepare(
+                "UPDATE honorarios_cobranca
+                 SET valor_total = ?, vencimento = ?, status = ?, tipo_debito = ?,
+                     observacoes = CONCAT(IFNULL(observacoes,''), ?, ?)
+                 WHERE id = ?"
+            )->execute(array(
+                $valor, $vencto, $novoSt, $tipoDeb,
+                "\n[" . date('d/m/Y H:i') . "] ", $obs ?: 'atualizado pela ficha do cliente',
+                (int)$existente['id'],
+            ));
+            $hcId = (int)$existente['id'];
+            $jaExistia = true;
+        } else {
+            $pdo->prepare(
+                "INSERT INTO honorarios_cobranca
+                 (client_id, case_id, tipo_debito, valor_total, vencimento, status, entrada_automatica, observacoes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())"
+            )->execute(array(
+                $clientId, $caseId, $tipoDeb, $valor, $vencto, $estagio,
+                $obs ?: 'Criado manualmente pela ficha do cliente',
+                current_user_id(),
+            ));
+            $hcId = (int)$pdo->lastInsertId();
+            $jaExistia = false;
+        }
+
+        // Histórico
+        $etapaMap = array(
+            'atrasado'                => 'observacao',
+            'notificado_1'            => 'notificacao_1',
+            'notificado_extrajudicial'=> 'notificacao_extrajudicial',
+            'judicial'                => 'judicial',
+        );
+        try {
+            $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_por, created_at) VALUES (?, ?, ?, ?, NOW())")
+                ->execute(array(
+                    $hcId, $etapaMap[$estagio] ?? 'observacao',
+                    ($jaExistia ? 'Atualizado para ' : 'Criado em ') . str_replace('_', ' ', $estagio)
+                  . ' pela ficha do cliente. Valor: R$ ' . number_format($valor, 2, ',', '.')
+                  . ($obs ? '. Obs: ' . $obs : ''),
+                    current_user_id(),
+                ));
+        } catch (Exception $e) {}
+
+        // Tarefa pro Luiz Eduardo atualizar valor com correção/juros
+        $tarefaCriada = false;
+        try {
+            $luizId = (int)($pdo->query("SELECT id FROM users WHERE is_active=1 AND name LIKE 'Luiz Eduardo%' ORDER BY id LIMIT 1")->fetchColumn());
+            if ($luizId) {
+                $titTar = '💰 Atualizar valor devido — ' . $cli['name'];
+                $descTar = 'Foi criada uma cobrança de honorários no estágio ' . str_replace('_', ' ', $estagio) . '.'
+                         . ' Valor base: R$ ' . number_format($valor, 2, ',', '.')
+                         . ' (vencto ' . date('d/m/Y', strtotime($vencto)) . ').'
+                         . ' Aplicar correção monetária + juros até hoje e atualizar o registro #' . $hcId . ' no Kanban de Cobrança.'
+                         . ($obs ? "\n\nObservação: " . $obs : '');
+                if ($caseId) {
+                    $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
+                                   VALUES (?,?,?,?,?,?,?,?,?,NOW())")
+                        ->execute(array($caseId, $titTar, 'outros', $descTar, $luizId,
+                                        date('Y-m-d', strtotime('+2 days')), 'alta', 'a_fazer', 0));
+                    $tarefaCriada = true;
+                }
+                // Notify Luiz mesmo se não tem case
+                if (function_exists('notify')) {
+                    notify($luizId, '💰 Atualizar valor devido — ' . $cli['name'],
+                        'Cobrança #' . $hcId . ' criada. Aplicar correção/juros sobre R$ ' . number_format($valor, 2, ',', '.') . '.',
+                        'pendencia', url('modules/cobranca_honorarios/?id=' . $hcId), '💰');
+                }
+            }
+        } catch (Exception $e) {}
+
+        // Notifica gestão se vai direto pra judicial
+        if ($estagio === 'judicial' && function_exists('notify_gestao')) {
+            try {
+                notify_gestao(
+                    '⚖️ Cobrança criada pra EXECUÇÃO',
+                    $cli['name'] . ' — R$ ' . number_format($valor, 2, ',', '.') . ($caseTitle ? ' · ' . $caseTitle : '') . ($obs ? ' · ' . $obs : ''),
+                    'alerta', url('modules/cobranca_honorarios/?id=' . $hcId), '⚖️'
+                );
+            } catch (Exception $e) {}
+        }
+
+        audit_log('cobranca_honorarios_criada', 'honorarios_cobranca', $hcId,
+            "Cliente #{$clientId} · R$ " . number_format($valor, 2, ',', '.') . " · estágio={$estagio}");
+
+        echo json_encode(array(
+            'ok'             => true,
+            'cobranca_id'    => $hcId,
+            'estagio'        => $estagio,
+            'ja_existia'     => $jaExistia,
+            'tarefa_luiz'    => $tarefaCriada,
+            'kanban_url'     => url('modules/cobranca_honorarios/?id=' . $hcId),
+        ));
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Falha ao criar cobrança: ' . $e->getMessage())); exit;
+    }
+}
+
 // 29/06/2026 Amanda: encaminhar cobrança Asaas pro Kanban de Cobrança de Honorários.
 // Cria registro em honorarios_cobranca (ou atualiza se já existe) no estágio escolhido.
 // Estágios aceitos: 'atrasado', 'notificado_1', 'notificado_extrajudicial', 'judicial'.
