@@ -295,17 +295,18 @@ if (($_GET['ajax'] ?? '') === 'buscar_casos') {
     $st->execute(array($cid));
     echo json_encode($st->fetchAll()); exit;
 }
-// Próxima audiência agendada de um case (de agenda_eventos tipo='audiencia').
-// Usado pra pré-preencher data/hora quando Amanda escolhe o processo do cliente.
+// Próxima audiência agendada de um case. Usado pra pré-preencher data/hora
+// quando Amanda clica em "Solicitar audiencista" na pasta do caso.
+// Filtro: SÓ audiencia (e mediacao_cejusc, que tambem e audiencia). Balcao Virtual
+// e tarefas/reunioes ficam de fora — voce nao manda audiencista pra balcao virtual.
 if (($_GET['ajax'] ?? '') === 'proxima_audiencia') {
     header('Content-Type: application/json; charset=utf-8');
     $cid = (int)($_GET['case_id'] ?? 0); if (!$cid) { echo '{}'; exit; }
     try {
-        // Inclui balcao_virtual e mediacao_cejusc — tudo que envolve aud presencial/online
         $st = $pdo->prepare("SELECT data_inicio, titulo, tipo, modalidade, local
                              FROM agenda_eventos
                              WHERE case_id = ?
-                               AND tipo IN ('audiencia','balcao_virtual','mediacao_cejusc')
+                               AND tipo IN ('audiencia','mediacao_cejusc')
                                AND data_inicio >= NOW()
                                AND (status IS NULL OR status NOT IN ('cancelado','realizado','concluido'))
                              ORDER BY data_inicio ASC LIMIT 1");
