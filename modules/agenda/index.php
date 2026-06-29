@@ -2750,9 +2750,74 @@ setupAC('agClienteBusca', 'agClienteList', 'agClienteId', 'busca_cliente', funct
 }, function() {
     // Ao selecionar cliente, atualizar título com nome
     atualizarTituloComCliente();
+    // Limpa processo antigo + carrega processos desse cliente automaticamente
+    document.getElementById('agCasoBusca').value = '';
+    document.getElementById('agCasoId').value = '';
+    carregarProcessosDoCliente(true);
 });
 setupAC('agCasoBusca', 'agCasoList', 'agCasoId', 'busca_caso', function(c) {
     return '<div class="ag-ac-item" data-id="' + c.id + '" data-label="' + esc(c.title) + '">' + esc(c.title) + (c.case_number ? ' — ' + esc(c.case_number) : '') + (c.client_name ? ' (' + esc(c.client_name) + ')' : '') + '</div>';
+});
+
+/**
+ * Carrega processos do cliente vinculado. Se 1 só, auto-preenche. Se vários,
+ * abre o dropdown de sugestões. Se 0, deixa placeholder informativo.
+ * autoOpen=true mostra dropdown mesmo sem foco (chamado ao trocar cliente).
+ */
+function carregarProcessosDoCliente(autoOpen) {
+    var cid = document.getElementById('agClienteId').value;
+    var inputCaso  = document.getElementById('agCasoBusca');
+    var hiddenCaso = document.getElementById('agCasoId');
+    var listCaso   = document.getElementById('agCasoList');
+    if (!cid) {
+        inputCaso.placeholder = 'Buscar processo...';
+        return;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', API + '?action=casos_por_cliente&client_id=' + encodeURIComponent(cid));
+    xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+    xhr.onload = function() {
+        try {
+            var arr = JSON.parse(xhr.responseText);
+            if (!arr.length) {
+                inputCaso.value = '';
+                hiddenCaso.value = '';
+                inputCaso.placeholder = 'Cliente sem processos cadastrados';
+                listCaso.style.display = 'none';
+                return;
+            }
+            inputCaso.placeholder = 'Buscar processo...';
+            // Só 1 processo: auto-seleciona
+            if (arr.length === 1) {
+                hiddenCaso.value = arr[0].id;
+                inputCaso.value = (arr[0].title || ('Caso #' + arr[0].id)) + (arr[0].case_number ? ' — ' + arr[0].case_number : '');
+                listCaso.style.display = 'none';
+                return;
+            }
+            // Vários: popula dropdown
+            listCaso.innerHTML = arr.map(function(c) {
+                var lbl = (c.title || ('Caso #' + c.id));
+                return '<div class="ag-ac-item" data-id="' + c.id + '" data-label="' + esc(lbl) + '">' + esc(lbl) + (c.case_number ? ' — ' + esc(c.case_number) : '') + '</div>';
+            }).join('');
+            if (autoOpen) listCaso.style.display = 'block';
+            listCaso.querySelectorAll('.ag-ac-item').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    hiddenCaso.value = el.getAttribute('data-id');
+                    inputCaso.value  = el.getAttribute('data-label');
+                    listCaso.style.display = 'none';
+                });
+            });
+        } catch (ex) { /* silencia */ }
+    };
+    xhr.send();
+}
+
+// Ao focar no campo de processo (input vazio + cliente vinculado): mostra automaticamente
+// processos do cliente. Atalho pra quem não quer digitar.
+document.getElementById('agCasoBusca').addEventListener('focus', function() {
+    if (this.value.trim() === '' && document.getElementById('agClienteId').value) {
+        carregarProcessosDoCliente(true);
+    }
 });
 
 // ── UTILS ───────────────────────────────────────────────────

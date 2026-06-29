@@ -622,6 +622,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         exit;
     }
 
+    // Casos de um cliente específico (Amanda 29/06/2026: quando troca cliente
+    // no modal de evento, popula direto a lista de processos sem precisar digitar).
+    if ($action === 'casos_por_cliente') {
+        $clientId = (int)($_GET['client_id'] ?? 0);
+        if (!$clientId) { echo '[]'; exit; }
+        $stmt = $pdo->prepare(
+            "SELECT id, title, case_number FROM cases
+             WHERE client_id = ? AND status NOT IN ('arquivado','concluido')
+             ORDER BY created_at DESC LIMIT 40"
+        );
+        $stmt->execute(array($clientId));
+        echo json_encode($stmt->fetchAll());
+        exit;
+    }
+
     // Buscar evento por ID
     if ($action === 'get') {
         $id = (int)($_GET['id'] ?? 0);
