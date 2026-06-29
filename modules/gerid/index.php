@@ -104,6 +104,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('gerid')); }
     $acao = $_POST['acao'] ?? '';
 
+    // 29/06/2026 Amanda: excluir pesquisa (duplicada ou erro). Marca task vinculada
+    // como cancelada, fecha task_review se houver, registra andamento de remoção.
+    if ($acao === 'excluir') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('gerid')); }
+        $g = $pdo->prepare("SELECT * FROM gerid_pesquisas WHERE id=?");
+        $g->execute(array($id));
+        $row = $g->fetch();
+        if (!$row) { flash_set('error', 'Pesquisa não encontrada.'); redirect(module_url('gerid')); }
+
+        // Permissão: criador, Luiz Eduardo (pesquisador), admin ou gestão
+        $userId = current_user_id();
+        $role = current_user_role();
+        $podeExcluir = in_array($role, array('admin','gestao'), true)
+                    || (int)$row['created_by'] === $userId
+                    || (int)$row['pesquisado_por'] === $userId;
+        if (!$podeExcluir) { flash_set('error', 'Sem permissão pra excluir esta pesquisa.'); redirect(module_url('gerid')); }
+
+        // Cancela tarefas vinculadas (pesquisa + review)
+        try {
+            if (!empty($row['task_id'])) {
+                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa GERID excluída]') WHERE id=?")
+                    ->execute(array((int)$row['task_id']));
+            }
+            if (!empty($row['task_review_id'])) {
+                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa GERID excluída]') WHERE id=?")
+                    ->execute(array((int)$row['task_review_id']));
+            }
+        } catch (Exception $e) {}
+
+        // Andamento de remoção
+        if (!empty($row['case_id'])) {
+            try {
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
+                     VALUES (?, ?, 'gerid', ?, ?, 0, NOW())"
+                )->execute(array(
+                    (int)$row['case_id'], date('Y-m-d'),
+                    '🗑️ Pesquisa GERID de ' . $row['parte_nome'] . ' excluída'
+                    . ($row['status'] === 'concluida' ? ' (já estava concluída)' : ' (estava pendente)') . '.',
+                    $userId,
+                ));
+            } catch (Exception $e) {}
+        }
+
+        // Remove printscreen do disco se houver
+        if (!empty($row['printscreen_path'])) {
+            $f = APP_ROOT . '/files/gerid/' . basename($row['printscreen_path']);
+            if (is_file($f)) @unlink($f);
+        }
+
+        $pdo->prepare("DELETE FROM gerid_pesquisas WHERE id=?")->execute(array($id));
+        audit_log('gerid_excluir', 'gerid', $id, $row['parte_nome']);
+        flash_set('success', 'Pesquisa GERID excluída.');
+        redirect(module_url('gerid'));
+    }
+
     if ($acao === 'solicitar') {
         $parteNome = clean_str($_POST['parte_nome'] ?? '', 160);
         $parteCpf  = clean_str($_POST['parte_cpf'] ?? '', 20);
@@ -144,6 +201,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $luiz ?: null, date('Y-m-d', strtotime('+2 days')), 'alta', 'a_fazer', 0));
             $taskId = (int)$pdo->lastInsertId();
             $pdo->prepare("UPDATE gerid_pesquisas SET task_id=? WHERE id=?")->execute(array($taskId, $pesqId));
+
+            // 29/06/2026 Amanda: andamento INTERNO (visivel_cliente=0) registrando o
+            // pedido, pra equipe ver na linha do tempo do processo e nao solicitar de
+            // novo sem querer (caso Wallace Renan: 2 pedidos iguais no mesmo dia).
+            try {
+                $descAnd = '🔎 Solicitada pesquisa GERID de vínculo empregatício de ' . $parteNome
+                         . ($parteCpf ? ' (CPF ' . $parteCpf . ')' : '')
+                         . ($parente ? ' [' . $parente . ']' : '')
+                         . '. Luiz Eduardo notificado'
+                         . ($obs ? '. Obs: ' . $obs : '') . '.';
+                $pdo->prepare(
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
+                     VALUES (?, ?, 'gerid', ?, ?, 0, NOW())"
+                )->execute(array($caseId, date('Y-m-d'), $descAnd, current_user_id()));
+            } catch (Exception $e) {}
         }
         audit_log('gerid_solicitar', 'gerid', $pesqId, $parteNome);
 
@@ -300,7 +372,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php if (!$pendentes): ?><div class="gd-empty">Nenhuma pesquisa pendente. 🎉</div><?php else: foreach ($pendentes as $g):
   $proc = $g['case_number'] ?: $g['case_title']; ?>
 <div class="gd-card gd-item">
-  <div style="font-weight:700;color:#0e7490;">👤 <?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? ' · CPF ' . e($g['parte_cpf']) : '' ?><?= $g['parente'] ? ' · ' . e($g['parente']) : '' ?></div>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
+    <div style="font-weight:700;color:#0e7490;flex:1;">👤 <?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? ' · CPF ' . e($g['parte_cpf']) : '' ?><?= $g['parente'] ? ' · ' . e($g['parente']) : '' ?></div>
+    <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa GERID? Tarefas vinculadas serão canceladas.');" style="margin:0;">
+      <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+      <input type="hidden" name="acao" value="excluir">
+      <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
+      <button type="submit" title="Excluir pesquisa (cancela tarefas vinculadas)" style="background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:6px;padding:3px 8px;font-size:.7rem;font-weight:700;cursor:pointer;">🗑️ Excluir</button>
+    </form>
+  </div>
   <div style="color:#666;font-size:.83rem;margin-top:3px;">
     <?= $proc ? '📄 ' . e($proc) . ' · ' : '' ?><?= $g['client_name'] ? '👥 ' . e($g['client_name']) . ' · ' : '' ?>
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
@@ -323,7 +403,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h3 style="margin:22px 0 8px;">✅ Concluídas</h3>
 <?php if (!$concluidas): ?><div class="gd-empty">Nenhuma ainda.</div><?php else: ?>
 <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th></tr></thead>
+  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th><th style="padding:9px 11px;text-align:center;width:60px;"></th></tr></thead>
   <tbody>
   <?php foreach ($concluidas as $g): ?>
     <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;" id="gd-row-<?= (int)$g['id'] ?>">
@@ -345,6 +425,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if ($g['tratado_em']): ?>
           <br><span style="color:#999;font-size:.7rem;"><?= date('d/m H:i', strtotime($g['tratado_em'])) ?></span>
         <?php endif; ?>
+      </td>
+      <td style="padding:9px 11px;text-align:center;">
+        <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa GERID concluída? Esta ação não pode ser desfeita.');" style="margin:0;">
+          <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+          <input type="hidden" name="acao" value="excluir">
+          <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
+          <button type="submit" title="Excluir pesquisa" style="background:none;color:#b91c1c;border:none;cursor:pointer;font-size:.95rem;padding:2px 6px;">🗑️</button>
+        </form>
       </td>
     </tr>
   <?php endforeach; ?>
