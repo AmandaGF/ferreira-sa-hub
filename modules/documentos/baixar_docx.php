@@ -636,6 +636,22 @@ $zip->close();
 
 // ─── Servir arquivo ───────────────────────────────────────────────────
 $filename = preg_replace('/[^A-Za-z0-9_\-]/', '_', $titulo) . '.docx';
+
+// 29/06/2026 Amanda: Petição Geral com IA precisa do binário em base64 pra
+// subir no Drive sem nova trip ao gerador. Quando retornar_base64=1,
+// devolve JSON {ok, base64} em vez do download.
+if (!empty($_POST['retornar_base64'])) {
+    $bin = file_get_contents($tmpFile);
+    unlink($tmpFile);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array(
+        'ok'       => true,
+        'filename' => $filename,
+        'base64'   => base64_encode($bin),
+    ));
+    exit;
+}
+
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 header('Content-Length: ' . filesize($tmpFile));

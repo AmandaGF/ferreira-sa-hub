@@ -17,6 +17,7 @@ $clients = $pdo->query("SELECT id, name, cpf, phone, email FROM clients ORDER BY
 
 // Tipos de documento
 $docTypes = array(
+    'peticao_ia' => array('label' => 'Petição Geral com IA', 'icon' => '✨', 'color' => '#7c3aed', 'desc' => 'Você descreve em português e a IA elabora a petição no padrão F&S — editável antes de baixar'),
     'procuracao' => array('label' => 'Procuração', 'icon' => '📜', 'color' => '#052228', 'desc' => 'Ad Judicia Et Extra — tipo de ação e outorgante'),
     'contrato' => array('label' => 'Contrato de Honorários', 'icon' => '📝', 'color' => '#059669', 'desc' => 'Honorários fixos, risco ou previdenciário (Salário-Maternidade)'),
     'substabelecimento' => array('label' => 'Substabelecimento', 'icon' => '🔄', 'color' => '#6366f1', 'desc' => 'Com ou sem reserva de poderes'),
@@ -312,6 +313,14 @@ function selectDoc(tipo) {
     if (card) card.classList.add('selected');
     var radio = card.querySelector('input');
     if (radio) radio.checked = true;
+
+    // Petição com IA tem fluxo separado — o form aponta pra peticao_ia.php
+    var form = document.getElementById('docForm');
+    if (tipo === 'peticao_ia') {
+        form.action = '<?= module_url('documentos', 'peticao_ia.php') ?>';
+    } else {
+        form.action = '<?= module_url('documentos', 'gerar.php') ?>';
+    }
 
     var acaoSection = document.getElementById('acaoSection');
     var outorganteSection = document.getElementById('outorganteSection');
