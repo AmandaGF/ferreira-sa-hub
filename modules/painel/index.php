@@ -593,6 +593,57 @@ if (function_exists('can_access') && can_access('audiencistas')) {
     } catch (Exception $_e) {}
 }
 ?>
+<?php
+// 🔎 Pesquisa GERID pendente: pesquisas com status='pendente' (Luiz acompanha).
+// Aparece pra qualquer um com acesso ao modulo gerid — Luiz ve direto, demais
+// veem o que esta na fila pra dimensionar carga.
+$_geridPend = array();
+if (function_exists('can_access') && can_access('gerid')) {
+    try {
+        $_stG = db()->query(
+            "SELECT g.id, g.parte_nome, g.parte_cpf, g.parente, g.observacao, g.created_at,
+                    g.case_id, cs.title AS case_title,
+                    cl.name AS client_name, u.name AS solicitante
+             FROM gerid_pesquisas g
+             LEFT JOIN cases cs ON cs.id = g.case_id
+             LEFT JOIN clients cl ON cl.id = g.client_id
+             LEFT JOIN users u ON u.id = g.created_by
+             WHERE g.status = 'pendente'
+             ORDER BY g.created_at ASC
+             LIMIT 6"
+        );
+        $_geridPend = $_stG->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $_e) {}
+}
+$_geridTotal = 0;
+try { $_geridTotal = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHERE status='pendente'")->fetchColumn(); } catch (Exception $_e) {}
+?>
+<?php if (!empty($_geridPend)): ?>
+<div style="background:linear-gradient(135deg,#dbeafe,#fff);border-left:4px solid #1e40af;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(30,64,175,.08);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="font-weight:800;color:#1e3a8a;font-size:.95rem;">🔎 Pesquisa GERID — <?= $_geridTotal ?> pendente<?= $_geridTotal > 1 ? 's' : '' ?></div>
+        <a href="<?= url('modules/gerid/') ?>" style="font-size:.74rem;font-weight:700;color:#1e3a8a;text-decoration:none;background:#fff;padding:4px 10px;border-radius:6px;border:1px solid #93c5fd;">Abrir módulo →</a>
+    </div>
+    <?php foreach ($_geridPend as $_gp):
+        $_diasFila = (int)floor((time() - strtotime($_gp['created_at'])) / 86400);
+        $_lblTempo = $_diasFila === 0 ? 'hoje' : ($_diasFila === 1 ? 'ontem' : ('há ' . $_diasFila . 'd'));
+        $_corTempo = $_diasFila >= 7 ? '#b45309' : ($_diasFila >= 3 ? '#d97706' : '#475569');
+    ?>
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;">
+        <span style="font-weight:600;color:#0f3d3e;">👤 <?= e($_gp['parte_nome']) ?></span>
+        <?php if ($_gp['parte_cpf']): ?><span style="color:#666;font-family:monospace;font-size:.74rem;">CPF <?= e($_gp['parte_cpf']) ?></span><?php endif; ?>
+        <?php if ($_gp['parente']): ?><span style="color:#666;font-size:.72rem;background:#e0e7ff;padding:1px 6px;border-radius:4px;"><?= e($_gp['parente']) ?></span><?php endif; ?>
+        <?php if ($_gp['case_title']): ?><span style="color:#666;">📂 <?= e($_gp['case_title']) ?></span><?php elseif ($_gp['client_name']): ?><span style="color:#666;">👤 <?= e($_gp['client_name']) ?></span><?php endif; ?>
+        <span style="margin-left:auto;font-size:.72rem;color:<?= $_corTempo ?>;font-weight:700;">📥 <?= e($_lblTempo) ?><?= $_gp['solicitante'] ? ' · ' . e(explode(' ', $_gp['solicitante'])[0]) : '' ?></span>
+        <a href="<?= url('modules/gerid/') ?>" style="font-size:.7rem;color:#1e3a8a;text-decoration:none;font-weight:700;">pesquisar →</a>
+    </div>
+    <?php endforeach; ?>
+    <?php if ($_geridTotal > count($_geridPend)): ?>
+    <div style="margin-top:6px;font-size:.72rem;color:#6b7280;text-align:right;">… +<?= $_geridTotal - count($_geridPend) ?> mais</div>
+    <?php endif; ?>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($_audUrgentes)): ?>
 <div style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">

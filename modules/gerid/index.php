@@ -27,6 +27,26 @@ try {
         INDEX idx_status (status), INDEX idx_case (case_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
+// Self-heal 29/06/2026: printscreen do GERID/INSS que o Luiz anexa ao concluir
+foreach (array(
+    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_nome VARCHAR(255) NULL",
+    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_path VARCHAR(255) NULL",
+    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_mime VARCHAR(80) NULL",
+) as $_sqlAlter) { try { $pdo->exec($_sqlAlter); } catch (Exception $e) {} }
+
+// Download autenticado do printscreen
+if (isset($_GET['baixar'])) {
+    $id = (int)$_GET['baixar'];
+    $st = $pdo->prepare("SELECT printscreen_path, printscreen_nome, printscreen_mime FROM gerid_pesquisas WHERE id=?");
+    $st->execute(array($id));
+    $row = $st->fetch();
+    $path = $row && $row['printscreen_path'] ? APP_ROOT . '/files/gerid/' . basename($row['printscreen_path']) : '';
+    if (!$path || !is_file($path)) { http_response_code(404); die('Arquivo não encontrado.'); }
+    header('Content-Type: ' . ($row['printscreen_mime'] ?: 'application/octet-stream'));
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^\w.\- ]/', '_', $row['printscreen_nome'] ?: 'gerid_print') . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path); exit;
+}
 
 /** id do Luiz Eduardo (quem faz a pesquisa no GERID). */
 function gerid_luiz_id($pdo) {
@@ -104,8 +124,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = clean_str($_POST['resultado'] ?? '', 2000);
         $g = $pdo->prepare("SELECT * FROM gerid_pesquisas WHERE id=?"); $g->execute(array($id)); $row = $g->fetch();
         if ($row) {
-            $pdo->prepare("UPDATE gerid_pesquisas SET status='concluida', tem_vinculo=?, resultado=?, pesquisado_por=?, pesquisado_em=NOW() WHERE id=?")
-                ->execute(array($tem, $res ?: null, current_user_id(), $id));
+            // Upload printscreen INSS/GERID (opcional, PNG/JPG/PDF até 10MB)
+            $psNome = null; $psPath = null; $psMime = null;
+            if (!empty($_FILES['printscreen']) && (int)$_FILES['printscreen']['error'] === UPLOAD_ERR_OK) {
+                $tmpUp = $_FILES['printscreen']['tmp_name'];
+                $orig  = $_FILES['printscreen']['name'];
+                $mime  = $_FILES['printscreen']['type'] ?: (function_exists('mime_content_type') ? mime_content_type($tmpUp) : 'application/octet-stream');
+                $size  = (int)$_FILES['printscreen']['size'];
+                $allowed = array('image/png','image/jpeg','image/jpg','application/pdf');
+                if ($size <= 10 * 1024 * 1024 && in_array($mime, $allowed, true)) {
+                    $dirUp = APP_ROOT . '/files/gerid';
+                    if (!is_dir($dirUp)) @mkdir($dirUp, 0755, true);
+                    $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $orig);
+                    $stored = 'gerid_' . uniqid('', true) . '_' . $safe;
+                    if (move_uploaded_file($tmpUp, $dirUp . '/' . $stored)) {
+                        @chmod($dirUp . '/' . $stored, 0644);
+                        $psNome = $orig; $psPath = $stored; $psMime = $mime;
+                    }
+                }
+            }
+            $pdo->prepare("UPDATE gerid_pesquisas SET status='concluida', tem_vinculo=?, resultado=?, pesquisado_por=?, pesquisado_em=NOW(),
+                           printscreen_nome=COALESCE(?, printscreen_nome),
+                           printscreen_path=COALESCE(?, printscreen_path),
+                           printscreen_mime=COALESCE(?, printscreen_mime) WHERE id=?")
+                ->execute(array($tem, $res ?: null, current_user_id(), $psNome, $psPath, $psMime, $id));
             // fecha a tarefa
             if (!empty($row['task_id'])) {
                 try { $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=?")->execute(array($row['task_id'])); } catch (Exception $e) {}
@@ -205,12 +247,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
   </div>
   <?php if ($g['observacao']): ?><div style="font-size:.83rem;margin-top:5px;color:#444;"><?= e($g['observacao']) ?></div><?php endif; ?>
-  <form method="post" action="<?= module_url('gerid') ?>" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+  <form method="post" action="<?= module_url('gerid') ?>" enctype="multipart/form-data" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="resultado"><input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
     <span style="font-size:.82rem;font-weight:700;">Resultado:</span>
     <label style="font-size:.85rem;display:flex;align-items:center;gap:5px;"><input type="radio" name="tem_vinculo" value="1" required> ✅ Tem vínculo</label>
     <label style="font-size:.85rem;display:flex;align-items:center;gap:5px;"><input type="radio" name="tem_vinculo" value="0"> ❌ Sem vínculo</label>
     <input type="text" name="resultado" class="gd-input" style="flex:1;min-width:200px;width:auto;" placeholder="Empregador / detalhes (opcional)">
+    <label style="font-size:.75rem;display:flex;align-items:center;gap:5px;color:#475569;background:#f1f5f9;border:1px dashed #94a3b8;border-radius:6px;padding:5px 9px;cursor:pointer;">📸 Print INSS:
+      <input type="file" name="printscreen" accept="image/*,.pdf" style="font-size:.74rem;max-width:170px;">
+    </label>
     <button type="submit" class="gd-btn" style="padding:7px 12px;">Registrar</button>
   </form>
 </div>
@@ -226,7 +271,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
       <td style="padding:9px 11px;"><?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? '<br><span style="color:#999;font-size:.78rem;">' . e($g['parte_cpf']) . '</span>' : '' ?></td>
       <td style="padding:9px 11px;"><?= e($g['case_number'] ?: ($g['case_title'] ?: '—')) ?></td>
       <td style="padding:9px 11px;"><span class="gd-chip <?= $g['tem_vinculo'] ? 'gd-sim' : 'gd-nao' ?>"><?= $g['tem_vinculo'] ? 'POSSUI' : 'Sem vínculo' ?></span></td>
-      <td style="padding:9px 11px;"><?= e($g['resultado'] ?: '—') ?></td>
+      <td style="padding:9px 11px;"><?= e($g['resultado'] ?: '—') ?>
+        <?php if (!empty($g['printscreen_path'])): ?>
+          <br><a href="?baixar=<?= (int)$g['id'] ?>" target="_blank" rel="noopener" style="font-size:.72rem;color:#0c4a6e;text-decoration:none;font-weight:600;">📸 Ver print INSS</a>
+        <?php endif; ?>
+      </td>
       <td style="padding:9px 11px;"><?= e($g['pesq_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['pesquisado_em'] ? date('d/m/Y', strtotime($g['pesquisado_em'])) : '' ?></span></td>
     </tr>
   <?php endforeach; ?>
