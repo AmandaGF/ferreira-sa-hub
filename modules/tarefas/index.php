@@ -110,6 +110,11 @@ echo voltar_ao_processo_html();
 <!-- Topo -->
 <div class="tk-topo">
     <div class="tk-filtros">
+        <div style="position:relative;">
+            <span style="position:absolute;left:.55rem;top:50%;transform:translateY(-50%);font-size:.78rem;color:#94a3b8;pointer-events:none;">🔍</span>
+            <input type="search" id="fBusca" placeholder="Buscar tarefa, cliente, processo, CNJ..." oninput="reloadDebounce()" autocomplete="off"
+                style="font-size:.78rem;padding:4px 8px 4px 26px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg-card,#fff);min-width:240px;">
+        </div>
         <select id="fResp" onchange="reload()"><option value="">Todos</option><?php foreach($users as $u): ?><option value="<?=$u['id']?>"><?=e($u['name'])?></option><?php endforeach; ?></select>
         <select id="fTipo" onchange="reload()">
             <option value="">Tipo</option>
@@ -304,11 +309,19 @@ var PRIO_CORES = {urgente:'#dc2626',alta:'#d97706',normal:'#059669',baixa:'#94a3
 // ── LOAD ──
 reload();
 
+// Debounce de 300ms pra busca textual (evita spam de requests no oninput)
+var _reloadTimer = null;
+function reloadDebounce() {
+    if (_reloadTimer) clearTimeout(_reloadTimer);
+    _reloadTimer = setTimeout(reload, 300);
+}
+
 function reload() {
     var params = '?action=listar';
     var r = document.getElementById('fResp').value; if(r) params += '&responsavel='+r;
     var t = document.getElementById('fTipo').value; if(t) params += '&tipo='+t;
     var p = document.getElementById('fPrio').value; if(p) params += '&prioridade='+p;
+    var q = document.getElementById('fBusca').value.trim(); if(q) params += '&q='+encodeURIComponent(q);
 
     var scrollY = window.scrollY || window.pageYOffset;
     var x = new XMLHttpRequest();

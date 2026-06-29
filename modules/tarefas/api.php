@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $tipo = $_GET['tipo'] ?? '';
         $prioridade = $_GET['prioridade'] ?? '';
         $caseFilter = (int)($_GET['case_id'] ?? 0);
+        $q = trim($_GET['q'] ?? '');
 
         $where = array("t.tipo IS NOT NULL AND t.tipo != ''");
         $params = array();
@@ -34,6 +35,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if ($tipo) { $where[] = 't.tipo = ?'; $params[] = $tipo; }
         if ($prioridade) { $where[] = 't.prioridade = ?'; $params[] = $prioridade; }
         if ($caseFilter) { $where[] = 't.case_id = ?'; $params[] = $caseFilter; }
+
+        // 29/06/2026 Amanda: busca por titulo da tarefa, nome do cliente,
+        // titulo do processo ou numero CNJ. Normaliza CNJ pra ignorar pontuacao.
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            $likeNum = '%' . preg_replace('/\D/', '', $q) . '%';
+            $where[] = '(t.title LIKE ? OR t.descricao LIKE ? OR c.name LIKE ? OR cs.title LIKE ?'
+                     . ' OR cs.case_number LIKE ? OR REPLACE(REPLACE(REPLACE(cs.case_number,\'-\',\'\'),\'.\',\'\'),\'/\',\'\') LIKE ?)';
+            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+            $params[] = $like; $params[] = $likeNum;
+        }
 
         // Colaborador vê só suas (incluindo as em que é co-responsável)
         if (has_role('colaborador')) {
