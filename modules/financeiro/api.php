@@ -294,6 +294,124 @@ if ($action === 'cobranca_alterar_vencimento') {
     exit;
 }
 
+// 29/06/2026 Amanda: encaminhar cobrança Asaas pro Kanban de Cobrança de Honorários.
+// Cria registro em honorarios_cobranca (ou atualiza se já existe) no estágio escolhido.
+// Estágios aceitos: 'atrasado', 'notificado_1', 'notificado_extrajudicial', 'judicial'.
+// O 'judicial' = execução (Amanda 29/06: "iniciar execução contra ela").
+if ($action === 'cobranca_encaminhar_execucao') {
+    header('Content-Type: application/json');
+    $cobId   = (int)($_POST['cobranca_id'] ?? 0);
+    $estagio = trim($_POST['estagio'] ?? 'judicial');
+    $obs     = trim($_POST['observacao'] ?? '');
+    $estagiosValidos = array('atrasado','notificado_1','notificado_extrajudicial','judicial');
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    if (!in_array($estagio, $estagiosValidos, true)) {
+        echo json_encode(array('error' => 'Estágio inválido.')); exit;
+    }
+
+    $cob = $pdo->prepare(
+        "SELECT ac.*, cl.name AS cli_name, cs.title AS case_title
+         FROM asaas_cobrancas ac
+         LEFT JOIN clients cl ON cl.id = ac.client_id
+         LEFT JOIN cases cs ON cs.id = ac.case_id
+         WHERE ac.id = ?"
+    );
+    $cob->execute(array($cobId));
+    $cob = $cob->fetch(PDO::FETCH_ASSOC);
+    if (!$cob)              { echo json_encode(array('error' => 'Cobrança não encontrada')); exit; }
+    if (!$cob['client_id']) { echo json_encode(array('error' => 'Cobrança sem cliente vinculado — vincule primeiro.')); exit; }
+    if ($cob['status'] !== 'OVERDUE' && $cob['status'] !== 'PENDING') {
+        echo json_encode(array('error' => 'Só dá pra encaminhar cobrança pendente ou vencida. Status atual: ' . asaas_status_label($cob['status']))); exit;
+    }
+
+    try {
+        // Existe registro aberto pra mesmo client/case? Atualiza em vez de duplicar.
+        // Match: client_id + case_id + status NOT IN (pago, cancelado).
+        $stExist = $pdo->prepare(
+            "SELECT id, status FROM honorarios_cobranca
+             WHERE client_id = ? AND " . ($cob['case_id'] ? "case_id = ?" : "case_id IS NULL")
+            . " AND status NOT IN ('pago','cancelado')
+             ORDER BY id DESC LIMIT 1"
+        );
+        if ($cob['case_id']) $stExist->execute(array((int)$cob['client_id'], (int)$cob['case_id']));
+        else $stExist->execute(array((int)$cob['client_id']));
+        $existente = $stExist->fetch(PDO::FETCH_ASSOC);
+
+        if ($existente) {
+            // Atualiza pro novo estágio (só se mais avançado)
+            $ordem = array('em_dia' => 0, 'atrasado' => 1, 'notificado_1' => 2, 'notificado_2' => 3,
+                           'notificado_extrajudicial' => 4, 'judicial' => 5);
+            $stAtual = (int)($ordem[$existente['status']] ?? 0);
+            $stNovo  = (int)($ordem[$estagio] ?? 0);
+            if ($stNovo > $stAtual) {
+                $pdo->prepare("UPDATE honorarios_cobranca SET status = ?, observacoes = CONCAT(IFNULL(observacoes,''), ?, ?) WHERE id = ?")
+                    ->execute(array($estagio, "\n[" . date('d/m/Y H:i') . "] ", $obs ?: 'encaminhado de Todas as Cobranças', (int)$existente['id']));
+            }
+            $cobHonId = (int)$existente['id'];
+            $jaExistia = true;
+        } else {
+            // Cria novo registro
+            $pdo->prepare(
+                "INSERT INTO honorarios_cobranca
+                 (client_id, case_id, tipo_debito, valor_total, vencimento, status, entrada_automatica, observacoes, created_by, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, NOW())"
+            )->execute(array(
+                (int)$cob['client_id'],
+                $cob['case_id'] ? (int)$cob['case_id'] : null,
+                'honorarios_atraso',
+                (float)$cob['valor'],
+                $cob['vencimento'] ?: date('Y-m-d'),
+                $estagio,
+                $obs ?: 'Encaminhado de Todas as Cobranças (Asaas #' . $cob['asaas_payment_id'] . ')',
+                current_user_id(),
+            ));
+            $cobHonId = (int)$pdo->lastInsertId();
+            $jaExistia = false;
+        }
+
+        // Registra histórico
+        $etapaMap = array(
+            'atrasado'                => 'observacao',
+            'notificado_1'            => 'notificacao_1',
+            'notificado_extrajudicial'=> 'notificacao_extrajudicial',
+            'judicial'                => 'judicial',
+        );
+        $etapaHist = $etapaMap[$estagio] ?? 'observacao';
+        $descHist = ($jaExistia ? 'Atualizado para ' : 'Encaminhado em ')
+                  . str_replace('_', ' ', $estagio)
+                  . ' a partir de Todas as Cobranças.'
+                  . ($obs ? ' Observação: ' . $obs : '');
+        try {
+            $pdo->prepare("INSERT INTO honorarios_cobranca_historico (cobranca_id, etapa, descricao, enviado_por, created_at) VALUES (?, ?, ?, ?, NOW())")
+                ->execute(array($cobHonId, $etapaHist, $descHist, current_user_id()));
+        } catch (Exception $e) {}
+
+        audit_log('cobranca_encaminhada_kanban', 'asaas_cobrancas', $cobId, "→ honorarios_cobranca#{$cobHonId} estágio={$estagio}");
+
+        // Notifica gestão quando vai DIRETO pra execução (judicial) — sinal importante
+        if ($estagio === 'judicial' && function_exists('notify_gestao')) {
+            try {
+                notify_gestao(
+                    '⚖️ Cobrança encaminhada pra EXECUÇÃO',
+                    ($cob['cli_name'] ?: '?') . ' — R$ ' . number_format((float)$cob['valor'], 2, ',', '.') . ($cob['case_title'] ? ' · ' . $cob['case_title'] : '') . ($obs ? ' · ' . $obs : ''),
+                    'alerta', url('modules/cobranca_honorarios/'), '⚖️'
+                );
+            } catch (Exception $e) {}
+        }
+
+        echo json_encode(array(
+            'ok'             => true,
+            'cobranca_id'    => $cobHonId,
+            'estagio'        => $estagio,
+            'ja_existia'     => $jaExistia,
+            'kanban_url'     => url('modules/cobranca_honorarios/?id=' . $cobHonId),
+        ));
+        exit;
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Falha ao encaminhar: ' . $e->getMessage())); exit;
+    }
+}
+
 if ($action === 'cobranca_dar_baixa') {
     header('Content-Type: application/json');
     $cobId = (int)($_POST['cobranca_id'] ?? 0);

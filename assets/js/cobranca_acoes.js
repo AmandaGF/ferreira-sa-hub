@@ -94,6 +94,43 @@
                 if (!/^\d{4}-\d{2}-\d{2}$/.test(res.nova_data)) { alert('Data inválida.'); return; }
                 _cobSend(cobId, 'cobranca_alterar_vencimento', { nova_data: res.nova_data });
             });
+        } else if (tipo === 'executar') {
+            // 29/06/2026 Amanda: encaminhar cobrança vencida pro Kanban de
+            // Cobrança de Honorários, escolhendo estágio. 'judicial' = execução.
+            var input =
+                '<div style="font-size:.8rem;color:#374151;margin-bottom:.6rem;">Em qual estágio entrar no Kanban?</div>' +
+                '<label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.35rem;">' +
+                '  <input type="radio" name="estagio" value="atrasado" style="margin-top:3px;">' +
+                '  <div><div style="font-weight:700;color:#dc2626;font-size:.82rem;">⚠️ Atrasado</div><div style="font-size:.7rem;color:#6b7280;">Entra no Kanban ainda no início — sem notificação automática</div></div>' +
+                '</label>' +
+                '<label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.35rem;">' +
+                '  <input type="radio" name="estagio" value="notificado_1" style="margin-top:3px;">' +
+                '  <div><div style="font-weight:700;color:#d97706;font-size:.82rem;">📱 Notificação amigável</div><div style="font-size:.7rem;color:#6b7280;">Mandar 1ª cobrança amigável (WhatsApp/email)</div></div>' +
+                '</label>' +
+                '<label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:1.5px solid #e5e7eb;border-radius:8px;cursor:pointer;margin-bottom:.35rem;">' +
+                '  <input type="radio" name="estagio" value="notificado_extrajudicial" style="margin-top:3px;">' +
+                '  <div><div style="font-weight:700;color:#8b5cf6;font-size:.82rem;">📄 Notificação extrajudicial</div><div style="font-size:.7rem;color:#6b7280;">Notificação formal antes da execução</div></div>' +
+                '</label>' +
+                '<label style="display:flex;align-items:flex-start;gap:.45rem;padding:.55rem .65rem;border:2px solid #1e40af;background:#eff6ff;border-radius:8px;cursor:pointer;margin-bottom:.55rem;">' +
+                '  <input type="radio" name="estagio" value="judicial" checked style="margin-top:3px;">' +
+                '  <div><div style="font-weight:700;color:#1e40af;font-size:.82rem;">⚖️ Direto pra EXECUÇÃO judicial</div><div style="font-size:.7rem;color:#6b7280;">Cliente não respondeu — partir pra ação. Gestão é notificada.</div></div>' +
+                '</label>' +
+                '<label style="display:block;font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:.2rem;">Observação (opcional)</label>' +
+                '<textarea name="observacao" rows="2" placeholder="Ex: não pagou nada do contrato, ignorou WhatsApp..." style="width:100%;padding:.55rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;resize:vertical;"></textarea>';
+            _cobModal({
+                title: '⚖️ Encaminhar pra cobrança / execução',
+                body: 'Cobrança' + nomeCli + ' — R$ ' + (valorCobranca ? Number(valorCobranca).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '?') +
+                      '\n\nEste cliente vai pro Kanban de Cobrança de Honorários no estágio que você escolher abaixo.\nVocê acompanha lá com o histórico completo de ações.',
+                inputHtml: input,
+                buttons: [
+                    { label: 'Cancelar', bg: '#e5e7eb', color: '#374151', value: null },
+                    { label: 'Encaminhar', bg: '#1e40af', color: '#fff', collect: true }
+                ]
+            }).then(function(res){
+                if (!res) return;
+                if (!res.estagio) { alert('Escolha um estágio.'); return; }
+                _cobSendExec(cobId, res.estagio, res.observacao || '');
+            });
         } else if (tipo === 'baixa') {
             var hoje = new Date().toISOString().slice(0,10);
             var valorFmt = valorCobranca ? Number(valorCobranca).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
@@ -123,6 +160,47 @@
         if (!iso || iso.length < 10) return iso;
         var p = iso.substr(0,10).split('-');
         return p[2] + '/' + p[1] + '/' + p[0];
+    }
+
+    function _cobSendExec(cobId, estagio, observacao) {
+        var body = 'action=cobranca_encaminhar_execucao&cobranca_id=' + cobId
+                 + '&estagio=' + encodeURIComponent(estagio)
+                 + '&observacao=' + encodeURIComponent(observacao || '')
+                 + '&csrf_token=' + encodeURIComponent(window._COB_CSRF || '');
+        fetch(window._COB_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+            body: body
+        })
+        .then(function(r){
+            if (r.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); return null; }
+            return r.json().catch(function(){ return { error: 'Resposta inválida (HTTP ' + r.status + ')' }; });
+        })
+        .then(function(j){
+            if (!j) return;
+            if (j.error) { alert('Erro: ' + j.error); return; }
+            var msgEstagio = ({
+                atrasado: '⚠️ Atrasado',
+                notificado_1: '📱 Notificação amigável',
+                notificado_extrajudicial: '📄 Notificação extrajudicial',
+                judicial: '⚖️ Execução judicial'
+            })[j.estagio] || j.estagio;
+            var msg = (j.ja_existia ? 'Cobrança ATUALIZADA' : 'Cobrança ENCAMINHADA')
+                    + ' para o estágio:\n\n' + msgEstagio
+                    + (j.estagio === 'judicial' ? '\n\nA gestão foi notificada.' : '');
+            _cobModal({
+                title: '✓ Feito!',
+                body: msg,
+                buttons: [
+                    { label: 'Fechar', bg: '#e5e7eb', color: '#374151', value: null },
+                    { label: 'Abrir Kanban →', bg: '#1e40af', color: '#fff', value: true }
+                ]
+            }).then(function(abrir){
+                if (abrir === true && j.kanban_url) window.open(j.kanban_url, '_blank');
+                location.reload();
+            });
+        })
+        .catch(function(e){ alert('Erro de conexão: ' + e.message); });
     }
 
     function _cobSend(cobId, action, extra) {

@@ -158,11 +158,22 @@ $totalPages = max(1, (int)ceil($qtdTotal / $perPage));
 if ($page > $totalPages) $page = $totalPages;
 $offset = ($page - 1) * $perPage;
 
+// Subquery hc_open: retorna o registro ATIVO mais recente em honorarios_cobranca
+// pra cada (client_id, case_id) — usado pra detectar 'já está no Kanban de Cobrança'
+// e qual estágio está. ROW_NUMBER() não está disponível em MariaDB antigas, então
+// uso MAX(id) por grupo como proxy (último insert vence).
 $sql = "SELECT ac.*, cl.name AS cli_name, cl.cpf AS cli_cpf, cl.phone AS cli_phone,
-               cs.id AS cs_id, cs.title AS case_title, cs.case_number AS case_number
+               cs.id AS cs_id, cs.title AS case_title, cs.case_number AS case_number,
+               hc.id AS hc_id, hc.status AS hc_status
         FROM asaas_cobrancas ac
         LEFT JOIN clients cl ON cl.id = ac.client_id
         LEFT JOIN cases cs ON cs.id = ac.case_id
+        LEFT JOIN honorarios_cobranca hc ON hc.id = (
+            SELECT MAX(hc2.id) FROM honorarios_cobranca hc2
+            WHERE hc2.client_id = ac.client_id
+              AND (hc2.case_id <=> ac.case_id)
+              AND hc2.status NOT IN ('pago','cancelado')
+        )
         {$whereStr}
         ORDER BY {$orderBy}
         LIMIT {$perPage} OFFSET {$offset}";
@@ -410,6 +421,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <button type="button" title="Dar baixa manual"
                             onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'baixa', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
                             style="background:#dcfce7;color:#166534;border:1px solid #bbf7d0;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✓</button>
+                    <?php
+                    // 29/06/2026: botão ⚖️ Encaminhar pro Kanban / Execução.
+                    // Se cliente já tem registro ativo em honorarios_cobranca, mostra chip do
+                    // estágio atual (clicável pra ABRIR direto no Kanban). Senão, botão de novo.
+                    $hcStatus = $r['hc_status'] ?? '';
+                    if ($hcStatus): ?>
+                        <?php
+                        $_hcLabel = array(
+                            'em_dia' => array('Em dia',          '#6b7280', '#f3f4f6'),
+                            'atrasado' => array('⚠️ Atrasado',     '#dc2626', '#fee2e2'),
+                            'notificado_1' => array('📱 Notif. 1', '#d97706', '#fef3c7'),
+                            'notificado_2' => array('📱 Notif. 2', '#d97706', '#fef3c7'),
+                            'notificado_extrajudicial' => array('📄 Extrajud.', '#8b5cf6', '#ede9fe'),
+                            'judicial' => array('⚖️ EXECUÇÃO',     '#fff',    '#1e40af'),
+                        );
+                        $_l = $_hcLabel[$hcStatus] ?? array($hcStatus, '#6b7280', '#f3f4f6');
+                        ?>
+                        <a href="<?= url('modules/cobranca_honorarios/?id=' . (int)$r['hc_id']) ?>"
+                           title="Já está no Kanban de Cobrança — clique pra abrir"
+                           style="background:<?= e($_l[2]) ?>;color:<?= e($_l[1]) ?>;border:1px solid <?= e($_l[1]) ?>;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;text-decoration:none;display:inline-block;"><?= e($_l[0]) ?></a>
+                    <?php else: ?>
+                        <button type="button" title="Encaminhar pra cobrança/execução"
+                                onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'executar', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
+                                style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">⚖️</button>
+                    <?php endif; ?>
                     <button type="button" title="Cancelar cobrança no Asaas"
                             onclick="cobAcaoSafe(<?= (int)$r['id'] ?>, 'cancelar', '<?= e($r['vencimento']) ?>', <?= e(json_encode($r['cli_name'] ?: '')) ?>, <?= (float)$r['valor'] ?>)"
                             style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:6px;padding:3px 7px;font-size:.66rem;font-weight:700;cursor:pointer;margin:0 1px;">✕</button>
