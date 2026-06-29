@@ -3431,6 +3431,11 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
     ?>
     <div style="background:#dcfce7;border-bottom:1px solid #86efac;padding:8px 16px;font-size:.86rem;color:#15803d;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
         <span style="font-weight:700;">✅ Citado em <?= date('d/m/Y', strtotime($case['citacao_data'])) ?></span>
+        <?php if (($case['representamos_polo'] ?? '') === 'reu'): ?>
+            <span style="background:#b91c1c;color:#fff;padding:2px 9px;border-radius:6px;font-size:.72rem;font-weight:700;">🛡️ ESTAMOS PELO RÉU</span>
+        <?php elseif (($case['representamos_polo'] ?? '') === 'autor'): ?>
+            <span style="background:#1e40af;color:#fff;padding:2px 9px;border-radius:6px;font-size:.72rem;font-weight:700;">⚖️ ESTAMOS PELO AUTOR</span>
+        <?php endif; ?>
         <?php if (!empty($case['citacao_obs'])): ?><span style="color:#166534;font-size:.78rem;">— <?= e($case['citacao_obs']) ?></span><?php endif; ?>
         <a href="#prazos" onclick="cvAba('prazos');return false;" style="margin-left:auto;font-size:.72rem;color:#15803d;text-decoration:none;font-weight:600;">editar →</a>
     </div>
