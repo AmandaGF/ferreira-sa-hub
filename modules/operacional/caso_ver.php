@@ -1290,17 +1290,25 @@ $tipoCompLabels = array(
 
 <!-- ═══════ ABAS DA PASTA (movida pra antes dos cards pra ficar no topo) ═══════ -->
 <style>
-.cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg,#fafaf8); padding:6px 0 4px; margin:0 -1rem 14px; border-bottom:1px solid var(--border,#e5e7eb); }
-.cv-tabs { display:flex; gap:4px; padding:0 1rem; overflow-x:auto; scrollbar-width:none; }
+.cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg-card,#fff); padding:8px 6px 0; margin:0 0 0; border:1.5px solid var(--border,#e5e7eb); border-radius:12px 12px 0 0; border-bottom:3px solid #0f3d3e; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+.cv-tabs { display:flex; gap:3px; padding:0; overflow-x:auto; scrollbar-width:none; }
 .cv-tabs::-webkit-scrollbar { display:none; }
-.cv-tab { background:transparent; border:none; padding:8px 14px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border-bottom:3px solid transparent; white-space:nowrap; font-family:inherit; }
-.cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); border-radius:6px 6px 0 0; }
-.cv-tab.ativa { color:#0f3d3e; border-bottom-color:#0f3d3e; background:rgba(15,61,62,.06); border-radius:6px 6px 0 0; }
+.cv-tab { background:transparent; border:none; padding:9px 16px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border:1.5px solid transparent; border-bottom:none; white-space:nowrap; font-family:inherit; border-radius:8px 8px 0 0; transition:all .15s; margin-bottom:-3px; }
+.cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); }
+.cv-tab.ativa { color:#fff !important; background:#0f3d3e !important; border-color:#0f3d3e; padding-bottom:12px; }
 .cv-tab .cv-tab-badge { background:#dc2626; color:#fff; border-radius:999px; padding:1px 7px; font-size:.66rem; margin-left:4px; font-weight:800; }
-.cv-tab[data-aba="ia"].ativa { color:#6d28d9; border-bottom-color:#6d28d9; background:rgba(109,40,217,.07); }
-.cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; }
+.cv-tab.ativa .cv-tab-badge { background:#fff; color:#0f3d3e; }
+.cv-tab[data-aba="ia"].ativa { background:#6d28d9 !important; border-color:#6d28d9; }
+.cv-tab[data-aba="ia"].ativa .cv-tab-badge { color:#6d28d9; }
+/* "Painel" da aba ativa: cards aparecem dentro de um container visual ligado à barra acima.
+   Aplicado via wrapper invisível no body — simulado com pseudo-fundo. */
+body.cv-tabs-ready { /* fundo padrão; conteudo de aba "encosta" na barra acima */ }
+.cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; align-self:center; margin-bottom:3px; }
 body.cv-header-min .cv-header-collapsivel { display:none !important; }
 body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
+/* Container que envolve visualmente todos os cards da aba ativa */
+.cv-painel { background:var(--bg-card,#fff); border:1.5px solid var(--border,#e5e7eb); border-top:none; border-radius:0 0 12px 12px; padding:16px; margin:0 0 14px; box-shadow:0 4px 12px rgba(0,0,0,.04); min-height:200px; }
+.cv-painel .card { box-shadow:0 1px 3px rgba(0,0,0,.04); }
 </style>
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
@@ -7622,8 +7630,24 @@ window.pedirObsRealizado = function(form) {
         // quando o header for minimizado. Implementação atual já cobre.
     }
 
+    // Envolve TODOS os elementos depois da barra de abas num container .cv-painel.
+    // Cria o efeito visual de "papel" delimitando o conteúdo da aba ativa.
+    // Modais (position:fixed) ficam dentro mas não impactam o layout porque saem do fluxo.
+    function envolverPainel() {
+        var barra = document.querySelector('.cv-tabs-wrap');
+        if (!barra || document.querySelector('.cv-painel')) return; // idempotente
+        var painel = document.createElement('div');
+        painel.className = 'cv-painel';
+        var nodes = [];
+        var s = barra.nextSibling;
+        while (s) { nodes.push(s); s = s.nextSibling; }
+        nodes.forEach(function(n) { painel.appendChild(n); });
+        barra.parentNode.insertBefore(painel, barra.nextSibling);
+    }
+
     function init() {
         classificarCards();
+        envolverPainel();
         document.body.classList.add('cv-tabs-ready');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
