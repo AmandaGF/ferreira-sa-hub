@@ -151,6 +151,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/[^0-9+]/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm">💬 WhatsApp</button>
         <?php endif; ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
+        <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
+        <a href="<?= module_url('financeiro', 'cliente.php?id=' . $client['id']) ?>" class="btn btn-sm" style="background:#059669;color:#fff;" title="Histórico financeiro: cobranças, pagamentos, inadimplência">💰 Financeiro</a>
+        <?php endif; ?>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
         <?php
         // Acesso liberado pra todos (Amanda 25/06/2026): editar cliente + Central VIP.
