@@ -4,59 +4,45 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { http_response_code(403); e
 header('Content-Type: text/plain; charset=utf-8');
 
 $pdo = db();
-echo "=== Buscando 'Cosme' ===\n\n";
+$CLIENT_ID = 2399; // Marcelo Cosme
+$NOME = '%Cosme%';
+$CPF = '07293230729';
 
-// 1) Clientes
-echo "── CLIENTES com 'Cosme' no nome ──\n";
-$st = $pdo->prepare("SELECT id, name, cpf, phone, email, source, client_status, created_at FROM clients WHERE name LIKE ? ORDER BY id DESC");
-$st->execute(array('%Cosme%'));
-foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
-    echo "id={$c['id']} | {$c['name']} | CPF: " . ($c['cpf'] ?: '-') . " | tel: " . ($c['phone'] ?: '-') . "\n";
-    echo "  email: " . ($c['email'] ?: '-') . " | origem: " . ($c['source'] ?: '-') . " | status: " . ($c['client_status'] ?: '-') . " | criado: {$c['created_at']}\n";
+echo "=== Formulários preenchidos pelo Cosme (client_id=$CLIENT_ID) ===\n\n";
+
+// Schema da tabela
+$cols = $pdo->query("SHOW COLUMNS FROM form_submissions")->fetchAll(PDO::FETCH_ASSOC);
+echo "Colunas de form_submissions:\n";
+foreach ($cols as $c) echo "  - {$c['Field']} ({$c['Type']})\n";
+echo "\n";
+
+// Busca por linked_client_id
+echo "── POR client_id = $CLIENT_ID ──\n";
+$st = $pdo->prepare("SELECT * FROM form_submissions WHERE linked_client_id = ? ORDER BY id DESC");
+$st->execute(array($CLIENT_ID));
+$rows = $st->fetchAll(PDO::FETCH_ASSOC);
+if (!$rows) echo "  Nenhum.\n";
+foreach ($rows as $f) {
+    echo "  id={$f['id']} | tipo: " . ($f['form_type'] ?? '?') . " | criado: {$f['created_at']}\n";
+    $p = json_decode($f['payload_json'] ?? '{}', true) ?: array();
+    echo "  Payload (chaves): " . implode(', ', array_keys($p)) . "\n\n";
 }
 
-// 2) Leads no pipeline
-echo "\n── LEADS no pipeline com 'Cosme' ──\n";
-try {
-    $st = $pdo->prepare("SELECT id, name, phone, email, stage, case_type, client_id, created_at FROM pipeline_leads WHERE name LIKE ? ORDER BY id DESC");
-    $st->execute(array('%Cosme%'));
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
-        echo "id={$l['id']} | {$l['name']} | tel: " . ($l['phone'] ?: '-') . " | stage: {$l['stage']} | tipo: " . ($l['case_type'] ?: '-') . " | criado: {$l['created_at']}\n";
-        echo "  client_id vinculado: " . ($l['client_id'] ?: '(nenhum)') . "\n";
+// Busca por payload contendo nome ou CPF
+echo "── POR payload contendo 'Cosme' ou CPF ──\n";
+$st = $pdo->prepare("SELECT id, form_type, linked_client_id, payload_json, created_at FROM form_submissions WHERE payload_json LIKE ? OR payload_json LIKE ? OR payload_json LIKE ? ORDER BY id DESC LIMIT 30");
+$st->execute(array($NOME, '%' . $CPF . '%', '%072.932.307-29%'));
+$rows = $st->fetchAll(PDO::FETCH_ASSOC);
+if (!$rows) {
+    echo "  ❌ Nenhum formulário com 'Cosme' ou CPF dele encontrado.\n";
+} else {
+    foreach ($rows as $f) {
+        $p = json_decode($f['payload_json'], true) ?: array();
+        $nome = $p['nome'] ?? $p['name'] ?? $p['nome_completo'] ?? '(sem nome)';
+        $cpf  = $p['cpf'] ?? '-';
+        $tel  = $p['telefone'] ?? $p['phone'] ?? $p['whatsapp'] ?? '-';
+        echo "  ✓ id={$f['id']} | tipo: {$f['form_type']} | em {$f['created_at']}\n";
+        echo "    nome no form: $nome | CPF: $cpf | tel: $tel\n";
+        echo "    vinculado ao client_id: " . ($f['linked_client_id'] ?: '(nenhum)') . "\n\n";
     }
-} catch (Exception $e) { echo "  (erro: " . $e->getMessage() . ")\n"; }
-
-// 3) Form submissions
-echo "\n── FORMULÁRIOS preenchidos com 'Cosme' ──\n";
-try {
-    $st = $pdo->prepare(
-        "SELECT id, form_type, linked_client_id, linked_lead_id, payload_json, created_at
-         FROM form_submissions
-         WHERE payload_json LIKE ?
-         ORDER BY id DESC LIMIT 20"
-    );
-    $st->execute(array('%Cosme%'));
-    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
-    if (!$rows) {
-        echo "  Nenhum formulário com 'Cosme' encontrado em form_submissions.\n";
-    } else {
-        foreach ($rows as $f) {
-            $p = json_decode($f['payload_json'], true) ?: array();
-            $nome = $p['nome'] ?? $p['name'] ?? '(sem nome)';
-            $tel  = $p['telefone'] ?? $p['phone'] ?? '-';
-            $cpf  = $p['cpf'] ?? '-';
-            echo "id={$f['id']} | tipo: {$f['form_type']} | nome: $nome | tel: $tel | CPF: $cpf\n";
-            echo "  criado em: {$f['created_at']} | client_id: " . ($f['linked_client_id'] ?: '-') . " | lead_id: " . ($f['linked_lead_id'] ?: '-') . "\n";
-        }
-    }
-} catch (Exception $e) { echo "  (erro: " . $e->getMessage() . ")\n"; }
-
-// 4) Conversas WhatsApp
-echo "\n── CONVERSAS WhatsApp com 'Cosme' no nome de contato ──\n";
-try {
-    $st = $pdo->prepare("SELECT id, telefone, nome_contato, canal, created_at FROM zapi_conversas WHERE nome_contato LIKE ? ORDER BY id DESC LIMIT 10");
-    $st->execute(array('%Cosme%'));
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) {
-        echo "id={$c['id']} | {$c['nome_contato']} | canal {$c['canal']} | tel {$c['telefone']} | desde {$c['created_at']}\n";
-    }
-} catch (Exception $e) { echo "  (erro: " . $e->getMessage() . ")\n"; }
+}
