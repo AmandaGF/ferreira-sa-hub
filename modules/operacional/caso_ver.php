@@ -1309,6 +1309,17 @@ body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
 /* Container que envolve visualmente todos os cards da aba ativa */
 .cv-painel { background:var(--bg-card,#fff); border:1.5px solid var(--border,#e5e7eb); border-top:none; border-radius:0 0 12px 12px; padding:16px; margin:0 0 14px; box-shadow:0 4px 12px rgba(0,0,0,.04); min-height:200px; }
 .cv-painel .card { box-shadow:0 1px 3px rgba(0,0,0,.04); }
+
+/* 🎨 Fundo da pasta colorido conforme polo que representamos:
+   - reu   → rosa clarinho (lembrete visual: defesa)
+   - autor → verde clarinho (lembrete visual: pleito)
+   - sem polo definido → sem mudança (fundo padrão) */
+body.cv-polo-reu { background:#fff1f2 !important; }
+body.cv-polo-autor { background:#f0fdf4 !important; }
+body.cv-polo-reu .cv-painel { background:#fff5f6; border-color:#fecdd3; }
+body.cv-polo-autor .cv-painel { background:#f7fef8; border-color:#bbf7d0; }
+body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
+body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
 </style>
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
@@ -7649,6 +7660,10 @@ window.pedirObsRealizado = function(form) {
         classificarCards();
         envolverPainel();
         document.body.classList.add('cv-tabs-ready');
+        // 🎨 Cor de fundo conforme polo que representamos
+        var polo = <?= json_encode($case['representamos_polo'] ?? '') ?>;
+        if (polo === 'reu') document.body.classList.add('cv-polo-reu');
+        else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
         var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','ia'];
