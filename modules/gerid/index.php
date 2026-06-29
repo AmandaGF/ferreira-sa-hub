@@ -28,10 +28,14 @@ try {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
 // Self-heal 29/06/2026: printscreen do GERID/INSS que o Luiz anexa ao concluir
+// + colunas de tracking de tratamento pela Amanda (29/06 r2)
 foreach (array(
     "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_nome VARCHAR(255) NULL",
     "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_path VARCHAR(255) NULL",
     "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_mime VARCHAR(80) NULL",
+    "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_em DATETIME NULL",
+    "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_por INT UNSIGNED NULL",
+    "ALTER TABLE gerid_pesquisas ADD COLUMN task_review_id INT UNSIGNED NULL",
 ) as $_sqlAlter) { try { $pdo->exec($_sqlAlter); } catch (Exception $e) {} }
 
 // Download autenticado do printscreen
@@ -67,6 +71,36 @@ if (($_GET['ajax'] ?? '') === 'buscar_cliente') {
 
 // POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Endpoint AJAX leve: marcar/desmarcar tratado (resposta JSON, sem redirect)
+    if (($_POST['acao'] ?? '') === 'toggle_tratado') {
+        header('Content-Type: application/json; charset=utf-8');
+        if (!validate_csrf()) { echo json_encode(array('ok' => false, 'erro' => 'CSRF.')); exit; }
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { echo json_encode(array('ok' => false, 'erro' => 'id.')); exit; }
+        $st = $pdo->prepare("SELECT tratado_em, task_review_id FROM gerid_pesquisas WHERE id = ?");
+        $st->execute(array($id));
+        $row = $st->fetch();
+        if (!$row) { echo json_encode(array('ok' => false, 'erro' => 'não encontrado.')); exit; }
+        if ($row['tratado_em']) {
+            // Estava tratado → volta pra não-tratado
+            $pdo->prepare("UPDATE gerid_pesquisas SET tratado_em = NULL, tratado_por = NULL WHERE id = ?")
+                ->execute(array($id));
+            $tratado = false;
+        } else {
+            // Estava não-tratado → marca tratado
+            $pdo->prepare("UPDATE gerid_pesquisas SET tratado_em = NOW(), tratado_por = ? WHERE id = ?")
+                ->execute(array(current_user_id(), $id));
+            // Fecha a tarefa de review se existir
+            if (!empty($row['task_review_id'])) {
+                try { $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=?")->execute(array((int)$row['task_review_id'])); } catch (Exception $e) {}
+            }
+            $tratado = true;
+        }
+        audit_log('gerid_toggle_tratado', 'gerid', $id, $tratado ? 'tratado' : 'destratado');
+        echo json_encode(array('ok' => true, 'tratado' => $tratado, 'em' => $tratado ? date('d/m/Y H:i') : null));
+        exit;
+    }
+
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('gerid')); }
     $acao = $_POST['acao'] ?? '';
 
@@ -160,11 +194,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'Pesquisa GERID (' . $row['parte_nome'] . '): ' . ($tem ? 'POSSUI vínculo empregatício' : 'sem vínculo localizado') . ($res ? ' — ' . $res : '')));
                 } catch (Exception $e) {}
             }
-            // avisa quem pediu
+            // avisa quem pediu (notify + cria TAREFA na pasta pra revisar resultado)
             if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id()) {
-                notify((int)$row['created_by'], '🔎 Resultado da pesquisa GERID',
-                    $row['parte_nome'] . ': ' . ($tem ? 'POSSUI vínculo' : 'sem vínculo') . ($res ? ' — ' . $res : ''),
+                $solicitante = (int)$row['created_by'];
+                $detalheRes = ($tem ? 'POSSUI vínculo' : 'sem vínculo') . ($res ? ' — ' . $res : '');
+                notify($solicitante, '🔎 Resultado da pesquisa GERID',
+                    $row['parte_nome'] . ': ' . $detalheRes,
                     'info', url('modules/gerid/'), '🔎');
+
+                // 29/06/2026 Amanda: criar tarefa de REVIEW na pasta pra Amanda
+                // tomar providência (decidir próximo passo: pedir penhora de salário,
+                // mandar oficio ao empregador, etc.). Só cria quando há case vinculado.
+                if (!empty($row['case_id'])) {
+                    try {
+                        $tituloRev = '👀 Revisar resultado GERID — ' . $row['parte_nome']
+                                   . ($tem ? ' (POSSUI vínculo)' : ' (sem vínculo)');
+                        $descRev = 'Luiz Eduardo concluiu a pesquisa GERID de ' . $row['parte_nome']
+                                 . ($row['parte_cpf'] ? ' (CPF ' . $row['parte_cpf'] . ')' : '')
+                                 . '. Resultado: ' . $detalheRes
+                                 . '. Decidir próximo passo (ofício ao empregador, penhora salário, arquivar etc.).';
+                        $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
+                                       VALUES (?,?,?,?,?,?,?,?,?,NOW())")
+                            ->execute(array((int)$row['case_id'], $tituloRev, 'outros', $descRev,
+                                            $solicitante, date('Y-m-d', strtotime('+3 days')),
+                                            $tem ? 'alta' : 'media', 'a_fazer', 0));
+                        $taskRevId = (int)$pdo->lastInsertId();
+                        $pdo->prepare("UPDATE gerid_pesquisas SET task_review_id = ? WHERE id = ?")
+                            ->execute(array($taskRevId, $id));
+                    } catch (Exception $e) {}
+                }
             }
             audit_log('gerid_resultado', 'gerid', $id, $tem ? 'com vinculo' : 'sem vinculo');
             flash_set('success', 'Resultado registrado.');
@@ -203,6 +261,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .gd-item { border-left:4px solid #0e7490; }
 .gd-chip { display:inline-block;padding:2px 9px;border-radius:999px;font-size:.72rem;font-weight:700; }
 .gd-sim { background:#dcfce7;color:#15803d; } .gd-nao { background:#fee2e2;color:#b91c1c; }
+.gd-pend { background:#fef3c7;color:#92400e; }
 .gd-results { position:relative; } .gd-rbox { position:absolute;z-index:30;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;max-height:200px;overflow:auto;display:none;box-shadow:0 6px 14px rgba(0,0,0,.08); }
 .gd-rbox div { padding:8px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:.85rem; } .gd-rbox div:hover { background:#ecfeff; }
 .gd-empty { text-align:center;padding:30px;color:#999; }
@@ -264,10 +323,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h3 style="margin:22px 0 8px;">✅ Concluídas</h3>
 <?php if (!$concluidas): ?><div class="gd-empty">Nenhuma ainda.</div><?php else: ?>
 <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th></tr></thead>
+  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th></tr></thead>
   <tbody>
   <?php foreach ($concluidas as $g): ?>
-    <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;">
+    <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;" id="gd-row-<?= (int)$g['id'] ?>">
       <td style="padding:9px 11px;"><?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? '<br><span style="color:#999;font-size:.78rem;">' . e($g['parte_cpf']) . '</span>' : '' ?></td>
       <td style="padding:9px 11px;"><?= e($g['case_number'] ?: ($g['case_title'] ?: '—')) ?></td>
       <td style="padding:9px 11px;"><span class="gd-chip <?= $g['tem_vinculo'] ? 'gd-sim' : 'gd-nao' ?>"><?= $g['tem_vinculo'] ? 'POSSUI' : 'Sem vínculo' ?></span></td>
@@ -277,6 +336,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
       </td>
       <td style="padding:9px 11px;"><?= e($g['pesq_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['pesquisado_em'] ? date('d/m/Y', strtotime($g['pesquisado_em'])) : '' ?></span></td>
+      <td style="padding:9px 11px;">
+        <button type="button" id="gd-trat-<?= (int)$g['id'] ?>" onclick="gdToggleTratado(<?= (int)$g['id'] ?>)"
+                class="gd-chip <?= $g['tratado_em'] ? 'gd-sim' : 'gd-pend' ?>"
+                style="border:none;cursor:pointer;font-family:inherit;">
+          <?= $g['tratado_em'] ? '✓ Tratado' : '⏳ Não tratado' ?>
+        </button>
+        <?php if ($g['tratado_em']): ?>
+          <br><span style="color:#999;font-size:.7rem;"><?= date('d/m H:i', strtotime($g['tratado_em'])) ?></span>
+        <?php endif; ?>
+      </td>
     </tr>
   <?php endforeach; ?>
   </tbody>
@@ -298,5 +367,49 @@ function gdBuscarCli(q){
 }
 function gdSelCli(id,name){ document.getElementById('gdClientId').value=id; document.getElementById('gdBuscaCli').value=''; document.getElementById('gdCliBox').style.display='none'; document.getElementById('gdCliSel').innerHTML='👥 '+name+' <a href="javascript:void(0)" onclick="gdLimparCli()" style="color:#b91c1c;">×</a>'; }
 function gdLimparCli(){ document.getElementById('gdClientId').value=''; document.getElementById('gdCliSel').innerHTML=''; }
+
+var GD_CSRF = '<?= $csrf ?>';
+function gdToggleTratado(id) {
+  var btn = document.getElementById('gd-trat-' + id);
+  if (!btn) return;
+  btn.disabled = true; var textoAntigo = btn.textContent; btn.textContent = '⏳ ...';
+  var fd = new FormData();
+  fd.append('acao', 'toggle_tratado');
+  fd.append('csrf_token', GD_CSRF);
+  fd.append('id', id);
+  fetch(GD_URL, { method: 'POST', body: fd, credentials: 'same-origin' })
+    .then(function(r) {
+      if (r.status === 401) { if (window.fsaMostrarSessaoExpirada) window.fsaMostrarSessaoExpirada(); throw new Error('401'); }
+      return r.json();
+    })
+    .then(function(j) {
+      btn.disabled = false;
+      if (!j.ok) { btn.textContent = textoAntigo; alert('Erro: ' + (j.erro || '?')); return; }
+      if (j.tratado) {
+        btn.className = 'gd-chip gd-sim';
+        btn.style.border = 'none'; btn.style.cursor = 'pointer'; btn.style.fontFamily = 'inherit';
+        btn.textContent = '✓ Tratado';
+        // Mostra data abaixo
+        var par = btn.parentNode;
+        var dataLine = par.querySelector('.gd-trat-em');
+        if (!dataLine) {
+          dataLine = document.createElement('span');
+          dataLine.className = 'gd-trat-em';
+          dataLine.style.cssText = 'color:#999;font-size:.7rem;display:block;margin-top:2px;';
+          par.appendChild(dataLine);
+        }
+        dataLine.textContent = j.em;
+      } else {
+        btn.className = 'gd-chip gd-pend';
+        btn.style.border = 'none'; btn.style.cursor = 'pointer'; btn.style.fontFamily = 'inherit';
+        btn.textContent = '⏳ Não tratado';
+        var dataLine = btn.parentNode.querySelector('.gd-trat-em');
+        if (dataLine) dataLine.remove();
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = textoAntigo;
+    });
+}
 </script>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
