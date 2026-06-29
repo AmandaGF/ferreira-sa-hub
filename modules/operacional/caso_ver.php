@@ -1624,6 +1624,7 @@ body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
     <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
+    <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
   </div>
@@ -7457,8 +7458,10 @@ window.pedirObsRealizado = function(form) {
         { rx: /pr[oó]ximos compromissos/i,         aba: 'compromissos' },
         { rx: /tarefas operacionais|^tarefas/i,    aba: 'compromissos' },
         { rx: /checklist.*documento|documentos.*solic/i, aba: 'prazos' },
-        { rx: /processos incidentais/i,            aba: 'partes' },
-        { rx: /recursos vinculados|^recursos/i,    aba: 'partes' },
+        // Incidentais + Recursos aparecem em DUAS abas (Visão geral + Incidentais).
+        // data-aba aceita lista separada por espaço — JS de troca verifica .indexOf.
+        { rx: /processos incidentais/i,            aba: 'visao incidentais' },
+        { rx: /recursos vinculados|^recursos/i,    aba: 'visao incidentais' },
         { rx: /partes do processo/i,               aba: 'partes' },
         { rx: /documentos pendentes/i,             aba: 'documentos' },
         { rx: /ged|documentos para o cliente/i,    aba: 'documentos' },
@@ -7502,8 +7505,10 @@ window.pedirObsRealizado = function(form) {
         document.querySelectorAll('.cv-tab').forEach(function(t) {
             t.classList.toggle('ativa', t.dataset.aba === nome);
         });
+        // data-aba pode ter mais de uma aba separadas por espaço (ex: "visao incidentais")
         document.querySelectorAll('.cv-secao[data-aba]').forEach(function(s) {
-            s.classList.toggle('cv-aba-mostrar', s.dataset.aba === nome);
+            var abas = (s.dataset.aba || '').split(/\s+/);
+            s.classList.toggle('cv-aba-mostrar', abas.indexOf(nome) >= 0);
         });
         if (location.hash !== '#' + nome) {
             history.replaceState(null, '', location.pathname + location.search + '#' + nome);
@@ -7538,7 +7543,7 @@ window.pedirObsRealizado = function(form) {
         document.body.classList.add('cv-tabs-ready');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {
