@@ -1285,7 +1285,9 @@ $tipoCompLabels = array(
 );
 
 if (!empty($compromissosCaso)): ?>
-<div style="margin-bottom:1rem;">
+<div class="card mb-2 cv-secao" data-aba="compromissos" id="cv-proximos-compromissos">
+  <div class="card-header"><h3>📅 Próximos compromissos (<?= count($compromissosCaso) ?>)</h3></div>
+  <div class="card-body" style="padding:.6rem 1rem 1rem;">
     <?php foreach ($compromissosCaso as $comp):
         $corComp = isset($tipoCompCores[$comp['tipo']]) ? $tipoCompCores[$comp['tipo']] : '#052228';
         $labelComp = isset($tipoCompLabels[$comp['tipo']]) ? $tipoCompLabels[$comp['tipo']] : ucfirst($comp['tipo']);
@@ -1531,11 +1533,13 @@ if (!empty($compromissosCaso)): ?>
         </div>
     </div>
     <?php endforeach; ?>
+  </div>
 </div>
 <?php endif; ?>
 
 <?php if (!empty($compromissosRealizados)): ?>
-<div style="margin-bottom:1rem;">
+<div class="card mb-2 cv-secao" data-aba="compromissos" id="cv-compromissos-realizados">
+  <div class="card-body" style="padding:.6rem 1rem;">
     <button type="button" onclick="var el=document.getElementById('compRealizados');el.style.display=el.style.display==='none'?'block':'none';this.querySelector('.chv').textContent=el.style.display==='none'?'▸':'▾';" style="background:none;border:none;font-size:.75rem;color:#059669;cursor:pointer;font-family:inherit;font-weight:600;display:flex;align-items:center;gap:.3rem;">
         <span class="chv">▸</span> Compromissos realizados (<?= count($compromissosRealizados) ?>)
     </button>
@@ -1563,6 +1567,7 @@ if (!empty($compromissosCaso)): ?>
         </div>
         <?php endforeach; ?>
     </div>
+  </div>
 </div>
 <?php endif; ?>
 
