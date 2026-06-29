@@ -7468,7 +7468,10 @@ window.pedirObsRealizado = function(form) {
 
     function classificarCards() {
         document.querySelectorAll('.card.mb-2').forEach(function(card) {
-            if (card.dataset.aba) return; // já classificado (data-aba inline no PHP)
+            if (card.dataset.aba) {
+                card.classList.add('cv-secao'); // já tem data-aba inline (cv-citacao etc.) — só garante a classe
+                return;
+            }
             card.classList.add('cv-secao');
             // 1) por id
             if (card.id && MAPA_ID[card.id]) { card.dataset.aba = MAPA_ID[card.id]; return; }
@@ -7483,10 +7486,10 @@ window.pedirObsRealizado = function(form) {
                     }
                 }
             }
-            // 3) fallback: sem aba (fica visível em todas)
+            // 3) fallback: sem data-aba — fica visível em todas (CSS exige [data-aba] pra esconder)
         });
-        // Cards já com data-aba inline também precisam da classe
-        document.querySelectorAll('[data-aba]').forEach(function(el){ el.classList.add('cv-secao'); });
+        // NÃO usar querySelectorAll('[data-aba]') aqui — pega as próprias .cv-tab
+        // e o filtro acaba escondendo as outras abas. .card.mb-2 já cobre tudo.
     }
 
     window.cvAba = function(nome) {
