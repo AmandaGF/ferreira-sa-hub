@@ -2402,18 +2402,20 @@ function confirmarMarcarIncidental() {
 </script>
 <?php endif; ?>
 
-<!-- Processos Incidentais -->
-<?php if (!empty($incidentais) || !$case['is_incidental']): ?>
+<!-- Incidentais / Recursos (card unificado — Amanda 29/06: fluxo idêntico) -->
+<?php if (!empty($incidentais) || !empty($recursos) || !$case['is_incidental']):
+    $_totalIncRec = count($incidentais) + count($recursos);
+?>
 <div class="card mb-2">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <h3>📎 Processos Incidentais (<?= count($incidentais) ?>)</h3>
+        <h3>📎 Incidentais / Recursos (<?= $_totalIncRec ?>)</h3>
         <?php if (has_min_role('gestao')): ?>
-        <button onclick="document.getElementById('modalIncidental').style.display='flex'" class="btn btn-primary btn-sm" style="font-size:.72rem;">+ Vincular processo incidental</button>
+        <button onclick="document.getElementById('modalVincular').style.display='flex'" class="btn btn-primary btn-sm" style="font-size:.72rem;">+ Vincular processo</button>
         <?php endif; ?>
     </div>
     <div class="card-body">
-        <?php if (empty($incidentais)): ?>
-            <p class="text-muted text-sm">Nenhum processo incidental vinculado.</p>
+        <?php if ($_totalIncRec === 0): ?>
+            <p class="text-muted text-sm">Nenhum processo vinculado.</p>
         <?php else: ?>
             <?php foreach ($incidentais as $inc):
                 $incStatusLabel = isset($statusLabels[$inc['status']]) ? $statusLabels[$inc['status']] : ucfirst($inc['status']);
@@ -2423,6 +2425,7 @@ function confirmarMarcarIncidental() {
                 <span style="font-size:1rem;">⚖️</span>
                 <div style="flex:1;">
                     <div style="font-weight:700;font-size:.88rem;color:var(--petrol-900);">
+                        <span style="background:#dbeafe;color:#1e40af;padding:1px 7px;border-radius:5px;font-size:.66rem;font-weight:800;margin-right:6px;">📎 INCIDENTAL</span>
                         <?= e($inc['tipo_relacao'] ?: $inc['case_type'] ?: 'Processo Incidental') ?>
                     </div>
                     <div style="font-size:.75rem;color:var(--text-muted);">
@@ -2431,14 +2434,45 @@ function confirmarMarcarIncidental() {
                     </div>
                 </div>
                 <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0;">
-                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $inc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir processo</a>
+                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $inc['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir</a>
                     <?php if (has_min_role('gestao')): ?>
-                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular <?= e($inc['tipo_relacao'] ?: 'este processo incidental') ?> deste processo?\n\nA pasta do incidental continua existindo, só perde o vinculo com este processo principal.');" style="margin:0;">
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular este incidental do processo principal?');" style="margin:0;">
                         <?= csrf_input() ?>
                         <input type="hidden" name="action" value="desvincular_incidental">
                         <input type="hidden" name="case_id" value="<?= (int)$inc['id'] ?>">
                         <input type="hidden" name="voltar_para" value="<?= (int)$caseId ?>">
-                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;" title="Remover vínculo deste incidental com o processo principal">🔗 Desvincular</button>
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;">🔗 Desvincular</button>
+                    </form>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
+            <?php foreach ($recursos as $rec):
+                $recStatusLabel = isset($statusLabels[$rec['status']]) ? $statusLabels[$rec['status']] : ucfirst($rec['status']);
+                $recStatusCor = isset($statusCores[$rec['status']]) ? $statusCores[$rec['status']] : '#6b7280';
+            ?>
+            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border);">
+                <span style="font-size:1rem;">📜</span>
+                <div style="flex:1;">
+                    <div style="font-weight:700;font-size:.88rem;color:var(--petrol-900);">
+                        <span style="background:#fef3c7;color:#92400e;padding:1px 7px;border-radius:5px;font-size:.66rem;font-weight:800;margin-right:6px;">📜 RECURSO</span>
+                        <?= e($rec['tipo_relacao'] ?: 'Recurso') ?>
+                    </div>
+                    <div style="font-size:.75rem;color:var(--text-muted);">
+                        <?= e($rec['title']) ?>
+                        · <?= $rec['case_number'] ? 'Nº ' . e($rec['case_number']) : 'Sem número' ?>
+                        · <span style="color:<?= $recStatusCor ?>;font-weight:600;"><?= e($recStatusLabel) ?></span>
+                    </div>
+                </div>
+                <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0;">
+                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $rec['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir</a>
+                    <?php if (has_min_role('gestao')): ?>
+                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular este recurso do processo principal?');" style="margin:0;">
+                        <?= csrf_input() ?>
+                        <input type="hidden" name="action" value="desvincular_incidental">
+                        <input type="hidden" name="case_id" value="<?= (int)$rec['id'] ?>">
+                        <input type="hidden" name="voltar_para" value="<?= (int)$caseId ?>">
+                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;">🔗 Desvincular</button>
                     </form>
                     <?php endif; ?>
                 </div>
@@ -2449,16 +2483,35 @@ function confirmarMarcarIncidental() {
 </div>
 <?php endif; ?>
 
-<!-- Modal: Vincular Processo Incidental -->
-<div id="modalIncidental" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
+<!-- Modal: Vincular processo vinculado (Incidental OU Recurso — Amanda 29/06) -->
+<div id="modalVincular" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
-        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:1rem;">📎 Vincular Processo Incidental</h3>
+        <h3 style="font-size:1rem;font-weight:700;color:#052228;margin-bottom:1rem;">📎 Vincular processo</h3>
+
+        <!-- Vínculo: Incidental ou Recurso -->
+        <div style="margin-bottom:1rem;">
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Tipo de vínculo *</label>
+            <div style="display:flex;gap:8px;">
+                <label style="flex:1;border:2px solid #1e40af;border-radius:10px;padding:9px 12px;cursor:pointer;background:rgba(30,64,175,.08);font-weight:700;color:#1e40af;font-size:.85rem;text-align:center;" id="vincLblInc">
+                    <input type="radio" name="tipoVinculo" value="incidental" checked onchange="vincularMudarTipo(this.value)" style="margin-right:5px;">📎 Incidental
+                </label>
+                <label style="flex:1;border:2px solid #e5e7eb;border-radius:10px;padding:9px 12px;cursor:pointer;background:#fff;font-weight:700;color:#6b7280;font-size:.85rem;text-align:center;" id="vincLblRec">
+                    <input type="radio" name="tipoVinculo" value="recurso" onchange="vincularMudarTipo(this.value)" style="margin-right:5px;">📜 Recurso
+                </label>
+            </div>
+        </div>
 
         <div style="margin-bottom:1rem;">
-            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;">Tipo de relação *</label>
+            <label style="font-size:.75rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.3rem;" id="vincLblTipo">Tipo de relação *</label>
             <select id="incTipoRelacao" style="width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
                 <option value="">Selecione...</option>
                 <?php foreach ($tiposRelacao as $tr): ?>
+                <option value="<?= e($tr) ?>"><?= e($tr) ?></option>
+                <?php endforeach; ?>
+            </select>
+            <select id="recTipoRelacaoSelect" style="display:none;width:100%;padding:.5rem .75rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">
+                <option value="">Selecione...</option>
+                <?php foreach ($tiposRecurso as $tr): ?>
                 <option value="<?= e($tr) ?>"><?= e($tr) ?></option>
                 <?php endforeach; ?>
             </select>
@@ -2480,65 +2533,20 @@ function confirmarMarcarIncidental() {
 
         <!-- Criar novo -->
         <div id="incTabNovo" style="display:none;">
-            <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem;">Será criado um novo processo vinculado a este como incidental.</p>
+            <p style="font-size:.78rem;color:#6b7280;margin-bottom:.5rem;" id="vincTxtNovo">Será criado um novo processo vinculado a este como incidental.</p>
         </div>
 
         <div style="display:flex;gap:.5rem;margin-top:1.25rem;justify-content:flex-end;">
-            <button onclick="document.getElementById('modalIncidental').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
-            <button id="btnIncConfirmar" onclick="confirmarIncidental()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
+            <button onclick="document.getElementById('modalVincular').style.display='none'" style="padding:.5rem 1rem;border:1.5px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer;font-size:.82rem;">Cancelar</button>
+            <button id="btnIncConfirmar" onclick="vincularConfirmar()" style="padding:.5rem 1.25rem;border:none;border-radius:8px;background:#052228;color:#fff;cursor:pointer;font-size:.82rem;font-weight:700;">Vincular →</button>
         </div>
     </div>
 </div>
 
-<!-- Recursos Vinculados -->
-<?php if (!empty($recursos) || !$case['is_incidental']): ?>
-<div class="card mb-2">
-    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
-        <h3>📜 Recursos (<?= count($recursos) ?>)</h3>
-        <?php if (has_min_role('gestao')): ?>
-        <button onclick="document.getElementById('modalRecurso').style.display='flex'" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#b45309;">+ Vincular recurso</button>
-        <?php endif; ?>
-    </div>
-    <div class="card-body">
-        <?php if (empty($recursos)): ?>
-            <p class="text-muted text-sm">Nenhum recurso vinculado.</p>
-        <?php else: ?>
-            <?php foreach ($recursos as $rec):
-                $recStatusLabel = isset($statusLabels[$rec['status']]) ? $statusLabels[$rec['status']] : ucfirst($rec['status']);
-                $recStatusCor = isset($statusCores[$rec['status']]) ? $statusCores[$rec['status']] : '#6b7280';
-            ?>
-            <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem 0;border-bottom:1px solid var(--border);">
-                <span style="font-size:1rem;">📜</span>
-                <div style="flex:1;">
-                    <div style="font-weight:700;font-size:.88rem;color:var(--petrol-900);">
-                        <?= e($rec['tipo_relacao'] ?: 'Recurso') ?>
-                    </div>
-                    <div style="font-size:.75rem;color:var(--text-muted);">
-                        <?= e($rec['title']) ?>
-                        · <?= $rec['case_number'] ? 'Nº ' . e($rec['case_number']) : 'Sem número' ?>
-                        · <span style="color:<?= $recStatusCor ?>;font-weight:600;"><?= e($recStatusLabel) ?></span>
-                    </div>
-                </div>
-                <div style="display:flex;gap:.4rem;align-items:center;flex-shrink:0;">
-                    <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $rec['id']) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">Abrir recurso</a>
-                    <?php if (has_min_role('gestao')): ?>
-                    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" onsubmit="return confirm('Desvincular <?= e($rec['tipo_relacao'] ?: 'este recurso') ?> deste processo?\n\nA pasta do recurso continua existindo, só perde o vinculo com este processo principal.');" style="margin:0;">
-                        <?= csrf_input() ?>
-                        <input type="hidden" name="action" value="desvincular_incidental">
-                        <input type="hidden" name="case_id" value="<?= (int)$rec['id'] ?>">
-                        <input type="hidden" name="voltar_para" value="<?= (int)$caseId ?>">
-                        <button type="submit" class="btn btn-outline btn-sm" style="font-size:.72rem;color:#b91c1c;border-color:#fca5a5;" title="Remover vínculo deste recurso com o processo principal">🔗 Desvincular</button>
-                    </form>
-                    <?php endif; ?>
-                </div>
-            </div>
-            <?php endforeach; ?>
-        <?php endif; ?>
-    </div>
-</div>
-<?php endif; ?>
+<?php // Card 'Recursos Vinculados' antigo removido — agora ficam no card unificado 'Incidentais / Recursos' acima ?>
 
-<!-- Modal: Vincular Recurso -->
+<!-- Modal: Vincular Recurso — DESATIVADO. Agora usa #modalVincular único acima -->
+<?php if (false): ?>
 <div id="modalRecurso" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:16px;padding:1.75rem;max-width:520px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3);">
         <h3 style="font-size:1rem;font-weight:700;color:#b45309;margin-bottom:1rem;">📜 Vincular Recurso</h3>
@@ -2578,6 +2586,7 @@ function confirmarMarcarIncidental() {
         </div>
     </div>
 </div>
+<?php endif; // fim do bloco desativado do modalRecurso ?>
 
 <!-- Partes do Processo -->
 <div class="card mb-2">
@@ -6804,22 +6813,44 @@ function toggleIncTab(tab) {
     xhr.send();
 })();
 
-function confirmarIncidental() {
-    var tipo = document.getElementById('incTipoRelacao').value;
-    if (!tipo) { document.getElementById('incTipoRelacao').style.borderColor = '#ef4444'; return; }
+function confirmarIncidental() { vincularConfirmar(); /* compat: legado */ }
+
+// Modal unificado Incidental/Recurso (Amanda 29/06)
+var _vincTipo = 'incidental';
+window.vincularMudarTipo = function(t) {
+    _vincTipo = t;
+    var ehInc = t === 'incidental';
+    document.getElementById('incTipoRelacao').style.display = ehInc ? '' : 'none';
+    document.getElementById('recTipoRelacaoSelect').style.display = ehInc ? 'none' : '';
+    // Estilo dos botões radio
+    var lblInc = document.getElementById('vincLblInc');
+    var lblRec = document.getElementById('vincLblRec');
+    if (lblInc) { lblInc.style.borderColor = ehInc ? '#1e40af' : '#e5e7eb'; lblInc.style.background = ehInc ? 'rgba(30,64,175,.08)' : '#fff'; lblInc.style.color = ehInc ? '#1e40af' : '#6b7280'; }
+    if (lblRec) { lblRec.style.borderColor = !ehInc ? '#b45309' : '#e5e7eb'; lblRec.style.background = !ehInc ? 'rgba(180,83,9,.08)' : '#fff'; lblRec.style.color = !ehInc ? '#b45309' : '#6b7280'; }
+    // Texto do "criar novo"
+    var txtNovo = document.getElementById('vincTxtNovo');
+    if (txtNovo) txtNovo.textContent = ehInc ? 'Será criado um novo processo vinculado a este como incidental.' : 'Será criado um novo processo vinculado a este como recurso.';
+    // Cor do botão Confirmar
+    var btn = document.getElementById('btnIncConfirmar');
+    if (btn) btn.style.background = ehInc ? '#052228' : '#b45309';
+};
+
+window.vincularConfirmar = function() {
+    var selTipo = _vincTipo === 'incidental'
+        ? document.getElementById('incTipoRelacao')
+        : document.getElementById('recTipoRelacaoSelect');
+    var tipo = selTipo.value;
+    if (!tipo) { selTipo.style.borderColor = '#ef4444'; return; }
 
     if (_incTab === 'existente') {
         var casoId = document.getElementById('incCasoSelect').value;
         if (!casoId) { document.getElementById('incCasoSelect').style.borderColor = '#ef4444'; return; }
-
-        // Vincular existente via AJAX
         var fd = new FormData();
-        fd.append('action', 'vincular_incidental');
+        fd.append('action', _vincTipo === 'incidental' ? 'vincular_incidental' : 'vincular_recurso');
         fd.append('principal_id', '<?= $caseId ?>');
-        fd.append('incidental_id', casoId);
+        fd.append(_vincTipo === 'incidental' ? 'incidental_id' : 'recurso_id', casoId);
         fd.append('tipo_relacao', tipo);
         fd.append('<?= CSRF_TOKEN_NAME ?>', andCsrf);
-
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '<?= module_url("operacional", "api.php") ?>');
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
@@ -6829,11 +6860,12 @@ function confirmarIncidental() {
         };
         xhr.send(fd);
     } else {
-        // Criar novo → redirecionar para caso_novo com pré-vínculo
-        var url = '<?= module_url("operacional", "caso_novo.php") ?>?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo);
-        window.location.href = url;
+        // Criar novo → caso_novo.php com tipo_vinculo correto
+        var qs = '?client_id=<?= (int)$case['client_id'] ?>&principal_id=<?= $caseId ?>&tipo_relacao=' + encodeURIComponent(tipo);
+        if (_vincTipo === 'recurso') qs += '&tipo_vinculo=recurso';
+        window.location.href = '<?= module_url("operacional", "caso_novo.php") ?>' + qs;
     }
-}
+};
 
 // ── Recursos ──
 var _recTab = 'existente';
