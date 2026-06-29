@@ -1662,7 +1662,7 @@ try {
     $_prazosTotalAtivos = (int)$stPC->fetchColumn();
 } catch (Exception $e) {}
 ?>
-<div class="card mb-2 cv-secao" data-aba="visao" id="cv-citacao" style="border-left:4px solid <?= $_ehAlimentos ? '#dc2626' : '#0f3d3e' ?>;">
+<div class="card mb-2 cv-secao" data-aba="prazos" id="cv-citacao" style="border-left:4px solid <?= $_ehAlimentos ? '#dc2626' : '#0f3d3e' ?>;">
   <div class="card-body" style="padding:.85rem 1rem;">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.7rem;">
       <h3 style="margin:0;font-size:.95rem;color:#0f3d3e;">📜 Citação <?php if ($_ehAlimentos): ?><span style="background:#dc2626;color:#fff;padding:1px 8px;border-radius:6px;font-size:.7rem;font-weight:700;margin-left:6px;">⚠ ALIMENTOS — pensão devida da citação</span><?php endif; ?></h3>
@@ -3379,6 +3379,17 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
         <h3>Dados do Processo</h3>
         <span style="font-size:.68rem;color:var(--text-muted);">Clique em qualquer campo para editar</span>
     </div>
+    <?php
+    // Banner compacto da citação — só quando já citado. Resto do fluxo
+    // (status pré-citação, formulário completo) fica na aba Prazos.
+    if (($case['citacao_status'] ?? '') === 'citado' && !empty($case['citacao_data'])):
+    ?>
+    <div style="background:#dcfce7;border-bottom:1px solid #86efac;padding:8px 16px;font-size:.86rem;color:#15803d;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
+        <span style="font-weight:700;">✅ Citado em <?= date('d/m/Y', strtotime($case['citacao_data'])) ?></span>
+        <?php if (!empty($case['citacao_obs'])): ?><span style="color:#166534;font-size:.78rem;">— <?= e($case['citacao_obs']) ?></span><?php endif; ?>
+        <a href="#prazos" onclick="cvAba('prazos');return false;" style="margin-left:auto;font-size:.72rem;color:#15803d;text-decoration:none;font-weight:600;">editar →</a>
+    </div>
+    <?php endif; ?>
     <div class="card-body" style="padding:.75rem 1rem;">
         <?php
             // Listas controladas (pra padronizar e viabilizar estatísticas).
