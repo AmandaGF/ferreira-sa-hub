@@ -644,6 +644,63 @@ try { $_geridTotal = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHER
 </div>
 <?php endif; ?>
 
+<?php
+// ════════════════════════════════════════════════════════════════════════
+// 🌡️ Meus clientes em risco (29/06/2026 Amanda): banner curto pra TODOS,
+// mostra clientes esfriando dos cases sob responsabilidade do usuario atual.
+// Admin/gestao ja tem o Painel de Temperatura completo lá embaixo — esse
+// banner serve pra equipe ver o que esta sob a propria responsabilidade.
+// Snooze ativo é respeitado (mesmo critério do painel grande).
+// ════════════════════════════════════════════════════════════════════════
+$_meusEsfri = array();
+$_meuUserId = (int)current_user_id();
+if ($_meuUserId > 0) {
+    try {
+        $stMe = $pdo->prepare(
+            "SELECT c.id, c.name, c.esfriando_score, c.esfriando_motivos,
+                    cs.id AS case_id, cs.title AS case_title, cs.case_type
+             FROM clients c
+             JOIN cases cs ON cs.client_id = c.id
+             WHERE cs.responsible_user_id = ?
+               AND cs.status NOT IN ('arquivado','renunciamos','finalizado','concluido','cancelado')
+               AND COALESCE(cs.kanban_oculto, 0) = 0
+               AND COALESCE(cs.acompanhamento_externo, 0) = 0
+               AND COALESCE(c.esfriando_score, 0) >= 60
+               AND (c.esfriando_snooze_ate IS NULL OR c.esfriando_snooze_ate < CURDATE())
+             GROUP BY c.id
+             ORDER BY c.esfriando_score DESC
+             LIMIT 5"
+        );
+        $stMe->execute(array($_meuUserId));
+        $_meusEsfri = $stMe->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $_e) {}
+}
+?>
+<?php if (!empty($_meusEsfri)): ?>
+<div style="background:linear-gradient(135deg,#fef3c7,#fff);border-left:4px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(245,158,11,.1);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="font-weight:800;color:#92400e;font-size:.95rem;">🌡️ Seus clientes sumidos — <?= count($_meusEsfri) ?> precisam de atenção</div>
+        <a href="<?= url('modules/clientes/em_risco.php') ?>" style="font-size:.74rem;font-weight:700;color:#92400e;text-decoration:none;background:#fff;padding:4px 10px;border-radius:6px;border:1px solid #fcd34d;">Ver todos →</a>
+    </div>
+    <?php foreach ($_meusEsfri as $_me):
+        $_meScore = (int)$_me['esfriando_score'];
+        $_meCrit  = $_meScore >= 80;
+        $_meBg    = $_meCrit ? '#fef2f2' : '#fff';
+        $_meCor   = $_meCrit ? '#b91c1c' : '#92400e';
+        $_meEmoji = $_meCrit ? '🔴' : '🟡';
+        $_meMot   = mb_substr((string)($_me['esfriando_motivos'] ?? ''), 0, 80);
+    ?>
+    <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$_me['case_id']) ?>" style="text-decoration:none;color:inherit;display:flex;align-items:center;gap:8px;padding:6px 8px;background:<?= $_meBg ?>;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;">
+        <span style="background:<?= $_meCor ?>;color:#fff;border-radius:5px;padding:1px 7px;font-weight:800;font-size:.7rem;"><?= $_meEmoji ?> <?= $_meScore ?></span>
+        <span style="font-weight:700;color:#052228;"><?= e($_me['name']) ?></span>
+        <?php if ($_me['case_title']): ?><span style="color:#666;font-size:.74rem;">📂 <?= e(mb_substr($_me['case_title'], 0, 50)) ?></span><?php endif; ?>
+        <?php if ($_meMot): ?><span style="color:#6b7280;font-size:.72rem;margin-left:auto;"><?= e($_meMot) ?></span><?php endif; ?>
+    </a>
+    <?php endforeach; ?>
+    <div style="margin-top:6px;font-size:.7rem;color:#6b7280;">Sumido = 45+ dias sem msg WhatsApp ou sem andamento. Clique pra abrir o caso.</div>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($_audUrgentes)): ?>
 <div style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
