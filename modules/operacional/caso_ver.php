@@ -1816,8 +1816,25 @@ if (isset($_caseTypeLabel[$_tipoProcessoSugerido])) $_tipoProcessoSugerido = $_c
 
       <input type="hidden" id="audSolComarca" name="comarca" value="<?= e($case['comarca'] ?? '') ?>">
 
-      <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">Orientações pra audiencista</label>
-      <textarea id="audSolOrient" name="orientacoes" class="form-input" style="width:100%;min-height:60px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
+      <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">Orientações pra audiencista <span style="color:#9ca3af;font-weight:400;font-size:.7rem;">(quando contratar)</span></label>
+      <textarea id="audSolOrient" name="orientacoes" class="form-input" style="width:100%;min-height:50px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
+
+      <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">📝 Observação interna <span style="color:#9ca3af;font-weight:400;font-size:.7rem;">(equipe — antes de contratar)</span></label>
+      <textarea id="audSolObsPre" name="obs_pre_contrato" class="form-input" style="width:100%;min-height:46px;background:#fffbeb;border-color:#fcd34d;" placeholder="Ex: pedimos audiência remota, ainda sem retorno — confirmar antes de contratar."></textarea>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px;">
+        <div>
+          <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;">⏰ Contratar até</label>
+          <input id="audSolContratarAte" type="date" name="contratar_ate" class="form-input" style="width:100%;">
+          <small style="font-size:.7rem;color:#6b7280;">5 dias úteis antes da audiência (editável)</small>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:flex-end;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;background:#fee2e2;border:1.5px solid #fca5a5;border-radius:8px;padding:8px 12px;font-weight:600;color:#b91c1c;font-size:.85rem;">
+            <input type="checkbox" id="audSolUrgente" name="urgente" value="1" style="width:18px;height:18px;cursor:pointer;">
+            🚨 URGENTE
+          </label>
+        </div>
+      </div>
 
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">
         <button type="button" onclick="audSolClose()" class="btn btn-outline btn-sm">Cancelar</button>
@@ -1829,6 +1846,30 @@ if (isset($_caseTypeLabel[$_tipoProcessoSugerido])) $_tipoProcessoSugerido = $_c
 <script>
 // Endpoint AJAX que devolve próxima audiência agendada do case (em agenda_eventos)
 var AUD_SOL_AJAX = '<?= module_url('audiencistas') ?>?ajax=proxima_audiencia&case_id=<?= $caseId ?>';
+
+/** Calcula 5 dias úteis ANTES de uma data ISO (YYYY-MM-DD). Pula sáb/dom. */
+function audSol5DiasUteisAntes(dataIso) {
+  if (!dataIso) return '';
+  var d = new Date(dataIso + 'T12:00:00'); // meio-dia evita timezone funkiness
+  if (isNaN(d.getTime())) return '';
+  var falta = 5;
+  while (falta > 0) {
+    d.setDate(d.getDate() - 1);
+    var dia = d.getDay();
+    if (dia !== 0 && dia !== 6) falta--;
+  }
+  var m = (d.getMonth() + 1).toString().padStart(2, '0');
+  var dd = d.getDate().toString().padStart(2, '0');
+  return d.getFullYear() + '-' + m + '-' + dd;
+}
+
+function audSolRecalcularContratarAte() {
+  var dt = document.getElementById('audSolData').value;
+  if (!dt) return;
+  var iso = dt.substring(0, 10);
+  document.getElementById('audSolContratarAte').value = audSol5DiasUteisAntes(iso);
+}
+
 function audSolOpen(){
   var m=document.getElementById('audSolModal'); m.style.display='flex';
   // Busca próxima audiência da agenda e pré-preenche o que estiver vazio
@@ -1871,7 +1912,16 @@ function audSolOpen(){
       aviso.style.display = 'block';
       aviso.innerHTML = '✨ Pré-preenchido pela agenda: ' + msgs.join(', ') + (d.titulo ? ' — <i>' + d.titulo + '</i>' : '');
     }
+    // Calcula automaticamente "contratar até" = data audiência - 5 dias úteis
+    audSolRecalcularContratarAte();
   }).catch(function(){});
+
+  // Listener: se a Amanda mudar a data manualmente, recalcula o prazo
+  var dataInput = document.getElementById('audSolData');
+  if (dataInput && !dataInput.__audSolBound) {
+    dataInput.addEventListener('change', audSolRecalcularContratarAte);
+    dataInput.__audSolBound = true;
+  }
 }
 function audSolClose(){ document.getElementById('audSolModal').style.display='none'; }
 </script>

@@ -60,6 +60,13 @@ $_audAlters = array(
     "ALTER TABLE audiencias ADD COLUMN modalidade VARCHAR(20) NULL",
     "ALTER TABLE audiencias ADD COLUMN local VARCHAR(250) NULL",
     "ALTER TABLE audiencias ADD COLUMN tipo_processo VARCHAR(80) NULL",
+    // 29/06/2026 Amanda: urgencia + prazo pra contratar + observacao interna
+    // (diferente de orientacoes, que vai pra audiencista; isso fica pra equipe ver)
+    "ALTER TABLE audiencias ADD COLUMN urgente TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE audiencias ADD COLUMN contratar_ate DATE NULL",
+    "ALTER TABLE audiencias ADD COLUMN obs_pre_contrato TEXT NULL",
+    "ALTER TABLE audiencias ADD INDEX idx_urgente (urgente)",
+    "ALTER TABLE audiencias ADD INDEX idx_contratar_ate (contratar_ate)",
 );
 foreach ($_audAlters as $_sql) { try { $pdo->exec($_sql); } catch (Exception $e) {} }
 
@@ -134,25 +141,28 @@ function aud_notificar_luiz($pdo, $audId)
     $a = $st->fetch();
     if (!$a) return;
 
-    $titulo = '👩‍⚖️ Nova solicitação de audiencista';
+    $isUrg = !empty($a['urgente']);
+    $titulo = $isUrg ? '🚨 URGENTE: solicitação de audiencista' : '👩‍⚖️ Nova solicitação de audiencista';
     $resumo = $a['tipo']
             . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
             . ($a['comarca'] ? ' — ' . $a['comarca'] : '')
             . ($a['client_name'] ? ' (cliente: ' . $a['client_name'] . ')' : '')
-            . ($a['modalidade'] ? ' [' . $a['modalidade'] . ']' : '');
+            . ($a['modalidade'] ? ' [' . $a['modalidade'] . ']' : '')
+            . (!empty($a['contratar_ate']) ? ' · ⏰ contratar até ' . date('d/m', strtotime($a['contratar_ate'])) : '');
     $link = url('modules/audiencistas/');
 
-    // 1) Notificação in-Hub
+    // 1) Notificação in-Hub — urgência se for urgente
     if (function_exists('notify')) {
-        try { notify($LUIZ_ID, $titulo, $resumo, 'info', $link, '👩‍⚖️'); } catch (Exception $e) {}
+        try { notify($LUIZ_ID, $titulo, $resumo, ($isUrg ? 'urgencia' : 'info'), $link, ($isUrg ? '🚨' : '👩‍⚖️')); } catch (Exception $e) {}
     }
 
     // 2) Tarefa em case_tasks vinculada ao caso (se houver case_id)
     if (!empty($a['case_id'])) {
         try {
+            $titTarefa = ($isUrg ? '🚨 URGENTE — ' : '👩‍⚖️ ') . 'Acompanhar solicitação de audiencista: ' . $resumo;
             $pdo->prepare("INSERT INTO case_tasks (case_id, title, status, assigned_to, sort_order, created_at)
                            VALUES (?, ?, 'pendente', ?, 0, NOW())")
-                ->execute(array((int)$a['case_id'], '👩‍⚖️ Acompanhar solicitação de audiencista: ' . $resumo, $LUIZ_ID));
+                ->execute(array((int)$a['case_id'], $titTarefa, $LUIZ_ID));
         } catch (Exception $e) {}
     }
 
@@ -166,25 +176,35 @@ function aud_notificar_luiz($pdo, $audId)
         }
         if (!$cfg['key']) return;
         $esc = function ($s) { return htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8'); };
+        $isUrgente = !empty($a['urgente']);
         $linhas = '<tr><td><b>Tipo:</b></td><td>' . $esc($a['tipo']) . '</td></tr>'
                 . ($a['data_hora'] ? '<tr><td><b>Data/Hora:</b></td><td>' . $esc(date('d/m/Y H:i', strtotime($a['data_hora']))) . '</td></tr>' : '')
                 . ($a['modalidade'] ? '<tr><td><b>Modalidade:</b></td><td>' . $esc(ucfirst($a['modalidade'])) . '</td></tr>' : '')
                 . ($a['comarca']    ? '<tr><td><b>Comarca:</b></td><td>'    . $esc($a['comarca']) . '</td></tr>' : '')
                 . ($a['local']      ? '<tr><td><b>Local:</b></td><td>'      . $esc($a['local'])   . '</td></tr>' : '')
                 . ($a['tipo_processo']  ? '<tr><td><b>Tipo de processo:</b></td><td>' . $esc($a['tipo_processo']) . '</td></tr>' : '')
+                . (!empty($a['contratar_ate']) ? '<tr><td><b>⏰ Contratar até:</b></td><td><b>' . $esc(date('d/m/Y', strtotime($a['contratar_ate']))) . '</b></td></tr>' : '')
                 . ($a['client_name'] ? '<tr><td><b>Cliente:</b></td><td>'   . $esc($a['client_name']) . '</td></tr>' : '')
                 . ($a['case_title']  ? '<tr><td><b>Caso:</b></td><td>'      . $esc($a['case_title']) . ($a['case_number'] ? ' (' . $esc($a['case_number']) . ')' : '') . '</td></tr>' : '')
+                . (!empty($a['obs_pre_contrato']) ? '<tr><td valign="top"><b>📝 Observação interna:</b></td><td style="background:#fffbeb;padding:6px;border-radius:4px;">' . nl2br($esc($a['obs_pre_contrato'])) . '</td></tr>' : '')
                 . ($a['orientacoes'] ? '<tr><td valign="top"><b>Orientações:</b></td><td>' . nl2br($esc($a['orientacoes'])) . '</td></tr>' : '');
-        $html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;background:#fff;border-radius:10px;padding:24px;border:1px solid #e5e7eb;">'
+        $urgBanner = $isUrgente
+            ? '<div style="background:#dc2626;color:#fff;padding:12px 16px;border-radius:8px;margin-bottom:14px;font-weight:700;font-size:15px;">🚨 SOLICITAÇÃO URGENTE — contratar audiencista o quanto antes</div>'
+            : '';
+        $bgHeader = $isUrgente ? '#fef2f2' : '#fff';
+        $borderColor = $isUrgente ? '#fca5a5' : '#e5e7eb';
+        $html = '<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;background:' . $bgHeader . ';border-radius:10px;padding:24px;border:1px solid ' . $borderColor . ';">'
+              . $urgBanner
               . '<h2 style="margin:0 0 4px;color:#0f3d3e;">👩‍⚖️ Nova solicitação de audiencista</h2>'
               . '<p style="color:#6b7280;font-size:13px;margin:0 0 16px;">Foi aberta uma nova solicitação para você acompanhar.</p>'
               . '<table style="font-size:14px;color:#111;border-collapse:collapse;width:100%;">' . $linhas . '</table>'
-              . '<p style="margin-top:18px;"><a href="' . $esc($link) . '" style="background:#0f3d3e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Abrir Audiencistas</a></p>'
+              . '<p style="margin-top:18px;"><a href="' . $esc($link) . '" style="background:' . ($isUrgente ? '#dc2626' : '#0f3d3e') . ';color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:600;">Abrir Audiencistas</a></p>'
               . '</div>';
+        $subject = ($isUrgente ? '🚨 URGENTE — ' : '') . $titulo . ' — ' . $a['tipo'];
         $data = array(
             'sender'      => array('name' => $cfg['name'], 'email' => $cfg['email']),
             'to'          => array(array('email' => $LUIZ_EMAIL, 'name' => 'Luiz Eduardo')),
-            'subject'     => $titulo . ' — ' . $a['tipo'],
+            'subject'     => $subject,
             'htmlContent' => $html,
         );
         $ch = curl_init('https://api.brevo.com/v3/smtp/email');
@@ -405,12 +425,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $status = $audId ? 'designada' : 'aberta';
         $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
-        $modalidade   = clean_str($_POST['modalidade'] ?? '', 20);
-        $local        = clean_str($_POST['local'] ?? '', 250);
-        $tipoProcesso = clean_str($_POST['tipo_processo'] ?? '', 80);
-        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by, modalidade, local, tipo_processo)
-                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id(), $modalidade ?: null, $local ?: null, $tipoProcesso ?: null));
+        $modalidade     = clean_str($_POST['modalidade'] ?? '', 20);
+        $local          = clean_str($_POST['local'] ?? '', 250);
+        $tipoProcesso   = clean_str($_POST['tipo_processo'] ?? '', 80);
+        $urgente        = !empty($_POST['urgente']) ? 1 : 0;
+        $contratarAte   = trim($_POST['contratar_ate'] ?? '');
+        $contratarAteV  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $contratarAte) ? $contratarAte : null;
+        $obsPreContrato = clean_str($_POST['obs_pre_contrato'] ?? '', 2000);
+        $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by, modalidade, local, tipo_processo, urgente, contratar_ate, obs_pre_contrato)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id(), $modalidade ?: null, $local ?: null, $tipoProcesso ?: null, $urgente, $contratarAteV, $obsPreContrato ?: null));
         $novoId = (int)$pdo->lastInsertId();
         audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
 
@@ -472,9 +496,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $prev = (int)$pdo->query("SELECT audiencista_id FROM audiencias WHERE id=" . $aid)->fetchColumn();
         $valor = ($_POST['valor'] ?? '') !== '' ? (int) round(((float)str_replace(',', '.', $_POST['valor'])) * 100) : null;
-        // valor_cents: se veio campo preenchido, usa; senão preserva o atual (não zera)
-        $pdo->prepare("UPDATE audiencias SET tipo=?, data_hora=?, comarca=?, client_id=?, case_id=?, processo_numero=?, orientacoes=?, audiencista_id=?, valor_cents=COALESCE(?, valor_cents), status=IF(status='aberta' AND ? IS NOT NULL,'designada',status) WHERE id=?")
-            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audIdNew, $valor, $audIdNew, $aid));
+        $modalidadeE   = clean_str($_POST['modalidade'] ?? '', 20);
+        $localE        = clean_str($_POST['local'] ?? '', 250);
+        $tipoProcessoE = clean_str($_POST['tipo_processo'] ?? '', 80);
+        $urgenteE      = isset($_POST['urgente']) ? (!empty($_POST['urgente']) ? 1 : 0) : null; // null = não mexe
+        $contratarAteE = trim($_POST['contratar_ate'] ?? '');
+        $contratarAteEV = preg_match('/^\d{4}-\d{2}-\d{2}$/', $contratarAteE) ? $contratarAteE : null;
+        $obsPreCE      = isset($_POST['obs_pre_contrato']) ? clean_str($_POST['obs_pre_contrato'], 2000) : null;
+        // valor_cents/modalidade/etc: COALESCE preserva atual quando vazio
+        $pdo->prepare("UPDATE audiencias SET tipo=?, data_hora=?, comarca=?, client_id=?, case_id=?, processo_numero=?, orientacoes=?, audiencista_id=?, valor_cents=COALESCE(?, valor_cents),
+                                              modalidade=COALESCE(NULLIF(?,''), modalidade),
+                                              local=COALESCE(NULLIF(?,''), local),
+                                              tipo_processo=COALESCE(NULLIF(?,''), tipo_processo),
+                                              urgente=COALESCE(?, urgente),
+                                              contratar_ate=COALESCE(?, contratar_ate),
+                                              obs_pre_contrato=COALESCE(?, obs_pre_contrato),
+                                              status=IF(status='aberta' AND ? IS NOT NULL,'designada',status)
+                       WHERE id=?")
+            ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audIdNew, $valor, $modalidadeE, $localE, $tipoProcessoE, $urgenteE, $contratarAteEV, $obsPreCE, $audIdNew, $aid));
         audit_log('audiencia_editar', 'audiencia', $aid, $tipo);
         aud_sync_agenda($pdo, $aid);
         if ($audIdNew && $audIdNew !== $prev) {
@@ -678,6 +717,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .au-tag { display:inline-block; background:#eef1f4; color:#445; border-radius:6px; padding:1px 7px; font-size:.72rem; margin:1px; }
 .au-empty { text-align:center; padding:40px; color:#999; }
 .au-acard { border-left:4px solid #b87333; }
+.au-acard.au-estado-verde { border-left-color:#15803d; background:linear-gradient(90deg,#f0fdf4 0%,#fff 30%); }
+.au-acard.au-estado-amarelo { border-left-color:#f59e0b; background:linear-gradient(90deg,#fffbeb 0%,#fff 30%); }
+.au-acard.au-estado-vermelho { border-left-color:#dc2626; background:linear-gradient(90deg,#fef2f2 0%,#fff 30%); box-shadow:0 0 0 1px #fecaca; }
+.au-urg-chip { display:inline-block; padding:2px 9px; border-radius:6px; font-size:.7rem; font-weight:800; background:#dc2626; color:#fff; margin-left:6px; animation:audPulse 2s infinite; }
+@keyframes audPulse { 0%,100% { box-shadow:0 0 0 0 rgba(220,38,38,.4); } 50% { box-shadow:0 0 0 6px rgba(220,38,38,0); } }
+.au-aguarda-chip { display:inline-block; padding:2px 9px; border-radius:6px; font-size:.7rem; font-weight:700; background:#fef3c7; color:#92400e; margin-left:6px; }
 .au-mini { background:#0f3d3e; color:#fff; border:none; border-radius:7px; padding:5px 10px; font-weight:600; cursor:pointer; font-size:.78rem; text-decoration:none; display:inline-block; }
 .au-mini.wa { background:#25d366; } .au-mini.gh { background:#fff; color:#0f3d3e; border:1px solid #cfd8d6; }
 </style>
@@ -754,12 +799,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
            . ($a['data_hora'] ? ' em ' . date('d/m/Y H:i', strtotime($a['data_hora'])) : '')
            . ($a['comarca'] ? ' na comarca de ' . $a['comarca'] : '') . ". Você teria disponibilidade?";
     $wa = $a['aud_tel'] ? aud_hub_wa_link($a['aud_tel'], $waMsg) : '';
+    // Cor do card baseado no estado da solicitação:
+    // verde   = já contratado (status=designada/realizada)
+    // vermelho = urgente OU prazo de contratar venceu/vence em <=2 dias
+    // amarelo = tem observação interna pendente (aguardando confirmação de algo)
+    // padrão (laranja) = aberta sem observação
+    $_estadoCor = '';
+    $_diasPraContratar = null;
+    if (!empty($a['contratar_ate'])) {
+        $_diasPraContratar = (int)floor((strtotime($a['contratar_ate']) - strtotime('today')) / 86400);
+    }
+    if (in_array($a['status'], array('designada','realizada'), true)) {
+        $_estadoCor = 'au-estado-verde';
+    } elseif (!empty($a['urgente']) || ($_diasPraContratar !== null && $_diasPraContratar <= 2 && $a['status'] === 'aberta')) {
+        $_estadoCor = 'au-estado-vermelho';
+    } elseif (!empty($a['obs_pre_contrato']) && $a['status'] === 'aberta') {
+        $_estadoCor = 'au-estado-amarelo';
+    }
   ?>
-  <div class="au-card au-acard">
+  <div class="au-card au-acard <?= $_estadoCor ?>" id="a-<?= (int)$a['id'] ?>">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
       <div>
         <div style="font-weight:700;color:#0f3d3e;font-size:1rem;">⚖️ <?= e($a['tipo']) ?>
           <span class="au-chip au-st-<?= e($a['status']) ?>"><?= e($STATUS[$a['status']] ?? $a['status']) ?></span>
+          <?php if (!empty($a['urgente']) && $a['status'] === 'aberta'): ?>
+            <span class="au-urg-chip">🚨 URGENTE</span>
+          <?php endif; ?>
+          <?php if (!empty($a['obs_pre_contrato']) && $a['status'] === 'aberta'): ?>
+            <span class="au-aguarda-chip">⏳ aguarda confirmação</span>
+          <?php endif; ?>
           <?php if ($a['substab_path']): ?>
             <span class="au-chip" style="background:<?= $a['substab_enviado_em'] ? '#dcfce7;color:#15803d' : '#fef3c7;color:#92400e' ?>;">📜 substab<?= $a['substab_enviado_em'] ? ' enviado' : '' ?></span>
           <?php endif; ?>
@@ -769,7 +837,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <?php if ($a['avaliacao_nota']): ?>
             <span class="au-chip" style="background:#fff4e0;color:#b9770e;">⭐ <?= (int)$a['avaliacao_nota'] ?>/5</span>
           <?php endif; ?>
+          <?php if (!empty($a['contratar_ate']) && $a['status'] === 'aberta'): ?>
+            <span class="au-chip" style="background:<?= $_diasPraContratar < 0 ? '#fee2e2;color:#b91c1c' : ($_diasPraContratar <= 2 ? '#fef3c7;color:#92400e' : '#e0e7ff;color:#3730a3') ?>;">⏰ contratar até <?= date('d/m', strtotime($a['contratar_ate'])) ?><?= $_diasPraContratar < 0 ? ' (atrasado ' . abs($_diasPraContratar) . 'd)' : ($_diasPraContratar === 0 ? ' (HOJE)' : ' (em ' . $_diasPraContratar . 'd)') ?></span>
+          <?php endif; ?>
         </div>
+        <?php if (!empty($a['obs_pre_contrato']) && $a['status'] === 'aberta'): ?>
+          <div style="margin-top:6px;font-size:.82rem;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:6px;padding:6px 9px;color:#78350f;">
+            📝 <strong>Observação interna:</strong> <?= nl2br(e($a['obs_pre_contrato'])) ?>
+          </div>
+        <?php endif; ?>
         <div style="color:#666;font-size:.85rem;margin-top:3px;">
           <?= $a['data_hora'] ? '📅 ' . date('d/m/Y H:i', strtotime($a['data_hora'])) . ' · ' : '' ?>
           <?= $a['comarca'] ? '📍 ' . e($a['comarca']) . ' · ' : '' ?>

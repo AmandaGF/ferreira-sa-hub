@@ -572,6 +572,60 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php endif; ?>
 </div>
 
+<?php
+// 🚨 Audiencista urgente: solicitações com flag urgente=1 OU prazo de contratar vencido/proximo.
+// Aparece pra qualquer um que tenha acesso ao modulo (operacional/gestao/admin).
+$_audUrgentes = array();
+if (function_exists('can_access') && can_access('audiencistas')) {
+    try {
+        $_stU = db()->query(
+            "SELECT au.id, au.tipo, au.data_hora, au.urgente, au.contratar_ate, au.obs_pre_contrato,
+                    au.comarca, au.local, cl.name AS client_name, cs.title AS case_title, au.case_id
+             FROM audiencias au
+             LEFT JOIN clients cl ON cl.id = au.client_id
+             LEFT JOIN cases cs ON cs.id = au.case_id
+             WHERE au.status = 'aberta'
+               AND (au.urgente = 1 OR (au.contratar_ate IS NOT NULL AND au.contratar_ate <= DATE_ADD(CURDATE(), INTERVAL 2 DAY)))
+             ORDER BY au.urgente DESC, COALESCE(au.contratar_ate, au.data_hora) ASC
+             LIMIT 6"
+        );
+        $_audUrgentes = $_stU->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $_e) {}
+}
+?>
+<?php if (!empty($_audUrgentes)): ?>
+<div style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.1);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="font-weight:800;color:#991b1b;font-size:.95rem;">🚨 Audiencistas — atenção urgente (<?= count($_audUrgentes) ?>)</div>
+        <a href="<?= url('modules/audiencistas/') ?>" style="font-size:.74rem;font-weight:700;color:#7f1d1d;text-decoration:none;background:#fff;padding:4px 10px;border-radius:6px;border:1px solid #fca5a5;">Abrir módulo →</a>
+    </div>
+    <?php foreach ($_audUrgentes as $_ua):
+        $_dContr = !empty($_ua['contratar_ate']) ? (int)floor((strtotime($_ua['contratar_ate']) - strtotime('today')) / 86400) : null;
+        $_lblPrazo = '';
+        if ($_dContr !== null) {
+            if ($_dContr < 0)     $_lblPrazo = '🔴 atrasado ' . abs($_dContr) . 'd';
+            elseif ($_dContr === 0) $_lblPrazo = '🔴 contratar HOJE';
+            elseif ($_dContr === 1) $_lblPrazo = '🟠 contratar até amanhã';
+            else $_lblPrazo = '🟡 contratar em ' . $_dContr . 'd';
+        }
+    ?>
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;">
+        <?php if (!empty($_ua['urgente'])): ?><span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:.66rem;font-weight:800;">URGENTE</span><?php endif; ?>
+        <span style="font-weight:600;color:#0f3d3e;">⚖️ <?= e($_ua['tipo']) ?></span>
+        <?php if ($_ua['data_hora']): ?><span style="color:#666;">📅 <?= date('d/m H:i', strtotime($_ua['data_hora'])) ?></span><?php endif; ?>
+        <?php if ($_ua['comarca']): ?><span style="color:#666;">📍 <?= e($_ua['comarca']) ?></span><?php endif; ?>
+        <?php if ($_ua['client_name']): ?><span style="color:#666;">👤 <?= e($_ua['client_name']) ?></span><?php endif; ?>
+        <?php if ($_lblPrazo): ?><span style="margin-left:auto;font-weight:700;color:<?= $_dContr < 0 ? '#7f1d1d' : '#b45309' ?>;"><?= e($_lblPrazo) ?></span><?php endif; ?>
+        <?php if (!empty($_ua['case_id'])): ?>
+            <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_ua['case_id']) ?>" style="font-size:.7rem;color:#0f3d3e;text-decoration:none;font-weight:700;">pasta →</a>
+        <?php else: ?>
+            <a href="<?= url('modules/audiencistas/') ?>" style="font-size:.7rem;color:#0f3d3e;text-decoration:none;font-weight:700;">ver →</a>
+        <?php endif; ?>
+    </div>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <!-- 🎉 Dopamina: o que já foi cumprido hoje -->
 <div class="pd-dopa <?= $dopaTotal > 0 ? 'tem' : 'zero' ?>" id="pdDopa">
     <div class="pd-dopa-top">
