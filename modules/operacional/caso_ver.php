@@ -1324,7 +1324,15 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
     <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
-    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos <?php if (!empty($compromissosCaso)): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= count($compromissosCaso) ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos / Tarefas <?php
+        // Badge agrega compromissos + tarefas reais pendentes (não-concluídas)
+        $_pendTar = 0;
+        foreach ($tarefasReais as $_t) {
+            $_s = $_t['status'] ?? '';
+            if ($_s !== 'concluido' && $_s !== 'feito') $_pendTar++;
+        }
+        $_badgeTot = count($compromissosCaso) + $_pendTar;
+        if ($_badgeTot > 0): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= $_badgeTot ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
     <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
@@ -4077,7 +4085,7 @@ foreach ($tarefasReais as $_t) {
     if ($_s !== 'concluido' && $_s !== 'feito') { $temTarefasPendentes = true; break; }
 }
 ?>
-<div class="card mb-2" style="<?= $temTarefasPendentes ? 'border:2px solid #d97706;box-shadow:0 0 12px rgba(217,119,6,.15);' : '' ?>">
+<div class="card mb-2 cv-secao" data-aba="compromissos" id="cv-tarefas" style="<?= $temTarefasPendentes ? 'border:2px solid #d97706;box-shadow:0 0 12px rgba(217,119,6,.15);' : '' ?>">
     <div class="card-header" style="<?= $temTarefasPendentes ? 'background:linear-gradient(135deg,rgba(217,119,6,.08),rgba(217,119,6,.02));' : '' ?>">
         <h3><?= $temTarefasPendentes ? '⚡ ' : '' ?>Tarefas (<?= count($tarefasReais) ?>)</h3>
     </div>
