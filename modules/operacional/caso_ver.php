@@ -1820,7 +1820,42 @@ if (isset($_caseTypeLabel[$_tipoProcessoSugerido])) $_tipoProcessoSugerido = $_c
       <textarea id="audSolOrient" name="orientacoes" class="form-input" style="width:100%;min-height:50px;" placeholder="Pontos de atenção, teses, contato do cliente…"></textarea>
 
       <label style="font-size:.78rem;font-weight:600;display:block;margin-bottom:3px;margin-top:9px;">📝 Observação interna <span style="color:#9ca3af;font-weight:400;font-size:.7rem;">(equipe — antes de contratar)</span></label>
-      <textarea id="audSolObsPre" name="obs_pre_contrato" class="form-input" style="width:100%;min-height:46px;background:#fffbeb;border-color:#fcd34d;" placeholder="Ex: pedimos audiência remota, ainda sem retorno — confirmar antes de contratar."></textarea>
+      <div id="audSolObsPresetWrap" style="background:#fffbeb;border:1.5px dashed #fcd34d;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <div style="font-size:.7rem;color:#78350f;margin-bottom:6px;font-weight:600;">Marque o que se aplica:</div>
+        <div style="display:flex;flex-direction:column;gap:5px;">
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Pedimos audiência remota, ainda sem retorno — confirmar deferimento antes de contratar." style="margin-top:2px;cursor:pointer;">
+            <span>📹 Pedimos audiência <b>remota</b> — sem retorno; confirmar antes de contratar</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Pedimos audiência híbrida, ainda sem retorno — confirmar deferimento antes de contratar." style="margin-top:2px;cursor:pointer;">
+            <span>🔀 Pedimos audiência <b>híbrida</b> — sem retorno; confirmar antes de contratar</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Pedido de adiamento/remarcação da audiência pendente — aguardar decisão antes de contratar." style="margin-top:2px;cursor:pointer;">
+            <span>📅 Pedido de <b>adiamento/remarcação</b> pendente — aguardar decisão</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Aguardando manifestação da parte contrária — pode haver acordo prévio." style="margin-top:2px;cursor:pointer;">
+            <span>⏳ Aguardando <b>manifestação da parte contrária</b> — pode haver acordo</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Cliente solicitou que sua participação seja por preposto — confirmar possibilidade no juízo." style="margin-top:2px;cursor:pointer;">
+            <span>🧑 Cliente quer ser representado por <b>preposto</b> — confirmar no juízo</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Verificar com o cartório o link do Balcão Virtual / formato do ato antes da contratação." style="margin-top:2px;cursor:pointer;">
+            <span>🏛️ Verificar com <b>cartório</b> link/formato do ato</span>
+          </label>
+          <label style="display:flex;gap:7px;font-size:.78rem;color:#78350f;cursor:pointer;align-items:flex-start;">
+            <input type="checkbox" class="audSolObsChk" data-text="Possibilidade de a audiência ser cancelada/redesignada — checar antes de contratar." style="margin-top:2px;cursor:pointer;">
+            <span>❓ Audiência pode ser <b>cancelada/redesignada</b> — checar antes</span>
+          </label>
+        </div>
+        <label style="display:block;font-size:.72rem;color:#78350f;margin-top:8px;font-weight:600;">Outras observações (texto livre):</label>
+        <textarea id="audSolObsLivre" class="form-input" style="width:100%;min-height:40px;background:#fff;border-color:#fcd34d;font-size:.82rem;" placeholder="Escreva aqui qualquer outra ressalva interna…"></textarea>
+      </div>
+      <input type="hidden" id="audSolObsPre" name="obs_pre_contrato">
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:9px;">
         <div>
@@ -1924,6 +1959,26 @@ function audSolOpen(){
   }
 }
 function audSolClose(){ document.getElementById('audSolModal').style.display='none'; }
+
+/**
+ * Junta as opções marcadas + texto livre num único campo obs_pre_contrato
+ * (separadas por nova linha). Evita campos hidden duplicados/atrelados.
+ */
+(function() {
+    var modal = document.getElementById('audSolModal');
+    if (!modal) return;
+    var form = modal.querySelector('form');
+    if (!form) return;
+    form.addEventListener('submit', function() {
+        var partes = [];
+        document.querySelectorAll('.audSolObsChk').forEach(function(c) {
+            if (c.checked) partes.push('• ' + c.getAttribute('data-text'));
+        });
+        var livre = (document.getElementById('audSolObsLivre').value || '').trim();
+        if (livre) partes.push(livre);
+        document.getElementById('audSolObsPre').value = partes.join('\n');
+    });
+})();
 </script>
 
 <!-- Banner: este processo é incidental de outro -->
