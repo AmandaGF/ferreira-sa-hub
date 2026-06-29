@@ -56,6 +56,7 @@ $acaoLabels = array(
     'trabalhista' => 'RECLAMAÇÃO TRABALHISTA',
     'inventario' => 'INVENTÁRIO E PARTILHA DE BENS',
     'salario_maternidade' => 'AÇÃO PREVIDENCIÁRIA — SALÁRIO-MATERNIDADE',
+    'auxilio_doenca'      => 'AÇÃO PREVIDENCIÁRIA — BENEFÍCIO POR INCAPACIDADE TEMPORÁRIA (AUXÍLIO-DOENÇA)',
     'outro' => '',
 );
 
@@ -570,15 +571,25 @@ if (!$showEditor) {
         <?php if ($tipo === 'contrato'): ?>
         <?php
         // O subtipo do contrato é derivado direto do tipo de ação:
-        // tipo_acao = salario_maternidade  → modelo SM (Previdenciário)
-        // qualquer outro                    → modelo Padrão (fixo / risco)
-        $isSm = ($tipoAcao === 'salario_maternidade');
+        // - salario_maternidade  → modelo SM (Previdenciário, cor rosa)
+        // - auxilio_doenca       → modelo AD/Incapacidade Temporária (Previdenciário, cor azul)
+        // - qualquer outro       → modelo Padrão (fixo / risco)
+        $isSm   = ($tipoAcao === 'salario_maternidade');
+        $isAd   = ($tipoAcao === 'auxilio_doenca');
+        $isPrev = ($isSm || $isAd);
+        $subtipoForm = $isSm ? 'salario_maternidade' : ($isAd ? 'auxilio_doenca' : 'padrao');
+        // Cores/textos do bloco previdenciário conforme benefício
+        $pvCor    = $isAd ? array('texto'=>'#0c4a6e','dark'=>'#0c4a6e','tag'=>'#0284c7','borda'=>'#bae6fd','fundo'=>'#f0f9ff') : array('texto'=>'#9f1239','dark'=>'#831843','tag'=>'#db2777','borda'=>'#fbcfe8','fundo'=>'#fdf2f8');
+        $pvEmoji  = $isAd ? '🩺' : '🤰';
+        $pvNome   = $isAd ? 'Benefício por Incapacidade Temporária (Auxílio-Doença)' : 'Salário-Maternidade';
+        $pvNomeCurto = $isAd ? 'Auxílio-Doença' : 'Salário-Maternidade';
+        $pvCliente = $isAd ? 'cliente' : 'cliente';
         ?>
-        <input type="hidden" name="subtipo_contrato" value="<?= $isSm ? 'salario_maternidade' : 'padrao' ?>">
+        <input type="hidden" name="subtipo_contrato" value="<?= $subtipoForm ?>">
         <div class="section">
-            <?php if ($isSm): ?>
-            <div style="background:linear-gradient(135deg,#fdf2f8,#fbcfe8);border:1px solid #f9a8d4;border-radius:10px;padding:12px 16px;margin-bottom:.75rem;font-size:.85rem;color:#9f1239;">
-                🤰 <strong>Modelo Salário-Maternidade (Previdenciário)</strong> — honorários no padrão são <strong>30% sobre cada uma das 4 parcelas</strong>. Você pode personalizar abaixo se houver acordo diferente com a cliente.
+            <?php if ($isPrev): ?>
+            <div style="background:linear-gradient(135deg,<?= $pvCor['fundo'] ?>,<?= $pvCor['borda'] ?>);border:1px solid <?= $pvCor['borda'] ?>;border-radius:10px;padding:12px 16px;margin-bottom:.75rem;font-size:.85rem;color:<?= $pvCor['texto'] ?>;">
+                <?= $pvEmoji ?> <strong>Modelo <?= e($pvNome) ?> (Previdenciário)</strong> — honorários no padrão são <strong>30% sobre cada uma das 4 parcelas</strong>. Você pode personalizar abaixo se houver acordo diferente com o <?= $pvCliente ?>.
             </div>
 
             <!-- Escolha: padrão ou personalizado -->
@@ -685,7 +696,7 @@ if (!$showEditor) {
             <h4>💵 Dados financeiros do contrato</h4>
             <?php endif; ?>
 
-            <div id="bloco_financeiro_padrao" <?= $isSm ? 'style="display:none;"' : '' ?>>
+            <div id="bloco_financeiro_padrao" <?= $isPrev ? 'style="display:none;"' : '' ?>>
             <!-- Tipo: fixo ou risco -->
             <div style="margin-bottom:.75rem;">
                 <label>Tipo de cobrança</label>
@@ -1513,12 +1524,23 @@ if (!$showEditor) {
 
     if ($tipo === 'procuracao') echo template_procuracao($d);
     elseif ($tipo === 'contrato') {
-        // Sub-tipo: padrão ou Salário-Maternidade (Previdenciário).
-        // Tipo de acao = salario_maternidade força SM automaticamente.
+        // Sub-tipo: padrão / Salário-Maternidade / Auxílio-Doença (Previdenciário).
+        // Tipo de ação dispara subtipo automático.
         $subtipoContrato = $_POST['subtipo_contrato'] ?? 'padrao';
         if ($tipoAcao === 'salario_maternidade') $subtipoContrato = 'salario_maternidade';
+        if ($tipoAcao === 'auxilio_doenca')      $subtipoContrato = 'auxilio_doenca';
         if ($subtipoContrato === 'salario_maternidade') {
             echo template_contrato_prevjud_sm($d);
+        } elseif ($subtipoContrato === 'auxilio_doenca') {
+            // O form usa names 'sm_*' (UI compartilhada). Remapeia pra 'ad_*'
+            // que é o que template_contrato_prevjud_ad() espera ler.
+            foreach (array('modo','tipo_honorario','percentual','num_parcelas_beneficio',
+                           'valor_total','num_parcelas','valor_parcela','forma_pagamento','observacao') as $k) {
+                if (isset($_POST['sm_' . $k]) && $_POST['sm_' . $k] !== '' && !isset($d['ad_' . $k])) {
+                    $d['ad_' . $k] = $_POST['sm_' . $k];
+                }
+            }
+            echo template_contrato_prevjud_ad($d);
         } else {
             echo template_contrato($d);
         }

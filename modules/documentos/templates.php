@@ -119,7 +119,7 @@ function template_procuracao($d) {
     // OUTORGADA
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
     $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">OUTORGADA</div>';
-    $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por sua advogada sócia-administradora, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. ' . $esc['adv1_oab'] . '.</p>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, inscrita no <strong>CNPJ ' . $esc['cnpj'] . '</strong>, Registro da Sociedade OAB ' . $esc['oab_sociedade'] . ', e-mail: ' . $esc['email'] . ', whatsapp ' . $esc['whatsapp'] . ', com escritório profissional localizado na ' . $esc['endereco'] . ', neste ato representada por seus advogados sócios, <strong>' . $esc['adv1_nome'] . '</strong>, inscrita na OAB-RJ sob o n. <strong>' . $esc['adv1_oab'] . '</strong>, e <strong>' . $esc['adv2_nome'] . '</strong>, inscrito na OAB-RJ sob o n. <strong>' . $esc['adv2_oab'] . '</strong> e OAB-SP sob o n. <strong>' . $esc['adv2_oab_sp'] . '</strong>.</p>';
     $html .= '</div>';
     $html .= '</div>';
 
@@ -272,16 +272,57 @@ function template_contrato($d) {
 }
 
 // ═══════════════════════════════════════════════════════
-// CONTRATO PREVIDENCIÁRIO — SALÁRIO MATERNIDADE
-// (visual law: ícones + cards + cores + cláusulas em destaque)
+// CONTRATO PREVIDENCIÁRIO — SALÁRIO MATERNIDADE / AUXÍLIO-DOENÇA
+// (visual law: ícones + cards + cores + cláusulas em destaque).
+// Função paramétrica: passa $beneficio = 'sm' (salário-maternidade) ou
+// 'ad' (auxílio-doença) pra mesma estrutura adaptar cores/textos.
 // ═══════════════════════════════════════════════════════
-function template_contrato_prevjud_sm($d) {
+function template_contrato_prevjud_sm($d) { return template_contrato_prevjud_beneficio($d, 'sm'); }
+function template_contrato_prevjud_ad($d) { return template_contrato_prevjud_beneficio($d, 'ad'); }
+
+function template_contrato_prevjud_beneficio($d, $beneficio = 'sm') {
     $esc = escritorioData();
     $html = '';
 
+    // Config visual + textual por benefício
+    if ($beneficio === 'ad') {
+        $cfg = array(
+            'nome'      => 'Benefício por Incapacidade Temporária (Auxílio-Doença)',
+            'nomeUpper' => 'BENEFÍCIO POR INCAPACIDADE TEMPORÁRIA',
+            'cor_titulo'=> '#0c4a6e', // azul-marinho
+            'cor_tag'   => '#0284c7', // azul mais claro
+            'cor_borda' => '#bae6fd',
+            'cor_fundo' => '#f0f9ff',
+            'cor_dark'  => '#0c4a6e',
+            'genero'    => 'inscrito(a)',
+            'residente' => 'residente e domiciliado(a)',
+            'desc_a'    => 'Análise, orientação, protocolo e acompanhamento de pedido de <strong>Benefício por Incapacidade Temporária (antigo Auxílio-Doença)</strong> perante o INSS, até decisão final administrativa, incluindo pedidos de prorrogação e perícias.',
+            'desc_b'    => 'Caso necessário, ajuizamento de ação judicial para concessão / restabelecimento do <strong>Benefício por Incapacidade Temporária</strong>, com acompanhamento em todas as instâncias cabíveis, inclusive execução.',
+            'desc_parc' => 'parcelas do benefício por incapacidade temporária e/ou dos valores atrasados',
+            'prefix'    => 'ad_',
+        );
+    } else {
+        $cfg = array(
+            'nome'      => 'Salário-Maternidade',
+            'nomeUpper' => 'SALÁRIO-MATERNIDADE',
+            'cor_titulo'=> '#9f1239', // rosa-vinho
+            'cor_tag'   => '#db2777',
+            'cor_borda' => '#fbcfe8',
+            'cor_fundo' => '#fdf2f8',
+            'cor_dark'  => '#831843',
+            'genero'    => 'inscrita',
+            'residente' => 'residente e domiciliada',
+            'desc_a'    => 'Análise, orientação, protocolo e acompanhamento de pedido de <strong>Salário-Maternidade</strong> perante o INSS, até decisão final administrativa.',
+            'desc_b'    => 'Caso necessário, ajuizamento de ação judicial para obtenção do benefício, com acompanhamento em todas as instâncias cabíveis, inclusive execução.',
+            'desc_parc' => 'parcelas que compõem o benefício',
+            'prefix'    => 'sm_',
+        );
+    }
+    $px = $cfg['prefix']; // 'sm_' ou 'ad_'
+
     // Título tradicional com subtítulo
     $html .= '<div class="doc-title">CONTRATO DE HONORÁRIOS ADVOCATÍCIOS</div>';
-    $html .= '<p style="text-align:center;font-size:13px;font-style:italic;color:#9f1239;margin:-.5rem 0 1.5rem;">Previdenciário — Salário-Maternidade</p>';
+    $html .= '<p style="text-align:center;font-size:13px;font-style:italic;color:' . $cfg['cor_titulo'] . ';margin:-.5rem 0 1.5rem;">Previdenciário — ' . $cfg['nome'] . '</p>';
 
     // CONTRATANTE / CONTRATADA lado a lado (cards discretos, mantém a cor rosa pra identificação)
     $cQualParts = array();
@@ -292,9 +333,9 @@ function template_contrato_prevjud_sm($d) {
     $cRgStr = (isset($d['rg']) && $d['rg']) ? ', RG n. ' . f($d['rg']) : '';
 
     $html .= '<div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">';
-    $html .= '<div style="flex:1;border:1.5px solid #fbcfe8;border-radius:12px;padding:1rem;">';
-    $html .= '<div style="background:#db2777;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
-    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . 'inscrita no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', residente e domiciliada na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.</p></div>';
+    $html .= '<div style="flex:1;border:1.5px solid ' . $cfg['cor_borda'] . ';border-radius:12px;padding:1rem;">';
+    $html .= '<div style="background:' . $cfg['cor_tag'] . ';color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATANTE</div>';
+    $html .= '<p style="font-size:12px;text-indent:0;"><strong>' . f($d['nome']) . '</strong>, ' . $cQualStr . $cfg['genero'] . ' no CPF sob o n. ' . f($d['cpf'], '___.___.___-__') . $cRgStr . ', ' . $cfg['residente'] . ' na ' . f($d['endereco']) . ', e-mail: ' . f($d['email']) . ', telefone: ' . f($d['phone']) . '.</p></div>';
 
     $html .= '<div style="flex:1;border:1.5px solid #d7ab90;border-radius:12px;padding:1rem;">';
     $html .= '<div style="background:#d7ab90;color:#052228;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:11px;font-weight:700;margin-bottom:.5rem;">CONTRATADA</div>';
@@ -302,18 +343,18 @@ function template_contrato_prevjud_sm($d) {
     $html .= '</div>';
 
     // 1. OBJETO
-    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #fbcfe8;padding-left:.6rem;margin-top:1.5rem;">1. OBJETO</p>';
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid ' . $cfg['cor_borda'] . ';padding-left:.6rem;margin-top:1.5rem;">1. OBJETO</p>';
     $html .= '<p style="font-size:12px;">A <strong>CONTRATADA</strong> prestará serviços advocatícios especializados em <strong>Direito Previdenciário</strong>, compreendendo as fases administrativa e judicial, conforme abaixo:</p>';
 
     // Fases A e B em mini-cards lado a lado (visual sutil)
     $html .= '<div style="display:flex;gap:.85rem;margin:.6rem 0 .85rem;">';
-    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
-    $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE A — ADMINISTRATIVA</div>';
-    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Análise, orientação, protocolo e acompanhamento de pedido de <strong>Salário-Maternidade</strong> perante o INSS, até decisão final administrativa.</p>';
+    $html .= '<div style="flex:1;border-left:3px solid ' . $cfg['cor_borda'] . ';background:' . $cfg['cor_fundo'] . ';padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
+    $html .= '<div style="font-size:10px;font-weight:700;color:' . $cfg['cor_titulo'] . ';letter-spacing:1px;margin-bottom:.2rem;">FASE A — ADMINISTRATIVA</div>';
+    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">' . $cfg['desc_a'] . '</p>';
     $html .= '</div>';
-    $html .= '<div style="flex:1;border-left:3px solid #fbcfe8;background:#fdf2f8;padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
-    $html .= '<div style="font-size:10px;font-weight:700;color:#9f1239;letter-spacing:1px;margin-bottom:.2rem;">FASE B — JUDICIAL</div>';
-    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">Caso necessário, ajuizamento de ação judicial para obtenção do benefício, com acompanhamento em todas as instâncias cabíveis, inclusive execução.</p>';
+    $html .= '<div style="flex:1;border-left:3px solid ' . $cfg['cor_borda'] . ';background:' . $cfg['cor_fundo'] . ';padding:.55rem .85rem;border-radius:0 6px 6px 0;">';
+    $html .= '<div style="font-size:10px;font-weight:700;color:' . $cfg['cor_titulo'] . ';letter-spacing:1px;margin-bottom:.2rem;">FASE B — JUDICIAL</div>';
+    $html .= '<p style="font-size:11.5px;text-indent:0;margin:0;">' . $cfg['desc_b'] . '</p>';
     $html .= '</div>';
     $html .= '</div>';
 
@@ -324,46 +365,42 @@ function template_contrato_prevjud_sm($d) {
     // 3. HONORÁRIOS
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">3. HONORÁRIOS ADVOCATÍCIOS</p>';
 
-    $smModo = isset($d['sm_modo']) ? $d['sm_modo'] : 'padrao';
-    $smTipo = isset($d['sm_tipo_honorario']) ? $d['sm_tipo_honorario'] : 'percentual';
-    $smPct = (isset($d['sm_percentual']) && $d['sm_percentual'] !== '') ? $d['sm_percentual'] : '30';
-    $smNParc = (isset($d['sm_num_parcelas_beneficio']) && $d['sm_num_parcelas_beneficio'] !== '') ? $d['sm_num_parcelas_beneficio'] : '4';
-    $smValor = isset($d['sm_valor_total']) ? $d['sm_valor_total'] : '';
-    $smParcContrato = isset($d['sm_num_parcelas']) ? $d['sm_num_parcelas'] : '';
-    $smValorParc = isset($d['sm_valor_parcela']) ? $d['sm_valor_parcela'] : '';
-    $smForma = isset($d['sm_forma_pagamento']) ? $d['sm_forma_pagamento'] : 'PIX';
-    $smObs = isset($d['sm_observacao']) ? $d['sm_observacao'] : '';
+    // Lê variáveis do prefixo correto (sm_ ou ad_)
+    $bModo  = isset($d[$px . 'modo']) ? $d[$px . 'modo'] : 'padrao';
+    $bTipo  = isset($d[$px . 'tipo_honorario']) ? $d[$px . 'tipo_honorario'] : 'percentual';
+    $bPct   = (isset($d[$px . 'percentual']) && $d[$px . 'percentual'] !== '') ? $d[$px . 'percentual'] : '30';
+    $bNParc = (isset($d[$px . 'num_parcelas_beneficio']) && $d[$px . 'num_parcelas_beneficio'] !== '') ? $d[$px . 'num_parcelas_beneficio'] : '4';
+    $bValor = isset($d[$px . 'valor_total']) ? $d[$px . 'valor_total'] : '';
+    $bParcContrato = isset($d[$px . 'num_parcelas']) ? $d[$px . 'num_parcelas'] : '';
+    $bValorParc = isset($d[$px . 'valor_parcela']) ? $d[$px . 'valor_parcela'] : '';
+    $bForma = isset($d[$px . 'forma_pagamento']) ? $d[$px . 'forma_pagamento'] : 'PIX';
+    $bObs   = isset($d[$px . 'observacao']) ? $d[$px . 'observacao'] : '';
 
-    if ($smModo === 'personalizado' && $smTipo === 'fixo') {
-        // Banner discreto com valor fixo
-        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
-        $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS</span> &nbsp; ';
-        $html .= '<span style="font-size:18px;font-weight:800;color:#9f1239;">' . f($smValor ?: '_________') . '</span>';
-        if ($smParcContrato) {
-            $html .= ' <span style="font-size:11px;color:#831843;">em ' . f($smParcContrato) . ' parcela(s) de ' . f($smValorParc ?: '_________') . ' via ' . f($smForma) . '</span>';
+    if ($bModo === 'personalizado' && $bTipo === 'fixo') {
+        $html .= '<div style="background:' . $cfg['cor_fundo'] . ';border:1px solid ' . $cfg['cor_borda'] . ';border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<span style="font-size:10px;color:' . $cfg['cor_titulo'] . ';letter-spacing:2px;font-weight:700;">HONORÁRIOS</span> &nbsp; ';
+        $html .= '<span style="font-size:18px;font-weight:800;color:' . $cfg['cor_titulo'] . ';">' . f($bValor ?: '_________') . '</span>';
+        if ($bParcContrato) {
+            $html .= ' <span style="font-size:11px;color:' . $cfg['cor_dark'] . ';">em ' . f($bParcContrato) . ' parcela(s) de ' . f($bValorParc ?: '_________') . ' via ' . f($bForma) . '</span>';
         }
         $html .= '</div>';
-
-        $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o valor total de <strong>' . f($smValor ?: '_________') . '</strong>';
-        if ($smParcContrato) {
-            $html .= ', em <strong>' . f($smParcContrato) . ' parcela(s)</strong> de <strong>' . f($smValorParc ?: '_________') . '</strong> via <strong>' . f($smForma) . '</strong>';
+        $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o valor total de <strong>' . f($bValor ?: '_________') . '</strong>';
+        if ($bParcContrato) {
+            $html .= ', em <strong>' . f($bParcContrato) . ' parcela(s)</strong> de <strong>' . f($bValorParc ?: '_________') . '</strong> via <strong>' . f($bForma) . '</strong>';
         }
-        $html .= ', pelo serviço advocatício prestado para obtenção do benefício de Salário-Maternidade, independentemente do resultado final.</p>';
+        $html .= ', pelo serviço advocatício prestado para obtenção do benefício de ' . $cfg['nome'] . ', independentemente do resultado final.</p>';
     } else {
-        // Banner discreto com o percentual
-        $html .= '<div style="background:#fdf2f8;border:1px solid #fbcfe8;border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
-        $html .= '<span style="font-size:10px;color:#9f1239;letter-spacing:2px;font-weight:700;">HONORÁRIOS DE ÊXITO</span> &nbsp; ';
-        $html .= '<span style="font-size:20px;font-weight:800;color:#9f1239;">' . f($smPct) . '%</span> ';
-        $html .= '<span style="font-size:11px;color:#831843;">de cada uma das ' . f($smNParc) . ' parcela(s) do Salário-Maternidade</span>';
+        $html .= '<div style="background:' . $cfg['cor_fundo'] . ';border:1px solid ' . $cfg['cor_borda'] . ';border-radius:8px;padding:.7rem 1rem;margin:.6rem 0;text-align:center;">';
+        $html .= '<span style="font-size:10px;color:' . $cfg['cor_titulo'] . ';letter-spacing:2px;font-weight:700;">HONORÁRIOS DE ÊXITO</span> &nbsp; ';
+        $html .= '<span style="font-size:20px;font-weight:800;color:' . $cfg['cor_titulo'] . ';">' . f($bPct) . '%</span> ';
+        $html .= '<span style="font-size:11px;color:' . $cfg['cor_dark'] . ';">de cada uma das ' . f($bNParc) . ' parcela(s) ' . ($beneficio === 'ad' ? 'do benefício por incapacidade temporária e/ou dos valores atrasados' : 'do Salário-Maternidade') . '</span>';
         $html .= '</div>';
-
-        $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o equivalente a <strong>' . f($smPct) . '% (' . f($smPct) . ' por cento) sobre o valor total recebido a título de salário-maternidade</strong>, ou seja, <strong>' . f($smPct) . '% de cada uma das ' . f($smNParc) . ' parcelas que compõem o benefício</strong>, independentemente da forma de recebimento (saque, depósito, RPV, precatório ou acordo judicial ou administrativo).</p>';
-
+        $html .= '<p style="font-size:12px;">A <strong>CONTRATANTE</strong> pagará à <strong>CONTRATADA</strong>, a título de honorários advocatícios, o equivalente a <strong>' . f($bPct) . '% (' . f($bPct) . ' por cento) sobre o valor total recebido a título de ' . mb_strtolower($cfg['nome']) . '</strong>, ou seja, <strong>' . f($bPct) . '% de cada uma das ' . f($bNParc) . ' ' . $cfg['desc_parc'] . '</strong>, independentemente da forma de recebimento (saque, depósito, RPV, precatório ou acordo judicial ou administrativo).</p>';
         $html .= '<p style="font-size:12px;"><strong>O pagamento deverá ocorrer em até 24 (vinte e quatro) horas após:</strong> (a) a implantação do benefício; ou (b) o saque de valores retroativos, quando houver.</p>';
     }
 
-    if ($smObs) {
-        $html .= '<p style="font-size:12px;"><strong>Observação:</strong> ' . f($smObs) . '</p>';
+    if ($bObs) {
+        $html .= '<p style="font-size:12px;"><strong>Observação:</strong> ' . f($bObs) . '</p>';
     }
 
     // 3.1 e 3.2
