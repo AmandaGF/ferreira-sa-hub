@@ -41,8 +41,24 @@ if (!$rows) {
     echo "\n";
 }
 
-if ($aplicar && $rows) {
-    echo "== Aplicando correção (UPDATE pipeline_leads.name = clients.name) ==\n";
+// Fix pontual por ID: &fix_lead=ID (mais seguro que &fix=1 em massa)
+$leadFixId = isset($_GET['fix_lead']) ? (int)$_GET['fix_lead'] : 0;
+if ($leadFixId) {
+    echo "\n== Aplicando correção apenas no Lead #{$leadFixId} ==\n";
+    $alvo = null;
+    foreach ($rows as $r) {
+        if ((int)$r['lead_id'] === $leadFixId) { $alvo = $r; break; }
+    }
+    if (!$alvo) {
+        echo "  ✗ Lead #{$leadFixId} não está na lista de divergentes (talvez já corrigido).\n";
+    } else {
+        $up = $pdo->prepare("UPDATE pipeline_leads SET name = ? WHERE id = ?");
+        $up->execute(array($alvo['client_name'], $alvo['lead_id']));
+        echo "  ✓ Lead #{$alvo['lead_id']}: '{$alvo['lead_name']}' → '{$alvo['client_name']}'\n";
+    }
+} elseif ($aplicar && $rows) {
+    echo "\n== Aplicando correção em MASSA (UPDATE pipeline_leads.name = clients.name) ==\n";
+    echo "ATENÇÃO: revisar a lista acima — alguns podem ser vínculos errados, não nome velho.\n\n";
     $up = $pdo->prepare("UPDATE pipeline_leads SET name = ? WHERE id = ?");
     foreach ($rows as $r) {
         $up->execute(array($r['client_name'], $r['lead_id']));
@@ -50,5 +66,6 @@ if ($aplicar && $rows) {
     }
     echo "\nFeito.\n";
 } elseif ($rows) {
-    echo "Pra aplicar a correção, adicione &fix=1 na URL.\n";
+    echo "\nPra corrigir só um lead: &fix_lead=ID\n";
+    echo "Pra aplicar em TODOS (CUIDADO com vínculos errados): &fix=1\n";
 }
