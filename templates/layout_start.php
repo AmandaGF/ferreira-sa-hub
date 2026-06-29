@@ -25,10 +25,12 @@ require_once APP_ROOT . '/templates/sidebar.php';
         if ($TEMA_COPA):
         ?>
         <style>
-        .br-flag-fixa { position:fixed !important; top:60px; right:18px; z-index:99999 !important; font-size:1.8rem; cursor:default; user-select:none;
+        .br-flag-fixa { position:fixed !important; top:60px; right:18px; z-index:99999 !important; font-size:1.8rem; cursor:pointer; user-select:none;
             background:linear-gradient(180deg,#009c3b 50%,#ffdf00 50%); border-radius:50%; width:38px; height:38px; display:flex; align-items:center; justify-content:center;
-            box-shadow:0 3px 10px rgba(0,0,0,.25), 0 0 0 2px #fff; transition:transform .2s; line-height:1; pointer-events:auto; }
-        .br-flag-fixa:hover { transform:scale(1.18) rotate(-5deg); }
+            box-shadow:0 3px 10px rgba(0,0,0,.25), 0 0 0 2px #fff; transition:transform .2s; line-height:1; pointer-events:auto;
+            border:none; padding:0; font-family:inherit; animation:brFlagPulse 2.4s ease-in-out infinite; }
+        .br-flag-fixa:hover { transform:scale(1.18) rotate(-5deg); animation:none; }
+        @keyframes brFlagPulse { 0%,100% { box-shadow:0 3px 10px rgba(0,0,0,.25), 0 0 0 2px #fff; } 50% { box-shadow:0 3px 14px rgba(0,156,59,.6), 0 0 0 2px #fff, 0 0 0 8px rgba(255,223,0,.35); } }
         @media (max-width: 768px) { .br-flag-fixa { top:54px; right:10px; font-size:1.5rem; width:32px; height:32px; } }
         /* Pop-up celebração */
         .br-celebra-bg { position:fixed; inset:0; z-index:9999; background:radial-gradient(circle at 50% 40%, rgba(0,156,59,.95), rgba(0,39,118,.97));
@@ -56,8 +58,9 @@ require_once APP_ROOT . '/templates/sidebar.php';
         }
         </style>
 
-        <!-- Bandeirinha fixa: aparece em todas as páginas até o Brasil ser eliminado/campeão -->
-        <span class="br-flag-fixa" title="Vamos, Brasil! 🇧🇷" id="brFlagFixa">🇧🇷</span>
+        <!-- Bandeirinha fixa: aparece em todas as páginas até o Brasil ser eliminado/campeão.
+             Clique reabre a animação de celebração (pra Amanda tirar foto/curtir de novo). -->
+        <button type="button" class="br-flag-fixa" title="Clique pra celebrar de novo! 🇧🇷" id="brFlagFixa" onclick="brCelebraAbrir()">🇧🇷</button>
 
         <!-- Pop-up de celebração (mostra 1× por sessão) -->
         <div id="brCelebra" class="br-celebra-bg" style="display:none;" onclick="brCelebraFechar()">
@@ -69,11 +72,15 @@ require_once APP_ROOT . '/templates/sidebar.php';
 
         <script>
         (function() {
-            // 1× por sessão (não enche o saco a cada navegação)
+            // 1× por sessão NA PRIMEIRA ABERTURA (não enche o saco).
+            // Pra reabrir manualmente, basta clicar na bandeirinha.
             var KEY = 'fsa_copa_celebra_v1_<?= date('Y-m-d') ?>'; // muda por dia
-            function abrirCelebracao() {
+            window.brCelebraAbrir = function() {
                 var pop = document.getElementById('brCelebra');
                 if (!pop) return;
+                // Limpa fogos/confetti antigos (pra reabrir limpinho)
+                pop.querySelectorAll('.br-confetti, .br-firework').forEach(function(el){ el.remove(); });
+                pop.style.opacity = '1';
                 pop.style.display = 'flex';
                 // Confetti
                 var cores = ['#009c3b','#ffdf00','#002776','#ffffff'];
@@ -143,7 +150,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
             // Só dispara se ainda não viu hoje E é uma navegação do tipo "carga inicial"
             try {
                 if (!sessionStorage.getItem(KEY)) {
-                    setTimeout(abrirCelebracao, 400);
+                    setTimeout(window.brCelebraAbrir, 400);
                 }
             } catch (e) {}
         })();
