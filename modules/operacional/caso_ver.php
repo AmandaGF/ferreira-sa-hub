@@ -1923,11 +1923,52 @@ function renValidar(f){
 }
 </script>
 
+<?php
+// ── Auto-preenchimento GERID (29/06/2026 Amanda) ──
+// Busca a 1ª parte ADVERSA do processo (não-cliente) em case_partes.
+// Schema da tabela (memória schema_case_partes): papel + nome OU razao_social
+// OU representante_nome OU nome_fantasia + cpf/cnpj. Filtra papéis adversos
+// (réu, litisconsorte_passivo, terceiro_interessado, requerido) e ignora
+// quem está marcado como nosso cliente (eh_nosso_cliente=1 ou client_id ==
+// case.client_id). Fallback: parte_re_nome/parte_re_cpf_cnpj da própria cases.
+$_geridNomeSug = $case['parte_re_nome'] ?? '';
+$_geridCpfSug  = $case['parte_re_cpf_cnpj'] ?? '';
+try {
+    $_stPa = $pdo->prepare(
+        "SELECT papel, nome, razao_social, representante_nome, nome_fantasia, cpf, cnpj
+         FROM case_partes
+         WHERE case_id = ?
+           AND papel IN ('reu','litisconsorte_passivo','terceiro_interessado','requerido')
+           AND COALESCE(eh_nosso_cliente, 0) = 0
+           AND (client_id IS NULL OR client_id <> ?)
+         ORDER BY FIELD(papel,'reu','requerido','litisconsorte_passivo','terceiro_interessado'), id
+         LIMIT 1"
+    );
+    $_stPa->execute(array($caseId, (int)($case['client_id'] ?: 0)));
+    $_pa = $_stPa->fetch(PDO::FETCH_ASSOC);
+    if ($_pa) {
+        // Nome: prioriza nome > razao_social > representante_nome > nome_fantasia
+        $_nomeCand = '';
+        foreach (array('nome','razao_social','representante_nome','nome_fantasia') as $_c) {
+            if (!empty($_pa[$_c])) { $_nomeCand = trim($_pa[$_c]); break; }
+        }
+        if ($_nomeCand) $_geridNomeSug = $_nomeCand;
+        // CPF/CNPJ: prioriza CPF (pessoa física) — GERID busca por CPF
+        if (!empty($_pa['cpf']))      $_geridCpfSug = $_pa['cpf'];
+        elseif (!empty($_pa['cnpj'])) $_geridCpfSug = $_pa['cnpj'];
+    }
+} catch (Exception $_e) {}
+?>
 <!-- Modal: Pesquisar vínculo no GERID (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
 <div id="gdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;padding:22px;max-width:500px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
     <h3 style="margin:0 0 4px;">🔎 Pesquisar vínculo no GERID</h3>
     <p style="color:#666;font-size:.85rem;margin:0 0 12px;">O Luiz Eduardo será avisado pra pesquisar no GERID se a parte tem vínculo empregatício, e uma tarefa será aberta nesta pasta.</p>
+    <?php if ($_geridNomeSug && empty($case['parte_re_nome'])): ?>
+    <div style="background:#dcfce7;color:#15803d;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:.74rem;">
+      ✓ Preenchido automaticamente com a parte adversa do processo (aba Partes).
+    </div>
+    <?php endif; ?>
     <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return gdValidar(this);">
       <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
       <input type="hidden" name="acao" value="solicitar">
@@ -1935,9 +1976,9 @@ function renValidar(f){
       <input type="hidden" name="case_id" value="<?= $caseId ?>">
       <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">Nome completo da parte *</label>
-      <input type="text" name="parte_nome" id="gdNome" value="<?= e($case['parte_re_nome'] ?? '') ?>" required class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Quem queremos saber se tem vínculo">
+      <input type="text" name="parte_nome" id="gdNome" value="<?= e($_geridNomeSug) ?>" required class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Quem queremos saber se tem vínculo">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">CPF</label>
-      <input type="text" name="parte_cpf" value="<?= e($case['parte_re_cpf_cnpj'] ?? '') ?>" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="000.000.000-00">
+      <input type="text" name="parte_cpf" value="<?= e($_geridCpfSug) ?>" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="000.000.000-00">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">É o(a)…</label>
       <div style="display:flex;gap:14px;margin-bottom:10px;font-size:.9rem;">
         <label style="cursor:pointer;"><input type="radio" name="parente" value="pai"> Pai</label>
