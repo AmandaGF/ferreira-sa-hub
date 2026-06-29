@@ -25,10 +25,11 @@ require_once APP_ROOT . '/templates/sidebar.php';
         if ($TEMA_COPA):
         ?>
         <style>
-        .br-flag-fixa { position:fixed; top:8px; right:14px; z-index:99; font-size:1.4rem; cursor:default; user-select:none;
-            text-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .2s; }
-        .br-flag-fixa:hover { transform:scale(1.15) rotate(-3deg); }
-        .br-flag-fixa::after { content:""; }
+        .br-flag-fixa { position:fixed !important; top:60px; right:18px; z-index:99999 !important; font-size:1.8rem; cursor:default; user-select:none;
+            background:linear-gradient(180deg,#009c3b 50%,#ffdf00 50%); border-radius:50%; width:38px; height:38px; display:flex; align-items:center; justify-content:center;
+            box-shadow:0 3px 10px rgba(0,0,0,.25), 0 0 0 2px #fff; transition:transform .2s; line-height:1; pointer-events:auto; }
+        .br-flag-fixa:hover { transform:scale(1.18) rotate(-5deg); }
+        @media (max-width: 768px) { .br-flag-fixa { top:54px; right:10px; font-size:1.5rem; width:32px; height:32px; } }
         /* Pop-up celebração */
         .br-celebra-bg { position:fixed; inset:0; z-index:9999; background:radial-gradient(circle at 50% 40%, rgba(0,156,59,.95), rgba(0,39,118,.97));
             display:flex; align-items:center; justify-content:center; flex-direction:column; cursor:pointer; animation:brFadeIn .4s ease-out; }
