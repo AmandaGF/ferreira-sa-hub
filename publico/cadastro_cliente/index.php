@@ -56,7 +56,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $fam_contato_genitor = clean_str($_POST['fam_contato_genitor'] ?? '', 40);
     $fam_endereco_genitor = clean_str($_POST['fam_endereco_genitor'] ?? '', 500);
 
+    // Validação CPF (algoritmo dos 2 dígitos verificadores)
+    $_cpfValido = function ($cpfStr) {
+        $cpfDigits = preg_replace('/\D/', '', (string)$cpfStr);
+        if (strlen($cpfDigits) !== 11) return false;
+        // Rejeita CPFs com todos dígitos iguais (000.000.000-00, 111.111.111-11, etc.)
+        if (preg_match('/^(\d)\1{10}$/', $cpfDigits)) return false;
+        for ($t = 9; $t < 11; $t++) {
+            $d = 0;
+            for ($c = 0; $c < $t; $c++) $d += $cpfDigits[$c] * (($t + 1) - $c);
+            $d = ((10 * $d) % 11) % 10;
+            if ((int)$cpfDigits[$c] !== $d) return false;
+        }
+        return true;
+    };
+
     if (empty($nome)) { $error = 'Nome é obrigatório.'; }
+    elseif (empty($cpf)) { $error = 'CPF é obrigatório.'; }
+    elseif (!$_cpfValido($cpf)) { $error = 'CPF inválido. Confira os 11 dígitos.'; }
     elseif (empty($celular)) { $error = 'Celular é obrigatório.'; }
     else {
         $payload = array(
