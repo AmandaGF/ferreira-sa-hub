@@ -16,6 +16,20 @@ require_access('documentos');
 require_once __DIR__ . '/templates.php';
 require_once __DIR__ . '/../../core/functions_ia.php';
 require_once __DIR__ . '/../../core/google_drive.php';
+// Reusa o renderer Visual Law da Fábrica de Petições — mesmo padrão visual
+require_once __DIR__ . '/../peticoes/renderer.php';
+
+if (!function_exists('strftime_pt_extenso')) {
+    function strftime_pt_extenso($ts = null) {
+        if ($ts === null) $ts = time();
+        $meses = array(1=>'janeiro','fevereiro','março','abril','maio','junho',
+                       'julho','agosto','setembro','outubro','novembro','dezembro');
+        $d = date('j', $ts);
+        $m = $meses[(int)date('n', $ts)];
+        $y = date('Y', $ts);
+        return $d . ' de ' . $m . ' de ' . $y;
+    }
+}
 
 $pdo = db();
 $pageTitle = 'Petição Geral com IA';
@@ -56,52 +70,105 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gerar
 
     $esc = escritorioData();
 
+    // ── Monta endereçamento padrão F&S ──
+    // Prioridade: 1) Vara informada no form  2) court+comarca do caso  3) lacuna
+    $vara    = $varaJuizo ?: ($caso['court'] ?? '');
+    $comarca = $caso['comarca'] ?? '';
+    $comUf   = $caso['comarca_uf'] ?? 'RJ';
+    $enderecamento = '';
+    if ($vara && $comarca) {
+        $enderecamento = 'JUÍZO DA ' . mb_strtoupper($vara, 'UTF-8')
+                       . ' DA COMARCA DE ' . mb_strtoupper($comarca, 'UTF-8')
+                       . '/' . mb_strtoupper($comUf, 'UTF-8');
+    } elseif ($vara) {
+        $enderecamento = 'JUÍZO DA ' . mb_strtoupper($vara, 'UTF-8');
+    } else {
+        $enderecamento = 'JUÍZO DA [VARA/COMARCA — preencher]';
+    }
+
     // Contexto do caso pra IA
     $ctxCaso = array();
+    $ctxCaso[] = "Endereçamento (USAR EXATAMENTE ESTA STRING NO TOPO): {$enderecamento}";
     if ($caso) {
         if ($caso['title'])         $ctxCaso[] = "Título do caso: {$caso['title']}";
-        if ($caso['case_number'])   $ctxCaso[] = "Nº do processo: {$caso['case_number']}";
+        if ($caso['case_number'])   $ctxCaso[] = "Nº do processo (do cadastro): {$caso['case_number']}";
         if ($caso['case_type'])     $ctxCaso[] = "Tipo de ação: {$caso['case_type']}";
+        if ($caso['court'])         $ctxCaso[] = "Vara/Órgão julgador: {$caso['court']}";
+        if ($caso['comarca'])       $ctxCaso[] = "Comarca: {$caso['comarca']}" . ($caso['comarca_uf'] ? '/' . $caso['comarca_uf'] : '');
     }
-    if ($varaJuizo)   $ctxCaso[] = "Juízo/Vara: {$varaJuizo}";
-    if ($processoNum) $ctxCaso[] = "Nº processo (informado): {$processoNum}";
+    if ($processoNum) $ctxCaso[] = "Nº processo (informado no form, prioridade): {$processoNum}";
     if ($cliente['name']) $ctxCaso[] = "Cliente: {$cliente['name']}";
     $contextoTxt = implode("\n", $ctxCaso);
 
+    $dataAtualExtenso = strftime_pt_extenso();
+
     $systemPrompt =
         "Você é uma advogada experiente do escritório FERREIRA & SÁ ADVOCACIA. "
-      . "Sua tarefa é redigir uma PETIÇÃO INTERCORRENTE simples e direta, no padrão do escritório, com base na instrução do usuário e no contexto do caso.\n\n"
-      . "── PADRÃO DO ESCRITÓRIO ──\n"
-      . "• Petições são objetivas, em português jurídico claro, sem prolixidade.\n"
-      . "• Use os fatos do caso e o que foi pedido. Não invente datas, valores ou nomes que não foram fornecidos — quando faltar dado, deixe uma lacuna `[...]` pra revisão humana.\n"
-      . "• Estrutura padrão de petição intercorrente:\n"
-      . "  1. Endereçamento ao juízo (em negrito, maiúsculas, alinhado à esquerda)\n"
-      . "  2. Identificação do processo (número, partes)\n"
-      . "  3. Identificação da parte representada — sempre 'PARTE, já qualificada nos autos do processo em epígrafe, por seus advogados infra-assinados, vem respeitosamente à presença de Vossa Excelência, expor e requerer o que segue:'\n"
-      . "  4. Breve exposição dos fatos relevantes (1-2 parágrafos no máximo, justificados)\n"
-      . "  5. Requerimentos (lista numerada quando houver mais de um, formato 'Diante do exposto, requer:')\n"
-      . "  6. Termos em que pede deferimento + cidade/data + assinatura\n\n"
-      . "── SAÍDA ──\n"
-      . "Retorne EXCLUSIVAMENTE HTML válido (sem markdown, sem ```html). Use apenas estas tags:\n"
-      . "  <p style=\"text-align:justify;text-indent:1.5cm;\">parágrafo normal</p>\n"
-      . "  <p style=\"text-align:left;text-indent:0;font-weight:700;text-transform:uppercase;\">endereçamento ao juízo</p>\n"
-      . "  <p style=\"text-align:center;font-weight:700;text-transform:uppercase;margin-top:24px;\">TÍTULO DA PETIÇÃO</p>\n"
-      . "  <p style=\"text-align:justify;text-indent:1.5cm;margin-left:0;\">requerimento (use 'a)', 'b)' como prefixo no início)</p>\n"
-      . "  <p style=\"text-align:center;margin-top:32px;\">cidade, dia de mês de ano.</p>\n"
-      . "  <p style=\"text-align:center;font-weight:700;\">{$esc['adv1_nome']}<br>OAB/RJ {$esc['adv1_oab']}</p>\n"
-      . "  <strong> e <em> são permitidos pra ênfase\n"
-      . "NÃO use <div>, <span>, <h1-h6>, <ul>/<ol>, <table>, classes CSS, scripts.\n\n"
-      . "── ASSINATURA OBRIGATÓRIA NO FINAL ──\n"
-      . "Termine SEMPRE com 'Termos em que, pede deferimento.' centralizado, seguido de cidade/data e da assinatura {$esc['adv1_nome']} OAB/RJ {$esc['adv1_oab']}.";
+      . "Sua tarefa é redigir uma PETIÇÃO INTERCORRENTE no padrão EXATO do escritório, usando o SISTEMA DE MARCADORES "
+      . "VISUAL LAW (não HTML). O sistema do escritório vai converter os marcadores em HTML estilizado com cores, "
+      . "tabelas, caixas e tipografia próprias do F&S.\n\n"
+      . "═══ MARCADORES VISUAL LAW DISPONÍVEIS ═══\n\n"
+      . "1. ENDEREÇAMENTO (use SEMPRE no topo, NUNCA 'Excelentíssimo Senhor Dr. Juiz'):\n"
+      . "   [ENDERECAMENTO] AO JUÍZO DA 3ª VARA CÍVEL DA COMARCA DE RIO DE JANEIRO/RJ\n\n"
+      . "2. PROCESSO (linha simples logo abaixo do endereçamento):\n"
+      . "   **Processo n.** 0000000-00.0000.8.19.0000\n\n"
+      . "3. SEÇÕES (uma por vez, com barra petrol à direita):\n"
+      . "   [BARRA_SECAO] DOS FATOS\n"
+      . "   [BARRA_SECAO] DO DIREITO\n"
+      . "   [BARRA_SECAO] DO REQUERIMENTO\n\n"
+      . "4. SUBTÓPICOS (barra cobre à esquerda):\n"
+      . "   [SUBTOPICO] Da omissão da parte ré\n\n"
+      . "5. PEDIDOS (tabela formatada com letras a) b) em fundo petrol):\n"
+      . "   [PEDIDOS]\n"
+      . "   a) seja a parte ré novamente intimada para apresentar os documentos solicitados pelo perito;\n"
+      . "   b) seja intimado o perito para manifestar-se sobre a ausência dos documentos;\n"
+      . "   c) caso persista a recusa, sejam aplicadas as penalidades cabíveis.\n"
+      . "   [/PEDIDOS]\n\n"
+      . "6. ASSINATURA (fecha SEMPRE com este marcador único — gera Amanda + Luiz Eduardo automaticamente):\n"
+      . "   [ASSINATURA]\n\n"
+      . "7. LACUNAS (dado faltante que precisa revisão humana):\n"
+      . "   [VERMELHO]DATA DO LAUDO[/VERMELHO]\n"
+      . "   [VERMELHO]VALOR — preencher[/VERMELHO]\n\n"
+      . "8. ÊNFASE (em parágrafos livres):\n"
+      . "   **negrito**  ou  *itálico*\n\n"
+      . "═══ ESTRUTURA OBRIGATÓRIA DA PETIÇÃO ═══\n\n"
+      . "Linha 1: [ENDERECAMENTO] AO JUÍZO DA ...\n"
+      . "(linha em branco)\n"
+      . "Linha 2: **Processo n.** {numero do processo}\n"
+      . "(linha em branco)\n"
+      . "Linha 3 (abertura): **{NOME DO CLIENTE EM MAIÚSCULAS}**, parte já qualificada nos autos do processo em epígrafe, por meio de sua advogada infra-assinada, vem, respeitosamente, à presença de Vossa Excelência, expor e requerer o que segue:\n"
+      . "(linha em branco)\n"
+      . "[BARRA_SECAO] DOS FATOS\n"
+      . "(parágrafos de fatos — escreva texto livre, vai virar parágrafo justify+indent automaticamente)\n"
+      . "(linha em branco)\n"
+      . "[BARRA_SECAO] DO REQUERIMENTO\n"
+      . "Ante o exposto, requer:\n"
+      . "[PEDIDOS]\n"
+      . "a) ...\n"
+      . "b) ...\n"
+      . "[/PEDIDOS]\n"
+      . "[ASSINATURA]\n\n"
+      . "═══ REGRAS CRÍTICAS ═══\n\n"
+      . "• NUNCA escreva 'Excelentíssimo Senhor Dr. Juiz', 'Exmo. Sr.', 'MM Juízo'. SEMPRE use [ENDERECAMENTO] AO JUÍZO DA ...\n"
+      . "• Use EXATAMENTE a string de endereçamento que vem no contexto (campo 'Endereçamento'). Se vier '[VARA/COMARCA — preencher]', use [VERMELHO]VARA/COMARCA — preencher[/VERMELHO] no lugar da vara.\n"
+      . "• Português jurídico claro, sem prolixidade. Petições intercorrentes são curtas (2-5 parágrafos de fatos no máximo).\n"
+      . "• Não invente datas, valores, nomes ou números. Use [VERMELHO]...[/VERMELHO] quando faltar dado.\n"
+      . "• NÃO escreva HTML. NÃO use ```markdown``` ou cercas de código. Devolva DIRETO os marcadores + texto livre.\n"
+      . "• Use [PEDIDOS] sempre que houver mais de 1 pedido. Pedido único pode ser parágrafo direto.\n"
+      . "• Use [BARRA_SECAO] DOS FATOS e [BARRA_SECAO] DO REQUERIMENTO como mínimo. Adicione [BARRA_SECAO] DO DIREITO se a instrução pedir fundamentação legal.\n"
+      . "• Termine SEMPRE com [ASSINATURA] (gera assinatura dupla Amanda + Luiz Eduardo automaticamente — não escreva 'AMANDA GUEDES FERREIRA' nem 'OAB' manualmente).\n"
+      . "• Data atual pra usar quando precisar mencionar 'hoje': {$dataAtualExtenso}.\n";
 
-    $userMsg = "── CONTEXTO DO CASO ──\n{$contextoTxt}\n\n── INSTRUÇÃO DA ADVOGADA ──\n{$instrucao}";
+    $userMsg = "── CONTEXTO DO CASO ──\n{$contextoTxt}\n\n"
+             . "── INSTRUÇÃO DA ADVOGADA ──\n{$instrucao}\n\n"
+             . "Gere a petição agora usando os marcadores Visual Law. Comece com [ENDERECAMENTO] e termine com [ASSINATURA].";
 
     $resp = ia_chamar(
         'peticao_ia',
         $modeloId,
         $systemPrompt,
         array(array('role' => 'user', 'content' => $userMsg)),
-        array('max_tokens' => 2200, 'temperature' => 0.3, 'user_id' => current_user_id(), 'bypass_user_whitelist' => true)
+        array('max_tokens' => 3000, 'temperature' => 0.3, 'user_id' => current_user_id(), 'bypass_user_whitelist' => true)
     );
 
     if (empty($resp['ok']) || empty($resp['texto'])) {
@@ -109,16 +176,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'gerar
         exit;
     }
 
-    $html = trim($resp['texto']);
+    $bruto = trim($resp['texto']);
     // Remove code fences acidentais
-    $html = preg_replace('/^```(?:html)?\s*/i', '', $html);
-    $html = preg_replace('/\s*```\s*$/', '', $html);
+    $bruto = preg_replace('/^```(?:html|markdown|text)?\s*/i', '', $bruto);
+    $bruto = preg_replace('/\s*```\s*$/', '', $bruto);
+
+    // 29/06 Amanda: passa pelo renderer Visual Law (mesmo da Fábrica de Petições)
+    // — converte marcadores [BARRA_SECAO], [PEDIDOS], [ASSINATURA] etc. em HTML estilizado.
+    $html = peticao_render($bruto);
 
     audit_log('peticao_ia_gerada', 'client', $clientId, "Petição IA gerada — modelo={$modelo} caso={$caseId} tokens_in={$resp['input_tokens']} out={$resp['output_tokens']}");
 
     echo json_encode(array(
         'ok'            => true,
         'html'          => $html,
+        'bruto'         => $bruto,  // pra debug se precisar
         'input_tokens'  => $resp['input_tokens'],
         'output_tokens' => $resp['output_tokens'],
         'custo_brl'     => $resp['custo_brl'],
@@ -171,6 +243,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'salva
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Endpoint AJAX leve: dados do caso (pra auto-preencher form)
+// ─────────────────────────────────────────────────────────────────
+if (isset($_GET['ajax_caso'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $caseId = (int)$_GET['ajax_caso'];
+    if (!$caseId) { echo json_encode(array('ok' => false)); exit; }
+    $st = db()->prepare("SELECT title, case_number, court, comarca, comarca_uf, regional FROM cases WHERE id = ?");
+    $st->execute(array($caseId));
+    $c = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$c) { echo json_encode(array('ok' => false)); exit; }
+    $varaSugerida = '';
+    if ($c['court']) {
+        $partes = array($c['court']);
+        if ($c['comarca']) $partes[] = 'Comarca de ' . $c['comarca'] . ($c['comarca_uf'] ? '/' . $c['comarca_uf'] : '');
+        $varaSugerida = implode(' — ', $partes);
+    }
+    echo json_encode(array(
+        'ok'              => true,
+        'vara_sugerida'   => $varaSugerida,
+        'processo_numero' => $c['case_number'] ?: '',
+    ));
+    exit;
+}
+
+// ─────────────────────────────────────────────────────────────────
 // UI — GET
 // ─────────────────────────────────────────────────────────────────
 $preClientId = (int)($_GET['client_id'] ?? 0);
@@ -210,12 +307,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pia-modelo-card.selected { border-color:var(--rose); background:rgba(215,171,144,.1); }
 .pia-modelo-custo { font-size:.7rem; color:#64748b; }
 .pia-preview {
-    background:#fff; border:1px solid var(--border); border-radius:8px;
-    padding:60px 50px; min-height:400px; max-height:75vh; overflow-y:auto;
+    background:#fff; border:none; border-radius:2px;
+    min-height:400px; max-height:75vh; overflow-y:auto;
     font-family:Calibri,'Segoe UI',Arial,sans-serif; font-size:12pt; line-height:1.8;
     color:#1A1A1A; outline:none;
+    box-shadow:0 1px 8px rgba(0,0,0,.08), 0 4px 24px rgba(0,0,0,.06);
+    background-image:url('<?= url("assets/img/timbrado.png") ?>');
+    background-size:100% auto; background-repeat:repeat-y; background-position:top center;
+    padding:160px 80px 120px 80px;
 }
-.pia-preview[contenteditable="true"]:focus { box-shadow:0 0 0 3px rgba(215,171,144,.3); }
+.pia-preview[contenteditable="true"]:focus { box-shadow:0 0 0 3px rgba(215,171,144,.3), 0 1px 8px rgba(0,0,0,.08), 0 4px 24px rgba(0,0,0,.06); }
+.pia-preview table { border-collapse:collapse; }
+.pia-preview td, .pia-preview th { border:none; }
+.pia-preview p { margin:8px 0; }
+@media (max-width:768px) { .pia-preview { padding:120px 30px 80px 30px; } }
 .pia-loading { text-align:center; padding:3rem; color:#64748b; }
 .pia-loading .spinner { width:32px;height:32px;border:3px solid var(--border);border-top:3px solid var(--petrol-900);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 1rem; }
 @keyframes spin { to { transform:rotate(360deg); } }
@@ -367,6 +472,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         };
         x.send();
     };
+
+    // Auto-preenche Vara e Nº processo quando troca caso (puxa do banco)
+    window.piaAutoPreencher = function(caseId) {
+        if (!caseId) return;
+        var x = new XMLHttpRequest();
+        x.open('GET', window.location.pathname + '?ajax_caso=' + encodeURIComponent(caseId));
+        x.onload = function() {
+            try {
+                var r = JSON.parse(x.responseText);
+                if (!r.ok) return;
+                var varaEl = document.querySelector('input[name=vara_juizo]');
+                var procEl = document.querySelector('input[name=processo_numero]');
+                // Só sobrescreve se o campo estiver vazio (não pisa em algo que a Amanda já digitou)
+                if (varaEl && !varaEl.value && r.vara_sugerida) varaEl.value = r.vara_sugerida;
+                if (procEl && !procEl.value && r.processo_numero) procEl.value = r.processo_numero;
+            } catch(e) {}
+        };
+        x.send();
+    };
+    // Vincula trocar caso → auto-preencher
+    document.getElementById('piaCaso').addEventListener('change', function() {
+        piaAutoPreencher(this.value);
+    });
+    // Roda 1x no load se já vem com case_id pré-selecionado
+    var caseInicial = document.getElementById('piaCaso').value;
+    if (caseInicial) piaAutoPreencher(caseInicial);
 
     window.piaGerar = function() {
         var form = document.getElementById('piaForm');
