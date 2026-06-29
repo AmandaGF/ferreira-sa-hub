@@ -285,8 +285,8 @@ if ($voltarCaso > 0): ?>
             <label class="ag-fl">Tipo de compromisso</label>
             <div class="ag-tipo-grid">
                 <?php
-                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'reuniao_lead'=>"\u{1F3AF}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}",'pericia_inss'=>"\u{1FA7A}",'pessoal'=>"\u{1F4CC}");
-                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','reuniao_lead'=>'Reunião lead','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','pericia_inss'=>'Perícia INSS','pessoal'=>'Pessoal');
+                $emojis = array('audiencia'=>"\u{2696}\u{FE0F}",'reuniao_cliente'=>"\u{1F464}",'reuniao_lead'=>"\u{1F3AF}",'prazo'=>"\u{23F0}",'onboarding'=>"\u{1F3AF}",'reuniao_interna'=>"\u{1F465}",'mediacao_cejusc'=>"\u{1F91D}",'balcao_virtual'=>"\u{1F3DB}\u{FE0F}",'ligacao'=>"\u{1F4DE}",'pericia_inss'=>"\u{1FA7A}",'tarefa'=>"\u{2705}",'preparacao_audiencia'=>"\u{1F4DA}",'pessoal'=>"\u{1F4CC}");
+                $labels = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião cliente','reuniao_lead'=>'Reunião lead','prazo'=>'Prazo','onboarding'=>'Onboarding','reuniao_interna'=>'R. interna','mediacao_cejusc'=>'Mediação','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação','pericia_inss'=>'Perícia INSS','tarefa'=>'Tarefa','preparacao_audiencia'=>'Prep. Audiência','pessoal'=>'Pessoal');
                 foreach ($labels as $k => $lb): ?>
                 <button type="button" class="ag-tipo-btn" data-t="<?= $k ?>" onclick="selTipo('<?= $k ?>',this)">
                     <span class="te"><?= $emojis[$k] ?></span><?= $lb ?>
@@ -1060,7 +1060,9 @@ var titulosPadrao = {
     reuniao_interna: 'Reunião interna',
     mediacao_cejusc: 'Mediação / CEJUSC',
     ligacao: 'Ligação / Retorno',
-    balcao_virtual: 'Balcão Virtual TJRJ'
+    balcao_virtual: 'Balcão Virtual TJRJ',
+    tarefa: 'Tarefa',
+    preparacao_audiencia: 'Preparação de Audiência'
 };
 
 function abrirModal(dataStr) {

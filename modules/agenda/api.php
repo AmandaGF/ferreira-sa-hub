@@ -756,7 +756,7 @@ if ($action === 'salvar') {
     $participantesIds = array_filter($participantesIds, function($v){ return $v > 0; });
     $participantesJson = !empty($participantesIds) ? json_encode(array_values($participantesIds)) : null;
 
-    $tiposValidos = array('audiencia','reuniao_cliente','reuniao_lead','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal','pericia_inss','preparacao_audiencia');
+    $tiposValidos = array('audiencia','reuniao_cliente','reuniao_lead','prazo','onboarding','reuniao_interna','mediacao_cejusc','balcao_virtual','ligacao','pessoal','pericia_inss','preparacao_audiencia','tarefa');
     $modalidadesValidas = array('presencial','online','hibrida','nao_aplicavel');
     $tiposComParticipantesObrigatorios = array('reuniao_cliente','reuniao_interna');
 
