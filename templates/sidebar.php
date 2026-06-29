@@ -40,6 +40,20 @@ try {
     $_audPendentes = (int)db()->query("SELECT COUNT(*) FROM audiencias WHERE status = 'aberta'")->fetchColumn();
 } catch (Exception $e) {}
 
+// Renúncia/Desistência: tarefas operacionais ainda abertas (mesmo criterio do
+// modulo, na aba Operacional). Pendente = renuncia com case_task vinculada
+// nao concluida.
+$_renunciasPendentes = 0;
+try {
+    $_renunciasPendentes = (int)db()->query("SELECT COUNT(*) FROM renuncias r JOIN case_tasks t ON t.id = r.task_id WHERE t.status <> 'concluido'")->fetchColumn();
+} catch (Exception $e) {}
+
+// Pesquisa GERID: pesquisas com status='pendente' (Luiz ainda nao concluiu)
+$_geridPendentes = 0;
+try {
+    $_geridPendentes = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHERE status = 'pendente'")->fetchColumn();
+} catch (Exception $e) {}
+
 $_helpdeskAbertos = 0;
 $_prazosUrgentes = 0;
 try {
@@ -120,9 +134,9 @@ $menuItems = array(
     array('label' => 'CRM Operacional/CX', 'icon' => '🛠️', 'href' => url('modules/crm_operacional/'), 'id' => 'crm_operacional', 'roles' => array('admin','gestao','operacional','cx','estagiario')),
     array('label' => 'Kanban PREV',    'icon' => '🏛️', 'href' => url('modules/prev/'),             'id' => 'prev',            'roles' => $all),
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => $_rolesEquipe),
-    array('label' => 'Renúncia/Desistência','icon' => '📤', 'href' => url('modules/processos/renuncias.php'), 'id' => 'processos_renuncias', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario')),
+    array('label' => 'Renúncia/Desistência','icon' => '📤', 'href' => url('modules/processos/renuncias.php'), 'id' => 'processos_renuncias', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario'), 'badge' => $_renunciasPendentes, 'badgeCor' => '#b91c1c'),
     array('label' => 'Audiencistas',    'icon' => '👩‍⚖️', 'href' => url('modules/audiencistas/'),       'id' => 'audiencistas',    'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_audPendentes, 'badgeCor' => '#b87333'),
-    array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','operacional','cx','estagiario')),
+    array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_geridPendentes, 'badgeCor' => '#0c4a6e'),
     array('label' => 'Central Intimações','icon' => '📢', 'href' => url('modules/intimacoes/'),    'id' => 'intimacoes',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Tarefas',         'icon' => '✅', 'href' => url('modules/tarefas/'),        'id' => 'tarefas',         'roles' => array('admin','gestao','operacional')),
     array('label' => 'Notas Pessoais',  'icon' => '📝', 'href' => url('modules/notas/'),          'id' => 'notas',           'roles' => $all),
