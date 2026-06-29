@@ -16,6 +16,140 @@ require_once APP_ROOT . '/templates/sidebar.php';
     <main class="main-content">
 
         <?php
+        // ═══════════════════════════════════════════════════════
+        // 🇧🇷 TEMA COPA — Amanda 29/06/2026: Brasil x Japão (vitória!)
+        // Bandeirinha fixa no topo + pop-up de celebração 1x por sessão.
+        // Pra desligar quando o Brasil for eliminado/campeão: trocar TEMA_COPA = false abaixo.
+        // ═══════════════════════════════════════════════════════
+        $TEMA_COPA = true;
+        if ($TEMA_COPA):
+        ?>
+        <style>
+        .br-flag-fixa { position:fixed; top:8px; right:14px; z-index:99; font-size:1.4rem; cursor:default; user-select:none;
+            text-shadow:0 1px 2px rgba(0,0,0,.2); transition:transform .2s; }
+        .br-flag-fixa:hover { transform:scale(1.15) rotate(-3deg); }
+        .br-flag-fixa::after { content:""; }
+        /* Pop-up celebração */
+        .br-celebra-bg { position:fixed; inset:0; z-index:9999; background:radial-gradient(circle at 50% 40%, rgba(0,156,59,.95), rgba(0,39,118,.97));
+            display:flex; align-items:center; justify-content:center; flex-direction:column; cursor:pointer; animation:brFadeIn .4s ease-out; }
+        @keyframes brFadeIn { from { opacity:0; } to { opacity:1; } }
+        .br-celebra-titulo { color:#ffdf00; font-size:3.2rem; font-weight:900; text-shadow:0 4px 12px rgba(0,0,0,.4); text-align:center;
+            font-family:'Playfair Display',Georgia,serif; letter-spacing:2px; padding:0 20px; line-height:1.1; animation:brPulse 1s ease-in-out infinite alternate; }
+        @keyframes brPulse { from { transform:scale(1); } to { transform:scale(1.06); } }
+        .br-celebra-sub { color:#fff; font-size:1.8rem; font-weight:800; text-shadow:0 2px 8px rgba(0,0,0,.5); margin-top:18px; animation:brBounce 1.2s ease-in-out infinite; }
+        @keyframes brBounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
+        .br-celebra-bandeira { font-size:5rem; animation:brSpin 2s linear infinite; margin-bottom:20px; filter:drop-shadow(0 6px 18px rgba(0,0,0,.4)); }
+        @keyframes brSpin { 0%,80%,100% { transform:rotate(0deg); } 85%,95% { transform:rotate(-10deg); } 90% { transform:rotate(10deg); } }
+        .br-celebra-dica { color:rgba(255,255,255,.85); font-size:.9rem; margin-top:30px; font-weight:600; }
+        /* Fogos / confetti */
+        .br-firework { position:absolute; width:6px; height:6px; border-radius:50%; animation:brFirework 1.5s ease-out forwards; pointer-events:none; }
+        @keyframes brFirework {
+            0%   { transform:translateY(0) scale(.4); opacity:1; }
+            70%  { transform:translateY(var(--ty,-300px)) translateX(var(--tx,0)) scale(1); opacity:1; }
+            100% { transform:translateY(var(--ty,-300px)) translateX(var(--tx,0)) scale(0); opacity:0; }
+        }
+        .br-confetti { position:absolute; width:12px; height:18px; top:-30px; animation:brConfetti linear infinite; pointer-events:none; }
+        @keyframes brConfetti {
+            from { transform:translateY(-30px) rotate(0deg); }
+            to   { transform:translateY(110vh) rotate(720deg); }
+        }
+        </style>
+
+        <!-- Bandeirinha fixa: aparece em todas as páginas até o Brasil ser eliminado/campeão -->
+        <span class="br-flag-fixa" title="Vamos, Brasil! 🇧🇷" id="brFlagFixa">🇧🇷</span>
+
+        <!-- Pop-up de celebração (mostra 1× por sessão) -->
+        <div id="brCelebra" class="br-celebra-bg" style="display:none;" onclick="brCelebraFechar()">
+            <div class="br-celebra-bandeira">🇧🇷</div>
+            <div class="br-celebra-titulo">MOSTRA SUA RAÇA<br>BRASIL!!!</div>
+            <div class="br-celebra-sub">Boraaaa timeeee! 🚀⚽</div>
+            <div class="br-celebra-dica">(clique pra continuar)</div>
+        </div>
+
+        <script>
+        (function() {
+            // 1× por sessão (não enche o saco a cada navegação)
+            var KEY = 'fsa_copa_celebra_v1_<?= date('Y-m-d') ?>'; // muda por dia
+            function abrirCelebracao() {
+                var pop = document.getElementById('brCelebra');
+                if (!pop) return;
+                pop.style.display = 'flex';
+                // Confetti
+                var cores = ['#009c3b','#ffdf00','#002776','#ffffff'];
+                for (var i = 0; i < 60; i++) {
+                    var c = document.createElement('div');
+                    c.className = 'br-confetti';
+                    c.style.left = Math.random() * 100 + 'vw';
+                    c.style.background = cores[Math.floor(Math.random() * cores.length)];
+                    c.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+                    c.style.animationDelay = (Math.random() * 1.2) + 's';
+                    pop.appendChild(c);
+                }
+                // Fogos espalhados
+                for (var j = 0; j < 24; j++) {
+                    var f = document.createElement('div');
+                    f.className = 'br-firework';
+                    f.style.left = (20 + Math.random() * 60) + 'vw';
+                    f.style.top  = (40 + Math.random() * 30) + 'vh';
+                    f.style.background = cores[Math.floor(Math.random() * cores.length)];
+                    f.style.setProperty('--tx', ((Math.random() - .5) * 400) + 'px');
+                    f.style.setProperty('--ty', (-200 - Math.random() * 200) + 'px');
+                    f.style.boxShadow = '0 0 12px ' + cores[Math.floor(Math.random() * cores.length)];
+                    f.style.animationDelay = (Math.random() * 1.5) + 's';
+                    pop.appendChild(f);
+                }
+                // Som de foguete (Web Audio — sem precisar hostar mp3)
+                try {
+                    var Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) {
+                        var ctx = new Ctx();
+                        // Whoosh: oscilador descendo de 800Hz a 100Hz em 1.2s
+                        var osc = ctx.createOscillator();
+                        var gain = ctx.createGain();
+                        osc.type = 'sawtooth';
+                        osc.frequency.setValueAtTime(800, ctx.currentTime);
+                        osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 1.2);
+                        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.4, ctx.currentTime + 0.05);
+                        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 1.2);
+                        osc.connect(gain); gain.connect(ctx.destination);
+                        osc.start();
+                        osc.stop(ctx.currentTime + 1.3);
+                        // Explosão final (ruído branco curto)
+                        setTimeout(function() {
+                            var bufSize = ctx.sampleRate * 0.4;
+                            var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+                            var data = buf.getChannelData(0);
+                            for (var k = 0; k < bufSize; k++) data[k] = (Math.random() * 2 - 1) * Math.pow(1 - k/bufSize, 2);
+                            var src = ctx.createBufferSource();
+                            src.buffer = buf;
+                            var g2 = ctx.createGain();
+                            g2.gain.value = 0.5;
+                            src.connect(g2); g2.connect(ctx.destination);
+                            src.start();
+                        }, 1200);
+                    }
+                } catch (e) {}
+                // Marca como visto
+                try { sessionStorage.setItem(KEY, '1'); } catch (e) {}
+                // Auto-fecha em 7 segundos
+                setTimeout(brCelebraFechar, 7000);
+            }
+            window.brCelebraFechar = function() {
+                var pop = document.getElementById('brCelebra');
+                if (pop) { pop.style.opacity = '0'; setTimeout(function() { pop.style.display = 'none'; }, 400); }
+            };
+            // Só dispara se ainda não viu hoje E é uma navegação do tipo "carga inicial"
+            try {
+                if (!sessionStorage.getItem(KEY)) {
+                    setTimeout(abrirCelebracao, 400);
+                }
+            } catch (e) {}
+        })();
+        </script>
+        <?php endif; // TEMA_COPA ?>
+
+        <?php
         // ── Banner de prazos críticos (sticky topo, todas as páginas) ──
         if ($_prazoBannerData && (($_prazoBannerData['vencidos'] ?? 0) > 0 || ($_prazoBannerData['hoje'] ?? 0) > 0)):
             $_v = (int)$_prazoBannerData['vencidos'];
