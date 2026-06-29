@@ -1700,6 +1700,19 @@ try {
         <input type="text" name="citacao_obs" class="form-input" style="width:100%;font-size:.85rem;" placeholder="Ex: tentou em 12/03 sem êxito; novo endereço fornecido" value="<?= e($_citObs) ?>">
       </div>
 
+      <?php $_polo = (string)($case['representamos_polo'] ?? ''); ?>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:.72rem;font-weight:700;color:#475569;display:block;margin-bottom:4px;">🛡️ Estamos representando</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <label style="background:<?= $_polo === 'autor' ? '#1e40af' : '#fff' ?>;color:<?= $_polo === 'autor' ? '#fff' : '#1e40af' ?>;border:1.5px solid #1e40af;border-radius:8px;padding:6px 11px;font-size:.78rem;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+            <input type="radio" name="representamos_polo" value="autor" <?= $_polo === 'autor' ? 'checked' : '' ?> style="margin:0;"> ⚖️ Autor
+          </label>
+          <label style="background:<?= $_polo === 'reu' ? '#b91c1c' : '#fff' ?>;color:<?= $_polo === 'reu' ? '#fff' : '#b91c1c' ?>;border:1.5px solid #b91c1c;border-radius:8px;padding:6px 11px;font-size:.78rem;cursor:pointer;font-weight:600;display:inline-flex;align-items:center;gap:5px;">
+            <input type="radio" name="representamos_polo" value="reu" <?= $_polo === 'reu' ? 'checked' : '' ?> style="margin:0;"> 🛡️ Réu
+          </label>
+        </div>
+      </div>
+
       <div style="grid-column:1/-1;text-align:right;">
         <button type="submit" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0f3d3e;">💾 Salvar citação</button>
         <?php if (!empty($case['citacao_updated_at'])): ?>
@@ -1707,6 +1720,28 @@ try {
         <?php endif; ?>
       </div>
     </form>
+
+    <?php
+    // Bloco "Prazo de contestação" — aparece quando representamos REU
+    // E a citação aconteceu (citado) ou está pra acontecer (expedido_aguardando).
+    if ($_polo === 'reu' && in_array($_citStatus, array('citado','expedido_aguardando'), true)):
+        $_prazoCalcUrl = module_url('operacional', 'prazos_calc.php?case_id=' . $caseId)
+                       . ($_citStatus === 'citado' && !empty($_citData) ? '&data_base=' . urlencode($_citData) . '&tipo=contestacao' : '');
+    ?>
+    <div style="margin-top:10px;background:#fef2f2;border:1.5px solid #fecaca;border-left:5px solid #b91c1c;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+      <div style="flex:1;min-width:240px;">
+        <div style="font-weight:800;color:#7f1d1d;font-size:.92rem;">🛡️ Representamos o Réu — prazo de Contestação aberto</div>
+        <div style="font-size:.78rem;color:#991b1b;margin-top:2px;">
+          <?php if ($_citStatus === 'citado' && !empty($_citData)): ?>
+            ⏰ Citado em <strong><?= date('d/m/Y', strtotime($_citData)) ?></strong> — calcular prazo a partir desta data.
+          <?php else: ?>
+            ⏰ Mandado expedido, aguardando cumprimento. Atualize a data assim que houver citação.
+          <?php endif; ?>
+        </div>
+      </div>
+      <a href="<?= e($_prazoCalcUrl) ?>" class="btn btn-sm" style="background:#b91c1c;color:#fff;font-size:.82rem;font-weight:700;padding:8px 14px;border-radius:8px;text-decoration:none;">🧮 Calcular prazo de Contestação →</a>
+    </div>
+    <?php endif; ?>
 
     <!-- Resumo de prazos -->
     <div style="margin-top:14px;border-top:1px dashed #e5e7eb;padding-top:10px;">
@@ -3001,7 +3036,7 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
 </script>
 
 <!-- Status e Informações -->
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+<div class="cv-secao" data-aba="visao" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
     <!-- Alterar status -->
     <div class="card">
         <div class="card-header"><h3>Status</h3></div>

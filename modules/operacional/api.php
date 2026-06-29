@@ -3051,6 +3051,7 @@ switch ($action) {
         $statusCit = trim($_POST['citacao_status'] ?? '');
         $dataCit   = trim($_POST['citacao_data'] ?? '');
         $obsCit    = clean_str($_POST['citacao_obs'] ?? '', 2000);
+        $polo      = trim($_POST['representamos_polo'] ?? '');
         $back      = $_POST['_back'] ?? (isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '');
         $validos = array('nao_expedido','expedido_aguardando','tentou_nao_localizou','citado','nao_houve');
         if (!$caseId || !in_array($statusCit, $validos, true)) {
@@ -3058,14 +3059,15 @@ switch ($action) {
             redirect($back ?: module_url('operacional', 'caso_ver.php?id=' . $caseId)); exit;
         }
         $dataCitVal = ($statusCit === 'citado' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $dataCit)) ? $dataCit : null;
+        $poloVal = in_array($polo, array('autor','reu'), true) ? $polo : null;
         try {
             // Snapshot anterior pra detectar mudança e gerar andamento
-            $stOld = $pdo->prepare("SELECT citacao_status, citacao_data FROM cases WHERE id=?");
+            $stOld = $pdo->prepare("SELECT citacao_status, citacao_data, representamos_polo FROM cases WHERE id=?");
             $stOld->execute(array($caseId));
             $old = $stOld->fetch();
 
-            $pdo->prepare("UPDATE cases SET citacao_status=?, citacao_data=?, citacao_obs=?, citacao_updated_at=NOW(), citacao_updated_by=? WHERE id=?")
-                ->execute(array($statusCit, $dataCitVal, $obsCit ?: null, current_user_id(), $caseId));
+            $pdo->prepare("UPDATE cases SET citacao_status=?, citacao_data=?, citacao_obs=?, representamos_polo=COALESCE(?, representamos_polo), citacao_updated_at=NOW(), citacao_updated_by=? WHERE id=?")
+                ->execute(array($statusCit, $dataCitVal, $obsCit ?: null, $poloVal, current_user_id(), $caseId));
 
             $labels = array(
                 'nao_expedido'        => '📤 Mandado de citação ainda não foi expedido',
