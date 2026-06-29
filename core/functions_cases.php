@@ -73,13 +73,18 @@ function find_or_create_client(array $data): int
     $name = isset($data['name']) ? trim($data['name']) : '';
     $phone = isset($data['phone']) ? trim($data['phone']) : '';
     $email = isset($data['email']) ? trim($data['email']) : '';
+    $cpf   = isset($data['cpf']) ? trim($data['cpf']) : '';
 
-    // 1. Buscar por telefone (mais confiável)
-    if ($phone) {
-        $phoneClean = preg_replace('/\D/', '', $phone);
-        if (strlen($phoneClean) >= 8) {
-            $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(phone,' ',''),'-',''),'(',''),')','') LIKE ? LIMIT 1");
-            $stmt->execute(array('%' . substr($phoneClean, -8) . '%'));
+    // Amanda 29/06/2026: dedup por CPF (mais seguro). Telefone NÃO mais —
+    // dois clientes podem dividir celular (família, casal etc.) e estavam
+    // colando o segundo cadastro no primeiro silenciosamente. Caso do Cosme.
+
+    // 1. Buscar por CPF (normaliza os 2 lados pra ignorar mascara)
+    if ($cpf) {
+        $cpfDigits = preg_replace('/\D/', '', $cpf);
+        if (strlen($cpfDigits) === 11) {
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ? LIMIT 1");
+            $stmt->execute(array($cpfDigits));
             $row = $stmt->fetch();
             if ($row) return (int)$row['id'];
         }
@@ -93,9 +98,10 @@ function find_or_create_client(array $data): int
         if ($row) return (int)$row['id'];
     }
 
-    // 3. Buscar por nome exato
-    if ($name) {
-        $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+    // 3. Buscar por nome EXATO — só se não tem CPF (último recurso). Se já
+    //    tem CPF e não bateu acima, é cliente novo mesmo com nome igual.
+    if ($name && !$cpf) {
+        $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
         $stmt->execute(array($name));
         $row = $stmt->fetch();
         if ($row) return (int)$row['id'];

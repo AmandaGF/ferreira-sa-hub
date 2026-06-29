@@ -101,15 +101,17 @@ function process_form_submission($formType, $clientData, $payloadJson)
     if ($name) {
         // Buscar cliente existente usando find_or_create_client se disponível
         if (function_exists('find_or_create_client')) {
-            $clientId = find_or_create_client(array('name' => $name, 'phone' => $phone, 'email' => $email));
+            $clientId = find_or_create_client(array('name' => $name, 'phone' => $phone, 'email' => $email, 'cpf' => $cpf));
         } else {
-            // Fallback: buscar por telefone → email → nome
+            // Fallback: CPF (mais seguro) → email → nome (só se sem CPF).
+            // Amanda 29/06: telefone fora do dedup — dois clientes podem
+            // dividir celular (caso do Cosme x Yasmim).
             $existingClient = null;
-            if ($phone) {
-                $phoneLast8 = substr(preg_replace('/\D/', '', $phone), -8);
-                if (strlen($phoneLast8) >= 8) {
-                    $check = $pdo->prepare("SELECT id FROM clients WHERE phone LIKE ? LIMIT 1");
-                    $check->execute(array('%' . $phoneLast8));
+            if ($cpf) {
+                $cpfDigits = preg_replace('/\D/', '', $cpf);
+                if (strlen($cpfDigits) === 11) {
+                    $check = $pdo->prepare("SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(cpf,'.',''),'-',''),' ','') = ? LIMIT 1");
+                    $check->execute(array($cpfDigits));
                     $existingClient = $check->fetch();
                 }
             }
@@ -118,8 +120,8 @@ function process_form_submission($formType, $clientData, $payloadJson)
                 $check->execute(array($email));
                 $existingClient = $check->fetch();
             }
-            if (!$existingClient && $name) {
-                $check = $pdo->prepare("SELECT id FROM clients WHERE name = ? LIMIT 1");
+            if (!$existingClient && $name && !$cpf) {
+                $check = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
                 $check->execute(array($name));
                 $existingClient = $check->fetch();
             }
