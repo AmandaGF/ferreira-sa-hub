@@ -252,7 +252,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 <div style="position:relative;" id="bgWrap">
                     <div style="position:relative;display:flex;align-items:center;">
                         <span style="position:absolute;left:10px;font-size:.85rem;opacity:.5;pointer-events:none;">🔍</span>
-                        <input type="text" id="bgInput" placeholder="Buscar no Hub... ( / )" autocomplete="off"
+                        <input type="text" id="bgInput" placeholder="Buscar no Hub... (Ctrl+K ou /)" autocomplete="off"
                                style="padding:.4rem .6rem .4rem 30px;background:rgba(5,34,40,.05);border:1px solid rgba(5,34,40,.15);border-radius:8px;color:var(--petrol-900);font-size:.8rem;outline:none;width:180px;transition:width .15s;"
                                onfocus="this.style.width='280px';this.style.background='#fff';"
                                onblur="setTimeout(function(){document.getElementById('bgInput').style.width='180px';document.getElementById('bgInput').style.background='rgba(5,34,40,.05)';document.getElementById('bgDrop').style.display='none';},200);">
@@ -293,8 +293,14 @@ require_once APP_ROOT . '/templates/sidebar.php';
                         if (ev.key === 'Escape') { this.value = ''; bgDrop.style.display = 'none'; this.blur(); }
                     });
 
-                    // Atalho "/" global
+                    // Atalho "/" global + Ctrl+K (ou Cmd+K no Mac) — Ctrl+K dispara em qualquer contexto, '/' só fora de input
                     document.addEventListener('keydown', function(ev) {
+                        if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'k' || ev.key === 'K')) {
+                            ev.preventDefault();
+                            bgInput.focus();
+                            bgInput.select();
+                            return;
+                        }
                         if (ev.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA' && !document.activeElement.isContentEditable) {
                             ev.preventDefault();
                             bgInput.focus();
@@ -317,16 +323,18 @@ require_once APP_ROOT . '/templates/sidebar.php';
                     function bgRender(grupos) {
                         var base = '<?= rtrim(url(''), '/') ?>';
                         var labels = {
-                            clientes:   'Clientes',
-                            processos:  'Processos',
-                            leads:      'Leads',
-                            tarefas:    'Tarefas',
-                            chamados:   'Chamados',
-                            andamentos: 'Andamentos',
-                            intimacoes: 'Intimações / Publicações',
-                            wiki:       'Wiki'
+                            clientes:     'Clientes',
+                            processos:    'Processos',
+                            leads:        'Leads',
+                            tarefas:      'Tarefas',
+                            chamados:     'Chamados',
+                            andamentos:   'Andamentos',
+                            intimacoes:   'Intimações / Publicações',
+                            agenda:       'Agenda',
+                            audiencistas: 'Audiencistas',
+                            wiki:         'Wiki'
                         };
-                        var ordem = ['clientes','processos','leads','intimacoes','tarefas','chamados','andamentos','wiki'];
+                        var ordem = ['clientes','processos','leads','intimacoes','agenda','audiencistas','tarefas','chamados','andamentos','wiki'];
                         var html = '';
                         var total = 0;
                         ordem.forEach(function(k){

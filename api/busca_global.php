@@ -398,6 +398,97 @@ try {
     }
 } catch (Exception $e) {}
 
+// ── AUDIENCISTAS ── (29/06/2026 Amanda: incluir busca no Ctrl+K)
+// Busca por nome, telefone, OAB, área (TRT, JEC, etc) ou observação
+try {
+    $stmt = $pdo->prepare(
+        "SELECT id, nome, telefone, email, oab, areas, ativo,
+                (SELECT COUNT(*) FROM audiencias WHERE audiencista_id = a.id AND status='designada') AS abertas
+         FROM audiencistas a
+         WHERE (nome LIKE ?
+             OR telefone LIKE ?
+             OR email LIKE ?
+             OR oab LIKE ?
+             OR areas LIKE ?
+             OR observacoes LIKE ?)
+         ORDER BY ativo DESC, (nome LIKE ?) DESC, nome
+         LIMIT 5"
+    );
+    $stmt->execute(array($like, $likeDoc, $like, $like, $like, $like, $q . '%'));
+    $rows = $stmt->fetchAll();
+    if ($rows) {
+        $grupos['audiencistas'] = array();
+        foreach ($rows as $r) {
+            $parts = array();
+            if ($r['telefone']) $parts[] = '📞 ' . $r['telefone'];
+            if ($r['oab'])      $parts[] = 'OAB ' . $r['oab'];
+            if ($r['areas'])    $parts[] = $r['areas'];
+            if (!$r['ativo'])   $parts[] = '⊘ inativo';
+            if ((int)$r['abertas'] > 0) $parts[] = (int)$r['abertas'] . ' designada(s) em aberto';
+            $grupos['audiencistas'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => $r['nome'],
+                'subtitulo' => implode(' • ', $parts),
+                'url'       => 'modules/audiencistas/?ver=' . (int)$r['id'],
+                'icon'      => '🎤',
+                'arquivado' => !$r['ativo'],
+            );
+        }
+    }
+} catch (Exception $e) {}
+
+// ── AGENDA (eventos) ── (29/06/2026 Amanda: incluir busca no Ctrl+K)
+// Audiências, reuniões, balcão virtual, prazos — futuros e passados recentes (últimos 60d)
+try {
+    $stmt = $pdo->prepare(
+        "SELECT e.id, e.titulo, e.tipo, e.data_inicio, e.local, e.status,
+                cl.name AS cliente_nome, cs.title AS case_title,
+                u.name AS responsavel_nome
+         FROM agenda_eventos e
+         LEFT JOIN clients cl ON cl.id = e.client_id
+         LEFT JOIN cases cs ON cs.id = e.case_id
+         LEFT JOIN users u ON u.id = e.responsavel_id
+         WHERE (e.titulo LIKE ?
+             OR e.local LIKE ?
+             OR e.descricao LIKE ?
+             OR cl.name LIKE ?
+             OR cs.title LIKE ?)
+           AND e.data_inicio >= DATE_SUB(NOW(), INTERVAL 60 DAY)
+         ORDER BY (e.data_inicio >= NOW()) DESC, e.data_inicio ASC
+         LIMIT 6"
+    );
+    $stmt->execute(array($like, $like, $like, $like, $like));
+    $rows = $stmt->fetchAll();
+    if ($rows) {
+        $emojiTipo = array(
+            'audiencia' => '⚖️', 'mediacao_cejusc' => '🤝', 'balcao_virtual' => '💻',
+            'reuniao' => '👥', 'reuniao_lead' => '🆕', 'prazo' => '⏰',
+            'onboarding' => '🎯', 'tarefa' => '📋', 'preparacao_audiencia' => '📚',
+        );
+        $grupos['agenda'] = array();
+        foreach ($rows as $r) {
+            $tipo = (string)$r['tipo'];
+            $ico  = isset($emojiTipo[$tipo]) ? $emojiTipo[$tipo] : '📅';
+            $quando = $r['data_inicio'] ? date('d/m H:i', strtotime($r['data_inicio'])) : '';
+            $parts = array();
+            if ($quando) $parts[] = $quando;
+            if ($r['cliente_nome']) $parts[] = '👤 ' . $r['cliente_nome'];
+            elseif ($r['case_title']) $parts[] = $r['case_title'];
+            if ($r['local']) $parts[] = '📍 ' . mb_substr($r['local'], 0, 40);
+            if ($r['responsavel_nome']) $parts[] = explode(' ', $r['responsavel_nome'])[0];
+            $passado = $r['data_inicio'] && strtotime($r['data_inicio']) < time();
+            $grupos['agenda'][] = array(
+                'id'        => (int)$r['id'],
+                'titulo'    => $ico . ' ' . ($r['titulo'] ?: ucfirst($tipo)),
+                'subtitulo' => implode(' • ', $parts),
+                'url'       => 'modules/agenda/?evento=' . (int)$r['id'],
+                'icon'      => '📅',
+                'arquivado' => $passado,
+            );
+        }
+    }
+} catch (Exception $e) {}
+
 // ── WIKI ──
 try {
     $stmt = $pdo->prepare(
