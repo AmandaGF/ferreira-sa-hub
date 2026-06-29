@@ -21,6 +21,9 @@ try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_data DATE NULL"); } catch
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_obs TEXT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_updated_at DATETIME NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN citacao_updated_by INT UNSIGNED NULL"); } catch (Exception $e) {}
+// Polo que o escritório representa (autor / réu). Relevante na citação porque
+// se representamos o RÉU, o prazo pra Contestar começa a correr.
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN representamos_polo VARCHAR(20) NULL"); } catch (Exception $e) {}
 // Acompanhamento externo: processo de outro escritório sob nossa observação,
 // sem procuração nossa. NÃO entra no painel de temperatura, ganha visual
 // distinto no Kanban e ficha (cinza-azulado).
