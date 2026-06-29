@@ -2746,10 +2746,39 @@ switch ($action) {
             $tipoAnd = ($old['tipo'] === 'audiencia') ? 'audiencia' : 'observacao';
             try {
                 $pdo->prepare(
-                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
-                     VALUES (?, ?, ?, ?, 1, ?, NOW())"
-                )->execute(array($caseId, date('Y-m-d'), $tipoAnd, trim($descAnd), current_user_id()));
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at, agenda_evento_id)
+                     VALUES (?, ?, ?, ?, 1, ?, NOW(), ?)"
+                )->execute(array($caseId, date('Y-m-d'), $tipoAnd, trim($descAnd), current_user_id(), $eventoId));
             } catch (Exception $eA) { /* nao bloqueia */ }
+
+            // Re-escreve o andamento "agendada" original com a nova data/modalidade/local
+            // pra ele parar de mentir os dados antigos. Usa o helper de agenda/api.php.
+            try {
+                $helperPath = APP_ROOT . '/modules/agenda/api.php';
+                if (!function_exists('_agenda_reescrever_andamento_agendada') && is_file($helperPath)) {
+                    // O helper é declarado dentro do api.php — pra reusar fora carregamos
+                    // só as funções via include condicional protegido pelo function_exists.
+                    // Como api.php tem efeitos colaterais (POST handler), copiamos a lógica:
+                }
+                if (function_exists('_agenda_reescrever_andamento_agendada')) {
+                    _agenda_reescrever_andamento_agendada($pdo, $eventoId, $caseId, $old['tipo'], $old['titulo'] ?? '', $novaInicio, $modalidade, $local, $meetLink);
+                } else {
+                    // Fallback inline: regrava direto via SQL básico
+                    $rotulos = array('audiencia'=>'Audiência','reuniao_cliente'=>'Reunião com cliente','onboarding'=>'Onboarding','mediacao_cejusc'=>'Mediação/CEJUSC','balcao_virtual'=>'Balcão Virtual','ligacao'=>'Ligação/Retorno','pericia_inss'=>'Perícia INSS');
+                    $rot = $rotulos[$old['tipo']] ?? 'Compromisso';
+                    $dh  = date('d/m/Y \à\s H:i', strtotime($novaInicio));
+                    $nd  = "📅 {$rot} agendada: " . ($old['titulo'] ?? '') . "\n🗓 Data: {$dh}\n";
+                    if ($modalidade === 'online')     $nd .= "🎥 Modalidade: Online" . ($meetLink ? " — {$meetLink}" : '') . "\n";
+                    elseif ($modalidade === 'presencial') $nd .= "🏛 Modalidade: Presencial" . ($local ? " — {$local}" : '') . "\n";
+                    elseif ($modalidade === 'hibrido' || $modalidade === 'hibrida') $nd .= "🔀 Modalidade: Híbrida" . ($local ? " — {$local}" : '') . ($meetLink ? " · {$meetLink}" : '') . "\n";
+                    elseif ($local) $nd .= "📍 Local: {$local}\n";
+                    if ($old['tipo'] === 'audiencia') $nd .= "\nℹ️ Orientações sobre a audiência: https://www.ferreiraesa.com.br/audiencias/";
+                    $pdo->prepare("UPDATE case_andamentos SET descricao=?, data_andamento=?
+                                   WHERE agenda_evento_id=? AND case_id=?
+                                     AND (descricao LIKE '%agendada:%' OR descricao LIKE '📅%')")
+                        ->execute(array(trim($nd), date('Y-m-d', strtotime($novaInicio)), $eventoId, $caseId));
+                }
+            } catch (Exception $eR) { /* nao bloqueia */ }
 
             audit_log('EVENTO_REMARCADO', 'case', $caseId, 'evento_id=' . $eventoId . ' de=' . $old['data_inicio'] . ' para=' . $novaInicio . ' motivo=' . mb_substr($motivo, 0, 80));
             flash_set('success', '✓ Compromisso remarcado pra ' . $dtDepois . '. Andamento criado — não esqueça de avisar o cliente.');

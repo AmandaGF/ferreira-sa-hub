@@ -18,6 +18,85 @@ try { $pdo->exec("ALTER TABLE agenda_eventos ADD INDEX idx_subtipo (subtipo)"); 
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD COLUMN referencia_evento_id INT NULL"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE agenda_eventos ADD INDEX idx_referencia (referencia_evento_id)"); } catch (Exception $e) {}
 
+// Self-heal: agenda_evento_id em case_andamentos - vincula andamento ao evento que
+// o originou pra que possamos REGRAVAR o "agendada" quando o evento for alterado
+// (Amanda 29/06/2026: andamento original ficava mentindo a modalidade antiga).
+try { $pdo->exec("ALTER TABLE case_andamentos ADD COLUMN agenda_evento_id INT NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE case_andamentos ADD INDEX idx_agenda_evento_id (agenda_evento_id)"); } catch (Exception $e) {}
+
+/**
+ * Monta o texto do andamento "📅 ... agendada" usando os dados ATUAIS do evento.
+ * Usado tanto na criação quanto na re-escrita após alteração — uma fonte só de
+ * verdade pro formato, evitando andamento original mentindo a modalidade antiga.
+ */
+if (!function_exists('_agenda_montar_descricao_agendada')) {
+function _agenda_montar_descricao_agendada($tipo, $titulo, $dataInicio, $modalidade, $local, $meetLink) {
+    $rotulos = array(
+        'audiencia'       => 'Audiência',
+        'reuniao_cliente' => 'Reunião com cliente',
+        'onboarding'      => 'Onboarding',
+        'mediacao_cejusc' => 'Mediação/CEJUSC',
+        'balcao_virtual'  => 'Balcão Virtual',
+        'ligacao'         => 'Ligação/Retorno',
+        'pericia_inss'    => 'Perícia INSS',
+    );
+    $rotulo = $rotulos[$tipo] ?? 'Compromisso';
+    $dtEv = strtotime($dataInicio);
+    $dataHumana = date('d/m/Y \à\s H:i', $dtEv);
+    $desc  = "📅 {$rotulo} agendada: {$titulo}\n";
+    $desc .= "🗓 Data: {$dataHumana}\n";
+    if ($modalidade === 'online') {
+        $desc .= "🎥 Modalidade: Online" . ($meetLink ? " — {$meetLink}" : '') . "\n";
+    } elseif ($modalidade === 'presencial') {
+        $desc .= "🏛 Modalidade: Presencial" . ($local ? " — {$local}" : '') . "\n";
+    } elseif ($modalidade === 'hibrida' || $modalidade === 'hibrido') {
+        $desc .= "🔀 Modalidade: Híbrida";
+        if ($local)    $desc .= " — {$local}";
+        if ($meetLink) $desc .= " · " . $meetLink;
+        $desc .= "\n";
+    } elseif ($local) {
+        $desc .= "📍 Local: {$local}\n";
+    }
+    if ($tipo === 'audiencia') {
+        $desc .= "\nℹ️ Orientações sobre a audiência: https://www.ferreiraesa.com.br/audiencias/";
+    }
+    return trim($desc);
+}
+}
+
+/**
+ * Re-escreve o andamento "agendada" vinculado a um evento (via agenda_evento_id)
+ * pra refletir os dados atuais do evento. Chamado depois de UPDATE/REMARCAR.
+ * Também atualiza data_andamento se a data do evento mudou.
+ * Fallback (legado sem agenda_evento_id): tenta achar pelo case_id + título.
+ */
+if (!function_exists('_agenda_reescrever_andamento_agendada')) {
+function _agenda_reescrever_andamento_agendada(PDO $pdo, $eventoId, $caseId, $tipo, $titulo, $dataInicio, $modalidade, $local, $meetLink) {
+    if (!$eventoId || !$caseId) return false;
+    $novaDesc = _agenda_montar_descricao_agendada($tipo, $titulo, $dataInicio, $modalidade, $local, $meetLink);
+    $novaData = date('Y-m-d', strtotime($dataInicio));
+    try {
+        // 1) Tenta pelo vínculo direto
+        $up = $pdo->prepare("UPDATE case_andamentos
+                             SET descricao = ?, data_andamento = ?
+                             WHERE agenda_evento_id = ? AND case_id = ?
+                               AND (descricao LIKE '%agendada:%' OR descricao LIKE '📅%')");
+        $up->execute(array($novaDesc, $novaData, $eventoId, $caseId));
+        if ($up->rowCount() > 0) return true;
+
+        // 2) Fallback: andamentos antigos sem vínculo — tenta achar pelo título e tipo
+        $up2 = $pdo->prepare("UPDATE case_andamentos
+                              SET descricao = ?, data_andamento = ?, agenda_evento_id = ?
+                              WHERE case_id = ? AND tipo IN ('audiencia','observacao')
+                                AND agenda_evento_id IS NULL
+                                AND descricao LIKE ?
+                              ORDER BY id ASC LIMIT 1");
+        $up2->execute(array($novaDesc, $novaData, $eventoId, $caseId, '%agendada: ' . $titulo . '%'));
+        return $up2->rowCount() > 0;
+    } catch (Exception $e) { return false; }
+}
+}
+
 // Helper Amanda 02/06/2026: cria OU atualiza OU remove lembrete 15d antes de audiencia
 // presencial. Usado no INSERT (criar nova) e no UPDATE (editar existente).
 // Retorna: 'criado' | 'atualizado' | 'removido' | 'sem_acao'
@@ -811,10 +890,16 @@ if ($action === 'salvar') {
                     $visAndEdit = in_array($tipo, array('audiencia','reuniao_cliente','onboarding'), true) ? 1 : 0;
                     $dataAndEdit = $tsNewIni ? date('Y-m-d', $tsNewIni) : date('Y-m-d');
                     $pdo->prepare(
-                        "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?, NOW())"
-                    )->execute(array($caseId, $dataAndEdit, $tipoAndEdit, $descAndEdit, $visAndEdit, current_user_id()));
+                        "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at, agenda_evento_id)
+                         VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)"
+                    )->execute(array($caseId, $dataAndEdit, $tipoAndEdit, $descAndEdit, $visAndEdit, current_user_id(), $id));
                 } catch (Exception $e) { /* não bloqueia a edição */ }
+
+                // Re-escreve o andamento "agendada" original com os dados ATUAIS,
+                // pra ele parar de mentir a modalidade/data antiga (Amanda 29/06/2026).
+                try {
+                    _agenda_reescrever_andamento_agendada($pdo, $id, $caseId, $tipo, $titulo, $dataInicio, $modalidade, $local, $meetLink);
+                } catch (Exception $e) { /* nao bloqueia */ }
             }
         }
 
@@ -879,47 +964,21 @@ if ($action === 'salvar') {
         $tiposAndamento = array('audiencia','reuniao_cliente','onboarding','mediacao_cejusc','balcao_virtual','ligacao','pericia_inss');
         if ($caseId && in_array($tipo, $tiposAndamento, true)) {
             try {
-                $rotulos = array(
-                    'audiencia'       => 'Audiência',
-                    'reuniao_cliente' => 'Reunião com cliente',
-                    'onboarding'      => 'Onboarding',
-                    'mediacao_cejusc' => 'Mediação/CEJUSC',
-                    'balcao_virtual'  => 'Balcão Virtual',
-                    'ligacao'         => 'Ligação/Retorno',
-                    'pericia_inss'    => 'Perícia INSS',
-                );
-                $rotulo = $rotulos[$tipo] ?? 'Compromisso';
-                $dtEv  = strtotime($dataInicio);
-                $dataHumana = date('d/m/Y \à\s H:i', $dtEv);
-                $descAnd  = "📅 {$rotulo} agendada: {$titulo}\n";
-                $descAnd .= "🗓 Data: {$dataHumana}\n";
-                if ($modalidade === 'online') {
-                    $descAnd .= "🎥 Modalidade: Online" . ($meetLink ? " — {$meetLink}" : '') . "\n";
-                } elseif ($modalidade === 'presencial') {
-                    $descAnd .= "🏛 Modalidade: Presencial" . ($local ? " — {$local}" : '') . "\n";
-                } elseif ($local) {
-                    $descAnd .= "📍 Local: {$local}\n";
-                }
-
-                // Link de orientação sobre audiência — mesmo link da mensagem WhatsApp
-                // enviada ao cliente (ver msgsPadrao.audiencia em modules/agenda/index.php).
-                if ($tipo === 'audiencia') {
-                    $descAnd .= "\nℹ️ Orientações sobre a audiência: https://www.ferreiraesa.com.br/audiencias/";
-                }
-
+                $descAnd = _agenda_montar_descricao_agendada($tipo, $titulo, $dataInicio, $modalidade, $local, $meetLink);
                 $tipoAnd = ($tipo === 'audiencia') ? 'audiencia' : 'observacao';
-                $visAnd  = $visivelCliente; // herda da lógica da agenda
+                $visAnd  = $visivelCliente;
 
                 $pdo->prepare(
-                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at)
-                     VALUES (?, ?, ?, ?, ?, ?, NOW())"
+                    "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, visivel_cliente, created_by, created_at, agenda_evento_id)
+                     VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)"
                 )->execute(array(
                     $caseId,
-                    date('Y-m-d', $dtEv),
+                    date('Y-m-d', strtotime($dataInicio)),
                     $tipoAnd,
-                    trim($descAnd),
+                    $descAnd,
                     $visAnd,
-                    current_user_id()
+                    current_user_id(),
+                    $newId
                 ));
             } catch (Exception $e) { /* não bloqueia a criação do evento */ }
         }
