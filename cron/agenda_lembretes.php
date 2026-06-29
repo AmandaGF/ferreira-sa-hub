@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions.php';
+require_once __DIR__ . '/../core/functions_zapi.php';
 
 $pdo = db();
 $agora = new DateTime();
@@ -113,6 +114,178 @@ foreach ($eventos2h as $ev) {
 }
 
 echo "\nTotal 1d: " . count($eventos1d) . " | Total 2h: " . count($eventos2h) . "\n";
+
+// ════════════════════════════════════════════════════════════════════════
+// 3-CLIENTE. Lembrete WhatsApp D-1 AUTOMATICO pro cliente da audiencia
+// (29/06/2026 Amanda).
+//
+// Roda 1x por dia (entre 8h e 20h) — busca eventos de audiência/CEJUSC/reuniao
+// presencial entre +22h e +26h do agora, e onde cliente_avisado_em IS NULL.
+// Envia via Z-API canal 24 (operacional) e marca cliente_avisado_em=NOW(),
+// cliente_avisado_por=-1 (-1 = sistema cron).
+//
+// Killswitch: configuracoes.lembrete_d1_auto_cliente = '0' desliga tudo.
+// ════════════════════════════════════════════════════════════════════════
+echo "\n--- D-1 cliente (WhatsApp automático) ---\n";
+try {
+    $horaAtual = (int)date('H');
+    if ($horaAtual < 8 || $horaAtual >= 20) {
+        echo "  Fora de horário (8h-20h). Pulando envio.\n";
+    } else {
+        $killswitch = $pdo->query("SELECT valor FROM configuracoes WHERE chave='lembrete_d1_auto_cliente'")->fetchColumn();
+        if ($killswitch === '0') {
+            echo "  Desligado em configuracoes.lembrete_d1_auto_cliente=0. Pulando.\n";
+        } else {
+            $em22h = (new DateTime())->modify('+22 hours')->format('Y-m-d H:i:s');
+            $em26h = (new DateTime())->modify('+26 hours')->format('Y-m-d H:i:s');
+            $stmtD1 = $pdo->prepare(
+                "SELECT e.id, e.titulo, e.tipo, e.subtipo, e.modalidade, e.data_inicio, e.local, e.meet_link,
+                        e.cliente_presencial, e.case_id,
+                        c.id AS client_id, c.name AS client_name, c.phone AS client_phone,
+                        cs.title AS case_title
+                 FROM agenda_eventos e
+                 JOIN clients c ON c.id = e.client_id
+                 LEFT JOIN cases cs ON cs.id = e.case_id
+                 WHERE e.status = 'agendado'
+                   AND e.cliente_avisado_em IS NULL
+                   AND e.data_inicio BETWEEN ? AND ?
+                   AND (
+                        e.tipo IN ('audiencia','mediacao_cejusc')
+                        OR (e.tipo = 'reuniao' AND e.cliente_presencial = 1)
+                   )
+                   AND c.phone IS NOT NULL AND c.phone <> ''"
+            );
+            $stmtD1->execute(array($em22h, $em26h));
+            $eventosD1 = $stmtD1->fetchAll();
+
+            $totEnv = 0; $totErr = 0;
+            foreach ($eventosD1 as $ev) {
+                $dt = new DateTime($ev['data_inicio']);
+                $dataFmt = $dt->format('d/m');
+                $horaFmt = $dt->format('H:i');
+                $primeiroNome = explode(' ', trim($ev['client_name']))[0];
+
+                // Label do tipo
+                $tipoLabel = '*compromisso*';
+                if ($ev['tipo'] === 'audiencia') $tipoLabel = '*audiência*';
+                elseif ($ev['tipo'] === 'mediacao_cejusc') $tipoLabel = '*audiência de mediação no CEJUSC*';
+                elseif ($ev['tipo'] === 'reuniao') $tipoLabel = '*reunião*';
+
+                $msg  = "Olá, {$primeiroNome}!\n\n";
+                $msg .= "Lembramos que sua {$tipoLabel} está marcada para *amanhã, {$dataFmt} às {$horaFmt}*.\n\n";
+                if (!empty($ev['meet_link'])) {
+                    $msg .= "💻 Será por videoconferência.\n";
+                    $msg .= "🔗 Link: {$ev['meet_link']}\n\n";
+                } elseif (!empty($ev['local'])) {
+                    $msg .= "📍 Local: {$ev['local']}\n\n";
+                }
+                $msg .= "Em caso de imprevisto, nos avise o quanto antes por aqui.\n\n";
+                $msg .= "Equipe Ferreira & Sá Advocacia 🤝";
+
+                $r = zapi_send_text('24', $ev['client_phone'], $msg);
+                if (!empty($r['ok'])) {
+                    $pdo->prepare("UPDATE agenda_eventos SET cliente_avisado_em = NOW(), cliente_avisado_por = -1 WHERE id = ?")
+                        ->execute(array($ev['id']));
+                    echo "  ✓ #{$ev['id']} '{$ev['titulo']}' -> {$ev['client_name']} ({$ev['client_phone']})\n";
+                    $totEnv++;
+                } else {
+                    $erro = isset($r['erro']) ? $r['erro'] : 'desconhecido';
+                    echo "  ✗ #{$ev['id']} '{$ev['titulo']}' -> {$ev['client_name']}: {$erro}\n";
+                    $totErr++;
+                }
+            }
+            echo "Total enviados: {$totEnv} | Erros: {$totErr}\n";
+        }
+    }
+} catch (Exception $e) {
+    echo "  [ERRO D-1 cliente] " . $e->getMessage() . "\n";
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// 3-AUDIENCISTA. Lembrete WhatsApp D-1 AUTOMATICO pro audiencista designado
+// (29/06/2026 Amanda).
+//
+// Roda 1x por dia (entre 8h e 20h) — busca audiencias com status='designada',
+// data_hora entre +22h e +26h, audiencista_avisado_em IS NULL. Envia via Z-API
+// canal 24 e marca audiencista_avisado_em=NOW().
+//
+// Killswitch: configuracoes.lembrete_d1_auto_audiencista = '0' desliga.
+// ════════════════════════════════════════════════════════════════════════
+echo "\n--- D-1 audiencista (WhatsApp automático) ---\n";
+try {
+    $horaAtual = (int)date('H');
+    if ($horaAtual < 8 || $horaAtual >= 20) {
+        echo "  Fora de horário (8h-20h). Pulando envio.\n";
+    } else {
+        $killswitch = $pdo->query("SELECT valor FROM configuracoes WHERE chave='lembrete_d1_auto_audiencista'")->fetchColumn();
+        if ($killswitch === '0') {
+            echo "  Desligado em configuracoes.lembrete_d1_auto_audiencista=0. Pulando.\n";
+        } else {
+            // Self-heal das colunas (idempotente)
+            try { $pdo->exec("ALTER TABLE audiencias ADD COLUMN audiencista_avisado_em DATETIME NULL"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE audiencias ADD COLUMN audiencista_avisado_por INT NULL"); } catch (Exception $e) {}
+
+            $em22h = (new DateTime())->modify('+22 hours')->format('Y-m-d H:i:s');
+            $em26h = (new DateTime())->modify('+26 hours')->format('Y-m-d H:i:s');
+            $stmtAu = $pdo->prepare(
+                "SELECT a.id, a.tipo, a.data_hora, a.comarca, a.local, a.modalidade, a.tipo_processo,
+                        a.processo_numero, a.orientacoes,
+                        au.id AS audiencista_id, au.nome AS audiencista_nome, au.telefone AS audiencista_phone,
+                        cl.name AS client_name,
+                        cs.title AS case_title
+                 FROM audiencias a
+                 JOIN audiencistas au ON au.id = a.audiencista_id
+                 LEFT JOIN clients cl ON cl.id = a.client_id
+                 LEFT JOIN cases cs ON cs.id = a.case_id
+                 WHERE a.status = 'designada'
+                   AND a.audiencista_avisado_em IS NULL
+                   AND a.data_hora BETWEEN ? AND ?
+                   AND au.telefone IS NOT NULL AND au.telefone <> ''"
+            );
+            $stmtAu->execute(array($em22h, $em26h));
+            $audsD1 = $stmtAu->fetchAll();
+
+            $totEnv = 0; $totErr = 0;
+            foreach ($audsD1 as $au) {
+                $dt = new DateTime($au['data_hora']);
+                $dataFmt = $dt->format('d/m');
+                $horaFmt = $dt->format('H:i');
+                $primNome = explode(' ', trim($au['audiencista_nome']))[0];
+                $localTxt = $au['modalidade'] === 'virtual'
+                    ? '💻 Virtual'
+                    : ('📍 ' . ($au['local'] ?: $au['comarca'] ?: 'Local a confirmar'));
+
+                $msg  = "Olá, *Dr(a). {$primNome}*!\n\n";
+                $msg .= "Lembramos da audiência designada para *amanhã, {$dataFmt} às {$horaFmt}*.\n\n";
+                if ($au['tipo_processo']) $msg .= "⚖️ Tipo: {$au['tipo_processo']}\n";
+                if ($au['client_name'])    $msg .= "👤 Cliente: {$au['client_name']}\n";
+                if ($au['processo_numero']) $msg .= "📋 Processo: {$au['processo_numero']}\n";
+                $msg .= "{$localTxt}\n\n";
+                if (!empty($au['orientacoes'])) {
+                    $orient = mb_substr(trim($au['orientacoes']), 0, 600);
+                    $msg .= "📝 *Orientações:*\n{$orient}\n\n";
+                }
+                $msg .= "Qualquer dúvida ou imprevisto, nos avise.\n\n";
+                $msg .= "Equipe Ferreira & Sá Advocacia 🤝";
+
+                $r = zapi_send_text('24', $au['audiencista_phone'], $msg);
+                if (!empty($r['ok'])) {
+                    $pdo->prepare("UPDATE audiencias SET audiencista_avisado_em = NOW(), audiencista_avisado_por = -1 WHERE id = ?")
+                        ->execute(array($au['id']));
+                    echo "  ✓ Aud#{$au['id']} -> {$au['audiencista_nome']} ({$au['audiencista_phone']})\n";
+                    $totEnv++;
+                } else {
+                    $erro = isset($r['erro']) ? $r['erro'] : 'desconhecido';
+                    echo "  ✗ Aud#{$au['id']} -> {$au['audiencista_nome']}: {$erro}\n";
+                    $totErr++;
+                }
+            }
+            echo "Total enviados: {$totEnv} | Erros: {$totErr}\n";
+        }
+    }
+} catch (Exception $e) {
+    echo "  [ERRO D-1 audiencista] " . $e->getMessage() . "\n";
+}
 
 // ── 3. Alertas escalonados de prazos processuais (7d, 3d, 1d, HOJE) ──
 echo "\n--- Alertas Escalonados de Prazos ---\n";
