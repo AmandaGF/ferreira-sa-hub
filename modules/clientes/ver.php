@@ -146,6 +146,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </form>
         </div>
     </div>
+    <?php
+    // 30/06/2026 Amanda: botão "Copiar Dados" — monta o texto formatado aqui
+    // e passa pro JS via data-attribute (evita escape complicado no inline).
+    $_cpDados = array();
+    $_cpDados[] = "👤 " . ($client['name'] ?? '');
+    if (!empty($client['cpf'])) $_cpDados[] = "CPF/CNPJ: " . $client['cpf'];
+    if (!empty($client['rg']))  $_cpDados[] = "RG: " . $client['rg'];
+    if (!empty($client['birth_date'])) $_cpDados[] = "Nascimento: " . date('d/m/Y', strtotime($client['birth_date']));
+    if (!empty($client['nacionalidade'])) $_cpDados[] = "Nacionalidade: " . $client['nacionalidade'];
+    if (!empty($client['profession'])) $_cpDados[] = "Profissão: " . $client['profession'];
+    if (!empty($client['marital_status'])) $_cpDados[] = "Estado civil: " . $client['marital_status'];
+    if (!empty($client['gender'])) $_cpDados[] = "Sexo: " . $client['gender'];
+    if (isset($client['has_children']) && $client['has_children'] !== null) {
+        $_cpDados[] = "Filhos: " . ($client['has_children'] ? 'Sim' : 'Não');
+        if (!empty($client['children_names'])) $_cpDados[] = "Nome(s) do(s) filho(s): " . $client['children_names'];
+    }
+    $_cpDados[] = "";
+    $_cpDados[] = "📞 Telefone: " . ($client['phone'] ?? '—');
+    if (!empty($client['phone2'])) $_cpDados[] = "📞 Telefone 2: " . $client['phone2'];
+    $_cpDados[] = "✉️ E-mail: " . ($client['email'] ?? '—');
+    if (!empty($client['pix_key'])) $_cpDados[] = "💳 PIX: " . $client['pix_key'];
+
+    // Endereço (montado em 1 linha + cidade/UF/CEP em outra)
+    $_temEnd = !empty($client['address_street']) || !empty($client['address_city']);
+    if ($_temEnd) {
+        $_cpDados[] = "";
+        $_cpDados[] = "📍 Endereço:";
+        if (!empty($client['address_street'])) $_cpDados[] = $client['address_street'];
+        $_linha2 = array();
+        if (!empty($client['address_city']))  $_linha2[] = $client['address_city'];
+        if (!empty($client['address_state'])) $_linha2[$_linha2 ? 0 : 0] = ($_linha2 ? $_linha2[0] . '/' . $client['address_state'] : $client['address_state']);
+        if ($_linha2) $_cpDados[] = implode('', $_linha2);
+        if (!empty($client['address_zip']))   $_cpDados[] = "CEP " . $client['address_zip'];
+    }
+    $_cpDadosTexto = implode("\n", $_cpDados);
+    ?>
     <div class="cli-profile-actions">
         <?php if ($client['phone']): ?>
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/[^0-9+]/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm">💬 WhatsApp</button>
@@ -155,6 +191,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $client['id']) ?>" class="btn btn-sm" style="background:#059669;color:#fff;" title="Histórico financeiro: cobranças, pagamentos, inadimplência">💰 Financeiro</a>
         <button type="button" onclick="cobHonAbrir()" class="btn btn-sm" style="background:#1e40af;color:#fff;border:none;" title="Adicionar cliente ao Kanban de Cobrança / iniciar execução de honorários">⚖️ Cobrar Honorários</button>
         <?php endif; ?>
+        <button type="button" id="btnCopiarDadosCli" onclick="copiarDadosCliente(this)" data-texto="<?= e($_cpDadosTexto) ?>" class="btn btn-sm" style="background:#0ea5e9;color:#fff;border:none;" title="Copiar dados cadastrais (nome, CPF, RG, endereço, etc) pra colar em outro lugar">📋 Copiar Dados</button>
         <a href="<?= module_url('clientes', 'ficha_pdf.php?id=' . $client['id']) ?>" target="_blank" class="btn btn-outline btn-sm">🖨️ Ficha PDF</a>
         <?php
         // Acesso liberado pra todos (Amanda 25/06/2026): editar cliente + Central VIP.
@@ -562,6 +599,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 <?php endif; ?>
+
+<!-- 30/06/2026 Amanda: copia dados do cliente formatados pro clipboard.
+     Disponível pra todos os usuários (não só financeiro). -->
+<script>
+window.copiarDadosCliente = function(btn) {
+    var texto = btn.getAttribute('data-texto') || '';
+    var orig = btn.innerHTML;
+    var feedback = function(ok) {
+        btn.innerHTML = ok ? '✓ Copiado!' : '✗ Falhou';
+        btn.style.background = ok ? '#059669' : '#dc2626';
+        setTimeout(function(){ btn.innerHTML = orig; btn.style.background = '#0ea5e9'; }, 1800);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(texto).then(function(){ feedback(true); }).catch(function(){ feedback(false); });
+    } else {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = texto; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+            document.body.appendChild(ta); ta.focus(); ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            feedback(ok);
+        } catch (e) { feedback(false); }
+    }
+};
+</script>
 
 <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
 <!-- ════ Modal: Cobrar Honorários (Amanda 29/06/2026) ════
