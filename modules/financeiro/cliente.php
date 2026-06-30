@@ -4,7 +4,9 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!can_access_financeiro()) { redirect(url('modules/dashboard/')); }
+// 30/06/2026 Amanda: financeiro POR CLIENTE liberado pra todos (era restrito a
+// Amanda/Rodrigo/Luiz). Painel GERAL continua com can_access_financeiro().
+if (!can_view_cliente_financeiro()) { redirect(url('modules/dashboard/')); }
 
 require_once __DIR__ . '/../../core/asaas_helper.php';
 
@@ -22,6 +24,12 @@ if (!$clientId && $fromLeadId) {
 
 if (!$clientId) { flash_set('error', 'Cliente não informado.'); redirect(module_url('financeiro')); }
 $abrirNovaCobranca = (($_GET['abrir_nova_cobranca'] ?? '') === '1');
+
+// 30/06/2026 Amanda: tela liberada pra todos (consulta), mas AÇÕES (criar
+// cobrança, sincronizar Asaas, alterar vencimento, dar baixa, cancelar,
+// vincular em lote) continuam restritas a quem tem acesso ao financeiro full
+// (Amanda/Rodrigo/Luiz). Demais usuários veem em modo só-leitura.
+$_podeEditarFin = function_exists('can_access_financeiro') && can_access_financeiro();
 
 // Filtro opcional por processo específico (quando vindo do caso_ver.php)
 $fromCaseId = (int)($_GET['from_case'] ?? 0);
@@ -212,15 +220,19 @@ echo voltar_ao_processo_html();
             <?php if ($filtroCase): ?><span style="font-size:.7rem;font-weight:500;color:#1e40af;">— só deste processo</span><?php endif; ?>
         </h4>
         <div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap;">
-            <?php if (!empty($client['asaas_customer_id'])): ?>
-            <button onclick="sincronizarClienteAsaas(<?= (int)$clientId ?>, this)" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca TODAS as cobranças deste cliente no Asaas (sem limite de data) e atualiza no Hub. Útil quando faltam parcelas antigas.">🔄 Sincronizar com Asaas</button>
+            <?php if ($_podeEditarFin): ?>
+                <?php if (!empty($client['asaas_customer_id'])): ?>
+                <button onclick="sincronizarClienteAsaas(<?= (int)$clientId ?>, this)" class="btn btn-outline btn-sm" style="font-size:.72rem;" title="Busca TODAS as cobranças deste cliente no Asaas (sem limite de data) e atualiza no Hub. Útil quando faltam parcelas antigas.">🔄 Sincronizar com Asaas</button>
+                <?php endif; ?>
+                <button onclick="document.getElementById('modalNovaCob').style.display='flex'; if(window.atualizarCobUI2) setTimeout(atualizarCobUI2, 0);" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;" title="Abre com dados do último lead pré-preenchidos — você só confere e ajusta">+ Nova Cobrança</button>
+            <?php else: ?>
+                <span style="font-size:.7rem;color:#94a3b8;font-style:italic;" title="Você está em modo só-leitura. Pra criar/alterar cobranças, fale com Amanda/Rodrigo/Luiz.">👁️ Só-leitura</span>
             <?php endif; ?>
-            <button onclick="document.getElementById('modalNovaCob').style.display='flex'; if(window.atualizarCobUI2) setTimeout(atualizarCobUI2, 0);" class="btn btn-primary btn-sm" style="background:#B87333;font-size:.72rem;" title="Abre com dados do último lead pré-preenchidos — você só confere e ajusta">+ Nova Cobrança</button>
         </div>
     </div>
 
-    <?php if (!empty($cobrancas) && !empty($processosCliente)): ?>
-    <!-- Vínculo em LOTE (bulk) — aparece só se tem cobranças + processos -->
+    <?php if (!empty($cobrancas) && !empty($processosCliente) && $_podeEditarFin): ?>
+    <!-- Vínculo em LOTE (bulk) — aparece só se tem cobranças + processos + pode editar -->
     <div style="padding:.55rem 1.15rem;background:#eff6ff;border-bottom:1px solid #bfdbfe;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;font-size:.75rem;">
         <strong style="color:#1e40af;">🔗 Vincular em lote:</strong>
         <select id="bulkVincCase" style="font-size:.75rem;padding:3px 6px;border:1px solid #93c5fd;border-radius:4px;background:#fff;min-width:200px;">
@@ -259,12 +271,23 @@ echo voltar_ao_processo_html();
                 <?php if (!empty($processosCliente)): ?>
                 <div style="margin-top:3px;display:flex;align-items:center;gap:4px;">
                     <span style="font-size:.62rem;color:var(--text-muted);">🔗 Processo:</span>
+                    <?php if ($_podeEditarFin): ?>
                     <select onchange="vincularCobrancaProcesso(<?= (int)$cob['id'] ?>, this.value)" style="font-size:.68rem;padding:1px 5px;border:1px solid #e5e7eb;border-radius:4px;background:<?= $cob['case_id'] ? '#eff6ff' : '#f9fafb' ?>;color:<?= $cob['case_id'] ? '#1e40af' : '#6b7280' ?>;">
                         <option value="0" <?= empty($cob['case_id']) ? 'selected' : '' ?>>— Sem vínculo (histórico)</option>
                         <?php foreach ($processosCliente as $pr): ?>
                         <option value="<?= $pr['id'] ?>" <?= (int)$cob['case_id'] === (int)$pr['id'] ? 'selected' : '' ?>><?= e(mb_substr($pr['title'] ?? 'Processo #' . $pr['id'], 0, 40)) ?><?= $pr['case_number'] ? ' (' . e(substr($pr['case_number'], 0, 20)) . ')' : '' ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <?php else: ?>
+                    <?php
+                    // Modo só-leitura: mostra texto, não dropdown
+                    $_pNome = '— Sem vínculo';
+                    foreach ($processosCliente as $pr) {
+                        if ((int)$cob['case_id'] === (int)$pr['id']) { $_pNome = mb_substr($pr['title'] ?? 'Processo #' . $pr['id'], 0, 40); break; }
+                    }
+                    ?>
+                    <span style="font-size:.68rem;color:<?= $cob['case_id'] ? '#1e40af' : '#94a3b8' ?>;font-weight:<?= $cob['case_id'] ? '600' : '400' ?>;"><?= e($_pNome) ?></span>
+                    <?php endif; ?>
                 </div>
                 <?php endif; ?>
             </div>
@@ -280,6 +303,7 @@ echo voltar_ao_processo_html();
                     ?>
                     <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= e(json_encode($msgCob)) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
+                    <?php if ($_podeEditarFin): ?>
                     <button type="button" title="Alterar data de vencimento"
                             onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'vencto', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">📅</button>
@@ -289,6 +313,7 @@ echo voltar_ao_processo_html();
                     <button type="button" title="Cancelar cobrança no Asaas"
                             onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'cancelar', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">✕</button>
+                    <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>

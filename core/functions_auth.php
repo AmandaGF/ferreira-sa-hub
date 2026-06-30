@@ -110,6 +110,8 @@ function _permission_defaults()
 /**
  * Restrição de acesso ao Financeiro — whitelist rígida por user_id.
  * Só Amanda (1), Rodrigo (3) e Luiz Eduardo (6) podem acessar.
+ * Aplica-se ao PAINEL GERAL: KPIs, fluxo de caixa, todas as cobranças,
+ * lista global de inadimplentes, etc.
  */
 function can_access_financeiro()
 {
@@ -117,6 +119,19 @@ function can_access_financeiro()
     if (!$uid) return false;
     $autorizados = array(1, 3, 6); // Amanda, Rodrigo, Luiz Eduardo
     return in_array((int)$uid, $autorizados, true);
+}
+
+/**
+ * Acesso ao financeiro DE UM CLIENTE específico (financeiro/cliente.php).
+ * Mais permissivo: qualquer usuário com acesso ao módulo clientes vê,
+ * porque dívida de cliente afeta acompanhamento de todos (operacional cobra,
+ * cx atende, comercial faz follow-up, etc). Amanda 30/06/2026.
+ * Painel GERAL (KPIs/fluxo) continua restrito via can_access_financeiro().
+ */
+function can_view_cliente_financeiro()
+{
+    if (!current_user_id()) return false;
+    return function_exists('can_access') ? can_access('clientes') : true;
 }
 
 /**

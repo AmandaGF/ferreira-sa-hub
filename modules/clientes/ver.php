@@ -187,8 +187,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/[^0-9+]/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,mensagem:''})" class="btn btn-success btn-sm">💬 WhatsApp</button>
         <?php endif; ?>
         <a href="<?= module_url('operacional', 'caso_novo.php?client_id=' . $client['id']) ?>" class="btn btn-sm" style="background:var(--petrol-900);color:#fff;">+ Novo Processo</a>
-        <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
+        <?php
+        // 30/06/2026 Amanda: 'Financeiro' agora liberado pra todos (can_view_cliente_financeiro
+        // = qualquer um com acesso a clientes). 'Cobrar Honorários' continua restrito a
+        // quem tem acesso ao painel financeiro geral (Amanda/Rodrigo/Luiz) porque cria
+        // registro no Kanban e dispara tarefa pro Luiz — ação mais sensível.
+        ?>
+        <?php if (function_exists('can_view_cliente_financeiro') && can_view_cliente_financeiro()): ?>
         <a href="<?= module_url('financeiro', 'cliente.php?id=' . $client['id']) ?>" class="btn btn-sm" style="background:#059669;color:#fff;" title="Histórico financeiro: cobranças, pagamentos, inadimplência">💰 Financeiro</a>
+        <?php endif; ?>
+        <?php if (function_exists('can_access_financeiro') && can_access_financeiro()): ?>
         <button type="button" onclick="cobHonAbrir()" class="btn btn-sm" style="background:#1e40af;color:#fff;border:none;" title="Adicionar cliente ao Kanban de Cobrança / iniciar execução de honorários">⚖️ Cobrar Honorários</button>
         <?php endif; ?>
         <button type="button" id="btnCopiarDadosCli" onclick="copiarDadosCliente(this)" data-texto="<?= e($_cpDadosTexto) ?>" class="btn btn-sm" style="background:#0ea5e9;color:#fff;border:none;" title="Copiar dados cadastrais (nome, CPF, RG, endereço, etc) pra colar em outro lugar">📋 Copiar Dados</button>
