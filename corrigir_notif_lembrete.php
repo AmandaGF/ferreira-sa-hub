@@ -21,12 +21,18 @@ $sel = $pdo->query(
 $rows = $sel->fetchAll(PDO::FETCH_ASSOC);
 echo "Encontradas " . count($rows) . " notificações com tipo/link trocados.\n\n";
 
+// Detecta o tamanho real da coluna link pra evitar truncamento de novo
+$colLink = $pdo->query("SHOW COLUMNS FROM notifications LIKE 'link'")->fetch(PDO::FETCH_ASSOC);
+echo "Coluna `link`: " . ($colLink['Type'] ?? '?') . "\n\n";
+
 $aplicar = !empty($_GET['fix']);
 $up = $pdo->prepare("UPDATE notifications SET type = ?, link = ? WHERE id = ?");
 $ok = 0;
 foreach ($rows as $r) {
-    $tipoCorreto = $r['link'];
-    $linkCorreto = $r['type'];
+    $tipoCorreto = $r['link'];                         // 'alerta' / 'urgencia' (cabe em qualquer coluna)
+    // Como o type estava com URL e foi truncado pra ~40 chars, perdemos o ?evento=ID.
+    // Em vez de manter URL inválida, set link pro módulo agenda — pelo menos abre uma tela útil.
+    $linkCorreto = '/conecta/modules/agenda/';
     echo "  #{$r['id']} type='{$r['type']}' link='{$r['link']}'"
        . " → type='{$tipoCorreto}' link='{$linkCorreto}'\n";
     if ($aplicar) {
