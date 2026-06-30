@@ -89,6 +89,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 
 // Filtro
 $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
+// 30/06/2026 Amanda: aba por tipo de prazo (classificação por regex no
+// descricao_acao). Categorias decididas com ela: DJEN/Publicação, Recurso,
+// Contestação, Alegações Finais, Provas, Outros.
+$tipoSel = isset($_GET['tipo']) ? $_GET['tipo'] : 'todos';
+
+function _classificar_prazo($desc) {
+    $d = mb_strtolower((string)$desc, 'UTF-8');
+    // Publicação DJEN vem com prefixo "publicação:" ou contém "intimação"
+    if (preg_match('/^publica[çc][ãa]o:|intima[çc][ãa]o/u', $d)) return 'djen';
+    if (preg_match('/recurso|apela[çc][ãa]o|inomin|embarg|agravo/u', $d))    return 'recurso';
+    if (preg_match('/contesta[çc][ãa]o|defesa\\b|r[eé]plica/u', $d))         return 'contestacao';
+    if (preg_match('/alega[çc][õo]es?\\s*finais?|memori/u', $d)              ) return 'alegacoes';
+    if (preg_match('/prova|per[íi]cia|testemunha|diligen[çc]ia/u', $d))      return 'provas';
+    return 'outros';
+}
+$_tipoLabels = array(
+    'todos'       => array('label' => 'Todos',           'icon' => '📋'),
+    'djen'        => array('label' => 'Publicação DJEN', 'icon' => '📢'),
+    'recurso'     => array('label' => 'Recurso',         'icon' => '⚖️'),
+    'contestacao' => array('label' => 'Contestação',     'icon' => '🛡️'),
+    'alegacoes'   => array('label' => 'Alegações Finais','icon' => '📝'),
+    'provas'      => array('label' => 'Provas',          'icon' => '🔍'),
+    'outros'      => array('label' => 'Outros',          'icon' => '📌'),
+);
+if (!isset($_tipoLabels[$tipoSel])) $tipoSel = 'todos';
 
 // 17/06/2026: UNION com agenda_eventos tipo='prazo'. Amanda cria prazos pela
 // Agenda hoje em dia, sem isso a tela ficava "mentindo" — prazo do dia HOJE
@@ -192,6 +217,21 @@ if (!empty($_prazosSemCaseId)) {
     } catch (Exception $_e) { /* falha silenciosa — sem match, mostra so CNJ como antes */ }
 }
 
+// 30/06/2026 Amanda: classifica cada prazo e conta por tipo (pra badge das abas)
+$_contagemTipo = array('todos' => 0, 'djen' => 0, 'recurso' => 0, 'contestacao' => 0, 'alegacoes' => 0, 'provas' => 0, 'outros' => 0);
+foreach ($prazos as $_i => $_p) {
+    $_t = _classificar_prazo($_p['descricao_acao'] ?? '');
+    $prazos[$_i]['_tipo_prazo'] = $_t;
+    if (empty($_p['concluido'])) {
+        $_contagemTipo['todos']++;
+        if (isset($_contagemTipo[$_t])) $_contagemTipo[$_t]++;
+    }
+}
+// Filtra pra aba ativa (todos = sem filtro)
+if ($tipoSel !== 'todos') {
+    $prazos = array_values(array_filter($prazos, function($p) use ($tipoSel) { return ($p['_tipo_prazo'] ?? '') === $tipoSel; }));
+}
+
 $clients = $pdo->query("SELECT id, name FROM clients ORDER BY name")->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
@@ -211,6 +251,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .prazo-data { font-size:.82rem; font-weight:700; flex-shrink:0; }
 .prazo-data.urgente { color:#ef4444; }
 .prazo-data.alerta { color:#f59e0b; }
+/* Abas por tipo de prazo */
+.prazo-abas { display:flex;gap:.35rem;flex-wrap:wrap;margin-bottom:.8rem;background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:.4rem; }
+.prazo-aba { display:inline-flex;align-items:center;gap:.35rem;padding:.4rem .75rem;border-radius:7px;font-size:.78rem;font-weight:600;text-decoration:none;color:#64748b;background:transparent;border:1.5px solid transparent;transition:all .12s;cursor:pointer; }
+.prazo-aba:hover { background:#fff;color:var(--petrol-900);border-color:var(--border); }
+.prazo-aba.ativa { background:var(--petrol-900);color:#fff;border-color:var(--petrol-900); }
+.prazo-aba-count { display:inline-block;min-width:18px;text-align:center;background:rgba(0,0,0,.08);color:inherit;border-radius:10px;padding:1px 6px;font-size:.68rem;font-weight:700; }
+.prazo-aba.ativa .prazo-aba-count { background:rgba(255,255,255,.22); }
 </style>
 
 <?php
@@ -222,12 +269,36 @@ if ($voltarCaso > 0): ?>
 </div>
 <?php endif; ?>
 
+<?php
+// helper pra montar URL preservando params
+$_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso) {
+    $qs = array_merge(array('filtro' => $filtro, 'tipo' => $tipoSel), $overrides);
+    if ($voltarCaso) $qs['case_id'] = $voltarCaso;
+    $parts = array();
+    foreach ($qs as $k => $v) { if ($v !== '' && $v !== null) $parts[] = $k . '=' . urlencode((string)$v); }
+    return '?' . implode('&', $parts);
+};
+?>
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
     <div style="display:flex;gap:.35rem;">
-        <a href="?filtro=pendentes<?= $voltarCaso ? '&case_id=' . $voltarCaso : '' ?>" class="btn btn-<?= $filtro === 'pendentes' ? 'primary' : 'outline' ?> btn-sm">Pendentes</a>
-        <a href="?filtro=todos<?= $voltarCaso ? '&case_id=' . $voltarCaso : '' ?>" class="btn btn-<?= $filtro === 'todos' ? 'primary' : 'outline' ?> btn-sm">Todos</a>
+        <a href="<?= $_buildUrl(array('filtro' => 'pendentes')) ?>" class="btn btn-<?= $filtro === 'pendentes' ? 'primary' : 'outline' ?> btn-sm">Pendentes</a>
+        <a href="<?= $_buildUrl(array('filtro' => 'todos')) ?>" class="btn btn-<?= $filtro === 'todos' ? 'primary' : 'outline' ?> btn-sm">Todos</a>
     </div>
     <button class="btn btn-primary btn-sm" data-modal="modalPrazo">+ Novo Prazo</button>
+</div>
+
+<!-- 30/06/2026 Amanda: abas por tipo de prazo. Classificação por regex no descricao_acao. -->
+<div class="prazo-abas">
+    <?php foreach ($_tipoLabels as $key => $cfg):
+        $_qtd = $_contagemTipo[$key] ?? 0;
+        $_ativo = $tipoSel === $key;
+    ?>
+        <a href="<?= $_buildUrl(array('tipo' => $key)) ?>" class="prazo-aba<?= $_ativo ? ' ativa' : '' ?>" title="<?= e($cfg['label']) ?>">
+            <span><?= $cfg['icon'] ?></span>
+            <span><?= e($cfg['label']) ?></span>
+            <?php if ($_qtd > 0): ?><span class="prazo-aba-count"><?= $_qtd ?></span><?php endif; ?>
+        </a>
+    <?php endforeach; ?>
 </div>
 
 <?php if (empty($prazos)): ?>
