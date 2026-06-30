@@ -147,12 +147,8 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 var pop = document.getElementById('brCelebra');
                 if (pop) { pop.style.opacity = '0'; setTimeout(function() { pop.style.display = 'none'; }, 400); }
             };
-            // Só dispara se ainda não viu hoje E é uma navegação do tipo "carga inicial"
-            try {
-                if (!sessionStorage.getItem(KEY)) {
-                    setTimeout(window.brCelebraAbrir, 400);
-                }
-            } catch (e) {}
+            // 29/06/2026 Amanda: removido auto-show. Agora só abre quando clica
+            // no botão da bandeirinha 🇧🇷 (brFlagFixa) no topo direito.
         })();
         </script>
         <?php endif; // TEMA_COPA ?>
