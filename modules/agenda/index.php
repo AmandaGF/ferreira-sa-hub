@@ -197,53 +197,44 @@ if ($preCaseId) {
 
 // 29/06/2026 Amanda: pra Balcão Virtual, sugerir automaticamente o próximo
 // dia útil + horário 11:00 (regra: dias úteis, não-feriado, 11h-17h).
-// Se a função _balcao_eh_feriado existe (carregada via require api.php), usa.
-// Senão fallback simples: pula só sáb/dom.
+// Bug 30/06: incluir api.php pra reusar _balcao_eh_feriado quebrava porque o
+// api.php tem roteador no topo que respondia "Ação GET inválida". Fix: calcular
+// feriados nacionais inline (lista enxuta) sem depender do api.php.
 $preDataInicioSugerida = '';
 $preTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+
+// Helper local: dia é feriado nacional fixo? (lista enxuta; feriados locais/
+// móveis como carnaval/páscoa/corpus christi ficam de fora — é só sugestão,
+// Amanda muda manualmente se precisar)
+$_ehFeriadoLocal = function($ts) {
+    $md = date('m-d', $ts);
+    $feriados = array('01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25');
+    return in_array($md, $feriados, true);
+};
+
 if ($preNovo && $preTipo === 'balcao_virtual') {
-    require_once __DIR__ . '/api.php'; // Carrega _balcao_eh_feriado se ainda nao
-}
-if ($preNovo && $preTipo === 'balcao_virtual') {
-    // Acha próximo dia útil 11:00 (pulando sáb/dom/feriado).
-    // Se hoje for útil E ainda dentro do horário (antes das 17h),
-    // pode sugerir hoje +1h arredondado pra próxima hora cheia,
-    // mas só se for ≥11h. Senão, próximo dia útil 11:00.
     $tsNow = time();
     $hojeMin = (int)date('H', $tsNow) * 60 + (int)date('i', $tsNow);
     $hojeWeekday = (int)date('N', $tsNow);
-    $hojeEhUtil = ($hojeWeekday <= 5);
-    if (function_exists('_balcao_eh_feriado')) {
-        list($_hojeFer, ) = _balcao_eh_feriado($tsNow);
-        if ($_hojeFer) $hojeEhUtil = false;
-    }
+    $hojeEhUtil = ($hojeWeekday <= 5) && !$_ehFeriadoLocal($tsNow);
 
     $alvo = null;
     if ($hojeEhUtil && $hojeMin < 16 * 60) {
-        // Hoje ainda dá: arredonda pra próxima hora cheia (mínimo 11:00).
-        // Se for antes das 11h, marca 11:00 hoje.
         if ($hojeMin < 11 * 60) {
             $alvo = strtotime(date('Y-m-d', $tsNow) . ' 11:00:00');
         } else {
             // Próxima hora cheia + 1h de antecedência (evita marcar daqui 5min)
-            $proxH = (int)date('H', $tsNow) + 1;
-            if ((int)date('i', $tsNow) < 30) $proxH = (int)date('H', $tsNow) + 1;
-            else $proxH = (int)date('H', $tsNow) + 2;
+            $proxH = (int)date('i', $tsNow) < 30 ? (int)date('H', $tsNow) + 1 : (int)date('H', $tsNow) + 2;
             if ($proxH <= 17) {
                 $alvo = strtotime(date('Y-m-d', $tsNow) . ' ' . sprintf('%02d', $proxH) . ':00:00');
             }
         }
     }
     if ($alvo === null) {
-        // Vai pro próximo dia útil 11:00
         $d = strtotime('+1 day', strtotime(date('Y-m-d', $tsNow)));
         for ($i = 0; $i < 14; $i++) {
             $wd = (int)date('N', $d);
-            $ehFer = false;
-            if (function_exists('_balcao_eh_feriado')) {
-                list($ehFer, ) = _balcao_eh_feriado($d);
-            }
-            if ($wd <= 5 && !$ehFer) { $alvo = strtotime(date('Y-m-d', $d) . ' 11:00:00'); break; }
+            if ($wd <= 5 && !$_ehFeriadoLocal($d)) { $alvo = strtotime(date('Y-m-d', $d) . ' 11:00:00'); break; }
             $d = strtotime('+1 day', $d);
         }
     }
