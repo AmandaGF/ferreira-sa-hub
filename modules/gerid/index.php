@@ -382,7 +382,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </form>
   </div>
   <div style="color:#666;font-size:.83rem;margin-top:3px;">
-    <?= $proc ? '📄 ' . e($proc) . ' · ' : '' ?><?= $g['client_name'] ? '👥 ' . e($g['client_name']) . ' · ' : '' ?>
+    <?php if ($proc): ?>
+        <?php if (!empty($g['case_id'])): ?>
+            📄 <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$g['case_id']) ?>" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;" title="Abrir pasta do processo"><?= e($proc) ?></a> ·
+        <?php else: ?>
+            📄 <?= e($proc) ?> ·
+        <?php endif; ?>
+    <?php endif; ?>
+    <?= $g['client_name'] ? '👥 ' . e($g['client_name']) . ' · ' : '' ?>
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
   </div>
   <?php if ($g['observacao']): ?><div style="font-size:.83rem;margin-top:5px;color:#444;"><?= e($g['observacao']) ?></div><?php endif; ?>
@@ -408,7 +415,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
   <?php foreach ($concluidas as $g): ?>
     <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;" id="gd-row-<?= (int)$g['id'] ?>">
       <td style="padding:9px 11px;"><?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? '<br><span style="color:#999;font-size:.78rem;">' . e($g['parte_cpf']) . '</span>' : '' ?></td>
-      <td style="padding:9px 11px;"><?= e($g['case_number'] ?: ($g['case_title'] ?: '—')) ?></td>
+      <td style="padding:9px 11px;">
+        <?php $_procTxt = $g['case_number'] ?: ($g['case_title'] ?: '—'); ?>
+        <?php if (!empty($g['case_id']) && $_procTxt !== '—'): ?>
+          <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$g['case_id']) ?>" style="color:#0c4a6e;text-decoration:underline;text-decoration-style:dotted;font-weight:600;" title="Abrir pasta do processo"><?= e($_procTxt) ?></a>
+        <?php else: ?>
+          <?= e($_procTxt) ?>
+        <?php endif; ?>
+      </td>
       <td style="padding:9px 11px;"><span class="gd-chip <?= $g['tem_vinculo'] ? 'gd-sim' : 'gd-nao' ?>"><?= $g['tem_vinculo'] ? 'POSSUI' : 'Sem vínculo' ?></span></td>
       <td style="padding:9px 11px;"><?= e($g['resultado'] ?: '—') ?>
         <?php if (!empty($g['printscreen_path'])): ?>
