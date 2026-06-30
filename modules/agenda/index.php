@@ -195,6 +195,61 @@ if ($preCaseId) {
     }
 }
 
+// 29/06/2026 Amanda: pra Balcão Virtual, sugerir automaticamente o próximo
+// dia útil + horário 11:00 (regra: dias úteis, não-feriado, 11h-17h).
+// Se a função _balcao_eh_feriado existe (carregada via require api.php), usa.
+// Senão fallback simples: pula só sáb/dom.
+$preDataInicioSugerida = '';
+$preTipo = isset($_GET['tipo']) ? $_GET['tipo'] : '';
+if ($preNovo && $preTipo === 'balcao_virtual') {
+    require_once __DIR__ . '/api.php'; // Carrega _balcao_eh_feriado se ainda nao
+}
+if ($preNovo && $preTipo === 'balcao_virtual') {
+    // Acha próximo dia útil 11:00 (pulando sáb/dom/feriado).
+    // Se hoje for útil E ainda dentro do horário (antes das 17h),
+    // pode sugerir hoje +1h arredondado pra próxima hora cheia,
+    // mas só se for ≥11h. Senão, próximo dia útil 11:00.
+    $tsNow = time();
+    $hojeMin = (int)date('H', $tsNow) * 60 + (int)date('i', $tsNow);
+    $hojeWeekday = (int)date('N', $tsNow);
+    $hojeEhUtil = ($hojeWeekday <= 5);
+    if (function_exists('_balcao_eh_feriado')) {
+        list($_hojeFer, ) = _balcao_eh_feriado($tsNow);
+        if ($_hojeFer) $hojeEhUtil = false;
+    }
+
+    $alvo = null;
+    if ($hojeEhUtil && $hojeMin < 16 * 60) {
+        // Hoje ainda dá: arredonda pra próxima hora cheia (mínimo 11:00).
+        // Se for antes das 11h, marca 11:00 hoje.
+        if ($hojeMin < 11 * 60) {
+            $alvo = strtotime(date('Y-m-d', $tsNow) . ' 11:00:00');
+        } else {
+            // Próxima hora cheia + 1h de antecedência (evita marcar daqui 5min)
+            $proxH = (int)date('H', $tsNow) + 1;
+            if ((int)date('i', $tsNow) < 30) $proxH = (int)date('H', $tsNow) + 1;
+            else $proxH = (int)date('H', $tsNow) + 2;
+            if ($proxH <= 17) {
+                $alvo = strtotime(date('Y-m-d', $tsNow) . ' ' . sprintf('%02d', $proxH) . ':00:00');
+            }
+        }
+    }
+    if ($alvo === null) {
+        // Vai pro próximo dia útil 11:00
+        $d = strtotime('+1 day', strtotime(date('Y-m-d', $tsNow)));
+        for ($i = 0; $i < 14; $i++) {
+            $wd = (int)date('N', $d);
+            $ehFer = false;
+            if (function_exists('_balcao_eh_feriado')) {
+                list($ehFer, ) = _balcao_eh_feriado($d);
+            }
+            if ($wd <= 5 && !$ehFer) { $alvo = strtotime(date('Y-m-d', $d) . ' 11:00:00'); break; }
+            $d = strtotime('+1 day', $d);
+        }
+    }
+    if ($alvo) $preDataInicioSugerida = date('Y-m-d\TH:i', $alvo);
+}
+
 if ($voltarCaso > 0): ?>
 <div style="display:flex;gap:.5rem;margin-bottom:.75rem;">
     <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $voltarCaso) ?>" class="btn btn-outline btn-sm">← Analisar processo</a>
@@ -511,6 +566,55 @@ if ($voltarCaso > 0): ?>
             <div class="ag-msg-prev" id="agMsgPreview" style="display:none;"></div>
         </div>
 
+        <!-- 29/06/2026 Amanda: motivos pré-definidos pro Balcão Virtual.
+             Aparece só quando tipo=balcao_virtual. Marca um (ou mais) e o texto
+             vai pra agDescricao automaticamente. Mês exigido pra "Processo parado". -->
+        <div class="ag-fg" id="agBvMotivosWrap" style="display:none;background:#f0fdfa;border:1px dashed #5eead4;border-radius:8px;padding:.7rem .85rem;">
+            <label class="ag-fl" style="color:#0f766e;font-weight:700;">🏛️ Motivo do Balcão Virtual</label>
+            <div style="font-size:.7rem;color:#0d9488;margin-bottom:.5rem;">Marque o motivo (ou mais de um) — o texto vai automaticamente pras observações.</div>
+            <div id="agBvMotivosList" style="display:flex;flex-direction:column;gap:.3rem;font-size:.82rem;color:#134e4a;">
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="PROCESSO PARADO DESDE [MES]" data-needs-mes="1" onchange="bvMotivosAtualizar()">
+                    <span>PROCESSO PARADO DESDE:</span>
+                    <select class="agBvMotMes" disabled onchange="bvMotivosAtualizar()" style="font-size:.78rem;padding:2px 6px;border:1.5px solid #5eead4;border-radius:5px;background:#fff;">
+                        <option value="">— mês/ano —</option>
+                        <?php
+                        // Últimos 24 meses (do mais recente pro mais antigo)
+                        $_meses = array(1=>'janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro');
+                        for ($i = 0; $i < 24; $i++) {
+                            $ts = strtotime("-{$i} months", strtotime(date('Y-m-01')));
+                            $_lbl = $_meses[(int)date('n', $ts)] . '/' . date('Y', $ts);
+                            echo '<option value="' . e($_lbl) . '">' . e($_lbl) . '</option>';
+                        }
+                        ?>
+                    </select>
+                </label>
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="PEDIDO DE AUDIÊNCIA HÍBRIDA" onchange="bvMotivosAtualizar()">
+                    <span>PEDIDO DE AUDIÊNCIA HÍBRIDA</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="PEDIDO DE TUTELA PROVISÓRIA" onchange="bvMotivosAtualizar()">
+                    <span>PEDIDO DE TUTELA PROVISÓRIA</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="CUMPRIR DESPACHO" onchange="bvMotivosAtualizar()">
+                    <span>CUMPRIR DESPACHO</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="PEDIDO DE PRISÃO" onchange="bvMotivosAtualizar()">
+                    <span>PEDIDO DE PRISÃO</span>
+                </label>
+                <label style="display:flex;align-items:flex-start;gap:.45rem;cursor:pointer;margin-top:.2rem;">
+                    <input type="checkbox" class="agBvMotChk" data-text="" data-custom="1" onchange="bvMotivosAtualizar()" style="margin-top:7px;">
+                    <span style="flex:1;">
+                        <div style="margin-bottom:.2rem;">OUTRO motivo:</div>
+                        <input type="text" id="agBvMotOutro" placeholder="Descreva o motivo..." disabled oninput="bvMotivosAtualizar()" style="width:100%;padding:.4rem .6rem;font-size:.85rem;border:1.5px solid #5eead4;border-radius:6px;font-family:inherit;">
+                    </span>
+                </label>
+            </div>
+        </div>
+
         <div class="ag-fg">
             <label class="ag-fl">Observações internas</label>
             <textarea class="ag-fi" id="agDescricao" rows="2" placeholder="Notas internas..."></textarea>
@@ -597,6 +701,16 @@ setTimeout(function() {
     if (preBtn) selTipo('<?= e($preTipo) ?>', preBtn);
     <?php if ($preTipo === 'balcao_virtual' && ($preCaseCourt || $preCaseComarca)): ?>
     document.getElementById('agLocal').value = <?= json_encode(trim($preCaseCourt . ($preCaseCourt && $preCaseComarca ? ' — ' : '') . $preCaseComarca)) ?>;
+    <?php endif; ?>
+    <?php if ($preTipo === 'balcao_virtual' && $preDataInicioSugerida): ?>
+    // 29/06/2026 Amanda: auto-preenche próximo dia útil 11:00 (regras do balcão)
+    document.getElementById('agDtInicio').value = '<?= e($preDataInicioSugerida) ?>';
+    var _agDt = document.getElementById('agDtInicio');
+    if (_agDt) { _agDt.dispatchEvent(new Event('input', {bubbles:true})); _agDt.dispatchEvent(new Event('change', {bubbles:true})); }
+    <?php endif; ?>
+    <?php if ($preTipo === 'balcao_virtual'): ?>
+    // Abre o painel de motivos pré-definidos do balcão
+    if (typeof bvMotivosMontar === 'function') bvMotivosMontar();
     <?php endif; ?>
     <?php endif; ?>
     <?php if ($preModalidade): ?>
@@ -1083,6 +1197,13 @@ function abrirModal(dataStr) {
     document.getElementById('agClienteId').value = '';
     document.getElementById('agCasoBusca').value = '';
     document.getElementById('agCasoId').value = '';
+    // 29/06/2026: limpa checkboxes do Balcão Virtual ao abrir modal novo
+    document.querySelectorAll('.agBvMotChk').forEach(function(c){ c.checked = false; });
+    document.querySelectorAll('.agBvMotMes').forEach(function(s){ s.value = ''; s.disabled = true; });
+    var _agBvOutro = document.getElementById('agBvMotOutro');
+    if (_agBvOutro) { _agBvOutro.value = ''; _agBvOutro.disabled = true; }
+    var _agBvWrap = document.getElementById('agBvMotivosWrap');
+    if (_agBvWrap) _agBvWrap.style.display = 'none';
     document.getElementById('agModalidade').value = 'presencial';
     document.getElementById('agMeetLink').value = '';
     document.getElementById('btnGerarMeet').textContent = 'Gerar Meet';
@@ -1374,6 +1495,46 @@ function agSelSubAud(sub, btn) {
     }
 }
 
+// 29/06/2026 Amanda: motivos pré-definidos do Balcão Virtual.
+// Marca as checkboxes e o texto formatado vai pro textarea de observações.
+window.bvMotivosMontar = function() {
+    var wrap = document.getElementById('agBvMotivosWrap');
+    if (wrap) wrap.style.display = 'block';
+};
+window.bvMotivosAtualizar = function() {
+    var partes = [];
+    document.querySelectorAll('.agBvMotChk').forEach(function(chk) {
+        var marcado = chk.checked;
+        // Habilita/desabilita campos dependentes (mês ou texto custom)
+        if (chk.dataset.needsMes === '1') {
+            var sel = chk.parentNode.querySelector('.agBvMotMes');
+            if (sel) sel.disabled = !marcado;
+            if (marcado && sel && sel.value) partes.push('PROCESSO PARADO DESDE ' + sel.value.toUpperCase());
+        } else if (chk.dataset.custom === '1') {
+            var inp = document.getElementById('agBvMotOutro');
+            if (inp) inp.disabled = !marcado;
+            if (marcado && inp && inp.value.trim()) partes.push(inp.value.trim().toUpperCase());
+        } else if (marcado) {
+            partes.push(chk.dataset.text);
+        }
+    });
+    // Joga pro textarea (substitui o conteúdo se vazio ou se já tem só os motivos antigos)
+    var ta = document.getElementById('agDescricao');
+    if (!ta) return;
+    var novoTexto = partes.join('; ');
+    // Marca o texto auto-gerado pra poder substituir depois sem apagar o que Amanda escreveu manualmente
+    var marker = '\n\n[Auto: ';
+    var atual = ta.value || '';
+    var idxMarker = atual.indexOf(marker);
+    var antesMarker = (idxMarker >= 0) ? atual.substring(0, idxMarker) : atual;
+    if (novoTexto) {
+        ta.value = (antesMarker.trim() ? antesMarker.trim() + '\n\n' : '') + '[Auto: motivo do balcão] ' + novoTexto;
+    } else {
+        // Tira o marker se desmarcou tudo
+        ta.value = antesMarker.trim();
+    }
+};
+
 function selTipo(tipo, btn) {
     tipoSelecionado = tipo;
     document.querySelectorAll('.ag-tipo-btn').forEach(function(b) { b.classList.remove('sel'); b.style.background = ''; b.style.color = ''; });
@@ -1381,6 +1542,10 @@ function selTipo(tipo, btn) {
     var corFundo = CORES[tipo] || '#888';
     btn.style.background = corFundo;
     btn.style.color = '#fff';
+
+    // 29/06/2026 Amanda: motivos do Balcão Virtual só aparecem quando tipo=balcao_virtual
+    var bvWrap = document.getElementById('agBvMotivosWrap');
+    if (bvWrap) bvWrap.style.display = (tipo === 'balcao_virtual') ? 'block' : 'none';
 
     // Auto-marca "Dia inteiro" pra prazo (contestacao, replica, oficio nao tem hora especifica).
     // Idempotente — so marca se ja nao estava marcado, e so dispara se nao for edicao (em
