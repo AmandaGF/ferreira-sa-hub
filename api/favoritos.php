@@ -1,7 +1,7 @@
 <?php
 /**
  * API — favoritos da sidebar por usuário (persistência no servidor).
- * POST form: csrf_token + favoritos (JSON array [{id,label,icon,href}], máx 10).
+ * POST form: csrf_token + favoritos (JSON array [{id,label,icon,href}], máx 20).
  * Substitui a lista inteira do usuário logado. Retorna {ok:true, total:N}.
  */
 require_once __DIR__ . '/../core/middleware.php';
@@ -27,7 +27,8 @@ $raw = $_POST['favoritos'] ?? '[]';
 $lista = json_decode($raw, true);
 if (!is_array($lista)) $lista = array();
 
-// Sanitiza: máx 10, campos esperados, tamanhos limitados
+// Sanitiza: máx 20, campos esperados, tamanhos limitados
+// (Amanda 29/06: subiu 10→20 também no frontend em sidebar.php)
 $clean = array();
 $vistos = array();
 foreach ($lista as $f) {
@@ -45,7 +46,7 @@ foreach ($lista as $f) {
         'icon'  => mb_substr($icon, 0, 40),
         'href'  => mb_substr($href, 0, 255),
     );
-    if (count($clean) >= 10) break;
+    if (count($clean) >= 20) break;
 }
 
 $pdo = db();
