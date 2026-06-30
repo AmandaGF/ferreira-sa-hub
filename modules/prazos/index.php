@@ -98,9 +98,12 @@ function _classificar_prazo($desc) {
     $d = mb_strtolower((string)$desc, 'UTF-8');
     // Publicação DJEN vem com prefixo "publicação:" ou contém "intimação"
     if (preg_match('/^publica[çc][ãa]o:|intima[çc][ãa]o/u', $d)) return 'djen';
-    // Recursos: inclui contrarrazões (peça de resposta a recurso, fase recursal).
-    // Aceita variantes "contrarrazões", "contra-razões", "contra razões".
-    if (preg_match('/recurso|apela[çc][ãa]o|inomin|embarg|agravo|contra[\\s-]?raz[õo]es/u', $d)) return 'recurso';
+    // Recursos: inclui contrarrazões (peça de resposta a recurso).
+    // Bug r1 (30/06): regex contra[\s-]?raz não casava com "contrarrazões" (2 r's
+    // no meio: "contra"+"razões" → "contrarrazões"). Fix: aceita 0+ separadores
+    // entre "contra" e "raz" (espaço/hífen/r), cobrindo todas variantes:
+    // contrarrazões, contra-razões, contra razões.
+    if (preg_match('/recurso|apela[çc][ãa]o|inomin|embarg|agravo|contra[r\\s-]*raz[õo]es/u', $d)) return 'recurso';
     if (preg_match('/contesta[çc][ãa]o|defesa\\b|r[eé]plica/u', $d))         return 'contestacao';
     if (preg_match('/alega[çc][õo]es?\\s*finais?|memori/u', $d)              ) return 'alegacoes';
     if (preg_match('/prova|per[íi]cia|testemunha|diligen[çc]ia/u', $d))      return 'provas';
