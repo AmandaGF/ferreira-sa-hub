@@ -18,7 +18,7 @@ foreach ($lines as $i => $ln) {
 function _classificar($d) {
     $d = mb_strtolower((string)$d, 'UTF-8');
     if (preg_match('/^publica[çc][ãa]o:|intima[çc][ãa]o/u', $d)) return 'djen';
-    if (preg_match('/recurso|apela[çc][ãa]o|inomin|embarg|agravo|contra[\\s-]?raz[õo]es/u', $d)) return 'recurso';
+    if (preg_match('/recurso|apela[çc][ãa]o|inomin|embarg|agravo|contra[r\\s-]*raz[õo]es/u', $d)) return 'recurso';
     if (preg_match('/contesta[çc][ãa]o|defesa\\b|r[eé]plica/u', $d)) return 'contestacao';
     if (preg_match('/alega[çc][õo]es?\\s*finais?|memori/u', $d)) return 'alegacoes';
     if (preg_match('/prova|per[íi]cia|testemunha|diligen[çc]ia/u', $d)) return 'provas';
