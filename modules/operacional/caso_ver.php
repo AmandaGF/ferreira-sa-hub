@@ -108,6 +108,15 @@ $tasks = $pdo->prepare(
 $tasks->execute([$caseId]);
 $tasks = $tasks->fetchAll();
 
+// 29/06/2026 Amanda: contar tarefas reais pendentes pra badge da aba
+// (a aba renderiza ANTES de $tarefasReais ser populado, então precisa aqui)
+$_tarefasPendBadge = 0;
+foreach ($tasks as $_tk) {
+    if (empty($_tk['tipo'])) continue; // ignora checklist de docs (tipo NULL)
+    $_s = $_tk['status'] ?? '';
+    if ($_s !== 'concluido' && $_s !== 'feito') $_tarefasPendBadge++;
+}
+
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 // Mapa id => nome curto pra renderizar nomes extras nas tarefas
 $_userNameMap = array();
@@ -1325,13 +1334,10 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
   <div class="cv-tabs">
     <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
     <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos / Tarefas <?php
-        // Badge agrega compromissos + tarefas reais pendentes (não-concluídas)
-        $_pendTar = 0;
-        foreach ($tarefasReais as $_t) {
-            $_s = $_t['status'] ?? '';
-            if ($_s !== 'concluido' && $_s !== 'feito') $_pendTar++;
-        }
-        $_badgeTot = count($compromissosCaso) + $_pendTar;
+        // Badge agrega compromissos + tarefas reais pendentes ($_tarefasPendBadge
+        // foi calculado logo após o fetch de $tasks, antes de $tarefasReais ser
+        // populado em ~4067).
+        $_badgeTot = count($compromissosCaso) + (int)$_tarefasPendBadge;
         if ($_badgeTot > 0): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= $_badgeTot ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
