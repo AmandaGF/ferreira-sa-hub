@@ -37,12 +37,15 @@ foreach ($eventos1d as $ev) {
     // Notificação portal para responsável
     if ($ev['responsavel_id']) {
         try {
+            // Bug 30/06: tipo e link estavam trocados (notify($uid, $tit, $msg, $link, $tipo, $ico)
+            // — assinatura correta é $tipo antes do $link). Resultado: link clicavel virava "alerta"
+            // → 404. Fix: ordem correta abaixo.
             notify(
                 (int)$ev['responsavel_id'],
                 'Lembrete: ' . $ev['titulo'],
                 'Amanhã ' . $dataFmt . ($ev['client_name'] ? ' — ' . $ev['client_name'] : ''),
-                '/conecta/modules/agenda/?evento=' . $ev['id'],
                 'alerta',
+                '/conecta/modules/agenda/?evento=' . $ev['id'],
                 '📅'
             );
         } catch (Exception $ex) {}
@@ -74,12 +77,13 @@ foreach ($eventos2h as $ev) {
     // Notificação portal
     if ($ev['responsavel_id']) {
         try {
+            // Mesmo bug do 1d: tipo/link trocados — fix ordem correta abaixo.
             notify(
                 (int)$ev['responsavel_id'],
                 'Em 2h: ' . $ev['titulo'],
                 $dataFmt . ($ev['client_name'] ? ' — ' . $ev['client_name'] : ''),
-                '/conecta/modules/agenda/?evento=' . $ev['id'],
                 'urgencia',
+                '/conecta/modules/agenda/?evento=' . $ev['id'],
                 '⏰'
             );
         } catch (Exception $ex) {}
