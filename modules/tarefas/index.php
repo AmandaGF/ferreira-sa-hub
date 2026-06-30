@@ -111,9 +111,10 @@ echo voltar_ao_processo_html();
 <div class="tk-topo">
     <div class="tk-filtros">
         <div style="position:relative;">
-            <span style="position:absolute;left:.55rem;top:50%;transform:translateY(-50%);font-size:.78rem;color:#94a3b8;pointer-events:none;">🔍</span>
-            <input type="search" id="fBusca" placeholder="Buscar tarefa, cliente, processo, CNJ..." oninput="reloadDebounce()" autocomplete="off"
-                style="font-size:.78rem;padding:4px 8px 4px 26px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg-card,#fff);min-width:240px;">
+            <span id="fBuscaIco" style="position:absolute;left:.55rem;top:50%;transform:translateY(-50%);font-size:.78rem;color:#94a3b8;pointer-events:none;">🔍</span>
+            <input type="search" id="fBusca" placeholder="Buscar tarefa, cliente, processo, CNJ..." oninput="reloadDebounce()" onkeydown="if(event.key==='Enter'){event.preventDefault();reload();}" autocomplete="off"
+                style="font-size:.78rem;padding:4px 26px 4px 26px;border:1.5px solid var(--border);border-radius:6px;background:var(--bg-card,#fff);min-width:260px;">
+            <button type="button" id="fBuscaClear" onclick="document.getElementById('fBusca').value='';reload();" title="Limpar busca" style="display:none;position:absolute;right:4px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;font-size:.85rem;padding:0 4px;">✕</button>
         </div>
         <select id="fResp" onchange="reload()"><option value="">Todos</option><?php foreach($users as $u): ?><option value="<?=$u['id']?>"><?=e($u['name'])?></option><?php endforeach; ?></select>
         <select id="fTipo" onchange="reload()">
@@ -309,11 +310,20 @@ var PRIO_CORES = {urgente:'#dc2626',alta:'#d97706',normal:'#059669',baixa:'#94a3
 // ── LOAD ──
 reload();
 
-// Debounce de 300ms pra busca textual (evita spam de requests no oninput)
+// Debounce de 300ms pra busca textual (evita spam de requests no oninput).
+// Mostra indicador visual durante a digitacao e botao X pra limpar.
 var _reloadTimer = null;
 function reloadDebounce() {
+    var qVal = document.getElementById('fBusca').value;
+    var ico = document.getElementById('fBuscaIco');
+    var clear = document.getElementById('fBuscaClear');
+    if (ico) ico.textContent = qVal ? '⏳' : '🔍';
+    if (clear) clear.style.display = qVal ? '' : 'none';
     if (_reloadTimer) clearTimeout(_reloadTimer);
-    _reloadTimer = setTimeout(reload, 300);
+    _reloadTimer = setTimeout(function() {
+        reload();
+        if (ico) ico.textContent = '🔍';
+    }, 300);
 }
 
 function reload() {

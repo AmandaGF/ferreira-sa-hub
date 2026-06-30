@@ -38,13 +38,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
         // 29/06/2026 Amanda: busca por titulo da tarefa, nome do cliente,
         // titulo do processo ou numero CNJ. Normaliza CNJ pra ignorar pontuacao.
+        // Bug r1 (mesmo dia): quando q nao tinha digitos, $likeNum virava '%%'
+        // que casava com TODOS os case_numbers → busca por 'eni' mostrava tudo.
+        // Fix: só inclui o ramo de CNJ normalizado se a busca TIVER digitos.
         if ($q !== '') {
             $like = '%' . $q . '%';
-            $likeNum = '%' . preg_replace('/\D/', '', $q) . '%';
-            $where[] = '(t.title LIKE ? OR t.descricao LIKE ? OR c.name LIKE ? OR cs.title LIKE ?'
-                     . ' OR cs.case_number LIKE ? OR REPLACE(REPLACE(REPLACE(cs.case_number,\'-\',\'\'),\'.\',\'\'),\'/\',\'\') LIKE ?)';
-            $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
-            $params[] = $like; $params[] = $likeNum;
+            $qDigits = preg_replace('/\D/', '', $q);
+            if ($qDigits !== '') {
+                $likeNum = '%' . $qDigits . '%';
+                $where[] = '(t.title LIKE ? OR t.descricao LIKE ? OR c.name LIKE ? OR cs.title LIKE ?'
+                         . ' OR cs.case_number LIKE ? OR REPLACE(REPLACE(REPLACE(cs.case_number,\'-\',\'\'),\'.\',\'\'),\'/\',\'\') LIKE ?)';
+                $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+                $params[] = $like; $params[] = $likeNum;
+            } else {
+                // So texto — busca em titulo/descricao/cliente/processo, sem CNJ normalizado
+                $where[] = '(t.title LIKE ? OR t.descricao LIKE ? OR c.name LIKE ? OR cs.title LIKE ? OR cs.case_number LIKE ?)';
+                $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like; $params[] = $like;
+            }
         }
 
         // Colaborador vê só suas (incluindo as em que é co-responsável)
