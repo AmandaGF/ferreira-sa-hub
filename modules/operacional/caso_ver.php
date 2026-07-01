@@ -118,19 +118,38 @@ foreach ($tasks as $_tk) {
 }
 
 // 01/07/2026 Amanda: formulários preenchidos pelo cliente vinculado ao processo.
-// Puxa TODOS os form_submissions com linked_client_id = case.client_id.
+// Bug r1: colunas certas são client_name/client_email/client_phone (não submitter_*).
+// Bug r2: form_submissions frequentemente chegam com linked_client_id=NULL — o
+// vínculo é feito manualmente no módulo formulários. Fazemos fallback por
+// email/telefone/nome batendo com os do cliente pra encontrar esses "órfãos"
+// (marca com _sem_vinculo=1 pra mostrar aviso na UI).
 $_formsCliente = array();
 if (!empty($case['client_id'])) {
     try {
+        // Carrega dados do cliente pra fazer match
+        $_stCliMatch = $pdo->prepare("SELECT name, email, phone, cpf FROM clients WHERE id = ?");
+        $_stCliMatch->execute(array((int)$case['client_id']));
+        $_cliM = $_stCliMatch->fetch(PDO::FETCH_ASSOC) ?: array();
+        $_cliTelDig = preg_replace('/\D/', '', (string)($_cliM['phone'] ?? ''));
+        $_cliEmail  = trim((string)($_cliM['email'] ?? ''));
+
         $_stFs = $pdo->prepare(
             "SELECT id, form_type, status, protocol, created_at, updated_at,
-                    submitter_name, submitter_email, submitter_phone
+                    client_name, client_email, client_phone,
+                    linked_client_id
              FROM form_submissions
              WHERE linked_client_id = ?
+                OR (linked_client_id IS NULL AND (
+                       (client_email <> '' AND client_email = ?)
+                    OR (client_phone <> '' AND REPLACE(REPLACE(REPLACE(REPLACE(client_phone,'(',''),')',''),'-',''),' ','') = ?)
+                ))
              ORDER BY created_at DESC"
         );
-        $_stFs->execute(array((int)$case['client_id']));
-        $_formsCliente = $_stFs->fetchAll(PDO::FETCH_ASSOC);
+        $_stFs->execute(array((int)$case['client_id'], $_cliEmail, $_cliTelDig));
+        foreach ($_stFs->fetchAll(PDO::FETCH_ASSOC) as $_r) {
+            $_r['_sem_vinculo'] = empty($_r['linked_client_id']);
+            $_formsCliente[] = $_r;
+        }
     } catch (Exception $e) {}
 }
 // Labels/ícones dos tipos de formulário (espelha modules/formularios/index.php)
@@ -1403,14 +1422,19 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                 $_dtCr  = $_fs['created_at'] ? date('d/m/Y H:i', strtotime($_fs['created_at'])) : '';
                 $_verUrl = module_url('formularios', 'ver.php?id=' . (int)$_fs['id']);
             ?>
-                <a href="<?= e($_verUrl) ?>" target="_blank" style="display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:inherit;transition:box-shadow .12s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'" onmouseout="this.style.boxShadow=''">
+                <a href="<?= e($_verUrl) ?>" target="_blank" style="display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;background:#fff;border:1px solid <?= !empty($_fs['_sem_vinculo']) ? '#fcd34d' : '#e5e7eb' ?>;border-radius:8px;text-decoration:none;color:inherit;transition:box-shadow .12s;<?= !empty($_fs['_sem_vinculo']) ? 'background:#fffbeb;' : '' ?>" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'" onmouseout="this.style.boxShadow=''">
                     <div style="font-size:1.4rem;flex-shrink:0;"><?= $_ftInfo[0] ?></div>
                     <div style="flex:1;min-width:0;">
                         <div style="font-weight:700;font-size:.85rem;color:#052228;"><?= e($_ftInfo[1]) ?><?php if (!empty($_fs['protocol'])): ?> <span style="font-weight:400;color:#6b7280;font-size:.75rem;">· #<?= e($_fs['protocol']) ?></span><?php endif; ?></div>
                         <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">
                             <?= $_dtCr ?>
-                            <?php if (!empty($_fs['submitter_name'])): ?> · Preenchido por <?= e($_fs['submitter_name']) ?><?php endif; ?>
+                            <?php if (!empty($_fs['client_name'])): ?> · Preenchido por <?= e($_fs['client_name']) ?><?php endif; ?>
                         </div>
+                        <?php if (!empty($_fs['_sem_vinculo'])): ?>
+                        <div style="font-size:.68rem;color:#92400e;margin-top:2px;font-weight:600;">
+                            ⚠️ Match por email/telefone — ainda não vinculado ao cadastro. Abra e clique em "Vincular a este cliente".
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <span style="background:<?= e($_stInfo[0]) ?>;color:<?= e($_stInfo[1]) ?>;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;"><?= e($_stInfo[2]) ?></span>
                     <span style="color:#94a3b8;font-size:.85rem;flex-shrink:0;">→</span>
