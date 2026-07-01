@@ -296,7 +296,10 @@ echo voltar_ao_processo_html();
                         $regenParams = array('tipo' => $dh['doc_type'], 'client_id' => $dh['client_id']);
                         if ($dh['tipo_acao']) $regenParams['tipo_acao'] = $dh['tipo_acao'];
                         ?>
-                        <a href="<?= module_url('documentos', 'gerar.php?' . http_build_query($regenParams)) ?>" class="btn btn-outline btn-sm" title="Gerar novamente">🔄</a>
+                        <div style="display:flex;gap:.25rem;">
+                            <a href="<?= module_url('documentos', 'gerar.php?history_id=' . (int)$dh['id']) ?>" target="_blank" class="btn btn-primary btn-sm" title="Reabrir com os valores originais (baixar/imprimir de novo)" style="background:#059669;">📄</a>
+                            <a href="<?= module_url('documentos', 'gerar.php?' . http_build_query($regenParams)) ?>" class="btn btn-outline btn-sm" title="Gerar novamente do zero (form em branco)">🔄</a>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>

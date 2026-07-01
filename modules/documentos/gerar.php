@@ -8,6 +8,30 @@ require_access('documentos');
 require_once __DIR__ . '/templates.php';
 
 $pdo = db();
+
+// 01/07/2026 Amanda: reabrir um documento gerado. Carrega o params_json de
+// document_history e simula um POST — a lógica abaixo re-renderiza o
+// documento com EXATAMENTE os mesmos valores que foram usados originalmente.
+$historyId = (int)($_GET['history_id'] ?? 0);
+if ($historyId > 0) {
+    try {
+        $stH = $pdo->prepare("SELECT doc_type, client_id, tipo_acao, params_json FROM document_history WHERE id = ?");
+        $stH->execute(array($historyId));
+        $h = $stH->fetch(PDO::FETCH_ASSOC);
+        if ($h) {
+            $_GET['tipo']       = $h['doc_type'];
+            $_GET['client_id']  = $h['client_id'];
+            if ($h['tipo_acao']) $_GET['tipo_acao'] = $h['tipo_acao'];
+            $params = json_decode((string)$h['params_json'], true);
+            if (is_array($params)) {
+                foreach ($params as $k => $v) $_POST[$k] = is_array($v) ? $v : (string)$v;
+                // Força o fluxo de geração (lógica abaixo checa REQUEST_METHOD)
+                $_SERVER['REQUEST_METHOD'] = 'POST';
+            }
+        }
+    } catch (Exception $e) { /* segue como GET normal se falhar */ }
+}
+
 $tipo = $_GET['tipo'] ?? '';
 $clientId = (int)($_GET['client_id'] ?? 0);
 $tipoAcao = $_GET['tipo_acao'] ?? '';
