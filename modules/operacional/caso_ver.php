@@ -117,6 +117,34 @@ foreach ($tasks as $_tk) {
     if ($_s !== 'concluido' && $_s !== 'feito') $_tarefasPendBadge++;
 }
 
+// 01/07/2026 Amanda: formulários preenchidos pelo cliente vinculado ao processo.
+// Puxa TODOS os form_submissions com linked_client_id = case.client_id.
+$_formsCliente = array();
+if (!empty($case['client_id'])) {
+    try {
+        $_stFs = $pdo->prepare(
+            "SELECT id, form_type, status, protocol, created_at, updated_at,
+                    submitter_name, submitter_email, submitter_phone
+             FROM form_submissions
+             WHERE linked_client_id = ?
+             ORDER BY created_at DESC"
+        );
+        $_stFs->execute(array((int)$case['client_id']));
+        $_formsCliente = $_stFs->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {}
+}
+// Labels/ícones dos tipos de formulário (espelha modules/formularios/index.php)
+$_formTypeLabels = array(
+    'cadastro_cliente'       => array('📋', 'Cadastro de Cliente'),
+    'calculadora_lead'       => array('🧮', 'Calculadora / Lead'),
+    'convivencia'            => array('👨‍👩‍👧', 'Convivência'),
+    'gastos_pensao'          => array('💰', 'Gastos Pensão'),
+    'despesas_mensais'       => array('📊', 'Despesas Mensais'),
+    'divorcio'               => array('📋', 'Divórcio'),
+    'alimentos'              => array('⚖️', 'Alimentos'),
+    'responsabilidade_civil' => array('🏛️', 'Resp. Civil'),
+);
+
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 // Mapa id => nome curto pra renderizar nomes extras nas tarefas
 $_userNameMap = array();
@@ -615,7 +643,7 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
 
 <!-- Header do caso -->
 <?php $corStatus = isset($statusCores[$case['status']]) ? $statusCores[$case['status']] : '#052228'; ?>
-<div class="caso-header" style="border-left:6px solid <?= $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
+<div class="caso-header cv-header-collapsivel" style="border-left:6px solid <?= $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
     <h2 style="display:flex;align-items:center;gap:.5rem;">
         <span id="casoTitulo" onclick="editarTitulo()" style="cursor:pointer;" title="Clique para editar o nome da pasta"><?= e($case['title']) ?></span>
         <span onclick="editarTitulo()" style="cursor:pointer;font-size:.7rem;opacity:.6;" title="Editar nome">✏️</span>
@@ -1344,9 +1372,53 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
     <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
     <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
+    <button type="button" class="cv-tab" data-aba="formularios" onclick="cvAba('formularios')">📝 Formulários<?php if (!empty($_formsCliente)): ?> <span class="cv-tab-badge"><?= count($_formsCliente) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
   </div>
+</div>
+
+<!-- 01/07/2026 Amanda: aba Formulários — lista todos os form_submissions do cliente vinculado -->
+<div class="card mb-2 cv-secao" data-aba="formularios" id="cv-formularios">
+    <div class="card-header"><h3>📝 Formulários preenchidos pelo cliente (<?= count($_formsCliente) ?>)</h3></div>
+    <div class="card-body" style="padding:.6rem 1rem 1rem;">
+        <?php if (empty($_formsCliente)): ?>
+            <p class="text-muted text-sm" style="margin:.5rem 0;">Nenhum formulário preenchido por este cliente ainda.</p>
+            <p class="text-muted" style="font-size:.75rem;">
+                Formulários públicos (cadastro, calculadora, gastos, convivência etc.) que este cliente preencher e forem vinculados ao seu cadastro aparecerão aqui.
+            </p>
+        <?php else: ?>
+            <?php
+            $_stColors = array(
+                'novo'       => array('#fef3c7', '#92400e', 'Novo'),
+                'em_analise' => array('#dbeafe', '#1e40af', 'Em análise'),
+                'processado' => array('#dcfce7', '#166534', 'Processado'),
+                'arquivado'  => array('#f3f4f6', '#6b7280', 'Arquivado'),
+            );
+            ?>
+            <div style="display:flex;flex-direction:column;gap:.4rem;">
+            <?php foreach ($_formsCliente as $_fs):
+                $_ftInfo = isset($_formTypeLabels[$_fs['form_type']]) ? $_formTypeLabels[$_fs['form_type']] : array('📄', $_fs['form_type']);
+                $_stInfo = isset($_stColors[$_fs['status']]) ? $_stColors[$_fs['status']] : array('#f3f4f6', '#6b7280', $_fs['status']);
+                $_dtCr  = $_fs['created_at'] ? date('d/m/Y H:i', strtotime($_fs['created_at'])) : '';
+                $_verUrl = module_url('formularios', 'ver.php?id=' . (int)$_fs['id']);
+            ?>
+                <a href="<?= e($_verUrl) ?>" target="_blank" style="display:flex;align-items:center;gap:.75rem;padding:.55rem .75rem;background:#fff;border:1px solid #e5e7eb;border-radius:8px;text-decoration:none;color:inherit;transition:box-shadow .12s;" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,.06)'" onmouseout="this.style.boxShadow=''">
+                    <div style="font-size:1.4rem;flex-shrink:0;"><?= $_ftInfo[0] ?></div>
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:700;font-size:.85rem;color:#052228;"><?= e($_ftInfo[1]) ?><?php if (!empty($_fs['protocol'])): ?> <span style="font-weight:400;color:#6b7280;font-size:.75rem;">· #<?= e($_fs['protocol']) ?></span><?php endif; ?></div>
+                        <div style="font-size:.72rem;color:#6b7280;margin-top:2px;">
+                            <?= $_dtCr ?>
+                            <?php if (!empty($_fs['submitter_name'])): ?> · Preenchido por <?= e($_fs['submitter_name']) ?><?php endif; ?>
+                        </div>
+                    </div>
+                    <span style="background:<?= e($_stInfo[0]) ?>;color:<?= e($_stInfo[1]) ?>;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;"><?= e($_stInfo[2]) ?></span>
+                    <span style="color:#94a3b8;font-size:.85rem;flex-shrink:0;">→</span>
+                </a>
+            <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
 </div>
 
 <?php if (!empty($compromissosCaso)): ?>
