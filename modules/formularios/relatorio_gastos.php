@@ -266,8 +266,10 @@ function gMoneyCell($cents, $derived = false) {
 // Categoria é "derivada" (total = soma das subcategorias) só quando as subs
 // representam ~todo o total da categoria. Se as subs forem parciais, a categoria
 // fica editável direto pra não perder o remanescente não detalhado.
+// (Reverti sobrescrita 01/07 r2 — inflacionava total quando total_moradia vinha
+// rateado pelo formulário público. Mantendo comportamento original que Amanda
+// já conhece; overrides manuais dela continuam funcionando por _edit.)
 $catTemSubs = array();
-$catSomaSubs = array(); // Amanda 01/07/2026: guarda soma pra sobrescrever gastosData[cat]
 foreach ($categorias as $key => $cat) {
     $somaSubs = 0;
     if (!empty($stored) && isset($storedPorCategoria[$key])) {
@@ -281,24 +283,7 @@ foreach ($categorias as $key => $cat) {
         }
     }
     $catTotal = isset($gastosData[$key]) ? (int)$gastosData[$key] : 0;
-    // Nova heurística: se soma das subs é MUITO maior que catTotal (ex: total_moradia
-    // veio rateado pelo formulário público mas subs vieram brutas), assumir subs como
-    // verdade. Amanda 01/07: total_moradia = 540 vs subs = 2160 no form da Tamyris.
-    $catTemSubs[$key] = ($somaSubs > 0 && ($somaSubs >= $catTotal * 0.97 || $somaSubs > $catTotal * 1.5));
-    $catSomaSubs[$key] = $somaSubs;
-}
-
-// 01/07/2026 Amanda: se catTemSubs, força gastosData[cat] = soma das subs.
-// Isso corrige o bug do total_geral que misturava valores rateados (moradia)
-// com brutos (outras categorias), e faz o total ser consistente com a exibição.
-foreach ($catSomaSubs as $key => $soma) {
-    if (!empty($catTemSubs[$key]) && $soma > 0) {
-        $gastosData[$key] = $soma;
-    }
-}
-// Recalcula totalGeral se não veio de _edit (edição manual tem prioridade)
-if (empty($edit)) {
-    $totalGeral = array_sum($gastosData);
+    $catTemSubs[$key] = ($somaSubs > 0 && $somaSubs >= $catTotal * 0.97);
 }
 
 $logoUrl = url('assets/img/logo.png');
