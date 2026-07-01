@@ -267,6 +267,7 @@ function gMoneyCell($cents, $derived = false) {
 // representam ~todo o total da categoria. Se as subs forem parciais, a categoria
 // fica editável direto pra não perder o remanescente não detalhado.
 $catTemSubs = array();
+$catSomaSubs = array(); // Amanda 01/07/2026: guarda soma pra sobrescrever gastosData[cat]
 foreach ($categorias as $key => $cat) {
     $somaSubs = 0;
     if (!empty($stored) && isset($storedPorCategoria[$key])) {
@@ -280,7 +281,24 @@ foreach ($categorias as $key => $cat) {
         }
     }
     $catTotal = isset($gastosData[$key]) ? (int)$gastosData[$key] : 0;
-    $catTemSubs[$key] = ($somaSubs > 0 && $somaSubs >= $catTotal * 0.97);
+    // Nova heurística: se soma das subs é MUITO maior que catTotal (ex: total_moradia
+    // veio rateado pelo formulário público mas subs vieram brutas), assumir subs como
+    // verdade. Amanda 01/07: total_moradia = 540 vs subs = 2160 no form da Tamyris.
+    $catTemSubs[$key] = ($somaSubs > 0 && ($somaSubs >= $catTotal * 0.97 || $somaSubs > $catTotal * 1.5));
+    $catSomaSubs[$key] = $somaSubs;
+}
+
+// 01/07/2026 Amanda: se catTemSubs, força gastosData[cat] = soma das subs.
+// Isso corrige o bug do total_geral que misturava valores rateados (moradia)
+// com brutos (outras categorias), e faz o total ser consistente com a exibição.
+foreach ($catSomaSubs as $key => $soma) {
+    if (!empty($catTemSubs[$key]) && $soma > 0) {
+        $gastosData[$key] = $soma;
+    }
+}
+// Recalcula totalGeral se não veio de _edit (edição manual tem prioridade)
+if (empty($edit)) {
+    $totalGeral = array_sum($gastosData);
 }
 
 $logoUrl = url('assets/img/logo.png');
@@ -425,6 +443,14 @@ body.gediting .gastos-table tr:hover td { background:inherit; }
         <button type="button" onclick="gReverter()" style="margin-left:8px;background:#fff;border:1px solid #B87333;color:#92400e;padding:2px 8px;border-radius:6px;cursor:pointer;font-size:.72rem;font-weight:700;">↩ Reverter ao original</button>
     </div>
     <?php endif; ?>
+
+    <!-- 01/07/2026 Amanda: aviso sobre rateio na edição — só aparece no modo edição -->
+    <div class="no-print" id="gAvisoRateio" style="display:none;background:#fef3c7;border:1px solid #fcd34d;border-left:4px solid #d97706;border-radius:8px;padding:.6rem .85rem;margin:.75rem 0 1rem;font-size:.82rem;color:#78350f;">
+        ⚠️ <strong>Atenção ao editar:</strong> os valores das subcategorias de <strong>Moradia</strong> estão em <strong>valor bruto</strong> (o valor total do gasto). O total da categoria Moradia é a <strong>soma bruta</strong> dessas subcategorias.
+        <?php if ($numMoradores > 1): ?>
+        <br>👥 Esta residência tem <strong><?= $numMoradores ?> moradores</strong>. Se quiser ratear um valor de moradia (ex: aluguel R$ 3.200 dividido entre <?= $numMoradores ?> pessoas → R$ <?= number_format(3200 / $numMoradores, 2, ',', '.') ?>), use o botão <code style="background:#fff;padding:1px 4px;border-radius:3px;">÷mor</code> ao lado do input.
+        <?php endif; ?>
+    </div>
 
     <!-- Resumo rápido -->
     <div class="resumo-grid">
@@ -618,6 +644,8 @@ function gToggleEdit(on) {
     document.getElementById('gBtnEditar').style.display   = on ? 'none' : '';
     document.getElementById('gBtnSalvar').style.display   = on ? '' : 'none';
     document.getElementById('gBtnCancelar').style.display = on ? '' : 'none';
+    var av = document.getElementById('gAvisoRateio');
+    if (av) av.style.display = on ? 'block' : 'none';
     if (on) gRecalc();
 }
 function gInputOf(btn) { return btn.parentNode.querySelector('.g-input'); }
