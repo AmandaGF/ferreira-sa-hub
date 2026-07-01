@@ -22,6 +22,9 @@ $row = $pdo->prepare("SELECT payload_json FROM form_submissions WHERE id = ?");
 $row->execute(array($f['id']));
 $payload = json_decode($row->fetchColumn(), true);
 
+echo "\n-- TOP-LEVEL keys do payload --\n";
+echo "  " . implode(', ', array_keys($payload)) . "\n";
+
 echo "\n-- Todas as chaves numéricas do payload (valores > 0) --\n";
 foreach ($payload as $k => $v) {
     if (is_numeric($v) && (int)$v > 0) {
