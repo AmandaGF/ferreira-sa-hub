@@ -136,7 +136,7 @@ $menuItems = array(
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => $_rolesEquipe),
     array('label' => 'Renúncia/Desistência','icon' => '📤', 'href' => url('modules/processos/renuncias.php'), 'id' => 'processos_renuncias', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario'), 'badge' => $_renunciasPendentes, 'badgeCor' => '#b91c1c'),
     array('label' => 'Audiencistas',    'icon' => '👩‍⚖️', 'href' => url('modules/audiencistas/'),       'id' => 'audiencistas',    'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_audPendentes, 'badgeCor' => '#b87333'),
-    array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_geridPendentes, 'badgeCor' => '#0c4a6e'),
+    array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','comercial','cx','operacional','estagiario','colaborador'), 'badge' => $_geridPendentes, 'badgeCor' => '#0c4a6e'),
     array('label' => 'Central Intimações','icon' => '📢', 'href' => url('modules/intimacoes/'),    'id' => 'intimacoes',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Tarefas',         'icon' => '✅', 'href' => url('modules/tarefas/'),        'id' => 'tarefas',         'roles' => array('admin','gestao','operacional')),
     array('label' => 'Notas Pessoais',  'icon' => '📝', 'href' => url('modules/notas/'),          'id' => 'notas',           'roles' => $all),
