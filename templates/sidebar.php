@@ -54,6 +54,12 @@ try {
     $_geridPendentes = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHERE status = 'pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
+// Msg diária de acompanhamento: quantas configs ativas
+$_acompDiarioAtivos = 0;
+try {
+    $_acompDiarioAtivos = (int)db()->query("SELECT COUNT(*) FROM acompanhamento_msg_diario WHERE ativo = 1")->fetchColumn();
+} catch (Exception $e) {}
+
 $_helpdeskAbertos = 0;
 $_prazosUrgentes = 0;
 try {
@@ -139,6 +145,7 @@ $menuItems = array(
     array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','comercial','cx','operacional','estagiario','colaborador'), 'badge' => $_geridPendentes, 'badgeCor' => '#0c4a6e'),
     array('label' => 'Central Intimações','icon' => '📢', 'href' => url('modules/intimacoes/'),    'id' => 'intimacoes',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Tarefas',         'icon' => '✅', 'href' => url('modules/tarefas/'),        'id' => 'tarefas',         'roles' => array('admin','gestao','operacional')),
+    array('label' => 'Msg diária p/ clientes', 'icon' => '🔁', 'href' => url('modules/operacional/acomp_diario.php'), 'id' => 'acomp_diario', 'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_acompDiarioAtivos, 'badgeCor' => '#0891b2'),
     array('label' => 'Notas Pessoais',  'icon' => '📝', 'href' => url('modules/notas/'),          'id' => 'notas',           'roles' => $all),
     array('label' => 'Calc. Prazos',    'icon' => '📅', 'href' => url('modules/operacional/prazos_calc.php'), 'id' => 'prazos_calc', 'roles' => $_rolesEquipe),
     array('label' => 'Extrajudicial',   'icon' => '📝', 'href' => url('modules/servicos/'),         'id' => 'servicos',        'roles' => $_rolesEquipe),
