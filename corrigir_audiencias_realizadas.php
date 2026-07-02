@@ -15,30 +15,41 @@ $pdo = db();
 
 echo "=== Backfill audiencias.status='realizada' ===\n\n";
 
-// Detecta pendentes: audiencias designadas/abertas cujo evento agenda já é 'realizado'
-$sql = "SELECT au.id AS aud_id, au.status AS aud_status, au.tipo, au.data_hora,
-               au.agenda_evento_id, ae.status AS ev_status, ae.titulo,
-               cs.title AS case_title, cs.id AS case_id
+// Detecta pendentes por 2 caminhos:
+// (1) vínculo direto por audiencias.agenda_evento_id
+// (2) case_id + evento tipo audiencia/mediacao_cejusc já realizado e sem outra
+//     audiencia vinculada — cobre solicitações antigas sem agenda_evento_id
+$sql = "SELECT DISTINCT au.id AS aud_id, au.status AS aud_status, au.tipo, au.data_hora,
+               au.agenda_evento_id, ae.id AS ev_id, ae.status AS ev_status, ae.titulo,
+               ae.data_inicio AS ev_data, cs.title AS case_title, cs.id AS case_id,
+               (CASE WHEN au.agenda_evento_id = ae.id THEN 'vinculo direto' ELSE 'match por case+data' END) AS caminho
         FROM audiencias au
-        JOIN agenda_eventos ae ON ae.id = au.agenda_evento_id
-        LEFT JOIN cases cs ON cs.id = au.case_id
+        JOIN cases cs ON cs.id = au.case_id
+        JOIN agenda_eventos ae ON ae.case_id = au.case_id AND ae.status = 'realizado'
         WHERE au.status NOT IN ('cancelada','realizada')
-          AND ae.status = 'realizado'";
+          AND (
+                au.agenda_evento_id = ae.id
+                OR (
+                    ae.tipo IN ('audiencia','mediacao_cejusc')
+                    AND au.agenda_evento_id IS NULL
+                )
+          )";
 $rs = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
 
 echo "Encontradas " . count($rs) . " audiencia(s) pendentes de fechamento:\n\n";
 foreach ($rs as $r) {
-    echo "  aud#{$r['aud_id']} (status={$r['aud_status']}) · tipo={$r['tipo']} · data={$r['data_hora']}\n";
-    echo "    ev#{$r['agenda_evento_id']} '{$r['titulo']}' (status={$r['ev_status']})\n";
+    echo "  aud#{$r['aud_id']} (status={$r['aud_status']}) · tipo={$r['tipo']} · data={$r['data_hora']} · caminho='{$r['caminho']}'\n";
+    echo "    ev#{$r['ev_id']} '{$r['titulo']}' (data={$r['ev_data']} status={$r['ev_status']})\n";
     echo "    case#{$r['case_id']}: {$r['case_title']}\n\n";
 }
 
 $aplicar = !empty($_GET['fix']);
 if ($aplicar && $rs) {
     $ok = 0;
-    $up = $pdo->prepare("UPDATE audiencias SET status='realizada', updated_at=NOW() WHERE id = ?");
+    // Atualiza status E preenche agenda_evento_id se estava vazio
+    $up = $pdo->prepare("UPDATE audiencias SET status='realizada', updated_at=NOW(), agenda_evento_id=COALESCE(agenda_evento_id, ?) WHERE id = ?");
     foreach ($rs as $r) {
-        try { $up->execute(array((int)$r['aud_id'])); $ok++; }
+        try { $up->execute(array((int)$r['ev_id'], (int)$r['aud_id'])); $ok++; }
         catch (Exception $e) { echo "  ERRO em aud#{$r['aud_id']}: " . $e->getMessage() . "\n"; }
     }
     echo "\n✓ {$ok} audiencia(s) atualizadas.\n";

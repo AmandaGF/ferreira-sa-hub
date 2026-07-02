@@ -2539,15 +2539,36 @@ switch ($action) {
                 audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId . ($hipotese ? ' hip=' . $hipotese : ''));
 
                 // 02/07/2026 Amanda: se este evento veio de uma solicitação de audiencista
-                // (audiencias.agenda_evento_id = $eventoId), fecha a solicitação também
-                // pra sumir do card 'Solicitações de audiencista' na pasta do caso.
-                // Continua aparecendo no módulo Audiencistas (histórico).
+                // (audiencias vinculada) fecha a solicitação também pra sumir do card
+                // 'Solicitações de audiencista' na pasta do caso. 2 caminhos de match:
+                // 1) vínculo direto por audiencias.agenda_evento_id (quando cadastrada com data)
+                // 2) fallback: mesmo case_id + audiencia designada sem data_hora OU com data
+                //    do mesmo dia do evento (cobre solicitações antigas sem vínculo formal)
+                // Continua aparecendo no módulo Audiencistas (histórico completo).
                 try {
-                    $pdo->prepare(
+                    // (1) match direto
+                    $r1 = $pdo->prepare(
                         "UPDATE audiencias
-                         SET status = 'realizada', updated_at = NOW()
+                         SET status = 'realizada', updated_at = NOW(),
+                             agenda_evento_id = COALESCE(agenda_evento_id, ?)
                          WHERE agenda_evento_id = ? AND case_id = ? AND status NOT IN ('cancelada','realizada')"
-                    )->execute(array($eventoId, $caseId));
+                    );
+                    $r1->execute(array($eventoId, $eventoId, $caseId));
+
+                    // (2) fallback por case_id + data (só pra audiências, não outros tipos)
+                    if (in_array($tipoEv, array('audiencia','mediacao_cejusc'), true)) {
+                        $dataEv = date('Y-m-d', strtotime($evRow['data_inicio']));
+                        $r2 = $pdo->prepare(
+                            "UPDATE audiencias
+                             SET status = 'realizada', updated_at = NOW(),
+                                 agenda_evento_id = COALESCE(agenda_evento_id, ?)
+                             WHERE case_id = ?
+                               AND status NOT IN ('cancelada','realizada')
+                               AND agenda_evento_id IS NULL
+                               AND (data_hora IS NULL OR DATE(data_hora) = ? OR DATE(data_hora) BETWEEN DATE_SUB(?, INTERVAL 1 DAY) AND DATE_ADD(?, INTERVAL 1 DAY))"
+                        );
+                        $r2->execute(array($eventoId, $caseId, $dataEv, $dataEv, $dataEv));
+                    }
                 } catch (Exception $eAudSol) { @error_log('[evento_realizado audiencias] ' . $eAudSol->getMessage()); }
 
                 // Lê dados do evento pra montar descricoes
