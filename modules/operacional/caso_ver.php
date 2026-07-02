@@ -439,10 +439,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <style>
-.caso-header { background:linear-gradient(135deg, var(--petrol-900), var(--petrol-500)); color:#fff; border-radius:var(--radius-lg); padding:1.5rem; margin-bottom:1.5rem; }
+.caso-header { background:linear-gradient(135deg, var(--petrol-900), var(--petrol-500)); color:#fff; border-radius:var(--radius-lg); padding:1.5rem; margin-bottom:1.5rem; position:relative; }
 .caso-header h2 { font-size:1.2rem; margin-bottom:.25rem; }
 .caso-header .meta { font-size:.82rem; color:var(--rose); }
 .caso-header .actions { margin-top:1rem; display:flex; gap:.5rem; flex-wrap:wrap; }
+/* 02/07/2026 Amanda: quando caso cancelado, header fica vermelho + etiqueta */
+.caso-header.cancelado { background:linear-gradient(135deg, #7f1d1d 0%, #dc2626 60%, #ef4444 100%); box-shadow:0 4px 24px rgba(220,38,38,.35); }
+.caso-header.cancelado .meta { color:#fecaca; }
+.caso-header .etiqueta-cancelado { position:absolute; top:-14px; right:20px; background:#fff; color:#991b1b; font-size:.72rem; font-weight:900; padding:6px 14px; border-radius:6px; letter-spacing:.15em; box-shadow:0 4px 12px rgba(220,38,38,.4); border:2px solid #991b1b; transform:rotate(-3deg); }
+@keyframes pulseCanc { 0%,100%{transform:rotate(-3deg) scale(1);} 50%{transform:rotate(-3deg) scale(1.05);} }
+.caso-header .etiqueta-cancelado { animation:pulseCanc 2s ease-in-out infinite; }
 
 .task-list { list-style:none; padding:0; }
 .task-item { display:flex; align-items:center; gap:.75rem; padding:.75rem 0; border-bottom:1px solid var(--border); }
@@ -670,7 +676,15 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
 
 <!-- Header do caso -->
 <?php $corStatus = isset($statusCores[$case['status']]) ? $statusCores[$case['status']] : '#052228'; ?>
-<div class="caso-header cv-header-collapsivel" style="border-left:6px solid <?= $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
+<?php
+// 02/07/2026 Amanda: quando caso cancelado (status='cancelado' OU cancelado
+// pelo comercial), header fica vermelho + etiqueta CANCELADO.
+$_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancelado_pelo_comercial']);
+?>
+<div class="caso-header cv-header-collapsivel<?= $_ehCancelado ? ' cancelado' : '' ?>" style="border-left:6px solid <?= $_ehCancelado ? '#7f1d1d' : $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
+    <?php if ($_ehCancelado): ?>
+    <span class="etiqueta-cancelado">❌ CANCELADO</span>
+    <?php endif; ?>
     <h2 style="display:flex;align-items:center;gap:.5rem;">
         <span id="casoTitulo" onclick="editarTitulo()" style="cursor:pointer;" title="Clique para editar o nome da pasta"><?= e($case['title']) ?></span>
         <span onclick="editarTitulo()" style="cursor:pointer;font-size:.7rem;opacity:.6;" title="Editar nome">✏️</span>
