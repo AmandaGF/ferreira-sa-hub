@@ -105,6 +105,11 @@ foreach ($configs as $cfg) {
         $totPul++; continue;
     }
 
+    if (empty($cfg['client_phone'])) {
+        echo "  ✗ Cliente sem telefone\n";
+        $totErr++; continue;
+    }
+
     // OK, vai enviar. Escolhe template diferente do último
     list($novoIdx, $tplFn) = acompanhamento_escolher_template(isset($cfg['ultimo_template_idx']) ? (int)$cfg['ultimo_template_idx'] : null);
     if (!is_callable($tplFn)) {
@@ -112,34 +117,52 @@ foreach ($configs as $cfg) {
         $totErr++; continue;
     }
 
-    $nomeCliente = trim(explode(' ', trim($cfg['client_name']))[0]); // primeiro nome
-    $obsExtra = (string)($cfg['obs'] ?? '');
-    $texto = $tplFn($nomeCliente, (string)$cfg['case_title'], $obsExtra);
+    // Bug r1 (02/07 Amanda): duas mensagens saíam quando o cron demorava e
+    // outro cron começava. Fix: UPDATE atômico do ultimo_envio_em ANTES do
+    // envio, com WHERE que exige "não ter enviado hoje". Se rowCount=0,
+    // alguém já processou (ou outro cron rodando em paralelo) — pula.
+    try {
+        $upLock = $pdo->prepare(
+            "UPDATE acompanhamento_msg_diario
+             SET ultimo_envio_em = NOW(),
+                 ultimo_template_idx = ?,
+                 ultima_data_andamento_visto = ?,
+                 total_envios = total_envios + 1
+             WHERE id = ?
+               AND (ultimo_envio_em IS NULL OR DATE(ultimo_envio_em) < CURDATE())"
+        );
+        $upLock->execute(array((int)$novoIdx, $hojeStr, (int)$cfg['id']));
+        $locked = $upLock->rowCount();
+    } catch (Exception $e) { $locked = 0; }
 
-    if (empty($cfg['client_phone'])) {
-        echo "  ✗ Cliente sem telefone\n";
-        $totErr++; continue;
+    if ($locked < 1) {
+        echo "  ⊘ Reserva perdida (já enviado por outra execução hoje) — pula sem enviar\n";
+        $totPul++; continue;
     }
+
+    // Monta contexto rico (tipo de processo + polo oposto)
+    $nomeCliente = trim(explode(' ', trim($cfg['client_name']))[0]);
+    $ctx = acompanhamento_montar_contexto_caso($pdo, (int)$cfg['case_id'], $nomeCliente, (string)($cfg['obs'] ?? ''));
+    $texto = $tplFn($ctx);
 
     $canal = ($cfg['canal'] === '21') ? '21' : '24';
     $r = zapi_send_text($canal, $cfg['client_phone'], $texto);
     if (!empty($r['ok'])) {
-        // Marca envio
+        echo "  ✓ Enviado (canal={$canal} tpl={$novoIdx} tipo='{$ctx['tipo_processo']}' polo='{$ctx['polo_oposto']}')\n";
+        $totEnv++;
+    } else {
+        // Rollback do lock: reverte para não bloquear tentativa nova mais tarde
+        // (mas se falhar aqui, aceita o "buraco" — não é crítico)
         try {
             $pdo->prepare(
                 "UPDATE acompanhamento_msg_diario
-                 SET ultimo_envio_em = NOW(),
-                     ultimo_template_idx = ?,
-                     ultima_data_andamento_visto = ?,
-                     total_envios = total_envios + 1
+                 SET ultimo_envio_em = NULL,
+                     total_envios = GREATEST(0, total_envios - 1)
                  WHERE id = ?"
-            )->execute(array((int)$novoIdx, $hojeStr, (int)$cfg['id']));
+            )->execute(array((int)$cfg['id']));
         } catch (Exception $e) {}
-        echo "  ✓ Enviado (canal={$canal} tpl={$novoIdx})\n";
-        $totEnv++;
-    } else {
         $erro = isset($r['erro']) ? $r['erro'] : 'desconhecido';
-        echo "  ✗ Falha Z-API: {$erro}\n";
+        echo "  ✗ Falha Z-API: {$erro} (lock revertido)\n";
         $totErr++;
     }
 }
