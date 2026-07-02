@@ -982,6 +982,68 @@ function buscarLeadVinculado($pdo, $caseId, $clientId = 0) {
 }
 
 switch ($action) {
+    case 'salvar_acomp_diario':
+        // 01/07/2026 Amanda: salva/atualiza config de msg diária automática de
+        // acompanhamento pra cliente do caso. Só envia quando NÃO teve andamento.
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if (!$caseId) { header('Content-Type: application/json'); echo json_encode(array('ok'=>false,'erro'=>'case_id')); exit; }
+        $stC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+        $stC->execute(array($caseId));
+        $clientId = (int)$stC->fetchColumn();
+        if (!$clientId) { header('Content-Type: application/json'); echo json_encode(array('ok'=>false,'erro'=>'Caso sem cliente')); exit; }
+
+        $ativo = !empty($_POST['ativo']) ? 1 : 0;
+        $horario = trim($_POST['horario_envio'] ?? '10:00');
+        if (!preg_match('/^\d{1,2}:\d{2}$/', $horario)) $horario = '10:00';
+        $diasUteis = !empty($_POST['dias_uteis_only']) ? 1 : 0;
+        $obs = trim($_POST['obs'] ?? '');
+
+        // Self-heal (defensivo, caso migrar ainda não rodou)
+        try {
+            $pdo->exec("CREATE TABLE IF NOT EXISTS acompanhamento_msg_diario (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                client_id INT UNSIGNED NOT NULL, case_id INT UNSIGNED NOT NULL,
+                canal ENUM('21','24') NOT NULL DEFAULT '24',
+                horario_envio TIME NOT NULL DEFAULT '10:00:00',
+                dias_uteis_only TINYINT(1) NOT NULL DEFAULT 1,
+                ativo TINYINT(1) NOT NULL DEFAULT 1,
+                ultimo_envio_em DATETIME NULL, ultimo_template_idx INT NULL,
+                ultima_data_andamento_visto DATE NULL,
+                total_envios INT NOT NULL DEFAULT 0, obs TEXT NULL,
+                pausado_em DATETIME NULL, pausado_motivo TEXT NULL,
+                created_by INT UNSIGNED NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_client_case (client_id, case_id),
+                INDEX idx_ativo (ativo), INDEX idx_case (case_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        } catch (Exception $e) {}
+
+        try {
+            $pdo->prepare(
+                "INSERT INTO acompanhamento_msg_diario
+                 (client_id, case_id, canal, horario_envio, dias_uteis_only, ativo, obs, created_by)
+                 VALUES (?, ?, '24', ?, ?, ?, ?, ?)
+                 ON DUPLICATE KEY UPDATE
+                 horario_envio = VALUES(horario_envio),
+                 dias_uteis_only = VALUES(dias_uteis_only),
+                 ativo = VALUES(ativo),
+                 obs = VALUES(obs),
+                 updated_at = NOW()"
+            )->execute(array(
+                $clientId, $caseId, $horario . ':00', $diasUteis, $ativo, $obs ?: null, (int)current_user_id()
+            ));
+            audit_log('acomp_diario_salvar', 'case', $caseId, "ativo={$ativo} horario={$horario}");
+            header('Content-Type: application/json');
+            echo json_encode(array('ok' => true));
+            exit;
+        } catch (Exception $e) {
+            header('Content-Type: application/json');
+            echo json_encode(array('ok' => false, 'erro' => $e->getMessage()));
+            exit;
+        }
+        break;
+
     case 'ocultar_kanban':
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId) {

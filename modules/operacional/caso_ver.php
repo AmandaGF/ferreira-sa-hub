@@ -108,6 +108,14 @@ $tasks = $pdo->prepare(
 $tasks->execute([$caseId]);
 $tasks = $tasks->fetchAll();
 
+// 01/07/2026 Amanda: config atual de acompanhamento diário via WhatsApp
+$_acompCfg = null;
+try {
+    $stAc = $pdo->prepare("SELECT * FROM acompanhamento_msg_diario WHERE case_id = ? LIMIT 1");
+    $stAc->execute(array($caseId));
+    $_acompCfg = $stAc->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 // 29/06/2026 Amanda: contar tarefas reais pendentes pra badge da aba
 // (a aba renderiza ANTES de $tarefasReais ser populado, então precisa aqui)
 $_tarefasPendBadge = 0;
@@ -2025,7 +2033,108 @@ $_actAttBtn = $_actBlocked
     <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#dc2626;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Calcular Prazo</a>
     <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
+    <?php $_acompLigado = !empty($_acompCfg) && !empty($_acompCfg['ativo']); ?>
+    <button type="button" onclick="acompDiarioAbrir()" class="btn btn-sm" style="font-size:.78rem;background:<?= $_acompLigado ? '#059669' : '#0891b2' ?>;color:#fff;border:none;" title="Configura envio automático diário de mensagem de acompanhamento pro cliente (só quando NÃO teve andamento novo no processo)"><?= $_acompLigado ? '🟢' : '🔁' ?> Msg diária <?= $_acompLigado ? '(ligada)' : '' ?></button>
 </div>
+
+<!-- 01/07/2026 Amanda: Modal Msg diária de acompanhamento -->
+<div id="acompDiarioOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:14px;max-width:520px;width:94%;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+        <div style="background:linear-gradient(135deg,#0891b2,#0e7490);color:#fff;padding:1rem 1.2rem;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin:0;font-size:1rem;">🔁 Msg diária de acompanhamento</h3>
+            <button onclick="acompDiarioFechar()" style="background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;">×</button>
+        </div>
+        <div style="padding:1.1rem 1.2rem;">
+            <div style="background:#e0f2fe;border:1px solid #7dd3fc;border-radius:8px;padding:.65rem .85rem;font-size:.78rem;color:#075985;margin-bottom:.9rem;line-height:1.4;">
+                💡 <strong>Como funciona:</strong> todo dia útil, no horário definido, o sistema checa se houve andamento novo no processo. <strong>Se NÃO houve</strong>, envia uma mensagem variada (12+ textos rotativos) pelo canal 24 informando que continuamos acompanhando. Se houve andamento, não envia (evita ruído).
+            </div>
+
+            <form id="acompDiarioForm" onsubmit="return false;">
+                <input type="hidden" name="action" value="salvar_acomp_diario">
+                <input type="hidden" name="case_id" value="<?= $caseId ?>">
+                <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
+
+                <div style="display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;background:<?= $_acompLigado ? '#dcfce7' : '#f1f5f9' ?>;border:1.5px solid <?= $_acompLigado ? '#86efac' : '#cbd5e1' ?>;border-radius:8px;margin-bottom:.9rem;cursor:pointer;" onclick="var c=document.getElementById('acAtivo');c.checked=!c.checked;acompUpdVisual()">
+                    <input type="checkbox" id="acAtivo" name="ativo" value="1" <?= $_acompLigado ? 'checked' : '' ?> onchange="acompUpdVisual()" style="width:20px;height:20px;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700;color:#052228;font-size:.9rem;">Enviar mensagem diária</div>
+                        <div style="font-size:.72rem;color:#64748b;" id="acStatusTxt"><?= $_acompLigado ? 'Ativo — próximo envio hoje/próximo dia útil' : 'Desligado' ?></div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.9rem;">
+                    <div>
+                        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Horário do envio</label>
+                        <input type="time" name="horario_envio" value="<?= e(substr((string)($_acompCfg['horario_envio'] ?? '10:00:00'), 0, 5)) ?>" style="width:100%;padding:.5rem .65rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Dias</label>
+                        <label style="display:flex;align-items:center;gap:.4rem;padding:.55rem .65rem;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.8rem;">
+                            <input type="checkbox" name="dias_uteis_only" value="1" <?= (!isset($_acompCfg['dias_uteis_only']) || !empty($_acompCfg['dias_uteis_only'])) ? 'checked' : '' ?>>
+                            Só dias úteis
+                        </label>
+                    </div>
+                </div>
+
+                <div style="margin-bottom:.9rem;">
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Observação interna (opcional)</label>
+                    <textarea name="obs" rows="2" placeholder="Ex: cliente muito ansiosa, mãe do menor" style="width:100%;padding:.5rem .65rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:6px;font-family:inherit;resize:vertical;"><?= e((string)($_acompCfg['obs'] ?? '')) ?></textarea>
+                </div>
+
+                <?php if (!empty($_acompCfg)): ?>
+                <div style="background:#f8fafc;border-radius:6px;padding:.55rem .75rem;font-size:.72rem;color:#64748b;margin-bottom:.9rem;">
+                    📊 <strong><?= (int)$_acompCfg['total_envios'] ?></strong> mensagem(ns) enviada(s)
+                    <?php if (!empty($_acompCfg['ultimo_envio_em'])): ?>
+                        · último em <?= date('d/m H:i', strtotime($_acompCfg['ultimo_envio_em'])) ?>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
+
+                <div style="display:flex;justify-content:flex-end;gap:.5rem;">
+                    <button type="button" onclick="acompDiarioFechar()" style="background:#e5e7eb;color:#374151;border:none;border-radius:6px;padding:8px 16px;font-size:.85rem;font-weight:600;cursor:pointer;">Cancelar</button>
+                    <button type="button" onclick="acompDiarioSalvar()" id="acBtnSalvar" style="background:#0891b2;color:#fff;border:none;border-radius:6px;padding:8px 18px;font-size:.85rem;font-weight:700;cursor:pointer;">💾 Salvar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+window.acompDiarioAbrir = function() { document.getElementById('acompDiarioOverlay').style.display = 'flex'; };
+window.acompDiarioFechar = function() { document.getElementById('acompDiarioOverlay').style.display = 'none'; };
+document.getElementById('acompDiarioOverlay').addEventListener('click', function(e) { if (e.target.id === 'acompDiarioOverlay') acompDiarioFechar(); });
+window.acompUpdVisual = function() {
+    var c = document.getElementById('acAtivo');
+    var t = document.getElementById('acStatusTxt');
+    if (t) t.textContent = c.checked ? 'Ativo — próximo envio hoje/próximo dia útil' : 'Desligado';
+};
+window.acompDiarioSalvar = function() {
+    var form = document.getElementById('acompDiarioForm');
+    var btn = document.getElementById('acBtnSalvar');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    var fd = new FormData(form);
+    // FormData omite checkboxes desmarcadas. Se não vier, garante '0'.
+    if (!fd.has('ativo')) fd.append('ativo', '0');
+    if (!fd.has('dias_uteis_only')) fd.append('dias_uteis_only', '0');
+    fetch('<?= module_url('operacional', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) {
+        if (r.status === 401 && window.fsaMostrarSessaoExpirada) { window.fsaMostrarSessaoExpirada(); throw new Error('401'); }
+        return r.json();
+    })
+    .then(function(j) {
+        btn.disabled = false; btn.textContent = '💾 Salvar';
+        if (j.ok) { alert('✓ Configuração salva!'); location.reload(); }
+        else alert('Erro: ' + (j.erro || 'tente de novo'));
+    })
+    .catch(function(e) {
+        btn.disabled = false; btn.textContent = '💾 Salvar';
+        if (e.message !== '401') alert('Erro: ' + e.message);
+    });
+};
+</script>
 
 <!-- Modal: Renúncia/Desistência (importa cliente+processo desta pasta, confirma tipo+motivo+comprovante) -->
 <div id="renModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
