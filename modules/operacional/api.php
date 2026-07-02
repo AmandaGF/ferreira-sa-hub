@@ -2538,6 +2538,18 @@ switch ($action) {
                     ->execute(array($eventoId, $caseId));
                 audit_log('EVENTO_MARCADO_REALIZADO', 'case', $caseId, 'evento_id=' . $eventoId . ($hipotese ? ' hip=' . $hipotese : ''));
 
+                // 02/07/2026 Amanda: se este evento veio de uma solicitação de audiencista
+                // (audiencias.agenda_evento_id = $eventoId), fecha a solicitação também
+                // pra sumir do card 'Solicitações de audiencista' na pasta do caso.
+                // Continua aparecendo no módulo Audiencistas (histórico).
+                try {
+                    $pdo->prepare(
+                        "UPDATE audiencias
+                         SET status = 'realizada', updated_at = NOW()
+                         WHERE agenda_evento_id = ? AND case_id = ? AND status NOT IN ('cancelada','realizada')"
+                    )->execute(array($eventoId, $caseId));
+                } catch (Exception $eAudSol) { @error_log('[evento_realizado audiencias] ' . $eAudSol->getMessage()); }
+
                 // Lê dados do evento pra montar descricoes
                 $stEv = $pdo->prepare("SELECT tipo, titulo, data_inicio, client_id, responsavel_id, case_id FROM agenda_eventos WHERE id = ?");
                 $stEv->execute(array($eventoId));
