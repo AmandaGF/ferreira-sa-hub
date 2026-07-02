@@ -2068,13 +2068,13 @@ $_actAttBtn = $_actBlocked
                 <input type="hidden" name="case_id" value="<?= $caseId ?>">
                 <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
 
-                <div style="display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;background:<?= $_acompLigado ? '#dcfce7' : '#f1f5f9' ?>;border:1.5px solid <?= $_acompLigado ? '#86efac' : '#cbd5e1' ?>;border-radius:8px;margin-bottom:.9rem;cursor:pointer;" onclick="var c=document.getElementById('acAtivo');c.checked=!c.checked;acompUpdVisual()">
-                    <input type="checkbox" id="acAtivo" name="ativo" value="1" <?= $_acompLigado ? 'checked' : '' ?> onchange="acompUpdVisual()" style="width:20px;height:20px;">
+                <label id="acAtivoWrap" for="acAtivo" style="display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;background:<?= $_acompLigado ? '#dcfce7' : '#f1f5f9' ?>;border:1.5px solid <?= $_acompLigado ? '#86efac' : '#cbd5e1' ?>;border-radius:8px;margin-bottom:.9rem;cursor:pointer;">
+                    <input type="checkbox" id="acAtivo" name="ativo" value="1" <?= $_acompLigado ? 'checked' : '' ?> onchange="acompUpdVisual()" style="width:20px;height:20px;cursor:pointer;">
                     <div style="flex:1;">
                         <div style="font-weight:700;color:#052228;font-size:.9rem;">Enviar mensagem diária</div>
                         <div style="font-size:.72rem;color:#64748b;" id="acStatusTxt"><?= $_acompLigado ? 'Ativo — próximo envio hoje/próximo dia útil' : 'Desligado' ?></div>
                     </div>
-                </div>
+                </label>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.9rem;">
                     <div>
@@ -2120,7 +2120,12 @@ document.getElementById('acompDiarioOverlay').addEventListener('click', function
 window.acompUpdVisual = function() {
     var c = document.getElementById('acAtivo');
     var t = document.getElementById('acStatusTxt');
+    var w = document.getElementById('acAtivoWrap');
     if (t) t.textContent = c.checked ? 'Ativo — próximo envio hoje/próximo dia útil' : 'Desligado';
+    if (w) {
+        w.style.background = c.checked ? '#dcfce7' : '#f1f5f9';
+        w.style.borderColor = c.checked ? '#86efac' : '#cbd5e1';
+    }
 };
 window.acompDiarioSalvar = function() {
     var form = document.getElementById('acompDiarioForm');
