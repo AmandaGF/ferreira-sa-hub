@@ -352,12 +352,106 @@ switch ($action) {
         }
 
         // ── CANCELADO ou PERDIDO: espelhar no Operacional ──
+        // Amanda 01/07/2026: comercial cancelava contrato de cliente que ja estava
+        // em andamento no operacional e advogadas nao ficavam sabendo. Agora:
+        // 1) Grava metadata em cases (cancelado_pelo_comercial, quem, quando, motivo)
+        // 2) Insere andamento visivel_cliente=0 no caso
+        // 3) Notifica RESPONSAVEL do caso (nao so gestao)
+        // 4) Notifica Luiz Eduardo (gestao operacional)
+        // 5) Cria tarefa alta pra responsavel revisar/parar de trabalhar
         if ($toStage === 'cancelado' || $toStage === 'perdido') {
             $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            $motivoText = $notes ?: 'sem motivo informado';
+
+            // Self-heal das colunas de tracking (idempotente)
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN cancelado_pelo_comercial TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN cancelado_em DATETIME NULL"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN cancelado_por INT NULL"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN cancelado_motivo TEXT NULL"); } catch (Exception $e) {}
+
             if ($linkedCaseId) {
-                $pdo->prepare("UPDATE cases SET status = 'cancelado', closed_at = CURDATE(), updated_at = NOW() WHERE id = ? AND status NOT IN ('cancelado','arquivado','finalizado')")
-                    ->execute(array($linkedCaseId));
-                audit_log('case_auto_cancelled', 'case', $linkedCaseId, 'Pipeline ' . $toStage . ' lead #' . $leadId);
+                // Atualiza case com metadata rica
+                $pdo->prepare(
+                    "UPDATE cases
+                     SET status = 'cancelado', closed_at = CURDATE(), updated_at = NOW(),
+                         cancelado_pelo_comercial = 1,
+                         cancelado_em = NOW(),
+                         cancelado_por = ?,
+                         cancelado_motivo = ?
+                     WHERE id = ? AND status NOT IN ('cancelado','arquivado','finalizado')"
+                )->execute(array((int)current_user_id(), $motivoText, $linkedCaseId));
+                audit_log('case_auto_cancelled', 'case', $linkedCaseId, 'Pipeline ' . $toStage . ' lead #' . $leadId . ' motivo=' . $motivoText);
+
+                // Puxa dados do case pra notificar responsavel + Luiz
+                try {
+                    $stCase = $pdo->prepare("SELECT responsible_user_id, title FROM cases WHERE id = ?");
+                    $stCase->execute(array($linkedCaseId));
+                    $caseRow2 = $stCase->fetch();
+                    $respId = $caseRow2 ? (int)$caseRow2['responsible_user_id'] : 0;
+                    $caseTitle = $caseRow2 ? (string)$caseRow2['title'] : '';
+
+                    // Andamento interno na pasta (visivel_cliente=0)
+                    try {
+                        $descAnd = '❌ CONTRATO CANCELADO PELO COMERCIAL — ' . $lead['name']
+                                 . ' (lead #' . $leadId . '). Motivo: ' . $motivoText
+                                 . '. Não prosseguir com peças/audiências sem confirmar com comercial.';
+                        $pdo->prepare(
+                            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
+                             VALUES (?, CURDATE(), 'cancelamento', ?, ?, 0, NOW())"
+                        )->execute(array($linkedCaseId, $descAnd, (int)current_user_id()));
+                    } catch (Exception $e) {}
+
+                    // Notifica responsavel do caso
+                    if ($respId > 0 && $respId !== (int)current_user_id()) {
+                        try {
+                            notify($respId,
+                                '❌ Contrato CANCELADO — ' . ($caseTitle ?: $lead['name']),
+                                'Comercial cancelou. Motivo: ' . $motivoText . '. Não trabalhe mais neste caso sem confirmar.',
+                                'urgencia',
+                                '/conecta/modules/operacional/caso_ver.php?id=' . $linkedCaseId,
+                                '❌'
+                            );
+                            if (function_exists('push_notify')) {
+                                try { push_notify($respId, '❌ Contrato cancelado', ($caseTitle ?: $lead['name']) . ' — motivo: ' . $motivoText, '/conecta/modules/operacional/caso_ver.php?id=' . $linkedCaseId, true); } catch (Exception $e) {}
+                            }
+                        } catch (Exception $e) {}
+                    }
+
+                    // Notifica Luiz Eduardo (gestão operacional)
+                    try {
+                        $luiz = (int)$pdo->query("SELECT id FROM users WHERE is_active=1 AND name LIKE 'Luiz Eduardo%' ORDER BY id LIMIT 1")->fetchColumn();
+                        if ($luiz && $luiz !== $respId && $luiz !== (int)current_user_id()) {
+                            notify($luiz,
+                                '❌ Contrato cancelado no comercial',
+                                ($caseTitle ?: $lead['name']) . ' — motivo: ' . $motivoText,
+                                'alerta',
+                                '/conecta/modules/operacional/caso_ver.php?id=' . $linkedCaseId,
+                                '❌'
+                            );
+                        }
+                    } catch (Exception $e) {}
+
+                    // Cria tarefa pra responsavel revisar (se houver)
+                    if ($respId > 0) {
+                        try {
+                            $pdo->prepare(
+                                "INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
+                                 VALUES (?,?,?,?,?,?,?,?,?,NOW())"
+                            )->execute(array(
+                                $linkedCaseId,
+                                '🛑 Revisar cancelamento do comercial — ' . $lead['name'],
+                                'outros',
+                                'Comercial cancelou o contrato. Motivo: ' . $motivoText
+                                . '. Verificar o que já foi produzido, comunicar cliente/equipe e arquivar/dar baixa nos itens em andamento.',
+                                $respId,
+                                date('Y-m-d', strtotime('+1 day')),
+                                'alta',
+                                'a_fazer',
+                                0,
+                            ));
+                        } catch (Exception $e) {}
+                    }
+                } catch (Exception $e) {}
             }
             notify_gestao('Lead ' . $toStage, $lead['name'] . ' foi ' . $toStage . ' no Pipeline.' . ($notes ? ' Motivo: ' . $notes . '.' : '') . ($linkedCaseId ? ' Caso #' . $linkedCaseId . ' também cancelado.' : ''), 'alerta', url('modules/pipeline/'), '❌');
         }

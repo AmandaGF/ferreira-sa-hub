@@ -676,6 +676,62 @@ if ($_meuUserId > 0) {
     } catch (Exception $_e) {}
 }
 ?>
+<?php
+// ════════════════════════════════════════════════════════════════════════
+// ❌ Contratos cancelados pelo comercial nos últimos 7d (01/07/2026 Amanda)
+// Aparece pra RESPONSAVEL do caso + admin/gestao + Luiz Eduardo.
+// Objetivo: dar visibilidade quando o comercial cancela um contrato de
+// cliente em andamento no operacional (antes a advogada continuava
+// trabalhando sem saber).
+// ════════════════════════════════════════════════════════════════════════
+$_cancelRecentes = array();
+$_uidC = (int)current_user_id();
+$_roleC = current_user_role();
+$_ehGestaoOuLuiz = in_array($_roleC, array('admin','gestao'), true);
+try {
+    $_luizIdC = (int)$pdo->query("SELECT id FROM users WHERE is_active=1 AND name LIKE 'Luiz Eduardo%' ORDER BY id LIMIT 1")->fetchColumn();
+    if ($_luizIdC === $_uidC) $_ehGestaoOuLuiz = true;
+} catch (Exception $_e) {}
+try {
+    $sqlC = "SELECT cs.id, cs.title, cs.cancelado_em, cs.cancelado_motivo, cs.responsible_user_id,
+                    cl.name AS client_name, u.name AS canceled_by_name
+             FROM cases cs
+             LEFT JOIN clients cl ON cl.id = cs.client_id
+             LEFT JOIN users u ON u.id = cs.cancelado_por
+             WHERE cs.cancelado_pelo_comercial = 1
+               AND cs.cancelado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    if (!$_ehGestaoOuLuiz) {
+        $sqlC .= " AND cs.responsible_user_id = ?";
+        $stC = $pdo->prepare($sqlC . " ORDER BY cs.cancelado_em DESC LIMIT 10");
+        $stC->execute(array($_uidC));
+    } else {
+        $stC = $pdo->prepare($sqlC . " ORDER BY cs.cancelado_em DESC LIMIT 10");
+        $stC->execute();
+    }
+    $_cancelRecentes = $stC->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $_e) {}
+?>
+<?php if (!empty($_cancelRecentes)): ?>
+<div style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.15);">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
+        <div style="font-weight:800;color:#991b1b;font-size:.95rem;">📛 Contratos cancelados pelo comercial (<?= count($_cancelRecentes) ?>) — últimos 7 dias</div>
+        <span style="font-size:.7rem;color:#7f1d1d;font-weight:600;">Não prossiga sem confirmar</span>
+    </div>
+    <?php foreach ($_cancelRecentes as $_cr):
+        $_crDt = $_cr['cancelado_em'] ? date('d/m H:i', strtotime($_cr['cancelado_em'])) : '';
+        $_crMot = trim((string)($_cr['cancelado_motivo'] ?? ''));
+    ?>
+    <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$_cr['id']) ?>" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;text-decoration:none;color:inherit;border:1px solid #fecaca;">
+        <span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:.66rem;font-weight:800;">❌ CANCELADO</span>
+        <span style="font-weight:700;color:#7f1d1d;"><?= e($_cr['title'] ?: ('Caso #' . $_cr['id'])) ?></span>
+        <?php if (!empty($_cr['client_name'])): ?><span style="color:#666;font-size:.74rem;">👤 <?= e($_cr['client_name']) ?></span><?php endif; ?>
+        <?php if ($_crMot): ?><span style="color:#991b1b;font-size:.72rem;font-style:italic;">💬 <?= e(mb_substr($_crMot, 0, 60)) ?><?= mb_strlen($_crMot) > 60 ? '…' : '' ?></span><?php endif; ?>
+        <span style="margin-left:auto;font-size:.7rem;color:#666;"><?= $_crDt ?><?php if (!empty($_cr['canceled_by_name'])): ?> · <?= e(explode(' ', $_cr['canceled_by_name'])[0]) ?><?php endif; ?></span>
+    </a>
+    <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($_meusEsfri)): ?>
 <div style="background:linear-gradient(135deg,#fef3c7,#fff);border-left:4px solid #f59e0b;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(245,158,11,.1);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">

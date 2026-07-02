@@ -38,7 +38,7 @@ $columns = array(
     'distribuido'            => array('label' => 'Distribuído — aguard. despacho','color' => '#15803d', 'icon' => '🏛️'),
     'kanban_prev'            => array('label' => 'Kanban PREV',                  'color' => '#3B4FA0', 'icon' => '🏛️'),
     'parceria_previdenciario'=> array('label' => 'Parceria',                    'color' => '#06b6d4', 'icon' => '🤝'),
-    'cancelado'              => array('label' => 'Cancelado',                   'color' => '#6b7280', 'icon' => '❌'),
+    'cancelado'              => array('label' => 'Cancelado — Revisar',         'color' => '#dc2626', 'icon' => '❌'),
     'para_arquivar'          => array('label' => 'Para Arquivar',               'color' => '#374151', 'icon' => '📦'),
 );
 
@@ -263,6 +263,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card-tasks .mini-fill { height:100%; background:var(--success); border-radius:3px; display:block; }
 .op-card-deadline { font-size:.55rem; margin-top:.2rem; }
 .op-card-deadline.overdue { color:#ef4444; font-weight:700; }
+.op-card.cancelado-comercial { border:2px solid #dc2626 !important; border-left:5px solid #7f1d1d !important; background:linear-gradient(135deg,#fff1f2 0%,#fee2e2 100%); box-shadow:0 0 0 2px rgba(220,38,38,.15); }
+.op-card.cancelado-comercial:hover { box-shadow:0 4px 14px rgba(220,38,38,.35); }
+.op-card.cancelado-comercial .op-card-name { color:#7f1d1d; text-decoration:line-through; }
 .op-card.prazo-hoje { border-left-color:#dc2626 !important; animation:pulsePrazo 1.5s ease-in-out infinite; }
 .op-card.prazo-3d { border-left-color:#f59e0b !important; animation:pulsePrazoSuave 2s ease-in-out infinite; }
 /* Acompanhamento externo: processo de outro escritorio. Cinza-azulado, com indicador no canto. */
@@ -473,9 +476,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         elseif ($diasPrazo <= 3) $prazoClass = 'prazo-3d';
                     }
                 ?>
-                <?php $_isAcompExt = (int)($cs['acompanhamento_externo'] ?? 0) === 1; ?>
-                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isAcompExt ? '' : 'border-left-color:' . $pColor . ';' ?>"
+                <?php
+                $_isAcompExt = (int)($cs['acompanhamento_externo'] ?? 0) === 1;
+                // 01/07/2026 Amanda: card cancelado pelo comercial ganha destaque vermelho
+                $_isCanceladoCom = !empty($cs['cancelado_pelo_comercial']);
+                ?>
+                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?><?= $_isCanceladoCom ? ' cancelado-comercial' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isCanceladoCom ? '' : ($_isAcompExt ? '' : 'border-left-color:' . $pColor . ';') ?>"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
+                    <?php if ($_isCanceladoCom): ?>
+                    <div style="background:#dc2626;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;text-align:center;margin-bottom:.35rem;letter-spacing:.03em;text-transform:uppercase;">❌ Cancelado pelo comercial</div>
+                    <?php if (!empty($cs['cancelado_motivo'])): ?>
+                    <div style="font-size:.62rem;color:#7f1d1d;font-style:italic;background:rgba(220,38,38,.08);padding:2px 5px;border-radius:3px;margin-bottom:.3rem;line-height:1.3;" title="<?= e($cs['cancelado_motivo']) ?>">💬 <?= e(mb_substr($cs['cancelado_motivo'], 0, 60)) ?><?= mb_strlen($cs['cancelado_motivo']) > 60 ? '…' : '' ?></div>
+                    <?php endif; ?>
+                    <?php endif; ?>
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">

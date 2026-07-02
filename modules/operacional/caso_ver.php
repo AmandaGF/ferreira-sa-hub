@@ -871,6 +871,44 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     </div>
 </div>
 
+<?php
+// 01/07/2026 Amanda: banner vermelho gigante quando comercial cancelou o contrato.
+// Aparece SEMPRE (não colapsa com o header) pra advogada ver antes de mexer em qq
+// coisa. Mostra motivo, data, quem cancelou.
+if (!empty($case['cancelado_pelo_comercial'])):
+    $_canDt   = !empty($case['cancelado_em']) ? date('d/m/Y \à\s H:i', strtotime($case['cancelado_em'])) : '';
+    $_canQuem = '';
+    if (!empty($case['cancelado_por'])) {
+        try {
+            $_stCanQ = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+            $_stCanQ->execute(array((int)$case['cancelado_por']));
+            $_canQuem = (string)$_stCanQ->fetchColumn();
+        } catch (Exception $_e) {}
+    }
+    $_canMot = trim((string)($case['cancelado_motivo'] ?? ''));
+?>
+<div style="background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;border-radius:12px;padding:1rem 1.25rem;margin:0 0 1rem;box-shadow:0 4px 20px rgba(220,38,38,.35);border:2px solid #7f1d1d;">
+    <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;">
+        <div style="font-size:2rem;line-height:1;">⚠️❌</div>
+        <div style="flex:1;min-width:250px;">
+            <div style="font-size:1.05rem;font-weight:800;letter-spacing:.02em;">CONTRATO CANCELADO PELO COMERCIAL</div>
+            <div style="font-size:.85rem;margin-top:.25rem;opacity:.95;">
+                <?php if ($_canDt): ?>Cancelado em <strong><?= e($_canDt) ?></strong><?php endif; ?>
+                <?php if ($_canQuem): ?> por <strong><?= e($_canQuem) ?></strong><?php endif; ?>
+            </div>
+            <?php if ($_canMot): ?>
+                <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:.5rem .75rem;margin-top:.5rem;font-size:.85rem;line-height:1.5;">
+                    <strong>Motivo:</strong> <?= e($_canMot) ?>
+                </div>
+            <?php endif; ?>
+            <div style="font-size:.8rem;margin-top:.5rem;font-weight:600;">
+                🚫 <strong>NÃO PROSSIGA</strong> com peças, audiências, ofícios ou GERID sem antes confirmar com o comercial.
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <?php if (!empty($duplicatas)):
     // Data de criacao deste case + dos duplicados pra apresentar no banner/prompt
     $_caseCriadoEm = !empty($case['created_at']) ? date('d/m/Y', strtotime($case['created_at'])) : '?';
@@ -1957,17 +1995,35 @@ try {
 <?php endif; ?>
 
 <!-- Atalhos rápidos -->
+<?php
+// 01/07/2026 Amanda: quando comercial cancela, botoes ficam desabilitados
+// (visualmente cinza + cursor not-allowed + confirmacao antes de prosseguir).
+// Nao dita a lei — se advogada realmente quiser, pode continuar via confirm.
+$_actBlocked = !empty($case['cancelado_pelo_comercial']);
+$_actWarn = $_actBlocked ? "Este contrato foi CANCELADO pelo comercial. Confirmar antes de prosseguir?" : '';
+$_actAtt = $_actBlocked
+    ? ' onclick="if(!confirm(' . htmlspecialchars(json_encode($_actWarn . "\\n\\nMotivo: " . ($case['cancelado_motivo'] ?? '')), ENT_QUOTES) . ')){event.preventDefault();return false;}" style="opacity:.55;filter:grayscale(.6);"'
+    : '';
+$_actAttBtn = $_actBlocked
+    ? ' data-canc-warn="1" style="opacity:.55;filter:grayscale(.6);"'
+    : '';
+?>
+<?php if ($_actBlocked): ?>
+<div style="background:#fef2f2;border:1px dashed #dc2626;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.75rem;color:#991b1b;">
+    🚫 <strong>Ações desabilitadas</strong> — contrato cancelado pelo comercial. Clique em qualquer botão pede confirmação antes de prosseguir.
+</div>
+<?php endif; ?>
 <div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
-    <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;">+ Criar Tarefa</a>
-    <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;">Agendar Audiência</a>
-    <button type="button" onclick="audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
+    <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">+ Criar Tarefa</a>
+    <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Agendar Audiência</a>
+    <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
     <button type="button" onclick="renOpen()" class="btn btn-sm" style="font-size:.78rem;background:#9333ea;color:#fff;border:none;" title="Registrar renúncia ou desistência deste processo">📤 Renúncia/Desistência</button>
-    <button type="button" onclick="gdOpen()" class="btn btn-sm" style="font-size:.78rem;background:#0e7490;color:#fff;border:none;" title="Pedir pesquisa de vínculo empregatício no GERID (avisa o Luiz Eduardo + abre tarefa)">🔎 Pesquisar vínculo (GERID)</button>
-    <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;">Reunião + Meet</a>
-    <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;">Balcão Virtual</a>
-    <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>" class="btn btn-outline btn-sm" style="font-size:.78rem;">+ Compromisso</a>
-    <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#dc2626;">Calcular Prazo</a>
-    <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
+    <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>gdOpen()" class="btn btn-sm" style="font-size:.78rem;background:#0e7490;color:#fff;border:none;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Pedir pesquisa de vínculo empregatício no GERID (avisa o Luiz Eduardo + abre tarefa)">🔎 Pesquisar vínculo (GERID)</button>
+    <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Reunião + Meet</a>
+    <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Balcão Virtual</a>
+    <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-outline btn-sm" style="font-size:.78rem;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">+ Compromisso</a>
+    <a href="<?= module_url('operacional', 'prazos_calc.php?case_id=' . $caseId) ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#dc2626;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Calcular Prazo</a>
+    <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#7c3aed;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Montar ofício pro RH do empregador (pensão alimentícia) — modelos prontos de e-mail e WhatsApp">📬 Ofício p/ empregador</a>
     <a href="<?= module_url('helpdesk', 'novo.php?caso_id=' . $caseId . '&from_case=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b91c1c;" title="Abrir chamado interno (helpdesk) já vinculado a esta pasta">🎫 Abrir Chamado</a>
 </div>
 
