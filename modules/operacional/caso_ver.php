@@ -7694,6 +7694,18 @@ Se usar hora, vira '[HH:MM] descrição...' no registro.</pre>
             <textarea id="modalRealAud_textoOutro" style="display:none;width:100%;min-height:90px;padding:.6rem .75rem;border:1px solid #e5e7eb;border-radius:6px;font-family:inherit;font-size:.85rem;margin-top:.3rem;" placeholder="Descreva o que aconteceu..."></textarea>
         </div>
 
+        <!-- 02/07/2026 Amanda: campo de observação SEMPRE visível, com aviso claro
+             de que o cliente terá acesso ao conteúdo (vai virar andamento visivel_cliente=1) -->
+        <div style="border-top:1px solid #e5e7eb;padding-top:.9rem;margin-top:.5rem;margin-bottom:1rem;">
+            <label style="display:block;font-size:.78rem;font-weight:700;color:#052228;margin-bottom:.35rem;">
+                💬 O que aconteceu na audiência? <span style="color:#6b7280;font-weight:500;font-style:italic;font-size:.74rem;">(opcional)</span>
+            </label>
+            <div style="background:#fef3c7;border:1px solid #fcd34d;border-left:3px solid #d97706;border-radius:6px;padding:.5rem .75rem;font-size:.72rem;color:#78350f;margin-bottom:.5rem;line-height:1.45;">
+                ⚠️ <strong>Atenção:</strong> o cliente <strong>terá acesso ao texto</strong> escrito aqui (aparece no andamento da Central VIP). Escreva de forma clara e objetiva, sem informações internas/estratégicas.
+            </div>
+            <textarea id="modalRealAud_obsCliente" rows="3" style="width:100%;padding:.55rem .75rem;border:1px solid #e5e7eb;border-radius:6px;font-family:inherit;font-size:.85rem;resize:vertical;" placeholder="Ex: A parte ré compareceu representada por advogado. Foi feita proposta de acordo no valor de R$ ..., aguardando análise. Nova audiência marcada para o dia..."></textarea>
+        </div>
+
         <div style="border-top:1px solid #e5e7eb;padding-top:.9rem;margin-top:.5rem;">
             <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.88rem;font-weight:700;color:#052228;background:#eff6ff;padding:.55rem .75rem;border-radius:6px;border:1px solid #93c5fd;">
                 <input type="checkbox" id="modalRealAud_chkNova"> 📅 Foi marcada NOVA AUDIÊNCIA?
@@ -7749,6 +7761,9 @@ window.abrirModalRealizarAud = function(form, eventoId, dataAud, titulo, tipo) {
     document.getElementById('modalRealAud_camposNova').style.display = 'none';
     document.getElementById('modalRealAud_novaData').value = '';
     document.getElementById('modalRealAud_novaHora').value = '';
+    // 02/07 Amanda: reset do campo obs visível ao cliente
+    var _obsCli = document.getElementById('modalRealAud_obsCliente');
+    if (_obsCli) _obsCli.value = '';
     document.getElementById('modalRealAud').style.display = 'flex';
     return false; // suspende o submit do form
 };
@@ -7782,6 +7797,11 @@ window.confirmarModalRealAud = function() {
     if (hipVal === 'outro') {
         obs = (document.getElementById('modalRealAud_textoOutro').value || '').trim();
         if (!obs) { alert('Descreva o que aconteceu no campo de texto.'); return; }
+    }
+    // 02/07 Amanda: obs adicional visível ao cliente — concatena se houver
+    var obsCliente = (document.getElementById('modalRealAud_obsCliente').value || '').trim();
+    if (obsCliente) {
+        obs = obs ? (obs + '\n\n' + obsCliente) : obsCliente;
     }
     var prazoAleg = document.getElementById('modalRealAud_alegFinais').checked ? '1' : '';
     var prazoJunt = document.getElementById('modalRealAud_juntada').checked ? '1' : '';
