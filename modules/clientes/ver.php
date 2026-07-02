@@ -43,9 +43,11 @@ try {
 $compromissos = array();
 try {
     $stmtAg = $pdo->prepare(
-        "SELECT e.*, u.name as responsavel_name
+        "SELECT e.*, u.name as responsavel_name,
+                cs.title as case_title, cs.drive_folder_url as case_drive_url
          FROM agenda_eventos e
          LEFT JOIN users u ON u.id = e.responsavel_id
+         LEFT JOIN cases cs ON cs.id = e.case_id
          WHERE e.client_id = ? AND e.status != 'cancelado'
          ORDER BY e.data_inicio DESC"
     );
@@ -580,6 +582,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <td style="padding:.55rem .75rem;font-weight:600;border-left:3px solid <?= $cor ?>;">
                 <?= e($ev['titulo']) ?>
                 <?php if ($ev['local']): ?><div style="font-size:.7rem;color:var(--text-muted);font-weight:400;">📍 <?= e($ev['local']) ?></div><?php endif; ?>
+                <?php if (!empty($ev['case_id'])): ?><div style="font-size:.7rem;font-weight:400;margin-top:2px;"><a href="<?= module_url('operacional', 'caso_ver.php?id=' . $ev['case_id']) ?>" style="color:var(--petrol-900);text-decoration:none;" title="Abrir pasta do processo">📁 <?= e($ev['case_title'] ? $ev['case_title'] : ('Processo #' . $ev['case_id'])) ?></a></div><?php endif; ?>
             </td>
             <td style="padding:.55rem .75rem;">
                 <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:.7rem;font-weight:600;color:#fff;background:<?= $cor ?>;"><?= $lbl ?></span>
