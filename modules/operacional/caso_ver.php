@@ -530,7 +530,11 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     </div>
 </div>
 <?php endif; ?>
-<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 36px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:30;border-bottom:1px solid transparent;">
+<!-- 02/07 Amanda: z-index:40 (era 30) — abas cv-tabs-wrap tambem em 30 e vinham
+     depois no DOM, sobrepunham o dropdown 'Ações'. Elemento pai com sticky/
+     z-index cria stacking context que limita z-index dos filhos (mesmo com
+     z-index:1000 no cv-dropdown-menu, ele fica preso ao contexto do toolbar). -->
+<div class="cv-toolbar-sticky" style="display:flex;gap:.5rem;margin-bottom:.75rem;flex-wrap:wrap;position:sticky;top:calc(var(--topbar-h, 60px) + 36px);background:var(--bg, #f8fafc);padding:.6rem 0;z-index:40;border-bottom:1px solid transparent;">
     <?php
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
     $fromProcessos = (strpos($referer, '/processos') !== false);
