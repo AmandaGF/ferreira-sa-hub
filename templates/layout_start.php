@@ -248,10 +248,17 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 <div style="position:relative;" id="bgWrap">
                     <div style="position:relative;display:flex;align-items:center;">
                         <span style="position:absolute;left:10px;font-size:.85rem;opacity:.5;pointer-events:none;">🔍</span>
-                        <input type="text" id="bgInput" placeholder="Buscar no Hub... (Ctrl+K ou /)" autocomplete="off"
+                        <!-- 02/07/2026 Amanda: Chrome/Edge injetavam email no bgInput apos
+                             copiar senha do 2FA. autocomplete='off' nao basta — precisa
+                             de type='search' + name random + data-lpignore + data-1p-ignore
+                             + readonly (removido on focus, truque anti-autofill). -->
+                        <input type="search" id="bgInput" name="hubsearch_<?= substr(md5((string)time()), 0, 6) ?>"
+                               placeholder="Buscar no Hub... (Ctrl+K ou /)"
+                               autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                               data-lpignore="true" data-1p-ignore data-form-type="other"
+                               readonly onfocus="this.removeAttribute('readonly');this.style.width='280px';this.style.background='#fff';"
                                style="padding:.4rem .6rem .4rem 30px;background:rgba(5,34,40,.05);border:1px solid rgba(5,34,40,.15);border-radius:8px;color:var(--petrol-900);font-size:.8rem;outline:none;width:180px;transition:width .15s;"
-                               onfocus="this.style.width='280px';this.style.background='#fff';"
-                               onblur="setTimeout(function(){document.getElementById('bgInput').style.width='180px';document.getElementById('bgInput').style.background='rgba(5,34,40,.05)';document.getElementById('bgDrop').style.display='none';},200);">
+                               onblur="setTimeout(function(){var i=document.getElementById('bgInput');if(i){i.style.width='180px';i.style.background='rgba(5,34,40,.05)';i.setAttribute('readonly','readonly');}document.getElementById('bgDrop').style.display='none';},200);">
                     </div>
                     <div id="bgDrop" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:360px;max-height:520px;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.15);z-index:9999;overflow-y:auto;"></div>
                 </div>
