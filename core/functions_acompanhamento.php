@@ -20,8 +20,13 @@
  *                        ou string vazia se não houver
  *     'polo_oposto'   => nome da parte adversa (ex: 'SAMSUNG') ou string vazia
  *     'obs'           => observação interna livre (raramente usada)
+ *     'saudacao'      => "Bom dia" | "Boa tarde" | "Boa noite"   (capitalized)
+ *     'saudacao_lc'   => "bom dia" | "boa tarde" | "boa noite"   (minúsculas p/ meio de frase)
+ *     'desejo_hora'   => "Um bom dia pra você" | "Uma boa tarde pra você" | "Uma boa noite pra você"
+ *     'emoji_hora'    => ☀️ (manhã) / 🌤️ (tarde) / 🌙 (noite)
  *   ]
- * Cada template decide se usa cada campo (com ternários pra omitir se vazio).
+ * (Saudações são injetadas em acompanhamento_montar_contexto_caso, baseadas no
+ * horário do envio — evita "Bom dia" saindo às 20h. Bug Amanda 02/07 Rita.)
  * Rotação garantida: nunca envia o mesmo índice do último envio.
  */
 if (!function_exists('acompanhamento_templates')) {
@@ -39,15 +44,15 @@ function acompanhamento_templates() {
     return array(
         // 0
         function($ctx) use ($ref, $adv) {
-            return "Olá, {$ctx['nome']}! ☀️\n\nPassando pra dizer que continuamos acompanhando de perto {$ref($ctx)}{$adv($ctx)}. Hoje ainda não houve nova movimentação, mas estamos atentos a qualquer despacho.\n\nAssim que houver novidade, avisamos por aqui na hora.\n\nEquipe Ferreira & Sá Advocacia 🤝";
+            return "Olá, {$ctx['nome']}! {$ctx['emoji_hora']}\n\nPassando pra dizer que continuamos acompanhando de perto {$ref($ctx)}{$adv($ctx)}. Hoje ainda não houve nova movimentação, mas estamos atentos a qualquer despacho.\n\nAssim que houver novidade, avisamos por aqui na hora.\n\nEquipe Ferreira & Sá Advocacia 🤝";
         },
         // 1
         function($ctx) use ($ref, $adv) {
-            return "Bom dia, {$ctx['nome']}!\n\nSó pra manter você informada: verificamos hoje e ainda não houve movimentação nova em {$ref($ctx)}{$adv($ctx)}. Continuamos monitorando diariamente.\n\nQualquer atualização, você será a primeira a saber. ✨\n\nEquipe Ferreira & Sá Advocacia";
+            return "{$ctx['saudacao']}, {$ctx['nome']}!\n\nSó pra manter você informada: verificamos hoje e ainda não houve movimentação nova em {$ref($ctx)}{$adv($ctx)}. Continuamos monitorando diariamente.\n\nQualquer atualização, você será a primeira a saber. ✨\n\nEquipe Ferreira & Sá Advocacia";
         },
         // 2
         function($ctx) use ($ref, $adv) {
-            return "Oi, {$ctx['nome']}! 👋\n\nAcabamos de checar o andamento de {$ref($ctx)}{$adv($ctx)} — sem movimentações novas por enquanto. Estamos de olho.\n\nCaso surja qualquer despacho ou intimação, entramos em contato imediatamente.\n\nUm bom dia pra você! 💐\n\nEquipe Ferreira & Sá Advocacia";
+            return "Oi, {$ctx['nome']}! 👋\n\nAcabamos de checar o andamento de {$ref($ctx)}{$adv($ctx)} — sem movimentações novas por enquanto. Estamos de olho.\n\nCaso surja qualquer despacho ou intimação, entramos em contato imediatamente.\n\n{$ctx['desejo_hora']}! 💐\n\nEquipe Ferreira & Sá Advocacia";
         },
         // 3
         function($ctx) use ($ref, $adv) {
@@ -55,7 +60,7 @@ function acompanhamento_templates() {
         },
         // 4
         function($ctx) use ($ref, $adv) {
-            return "Bom dia, {$ctx['nome']}! 🌞\n\nMais um dia de acompanhamento — sem alterações em {$ref($ctx)}{$adv($ctx)} até agora. Isso é comum em algumas fases processuais, então não se preocupe.\n\nSeguimos monitorando por aqui.\n\nEquipe Ferreira & Sá Advocacia";
+            return "{$ctx['saudacao']}, {$ctx['nome']}! {$ctx['emoji_hora']}\n\nMais um dia de acompanhamento — sem alterações em {$ref($ctx)}{$adv($ctx)} até agora. Isso é comum em algumas fases processuais, então não se preocupe.\n\nSeguimos monitorando por aqui.\n\nEquipe Ferreira & Sá Advocacia";
         },
         // 5
         function($ctx) use ($ref, $adv) {
@@ -63,31 +68,31 @@ function acompanhamento_templates() {
         },
         // 6
         function($ctx) use ($ref, $adv) {
-            return "Olá, {$ctx['nome']}!\n\nBom dia! Passando aqui pra dizer que estamos acompanhando {$ref($ctx)}{$adv($ctx)} diariamente. Hoje ainda sem movimentação nova.\n\nContinuamos atentas a qualquer alteração — nada passa despercebido pra gente.\n\nEquipe Ferreira & Sá Advocacia 🤝";
+            return "Olá, {$ctx['nome']}!\n\n{$ctx['saudacao']}! Passando aqui pra dizer que estamos acompanhando {$ref($ctx)}{$adv($ctx)} diariamente. Hoje ainda sem movimentação nova.\n\nContinuamos atentas a qualquer alteração — nada passa despercebido pra gente.\n\nEquipe Ferreira & Sá Advocacia 🤝";
         },
         // 7
         function($ctx) use ($ref, $adv) {
-            return "{$ctx['nome']}, bom dia!\n\nMais um dia sem alteração em {$ref($ctx)}{$adv($ctx)}. Sabemos que essa espera pode gerar ansiedade — por isso mantemos você informada todo dia, mesmo quando não há novidade.\n\nEstamos aqui, monitorando por você.\n\nEquipe Ferreira & Sá Advocacia ✨";
+            return "{$ctx['nome']}, {$ctx['saudacao_lc']}!\n\nMais um dia sem alteração em {$ref($ctx)}{$adv($ctx)}. Sabemos que essa espera pode gerar ansiedade — por isso mantemos você informada todo dia, mesmo quando não há novidade.\n\nEstamos aqui, monitorando por você.\n\nEquipe Ferreira & Sá Advocacia ✨";
         },
         // 8
         function($ctx) use ($ref, $adv) {
-            return "Oi, {$ctx['nome']}! 😊\n\nHoje {$ref($ctx)}{$adv($ctx)} continua sem movimentação nova. Isso não é motivo pra preocupação — é normal ficar alguns dias sem despacho, especialmente em determinadas fases.\n\nSeguimos acompanhando.\n\nBom dia pra você!\nEquipe Ferreira & Sá Advocacia";
+            return "Oi, {$ctx['nome']}! 😊\n\nHoje {$ref($ctx)}{$adv($ctx)} continua sem movimentação nova. Isso não é motivo pra preocupação — é normal ficar alguns dias sem despacho, especialmente em determinadas fases.\n\nSeguimos acompanhando.\n\n{$ctx['desejo_hora']}!\nEquipe Ferreira & Sá Advocacia";
         },
         // 9
         function($ctx) use ($ref, $adv) {
-            return "Olá, {$ctx['nome']}!\n\nAcompanhamento de hoje: sem alterações em {$ref($ctx)}{$adv($ctx)}. Continuamos monitorando diariamente e agiremos assim que houver qualquer despacho.\n\nBom dia! Um abraço.\n\nEquipe Ferreira & Sá Advocacia 💐";
+            return "Olá, {$ctx['nome']}!\n\nAcompanhamento de hoje: sem alterações em {$ref($ctx)}{$adv($ctx)}. Continuamos monitorando diariamente e agiremos assim que houver qualquer despacho.\n\n{$ctx['saudacao']}! Um abraço.\n\nEquipe Ferreira & Sá Advocacia 💐";
         },
         // 10
         function($ctx) use ($ref, $adv) {
-            return "{$ctx['nome']}, bom dia! ☕\n\nSó pra deixar registrado: acompanhamos hoje e {$ref($ctx)}{$adv($ctx)} permanece sem movimentação nova. Nada mudou desde ontem.\n\nEstamos com você nessa. 💪\n\nEquipe Ferreira & Sá Advocacia";
+            return "{$ctx['nome']}, {$ctx['saudacao_lc']}! {$ctx['emoji_hora']}\n\nSó pra deixar registrado: acompanhamos hoje e {$ref($ctx)}{$adv($ctx)} permanece sem movimentação nova. Nada mudou desde ontem.\n\nEstamos com você nessa. 💪\n\nEquipe Ferreira & Sá Advocacia";
         },
         // 11
         function($ctx) use ($ref, $adv) {
-            return "Oi, {$ctx['nome']}!\n\nCheckin do dia: {$ref($ctx)}{$adv($ctx)} segue no mesmo estágio, sem novidades por enquanto. Mantemos vigilância diária.\n\nQualquer despacho, notificação ou movimentação nova, você é a primeira a saber.\n\nUm bom dia! 🌷\nEquipe Ferreira & Sá Advocacia";
+            return "Oi, {$ctx['nome']}!\n\nCheckin do dia: {$ref($ctx)}{$adv($ctx)} segue no mesmo estágio, sem novidades por enquanto. Mantemos vigilância diária.\n\nQualquer despacho, notificação ou movimentação nova, você é a primeira a saber.\n\n{$ctx['desejo_hora']}! 🌷\nEquipe Ferreira & Sá Advocacia";
         },
         // 12
         function($ctx) use ($ref, $adv) {
-            return "Olá, {$ctx['nome']}!\n\nBom dia! Verificamos hoje e {$ref($ctx)}{$adv($ctx)} continua sem alterações. Isso é normal — nem todo dia tem despacho, mas nós continuamos acompanhando.\n\nAssim que houver qualquer novidade, avisamos aqui.\n\nEquipe Ferreira & Sá Advocacia 🤝";
+            return "Olá, {$ctx['nome']}!\n\n{$ctx['saudacao']}! Verificamos hoje e {$ref($ctx)}{$adv($ctx)} continua sem alterações. Isso é normal — nem todo dia tem despacho, mas nós continuamos acompanhando.\n\nAssim que houver qualquer novidade, avisamos aqui.\n\nEquipe Ferreira & Sá Advocacia 🤝";
         },
         // 13
         function($ctx) use ($ref, $adv) {
@@ -98,17 +103,54 @@ function acompanhamento_templates() {
 }
 
 /**
+ * Deriva saudação, emoji e "desejo de hora" a partir de um timestamp.
+ * Faixas: 5-11h = manhã | 12-17h = tarde | 18-4h = noite.
+ * Fica em helper separado pra ser testável e reaproveitável.
+ */
+if (!function_exists('acompanhamento_saudacao_por_hora')) {
+function acompanhamento_saudacao_por_hora($ts = null) {
+    if ($ts === null) $ts = time();
+    $h = (int)date('H', $ts);
+    if ($h >= 5 && $h < 12) {
+        return array(
+            'saudacao'    => 'Bom dia',
+            'saudacao_lc' => 'bom dia',
+            'desejo_hora' => 'Um bom dia pra você',
+            'emoji_hora'  => '☀️',
+        );
+    }
+    if ($h >= 12 && $h < 18) {
+        return array(
+            'saudacao'    => 'Boa tarde',
+            'saudacao_lc' => 'boa tarde',
+            'desejo_hora' => 'Uma boa tarde pra você',
+            'emoji_hora'  => '🌤️',
+        );
+    }
+    return array(
+        'saudacao'    => 'Boa noite',
+        'saudacao_lc' => 'boa noite',
+        'desejo_hora' => 'Uma boa noite pra você',
+        'emoji_hora'  => '🌙',
+    );
+}
+}
+
+/**
  * Busca dados do case pra montar contexto rico dos templates:
  * - tipo_processo: nome amigável (ex: "ação de indenização por danos morais")
  * - polo_oposto: nome da parte adversa (ré/requerida)
  */
 if (!function_exists('acompanhamento_montar_contexto_caso')) {
-function acompanhamento_montar_contexto_caso(PDO $pdo, $caseId, $nomeCliente, $obsExtra = '') {
-    $ctx = array(
-        'nome' => $nomeCliente,
-        'tipo_processo' => '',
-        'polo_oposto' => '',
-        'obs' => (string)$obsExtra,
+function acompanhamento_montar_contexto_caso(PDO $pdo, $caseId, $nomeCliente, $obsExtra = '', $tsNow = null) {
+    $ctx = array_merge(
+        array(
+            'nome' => $nomeCliente,
+            'tipo_processo' => '',
+            'polo_oposto' => '',
+            'obs' => (string)$obsExtra,
+        ),
+        acompanhamento_saudacao_por_hora($tsNow)
     );
     try {
         $st = $pdo->prepare("SELECT case_type FROM cases WHERE id = ?");

@@ -140,9 +140,9 @@ foreach ($configs as $cfg) {
         $totPul++; continue;
     }
 
-    // Monta contexto rico (tipo de processo + polo oposto)
+    // Monta contexto rico (tipo de processo + polo oposto + saudação por hora)
     $nomeCliente = trim(explode(' ', trim($cfg['client_name']))[0]);
-    $ctx = acompanhamento_montar_contexto_caso($pdo, (int)$cfg['case_id'], $nomeCliente, (string)($cfg['obs'] ?? ''));
+    $ctx = acompanhamento_montar_contexto_caso($pdo, (int)$cfg['case_id'], $nomeCliente, (string)($cfg['obs'] ?? ''), $tsNow);
     $texto = $tplFn($ctx);
 
     $canal = ($cfg['canal'] === '21') ? '21' : '24';
