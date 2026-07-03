@@ -70,15 +70,15 @@ try {
     exit;
 }
 
-// Killswitch em configuracoes — default desligado até Amanda aprovar termo
+// Killswitch em configuracoes — Amanda aprovou o termo v1 em 02/07/2026, LIGADO por default
 try {
     $stmt = $pdo->prepare(
         "INSERT INTO configuracoes (chave, valor)
-         VALUES ('treinamento_audiencia_ativo', '0')
-         ON DUPLICATE KEY UPDATE chave = chave"
+         VALUES ('treinamento_audiencia_ativo', '1')
+         ON DUPLICATE KEY UPDATE valor = '1'"
     );
     $stmt->execute();
-    echo "✓ Killswitch treinamento_audiencia_ativo (default '0')\n";
+    echo "✓ Killswitch treinamento_audiencia_ativo LIGADO (Amanda aprovou termo v1)\n";
 } catch (Exception $e) {
     echo "aviso killswitch: " . $e->getMessage() . "\n";
 }
