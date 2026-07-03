@@ -266,10 +266,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'Pesquisa GERID (' . $row['parte_nome'] . '): ' . ($tem ? 'POSSUI vínculo empregatício' : 'sem vínculo localizado') . ($res ? ' — ' . $res : '')));
                 } catch (Exception $e) {}
             }
-            // avisa quem pediu (notify + cria TAREFA na pasta pra revisar resultado)
+            // avisa quem pediu (notify + email + cria TAREFA na pasta pra revisar resultado)
             if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id()) {
                 $solicitante = (int)$row['created_by'];
                 $detalheRes = ($tem ? 'POSSUI vínculo' : 'sem vínculo') . ($res ? ' — ' . $res : '');
+
+                // Amanda 03/07: envio de e-mail pro solicitante (Brevo)
+                try {
+                    $stSol = $pdo->prepare("SELECT name, email FROM users WHERE id = ?");
+                    $stSol->execute(array($solicitante));
+                    $sol = $stSol->fetch(PDO::FETCH_ASSOC);
+                    if ($sol && !empty($sol['email'])) {
+                        $meuNome = function_exists('user_display_name') ? user_display_name() : 'Equipe';
+                        $chipCor = $tem ? '#dc2626' : '#059669';
+                        $chipTxt = $tem ? 'POSSUI VÍNCULO' : 'SEM VÍNCULO';
+                        $linkPasta = !empty($row['case_id'])
+                            ? 'https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$row['case_id']
+                            : 'https://ferreiraesa.com.br/conecta/modules/gerid/';
+                        $body = '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">'
+                              . '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">'
+                              . '<div style="background:linear-gradient(135deg,#0f2140,#1a3358);padding:22px;text-align:center;">'
+                              . '<h1 style="color:#c9a94e;font-size:19px;margin:0;font-family:Georgia,serif;">🔎 Resultado da pesquisa GERID</h1>'
+                              . '<p style="color:#94a3b8;font-size:11px;margin:4px 0 0;">Ferreira &amp; Sá Advocacia</p></div>'
+                              . '<div style="padding:24px;color:#374151;line-height:1.6;">'
+                              . '<p style="margin:0 0 14px;font-size:15px;">Olá, <strong>' . htmlspecialchars(explode(' ', (string)$sol['name'])[0], ENT_QUOTES, 'UTF-8') . '</strong>!</p>'
+                              . '<p style="margin:0 0 18px;font-size:14px;"><strong>' . htmlspecialchars($meuNome, ENT_QUOTES, 'UTF-8') . '</strong> concluiu a pesquisa de vínculo empregatício (GERID) que você solicitou.</p>'
+                              . '<div style="background:#f9fafb;border-left:4px solid ' . $chipCor . ';border-radius:6px;padding:14px 16px;margin:16px 0;">'
+                              . '<p style="margin:0 0 6px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Parte pesquisada</p>'
+                              . '<p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f2140;">' . htmlspecialchars((string)$row['parte_nome'], ENT_QUOTES, 'UTF-8')
+                              . ($row['parte_cpf'] ? ' <span style="font-weight:400;color:#6b7280;font-size:13px;">(CPF ' . htmlspecialchars((string)$row['parte_cpf'], ENT_QUOTES, 'UTF-8') . ')</span>' : '') . '</p>'
+                              . '<p style="margin:0 0 4px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Resultado</p>'
+                              . '<p style="margin:0;font-size:15px;font-weight:800;color:' . $chipCor . ';">' . $chipTxt . '</p>'
+                              . ($res ? '<p style="margin:8px 0 0;font-size:13.5px;color:#374151;">' . nl2br(htmlspecialchars((string)$res, ENT_QUOTES, 'UTF-8')) . '</p>' : '')
+                              . '</div>'
+                              . '<div style="text-align:center;margin:24px 0 8px;">'
+                              . '<a href="' . htmlspecialchars($linkPasta, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#0e7490,#0891b2);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas GERID →') . '</a></div>'
+                              . '<p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">Uma tarefa de revisão foi criada na pasta do processo pra você decidir os próximos passos (ofício ao empregador, penhora de salário, etc.).</p>'
+                              . '</div>'
+                              . '<div style="background:#f9fafb;padding:12px 20px;font-size:11px;color:#9ca3af;text-align:center;">Ferreira &amp; Sá Advocacia — Sistema Conecta</div>'
+                              . '</div></body></html>';
+                        send_brevo_email_simple($sol['email'], $sol['name'], '🔎 GERID: ' . $row['parte_nome'] . ' — ' . $chipTxt, $body);
+                    }
+                } catch (Exception $emailErr) { /* envio silencioso — não bloqueia fluxo */ }
+
                 notify($solicitante, '🔎 Resultado da pesquisa GERID',
                     $row['parte_nome'] . ': ' . $detalheRes,
                     'info', url('modules/gerid/'), '🔎');
@@ -305,14 +344,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(module_url('gerid'));
 }
 
-$pendentes = $pdo->query("SELECT g.*, cl.name AS client_name, c.case_number, c.title AS case_title, u.name AS reg_por
+$pendentes = $pdo->query("SELECT g.*, cl.name AS client_name, c.case_number, c.title AS case_title,
+                                 u.name AS reg_por, u.email AS reg_email
                           FROM gerid_pesquisas g
                           LEFT JOIN clients cl ON cl.id=g.client_id
                           LEFT JOIN cases c ON c.id=g.case_id
                           LEFT JOIN users u ON u.id=g.created_by
                           WHERE g.status='pendente' ORDER BY g.created_at ASC LIMIT 300")->fetchAll();
 $concluidas = $pdo->query("SELECT g.*, cl.name AS client_name, c.case_number, c.title AS case_title,
-                                  u.name AS reg_por, p.name AS pesq_por
+                                  u.name AS reg_por, u.email AS reg_email, p.name AS pesq_por
                            FROM gerid_pesquisas g
                            LEFT JOIN clients cl ON cl.id=g.client_id
                            LEFT JOIN cases c ON c.id=g.case_id
@@ -410,7 +450,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h3 style="margin:22px 0 8px;">✅ Concluídas</h3>
 <?php if (!$concluidas): ?><div class="gd-empty">Nenhuma ainda.</div><?php else: ?>
 <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th><th style="padding:9px 11px;text-align:center;width:60px;"></th></tr></thead>
+  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Solicitado por</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th><th style="padding:9px 11px;text-align:center;width:60px;"></th></tr></thead>
   <tbody>
   <?php foreach ($concluidas as $g): ?>
     <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;" id="gd-row-<?= (int)$g['id'] ?>">
@@ -429,6 +469,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <br><a href="?baixar=<?= (int)$g['id'] ?>" target="_blank" rel="noopener" style="font-size:.72rem;color:#0c4a6e;text-decoration:none;font-weight:600;">📸 Ver print INSS</a>
         <?php endif; ?>
       </td>
+      <td style="padding:9px 11px;"><?= e($g['reg_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['created_at'] ? date('d/m/Y', strtotime($g['created_at'])) : '' ?></span></td>
       <td style="padding:9px 11px;"><?= e($g['pesq_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['pesquisado_em'] ? date('d/m/Y', strtotime($g['pesquisado_em'])) : '' ?></span></td>
       <td style="padding:9px 11px;">
         <button type="button" id="gd-trat-<?= (int)$g['id'] ?>" onclick="gdToggleTratado(<?= (int)$g['id'] ?>)"

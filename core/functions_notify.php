@@ -6,6 +6,59 @@
  * notificações para clientes (WhatsApp + email).
  */
 
+// ─── Envio de e-mail transacional genérico (Brevo) ──────────────
+/**
+ * Amanda 03/07: helper genérico pra envios pontuais (notificação de tarefa,
+ * resposta de pesquisa GERID, etc.). Usa configurações brevo_* do banco.
+ * Retorna true se enviado, false em qualquer erro (falha silenciosa —
+ * não bloqueia o fluxo principal).
+ *
+ * @param string $toEmail    endereço do destinatário
+ * @param string $toNome     nome completo do destinatário
+ * @param string $subject    assunto do e-mail
+ * @param string $htmlBody   conteúdo HTML já pronto (dentro de <html>)
+ */
+if (!function_exists('send_brevo_email_simple')) {
+function send_brevo_email_simple($toEmail, $toNome, $subject, $htmlBody) {
+    $toEmail = trim((string)$toEmail);
+    if (!$toEmail || !filter_var($toEmail, FILTER_VALIDATE_EMAIL)) return false;
+    try {
+        $pdo = db();
+        $cfg = array('key' => '', 'email' => 'contato@ferreiraesa.com.br', 'name' => 'Ferreira & Sá Advocacia');
+        $rows = $pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'brevo_%'")->fetchAll();
+        foreach ($rows as $r) {
+            if ($r['chave'] === 'brevo_api_key')     $cfg['key']   = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_email') $cfg['email'] = $r['valor'];
+            if ($r['chave'] === 'brevo_sender_name')  $cfg['name']  = $r['valor'];
+        }
+        if (!$cfg['key']) return false;
+        $data = array(
+            'sender' => array('name' => $cfg['name'], 'email' => $cfg['email']),
+            'to'     => array(array('email' => $toEmail, 'name' => $toNome ?: $toEmail)),
+            'subject'     => $subject,
+            'htmlContent' => $htmlBody,
+        );
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt_array($ch, array(
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 15,
+            CURLOPT_POST           => true,
+            CURLOPT_HTTPHEADER     => array(
+                'api-key: ' . $cfg['key'],
+                'Content-Type: application/json',
+                'Accept: application/json',
+            ),
+            CURLOPT_POSTFIELDS => json_encode($data, JSON_UNESCAPED_UNICODE),
+            CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        return ($code >= 200 && $code < 300);
+    } catch (Exception $e) { return false; }
+}
+}
+
 // ─── Notificações Internas ──────────────────────────────
 
 /**
