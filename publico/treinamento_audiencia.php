@@ -14,6 +14,7 @@
  */
 require_once __DIR__ . '/../core/config.php';
 require_once __DIR__ . '/../core/database.php';
+require_once __DIR__ . '/../core/google_drive.php';
 require_once __DIR__ . '/../core/functions_treinamento_audiencia.php';
 
 @session_start();
@@ -32,6 +33,80 @@ if (!$reg) {
     http_response_code(404);
     echo '<!doctype html><meta charset="utf-8"><title>Link não encontrado</title>';
     echo '<div style="font-family:system-ui;text-align:center;padding:4rem;color:#052228;"><h1>Link não encontrado</h1><p>Este treinamento não existe ou foi removido. Fale com o escritório pelo WhatsApp <b>(24) 9.9205-0096</b>.</p></div>';
+    exit;
+}
+
+// ─── AJAX: recebe PDF em base64 e sobe pro Drive do case ──────────
+if (($_GET['acao'] ?? '') === 'salvar_pdf' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+
+    if (empty($reg['aceite_em'])) {
+        echo json_encode(array('ok' => false, 'error' => 'nao_assinado'));
+        exit;
+    }
+    if (!empty($reg['certificado_url'])) {
+        // Idempotente: se já subiu, retorna a URL guardada (não sobe de novo)
+        echo json_encode(array('ok' => true, 'url' => $reg['certificado_url'], 'ja_salvo' => true));
+        exit;
+    }
+
+    $raw = file_get_contents('php://input');
+    $body = json_decode($raw, true);
+    $base64 = isset($body['pdf_base64']) ? (string)$body['pdf_base64'] : '';
+    if (!$base64 || strlen($base64) < 1000) {
+        echo json_encode(array('ok' => false, 'error' => 'pdf_invalido'));
+        exit;
+    }
+
+    // Busca pasta do Drive do case
+    $stFolder = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ?");
+    $stFolder->execute(array((int)$reg['case_id']));
+    $driveFolderUrl = (string)$stFolder->fetchColumn();
+    if (!$driveFolderUrl) {
+        echo json_encode(array('ok' => false, 'error' => 'case_sem_pasta_drive'));
+        exit;
+    }
+
+    // Cria/pega subpasta "CERTIFICADOS"
+    $sub = drive_get_or_create_subfolder($driveFolderUrl, 'CERTIFICADOS');
+    if (empty($sub['success'])) {
+        echo json_encode(array('ok' => false, 'error' => 'subpasta_falhou', 'detail' => $sub['error'] ?? ''));
+        exit;
+    }
+
+    // Nome do arquivo: certificado_treinamento_audiencia_[data]_[nome].pdf
+    $nomeSlug = preg_replace('/[^a-zA-Z0-9]+/', '_', strtolower(trim($reg['aceite_nome'])));
+    $nomeSlug = trim($nomeSlug, '_');
+    $dataStr = date('Ymd_Hi', strtotime($reg['aceite_em']));
+    $fileName = 'certificado_treinamento_audiencia_' . $dataStr . '_' . $nomeSlug . '.pdf';
+
+    $up = upload_file_to_drive_base64($sub['folderId'], $fileName, $base64, 'application/pdf');
+    if (empty($up['success'])) {
+        echo json_encode(array('ok' => false, 'error' => 'upload_falhou', 'detail' => $up['error'] ?? ''));
+        exit;
+    }
+
+    // Guarda URL no registro
+    try {
+        $pdo->prepare(
+            "UPDATE treinamento_audiencia_aceites
+             SET certificado_url = ?, certificado_gerado_em = NOW()
+             WHERE id = ?"
+        )->execute(array($up['fileUrl'], (int)$reg['id']));
+    } catch (Exception $e) {}
+
+    // Cria andamento no case pra ficar visível na timeline
+    try {
+        $andTexto = 'Cliente ' . $reg['aceite_nome'] . ' concluiu o Treinamento Obrigatório de Audiência Remota em '
+                  . date('d/m/Y H:i', strtotime($reg['aceite_em'])) . '. Certificado assinado eletronicamente (IP '
+                  . ($reg['aceite_ip'] ?: '—') . ') arquivado em ' . $up['fileUrl'];
+        $pdo->prepare(
+            "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
+             VALUES (?, NOW(), 'treinamento_audiencia', ?, ?, 1, NOW())"
+        )->execute(array((int)$reg['case_id'], $andTexto, (int)$reg['criado_por']));
+    } catch (Exception $e) { /* não bloqueia se falhar */ }
+
+    echo json_encode(array('ok' => true, 'url' => $up['fileUrl']));
     exit;
 }
 
@@ -649,12 +724,110 @@ if (!function_exists('e')) {
         </div>
 
         <div style="text-align: center; margin: 24px 0;" class="no-print">
-            <button onclick="window.print()" class="btn-primary" style="max-width: 320px; margin: 0 auto;">🖨️ Imprimir / Salvar como PDF</button>
-            <p style="font-size: 12.5px; color: var(--muted); margin-top: 12px;">
-                Ao clicar em <b>Imprimir</b>, escolha “Salvar como PDF” no destino da impressão pra guardar uma cópia.
-                Certificado gerado no formato <b>A4 paisagem</b>. Uma cópia também é anexada automaticamente ao seu processo pelo escritório.
+
+            <!-- Status do arquivamento no processo -->
+            <div id="cert-status" style="max-width: 640px; margin: 0 auto 16px; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 600;">
+                <?php if (!empty($reg['certificado_url'])): ?>
+                    <div style="background: #ecfdf5; border: 1px solid #86efac; color: #059669; padding: 10px 14px; border-radius: 10px;">
+                        ✅ Cópia arquivada com sucesso no seu processo em <?= e(date('d/m/Y H:i', strtotime($reg['certificado_gerado_em'] ?: $reg['aceite_em']))) ?>.
+                    </div>
+                <?php else: ?>
+                    <div id="cert-status-loading" style="background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; padding: 10px 14px; border-radius: 10px;">
+                        ⏳ Arquivando uma cópia deste certificado no seu processo... <span id="cert-progress" style="font-size:12px;opacity:.8;"></span>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div style="display:flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="window.print()" class="btn-primary" style="max-width: 320px;">🖨️ Imprimir / Salvar como PDF</button>
+                <a id="cert-drive-link" href="<?= e($reg['certificado_url'] ?? '') ?>" target="_blank" rel="noopener" class="link-externo btn-primary" style="max-width: 320px; background: linear-gradient(135deg, #10b981, #059669); box-shadow: 0 8px 20px rgba(16,185,129,.32); text-decoration:none; <?= empty($reg['certificado_url']) ? 'display:none;' : '' ?>">
+                    📁 Ver cópia no processo ↗
+                </a>
+            </div>
+
+            <p style="font-size: 12.5px; color: var(--muted); margin-top: 12px; max-width: 640px; margin-left: auto; margin-right: auto;">
+                <b>Imprimir</b>: escolha “Salvar como PDF” no destino da impressão. Certificado em <b>A4 paisagem</b>.<br>
+                <b>Cópia no processo</b>: uma cópia em PDF é anexada automaticamente à pasta do seu processo — não precisa fazer nada.
             </p>
         </div>
+
+        <!-- ═══════════════ JS: gera PDF client-side e envia pro servidor ═══════════════ -->
+        <?php if (empty($reg['certificado_url'])): ?>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha512-GsLlZN/3F2ErC5ifS5QtgpiJtWd43JWSuIgh7mbzZ8zBps+dvLusV+eNQATqgA/HdeKFVgA5v3S/cIrLF7QnIg==" crossorigin="anonymous"></script>
+        <script>
+        (function(){
+            var statusBox = document.getElementById('cert-status-loading');
+            var progress  = document.getElementById('cert-progress');
+            var driveLink = document.getElementById('cert-drive-link');
+            var certEl    = document.querySelector('.cert-wrap');
+            if (!statusBox || !certEl || typeof html2pdf === 'undefined') {
+                if (statusBox) {
+                    statusBox.style.background = '#fef3c7';
+                    statusBox.style.borderColor = '#fcd34d';
+                    statusBox.style.color = '#92400e';
+                    statusBox.innerHTML = '⚠️ Não foi possível arquivar a cópia automática. Use o botão “Imprimir / Salvar como PDF” pra guardar uma cópia.';
+                }
+                return;
+            }
+
+            function setErro(msg) {
+                statusBox.style.background = '#fef3c7';
+                statusBox.style.borderColor = '#fcd34d';
+                statusBox.style.color = '#92400e';
+                statusBox.innerHTML = '⚠️ ' + msg + ' Use o botão “Imprimir / Salvar como PDF” pra guardar uma cópia.';
+            }
+
+            function setSucesso(url) {
+                statusBox.style.background = '#ecfdf5';
+                statusBox.style.borderColor = '#86efac';
+                statusBox.style.color = '#059669';
+                statusBox.innerHTML = '✅ Cópia arquivada com sucesso no seu processo.';
+                if (driveLink && url) {
+                    driveLink.href = url;
+                    driveLink.style.display = 'inline-flex';
+                }
+            }
+
+            progress.textContent = ' gerando arquivo...';
+
+            var opts = {
+                margin: 0,
+                filename: 'certificado_treinamento_audiencia.pdf',
+                image: { type: 'jpeg', quality: 0.95 },
+                html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+            };
+
+            // Timeout de segurança
+            var timeoutId = setTimeout(function(){ setErro('A geração demorou mais do que o esperado.'); }, 60000);
+
+            html2pdf().set(opts).from(certEl).outputPdf('datauristring').then(function(dataUri){
+                clearTimeout(timeoutId);
+                progress.textContent = ' enviando ao processo...';
+                // Remove "data:application/pdf;base64," do início
+                var base64 = dataUri.replace(/^data:application\/pdf;base64,/, '');
+                var url = window.location.pathname + '?t=' + encodeURIComponent(<?= json_encode($token) ?>) + '&acao=salvar_pdf';
+                return fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pdf_base64: base64 }),
+                });
+            }).then(function(resp){ return resp.json(); }).then(function(data){
+                if (data && data.ok) {
+                    setSucesso(data.url);
+                } else {
+                    var msg = 'Não foi possível arquivar no processo automaticamente';
+                    if (data && data.error === 'case_sem_pasta_drive') msg = 'Sua pasta no Drive ainda não foi criada pelo escritório.';
+                    setErro(msg + '.');
+                }
+            }).catch(function(err){
+                clearTimeout(timeoutId);
+                setErro('Erro ao gerar/enviar o PDF.');
+                console.error(err);
+            });
+        })();
+        </script>
+        <?php endif; ?>
 
     <?php else: ?>
 
