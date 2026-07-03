@@ -11,6 +11,57 @@
  * 3. Coloque a URL no config.php: define('GOOGLE_APPS_SCRIPT_URL', 'https://script.google.com/...');
  */
 
+/**
+ * Amanda 03/07: helper de POST com retry — Apps Script tem cold start, e o
+ * LiteSpeed WAF do TurboCloud as vezes fecha SSL antes de completar. Retry
+ * com backoff resolve os erros esporádicos "timed out after 949 milliseconds".
+ *
+ * @param string $payload JSON stringificado
+ * @param int $timeout Timeout total em segundos (default 30)
+ * @param int $tentativas Nº de tentativas (default 3)
+ * @return array {resp: string, http: int, err: string}
+ */
+function _drive_post_com_retry($payload, $timeout = 30, $tentativas = 3) {
+    $ultima = array('resp' => '', 'http' => 0, 'err' => 'não tentado');
+    for ($i = 1; $i <= $tentativas; $i++) {
+        $ch = curl_init(GOOGLE_APPS_SCRIPT_URL);
+        curl_setopt_array($ch, array(
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT        => $timeout,
+            CURLOPT_SSL_VERIFYPEER => false,
+            CURLOPT_TCP_KEEPALIVE  => 1,
+            CURLOPT_TCP_KEEPIDLE   => 30,
+            CURLOPT_USERAGENT      => 'FES-Hub/1.0',
+        ));
+        $resp = curl_exec($ch);
+        $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err  = curl_error($ch);
+        curl_close($ch);
+        $ultima = array('resp' => $resp, 'http' => $http, 'err' => $err);
+        // Sucesso: retorna direto
+        if (!$err && $http >= 200 && $http < 400) return $ultima;
+        // Falhas transient (timeout, SSL, network) — retry com backoff exponencial
+        $ehTransient = ($err && (
+            stripos($err, 'timed out') !== false ||
+            stripos($err, 'timeout') !== false ||
+            stripos($err, 'ssl') !== false ||
+            stripos($err, 'connect') !== false ||
+            stripos($err, 'network') !== false
+        )) || $http === 0 || $http === 502 || $http === 503 || $http === 504;
+        if (!$ehTransient) return $ultima; // erro definitivo, nao adianta retry
+        if ($i < $tentativas) {
+            // Backoff: 500ms, 1500ms, 3000ms
+            usleep($i * 500 * 1000);
+        }
+    }
+    return $ultima;
+}
+
 function create_drive_folder($clientName, $caseType, $caseId, $caseTitle = '') {
     // Verificar se a URL do Apps Script está configurada
     if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
@@ -143,30 +194,17 @@ function drive_get_or_create_subfolder($parentFolderUrl, $subfolderName) {
         'parentFolderId' => $parentId,
         'subfolderName'  => $subfolderName,
     ));
-    $ch = curl_init(GOOGLE_APPS_SCRIPT_URL);
-    curl_setopt_array($ch, array(
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => array('Content-Type: application/json'),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_SSL_VERIFYPEER => false,
-    ));
-    $resp = curl_exec($ch);
-    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err  = curl_error($ch);
-    curl_close($ch);
-    if ($err) return array('success' => false, 'error' => 'cURL: ' . $err);
-    $data = json_decode($resp, true);
-    if ($http === 200 && !empty($data['folderId'])) {
+    $r = _drive_post_com_retry($payload, 30, 3);
+    if ($r['err']) return array('success' => false, 'error' => 'cURL: ' . $r['err']);
+    $data = json_decode($r['resp'], true);
+    if ($r['http'] === 200 && !empty($data['folderId'])) {
         return array(
             'success'  => true,
             'folderId' => $data['folderId'],
             'created'  => !empty($data['created']),
         );
     }
-    return array('success' => false, 'error' => 'HTTP ' . $http . ': ' . $resp);
+    return array('success' => false, 'error' => 'HTTP ' . $r['http'] . ': ' . $r['resp']);
 }
 
 /**
