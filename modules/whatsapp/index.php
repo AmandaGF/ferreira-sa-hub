@@ -208,13 +208,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-chat-head strong { font-size:.9rem; }
 .wa-chat-head .wa-name-display { font-weight:700;font-size:1rem;color:var(--petrol-900);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;cursor:pointer; }
 .wa-chat-head .wa-head-sub { font-size:.75rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block; }
-/* Container dos botões: scroll horizontal quando não couber, sem wrap (mantém header compacto) */
-.wa-chat-actions { margin-left:auto;display:flex;gap:.3rem;flex-shrink:0;overflow-x:auto;max-width:60%;padding:2px 0;scrollbar-width:thin; }
-.wa-chat-actions::-webkit-scrollbar { height:5px; }
-.wa-chat-actions::-webkit-scrollbar-thumb { background:#cbd5e1;border-radius:3px; }
+/* Container dos botões: primarios visiveis + botao "⋮ Mais" que abre dropdown com secundarios.
+   Amanda 03/07: barra de rolagem horizontal ficava feia — trocada por menu suspenso. */
+.wa-chat-actions { margin-left:auto;display:flex;gap:.3rem;flex-shrink:0;max-width:60%;padding:2px 0;flex-wrap:wrap;justify-content:flex-end;align-items:center; }
 .wa-chat-actions button { padding:5px 10px;font-size:.72rem;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;flex-shrink:0;font-weight:600; }
 .wa-chat-actions button:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
 .wa-chat-actions .btn-primary-sm { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
+/* Wrapper do menu "⋮ Mais" */
+.wa-actions-menu-wrap { position:relative; display:inline-block; }
+.wa-actions-menu-btn { padding:5px 10px;font-size:.85rem;font-weight:700;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);line-height:1; }
+.wa-actions-menu-btn:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
+.wa-actions-menu-btn.aberto { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
+.wa-actions-menu { position:absolute;top:calc(100% + 6px);right:0;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(5,34,40,.18);padding:6px;z-index:180;display:none;flex-direction:column;gap:2px;max-height:70vh;overflow-y:auto; }
+.wa-actions-menu.aberto { display:flex; }
+.wa-actions-menu button { width:100%;text-align:left;padding:8px 12px;font-size:.78rem;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;font-weight:600;display:flex;align-items:center;gap:6px; }
+.wa-actions-menu button:hover { background:<?= $accentLight ?>; }
+.wa-actions-menu .sep { height:1px;background:var(--border);margin:4px 6px; }
 @media (max-width:900px) {
     .wa-chat-actions { max-width:100%;margin-left:0;margin-top:4px;width:100%; }
     .wa-chat-head { flex-wrap:wrap; }
@@ -840,72 +849,77 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Amanda 16/06/2026: guarda conv atual globalmente pra modo de seleção de imagens
         window._waConvAtual = c;
 
-        // Header com ações
+        // Header com ações — Amanda 03/07: refatorado pra "primarios visiveis + ⋮ Mais dropdown".
+        // Antes tudo em barra com scroll horizontal (visualmente ruim).
         var head = document.getElementById('waChatHeadContainer');
-        var actions = '<div class="wa-chat-actions">';
-        actions += '<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>';
-        if (c.canal === '21') {
-            if (+c.bot_ativo) actions += '<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>';
-            else               actions += '<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>';
-        }
+
         var souEuAtendente = (+c.atendente_id === <?= (int)$user['id'] ?>);
         var estaDelegada = !!(+c.delegada);
-        var podeEnviar   = (+c.lock_pode_enviar === 1); // backend decidiu: livre, eu sou atendente, ou admin
+        var podeEnviar   = (+c.lock_pode_enviar === 1);
+        var temNota = !!(d.conversa && d.conversa.nota_fixa);
 
-        // Assumir só aparece quando a conversa está LIVRE pra mim:
-        // - sem atendente (lock_pode_enviar=1 e atendente_id vazio)
-        // - ou trava já liberou (8h úteis sem resposta ao cliente, ou 36h após equipe)
-        // - ou sou admin (PODE_DELEGAR bypassa)
-        // Se outro atendente já assumiu e há atividade recente, o botão some —
-        // só Amanda/Luiz podem realocar via "Delegar".
-        if (!souEuAtendente && podeEnviar) {
-            actions += '<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>';
+        // Botões PRIMÁRIOS (visíveis direto no header):
+        //   - Etiqueta, Bot (21), Assumir/Delegar/Destravar, Resolver, Processo/Vincular
+        var primary = [];
+        primary.push('<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>');
+        if (c.canal === '21') {
+            if (+c.bot_ativo) primary.push('<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>');
+            else               primary.push('<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>');
         }
-        // Delegação disponível em ambos os canais — Amanda/Luiz podem delegar qualquer conversa.
-        // No canal 24 (colaborativo), delegar também bloqueia os outros atendentes até destravar.
+        if (!souEuAtendente && podeEnviar) {
+            primary.push('<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>');
+        }
         if (PODE_DELEGAR) {
             var tipTxt = c.canal === '24'
                 ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar (ou 8h úteis sem resposta do cliente).'
                 : 'Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 8h úteis (seg-sex 9-18h) sem resposta ao cliente, destrava automaticamente.';
-            actions += '<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="' + tipTxt + '">🎯 Delegar</button>';
+            primary.push('<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="' + tipTxt + '">🎯 Delegar</button>');
             if (estaDelegada) {
-                actions += '<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação (libera pra qualquer um assumir)">🔓 Destravar</button>';
+                primary.push('<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação">🔓 Destravar</button>');
             }
         }
-        // Mesclar é util em ambos os canais (duplicatas Multi-Device acontecem nos 2)
-        // Liberado para todos os usuarios — qualquer atendente pode unir duplicatas.
-        actions += '<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato (útil pra casos de duplicata por Multi-Device / @lid)">🔗 Mesclar</button>';
-        actions += '<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora (sem F5) — caso desconfie que esta atrasado">🔄</button>';
-        actions += '<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard - pra colar onde quiser (chamado, email, doc...)">📋 Copiar conversa</button>';
-        // Fixar/desfixar conversa no topo da lista
-        if (+c.fixada) {
-            actions += '<button onclick="waPinConversa()" style="background:#B87333;color:#fff;border-color:#B87333;" title="Desfixar conversa do topo">📌 Fixada</button>';
-        } else {
-            actions += '<button onclick="waPinConversa()" title="Fixar esta conversa no topo da lista (só aparece pra você e equipe no Hub)">📌 Fixar</button>';
-        }
-        actions += '<button onclick="waMarcarNaoLida()" title="Marcar como nao lida pra revisar depois (volta com badge vermelho na lista e aparece no filtro Nao lidas)" style="background:#fef2f2;border-color:#fca5a5;color:#991b1b;">📩 Não lida</button>';
         if (c.status !== 'resolvido') {
-            actions += '<button onclick="waResolver()">✅ Resolver</button>';
+            primary.push('<button onclick="waResolver()">✅ Resolver</button>');
         }
-        actions += '<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk vinculado a este cliente">📋 Chamado</button>';
+        if (c.client_id) {
+            primary.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>');
+        } else {
+            primary.push('<button onclick="waVincularCliente()" title="Vincular esta conversa a um cliente cadastrado" style="background:#059669;color:#fff;border-color:#059669;">🔗 Vincular cliente</button>');
+        }
+
+        // Botões SECUNDÁRIOS (dentro do menu ⋮ Mais)
+        var menu = [];
+        menu.push('<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato">🔗 Mesclar</button>');
+        menu.push('<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora">🔄 Recarregar</button>');
+        menu.push('<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard">📋 Copiar conversa</button>');
+        menu.push('<div class="sep"></div>');
+        if (+c.fixada) {
+            menu.push('<button onclick="waPinConversa()" title="Desfixar do topo">📌 Fixada (clique pra desfixar)</button>');
+        } else {
+            menu.push('<button onclick="waPinConversa()" title="Fixar esta conversa no topo">📌 Fixar no topo</button>');
+        }
+        menu.push('<button onclick="waMarcarNaoLida()" title="Marcar como não lida">📩 Marcar não lida</button>');
+        menu.push('<button onclick="waNotaFixa()" title="Observação interna fixa">📌 ' + (temNota ? 'Editar nota fixa' : 'Adicionar nota fixa') + '</button>');
+        menu.push('<div class="sep"></div>');
+        menu.push('<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk">📋 Abrir chamado</button>');
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
-        actions += '<button onclick="waCriarChamadoComResumoIA()" title="IA resume a conversa e abre o chamado com descrição pronta (R$ ~0,05)" style="background:#6d28d9;color:#fff;border-color:#6d28d9;">✨ Chamado IA</button>';
+        menu.push('<button onclick="waCriarChamadoComResumoIA()" title="IA resume e abre chamado (R$ ~0,05)">✨ Abrir chamado com resumo IA</button>');
         <?php endif; ?>
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id())): ?>
-        actions += '<button onclick="waPerguntarIA()" title="Pergunte à IA sobre o conteúdo da conversa. Ex: a cliente preencheu o formulário? que documentos faltam?" style="background:#0ea5e9;color:#fff;border-color:#0ea5e9;">🤖 Perguntar à IA</button>';
+        menu.push('<button onclick="waPerguntarIA()" title="Perguntar sobre o conteúdo da conversa">🤖 Perguntar à IA</button>');
         <?php endif; ?>
-        if (c.client_id) actions += '<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>';
-        if (c.client_id) actions += '<button onclick="waEnviarLinkPortal()" title="Gerar novo link de ativação da Central VIP e enviar por WhatsApp" style="background:#6366f1;color:#fff;border-color:#6366f1;">🔑 Portal</button>';
-        // Botão "Vincular cliente" — aparece quando conversa AINDA NÃO tem cliente vinculado
-        if (!c.client_id) actions += '<button onclick="waVincularCliente()" title="Vincular esta conversa do WhatsApp a um cliente já cadastrado (útil quando o cliente trocou de número ou a conversa começou antes do cadastro)" style="background:#059669;color:#fff;border-color:#059669;">🔗 Vincular cliente</button>';
-        // Nota fixa: amarelo quando ja tem nota (chama atencao), cinza quando vazio (so adicionar)
-        var temNota = !!(d.conversa && d.conversa.nota_fixa);
-        actions += '<button onclick="waNotaFixa()" title="Observação interna fixa no topo do chat (visível pra toda equipe)" style="background:' + (temNota ? '#f59e0b' : '#fef3c7') + ';color:' + (temNota ? '#fff' : '#92400e') + ';border-color:' + (temNota ? '#d97706' : '#fcd34d') + ';">📌 ' + (temNota ? 'Editar nota' : 'Nota fixa') + '</button>';
-        actions += '<button onclick="waExportarConversa()" title="Exportar a conversa em .txt e salvar no Drive do processo da cliente" style="background:#0f766e;color:#fff;border-color:#0f766e;">📄 Exportar</button>';
-        actions += '<button onclick="waArquivar()" title="Arquivar">🗄</button>';
-        // ✏️ Nº disponível pra todo atendente — Naiara/CX/Operacional precisam
-        // corrigir números malformados sem depender de Amanda/Luiz.
-        actions += '<button onclick="waEditarTelefone()" title="Corrigir o número desta conversa (caso esteja malformado, ex: aparece como +60 ou +1 quando é BR)" style="background:#fef3c7;border-color:#fcd34d;color:#92400e;">✏️ Nº</button>';
+        if (c.client_id) menu.push('<button onclick="waEnviarLinkPortal()" title="Gerar link Central VIP">🔑 Enviar link Portal (VIP)</button>');
+        menu.push('<div class="sep"></div>');
+        menu.push('<button onclick="waExportarConversa()" title="Exportar em .txt para o Drive">📄 Exportar conversa</button>');
+        menu.push('<button onclick="waArquivar()" title="Arquivar conversa">🗄 Arquivar</button>');
+        menu.push('<button onclick="waEditarTelefone()" title="Corrigir número (Multi-Device)">✏️ Corrigir número</button>');
+
+        var actions = '<div class="wa-chat-actions">';
+        actions += primary.join('');
+        actions += '<div class="wa-actions-menu-wrap">';
+        actions += '<button type="button" class="wa-actions-menu-btn" onclick="waToggleActionsMenu(event)" title="Mais ações">⋮</button>';
+        actions += '<div class="wa-actions-menu" id="waActionsMenu">' + menu.join('') + '</div>';
+        actions += '</div>';
         actions += '</div>';
 
         var subTxt = formatTel(c.telefone);
@@ -2960,6 +2974,46 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+
+    // Menu "⋮ Mais açoes" — abre/fecha dropdown com os botoes secundarios
+    // Amanda 03/07: refatoracao pra tirar barra de rolagem horizontal.
+    window.waToggleActionsMenu = function(ev) {
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        var menu = document.getElementById('waActionsMenu');
+        var btn = document.querySelector('.wa-actions-menu-btn');
+        if (!menu || !btn) return;
+        var estavaAberto = menu.classList.contains('aberto');
+        menu.classList.toggle('aberto', !estavaAberto);
+        btn.classList.toggle('aberto', !estavaAberto);
+    };
+    // Fecha ao clicar fora / clicar num item / ESC
+    document.addEventListener('click', function(e){
+        var menu = document.getElementById('waActionsMenu');
+        var wrap = e.target.closest('.wa-actions-menu-wrap');
+        if (menu && menu.classList.contains('aberto') && !wrap) {
+            menu.classList.remove('aberto');
+            var btn = document.querySelector('.wa-actions-menu-btn');
+            if (btn) btn.classList.remove('aberto');
+        }
+        // Se clicou em um item DENTRO do menu, fecha também
+        if (menu && menu.classList.contains('aberto') && e.target.closest('.wa-actions-menu button')) {
+            setTimeout(function(){
+                menu.classList.remove('aberto');
+                var btn2 = document.querySelector('.wa-actions-menu-btn');
+                if (btn2) btn2.classList.remove('aberto');
+            }, 0);
+        }
+    });
+    document.addEventListener('keydown', function(e){
+        if (e.key === 'Escape') {
+            var menu = document.getElementById('waActionsMenu');
+            if (menu && menu.classList.contains('aberto')) {
+                menu.classList.remove('aberto');
+                var btn = document.querySelector('.wa-actions-menu-btn');
+                if (btn) btn.classList.remove('aberto');
+            }
+        }
+    });
     window.waArquivar  = function() { if(confirm('Arquivar conversa?')) acaoConversa('arquivar').then(function(){ convAtiva=null; location.reload(); }); };
     // Marca como nao lida (mesmo apos aberta). Fecha a conversa logo apos —
     // se mantivesse aberta, o polling de 8s chamaria abrir_conversa e zeraria
