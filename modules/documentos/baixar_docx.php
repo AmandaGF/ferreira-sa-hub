@@ -635,7 +635,28 @@ if ($temLogo) {
 $zip->close();
 
 // ─── Servir arquivo ───────────────────────────────────────────────────
-$filename = preg_replace('/[^A-Za-z0-9_\-]/', '_', $titulo) . '.docx';
+// Amanda 03/07: antes preg_replace transformava TODO nao-ASCII em _
+// (incluindo acentos e ç), gerando nomes tipo peti___o_de_audi__ncia_h__brida.
+// Fix: transliterar primeiro (á->a, ç->c, etc) e SO DEPOIS substituir
+// caracteres proibidos por _.
+$tituloAscii = strtr($titulo, array(
+    'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a','å'=>'a',
+    'Á'=>'A','À'=>'A','Ã'=>'A','Â'=>'A','Ä'=>'A','Å'=>'A',
+    'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+    'É'=>'E','È'=>'E','Ê'=>'E','Ë'=>'E',
+    'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+    'Í'=>'I','Ì'=>'I','Î'=>'I','Ï'=>'I',
+    'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o','ö'=>'o',
+    'Ó'=>'O','Ò'=>'O','Õ'=>'O','Ô'=>'O','Ö'=>'O',
+    'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+    'Ú'=>'U','Ù'=>'U','Û'=>'U','Ü'=>'U',
+    'ç'=>'c','Ç'=>'C','ñ'=>'n','Ñ'=>'N',
+    'ß'=>'ss', 'æ'=>'ae', 'Æ'=>'AE', 'œ'=>'oe', 'Œ'=>'OE',
+));
+$filename = preg_replace('/[^A-Za-z0-9_\-]/', '_', $tituloAscii);
+$filename = preg_replace('/_{2,}/', '_', $filename); // colapsa _ multiplos
+$filename = trim($filename, '_') . '.docx';
+if ($filename === '.docx') $filename = 'documento.docx';
 
 // 29/06/2026 Amanda: Petição Geral com IA precisa do binário em base64 pra
 // subir no Drive sem nova trip ao gerador. Quando retornar_base64=1,
