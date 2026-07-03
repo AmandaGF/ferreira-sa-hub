@@ -1448,8 +1448,11 @@ body.cv-tabs-ready { /* fundo padrão; conteudo de aba "encosta" na barra acima 
 .cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; align-self:center; margin-bottom:3px; }
 body.cv-header-min .cv-header-collapsivel { display:none !important; }
 /* Aba Treinamentos = foco total: some com barra de acoes, cards de status/prioridade,
-   incidentais e mensagens de header. Amanda 02/07 pediu tela limpa nessa aba. */
-body[data-aba-ativa="treinamentos"] .cv-oculto-em-treinamentos { display:none !important; }
+   incidentais e mensagens de header. Amanda 02/07 pediu tela limpa nessa aba.
+   3 seletores redundantes pra funcionar antes/durante/apos do JS carregar: */
+body[data-aba-ativa="treinamentos"] .cv-oculto-em-treinamentos,
+body:has(.cv-tab.ativa[data-aba="treinamentos"]) .cv-oculto-em-treinamentos,
+body.cv-aba-treinamentos .cv-oculto-em-treinamentos { display:none !important; }
 body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
 /* Container que envolve visualmente todos os cards da aba ativa */
 .cv-painel { background:var(--bg-card,#fff); border:1.5px solid var(--border,#e5e7eb); border-top:none; border-radius:0 0 12px 12px; padding:16px; margin:0 0 14px; box-shadow:0 4px 12px rgba(0,0,0,.04); min-height:200px; }
@@ -8081,6 +8084,9 @@ window.pedirObsRealizado = function(form) {
         // Marca aba ativa no body — CSS usa pra esconder elementos por aba
         // (ex: aba Treinamentos esconde barra de acoes, incidentais, status).
         document.body.dataset.abaAtiva = nome;
+        // Redundancia: classe body p/ browsers antigos sem suporte a :has() ou attr sel
+        document.body.className = document.body.className.replace(/\bcv-aba-\S+/g, '');
+        document.body.classList.add('cv-aba-' + nome);
         if (location.hash !== '#' + nome) {
             history.replaceState(null, '', location.pathname + location.search + '#' + nome);
         }
