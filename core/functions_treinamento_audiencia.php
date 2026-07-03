@@ -215,7 +215,7 @@ function treinamento_audiencia_registrar_aceite(PDO $pdo, $registroId, $dados) {
 
     $checksJson = json_encode($checks, JSON_UNESCAPED_UNICODE);
     $checksHash = hash('sha256', $checksJson . '|' . $nome . '|' . $cpf);
-    $ip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0] : ($_SERVER['REMOTE_ADDR'] ?? '');
+    $ip = treinamento_audiencia_capturar_ip();
     $ua = isset($_SERVER['HTTP_USER_AGENT']) ? substr((string)$_SERVER['HTTP_USER_AGENT'], 0, 500) : '';
 
     try {
@@ -240,6 +240,41 @@ function treinamento_audiencia_registrar_aceite(PDO $pdo, $registroId, $dados) {
     }
 
     return array('ok' => true);
+}
+}
+
+/**
+ * Captura o IP real do cliente, testando headers em ordem de confiabilidade.
+ * Cobre: Cloudflare, LiteSpeed atrás de proxy, nginx e conexão direta.
+ * Retorna string vazia se nenhum IP válido foi encontrado (não retorna 0.0.0.0
+ * pra não poluir o certificado com IP falso).
+ */
+if (!function_exists('treinamento_audiencia_capturar_ip')) {
+function treinamento_audiencia_capturar_ip() {
+    $candidatos = array();
+    if (!empty($_SERVER['HTTP_CF_CONNECTING_IP'])) $candidatos[] = $_SERVER['HTTP_CF_CONNECTING_IP'];
+    if (!empty($_SERVER['HTTP_X_REAL_IP']))        $candidatos[] = $_SERVER['HTTP_X_REAL_IP'];
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        foreach (explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']) as $ipCand) {
+            $candidatos[] = trim($ipCand);
+        }
+    }
+    if (!empty($_SERVER['HTTP_CLIENT_IP'])) $candidatos[] = $_SERVER['HTTP_CLIENT_IP'];
+    if (!empty($_SERVER['REMOTE_ADDR']))    $candidatos[] = $_SERVER['REMOTE_ADDR'];
+
+    foreach ($candidatos as $ip) {
+        $ip = trim((string)$ip);
+        // Aceita IP público (rejeita loopback + ranges privados)
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+            return $ip;
+        }
+    }
+    // Fallback: aceita qualquer IP válido (privado/loopback) — melhor ter algo do que nada
+    foreach ($candidatos as $ip) {
+        $ip = trim((string)$ip);
+        if (filter_var($ip, FILTER_VALIDATE_IP)) return $ip;
+    }
+    return '';
 }
 }
 

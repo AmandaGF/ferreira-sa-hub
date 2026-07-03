@@ -399,6 +399,33 @@ if (!function_exists('e')) {
             margin-bottom: 8px;
         }
 
+        /* Linha formal de registro (IP + hora) */
+        .cert-registro{
+            margin: 24px auto 0;
+            max-width: 640px;
+            padding: 12px 18px;
+            border-top: 1px dashed rgba(140,90,59,.32);
+            border-bottom: 1px dashed rgba(140,90,59,.32);
+            font-family: Georgia, serif;
+            font-size: 13.5px;
+            color: var(--petrol-900);
+            line-height: 1.65;
+            text-align: center;
+            font-style: italic;
+        }
+        .cert-registro b{
+            font-style: normal;
+            font-family: ui-monospace, "Courier New", monospace;
+            font-weight: 700;
+            color: var(--brown);
+            font-size: 13px;
+            letter-spacing: .02em;
+        }
+        @media (min-width: 720px){
+            .cert-registro{ font-size: 14.5px; padding: 14px 24px; }
+            .cert-registro b{ font-size: 14px; }
+        }
+
         /* Rodapé com assinatura + selo */
         .cert-foot{
             display: grid;
@@ -596,6 +623,11 @@ if (!function_exists('e')) {
                         <b>Termo de Ciência e Responsabilidade</b>, encontra-se APTO(A) a participar da audiência remota
                         designada, assumindo as responsabilidades técnicas ali descritas.
                     </p>
+                </div>
+
+                <!-- Linha formal de registro (IP + hora) — destacada como parte do texto -->
+                <div class="cert-registro">
+                    Assinatura eletrônica registrada em <b><?= date('d/m/Y', strtotime($reg['aceite_em'])) ?> às <?= date('H:i:s', strtotime($reg['aceite_em'])) ?></b><?php if (!empty($reg['aceite_ip'])): ?>, a partir do endereço IP <b><?= e($reg['aceite_ip']) ?></b><?php endif; ?>, sob código único de verificação abaixo.
                 </div>
 
                 <!-- Rodapé: assinatura + selo + meta -->
