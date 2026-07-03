@@ -30,16 +30,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf($_POST['csrf_token'] ?? '')) {
         $erro = 'CSRF inválido — recarregue a página.';
     } else {
-        $caseId = (int)($_POST['case_id'] ?? 0);
-        $agEv   = (int)($_POST['agenda_evento_id'] ?? 0) ?: null;
-        if (!$caseId) {
-            $erro = 'Escolha um caso.';
+        $acao = $_POST['acao'] ?? 'criar';
+        if ($acao === 'apagar') {
+            $trId = (int)($_POST['tr_id'] ?? 0);
+            if ($trId > 0) {
+                try {
+                    // TODO Onda 2: remover certificado do Drive se certificado_url estiver preenchido.
+                    $del = $pdo->prepare("DELETE FROM treinamento_audiencia_aceites WHERE id = ?");
+                    $del->execute(array($trId));
+                    if (function_exists('audit_log')) {
+                        audit_log('treinamento_audiencia_apagado', 'treinamento_audiencia_aceites', $trId, 'Excluído via admin/preview');
+                    }
+                    $mensagemOkAcao = 'Treinamento #' . $trId . ' apagado.';
+                } catch (Exception $e) {
+                    $erro = 'Erro ao apagar: ' . $e->getMessage();
+                }
+            }
         } else {
-            try {
-                $r = treinamento_audiencia_criar($pdo, $caseId, $agEv, current_user_id());
-                $linkGerado = $r['url'];
-            } catch (Exception $e) {
-                $erro = 'Erro: ' . $e->getMessage();
+            $caseId = (int)($_POST['case_id'] ?? 0);
+            $agEv   = (int)($_POST['agenda_evento_id'] ?? 0) ?: null;
+            if (!$caseId) {
+                $erro = 'Escolha um caso.';
+            } else {
+                try {
+                    $r = treinamento_audiencia_criar($pdo, $caseId, $agEv, current_user_id());
+                    $linkGerado = $r['url'];
+                } catch (Exception $e) {
+                    $erro = 'Erro: ' . $e->getMessage();
+                }
             }
         }
     }
@@ -91,6 +109,10 @@ require_once __DIR__ . '/../../templates/layout_start.php';
 
     <?php if ($erro): ?>
         <div style="background:#fde8e8; border:1px solid #fbcaca; color:#c8544a; padding: 12px 16px; border-radius: 10px; margin-bottom: 18px;"><?= e($erro) ?></div>
+    <?php endif; ?>
+
+    <?php if (!empty($mensagemOkAcao)): ?>
+        <div style="background:#ecfdf5; border:1px solid #bbf7d0; color:#059669; padding: 12px 16px; border-radius: 10px; margin-bottom: 18px;">✅ <?= e($mensagemOkAcao) ?></div>
     <?php endif; ?>
 
     <?php if ($linkGerado): ?>
@@ -149,7 +171,7 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                             <th style="padding: 10px 8px; text-align: left; border-bottom: 1.5px solid var(--border);">Cliente</th>
                             <th style="padding: 10px 8px; text-align: left; border-bottom: 1.5px solid var(--border);">Criado em</th>
                             <th style="padding: 10px 8px; text-align: left; border-bottom: 1.5px solid var(--border);">Status</th>
-                            <th style="padding: 10px 8px; text-align: left; border-bottom: 1.5px solid var(--border);">Ação</th>
+                            <th style="padding: 10px 8px; text-align: left; border-bottom: 1.5px solid var(--border);">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -167,8 +189,22 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                                         <span style="color: #d97706;">⏳ Aguardando</span>
                                     <?php endif; ?>
                                 </td>
-                                <td style="padding: 8px; border-bottom: 1px solid #f4f4f4;">
-                                    <a href="<?= url('publico/treinamento_audiencia.php?t=' . urlencode($r['token'])) ?>" target="_blank" style="font-size: 12px;">Abrir</a>
+                                <td style="padding: 8px; border-bottom: 1px solid #f4f4f4; white-space: nowrap;">
+                                    <a href="<?= url('publico/treinamento_audiencia.php?t=' . urlencode($r['token'])) ?>" target="_blank" style="font-size: 12px; margin-right: 10px;">Abrir</a>
+                                    <?php
+                                        $assinado = !empty($r['aceite_em']);
+                                        $confirmMsg = $assinado
+                                            ? '⚠️ ATENÇÃO: este certificado JÁ FOI ASSINADO em ' . date('d/m/Y H:i', strtotime($r['aceite_em'])) . '.\\n\\nApagar removerá a prova documental do aceite eletrônico do cliente. Só faça isso se tem certeza (ex: cliente pediu, foi teste, etc).\\n\\nConfirma?'
+                                            : 'Apagar o link do treinamento #' . (int)$r['id'] . '? O cliente que recebeu o link vai receber erro ao tentar acessar.';
+                                    ?>
+                                    <form method="POST" style="display:inline;" onsubmit="return confirm('<?= e($confirmMsg) ?>');">
+                                        <input type="hidden" name="csrf_token" value="<?= e(generate_csrf_token()) ?>">
+                                        <input type="hidden" name="acao" value="apagar">
+                                        <input type="hidden" name="tr_id" value="<?= (int)$r['id'] ?>">
+                                        <button type="submit" style="border:0; background:none; color:#c8544a; font-size: 12px; cursor:pointer; padding:0; text-decoration:underline;" title="<?= $assinado ? 'Apaga certificado assinado (prova documental)' : 'Apaga link pendente' ?>">
+                                            🗑️ Apagar
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
