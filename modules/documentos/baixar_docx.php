@@ -635,10 +635,15 @@ if ($temLogo) {
 $zip->close();
 
 // ─── Servir arquivo ───────────────────────────────────────────────────
-// Amanda 03/07: antes preg_replace transformava TODO nao-ASCII em _
-// (incluindo acentos e ç), gerando nomes tipo peti___o_de_audi__ncia_h__brida.
-// Fix: transliterar primeiro (á->a, ç->c, etc) e SO DEPOIS substituir
-// caracteres proibidos por _.
+// Amanda 03/07: nome de arquivo COMPACTO — antes gerava titulos longos
+// tipo "peticao_de_audiencia_remota_hibrida_vanderleia_americo" que
+// dava erro em algumas telas do Windows/Drive (path total > 260 chars).
+// Estratégia:
+//   1) Translitera acentos (á->a, ç->c, etc)
+//   2) Sanitiza caracteres estranhos por _
+//   3) Aplica abreviacoes conhecidas (peticao->pet, audiencia->aud, etc)
+//   4) Remove palavras-cola comuns (de, da, do, e, o, a)
+//   5) Limita a 60 chars (adiciona sufixo _abr se cortou)
 $tituloAscii = strtr($titulo, array(
     'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a','å'=>'a',
     'Á'=>'A','À'=>'A','Ã'=>'A','Â'=>'A','Ä'=>'A','Å'=>'A',
@@ -653,8 +658,53 @@ $tituloAscii = strtr($titulo, array(
     'ç'=>'c','Ç'=>'C','ñ'=>'n','Ñ'=>'N',
     'ß'=>'ss', 'æ'=>'ae', 'Æ'=>'AE', 'œ'=>'oe', 'Œ'=>'OE',
 ));
-$filename = preg_replace('/[^A-Za-z0-9_\-]/', '_', $tituloAscii);
-$filename = preg_replace('/_{2,}/', '_', $filename); // colapsa _ multiplos
+$tituloAscii = strtolower($tituloAscii);
+$filename = preg_replace('/[^a-z0-9_\-]/', '_', $tituloAscii);
+$filename = preg_replace('/_{2,}/', '_', $filename);
+$filename = trim($filename, '_');
+
+// Abreviacoes de tipos de documento (word boundary via _)
+$abr = array(
+    'peticao_de'                => 'pet',
+    'peticao'                   => 'pet',
+    'contrato_de_prestacao_de_servicos' => 'contrato',
+    'audiencia_remota_hibrida'  => 'aud_remota',
+    'audiencia_remota'          => 'aud_remota',
+    'audiencia'                 => 'aud',
+    'habilitacao_e_desarquivamento' => 'habil_desarq',
+    'habilitacao'               => 'habil',
+    'desarquivamento'           => 'desarq',
+    'substabelecimento'         => 'substab',
+    'declaracao_de_hipossuficiencia' => 'hiposs',
+    'hipossuficiencia'          => 'hiposs',
+    'isencao_de_imposto_de_renda' => 'isencao_ir',
+    'declaracao_de_residencia'  => 'residencia',
+    'requerimento'              => 'req',
+    'procuracao'                => 'proc',
+    'renuncia_de_poderes'       => 'renuncia',
+    'desistencia_da_acao'       => 'desistencia',
+    'averbacao_de_sentenca'     => 'averb_sent',
+    'mandado_de_pagamento'      => 'mand_pgto',
+    'gratuidade_de_justica'     => 'gratuidade',
+    'citacao_por_whatsapp'      => 'cit_wa',
+);
+foreach ($abr as $long => $short) {
+    $filename = preg_replace('/\b' . preg_quote($long, '/') . '\b/', $short, $filename);
+}
+
+// Remove palavras-cola pequenas (de, da, do, e, ou, a, o)
+$filename = preg_replace('/\b(de|da|do|das|dos|e|o|a|ou|em|no|na|por|para|com)\b/', '', $filename);
+$filename = preg_replace('/_{2,}/', '_', $filename);
+$filename = trim($filename, '_');
+
+// Limita a 60 chars (corta pelo _ mais próximo pra não cortar palavra ao meio)
+$MAX = 60;
+if (strlen($filename) > $MAX) {
+    $cut = substr($filename, 0, $MAX);
+    $ultUnd = strrpos($cut, '_');
+    if ($ultUnd !== false && $ultUnd > 30) $cut = substr($cut, 0, $ultUnd);
+    $filename = $cut;
+}
 $filename = trim($filename, '_') . '.docx';
 if ($filename === '.docx') $filename = 'documento.docx';
 
