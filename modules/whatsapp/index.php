@@ -865,9 +865,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var temNota = !!(d.conversa && d.conversa.nota_fixa);
 
         // Botões PRIMÁRIOS (visíveis direto no header):
-        //   - Etiqueta, Bot (21), Assumir/Delegar/Destravar, Resolver, Processo/Vincular
+        //   - Bot (21), Assumir, Processo — o resto vai pro menu.
+        //   Amanda 03/07: quer só o essencial visivel, resto no hamburguer.
         var primary = [];
-        primary.push('<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiqueta</button>');
         if (c.canal === '21') {
             if (+c.bot_ativo) primary.push('<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>');
             else               primary.push('<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>');
@@ -875,30 +875,36 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (!souEuAtendente && podeEnviar) {
             primary.push('<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>');
         }
+        if (c.client_id) {
+            primary.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>');
+        }
+
+        // Botões SECUNDÁRIOS (dentro do menu hamburguer)
+        var menu = [];
+        // Grupo 1: atendimento (etiqueta, delegar, resolver, vincular)
+        menu.push('<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiquetas</button>');
         if (PODE_DELEGAR) {
             var tipTxt = c.canal === '24'
-                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar (ou 8h úteis sem resposta do cliente).'
-                : 'Delegar para outro atendente (trava para que só ele possa assumir). Se ficar 8h úteis (seg-sex 9-18h) sem resposta ao cliente, destrava automaticamente.';
-            primary.push('<button onclick="waAbrirDelegar()" style="background:#7c3aed;color:#fff;border-color:#7c3aed;" title="' + tipTxt + '">🎯 Delegar</button>');
+                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar.'
+                : 'Delegar para outro atendente (trava para que só ele possa assumir).';
+            menu.push('<button onclick="waAbrirDelegar()" title="' + tipTxt + '">🎯 Delegar atendimento</button>');
             if (estaDelegada) {
-                primary.push('<button onclick="waRemoverDelegacao()" style="background:#fee2e2;border-color:#fca5a5;color:#991b1b;" title="Remover delegação">🔓 Destravar</button>');
+                menu.push('<button onclick="waRemoverDelegacao()" title="Remover delegação (libera pra qualquer um assumir)" style="color:#991b1b;">🔓 Destravar delegação</button>');
             }
         }
         if (c.status !== 'resolvido') {
-            primary.push('<button onclick="waResolver()">✅ Resolver</button>');
+            menu.push('<button onclick="waResolver()" title="Marcar conversa como resolvida" style="color:#059669;">✅ Resolver conversa</button>');
         }
-        if (c.client_id) {
-            primary.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>');
-        } else {
-            primary.push('<button onclick="waVincularCliente()" title="Vincular esta conversa a um cliente cadastrado" style="background:#059669;color:#fff;border-color:#059669;">🔗 Vincular cliente</button>');
+        if (!c.client_id) {
+            menu.push('<button onclick="waVincularCliente()" title="Vincular esta conversa a um cliente cadastrado" style="color:#059669;">🔗 Vincular cliente</button>');
         }
-
-        // Botões SECUNDÁRIOS (dentro do menu ⋮ Mais)
-        var menu = [];
-        menu.push('<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato">🔗 Mesclar</button>');
+        menu.push('<div class="sep"></div>');
+        // Grupo 2: conversa
+        menu.push('<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato">🔗 Mesclar conversa</button>');
         menu.push('<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora">🔄 Recarregar</button>');
         menu.push('<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard">📋 Copiar conversa</button>');
         menu.push('<div class="sep"></div>');
+        // Grupo 3: organização
         if (+c.fixada) {
             menu.push('<button onclick="waPinConversa()" title="Desfixar do topo">📌 Fixada (clique pra desfixar)</button>');
         } else {
@@ -907,6 +913,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         menu.push('<button onclick="waMarcarNaoLida()" title="Marcar como não lida">📩 Marcar não lida</button>');
         menu.push('<button onclick="waNotaFixa()" title="Observação interna fixa">📌 ' + (temNota ? 'Editar nota fixa' : 'Adicionar nota fixa') + '</button>');
         menu.push('<div class="sep"></div>');
+        // Grupo 4: IA / Chamados
         menu.push('<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk">📋 Abrir chamado</button>');
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
         menu.push('<button onclick="waCriarChamadoComResumoIA()" title="IA resume e abre chamado (R$ ~0,05)">✨ Abrir chamado com resumo IA</button>');
@@ -916,6 +923,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         if (c.client_id) menu.push('<button onclick="waEnviarLinkPortal()" title="Gerar link Central VIP">🔑 Enviar link Portal (VIP)</button>');
         menu.push('<div class="sep"></div>');
+        // Grupo 5: utilidades
         menu.push('<button onclick="waExportarConversa()" title="Exportar em .txt para o Drive">📄 Exportar conversa</button>');
         menu.push('<button onclick="waArquivar()" title="Arquivar conversa">🗄 Arquivar</button>');
         menu.push('<button onclick="waEditarTelefone()" title="Corrigir número (Multi-Device)">✏️ Corrigir número</button>');
