@@ -1447,6 +1447,9 @@ $tipoCompLabels = array(
 body.cv-tabs-ready { /* fundo padrão; conteudo de aba "encosta" na barra acima */ }
 .cv-header-toggle { background:#fff; border:1px solid var(--border,#e5e7eb); border-radius:6px; padding:4px 12px; cursor:pointer; font-size:.74rem; color:#6b7280; font-weight:600; align-self:center; margin-bottom:3px; }
 body.cv-header-min .cv-header-collapsivel { display:none !important; }
+/* Aba Treinamentos = foco total: some com barra de acoes, cards de status/prioridade,
+   incidentais e mensagens de header. Amanda 02/07 pediu tela limpa nessa aba. */
+body[data-aba-ativa="treinamentos"] .cv-oculto-em-treinamentos { display:none !important; }
 body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
 /* Container que envolve visualmente todos os cards da aba ativa */
 .cv-painel { background:var(--bg-card,#fff); border:1.5px solid var(--border,#e5e7eb); border-top:none; border-radius:0 0 12px 12px; padding:16px; margin:0 0 14px; box-shadow:0 4px 12px rgba(0,0,0,.04); min-height:200px; }
@@ -1573,6 +1576,29 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                             </div>
                         </div>
                         <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;align-items:flex-end;">
+                            <?php if (!$_assinado && !empty($case['client_phone'])):
+                                // Mensagem-template pra o cliente. Reforça obrigatoriedade + 3 dias
+                                // de antecedência + link. Amanda revisa/ajusta se quiser.
+                                $_priNome = trim(explode(' ', trim($case['client_name'] ?: ''))[0]);
+                                $_msgWa = ($_priNome ? "Olá, {$_priNome}!" : 'Olá!') . "\n\n"
+                                        . "Como você tem uma audiência marcada e ela será realizada por *vídeo* (Microsoft Teams), preparamos um *treinamento rápido e obrigatório* pra garantir que tudo dê certo no dia. 🎓\n\n"
+                                        . "👉 {$_linkPub}\n\n"
+                                        . "Nesse treinamento você vai:\n"
+                                        . "✅ Ler a cartilha completa de como acessar\n"
+                                        . "✅ Testar câmera, microfone e internet\n"
+                                        . "✅ Fazer uma simulação em uma sala de teste (grátis)\n"
+                                        . "✅ Assinar eletronicamente um Termo de Ciência\n\n"
+                                        . "Ao final, um *Certificado de Conclusão* é gerado e uma cópia é anexada ao seu processo automaticamente.\n\n"
+                                        . "⚠️ *Importante:* acesse com pelo menos *3 dias de antecedência* da audiência. Sem o certificado, não temos como comprovar que você foi orientado(a) sobre o procedimento.\n\n"
+                                        . "Qualquer dúvida, é só responder aqui.\n\n"
+                                        . "Equipe Ferreira & Sá Advocacia";
+                                $_waUrl = module_url('whatsapp') . '?canal=24&telefone=' . urlencode(preg_replace('/\D/', '', $case['client_phone'])) . '&texto=' . urlencode($_msgWa);
+                            ?>
+                            <a href="<?= e($_waUrl) ?>" style="display:inline-flex;align-items:center;gap:6px;font-size:.75rem;padding:7px 12px;background:#25d366;color:#fff;border-radius:6px;text-decoration:none;white-space:nowrap;font-weight:700;box-shadow:0 2px 6px rgba(37,211,102,.35);">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.297-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+                                Enviar por WhatsApp
+                            </a>
+                            <?php endif; ?>
                             <a href="<?= e($_linkPub) ?>" target="_blank" style="font-size:.72rem;padding:5px 10px;background:#052228;color:#fff;border-radius:6px;text-decoration:none;white-space:nowrap;">🔗 Abrir link do cliente</a>
                             <?php if (!empty($_tr['certificado_url'])): ?>
                                 <a href="<?= e($_tr['certificado_url']) ?>" target="_blank" style="font-size:.72rem;padding:5px 10px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;white-space:nowrap;">📁 Certificado PDF (Drive)</a>
@@ -2115,11 +2141,11 @@ $_actAttBtn = $_actBlocked
     : '';
 ?>
 <?php if ($_actBlocked): ?>
-<div style="background:#fef2f2;border:1px dashed #dc2626;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.75rem;color:#991b1b;">
+<div class="cv-oculto-em-treinamentos" style="background:#fef2f2;border:1px dashed #dc2626;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.75rem;color:#991b1b;">
     🚫 <strong>Ações desabilitadas</strong> — contrato cancelado pelo comercial. Clique em qualquer botão pede confirmação antes de prosseguir.
 </div>
 <?php endif; ?>
-<div style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+<div class="cv-oculto-em-treinamentos" style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">+ Criar Tarefa</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Agendar Audiência</a>
     <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
@@ -2877,7 +2903,7 @@ function confirmarMarcarIncidental() {
 <?php if (!empty($incidentais) || !empty($recursos) || !$case['is_incidental']):
     $_totalIncRec = count($incidentais) + count($recursos);
 ?>
-<div class="card mb-2">
+<div class="card mb-2 cv-oculto-em-treinamentos">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h3>📎 Incidentais / Recursos (<?= $_totalIncRec ?>)</h3>
         <?php if (has_min_role('gestao')): ?>
@@ -3474,7 +3500,7 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
 </script>
 
 <!-- Status e Informações -->
-<div class="cv-secao" data-aba="visao" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+<div class="cv-secao cv-oculto-em-treinamentos" data-aba="visao" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
     <!-- Alterar status -->
     <div class="card">
         <div class="card-header"><h3>Status</h3></div>
@@ -8052,6 +8078,9 @@ window.pedirObsRealizado = function(form) {
             var abas = (s.dataset.aba || '').split(/\s+/);
             s.classList.toggle('cv-aba-mostrar', abas.indexOf(nome) >= 0);
         });
+        // Marca aba ativa no body — CSS usa pra esconder elementos por aba
+        // (ex: aba Treinamentos esconde barra de acoes, incidentais, status).
+        document.body.dataset.abaAtiva = nome;
         if (location.hash !== '#' + nome) {
             history.replaceState(null, '', location.pathname + location.search + '#' + nome);
         }
