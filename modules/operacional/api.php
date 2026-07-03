@@ -20,6 +20,22 @@ function _json_clean_echo($data) {
     echo json_encode($data);
 }
 
+/**
+ * Amanda 03/07: redirect pro caso_ver preservando a aba ativa.
+ * O form injeta <input name="voltar_aba" value="ABA_ATIVA"> via JS (case_ver.php).
+ * Se preenchido, adiciona #ABA_ATIVA na URL de retorno.
+ *
+ * @param int $caseId
+ * @param string $extra query-string adicional (ex: '&aviso_cancel=X')
+ */
+function redirect_caso($caseId, $extra = '') {
+    $url = module_url('operacional', 'caso_ver.php?id=' . (int)$caseId . $extra);
+    $abaWl = array('visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','treinamentos','ia');
+    $aba = isset($_POST['voltar_aba']) ? preg_replace('/[^a-z_]/', '', (string)$_POST['voltar_aba']) : '';
+    if ($aba && in_array($aba, $abaWl, true)) $url .= '#' . $aba;
+    redirect($url);
+}
+
 // ── GET: ações de leitura puras (autocomplete) ────────────
 // Antes do bloqueio que rejeita não-POST, atendemos os endpoints GET
 // que servem autocomplete / sugestão. Não exigem CSRF (são GET, não mutate).
@@ -168,7 +184,7 @@ function _redir_volta_caso_ou_kanban($caseId = 0) {
     $caseId = (int)$caseId;
     $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
     if ($caseId > 0 && strpos($referer, 'caso_ver') !== false) {
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
     } else {
         redirect(module_url('operacional'));
     }
@@ -1671,7 +1687,7 @@ switch ($action) {
         }
         flash_set('success', $numPending > 0 ? 'Documento recebido. Ainda ' . $numPending . ' pendente(s).' : 'Todos os documentos recebidos!');
 
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'inline_edit_case':
@@ -1809,7 +1825,7 @@ switch ($action) {
                 flash_set('success', 'Parceria salva — ' . ($parcNome ?: 'Parceiro definido') . ' (' . ($executor === 'fes' ? 'FeS executa' : 'Parceiro executa') . ')');
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'update_case_info':
@@ -1823,7 +1839,7 @@ switch ($action) {
                 ->execute(array($priority, $responsibleId, $caseId));
             flash_set('success', 'Caso atualizado.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'calc_prazo_publicacao': {
@@ -2117,7 +2133,7 @@ switch ($action) {
                 ->execute(array($caseId, $title, $tipo, $assignedTo, ($extraIds !== '' ? $extraIds : null), $dueDate, $nextOrder));
             flash_set('success', 'Tarefa adicionada.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'toggle_task':
@@ -2136,7 +2152,7 @@ switch ($action) {
             }
         }
         if ($isAjaxTask) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'delete_task':
@@ -2148,7 +2164,7 @@ switch ($action) {
             if (!$isAjax) flash_set('success', 'Tarefa removida.');
         }
         if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true)); exit; }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'update_task':
@@ -2190,7 +2206,7 @@ switch ($action) {
             echo json_encode(array('ok' => true, 'task' => $st->fetch()));
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'delete_case':
@@ -2237,7 +2253,7 @@ switch ($action) {
         $newTitle = trim($_POST['title'] ?? '');
         if (!$newTitle || mb_strlen($newTitle) < 5) {
             if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('error' => 'Nome deve ter no mínimo 5 caracteres')); exit; }
-            flash_set('error', 'Nome deve ter no mínimo 5 caracteres.'); redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId)); break;
+            flash_set('error', 'Nome deve ter no mínimo 5 caracteres.'); redirect_caso($caseId); break;
         }
         if ($caseId) {
             // Buscar nome antigo e client_id
@@ -2289,7 +2305,7 @@ switch ($action) {
         $newCsrfTitle = generate_csrf_token();
         if ($isAjax) { header('Content-Type: application/json'); echo json_encode(array('ok' => true, 'title' => $newTitle, 'csrf' => $newCsrfTitle)); exit; }
         flash_set('success', 'Nome da pasta atualizado.');
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'add_publicacao':
@@ -2308,7 +2324,7 @@ switch ($action) {
 
         if (!$caseId || !$conteudo) {
             flash_set('error', 'Preencha o conteudo da publicacao.');
-            redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+            redirect_caso($caseId);
             exit;
         }
 
@@ -2440,7 +2456,7 @@ switch ($action) {
         audit_log('PUBLICACAO_CRIADA', 'case', $caseId, 'pub_id=' . $pubId . ' tipo=' . $tipoPub . ' prazo=' . $prazoDias . ' vence=' . ($dataFim ?: 'sem'));
 
         flash_set('success', 'Publicacao registrada.' . ($dataFim ? ' Prazo criado para ' . date('d/m/Y', strtotime($dataFim)) . '.' : ''));
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         exit;
 
     case 'confirmar_prazo_publicacao':
@@ -2560,7 +2576,7 @@ switch ($action) {
             header('Location: ' . $back);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         exit;
 
     case 'evento_realizado':
@@ -2834,7 +2850,7 @@ switch ($action) {
             header('Location: ' . $back);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         exit;
 
     case 'evento_remarcar':
@@ -2957,7 +2973,7 @@ switch ($action) {
             header('Location: ' . $back);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         exit;
 
     case 'evento_cancelado':
@@ -3037,7 +3053,7 @@ switch ($action) {
             header('Location: ' . $back . $avisoParam);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId) . ($abrirAvisoCliente ? '&aviso_cancel=' . $eventoId : ''));
+        redirect_caso($caseId, ($abrirAvisoCliente ? '&aviso_cancel=' . $eventoId : ''));
         exit;
 
     case 'evento_excluir':
@@ -3080,7 +3096,7 @@ switch ($action) {
             header('Location: ' . $back);
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         exit;
 
     case 'duplicate_case':
@@ -3302,7 +3318,7 @@ switch ($action) {
                 flash_set('error', 'Erro ao cadastrar prazo.');
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'concluir_prazo':
@@ -3358,7 +3374,7 @@ switch ($action) {
                 flash_set('error', 'Erro ao concluir prazo.');
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'add_andamento':
@@ -3427,7 +3443,7 @@ switch ($action) {
                 flash_set('error', 'Erro ao salvar andamento: ' . $e->getMessage());
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'delete_andamento':
@@ -3449,7 +3465,7 @@ switch ($action) {
                 flash_set('error', 'Sem permissão para excluir.');
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'delete_publicacao':
@@ -3483,7 +3499,7 @@ switch ($action) {
                 flash_set('error', 'Erro ao excluir: ' . $e->getMessage());
             }
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'log_whatsapp_andamento':
@@ -3503,7 +3519,7 @@ switch ($action) {
             echo json_encode(array('ok' => true));
             exit;
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'toggle_salavip':
@@ -3517,7 +3533,7 @@ switch ($action) {
             audit_log('toggle_salavip', 'case', $caseId, $new ? 'Ativado' : 'Desativado');
             flash_set('success', $new ? 'Caso visível na Central VIP.' : 'Caso oculto da Central VIP.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'toggle_acompanhamento_externo':
@@ -3542,7 +3558,7 @@ switch ($action) {
             }
             flash_set('success', $new ? 'Caso marcado como APENAS ACOMPANHAMENTO.' : 'Caso voltou a ser tratado como nosso.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'toggle_elaborado_ia':
@@ -3561,7 +3577,7 @@ switch ($action) {
             audit_log('toggle_elaborado_ia', 'case', $caseId, $newEi ? 'Marcado elaborado por IA' : 'Desmarcado');
             flash_set('success', $newEi ? 'Caso marcado como Elaborado por IA.' : 'Marca de Elaborado por IA removida.');
         }
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'toggle_visibilidade':
@@ -3644,7 +3660,7 @@ switch ($action) {
         $newCsrf = generate_csrf_token();
         if ($isAjax) { _json_clean_echo(array('ok' => true, 'csrf' => $newCsrf)); exit; }
         flash_set('success', 'Andamento atualizado.');
-        redirect(module_url('operacional', 'caso_ver.php?id=' . $caseId));
+        redirect_caso($caseId);
         break;
 
     case 'vincular_incidental':

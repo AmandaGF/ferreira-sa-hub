@@ -8170,6 +8170,21 @@ window.pedirObsRealizado = function(form) {
         if (location.hash !== '#' + nome) {
             history.replaceState(null, '', location.pathname + location.search + '#' + nome);
         }
+        // Amanda 03/07: injeta/atualiza input hidden 'voltar_aba' em todos os forms
+        // que dão POST pro api operacional — depois do submit o backend redireciona
+        // pra caso_ver.php#ABA_ATUAL em vez de cair sempre em #visao.
+        try {
+            document.querySelectorAll('form[action*="operacional/api.php"], form[action*="/api.php"]').forEach(function(f){
+                var inp = f.querySelector('input[name="voltar_aba"]');
+                if (!inp) {
+                    inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = 'voltar_aba';
+                    f.appendChild(inp);
+                }
+                inp.value = nome;
+            });
+        } catch(e) {}
     };
 
     window.cvHeaderToggle = function() {
