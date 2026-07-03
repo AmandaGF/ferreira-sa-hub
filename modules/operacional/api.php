@@ -240,6 +240,45 @@ if ($action === 'corrigir_acentos_andamentos') {
 }
 
 // ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
+if ($action === 'paste_upload_andamento') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf($_POST['csrf_token'] ?? '')) { echo json_encode(array('error' => 'CSRF invalido')); exit; }
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $b64    = trim((string)($_POST['imagem_base64'] ?? ''));
+    $mime   = trim((string)($_POST['mime_type'] ?? 'image/png'));
+    if (!$caseId || !$b64) { echo json_encode(array('error' => 'parametros invalidos')); exit; }
+    if (strlen($b64) < 200) { echo json_encode(array('error' => 'imagem muito pequena')); exit; }
+    // Limite bruto 10MB de base64 (~7.5MB da imagem original)
+    if (strlen($b64) > 10 * 1024 * 1024) { echo json_encode(array('error' => 'imagem maior que 10MB — nao aceito')); exit; }
+
+    require_once APP_ROOT . '/core/google_drive.php';
+
+    $stCase = $pdo->prepare("SELECT drive_folder_url FROM cases WHERE id = ?");
+    $stCase->execute(array($caseId));
+    $driveUrl = (string)$stCase->fetchColumn();
+    if (!$driveUrl) { echo json_encode(array('error' => 'Este caso ainda nao tem pasta no Drive. Clique em "Criar pasta no Drive" no cabecalho e tente de novo.')); exit; }
+
+    // Cria/pega subpasta ANEXOS ANDAMENTO
+    $sub = drive_get_or_create_subfolder($driveUrl, 'ANEXOS ANDAMENTO');
+    if (empty($sub['success'])) {
+        echo json_encode(array('error' => 'Falha na subpasta: ' . ($sub['error'] ?? '?')));
+        exit;
+    }
+
+    // Nome: paste_YYYYMMDD_HHMMSS_userid.png (auto-numeracao se colar 2 no mesmo segundo)
+    $ext = (strpos($mime, 'png') !== false) ? 'png'
+         : ((strpos($mime, 'jpeg') !== false || strpos($mime, 'jpg') !== false) ? 'jpg'
+         : ((strpos($mime, 'gif') !== false) ? 'gif' : 'png'));
+    $prefixo = 'paste_' . date('Ymd_His') . '_u' . (int)current_user_id();
+    $nomeFinal = drive_calcular_nome_disponivel($sub['folderId'], $prefixo, $ext, false);
+
+    $up = upload_file_to_drive_base64($sub['folderId'], $nomeFinal, $b64, $mime);
+    if (empty($up['success'])) { echo json_encode(array('error' => 'Upload falhou: ' . ($up['error'] ?? '?'))); exit; }
+
+    echo json_encode(array('ok' => true, 'url' => $up['fileUrl'], 'nome' => $nomeFinal));
+    exit;
+}
+
 if ($action === 'confirmar_cancelamento_comercial') {
     header('Content-Type: application/json; charset=utf-8');
     if (!validate_csrf($_POST['csrf_token'] ?? '')) { echo json_encode(array('error' => 'CSRF invalido')); exit; }

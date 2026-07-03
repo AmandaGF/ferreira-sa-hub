@@ -4928,12 +4928,88 @@ foreach ($tarefasReais as $_t) {
                 </label>
             </div>
             <div style="position:relative;">
-                <textarea name="descricao" id="andDescricaoNova" class="form-input" rows="2" placeholder="Descreva o andamento... (digite / pra usar modelos rápidos)" required style="width:100%;font-size:.85rem;"></textarea>
+                <textarea name="descricao" id="andDescricaoNova" class="form-input" rows="2" placeholder="Descreva o andamento... (digite / pra usar modelos rápidos · Ctrl+V cola imagem)" required style="width:100%;font-size:.85rem;"></textarea>
                 <!-- Dropdown de modelos rápidos (ativado com / no início) -->
                 <div id="andSlashDrop" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1.5px solid #052228;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:100;max-height:300px;overflow-y:auto;margin-top:2px;"></div>
             </div>
-            <div style="font-size:.68rem;color:var(--text-muted);margin-top:3px;">💡 Dica: <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">/</code> abre modelos · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Alt+A</code> foca aqui · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Ctrl+Enter</code> envia</div>
+            <!-- Amanda 03/07: preview de imagens coladas via Ctrl+V (paste-image) -->
+            <div id="andPastePreview" style="display:none;margin-top:6px;padding:6px 8px;background:#f0f9ff;border:1px dashed #7dd3fc;border-radius:6px;">
+                <div style="font-size:.7rem;color:#0369a1;font-weight:700;margin-bottom:4px;">📎 Imagens coladas neste andamento:</div>
+                <div id="andPasteThumbs" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            </div>
+            <div style="font-size:.68rem;color:var(--text-muted);margin-top:3px;">💡 Dica: <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">/</code> abre modelos · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Ctrl+V</code> cola print · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Alt+A</code> foca aqui · <code style="background:#f1f5f9;padding:1px 4px;border-radius:3px;">Ctrl+Enter</code> envia</div>
         </form>
+
+        <!-- Paste-image handler (Amanda 03/07) -->
+        <script>
+        (function(){
+            var ta = document.getElementById('andDescricaoNova');
+            if (!ta) return;
+            var preview = document.getElementById('andPastePreview');
+            var thumbs  = document.getElementById('andPasteThumbs');
+            var csrf    = <?= json_encode(generate_csrf_token()) ?>;
+            var caseId  = <?= (int)$caseId ?>;
+
+            ta.addEventListener('paste', function(e){
+                var items = (e.clipboardData || window.clipboardData || {}).items || [];
+                for (var i = 0; i < items.length; i++) {
+                    var it = items[i];
+                    if (it.kind !== 'file') continue;
+                    if (!it.type || it.type.indexOf('image/') !== 0) continue;
+                    var blob = it.getAsFile();
+                    if (!blob) continue;
+                    e.preventDefault();
+                    handleImageBlob(blob);
+                }
+            });
+
+            function handleImageBlob(blob) {
+                var reader = new FileReader();
+                reader.onload = function(ev){
+                    var dataUrl = ev.target.result;
+                    var thumb = document.createElement('div');
+                    thumb.style.cssText = 'position:relative;width:80px;height:80px;border-radius:6px;overflow:hidden;border:1px solid #7dd3fc;background:#fff;';
+                    thumb.innerHTML = '<img src="'+dataUrl+'" style="width:100%;height:100%;object-fit:cover;"><div class="ovl" style="position:absolute;inset:0;background:rgba(3,105,161,.85);color:#fff;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;">⏳ Enviando...</div>';
+                    thumbs.appendChild(thumb);
+                    preview.style.display = 'block';
+                    // Base64 sem o "data:image/png;base64,"
+                    var b64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
+                    var mime = (dataUrl.match(/^data:(image\/\w+);/) || [])[1] || 'image/png';
+                    var fd = new FormData();
+                    fd.append('action', 'paste_upload_andamento');
+                    fd.append('case_id', caseId);
+                    fd.append('imagem_base64', b64);
+                    fd.append('mime_type', mime);
+                    fd.append('csrf_token', csrf);
+                    fetch('<?= module_url('operacional', 'api.php') ?>', {
+                        method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}
+                    }).then(function(r){ return r.json(); }).then(function(d){
+                        var ovl = thumb.querySelector('.ovl');
+                        if (d && d.ok && d.url) {
+                            if (ovl) ovl.remove();
+                            // Marca thumb como link clicavel
+                            thumb.style.cursor = 'zoom-in';
+                            thumb.addEventListener('click', function(){ window.open(d.url, '_blank'); });
+                            // Insere link no textarea
+                            var linkMark = '\n📎 [Imagem anexada] ' + d.url;
+                            ta.value = (ta.value || '').replace(/\s*$/, '') + linkMark;
+                            ta.dispatchEvent(new Event('input')); // reativa botao adicionar
+                        } else {
+                            if (ovl) {
+                                ovl.style.background = 'rgba(220,38,38,.9)';
+                                ovl.innerHTML = '❌ Erro';
+                                ovl.title = (d && d.error) ? d.error : 'Falha ao subir';
+                            }
+                        }
+                    }).catch(function(err){
+                        var ovl = thumb.querySelector('.ovl');
+                        if (ovl) { ovl.style.background = 'rgba(220,38,38,.9)'; ovl.innerHTML = '❌ Rede'; }
+                    });
+                };
+                reader.readAsDataURL(blob);
+            }
+        })();
+        </script>
         <script>
         (function(){
             var MODELOS_ANDAMENTO = [
