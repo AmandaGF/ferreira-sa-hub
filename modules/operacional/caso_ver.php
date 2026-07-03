@@ -1556,7 +1556,8 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                 $_assinado = !empty($_tr['aceite_em']);
                 $_dtCr = date('d/m/Y H:i', strtotime($_tr['criado_em']));
                 $_dtAc = $_assinado ? date('d/m/Y H:i', strtotime($_tr['aceite_em'])) : '';
-                $_linkPub = url('publico/treinamento_audiencia.php?t=' . urlencode($_tr['token']));
+                // URL ABSOLUTA (não url() que gera path relativo) — precisa ser clicável no WhatsApp
+                $_linkPub = 'https://ferreiraesa.com.br/conecta/publico/treinamento_audiencia.php?t=' . urlencode($_tr['token']);
             ?>
                 <div style="padding:.7rem .85rem;background:#fff;border:1px solid <?= $_assinado ? '#86efac' : '#fde68a' ?>;border-left:4px solid <?= $_assinado ? '#10b981' : '#f59e0b' ?>;border-radius:8px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;flex-wrap:wrap;">
