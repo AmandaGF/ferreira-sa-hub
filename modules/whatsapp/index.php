@@ -2878,6 +2878,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
         html += '<div style="background:#fee2e2;border-left:3px solid #dc2626;padding:.4rem .6rem;margin-top:.4rem;font-size:.7rem;color:#7f1d1d;border-radius:0 6px 6px 0;">🚫 <strong>NÃO use acentos, ç, ~ ou caracteres especiais</strong> — quebra o link no Drive. Só letras sem acento, números, _ e -.</div>';
         html += '<div id="waDriveNomeAviso" style="display:none;background:#fef3c7;border-left:3px solid #f59e0b;padding:.35rem .6rem;margin-top:.4rem;font-size:.7rem;color:#7c2d12;border-radius:0 6px 6px 0;"></div>';
         html += '</div>';
+        // Amanda 03/07: campo "primeiro nome do titular" — aparece só quando o
+        // tipo escolhido é documento pessoal (identidade/cpf/cnh/ctps/certidão).
+        // Faz o nome do arquivo virar identidade_CPF_joao.pdf em vez de
+        // identidade_CPF_2.pdf (evita cliente ter que abrir 5 arquivos pra achar).
+        html += '<div id="waDriveTitularWrap" style="display:none;margin-bottom:.8rem;">';
+        html += '<label style="display:block;font-size:.78rem;color:#374151;font-weight:700;margin-bottom:.3rem;">Primeiro nome do titular do documento:</label>';
+        html += '<input type="text" id="waDriveTitularInput" placeholder="Ex: Joao, Maria, Pedro" oninput="waDriveAtualizarPreview();waSanitizarNomeInput(this,\'waDriveTitularAviso\')" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;" maxlength="30">';
+        html += '<div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:.4rem .6rem;margin-top:.4rem;font-size:.72rem;color:#1e40af;border-radius:0 6px 6px 0;">💡 Documentos pessoais (identidade, CPF, CNH, certidões) podem ser de pais/filhos/cônjuge. O primeiro nome ajuda a identificar de quem é sem precisar abrir cada arquivo.</div>';
+        html += '<div id="waDriveTitularAviso" style="display:none;background:#fef3c7;border-left:3px solid #f59e0b;padding:.35rem .6rem;margin-top:.4rem;font-size:.7rem;color:#7c2d12;border-radius:0 6px 6px 0;"></div>';
+        html += '</div>';
         html += '<div id="waDrivePreview" style="background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;padding:.7rem;font-size:.8rem;color:#166534;margin-bottom:1rem;display:none;">';
         html += '<strong>Nome final:</strong> <span id="waDrivePreviewNome">—</span><br>';
         html += '<strong>Caminho:</strong> Pasta do caso → 01 - PARA DISTRIBUIR/ → <span id="waDrivePreviewNome2">—</span>';
@@ -2890,6 +2900,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         modal.innerHTML = html;
     };
 
+    // Tipos que sao documentos PESSOAIS (podem ser de varios membros da familia)
+    // — pedem o primeiro nome do titular pra desambiguar.
+    window.waTiposPedeTitular = ['identidade_CPF','cnh','ctps','cert_nascimento','cert_casamento','cert_obito'];
+
     window.waDriveAtualizarPreview = function() {
         var sel = document.getElementById('waDriveTipoSelect');
         var preview = document.getElementById('waDrivePreview');
@@ -2898,17 +2912,32 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var btn = document.getElementById('waDriveBtnSalvar');
         var wrapCustom = document.getElementById('waDriveNomeCustomWrap');
         var inputCustom = document.getElementById('waDriveNomeCustomInput');
+        var wrapTitular = document.getElementById('waDriveTitularWrap');
+        var inputTitular = document.getElementById('waDriveTitularInput');
         if (!sel || !preview || !btn) return;
 
         var tipo = sel.value;
         if (!tipo) {
             preview.style.display = 'none';
             wrapCustom.style.display = 'none';
+            if (wrapTitular) wrapTitular.style.display = 'none';
             btn.disabled = true;
             btn.style.cursor = 'not-allowed';
             btn.style.opacity = '.5';
             return;
         }
+
+        // Documentos pessoais — mostra campo "primeiro nome do titular"
+        var pedeTitular = waTiposPedeTitular.indexOf(tipo) >= 0;
+        if (wrapTitular) wrapTitular.style.display = pedeTitular ? 'block' : 'none';
+        var titular = (pedeTitular && inputTitular) ? (inputTitular.value || '').trim().toLowerCase() : '';
+        // Só o primeiro nome (se colar "João Silva", pega só "joao")
+        if (titular) titular = titular.split(/\s+/)[0];
+        // Sanitiza acentos + caracteres nao-ASCII
+        titular = titular
+            .replace(/[áàãâä]/g,'a').replace(/[éèêë]/g,'e').replace(/[íìîï]/g,'i')
+            .replace(/[óòõôö]/g,'o').replace(/[úùûü]/g,'u').replace(/[ç]/g,'c').replace(/[ñ]/g,'n')
+            .replace(/[^a-z0-9]/g,'');
 
         if (tipo === 'outro') {
             wrapCustom.style.display = 'block';
@@ -2929,23 +2958,38 @@ require_once APP_ROOT . '/templates/layout_start.php';
             wrapCustom.style.display = 'none';
             var t = waTiposDocumento.find(function(x){ return x.key === tipo; });
             if (t) {
-                previewNome1.textContent = t.pattern;
-                previewNome2.textContent = t.pattern;
+                // Adiciona _titular no pattern se documento pessoal + titular preenchido
+                var pattern = t.pattern;
+                if (pedeTitular && titular) {
+                    // Ex: cert_nascimento.pdf -> cert_nascimento_joao.pdf
+                    //     ctps_N.pdf         -> ctps_joao_N.pdf
+                    pattern = pattern
+                        .replace(/(_N)?\.pdf$/, '_' + titular + '$1.pdf');
+                }
+                previewNome1.textContent = pattern;
+                previewNome2.textContent = pattern;
             }
         }
         preview.style.display = 'block';
-        btn.disabled = false;
-        btn.style.cursor = 'pointer';
-        btn.style.opacity = '1';
+        // Bloqueia salvar se pedimos titular mas ainda esta vazio
+        var faltaTitular = pedeTitular && !titular;
+        btn.disabled = faltaTitular;
+        btn.style.cursor = faltaTitular ? 'not-allowed' : 'pointer';
+        btn.style.opacity = faltaTitular ? '.5' : '1';
     };
 
     window.waExecutarSalvarDrive = function(msgId, caseId, tipoMidia) {
         var sel = document.getElementById('waDriveTipoSelect');
         var inputCustom = document.getElementById('waDriveNomeCustomInput');
+        var inputTitular = document.getElementById('waDriveTitularInput');
         if (!sel || !sel.value) { alert('Escolha um tipo de documento.'); return; }
         var tipo = sel.value;
         var nomeCustom = (inputCustom && inputCustom.value) ? inputCustom.value.trim() : '';
         if (tipo === 'outro' && !nomeCustom) { alert('Digite o nome personalizado.'); return; }
+        // Documentos pessoais precisam do primeiro nome do titular
+        var pedeTitular = waTiposPedeTitular.indexOf(tipo) >= 0;
+        var titular = (pedeTitular && inputTitular) ? inputTitular.value.trim() : '';
+        if (pedeTitular && !titular) { alert('Digite o primeiro nome do titular do documento.'); return; }
 
         var modal = document.getElementById('waDriveModal');
         modal.innerHTML = '<div style="background:#fff;padding:2rem;border-radius:12px;text-align:center;"><strong>📤 Salvando no Drive...</strong><div style="font-size:.78rem;color:#6b7280;margin-top:.5rem;">'+(tipoMidia==='imagem' ? 'Convertendo imagem pra PDF...' : 'Enviando arquivo...')+'</div></div>';
@@ -2956,6 +3000,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         fd.append('case_id', caseId);
         fd.append('tipo_doc', tipo);
         if (tipo === 'outro') fd.append('nome_personalizado', nomeCustom);
+        if (titular) fd.append('titular_nome', titular);
         fd.append('csrf_token', csrf);
 
         fetch(apiUrl, { method: 'POST', body: fd }).then(function(r){ return r.json(); }).then(function(d){

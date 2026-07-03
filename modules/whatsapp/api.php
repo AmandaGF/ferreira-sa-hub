@@ -1697,6 +1697,9 @@ if ($action === 'salvar_drive') {
 
     $tipoDoc = trim((string)($_POST['tipo_doc'] ?? ''));
     $nomePersonalizado = trim((string)($_POST['nome_personalizado'] ?? ''));
+    // Amanda 03/07: primeiro nome do titular pra documentos pessoais
+    // (identidade, cpf, cnh, ctps, certidões). Anexado ao prefixo no fluxo abaixo.
+    $titularNome = trim((string)($_POST['titular_nome'] ?? ''));
 
     // ─── FLUXO NOVO: tipo_doc preenchido ──────────────────────────────
     if ($tipoDoc !== '') {
@@ -1752,6 +1755,32 @@ if ($action === 'salvar_drive') {
                 exit;
             }
             $prefixo = mb_substr($prefixo, 0, 80);
+        }
+
+        // Amanda 03/07: anexa "_titular" no prefixo pra documentos pessoais.
+        // Tipos que aceitam titular: identidade_CPF, cnh, ctps, cert_nascimento,
+        // cert_casamento, cert_obito. Ficam tipo: cert_nascimento_joao.pdf
+        $tiposComTitular = array('identidade_CPF','cnh','ctps','cert_nascimento','cert_casamento','cert_obito');
+        if (in_array($tipoDoc, $tiposComTitular, true) && $titularNome !== '') {
+            // Sanitiza: só primeiro nome, lowercase, ASCII puro
+            $primeiroNome = trim(preg_split('/\s+/', $titularNome)[0]);
+            $primeiroNome = mb_strtolower($primeiroNome, 'UTF-8');
+            // Remove acentos manualmente (evita depender de intl/iconv que podem falhar)
+            $primeiroNome = strtr($primeiroNome,
+                array(
+                    'á'=>'a','à'=>'a','ã'=>'a','â'=>'a','ä'=>'a',
+                    'é'=>'e','è'=>'e','ê'=>'e','ë'=>'e',
+                    'í'=>'i','ì'=>'i','î'=>'i','ï'=>'i',
+                    'ó'=>'o','ò'=>'o','õ'=>'o','ô'=>'o','ö'=>'o',
+                    'ú'=>'u','ù'=>'u','û'=>'u','ü'=>'u',
+                    'ç'=>'c','ñ'=>'n',
+                )
+            );
+            $primeiroNome = preg_replace('/[^a-z0-9]/', '', $primeiroNome);
+            $primeiroNome = mb_substr($primeiroNome, 0, 20);
+            if ($primeiroNome !== '') {
+                $prefixo = $prefixo . '_' . $primeiroNome;
+            }
         }
 
         // Decide extensao + se precisa converter
