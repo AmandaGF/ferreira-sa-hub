@@ -2592,7 +2592,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             +   cases.map(function(c){ return '<option value="' + c.id + '">' + escapeHtml(c.title) + '</option>'; }).join('')
             + '</select>'
             + '<label style="font-size:.82rem;font-weight:600;color:#475569;display:block;margin-bottom:.3rem;">Nome do arquivo (sem .pdf):</label>'
-            + '<input type="text" id="waLoteNome" placeholder="Ex: docs_renda, comprovantes, RG_CPF" style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:1rem;font-size:.85rem;" maxlength="80">'
+            + '<input type="text" id="waLoteNome" placeholder="Ex: docs_renda, comprovantes, RG_CPF" oninput="waSanitizarNomeInput(this,\'waLoteNomeAviso\')" style="width:100%;padding:.5rem;border:1.5px solid #cbd5e1;border-radius:6px;margin-bottom:.4rem;font-size:.85rem;" maxlength="80">'
+            + '<div style="background:#fee2e2;border-left:3px solid #dc2626;padding:.4rem .6rem;margin-bottom:.7rem;font-size:.72rem;color:#7f1d1d;border-radius:0 6px 6px 0;">'
+            +   '🚫 <strong>NÃO use acentos, ç, ~ ou caracteres especiais</strong> no nome — quebra o link no Drive. Use só letras sem acento, números, _ e -.'
+            + '</div>'
+            + '<div id="waLoteNomeAviso" style="display:none;background:#fef3c7;border-left:3px solid #f59e0b;padding:.35rem .6rem;margin-bottom:.7rem;font-size:.7rem;color:#7c2d12;border-radius:0 6px 6px 0;"></div>'
             + '<div style="background:#fef3c7;border-left:3px solid #f59e0b;padding:.5rem .7rem;margin-bottom:1rem;font-size:.74rem;color:#7c2d12;border-radius:0 6px 6px 0;">'
             +   '⚠️ Limite: 9MB. Se passar, o sistema vai comprimir as imagens automaticamente. PDF vai pra subpasta <strong>01 - PARA DISTRIBUIR</strong>.'
             + '</div>'
@@ -2870,8 +2874,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         html += '</select>';
         html += '<div id="waDriveNomeCustomWrap" style="display:none;margin-bottom:.8rem;">';
         html += '<label style="display:block;font-size:.78rem;color:#374151;font-weight:700;margin-bottom:.3rem;">Nome personalizado (sem extensão):</label>';
-        html += '<input type="text" id="waDriveNomeCustomInput" placeholder="ex: declaracao_uniao_estavel" oninput="waDriveAtualizarPreview()" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;">';
-        html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.3rem;">Use só letras, números, _ e -. Acentos e espaços viram _.</div>';
+        html += '<input type="text" id="waDriveNomeCustomInput" placeholder="ex: declaracao_uniao_estavel" oninput="waDriveAtualizarPreview();waSanitizarNomeInput(this,\'waDriveNomeAviso\')" style="width:100%;padding:.6rem;border:1.5px solid #d1d5db;border-radius:8px;font-size:.88rem;">';
+        html += '<div style="background:#fee2e2;border-left:3px solid #dc2626;padding:.4rem .6rem;margin-top:.4rem;font-size:.7rem;color:#7f1d1d;border-radius:0 6px 6px 0;">🚫 <strong>NÃO use acentos, ç, ~ ou caracteres especiais</strong> — quebra o link no Drive. Só letras sem acento, números, _ e -.</div>';
+        html += '<div id="waDriveNomeAviso" style="display:none;background:#fef3c7;border-left:3px solid #f59e0b;padding:.35rem .6rem;margin-top:.4rem;font-size:.7rem;color:#7c2d12;border-radius:0 6px 6px 0;"></div>';
         html += '</div>';
         html += '<div id="waDrivePreview" style="background:#f0fdf4;border:1.5px dashed #86efac;border-radius:8px;padding:.7rem;font-size:.8rem;color:#166534;margin-bottom:1rem;display:none;">';
         html += '<strong>Nome final:</strong> <span id="waDrivePreviewNome">—</span><br>';
@@ -3045,6 +3050,50 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+
+    // Amanda 03/07: sanitizador de nome de arquivo pra Drive — corrige em
+    // tempo real enquanto digita, e mostra aviso amarelo quando teve alteracao.
+    // Motivo: acentos/ç quebram os links do Google Drive e ficam ilegiveis.
+    window.waSanitizarNomeInput = function(input, idAvisoDiv) {
+        if (!input) return;
+        var original = input.value;
+        // Mapa de substituicao (acentos -> equivalente ASCII)
+        var mapa = {
+            'á':'a','à':'a','ã':'a','â':'a','ä':'a','Á':'A','À':'A','Ã':'A','Â':'A','Ä':'A',
+            'é':'e','è':'e','ê':'e','ë':'e','É':'E','È':'E','Ê':'E','Ë':'E',
+            'í':'i','ì':'i','î':'i','ï':'i','Í':'I','Ì':'I','Î':'I','Ï':'I',
+            'ó':'o','ò':'o','õ':'o','ô':'o','ö':'o','Ó':'O','Ò':'O','Õ':'O','Ô':'O','Ö':'O',
+            'ú':'u','ù':'u','û':'u','ü':'u','Ú':'U','Ù':'U','Û':'U','Ü':'U',
+            'ç':'c','Ç':'C','ñ':'n','Ñ':'N',
+            ' ':'_'
+        };
+        var cleaned = '';
+        for (var i = 0; i < original.length; i++) {
+            var c = original[i];
+            if (mapa[c] !== undefined) cleaned += mapa[c];
+            else if (/[a-zA-Z0-9_\-.]/.test(c)) cleaned += c;
+            else cleaned += '_'; // outros caracteres viram _
+        }
+        // Colapsa _ multiplos e trims
+        cleaned = cleaned.replace(/_{2,}/g, '_').replace(/^_+|_+$/g, '');
+        var mudou = (cleaned !== original);
+        // Atualiza input preservando posicao do cursor
+        if (mudou) {
+            var pos = input.selectionStart;
+            input.value = cleaned;
+            try { input.setSelectionRange(pos, pos); } catch(e){}
+        }
+        // Mostra/esconde aviso
+        var aviso = document.getElementById(idAvisoDiv);
+        if (aviso) {
+            if (mudou) {
+                aviso.style.display = 'block';
+                aviso.innerHTML = '✓ Ajustei automaticamente: "<b>' + original.replace(/</g,'&lt;') + '</b>" → "<b>' + cleaned + '</b>"';
+            } else {
+                aviso.style.display = 'none';
+            }
+        }
+    };
 
     // ═══ Favoritos do menu de acoes (Amanda 03/07) ═══
     // Guardados NO BANCO: tabela user_wa_favoritos (user_id, canal, fav_id, ordem).
