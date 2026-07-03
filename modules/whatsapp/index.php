@@ -617,6 +617,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var arquivoPendente = null; // {file, previewUrl}
     var convNomeAtual = ''; // nome do contato da conversa aberta (pra {{nome}})
     var PODE_DELEGAR = <?= $podeDelegar ? 'true' : 'false' ?>;
+    var WA_CANAL_ATUAL = <?= json_encode($canal, JSON_UNESCAPED_UNICODE) ?>;
+    // Favoritos do menu de acoes — cache local em memoria, sync com servidor via api.php.
+    // Salvo POR USUARIO + POR CANAL na tabela user_wa_favoritos. Amanda 03/07: quer que
+    // seja padrao do usuario em todas as conversas daquele canal (nao mais por conversa).
+    var WA_FAVS = <?php
+        try {
+            db()->exec("CREATE TABLE IF NOT EXISTS user_wa_favoritos (user_id INT NOT NULL, canal VARCHAR(4) NOT NULL, fav_id VARCHAR(48) NOT NULL, ordem INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, canal, fav_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+            $__stF = db()->prepare("SELECT fav_id FROM user_wa_favoritos WHERE user_id = ? AND canal = ? ORDER BY ordem, fav_id");
+            $__stF->execute(array((int)$user['id'], $canal));
+            $__favs = array_map(function($r){ return $r['fav_id']; }, $__stF->fetchAll(PDO::FETCH_ASSOC));
+            echo json_encode($__favs);
+        } catch (Exception $e) { echo '[]'; }
+    ?>;
     var USUARIOS = <?= json_encode(array_map(function($u){ return array('id'=>(int)$u['id'],'name'=>$u['name']); }, $usuariosAtivos), JSON_UNESCAPED_UNICODE) ?>;
     var MEU_USER_ID = <?= (int)$user['id'] ?>;
     var MEU_NOME_ATUAL  = <?= json_encode($meuDisplayName, JSON_UNESCAPED_UNICODE) ?>; // nome já exibido (custom ou auto)
@@ -3027,16 +3040,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
 
     // ═══ Favoritos do menu de acoes (Amanda 03/07) ═══
-    // Guardados em localStorage: array de IDs. Sao os botoes que ficam
-    // FIXOS na barra do header ao lado do nome do contato.
-    var WA_FAV_KEY = 'wa_actions_favs_v1';
+    // Guardados NO BANCO: tabela user_wa_favoritos (user_id, canal, fav_id, ordem).
+    // Cache em memoria (WA_FAVS) — carregado no boot da pagina via PHP.
+    // Chave logica = (user_id, canal), entao TODAS as conversas do mesmo canal
+    // compartilham os mesmos favoritos, e cada canal (21/24) tem os seus proprios.
     window.waGetFavoritos = function(){
-        try {
-            var raw = localStorage.getItem(WA_FAV_KEY);
-            if (!raw) return [];
-            var arr = JSON.parse(raw);
-            return Array.isArray(arr) ? arr : [];
-        } catch(e) { return []; }
+        return Array.isArray(window.WA_FAVS) ? window.WA_FAVS.slice() : [];
     };
     window.waGetFavoritosSet = function(){
         var set = {};
@@ -3044,7 +3053,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
         return set;
     };
     window.waSaveFavoritos = function(arr){
-        try { localStorage.setItem(WA_FAV_KEY, JSON.stringify(arr)); } catch(e) {}
+        window.WA_FAVS = arr.slice();
+        // Persiste no servidor (async, sem bloquear UI)
+        try {
+            var fd = new FormData();
+            fd.append('action', 'wa_favs_salvar');
+            fd.append('canal', window.WA_CANAL_ATUAL);
+            fd.append('favoritos', JSON.stringify(arr));
+            fetch('<?= module_url('whatsapp', 'api.php') ?>', {
+                method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).catch(function(){ /* rede caiu? tentativa proxima */ });
+        } catch(e) {}
     };
     window.waToggleFavorito = function(id, ev){
         if (ev) { ev.preventDefault(); ev.stopPropagation(); }

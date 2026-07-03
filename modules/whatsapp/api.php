@@ -745,6 +745,39 @@ if ($action === 'limpar_duplicatas_canal') {
 }
 
 // ── MEU NOME DE ATENDIMENTO (display name WhatsApp) ──────
+// ── FAVORITOS DO MENU DE AÇÕES (Amanda 03/07) ──
+// Ler: GET action=wa_favs_listar&canal=21|24  -> {ok, ids:[...]}
+// Salvar: POST action=wa_favs_salvar&canal=21|24 favoritos=[JSON array]
+if ($action === 'wa_favs_listar') {
+    try { db()->exec("CREATE TABLE IF NOT EXISTS user_wa_favoritos (user_id INT NOT NULL, canal VARCHAR(4) NOT NULL, fav_id VARCHAR(48) NOT NULL, ordem INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, canal, fav_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); } catch (Exception $e) {}
+    $c = ($_GET['canal'] ?? '') === '21' ? '21' : '24';
+    $st = $pdo->prepare("SELECT fav_id FROM user_wa_favoritos WHERE user_id = ? AND canal = ? ORDER BY ordem, fav_id");
+    $st->execute(array($userId, $c));
+    $ids = array_map(function($r){ return $r['fav_id']; }, $st->fetchAll(PDO::FETCH_ASSOC));
+    echo json_encode(array('ok' => true, 'ids' => $ids));
+    exit;
+}
+if ($action === 'wa_favs_salvar') {
+    try { db()->exec("CREATE TABLE IF NOT EXISTS user_wa_favoritos (user_id INT NOT NULL, canal VARCHAR(4) NOT NULL, fav_id VARCHAR(48) NOT NULL, ordem INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, canal, fav_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"); } catch (Exception $e) {}
+    $c = ($_POST['canal'] ?? '') === '21' ? '21' : '24';
+    $raw = $_POST['favoritos'] ?? '[]';
+    $ids = json_decode($raw, true);
+    if (!is_array($ids)) $ids = array();
+    $ids = array_slice(array_values(array_unique(array_filter(array_map('strval', $ids)))), 0, 12);
+    try {
+        $pdo->prepare("DELETE FROM user_wa_favoritos WHERE user_id = ? AND canal = ?")->execute(array($userId, $c));
+        $ins = $pdo->prepare("INSERT INTO user_wa_favoritos (user_id, canal, fav_id, ordem) VALUES (?, ?, ?, ?)");
+        foreach ($ids as $i => $fid) {
+            if (strlen($fid) > 48) continue;
+            $ins->execute(array($userId, $c, $fid, $i));
+        }
+        echo json_encode(array('ok' => true, 'count' => count($ids)));
+    } catch (Exception $e) {
+        echo json_encode(array('error' => $e->getMessage()));
+    }
+    exit;
+}
+
 if ($action === 'salvar_display_name') {
     $novo = trim($_POST['wa_display_name'] ?? '');
     if (mb_strlen($novo) > 100) { echo json_encode(array('error' => 'Nome muito longo (máx 100 caracteres).')); exit; }
