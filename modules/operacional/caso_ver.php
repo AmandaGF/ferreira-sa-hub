@@ -1454,7 +1454,9 @@ body.cv-header-min .cv-header-collapsivel { display:none !important; }
 body[data-aba-ativa="treinamentos"] .cv-oculto-em-treinamentos,
 body:has(.cv-tab.ativa[data-aba="treinamentos"]) .cv-oculto-em-treinamentos,
 body.cv-aba-treinamentos .cv-oculto-em-treinamentos { display:none !important; }
-body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none; }
+/* !important necessario porque varios cv-secao tem style="display:grid/flex..."
+   inline (specificity 1000) que sobrescrevia o display:none. Amanda 03/07. */
+body.cv-tabs-ready .cv-secao[data-aba]:not(.cv-aba-mostrar) { display:none !important; }
 /* Container que envolve visualmente todos os cards da aba ativa */
 .cv-painel { background:var(--bg-card,#fff); border:1.5px solid var(--border,#e5e7eb); border-top:none; border-radius:0 0 12px 12px; padding:16px; margin:0 0 14px; box-shadow:0 4px 12px rgba(0,0,0,.04); min-height:200px; }
 .cv-painel .card { box-shadow:0 1px 3px rgba(0,0,0,.04); }
