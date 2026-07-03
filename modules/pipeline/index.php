@@ -41,6 +41,8 @@ $stagesHistorico = array(
 // Filtros
 $searchPipeline = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
+// "Só ativos" — exclui leads canceladas/perdidas + cases cancelados pelo comercial
+$soAtivos = !empty($_GET['so_ativos']);
 
 // ══════════════════════════════════════════════════════════════════
 // DUAS QUERIES SEPARADAS — Kanban e Tabela têm regras diferentes:
@@ -113,6 +115,18 @@ $filterResp = isset($_GET['resp']) ? (int)$_GET['resp'] : 0;
 if ($filterResp > 0) {
     $planilhaWhere .= " AND pl.assigned_to = ?";
     $planilhaParams[] = $filterResp;
+}
+// "Só ativos": exclui leads canceladas/perdidas + cases cancelados pelo comercial.
+// Case cancelado é rastreado por cases.cancelado_pelo_comercial (bug relatado por
+// Amanda 02/07 — contratos que viraram case e foram cancelados depois continuavam
+// contando na planilha do mês).
+if ($soAtivos) {
+    $planilhaWhere .= " AND pl.stage NOT IN ('cancelado','perdido')
+                       AND NOT EXISTS (
+                           SELECT 1 FROM cases cs2
+                           WHERE cs2.id = pl.linked_case_id
+                             AND COALESCE(cs2.cancelado_pelo_comercial, 0) = 1
+                       )";
 }
 $stmtT = $pdo->prepare(
     "SELECT pl.*, u.name as assigned_name, c.name as client_name,
@@ -329,7 +343,11 @@ $_foraColunas = $totalAtivos - $_somaColunas;
         <form method="GET" style="display:flex;gap:.4rem;align-items:center;">
             <input type="text" name="q" value="<?= e($searchPipeline) ?>" placeholder="Buscar nome..." style="font-size:.78rem;padding:5px 10px;border:1.5px solid var(--border);border-radius:8px;width:150px;" onkeydown="if(event.key==='Enter')this.form.submit()">
             <input type="month" name="mes" value="<?= e($filterMonth) ?>" style="font-size:.72rem;padding:5px 8px;border:1.5px solid var(--border);border-radius:8px;" onchange="this.form.submit()">
-            <?php if ($searchPipeline || $filterMonth): ?>
+            <label style="display:inline-flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;color:var(--petrol-900);padding:5px 10px;border:1.5px solid <?= $soAtivos ? '#10b981' : 'var(--border)' ?>;border-radius:8px;background:<?= $soAtivos ? '#ecfdf5' : '#fff' ?>;cursor:pointer;user-select:none;white-space:nowrap;transition:all .18s ease;" title="Oculta contratos que foram cancelados (stage cancelado/perdido ou marcados como cancelados pelo comercial no caso vinculado).">
+                <input type="checkbox" name="so_ativos" value="1" <?= $soAtivos ? 'checked' : '' ?> onchange="this.form.submit()" style="margin:0;accent-color:#10b981;">
+                ✓ Só ativos
+            </label>
+            <?php if ($searchPipeline || $filterMonth || $soAtivos): ?>
                 <a href="<?= module_url('pipeline') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">Limpar</a>
             <?php endif; ?>
         </form>
