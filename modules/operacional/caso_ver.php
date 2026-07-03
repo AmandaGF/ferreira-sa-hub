@@ -125,6 +125,16 @@ foreach ($tasks as $_tk) {
     if ($_s !== 'concluido' && $_s !== 'feito') $_tarefasPendBadge++;
 }
 
+// 03/07/2026 Amanda: contar solicitações de audiencista abertas pra
+// somar no badge da aba Compromissos (antes não era contado — badge
+// ficava desatualizado quando pedia audiência remota nova).
+$_solAudBadge = 0;
+try {
+    $stAudCnt = $pdo->prepare("SELECT COUNT(*) FROM audiencias WHERE case_id = ? AND status NOT IN ('cancelada','realizada')");
+    $stAudCnt->execute(array($caseId));
+    $_solAudBadge = (int)$stAudCnt->fetchColumn();
+} catch (Exception $_e) {}
+
 // 01/07/2026 Amanda: formulários preenchidos pelo cliente vinculado ao processo.
 // Bug r1: colunas certas são client_name/client_email/client_phone (não submitter_*).
 // Bug r2: form_submissions frequentemente chegam com linked_client_id=NULL — o
@@ -1476,10 +1486,10 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
   <div class="cv-tabs">
     <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
     <button type="button" class="cv-tab" data-aba="compromissos" onclick="cvAba('compromissos')">📅 Compromissos / Tarefas <?php
-        // Badge agrega compromissos + tarefas reais pendentes ($_tarefasPendBadge
-        // foi calculado logo após o fetch de $tasks, antes de $tarefasReais ser
-        // populado em ~4067).
-        $_badgeTot = count($compromissosCaso) + (int)$_tarefasPendBadge;
+        // Badge agrega compromissos + tarefas reais pendentes + solicitações
+        // de audiencista abertas ($_solAudBadge — Amanda 03/07 percebeu que
+        // sem isso o badge não subia quando pedia audiência remota).
+        $_badgeTot = count($compromissosCaso) + (int)$_tarefasPendBadge + (int)$_solAudBadge;
         if ($_badgeTot > 0): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= $_badgeTot ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
