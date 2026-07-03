@@ -974,6 +974,28 @@ function template_habilitacao($d) {
     // adiciona pedido de desarquivamento + fundamentação + reordena pedidos
     $incluirDesarq = !empty($d['incluir_desarquivamento']);
 
+    // Amanda 03/07: seletor de assinante + adaptação de gênero.
+    //   'amanda' → advogada, subscreve, constituída, inscrita — Amanda Guedes
+    //   'luiz'   → advogado, subscreve, constituído, inscrito — Luiz Eduardo
+    $assinante = isset($d['assinante']) && in_array($d['assinante'], array('amanda','luiz'), true) ? $d['assinante'] : 'amanda';
+    if ($assinante === 'luiz') {
+        $advNome    = $esc['adv2_nome'];
+        $advOabAss  = 'OAB/RJ ' . $esc['adv2_oab'] . ' &nbsp;·&nbsp; OAB/SP ' . $esc['adv2_oab_sp'];
+        $advOabTxt  = 'OAB/RJ ' . $esc['adv2_oab'];
+        $advArtigo  = 'o';                // "o advogado", "pelo advogado"
+        $advSuffix  = 'o';                // "constituído", "inscrito"
+        $advPapel   = 'advogado';
+        $advPapelC  = 'representada pelo advogado <strong>' . $esc['adv2_nome'] . '</strong> (' . $advOabTxt . ')';
+    } else {
+        $advNome    = $esc['adv1_nome'];
+        $advOabAss  = 'OAB/RJ ' . $esc['adv1_oab'];
+        $advOabTxt  = 'OAB/RJ ' . $esc['adv1_oab'];
+        $advArtigo  = 'a';
+        $advSuffix  = 'a';
+        $advPapel   = 'advogada';
+        $advPapelC  = 'representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (' . $advOabTxt . ')';
+    }
+
     // Quando inclui desarquivamento, comprime line-height/margens pra caber em 1 página.
     // Pedido Amanda 31/05/2026: assinatura sozinha na pág 2 — reduzir.
     $lh = $incluirDesarq ? '1.5' : '2';
@@ -1025,7 +1047,11 @@ function template_habilitacao($d) {
     // masculino) em vez de "requerer A" (HABILITAÇÃO, feminino), porque "DESARQUIVAMENTO"
     // vem primeiro no box.
     $palavraTransicao = $incluirDesarq ? 'o' : 'a';
-    $html .= ', vem, respeitosamente, perante Vossa Excelência, por intermédio de sua advogada que esta subscreve (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer ' . $palavraTransicao . '</p>';
+    // Amanda 03/07: gênero do adv que subscreve (advogada Amanda / advogado Luiz)
+    $subscreveTxt = ($assinante === 'luiz')
+        ? 'por intermédio do advogado que este subscreve'
+        : 'por intermédio de sua advogada que esta subscreve';
+    $html .= ', vem, respeitosamente, perante Vossa Excelência, ' . $subscreveTxt . ' (procuração em anexo), com escritório profissional na ' . $esc['endereco'] . ', onde recebe intimações e notificações, requerer ' . $palavraTransicao . '</p>';
 
     // Destaque
     $boxLabel = $incluirDesarq ? 'DESARQUIVAMENTO E A HABILITAÇÃO NOS AUTOS' : 'HABILITAÇÃO NOS AUTOS';
@@ -1036,8 +1062,21 @@ function template_habilitacao($d) {
     $isAnalise = ($tipoHabProc === 'analise');
 
     if ($incluirDesarq) {
-        // Versao ENXUTA (Amanda 11/05/2026) com line-height comprimido (31/05/2026) pra caber em 1 página
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">para atuar como advogada constituída da parte, conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
+        // Versao ENXUTA (Amanda 11/05/2026) com line-height comprimido (31/05/2026) pra caber em 1 página.
+        // Amanda 03/07: adicionado menção à parte contrária + gênero do advogado assinante.
+        //   Bug reportado: nome da parte contrária "sumia" na versão enxuta (era ignorado).
+        $advConstituido = ($assinante === 'luiz') ? 'advogado constituído' : 'advogada constituída';
+        $textoAcao = 'para atuar como ' . $advConstituido . ' da parte';
+        if ($nomeParteContraria && $nomeParteContraria !== '_______________') {
+            if ($papelCliente === 'autor' || $papelCliente === 'requerente') {
+                $textoAcao .= ', em face de <strong>' . f($nomeParteContraria) . '</strong>';
+            } elseif ($papelCliente === 'reu' || $papelCliente === 'requerido') {
+                $textoAcao .= ', em ação movida por <strong>' . f($nomeParteContraria) . '</strong>';
+            } else {
+                $textoAcao .= ', em face de <strong>' . f($nomeParteContraria) . '</strong>';
+            }
+        }
+        $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">' . $textoAcao . ', conforme procuração <em>ad judicia et extra</em> em anexo, nos termos do art. 105 do Código de Processo Civil.</p>';
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:1.5;margin-bottom:.5rem;">Em tempo, considerando que o feito encontra-se arquivado, pleiteia-se também seu desarquivamento, para requerer e/ou extrair as competentes cópias.</p>';
     } else {
         // Versao completa original: polo do cliente, parte contrária, fundamentação,
@@ -1075,9 +1114,9 @@ function template_habilitacao($d) {
 
         if ($isAnalise) {
             $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A presente habilitação tem por objetivo <strong>exclusivamente a análise dos autos</strong>, viabilizando o acesso ao processo para estudo e avaliação do caso, <strong>sem que os advogados ora habilitados possam praticar quaisquer atos processuais</strong> em nome da parte, salvo mediante posterior juntada de procuração com poderes específicos para atuação.</p>';
-            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
+            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', ' . $advPapelC . ', requer a habilitação nos autos apenas para fins de vista e análise processual.</p>';
         } else {
-            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', representada pela advogada <strong>' . $esc['adv1_nome'] . '</strong> (OAB/RJ ' . $esc['adv1_oab'] . '), conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
+            $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A parte ora habilitante outorgou procuração à sociedade de advogados <strong>FERREIRA &amp; SÁ ADVOCACIA</strong>, CNPJ n. ' . $esc['cnpj'] . ', OAB/RJ n. ' . $esc['oab_sociedade'] . ', ' . $advPapelC . ', conforme instrumento em anexo, com poderes gerais para o foro (art. 105, CPC) e poderes especiais (art. 105, parágrafo único, CPC).</p>';
         }
 
         // Pedidos
@@ -1100,13 +1139,13 @@ function template_habilitacao($d) {
         $html .= '<p style="text-align:center;margin-top:.9rem;margin-bottom:.3rem;line-height:1.4;">Nestes termos, pede deferimento.</p>';
         $html .= '<div class="local-data" style="margin-top:.8rem;line-height:1.4;">' . f($d['cidade_data']) . '</div>';
         $html .= '<div style="margin-top:1.2rem;text-align:center;">';
-        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;margin-top:0;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;margin-top:0;"><div class="linha"></div><div class="nome-ass">' . $advNome . '</div><div style="font-size:10px;color:#6b7280;">' . $advOabAss . '</div></div>';
         $html .= '</div>';
     } else {
         $html .= '<p style="text-align:center;margin-top:2rem;">Nestes termos, pede deferimento.</p>';
         $html .= '<div class="local-data">' . f($d['cidade_data']) . '</div>';
         $html .= '<div style="margin-top:2.5rem;text-align:center;">';
-        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $esc['adv1_nome'] . '</div><div style="font-size:10px;color:#6b7280;">OAB/RJ ' . $esc['adv1_oab'] . '</div></div>';
+        $html .= '<div class="assinatura" style="display:inline-block;min-width:300px;"><div class="linha"></div><div class="nome-ass">' . $advNome . '</div><div style="font-size:10px;color:#6b7280;">' . $advOabAss . '</div></div>';
         $html .= '</div>';
     }
 

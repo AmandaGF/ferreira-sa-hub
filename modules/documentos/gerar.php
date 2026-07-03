@@ -220,6 +220,9 @@ $papelCliente = $_POST['papel_cliente'] ?? 'autor';
 $pleiteanteHab = $_POST['pleiteante_hab'] ?? 'proprio';
 $qualifMenor = $_POST['qualif_menor'] ?? 'impubere';
 $tipoHabProc = $_POST['tipo_hab_proc'] ?? 'plena';
+// Amanda 03/07: quem assina a petição (Amanda ou Luiz) — adapta gênero do texto
+$assinante = $_POST['assinante'] ?? 'amanda';
+if (!in_array($assinante, array('amanda','luiz'), true)) $assinante = 'amanda';
 
 // Campos audiência remota/híbrida (ANTES do buscar_partes_caso para não sobrescrever)
 $motivoAudiencia = $_POST['motivo_audiencia'] ?? '';
@@ -1109,6 +1112,14 @@ if (!$showEditor) {
                     </select>
                     <small style="color:#6b7280;font-size:.72rem;">Se "apenas para análise", constará que a atuação efetiva depende de nova juntada de procuração</small>
                 </div>
+                <div>
+                    <label>Quem assina a petição?</label>
+                    <select name="assinante">
+                        <option value="amanda" <?= ($assinante ?? 'amanda') === 'amanda' ? 'selected' : '' ?>>Amanda Guedes Ferreira — OAB/RJ 163.260</option>
+                        <option value="luiz"   <?= ($assinante ?? '') === 'luiz'   ? 'selected' : '' ?>>Luiz Eduardo de Sá Silva Marcelino — OAB/RJ 248.755</option>
+                    </select>
+                    <small style="color:#6b7280;font-size:.72rem;">Adapta o texto para feminino (advogada/subscreve) ou masculino (advogado/subscreve) conforme o assinante escolhido</small>
+                </div>
             </div>
             <input type="hidden" name="rep_legal" id="rep_legal_hidden" value="<?= e($repLegal) ?>">
             <script>
@@ -1512,6 +1523,7 @@ if (!$showEditor) {
         'pleiteante_hab' => $pleiteanteHab,
         'qualif_menor' => $qualifMenor,
         'tipo_hab_proc' => $tipoHabProc,
+        'assinante' => $assinante,
         'nacionalidade' => $client['nacionalidade'] ?? '',
         // Substabelecimento
         'sem_reserva' => $semReserva,
