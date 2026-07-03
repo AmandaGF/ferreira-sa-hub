@@ -2145,11 +2145,11 @@ $_actAttBtn = $_actBlocked
     : '';
 ?>
 <?php if ($_actBlocked): ?>
-<div class="cv-oculto-em-treinamentos" style="background:#fef2f2;border:1px dashed #dc2626;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.75rem;color:#991b1b;">
+<div class="cv-secao" data-aba="visao" style="background:#fef2f2;border:1px dashed #dc2626;border-radius:8px;padding:.5rem .75rem;margin-bottom:.5rem;font-size:.75rem;color:#991b1b;">
     🚫 <strong>Ações desabilitadas</strong> — contrato cancelado pelo comercial. Clique em qualquer botão pede confirmação antes de prosseguir.
 </div>
 <?php endif; ?>
-<div class="cv-oculto-em-treinamentos" style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
+<div class="cv-secao" data-aba="visao" style="display:flex;gap:.5rem;margin-bottom:1rem;flex-wrap:wrap;">
     <a href="<?= module_url('tarefas') ?>?case_id=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#6366f1;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">+ Criar Tarefa</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Agendar Audiência</a>
     <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
@@ -2907,7 +2907,7 @@ function confirmarMarcarIncidental() {
 <?php if (!empty($incidentais) || !empty($recursos) || !$case['is_incidental']):
     $_totalIncRec = count($incidentais) + count($recursos);
 ?>
-<div class="card mb-2 cv-oculto-em-treinamentos">
+<div class="card mb-2 cv-secao" data-aba="visao">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h3>📎 Incidentais / Recursos (<?= $_totalIncRec ?>)</h3>
         <?php if (has_min_role('gestao')): ?>
@@ -3504,7 +3504,7 @@ window.__casoClientesPraWa = <?= json_encode(array_values(array_filter($clientes
 </script>
 
 <!-- Status e Informações -->
-<div class="cv-secao cv-oculto-em-treinamentos" data-aba="visao" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+<div class="cv-secao" data-aba="visao" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
     <!-- Alterar status -->
     <div class="card">
         <div class="card-header"><h3>Status</h3></div>
@@ -4196,7 +4196,7 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
 
 <!-- Ofícios Enviados -->
 <?php if (!empty($oficiosEnviados) || true): // sempre aparece pra permitir criar direto ?>
-<div class="card mb-2">
+<div class="card mb-2 cv-secao" data-aba="visao">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
         <h3>📬 Ofícios enviados (<?= count($oficiosEnviados) ?>)</h3>
         <a href="<?= module_url('oficios', 'novo_oficio.php?case_id=' . $caseId) ?>" class="btn btn-primary btn-sm" style="font-size:.72rem;background:#7c3aed;">+ Novo ofício</a>
@@ -8251,7 +8251,7 @@ window.pedirObsRealizado = function(form) {
         else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','treinamentos','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {
